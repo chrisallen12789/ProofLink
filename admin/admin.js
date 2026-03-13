@@ -183,6 +183,7 @@ function showSection(id, link) {
   if (id === 'onboarding')   loadOnboarding();
   if (id === 'tenants')      loadTenants();
   if (id === 'provisioning') loadProvisioning();
+  if (id === 'testers')      loadTesters();
 }
 
 // ── Overview ──────────────────────────────────────────────────────────────────
@@ -789,3 +790,158 @@ function bootAdmin() {
     });
   }
 })();
+
+// ── Testers ───────────────────────────────────────────────────────────────────
+
+var _testerSearchTimeout = null;
+
+function loadTesters() {
+  var tbody = document.getElementById('testers-tbody');
+  if (tbody) tbody.innerHTML = '<tr class="loading-row"><td colspan="6"><span class="spinner"></span></td></tr>';
+
+  // Load all tenants with billing_exempt = true from Supabase directly
+  authFetch(SUPABASE_URL + '/rest/v1/tenants?select=id,name,slug,billing_status,billing_exempt,billing_exempt_until&billing_exempt=eq.true&apikey=' + SUPABASE_ANON, {
+    headers: { 'apikey': SUPABASE_ANON }
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(rows) {
+    rows = Array.isArray(rows) ? rows : [];
+    var now = new Date();
+
+    // Filter to only active (non-expired) exemptions
+    var active = rows.filter(function(t) {
+      if (!t.billing_exempt_until) return true;
+      return new Date(t.billing_exempt_until) > now;
+    });
+
+    // Update slot counters
+    var slotsUsed = document.getElementById('tester-slots-used');
+    var slotsRem  = document.getElementById('tester-slots-remaining');
+    if (slotsUsed) slotsUsed.textContent = active.length;
+    if (slotsRem)  slotsRem.textContent  = Math.max(0, 3 - active.length);
+
+    if (!tbody) return;
+    if (!active.length) {
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:1.5rem">No active tester exemptions.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = active.map(function(t) {
+      var until = t.billing_exempt_until ? new Date(t.billing_exempt_until) : null;
+      var days  = until ? Math.ceil((until - now) / (1000 * 60 * 60 * 24)) : '∞';
+      var untilStr = until ? until.toLocaleDateString() : 'Indefinite';
+      var daysClass = typeof days === 'number' && days < 30 ? 'style="color:#e05c00;font-weight:600"' : '';
+      return '<tr>' +
+        '<td><strong>' + esc(t.name) + '</strong></td>' +
+        '<td><code>' + esc(t.slug) + '</code></td>' +
+        '<td>' + untilStr + '</td>' +
+        '<td ' + daysClass + '>' + days + (typeof days === 'number' ? ' days' : '') + '</td>' +
+        '<td><span class="badge badge-provisioned">' + esc(t.billing_status || 'active') + '</span></td>' +
+        '<td><button class="btn btn-sm btn-danger" onclick="revokeExemption(\'' + t.id + '\',\'' + esc(t.name) + '\')">Revoke</button></td>' +
+        '</tr>';
+    }).join('');
+  })
+  .catch(function(err) {
+    if (tbody) tbody.innerHTML = '<tr><td colspan="6" style="color:var(--danger);padding:1rem">' + esc(err.message) + '</td></tr>';
+  });
+}
+
+function searchTenantsForExempt() {
+  clearTimeout(_testerSearchTimeout);
+  _testerSearchTimeout = setTimeout(function() {
+    var q = (document.getElementById('tester-tenant-search').value || '').trim().toLowerCase();
+    var resultsEl = document.getElementById('tester-tenant-results');
+    if (!q || q.length < 2) {
+      if (resultsEl) resultsEl.innerHTML = '';
+      return;
+    }
+
+    authFetch(SUPABASE_URL + '/rest/v1/tenants?select=id,name,slug,billing_status,billing_exempt,billing_exempt_until&limit=10&apikey=' + SUPABASE_ANON, {
+      headers: { 'apikey': SUPABASE_ANON }
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(rows) {
+      rows = Array.isArray(rows) ? rows : [];
+      var filtered = rows.filter(function(t) {
+        return (t.name || '').toLowerCase().includes(q) ||
+               (t.slug || '').toLowerCase().includes(q);
+      });
+
+      if (!resultsEl) return;
+      if (!filtered.length) {
+        resultsEl.innerHTML = '<p style="font-size:.82rem;color:var(--muted)">No matching tenants found.</p>';
+        return;
+      }
+
+      var now = new Date();
+      resultsEl.innerHTML = '<table class="data-table"><thead><tr><th>Business</th><th>Slug</th><th>Billing status</th><th>Currently exempt</th><th>Action</th></tr></thead><tbody>' +
+        filtered.map(function(t) {
+          var isExempt = t.billing_exempt && (!t.billing_exempt_until || new Date(t.billing_exempt_until) > now);
+          return '<tr>' +
+            '<td><strong>' + esc(t.name) + '</strong></td>' +
+            '<td><code>' + esc(t.slug) + '</code></td>' +
+            '<td>' + esc(t.billing_status || '—') + '</td>' +
+            '<td>' + (isExempt ? '<span class="badge badge-provisioned">Yes</span>' : '<span class="badge">No</span>') + '</td>' +
+            '<td>' + (isExempt
+              ? '<button class="btn btn-sm btn-danger" onclick="revokeExemption(\'' + t.id + '\',\'' + esc(t.name) + '\')">Revoke</button>'
+              : '<button class="btn btn-sm btn-primary" onclick="grantExemption(\'' + t.id + '\',\'' + esc(t.name) + '\')">Grant 12 months free</button>'
+            ) + '</td>' +
+            '</tr>';
+        }).join('') +
+        '</tbody></table>';
+    })
+    .catch(function(err) {
+      if (resultsEl) resultsEl.innerHTML = '<p style="color:var(--danger);font-size:.82rem">' + esc(err.message) + '</p>';
+    });
+  }, 300);
+}
+
+function grantExemption(tenantId, tenantName) {
+  if (!confirm('Grant 12 months of free access to ' + tenantName + '?\n\nThey will be able to use ProofLink fully without a subscription until the exemption expires.')) return;
+
+  authFetch('/api/admin/set-tester-exempt', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ tenantId: tenantId, exempt: true, months: 12 })
+  })
+  .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, d: d }; }); })
+  .then(function(res) {
+    if (!res.ok) {
+      // Slot limit hit — show which slots are taken
+      var msg = res.d.error || 'Failed to grant exemption';
+      if (res.d.activeTesters && res.d.activeTesters.length) {
+        msg += '\n\nActive testers:\n' + res.d.activeTesters.map(function(t) { return '• ' + t.name + ' (' + t.slug + ')'; }).join('\n');
+      }
+      alert(msg);
+      return;
+    }
+    showToast('✅ Exemption granted to ' + tenantName + ' — free until ' + new Date(res.d.billingExemptUntil).toLocaleDateString() + ' (' + res.d.slotsUsed + '/3 slots used)');
+    loadTesters();
+    document.getElementById('tester-tenant-search').value = '';
+    document.getElementById('tester-tenant-results').innerHTML = '';
+  })
+  .catch(function(err) { alert('Error: ' + err.message); });
+}
+
+function revokeExemption(tenantId, tenantName) {
+  if (!confirm('Revoke tester exemption for ' + tenantName + '?\n\nThey will be required to subscribe to continue using ProofLink.')) return;
+
+  authFetch('/api/admin/set-tester-exempt', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ tenantId: tenantId, exempt: false })
+  })
+  .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, d: d }; }); })
+  .then(function(res) {
+    if (!res.ok) { alert(res.d.error || 'Failed to revoke exemption'); return; }
+    showToast('Exemption revoked for ' + tenantName);
+    loadTesters();
+  })
+  .catch(function(err) { alert('Error: ' + err.message); });
+}
+
+function esc(str) {
+  return String(str || '').replace(/[&<>"']/g, function(c) {
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c];
+  });
+}

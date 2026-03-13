@@ -51,6 +51,7 @@
 
     <span class="sidebar-section-label">System</span>
     <ul class="sidebar-nav">
+      <li><a data-section="testers" onclick="showSection('testers',this)">🧪 Testers</a></li>
       <li><a data-section="billing" onclick="showSection('billing',this)">💳 Billing</a></li>
       <li><a data-section="health"  onclick="showSection('health',this)">🟢 System Health</a></li>
       <li><a data-section="settings"onclick="showSection('settings',this)">⚙️ Settings</a></li>
@@ -251,6 +252,75 @@
             <thead><tr><th>Business</th><th>Status</th><th>Slug</th><th>Updated</th><th>Error</th></tr></thead>
             <tbody id="prov-log-tbody"><tr class="loading-row"><td colspan="5"><span class="spinner"></span></td></tr></tbody>
           </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── SECTION: Testers ───────────────────────────────────────────── -->
+    <div class="section" id="section-testers">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Tester Accounts</div>
+          <div class="page-sub">Grant or revoke 12-month free access for up to 3 beta testers.</div>
+        </div>
+        <button class="btn" onclick="loadTesters()">↻ Refresh</button>
+      </div>
+
+      <!-- Slot counter -->
+      <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:1.25rem">
+        <div class="kpi-card">
+          <div class="kpi-label">Slots used</div>
+          <div class="kpi-value" id="tester-slots-used">—</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Slots remaining</div>
+          <div class="kpi-value" id="tester-slots-remaining">—</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Max tester slots</div>
+          <div class="kpi-value">3</div>
+        </div>
+      </div>
+
+      <!-- Active testers -->
+      <div class="panel" style="margin-bottom:1.25rem">
+        <div class="panel-header">
+          <span class="panel-title">Active tester exemptions</span>
+          <span style="font-size:.75rem;color:var(--muted)">Billing is bypassed for these tenants until the expiry date</span>
+        </div>
+        <div class="panel-body" style="padding:0">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Business</th>
+                <th>Slug</th>
+                <th>Exempt until</th>
+                <th>Days remaining</th>
+                <th>Billing status</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="testers-tbody">
+              <tr class="loading-row"><td colspan="6"><span class="spinner"></span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Grant exemption -->
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-title">Grant tester exemption</span>
+        </div>
+        <div class="panel-body">
+          <p style="font-size:.82rem;color:var(--muted);margin-bottom:1rem">
+            Find a provisioned tenant below and grant them free access for 12 months.
+            Their billing checkout will be skipped entirely — they can use ProofLink fully without a subscription.
+          </p>
+          <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-bottom:1rem">
+            <input class="search-input" id="tester-tenant-search" placeholder="Search tenant by name, email, or slug…" style="width:280px" oninput="searchTenantsForExempt()"/>
+          </div>
+          <div id="tester-tenant-results" style="margin-bottom:1rem"></div>
         </div>
       </div>
     </div>
