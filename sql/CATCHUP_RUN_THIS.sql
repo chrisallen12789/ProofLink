@@ -817,3 +817,65 @@ where t.table_schema = 'public'
   and t.table_type = 'BASE TABLE'
 group by t.table_name
 order by t.table_name;
+
+
+-- ── 17. profiles table ───────────────────────────────────────────────────────
+-- Used by evaluate-onboarding.js and admin-update-tenant-conduct.js
+-- to verify admin role on certain endpoints.
+-- Maps auth.users.id → role. Platform admin role is set here.
+
+create table if not exists public.profiles (
+  id         uuid        primary key references auth.users(id) on delete cascade,
+  role       text        not null default 'user',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint profiles_role_check
+    check (role in ('user', 'operator', 'admin', 'platform_admin'))
+);
+
+alter table public.profiles enable row level security;
+
+do $$ begin
+  create policy "Service role full access on profiles"
+    on public.profiles for all to service_role
+    using (true) with check (true);
+exception when duplicate_object then null;
+end $$;
+
+do $$ begin
+  create policy "Users can read their own profile"
+    on public.profiles for select to authenticated
+    using (id = auth.uid());
+exception when duplicate_object then null;
+end $$;
+
+-- Auto-create a profile row when a new auth user signs up
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into public.profiles (id, role)
+  values (new.id, 'user')
+  on conflict (id) do nothing;
+  return new;
+end;
+$$;
+
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute function public.handle_new_user();
+
+
+-- ── 18. onboarding_requests view ─────────────────────────────────────────────
+-- evaluate-onboarding.js uses the old table name 'onboarding_requests'.
+-- This view makes it work without changing any code.
+
+create or replace view public.onboarding_requests as
+  select * from public.tenant_onboarding_requests;
+
+-- Grant access so the function can query through it
+grant select, update on public.onboarding_requests to service_role, authenticated;
