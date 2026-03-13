@@ -540,7 +540,7 @@
       business_type       : state.business_type || undefined,
       city_state          : state.city_state    || undefined,
       requested_subdomain : state.requested_subdomain || undefined,
-      seed_template_key   : 'default',
+      seed_template_key   : state.business_type || 'default',
     };
 
     try {

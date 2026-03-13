@@ -15,35 +15,7 @@
 const { requireOperatorContext, respond } = require('./utils/auth');
 const { sendEmail, templates }            = require('./utils/email');
 const { uniqueTenantSlug }               = require('./utils/slugify');
-
-// ── Seed default tenant configuration
-async function seedTenantDefaults(supabase, tenantId, templateKey) {
-  const template = templateKey || 'default';
-
-  // Default site configuration seeded into tenant_config (if table exists)
-  const defaultConfig = {
-    tenant_id    : tenantId,
-    config_key   : 'site_settings',
-    config_value : JSON.stringify({
-      theme            : 'light',
-      currency         : 'USD',
-      order_flow       : 'request',
-      template         : template,
-      setup_complete   : false,
-      launched         : false,
-    }),
-  };
-
-  // Attempt to insert config — ignore error if table does not exist yet
-  const { error } = await supabase
-    .from('tenant_config')
-    .upsert([defaultConfig], { onConflict: 'tenant_id,config_key' });
-
-  if (error) {
-    // Non-fatal: log but do not fail provisioning over missing config table
-    console.warn('seedTenantDefaults warning (non-fatal):', error.message);
-  }
-}
+const { seedTemplateForTenant }          = require('./lib/seed-templates');
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return respond(200, {});
@@ -191,8 +163,8 @@ exports.handler = async (event) => {
     return failProvision(`Operator member creation failed: ${memberErr.message}`);
   }
 
-  // ── Seed default tenant configuration ───────────────────────────────────
-  await seedTenantDefaults(supabase, tenantId, req.seed_template_key);
+  // ── Seed industry template (products + tenant_config) ────────────────────
+  await seedTemplateForTenant(supabase, tenantId, newOperatorId, req.seed_template_key);
 
   // ── Create Supabase auth user (if not already existing) ───────────────────
   const redirectTo = (process.env.SITE_URL || '') + '/operator/';

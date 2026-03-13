@@ -26,28 +26,7 @@
 const { requireAdminContext, respond } = require('./utils/auth');
 const { sendEmail, templates }            = require('./utils/email');
 const { uniqueTenantSlug }               = require('./utils/slugify');
-
-// ── Seed default site config into tenant_config ────────────────────────────
-async function seedTenantConfig(supabase, tenantId, templateKey) {
-  const { error } = await supabase
-    .from('tenant_config')
-    .upsert([{
-      tenant_id   : tenantId,
-      config_key  : 'site_settings',
-      config_value: JSON.stringify({
-        theme         : 'light',
-        currency      : 'USD',
-        order_flow    : 'request',
-        template      : templateKey || 'default',
-        setup_complete: false,
-        launched      : false,
-      }),
-    }], { onConflict: 'tenant_id,config_key' });
-
-  if (error) {
-    console.warn('[admin-approve] seedTenantConfig non-fatal:', error.message);
-  }
-}
+const { seedTemplateForTenant }          = require('./lib/seed-templates');
 
 // ── Seed branding + contact into tenant_settings ────────────────────────────
 async function seedTenantSettings(supabase, tenantId, req) {
@@ -227,8 +206,8 @@ exports.handler = async (event) => {
     return failProvision(`Operator member link failed: ${memberErr.message}`);
   }
 
-  // ── Seed defaults (both tables, both non-fatal) ────────────────────────────
-  await seedTenantConfig(supabase, tenantId, req.seed_template_key);
+  // ── Seed industry template (products + tenant_config) ────────────────────
+  await seedTemplateForTenant(supabase, tenantId, newOperatorId, req.seed_template_key);
   await seedTenantSettings(supabase, tenantId, req);
 
   // ── Create Supabase auth user (if not already existing) ───────────────────
