@@ -268,11 +268,12 @@ exports.handler = async (event) => {
 
   // ── Send welcome email (non-fatal) ────────────────────────────────────────
   sendEmail(templates.provisioned({
-    owner_name   : req.owner_name,
-    business_name: req.business_name,
-    owner_email  : req.owner_email,
-    store_slug   : tenantSlug,
-    login_url    : loginUrl,
+    owner_name    : req.owner_name,
+    business_name : req.business_name,
+    owner_email   : req.owner_email,
+    store_slug    : tenantSlug,
+    login_url     : loginUrl,
+    business_type : req.business_type || null,
   })).catch((e) => console.warn('[admin-approve] welcome email failed:', e.message));
 
   return respond(201, {

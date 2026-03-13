@@ -6,7 +6,7 @@ const { requireOperatorContext, respond } = require('./utils/auth');
 
 const ALLOWED_KEYS = new Set([
   'site_title', 'tagline', 'hero_heading', 'hero_subheading',
-  'theme', 'logo_url', 'contact_email', 'city_state',
+  'theme', 'logo_url', 'hero_image_url', 'contact_email', 'city_state', 'license_number', 'instagram',
   'business_type', 'currency', 'order_flow', 'onboarding_complete',
   'accent_color', 'font_family', 'show_prices', 'allow_custom_requests',
 ]);
