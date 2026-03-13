@@ -322,8 +322,17 @@ function normalizeConnectStatus(status) {
   return 'connect_incomplete';
 }
 
+function isBillingExempt(tenant = {}) {
+  if (tenant.billing_exempt !== true) return false;
+  if (!tenant.billing_exempt_until) return true;
+  return new Date(tenant.billing_exempt_until) > new Date();
+}
+
 function buildTenantPaymentState(tenant = {}) {
-  const billingStatus = normalizeBillingStatus(tenant.billing_status);
+  const exempt = isBillingExempt(tenant);
+
+  // Exempt tenants are treated as fully active on billing regardless of Stripe state
+  const billingStatus = exempt ? 'active' : normalizeBillingStatus(tenant.billing_status);
   const connectStatus = normalizeConnectStatus(tenant.connect_status);
 
   const stripeConnectAccountId = clean(
@@ -346,6 +355,8 @@ function buildTenantPaymentState(tenant = {}) {
     tenantSlug: clean(tenant.slug),
     prooflinkPlanKey: clean(tenant.prooflink_plan_key || 'starter') || 'starter',
     billingStatus,
+    billingExempt: exempt,
+    billingExemptUntil: tenant.billing_exempt_until || null,
     connectStatus,
     stripeCustomerId: clean(tenant.stripe_customer_id),
     stripeSubscriptionId: clean(tenant.stripe_subscription_id),
