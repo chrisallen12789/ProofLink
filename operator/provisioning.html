@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Provisioning — ProofLink Operator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --ink     : #111827;
+      --muted   : #6b7280;
+      --surface : #f9fafb;
+      --border  : #e5e7eb;
+      --font-display: 'Syne', ui-sans-serif, sans-serif;
+      --font-body: 'DM Sans', ui-sans-serif, system-ui, sans-serif;
+      --accent  : #c84b2f;
+      --accent-h: #a83820;
+      --green   : #16a34a;
+      --danger  : #dc2626;
+      --amber   : #d97706;
+      --radius  : 8px;
+    }
+    body {
+      font-family: var(--font-body);
+      background: var(--surface);
+      color: var(--ink);
+      min-height: 100vh;
+    }
+
+    /* ── Top nav ── */
+    .top-nav {
+      background: #fff;
+      border-bottom: 1px solid var(--border);
+      padding: 0.75rem 1.5rem;
+      display: flex; align-items: center; gap: 1rem;
+    }
+    .top-nav-logo { font-family: var(--font-display);
+      font-weight: 800; font-size: 1.05rem;
+      text-decoration: none; color: var(--ink); letter-spacing: -0.02em;
+    }
+    .top-nav-logo span { color: var(--accent); }
+    .top-nav-sep { color: var(--border); user-select: none; }
+    .top-nav-title { color: var(--muted); font-size: 0.9rem; }
+    .top-nav-back {
+      margin-left: auto; color: var(--muted); font-size: 0.85rem;
+      text-decoration: none;
+    }
+    .top-nav-back:hover { color: var(--ink); }
+
+    /* ── Auth gate ── */
+    #auth-gate {
+      max-width: 400px; margin: 4rem auto; padding: 0 1.5rem; text-align: center;
+    }
+    #auth-gate h2 { font-size: 1.25rem; font-weight: 700; margin-bottom: 0.5rem; }
+    #auth-gate p  { color: var(--muted); font-size: 0.9rem; margin-bottom: 1.5rem; }
+    .input-group { display: flex; flex-direction: column; gap: 0.5rem; text-align: left; }
+    .input-group label { font-size: 0.82rem; font-weight: 600; }
+    .input-group input {
+      border: 1.5px solid var(--border); border-radius: 7px;
+      padding: 0.6rem 0.85rem; font-size: 0.95rem;
+      font-family: inherit; width: 100%;
+    }
+    .input-group input:focus { outline: none; border-color: var(--accent); }
+
+    /* ── Main layout ── */
+    #main-content { display: none; }
+    .page-wrap { max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem; }
+
+    /* ── Page header ── */
+    .page-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;
+    }
+    .page-header h1 {
+      font-size: 1.4rem; font-weight: 800; letter-spacing: -0.02em;
+    }
+    .page-header p { color: var(--muted); font-size: 0.88rem; margin-top: 0.15rem; }
+
+    /* ── Filter tabs ── */
+    .filter-tabs {
+      display: flex; gap: 0.4rem; flex-wrap: wrap;
+      margin-bottom: 1.25rem;
+    }
+    .filter-tab {
+      border: 1.5px solid var(--border);
+      background: #fff; border-radius: 99px;
+      padding: 0.35rem 0.9rem; font-size: 0.82rem;
+      font-family: inherit; font-weight: 500;
+      cursor: pointer; transition: all 0.15s;
+      color: var(--muted);
+    }
+    .filter-tab:hover   { border-color: var(--accent); color: var(--accent); }
+    .filter-tab.active  {
+      background: var(--accent); border-color: var(--accent);
+      color: #fff; font-weight: 600;
+    }
+
+    /* ── Table ── */
+    .table-wrap {
+      background: #fff; border: 1px solid var(--border);
+      border-radius: var(--radius); overflow: hidden;
+    }
+    table { width: 100%; border-collapse: collapse; }
+    thead th {
+      text-align: left; padding: 0.75rem 1rem;
+      font-size: 0.75rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.05em;
+      color: var(--muted); background: var(--surface);
+      border-bottom: 1px solid var(--border);
+    }
+    tbody tr { border-bottom: 1px solid var(--border); }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: #fafafa; }
+    td {
+      padding: 0.85rem 1rem; font-size: 0.88rem; vertical-align: middle;
+    }
+    .td-name { font-weight: 600; }
+    .td-sub  { font-size: 0.78rem; color: var(--muted); margin-top: 0.15rem; }
+
+    /* ── Status badges ── */
+    .badge {
+      display: inline-block; border-radius: 99px;
+      padding: 0.2rem 0.65rem; font-size: 0.72rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.04em;
+    }
+    .badge-submitted    { background: #f3f4f6; color: var(--muted); }
+    .badge-approved     { background: rgba(200,75,47,.10); color: var(--accent); border: 1px solid rgba(200,75,47,.25); }
+    .badge-provisioning { background: #fef3c7; color: var(--amber); }
+    .badge-provisioned  { background: #dcfce7; color: var(--green); }
+    .badge-failed       { background: #fee2e2; color: var(--danger); }
+
+    /* ── Action buttons ── */
+    .btn {
+      border: none; cursor: pointer; border-radius: 6px;
+      font-family: inherit; font-weight: 600; font-size: 0.82rem;
+      padding: 0.4rem 0.85rem; transition: all 0.15s; white-space: nowrap;
+    }
+    .btn-approve   { background: rgba(200,75,47,.10); color: var(--accent); border: 1px solid rgba(200,75,47,.25); }
+    .btn-approve:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .btn-provision { background: var(--green); color: #fff; }
+    .btn-provision:hover { background: #15803d; }
+    .btn-provision:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-retry     { background: #fee2e2; color: var(--danger); }
+    .btn-retry:hover { background: var(--danger); color: #fff; }
+    .btn-detail    { background: var(--surface); color: var(--muted); border: 1px solid var(--border); }
+    .btn-detail:hover { color: var(--ink); }
+
+    /* ── Actions cell ── */
+    .actions { display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap; }
+
+    /* ── Empty state ── */
+    .empty-state {
+      text-align: center; padding: 3rem 2rem;
+      color: var(--muted);
+    }
+    .empty-state p { font-size: 0.9rem; }
+
+    /* ── Error detail panel ── */
+    .error-detail {
+      background: #fee2e2; border-radius: 6px;
+      padding: 0.5rem 0.75rem; font-size: 0.78rem;
+      color: var(--danger); margin-top: 0.4rem;
+      max-width: 340px; word-break: break-word;
+    }
+
+    /* ── Toast ── */
+    #toast {
+      position: fixed; bottom: 1.5rem; right: 1.5rem;
+      background: var(--ink); color: #fff;
+      border-radius: 8px; padding: 0.75rem 1.25rem;
+      font-size: 0.88rem; font-weight: 500;
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.25s; z-index: 999;
+    }
+    #toast.visible { opacity: 1; }
+    #toast.success { background: var(--green); }
+    #toast.error   { background: var(--danger); }
+
+    /* ── Refresh btn ── */
+    .btn-refresh {
+      background: #fff; border: 1.5px solid var(--border);
+      color: var(--muted); border-radius: 7px;
+      padding: 0.5rem 1rem; font-size: 0.85rem;
+      font-family: inherit; font-weight: 500;
+      cursor: pointer; transition: all 0.15s;
+    }
+    .btn-refresh:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* ── Loading spinner ── */
+    .spinner {
+      display: inline-block; width: 16px; height: 16px;
+      border: 2px solid var(--border); border-top-color: var(--accent);
+      border-radius: 50%; animation: spin 0.6s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    @media (max-width: 700px) {
+      thead { display: none; }
+      tbody tr { display: block; padding: 0.75rem 1rem; border-bottom: 1px solid var(--border); }
+      td { display: block; padding: 0.2rem 0; }
+      td::before { content: attr(data-label) ': '; font-weight: 600; font-size: 0.75rem; color: var(--muted); }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Top Nav ── -->
+<nav class="top-nav">
+  <a href="/" class="top-nav-logo">Proof<span>Link</span></a>
+  <span class="top-nav-sep">›</span>
+  <span class="top-nav-title">Provisioning</span>
+  <div style="margin-left:auto;display:flex;gap:1.25rem;align-items:center;">
+    <a href="/operator/analytics.html" class="top-nav-back">Analytics</a>
+    <a href="/operator/tenants.html" class="top-nav-back">Tenants</a>
+    <a href="/operator/" class="top-nav-back">← Dashboard</a>
+  </div>
+</nav>
+
+<!-- ── Auth Gate ── -->
+<div id="auth-gate">
+  <h2>Operator login required</h2>
+  <p>Enter your operator credentials to access the provisioning queue.</p>
+  <div class="input-group" style="margin-bottom:0.75rem;">
+    <label for="login-email">Email</label>
+    <input type="email" id="login-email" placeholder="operator@example.com" />
+  </div>
+  <div class="input-group" style="margin-bottom:1rem;">
+    <label for="login-password">Password</label>
+    <input type="password" id="login-password" placeholder="••••••••" />
+  </div>
+  <p id="auth-error" style="color:var(--danger);font-size:0.82rem;margin-bottom:0.75rem;display:none;"></p>
+  <button
+    class="btn btn-provision"
+    style="width:100%;padding:0.65rem;font-size:0.95rem;border-radius:8px;"
+    onclick="handleLogin()"
+  >Sign in</button>
+</div>
+
+<!-- ── Main Content ── -->
+<div id="main-content">
+  <div class="page-wrap">
+
+    <div class="page-header">
+      <div>
+        <h1>Onboarding Queue</h1>
+        <p>Review, approve, and provision businesses onto ProofLink.</p>
+      </div>
+      <button class="btn-refresh" onclick="loadRequests()">
+        ↻ Refresh
+      </button>
+    </div>
+
+    <!-- Filter tabs -->
+    <div class="filter-tabs">
+      <button class="filter-tab active" data-status="all"          onclick="setFilter('all')">All</button>
+      <button class="filter-tab"        data-status="submitted"    onclick="setFilter('submitted')">Submitted</button>
+      <button class="filter-tab"        data-status="approved"     onclick="setFilter('approved')">Approved</button>
+      <button class="filter-tab"        data-status="provisioning" onclick="setFilter('provisioning')">Provisioning</button>
+      <button class="filter-tab"        data-status="provisioned"  onclick="setFilter('provisioned')">Provisioned</button>
+      <button class="filter-tab"        data-status="failed"       onclick="setFilter('failed')">Failed</button>
+    </div>
+
+    <!-- Table -->
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Business</th>
+            <th>Type</th>
+            <th>Location</th>
+            <th>Submitted</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="requests-tbody">
+          <tr>
+            <td colspan="6" style="padding:2rem;text-align:center;color:var(--muted);">
+              <span class="spinner"></span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+</div>
+
+<!-- ── Toast ── -->
+<div id="toast"></div>
+
+<script>
+  // ── Supabase config (set these to your project values)
+  const SUPABASE_URL     = window.__SUPABASE_URL__ || '';
+  const SUPABASE_ANON_KEY = window.__SUPABASE_ANON_KEY__ || '';
+
+  let accessToken = null;
+  let allRequests = [];
+  let currentFilter = 'all';
+
+  // ── Login via Supabase
+  async function handleLogin() {
+    const email    = document.getElementById('login-email').value.trim();
+    const password = document.getElementById('login-password').value;
+    const errEl    = document.getElementById('auth-error');
+    errEl.style.display = 'none';
+
+    if (!email || !password) {
+      errEl.textContent = 'Email and password are required.';
+      errEl.style.display = 'block';
+      return;
+    }
+
+    try {
+      const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+        method  : 'POST',
+        headers : {
+          'Content-Type': 'application/json',
+          'apikey'      : SUPABASE_ANON_KEY,
+        },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const json = await res.json();
+
+      if (!res.ok || !json.access_token) {
+        throw new Error(json.error_description || json.msg || 'Login failed');
+      }
+
+      accessToken = json.access_token;
+      sessionStorage.setItem('op_token', accessToken);
+      showMainContent();
+
+    } catch (err) {
+      errEl.textContent = err.message;
+      errEl.style.display = 'block';
+    }
+  }
+
+  function showMainContent() {
+    document.getElementById('auth-gate').style.display    = 'none';
+    document.getElementById('main-content').style.display = 'block';
+    loadRequests();
+  }
+
+  // ── Check for existing session
+  (function init() {
+    const saved = sessionStorage.getItem('op_token');
+    if (saved) {
+      accessToken = saved;
+      showMainContent();
+    }
+  })();
+
+  // ── Fetch requests from backend
+  async function loadRequests() {
+    const tbody = document.getElementById('requests-tbody');
+    tbody.innerHTML = '<tr><td colspan="6" style="padding:2rem;text-align:center;color:var(--muted);"><span class="spinner"></span></td></tr>';
+
+    try {
+      const url = currentFilter === 'all'
+        ? '/.netlify/functions/list-onboarding-requests'
+        : `/.netlify/functions/list-onboarding-requests?status=${currentFilter}`;
+
+      const res = await fetch(url, {
+        headers: { 'Authorization': `Bearer ${accessToken}` },
+      });
+
+      if (res.status === 401 || res.status === 403) {
+        sessionStorage.removeItem('op_token');
+        location.reload();
+        return;
+      }
+
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Load failed');
+
+      allRequests = json.requests || [];
+      renderTable(allRequests);
+
+    } catch (err) {
+      tbody.innerHTML = `<tr><td colspan="6" style="padding:2rem;text-align:center;color:var(--danger);">
+        Error loading requests: ${escapeHtml(err.message)}
+      </td></tr>`;
+    }
+  }
+
+  // ── Render table
+  function renderTable(rows) {
+    const tbody = document.getElementById('requests-tbody');
+    if (!rows.length) {
+      tbody.innerHTML = '<tr><td colspan="6"><div class="empty-state"><p>No onboarding requests found.</p></div></td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = rows.map(r => {
+      const actions = buildActions(r);
+      const errorHtml = r.provision_error
+        ? `<div class="error-detail">⚠ ${escapeHtml(r.provision_error)}</div>`
+        : '';
+      return `
+        <tr>
+          <td data-label="Business">
+            <div class="td-name">${escapeHtml(r.business_name)}</div>
+            <div class="td-sub">${escapeHtml(r.owner_email)}</div>
+            <div class="td-sub">${escapeHtml(r.business_slug || '')}</div>
+            ${errorHtml}
+          </td>
+          <td data-label="Type">${escapeHtml(r.business_type || '—')}</td>
+          <td data-label="Location">${escapeHtml(r.city_state || '—')}</td>
+          <td data-label="Submitted">${formatDate(r.created_at)}</td>
+          <td data-label="Status">
+            <span class="badge badge-${r.status}">${r.status}</span>
+          </td>
+          <td data-label="Actions">
+            <div class="actions">${actions}</div>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  function buildActions(r) {
+    const html = [];
+
+    // Detail button always visible
+    html.push(`<button class="btn btn-detail" onclick="openDetailModal(event,'${r.id}')">Details</button>`);
+
+    if (r.status === 'submitted') {
+      html.push(`<button class="btn btn-approve" onclick="approveRequest('${r.id}')">Approve</button>`);
+      html.push(`<button class="btn btn-retry" onclick="openRejectModal(event,'${r.id}')" style="background:#fee2e2;color:var(--danger)">Reject</button>`);
+    }
+    if (r.status === 'failed') {
+      html.push(`<button class="btn btn-approve" onclick="approveRequest('${r.id}')">Re-approve</button>`);
+      html.push(`<button class="btn btn-retry" onclick="provisionTenant('${r.id}', this)">↻ Retry</button>`);
+    }
+    if (r.status === 'approved') {
+      html.push(`<button class="btn btn-provision" onclick="provisionTenant('${r.id}', this)">▶ Provision</button>`);
+    }
+    if (r.status === 'provisioned') {
+      html.push(`<span style="font-size:0.82rem;color:var(--green);">✓ Done</span>`);
+    }
+
+    return html.join('') || '<span style="color:var(--muted);font-size:0.82rem;">—</span>';
+  }
+
+  // ── Approve request
+  async function approveRequest(id) {
+    try {
+      const res = await fetch('/.netlify/functions/approve-onboarding-request', {
+        method  : 'POST',
+        headers : {
+          'Content-Type' : 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ id }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Approval failed');
+      toast('Request approved', 'success');
+      await loadRequests();
+    } catch (err) {
+      toast('Approve error: ' + err.message, 'error');
+    }
+  }
+
+  // ── Provision tenant
+  async function provisionTenant(id, btn) {
+    if (btn) { btn.disabled = true; btn.textContent = 'Provisioning…'; }
+    try {
+      const res = await fetch('/.netlify/functions/provision-tenant', {
+        method  : 'POST',
+        headers : {
+          'Content-Type' : 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ id }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Provision failed');
+      toast(json.message || 'Tenant provisioned!', 'success');
+      await loadRequests();
+    } catch (err) {
+      toast('Provision error: ' + err.message, 'error');
+      if (btn) { btn.disabled = false; btn.textContent = '▶ Provision'; }
+      await loadRequests();
+    }
+  }
+
+  // ── Filter tabs
+  function setFilter(status) {
+    currentFilter = status;
+    document.querySelectorAll('.filter-tab').forEach(t => {
+      t.classList.toggle('active', t.dataset.status === status);
+    });
+    loadRequests();
+  }
+
+  // ── Helpers
+  function formatDate(iso) {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+
+  function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g,'&amp;')
+      .replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;')
+      .replace(/"/g,'&quot;');
+  }
+
+  let toastTimer;
+  function toast(msg, type = '') {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.className   = `visible ${type}`;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { el.className = ''; }, 3500);
+  }
+
+  // Allow Enter key on login form
+  document.getElementById('login-password').addEventListener('keydown', e => {
+    if (e.key === 'Enter') handleLogin();
+  });
+</script>
+
+<!-- ── Detail Modal ─────────────────────────────────── -->
+<div id="detail-modal-overlay" style="display:none;position:fixed;inset:0;background:rgba(13,13,13,0.5);z-index:1000;align-items:center;justify-content:center;padding:1rem;">
+  <div style="background:#fff;border:1px solid var(--border);border-radius:8px;width:100%;max-width:540px;max-height:88vh;overflow-y:auto;box-shadow:0 24px 80px rgba(0,0,0,0.15);">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:1.25rem 1.5rem;border-bottom:1px solid var(--border);position:sticky;top:0;background:#fff;z-index:1;">
+      <span style="font-weight:700;font-size:1rem;" id="dm-title">Application Detail</span>
+      <button onclick="closeDetailModal()" style="background:none;border:none;cursor:pointer;font-size:1.2rem;color:var(--muted);padding:0.2rem 0.4rem;border-radius:3px;">✕</button>
+    </div>
+    <div style="padding:1.5rem;" id="dm-body"></div>
+    <div style="padding:1rem 1.5rem;border-top:1px solid var(--border);display:flex;gap:0.75rem;justify-content:flex-end;" id="dm-footer"></div>
+  </div>
+</div>
+
+<!-- ── Reject Modal ─────────────────────────────────── -->
+<div id="reject-modal-overlay" style="display:none;position:fixed;inset:0;background:rgba(13,13,13,0.5);z-index:1000;align-items:center;justify-content:center;padding:1rem;">
+  <div style="background:#fff;border:1px solid var(--border);border-radius:8px;width:100%;max-width:440px;box-shadow:0 24px 80px rgba(0,0,0,0.15);">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:1.25rem 1.5rem;border-bottom:1px solid var(--border);">
+      <span style="font-weight:700;font-size:1rem;">Reject Application</span>
+      <button onclick="closeRejectModal()" style="background:none;border:none;cursor:pointer;font-size:1.2rem;color:var(--muted);padding:0.2rem 0.4rem;">✕</button>
+    </div>
+    <div style="padding:1.5rem;">
+      <p style="font-size:0.85rem;color:var(--muted);margin-bottom:1rem;">Rejecting this application will notify the applicant by email. Provide a reason (optional but recommended).</p>
+      <div id="rm-business" style="font-weight:600;font-size:0.9rem;margin-bottom:1rem;"></div>
+      <label style="font-size:0.75rem;font-weight:600;display:block;margin-bottom:0.35rem;">Reason for rejection <span style="color:var(--muted);font-weight:400">(optional)</span></label>
+      <textarea id="rm-reason" rows="3" style="width:100%;background:#f5f2eb;border:1px solid var(--border);border-radius:4px;padding:0.6rem 0.75rem;font-size:0.85rem;font-family:inherit;outline:none;resize:vertical;" placeholder="e.g. We're currently only accepting businesses in Michigan."></textarea>
+    </div>
+    <div style="padding:1rem 1.5rem;border-top:1px solid var(--border);display:flex;gap:0.75rem;justify-content:flex-end;">
+      <button onclick="closeRejectModal()" style="padding:0.5rem 1rem;border:1px solid var(--border);background:#fff;border-radius:4px;cursor:pointer;font-size:0.82rem;">Cancel</button>
+      <button id="rm-confirm-btn" onclick="confirmReject()" style="padding:0.5rem 1.25rem;background:#c62828;color:#fff;border:none;border-radius:4px;cursor:pointer;font-weight:700;font-size:0.82rem;font-family:inherit;">Reject & Notify</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Detail Modal ──────────────────────────────────────────────────────────────
+let _allRequests = [];
+let _rejectTargetId = null;
+
+// Intercept loadRequests to cache rows
+const _origLoad = loadRequests;
+loadRequests = async function(...args) {
+  await _origLoad.apply(this, args);
+  // Grab rendered data from DOM — we re-fetch for modal details
+};
+
+function openDetailModal(e, id) {
+  e.stopPropagation();
+  // Fetch fresh detail
+  fetch(`/.netlify/functions/list-onboarding-requests`, {
+    headers: { Authorization: `Bearer ${accessToken || sessionStorage.getItem('op_token') || ''}` }
+  })
+  .then(r => r.json())
+  .then(d => {
+    const req = (d.requests || []).find(x => x.id === id);
+    if (!req) return;
+    const overlay = document.getElementById('detail-modal-overlay');
+    document.getElementById('dm-title').textContent = req.business_name;
+
+    const fmtDate = iso => iso ? new Date(iso).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}) : '–';
+    const row = (label, val) => `<div style="display:grid;grid-template-columns:130px 1fr;padding:0.55rem 0;border-bottom:1px solid #f0ede6;font-size:0.83rem;">
+      <span style="color:#6b6560">${label}</span>
+      <span style="font-weight:500;color:#0d0d0d">${escapeHtml(val || '–')}</span>
+    </div>`;
+
+    document.getElementById('dm-body').innerHTML = `
+      <div style="margin-bottom:0.5rem;display:inline-flex;align-items:center;gap:0.4rem;">
+        <span class="badge badge-${req.status}" style="display:inline-flex">${req.status}</span>
+      </div>
+      ${row('Business name', req.business_name)}
+      ${row('Owner name', req.owner_name)}
+      ${row('Email', req.owner_email)}
+      ${row('Phone', req.phone)}
+      ${row('Business type', req.business_type)}
+      ${row('City / State', req.city_state)}
+      ${row('Store slug', req.business_slug)}
+      ${row('Template', req.seed_template_key)}
+      ${row('Submitted', fmtDate(req.created_at))}
+      ${req.approved_at ? row('Approved', fmtDate(req.approved_at)) : ''}
+      ${req.provision_error ? `<div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:4px;padding:0.75rem;margin-top:0.75rem;font-size:0.78rem;color:#c62828;font-family:monospace;">${escapeHtml(req.provision_error)}</div>` : ''}
+    `;
+
+    // Footer actions
+    let footerHtml = `<button onclick="closeDetailModal()" style="padding:0.5rem 1rem;border:1px solid var(--border);background:#fff;border-radius:4px;cursor:pointer;font-size:0.82rem;">Close</button>`;
+    if (req.status === 'submitted') {
+      footerHtml += `<button onclick="closeDetailModal();approveRequest('${id}')" style="padding:0.5rem 1rem;background:#d4a843;color:#fff;border:none;border-radius:4px;cursor:pointer;font-weight:700;font-size:0.82rem;">Approve</button>`;
+      footerHtml += `<button onclick="closeDetailModal();openRejectModal(new Event(''),'${id}')" style="padding:0.5rem 1rem;background:#c62828;color:#fff;border:none;border-radius:4px;cursor:pointer;font-weight:700;font-size:0.82rem;">Reject</button>`;
+    }
+    if (req.status === 'approved') {
+      footerHtml += `<button onclick="closeDetailModal();provisionTenant('${id}',null)" style="padding:0.5rem 1rem;background:#15803d;color:#fff;border:none;border-radius:4px;cursor:pointer;font-weight:700;font-size:0.82rem;">▶ Provision</button>`;
+    }
+    document.getElementById('dm-footer').innerHTML = footerHtml;
+
+    overlay.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+  })
+  .catch(err => toast('Could not load details: ' + err.message, 'error'));
+}
+
+function closeDetailModal() {
+  document.getElementById('detail-modal-overlay').style.display = 'none';
+  document.body.style.overflow = '';
+}
+
+document.getElementById('detail-modal-overlay').addEventListener('click', function(e) {
+  if (e.target === this) closeDetailModal();
+});
+
+// ── Reject Modal ──────────────────────────────────────────────────────────────
+function openRejectModal(e, id) {
+  if (e && e.stopPropagation) e.stopPropagation();
+  _rejectTargetId = id;
+  // Find business name from table
+  const rows = document.querySelectorAll('#requests-tbody tr');
+  let name = 'this business';
+  rows.forEach(row => {
+    const btn = row.querySelector(`[onclick*="${id}"]`);
+    if (btn) {
+      const nameEl = row.querySelector('.td-name');
+      if (nameEl) name = nameEl.textContent.trim();
+    }
+  });
+  document.getElementById('rm-business').textContent = name;
+  document.getElementById('rm-reason').value = '';
+  document.getElementById('reject-modal-overlay').style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+  setTimeout(() => document.getElementById('rm-reason').focus(), 100);
+}
+
+function closeRejectModal() {
+  document.getElementById('reject-modal-overlay').style.display = 'none';
+  document.body.style.overflow = '';
+  _rejectTargetId = null;
+}
+
+document.getElementById('reject-modal-overlay').addEventListener('click', function(e) {
+  if (e.target === this) closeRejectModal();
+});
+
+async function confirmReject() {
+  if (!_rejectTargetId) return;
+  const btn = document.getElementById('rm-confirm-btn');
+  const reason = document.getElementById('rm-reason').value.trim();
+  btn.disabled = true; btn.textContent = 'Rejecting…';
+  try {
+    const authToken = accessToken || sessionStorage.getItem('op_token') || '';
+    const res = await fetch('/.netlify/functions/reject-onboarding-request', {
+      method : 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
+      body   : JSON.stringify({ id: _rejectTargetId, rejection_reason: reason || null }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Rejection failed');
+    closeRejectModal();
+    toast('Application rejected and applicant notified.', 'success');
+    loadRequests();
+  } catch (err) {
+    btn.disabled = false; btn.textContent = 'Reject & Notify';
+    toast('Error: ' + err.message, 'error');
+  }
+}
+</script>
+
+</body>
+</html>

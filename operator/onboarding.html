@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>ProofLink Setup</title>
+  <meta name="description" content="Finish ProofLink business setup." />
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+  <style>
+    :root{
+      --bg:#100f0a;--panel:#1c1915;--panel-2:#222019;
+      --text:#f0ebe0;--muted:#9a9080;--faint:#524d42;
+      --border:rgba(255,240,190,.08);--border2:rgba(255,240,190,.14);
+      --accent:#c9a227;--accent-hi:#e8c040;
+      --danger:#f47070;--good:#5dbf6a;--warn:#e8c040;
+      --shadow:0 12px 40px rgba(0,0,0,.5);--radius:14px;
+      --font-display:'Syne',sans-serif;--font-body:'DM Sans',sans-serif;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font:15px/1.55 var(--font-body);
+      color:var(--text);
+      background:
+        radial-gradient(ellipse 1100px 550px at 15% -5%,rgba(201,162,39,.09),transparent 55%),
+        linear-gradient(175deg,var(--bg) 0%,#161410 100%);
+      min-height:100vh;
+      -webkit-font-smoothing:antialiased;
+    }
+    .wrap{max-width:1100px;margin:0 auto;padding:28px 18px 60px}
+    .top{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:24px}
+    .eyebrow{display:inline-flex;align-items:center;gap:8px;padding:5px 12px;border:1px solid rgba(201,162,39,.25);border-radius:999px;color:var(--muted);font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;background:rgba(201,162,39,.07)}
+    h1{margin:12px 0 8px;font-family:var(--font-display);font-size:clamp(1.75rem,4vw,2.75rem);line-height:1.05;letter-spacing:-.035em;font-weight:800}
+    .sub{margin:0;color:var(--muted);max-width:64ch;font-size:14.5px}
+    .card{background:linear-gradient(170deg,var(--panel),var(--panel-2));border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow)}
+    .grid{display:grid;grid-template-columns:300px 1fr;gap:16px;align-items:start}
+    .side{padding:18px;position:sticky;top:18px}
+    .step-list{display:grid;gap:10px;margin-top:8px}
+    .step-item{border:1px solid var(--border);border-radius:12px;padding:14px;background:rgba(255,255,255,.02)}
+    .step-item.active{border-color:rgba(201,162,39,.5);background:rgba(201,162,39,.05)}
+    .step-item.done{border-color:rgba(67,160,71,.35);background:rgba(67,160,71,.04)}
+    .step-line{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+    .step-num{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-family:var(--font-display);font-weight:800;background:rgba(255,255,255,.05);color:var(--text);font-size:.85rem}
+    .step-item.done .step-num{background:rgba(67,160,71,.15);color:var(--good)}
+    .step-item.active .step-num{background:rgba(201,162,39,.15);color:var(--accent-hi)}
+    .step-item h3{margin:0;font-family:var(--font-display);font-size:.95rem;font-weight:700;letter-spacing:-0.01em}
+    .step-item p{margin:0;color:var(--muted);font-size:.85rem}
+    .main{padding:22px}
+    .statusbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+    .pill{border:1px solid var(--border);border-radius:999px;padding:5px 11px;font-size:12px;color:var(--muted);background:rgba(255,255,255,.03)}
+    .pill.good{color:var(--good);border-color:rgba(67,160,71,.3);background:rgba(67,160,71,.08)}
+    .pill.warn{color:var(--warn);border-color:rgba(201,162,39,.3);background:rgba(201,162,39,.08)}
+    .pill.bad{color:var(--danger);border-color:rgba(244,112,112,.3);background:rgba(244,112,112,.08)}
+    .panel{display:none;border:1px solid var(--border);border-radius:12px;padding:20px;background:rgba(255,255,255,.02)}
+    .panel.active{display:block}
+    .panel h2{margin:0 0 8px;font-family:var(--font-display);font-size:1.3rem;font-weight:700;letter-spacing:-0.025em}
+    .panel p{margin:0 0 14px;color:var(--muted)}
+    .kv{display:grid;grid-template-columns:180px 1fr;gap:10px 14px;margin:16px 0;font-size:.9rem}
+    .kv .k{color:var(--muted)}
+    .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
+    .btn{appearance:none;border:1px solid var(--border2);border-radius:10px;padding:10px 16px;font:600 13.5px/1 var(--font-body);cursor:pointer;background:rgba(201,162,39,.12);color:var(--accent-hi);text-decoration:none;display:inline-flex;align-items:center;justify-content:center;min-height:40px;transition:background .15s,border-color .15s,transform .1s}
+    .btn:hover:not([disabled]){background:rgba(201,162,39,.22);border-color:rgba(201,162,39,.55);transform:translateY(-1px)}
+    .btn.secondary{background:rgba(255,255,255,.04);border-color:var(--border);color:var(--text)}
+    .btn.secondary:hover:not([disabled]){background:rgba(255,255,255,.07);border-color:var(--border2)}
+    .btn[disabled]{opacity:.6;cursor:not-allowed;pointer-events:none}
+    .msg{min-height:22px;color:var(--muted);margin-top:12px;font-size:13px}
+    .msg.bad{color:var(--danger)}.msg.good{color:var(--good)}
+    .note{margin-top:14px;padding:12px 14px;border:1px solid var(--border);border-radius:10px;background:rgba(255,255,255,.02);color:var(--muted);font-size:13px;line-height:1.55}
+    .checks{display:grid;gap:8px;margin-top:10px}
+    .check{border:1px solid var(--border);border-radius:10px;padding:12px 14px;background:rgba(255,255,255,.02);font-size:13px}
+    .check strong{display:block;margin-bottom:4px;font-family:var(--font-display);font-weight:700;font-size:12.5px;color:var(--text)}
+    @media (max-width:920px){.grid{grid-template-columns:1fr}.side{position:static}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <div>
+        <div class="eyebrow">Guided setup</div>
+        <h1 id="pageTitle">Finish your ProofLink setup</h1>
+        <p class="sub" id="pageSub">This wizard takes the business from created to billable to payout-ready.</p>
+      </div>
+      <a class="btn secondary" href="/operator/">Open operator dashboard</a>
+    </div>
+
+    <div class="grid">
+      <aside class="card side">
+        <div class="statusbar" id="summaryPills"></div>
+
+        <div class="step-list">
+          <div class="step-item" id="nav-step-1">
+            <div class="step-line">
+              <div class="step-num">1</div>
+              <h3>Business created</h3>
+            </div>
+            <p>Tenant shell, operator shell, and subdomain are reserved.</p>
+          </div>
+
+          <div class="step-item" id="nav-step-2">
+            <div class="step-line">
+              <div class="step-num">2</div>
+              <h3>Activate ProofLink billing</h3>
+            </div>
+            <p>Turn on the platform subscription.</p>
+          </div>
+
+          <div class="step-item" id="nav-step-3">
+            <div class="step-line">
+              <div class="step-num">3</div>
+              <h3>Connect Stripe payouts</h3>
+            </div>
+            <p>Link the tenant payout account.</p>
+          </div>
+
+          <div class="step-item" id="nav-step-4">
+            <div class="step-line">
+              <div class="step-num">4</div>
+              <h3>Add the first offer</h3>
+            </div>
+            <p>Create the first product or service.</p>
+          </div>
+
+          <div class="step-item" id="nav-step-5">
+            <div class="step-line">
+              <div class="step-num">5</div>
+              <h3>Publish and sell</h3>
+            </div>
+            <p>Open the storefront and start taking orders.</p>
+          </div>
+        </div>
+      </aside>
+
+      <main class="card main">
+        <div class="statusbar" id="livePills"></div>
+
+        <section class="panel active" id="step-1">
+          <h2>Business workspace created</h2>
+          <p>The tenant bundle is in place. Now activate billing so the account becomes live on the platform.</p>
+          <div class="kv" id="businessKv"></div>
+          <div class="actions">
+            <button class="btn" id="goToBillingBtn">Start platform billing</button>
+            <button class="btn secondary" id="refreshStateBtn1">Refresh status</button>
+          </div>
+          <div class="note">The business exists already. This step is just confirmation and routing.</div>
+          <div class="msg" id="msg-step-1"></div>
+        </section>
+
+        <section class="panel" id="step-2">
+          <h2>Activate ProofLink billing</h2>
+          <p>The tenant pays ProofLink here. This is separate from tenant customer payments.</p>
+          <div class="checks">
+            <div class="check">
+              <strong>Current billing status</strong>
+              <span id="billingStatusText">Unknown</span>
+            </div>
+            <div class="check">
+              <strong>Plan</strong>
+              <span id="planText">Starter</span>
+            </div>
+          </div>
+          <div class="actions">
+            <button class="btn" id="startBillingBtn">Start platform billing</button>
+            <button class="btn secondary" id="refreshStateBtn2">Refresh status</button>
+          </div>
+          <div class="note">After Stripe returns here, use refresh once if the webhook has not landed yet.</div>
+          <div class="msg" id="msg-step-2"></div>
+        </section>
+
+        <section class="panel" id="step-3">
+          <h2>Connect Stripe payouts</h2>
+          <p>This links the tenant’s Stripe account so customer payments go to the tenant, not to ProofLink.</p>
+          <div class="checks">
+            <div class="check">
+              <strong>Connect status</strong>
+              <span id="connectStatusText">Unknown</span>
+            </div>
+            <div class="check">
+              <strong>Online payments eligibility</strong>
+              <span id="eligibilityText">Unknown</span>
+            </div>
+          </div>
+          <div class="actions">
+            <button class="btn" id="connectStripeBtn">Connect Stripe</button>
+            <button class="btn secondary" id="refreshStateBtn3">Refresh status</button>
+          </div>
+          <div class="note">Online payments stay blocked until billing is active and Connect is complete.</div>
+          <div class="msg" id="msg-step-3"></div>
+        </section>
+
+        <section class="panel" id="step-4">
+          <h2>Add the first offer</h2>
+          <p>Create the first product or service so the storefront has something to sell.</p>
+          <div class="actions">
+            <a class="btn" href="/operator/#products">Go to products</a>
+            <button class="btn secondary" id="markProductsDoneBtn">I added the first offer</button>
+          </div>
+          <div class="note">For a service business, add one simple starter service first. Do not overbuild the menu.</div>
+          <div class="msg" id="msg-step-4"></div>
+        </section>
+
+        <section class="panel" id="step-5">
+          <h2>Publish and sell</h2>
+          <p>The account is ready to move into live use.</p>
+          <div class="checks">
+            <div class="check">
+              <strong>Subdomain</strong>
+              <span id="subdomainText">Unknown</span>
+            </div>
+            <div class="check">
+              <strong>Next move</strong>
+              <span>Open the storefront, test one order, then hand the tenant their login.</span>
+            </div>
+          </div>
+          <div class="actions">
+            <a class="btn" id="openStorefrontBtn" href="/" target="_blank" rel="noopener">Open storefront</a>
+            <a class="btn secondary" href="/operator/">Open dashboard</a>
+          </div>
+          <div class="note">This is the point where you can demo the platform in the field.</div>
+          <div class="msg" id="msg-step-5"></div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <script src="/operator/onboarding.js"></script>
+</body>
+</html>

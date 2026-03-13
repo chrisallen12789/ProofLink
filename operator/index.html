@@ -1,0 +1,862 @@
+<!-- /operator/index.html -->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="theme-color" content="#c84b2f" />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <title>ProofLink — Operator</title>
+
+  <script src="../cottagelink.tenant.js"></script>
+  <script src="../cottagelink.config.js"></script>
+  <script src="./operator.brand.js"></script>
+
+  <script>
+    (function () {
+      const b = window.COTTAGELINK_BRAND || null;
+      if (!b) return;
+      const r = document.documentElement.style;
+      r.setProperty("--accent", b.accent || "#c84b2f");
+      r.setProperty("--bg0", b.bg0 || "#0b0b0b");
+      r.setProperty("--bg1", b.bg1 || "#121212");
+      r.setProperty("--panel", b.panel || "#161616");
+      r.setProperty("--text", b.text || "#f5f2ea");
+      r.setProperty("--muted", b.muted || "#b8b1a5");
+      r.setProperty("--border", b.border || "rgba(255,255,255,.08)");
+      document.documentElement.setAttribute("data-brand", "1");
+
+      const tenant = (b.tenantName || "Tenant").trim();
+      const product = (b.productName || "CottageLink").trim();
+      document.title = `${tenant} — ${product} Operator`;
+    })();
+  </script>
+
+  <link rel="stylesheet" href="./operator.css" />
+</head>
+
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="logo" id="brandLogoWrap">
+          <img id="brandLogo" alt="Tenant logo" />
+        </div>
+        <div class="title">
+          <strong id="brandTenant">Tenant</strong>
+          <span id="brandPowered">Business powered by ProofLink</span>
+        </div>
+      </div>
+
+      <div class="side-meta">
+        <div class="row">
+          <span>Signed in</span>
+          <span id="sessionEmail" class="badge"></span>
+        </div>
+      </div>
+
+      <section class="side-card">
+        <div class="side-card__hd">Startup progress</div>
+        <div id="startupChecklist" class="checklist">
+          <div class="checklist-item">
+            <span class="dot"></span>
+            <span>Loading checklist…</span>
+          </div>
+        </div>
+      </section>
+
+      <div class="nav" aria-label="Sections">
+        <button class="tab active" data-tab="dashboard" type="button">Dashboard</button>
+        <button class="tab" data-tab="orders" type="button">Orders</button>
+        <button class="tab" data-tab="customers" type="button">Customers</button>
+        <button class="tab" data-tab="payments" type="button">Payments</button>
+        <button class="tab" data-tab="domains" type="button">Domains</button>
+        <button class="tab" data-tab="products" type="button">Products</button>
+        <button class="tab" data-tab="pricing" type="button">Pricing</button>
+        <button class="tab" data-tab="availability" type="button">Availability</button>
+        <button class="tab" data-tab="expenses" type="button">Expenses</button>
+        <button class="tab" data-tab="money" type="button">Money</button>
+        <button class="tab" data-tab="guidance" type="button">Guidance</button>
+      </div>
+
+      <section class="side-card">
+        <div class="side-card__hd">What ProofLink is for</div>
+        <div class="side-copy">
+          Track the sale from first contact to payment, keep customer history in one place, and make business decisions with less guesswork.
+        </div>
+      </section>
+
+      <div class="side-foot muted">
+        <div class="platform-lockup">
+          <div class="platform-logo-wrap">
+            <img id="platformLogo" alt="ProofLink logo" />
+          </div>
+          <div class="platform-copy">
+            <div class="platform-name" id="brandProductName">ProofLink</div>
+            <div class="platform-tag">Learn business while earning</div>
+          </div>
+        </div>
+        <div style="margin-top:12px;">
+          <span class="pill">Operator</span>
+          <span class="pill" id="brandProductPill">ProofLink</span>
+        </div>
+        <div style="margin-top:8px;">© <span id="brandCompany">ProofLink</span></div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <h1>Operator Console</h1>
+          <div class="sub">CRM, orders, scheduling, products, expenses, and operator guidance in one place.</div>
+        </div>
+        <div class="top-actions">
+          <button id="btnSignOut" class="btn btn-ghost hidden" type="button">Sign out</button>
+        </div>
+      </header>
+
+      <div class="grid">
+        <section id="viewLogin" class="card">
+          <div class="card-hd">
+            <strong>Sign in</strong>
+            <span class="muted">Operators only</span>
+          </div>
+          <div class="card-bd">
+            <form id="loginForm" class="form">
+              <label>Email
+                <input id="loginEmail" type="email" autocomplete="username" required />
+              </label>
+
+              <label>Password
+                <input id="loginPassword" type="password" autocomplete="current-password" required />
+              </label>
+
+              <div style="text-align:right;margin:-0.25rem 0 0.5rem;">
+                <a href="#" id="btnForgotPassword" style="font-size:0.8rem;color:var(--accent);text-decoration:none;">Forgot password?</a>
+              </div>
+
+              <div class="row">
+                <button class="btn btn-primary" type="submit">Sign in</button>
+                <button id="btnMagicLink" class="btn btn-ghost" type="button">Email me a sign-in link</button>
+              </div>
+              <div id="loginMsg" class="msg"></div>
+            </form>
+          </div>
+        </section>
+
+        <!-- Password Setup View -->
+        <div id="viewPasswordSetup" class="hidden">
+          <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:2rem;">
+            <div style="width:100%;max-width:400px;background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:2.5rem 2rem;box-shadow:var(--shadow);">
+              <div style="font-family:var(--font-display);font-size:1.25rem;font-weight:800;color:var(--text);margin-bottom:0.25rem;letter-spacing:-0.02em;">
+                Proof<span style="color:var(--accent);">Link</span>
+              </div>
+              <div style="font-size:0.75rem;color:var(--muted);margin-bottom:2rem;text-transform:uppercase;letter-spacing:0.08em;">Operator Console</div>
+              <div data-pw-heading style="font-family:var(--font-display);font-size:1.1rem;font-weight:700;color:var(--text);margin-bottom:0.4rem;">Set your password</div>
+              <p data-pw-desc style="font-size:0.82rem;color:var(--muted);margin-bottom:0.75rem;line-height:1.55;">Your email is confirmed. Create a password so you can log back in directly next time.</p>
+              <div data-pw-email style="font-size:0.82rem;color:var(--accent);font-weight:600;margin-bottom:1.25rem;word-break:break-all;"></div>
+              <label style="display:block;font-size:0.8rem;font-weight:600;color:var(--muted);margin-bottom:0.35rem;">New password</label>
+              <input type="password" id="newPasswordInput" placeholder="At least 8 characters" autocomplete="new-password" style="margin-bottom:1rem;" />
+              <label style="display:block;font-size:0.8rem;font-weight:600;color:var(--muted);margin-bottom:0.35rem;">Confirm password</label>
+              <input type="password" id="confirmPasswordInput" placeholder="Repeat your password" autocomplete="new-password" style="margin-bottom:1.25rem;" />
+              <button id="btnSetPassword" class="btn btn-primary" style="width:100%;padding:0.75rem;font-size:0.9375rem;font-weight:700;">Set password and open dashboard</button>
+              <div id="passwordSetupMsg" class="msg" style="margin-top:0.75rem;min-height:1.25rem;"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Forgot Password View -->
+        <div id="viewForgotPassword" class="hidden">
+          <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:2rem;">
+            <div style="width:100%;max-width:400px;background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:2.5rem 2rem;box-shadow:var(--shadow);">
+              <div style="font-family:var(--font-display);font-size:1.25rem;font-weight:800;color:var(--text);margin-bottom:0.25rem;letter-spacing:-0.02em;">
+                Proof<span style="color:var(--accent);">Link</span>
+              </div>
+              <div style="font-size:0.75rem;color:var(--muted);margin-bottom:2rem;text-transform:uppercase;letter-spacing:0.08em;">Operator Console</div>
+              <div style="font-family:var(--font-display);font-size:1.1rem;font-weight:700;color:var(--text);margin-bottom:0.4rem;">Reset your password</div>
+              <p style="font-size:0.82rem;color:var(--muted);margin-bottom:1.75rem;line-height:1.55;">Enter your email address and we'll send you a link to reset your password.</p>
+              <label style="display:block;font-size:0.8rem;font-weight:600;color:var(--muted);margin-bottom:0.35rem;">Email address</label>
+              <input type="email" id="forgotEmail" placeholder="you@example.com" autocomplete="email" style="margin-bottom:1.25rem;" />
+              <button id="btnSendReset" class="btn btn-primary" style="width:100%;padding:0.75rem;font-size:0.9375rem;font-weight:700;">Send reset link</button>
+              <div id="forgotMsg" class="msg" style="margin-top:0.75rem;min-height:1.25rem;"></div>
+              <div style="text-align:center;margin-top:1.25rem;">
+                <button id="btnBackToLogin" class="btn btn-ghost" type="button" style="font-size:0.85rem;">Back to sign in</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <section id="viewApp" class="hidden">
+
+          <section class="panel" data-panel="dashboard">
+            <div class="panel-head">
+              <div>
+                <h2>Dashboard</h2>
+                <div class="muted">A plain-English business snapshot built for owners, not accountants.</div>
+              </div>
+              <div class="panel-actions">
+                <button id="btnRefreshDashboard" class="btn btn-ghost" type="button">Refresh</button>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-bd">
+                <div id="dashboardWrap"></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel hidden" data-panel="orders">
+            <div class="panel-head">
+              <div>
+                <h2>Orders</h2>
+                <div class="muted">Review live storefront orders and inspect intake details.</div>
+              </div>
+              <div class="panel-actions">
+                <button id="btnRefreshOrders" class="btn btn-ghost" type="button">Refresh</button>
+                <button id="btnImportBridgeOrders" class="btn" type="button" hidden aria-hidden="true">Legacy bridge disabled</button>
+                <button id="btnExportOrders" class="btn" type="button">Export JSON</button>
+              </div>
+            </div>
+
+            <div class="grid two">
+              <div class="card">
+                <div class="card-hd">
+                  <strong>Inbox</strong>
+                  <span class="muted">Newest requests first</span>
+                </div>
+                <div class="card-bd">
+                  <div id="ordersList" class="list"></div>
+                </div>
+              </div>
+
+              <div class="card">
+                <div class="card-hd">
+                  <strong>Order detail</strong>
+                  <span class="muted">Review intake details, cart summary, and CRM status.</span>
+                </div>
+                <div class="card-bd">
+                  <div id="orderDetailWrap" class="muted">Select an order to inspect it.</div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel hidden" data-panel="customers">
+            <div class="panel-head">
+              <div>
+                <h2>Customers</h2>
+                <div class="muted">Rank customers by value, track history, and capture live notes during calls.</div>
+              </div>
+              <div class="panel-actions">
+                <input id="customerSearch" class="input" placeholder="Search customer…" />
+                <button id="btnRefreshCustomers" class="btn btn-ghost" type="button">Refresh</button>
+              </div>
+            </div>
+
+            <div class="grid two">
+              <div class="card">
+                <div class="card-hd">
+                  <strong>Customer list</strong>
+                  <span class="muted">Highest value first</span>
+                </div>
+                <div class="card-bd">
+                  <div id="customersList" class="list"></div>
+                </div>
+              </div>
+
+              <div class="card">
+                <div class="card-hd">
+                  <strong>Customer detail</strong>
+                  <span class="muted">Profile, notes, orders, and interactions</span>
+                </div>
+                <div class="card-bd">
+                  <div id="customerDetailWrap" class="muted">Select a customer to inspect the record.</div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel hidden" data-panel="payments">
+            <div class="panel-head">
+              <div>
+                <div class="panel-title-row">
+                  <h2>Payments</h2>
+                  <button class="help-btn" type="button" data-help-topic="payments" aria-label="Payment help">?</button>
+                </div>
+                <div class="muted">Separate ProofLink billing from tenant customer payments. Nothing here should imply Stripe is live unless it actually is.</div>
+              </div>
+              <div class="panel-actions">
+                <button id="btnRefreshPayments" class="btn btn-ghost" type="button">Refresh</button>
+              </div>
+            </div>
+
+            <div class="grid three payments-summary-grid">
+              <div class="card stat-card">
+                <div class="card-hd"><strong>ProofLink subscription</strong><span class="muted">Platform billing</span></div>
+                <div class="card-bd" id="billingSummaryCard"></div>
+              </div>
+              <div class="card stat-card">
+                <div class="card-hd"><strong>Stripe Connect</strong><span class="muted">Tenant payouts</span></div>
+                <div class="card-bd" id="connectSummaryCard"></div>
+              </div>
+              <div class="card stat-card">
+                <div class="card-hd"><strong>Online checkout</strong><span class="muted">Customer payment mode</span></div>
+                <div class="card-bd" id="onlinePaymentsCard"></div>
+              </div>
+            </div>
+
+            <div class="grid two">
+              <div class="card">
+                <div class="card-hd">
+                  <strong>Payment settings</strong>
+                  <span class="muted">Safe status board</span>
+                </div>
+                <div class="card-bd">
+                  <div id="paymentSettingsWrap"></div>
+                <div class="payment-actions" style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap;">
+                  <button id="btnStartPlatformCheckout" class="btn btn-primary" type="button">Start platform billing</button>
+                  <button id="btnConnectStripe" class="btn" type="button">Connect Stripe</button>
+                  <button id="btnCreateOrderCheckout" class="btn btn-ghost" type="button">Create checkout for active order</button>
+                </div>
+                <div id="paymentActionMsg" class="muted" style="margin-top:10px;"></div>
+                </div>
+              </div>
+
+              <div class="card">
+                <div class="card-hd">
+                  <strong>What operators need to know</strong>
+                  <span class="muted">Plain language, no surprises</span>
+                </div>
+                <div class="card-bd">
+                  <div id="paymentEducationWrap"></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-hd">
+                <strong>Payment ledger</strong>
+                <span class="muted">Directly from the payments table</span>
+              </div>
+              <div class="card-bd">
+                <div id="paymentsList" class="list"></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel hidden" data-panel="domains">
+            <div class="panel-head">
+              <div>
+                <div class="panel-title-row">
+                  <h2>Domain Settings</h2>
+                  <button class="help-btn" type="button" data-help-topic="domains" aria-label="Domain help">?</button>
+                </div>
+                <div class="muted">Subdomain is managed by ProofLink. Custom domains stay under the tenant's registrar account.</div>
+              </div>
+              <div class="panel-actions">
+                <button id="btnRefreshDomains" class="btn btn-ghost" type="button">Refresh</button>
+              </div>
+            </div>
+
+            <div class="grid two">
+              <div class="card">
+                <div class="card-hd">
+                  <strong>Current domain state</strong>
+                  <span class="muted">Routing + DNS visibility</span>
+                </div>
+                <div class="card-bd">
+                  <div id="domainSettingsWrap"></div>
+                </div>
+              </div>
+
+              <div class="card">
+                <div class="card-hd">
+                  <strong>DNS instructions</strong>
+                  <span class="muted">What the operator must do</span>
+                </div>
+                <div class="card-bd">
+                  <div id="domainInstructionsWrap"></div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel hidden" data-panel="products">
+            <div class="panel-head">
+              <div>
+                <h2>Products</h2>
+                <div class="muted">Create and edit products. Publish with “Show on site”.</div>
+              </div>
+              <div class="panel-actions">
+                <input id="productSearch" class="input" placeholder="Search…" />
+                <button id="btnNewProduct" class="btn" type="button">New product</button>
+                <button id="btnRefreshProducts" class="btn btn-ghost" type="button">Refresh</button>
+              </div>
+            </div>
+
+            <div class="grid two">
+              <div class="card">
+                <div class="card-hd">
+                  <strong>List</strong>
+                  <span class="muted">Click an item to edit</span>
+                </div>
+                <div class="card-bd">
+                  <div id="productsList" class="list"></div>
+                </div>
+              </div>
+
+              <div class="card">
+                <div class="card-hd">
+                  <strong id="productFormTitle">Edit</strong>
+                  <span class="muted">Saved changes update the database</span>
+                </div>
+                <div class="card-bd">
+                  <form id="productForm" class="form">
+                    <input type="hidden" id="productId" />
+
+                    <label>Name
+                      <input id="productName" required />
+                    </label>
+
+                    <label>Slug (unique)
+                      <input id="productSlug" required />
+                    </label>
+
+                    <label>Category
+                      <input id="productCategory" list="categoryOptions" placeholder="Select or type…" />
+                      <datalist id="categoryOptions"></datalist>
+                    </label>
+
+                    <label>Description
+                      <textarea id="productDescription" rows="4"></textarea>
+                    </label>
+
+                    <label>Ingredients (comma separated)
+                      <input id="productIngredients" />
+                    </label>
+
+                    <label>Image URL (optional)
+                      <input id="productImageUrl" placeholder="https://…" />
+                    </label>
+
+                    <label>Upload image (recommended)
+                      <input id="productImageFile" type="file" accept="image/*" />
+                      <button id="btnUploadProductImage" class="btn btn-ghost" type="button">Upload selected image</button>
+                      <div class="muted" id="productImageStatus"></div>
+                    </label>
+
+                    <div class="row">
+                      <label class="check">
+                        <input id="productIsActive" type="checkbox" />
+                        Show on site
+                      </label>
+
+                      <label class="check">
+                        <input id="productIsAvailable" type="checkbox" />
+                        Available now
+                      </label>
+                    </div>
+
+                    <label>Sort order
+                      <input id="productSort" type="number" value="0" />
+                    </label>
+
+                    <div class="row">
+                      <button class="btn btn-primary" type="submit">Save</button>
+                      <button id="btnArchiveProduct" class="btn btn-danger" type="button">Archive (hide)</button>
+                    </div>
+
+                    <div id="productMsg" class="msg"></div>
+                  </form>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel hidden" data-panel="pricing">
+            <div class="panel-head">
+              <div>
+                <h2>Pricing</h2>
+                <div class="muted">Edit sell price + internal costs. Public site should only read sell price.</div>
+              </div>
+              <div class="panel-actions">
+                <button id="btnRefreshPricing" class="btn btn-ghost" type="button">Refresh</button>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-bd">
+                <div id="pricingList" class="list"></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel hidden" data-panel="availability">
+            <div class="panel-head">
+              <div>
+                <h2>Availability</h2>
+                <div class="muted">Control which days and times are available for ordering.</div>
+              </div>
+              <div class="panel-actions">
+                <button id="btnSaveAvailability" class="btn btn-primary" type="button">Save</button>
+                <button id="btnRefreshAvailability" class="btn btn-ghost" type="button">Refresh</button>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-bd">
+                <div id="availabilityWrap"></div>
+                <div id="availabilityMsg" class="msg"></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel hidden" data-panel="expenses">
+            <div class="panel-head">
+              <div>
+                <h2>Expenses</h2>
+                <div class="muted">Track expenses for bookkeeping and profitability.</div>
+              </div>
+              <div class="panel-actions">
+                <button id="btnNewExpense" class="btn" type="button">New expense</button>
+                <button id="btnRefreshExpenses" class="btn btn-ghost" type="button">Refresh</button>
+              </div>
+            </div>
+
+            <div class="grid two">
+              <div class="card">
+                <div class="card-hd">
+                  <strong>Recent</strong>
+                  <span class="muted">Click to edit</span>
+                </div>
+                <div class="card-bd">
+                  <div id="expensesList" class="list"></div>
+                </div>
+              </div>
+
+              <div class="card">
+                <div class="card-hd">
+                  <strong id="expenseFormTitle">Edit</strong>
+                  <span class="muted">Saved changes update the database</span>
+                </div>
+                <div class="card-bd">
+                  <form id="expenseForm" class="form">
+                    <input type="hidden" id="expenseId" />
+
+                    <label>Date
+                      <input id="expenseDate" type="date" required />
+                    </label>
+
+                    <label>Category
+                      <input id="expenseCategory" list="expenseCategoryOptions" placeholder="Select or type…" />
+                      <datalist id="expenseCategoryOptions"></datalist>
+                    </label>
+
+                    <label>Vendor
+                      <input id="expenseVendor" list="vendorOptions" placeholder="Select or type…" />
+                      <datalist id="vendorOptions"></datalist>
+                    </label>
+
+                    <label>Description
+                      <input id="expenseDescription" />
+                    </label>
+
+                    <label>Amount (USD)
+                      <input id="expenseAmount" type="number" step="0.01" required />
+                    </label>
+
+                    <div class="row">
+                      <button class="btn btn-primary" type="submit">Save</button>
+                      <button id="btnDeleteExpense" class="btn btn-danger" type="button">Delete</button>
+                    </div>
+
+                    <div id="expenseMsg" class="msg"></div>
+                  </form>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel hidden" data-panel="money">
+            <div class="panel-head">
+              <div>
+                <h2>Money</h2>
+                <div class="muted">Catalog health, CRM value, and expense visibility.</div>
+              </div>
+              <div class="panel-actions">
+                <button id="btnRefreshMoney" class="btn btn-ghost" type="button">Refresh</button>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-bd">
+                <div id="moneyWrap"></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel hidden" data-panel="guidance">
+            <div class="panel-head">
+              <div>
+                <h2>Guidance</h2>
+                <div class="muted">Operator advice tied to your actual data.</div>
+              </div>
+              <div class="panel-actions">
+                <button id="btnRefreshGuidance" class="btn btn-ghost" type="button">Refresh</button>
+                <button class="btn btn-ghost" type="button" onclick="showTour()">Take tour again</button>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-bd">
+                <div id="guidanceWrap"></div>
+              </div>
+            </div>
+          </section>
+
+        </section>
+      </div>
+
+      <footer class="muted footer">
+        <span id="operatorFooterText">Operator UI v3 — Tenant • Powered by ProofLink</span>
+      </footer>
+    </main>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="./operator.config.js" defer></script>
+  <script src="./operator.data.js" defer></script>
+  <script src="./operator.js" defer></script>
+  <script src="./walkthrough.js" defer></script>
+  <script src="./operator.launch.js" defer></script>
+
+  <!-- ═══════════════════════════════════════════════════
+       FIRST-LOGIN WALKTHROUGH MODAL
+       Auto-shows once per browser. Replay from Guidance tab.
+  ════════════════════════════════════════════════════════ -->
+  <div id="tourModal" class="tour-modal" role="dialog" aria-modal="true" aria-labelledby="tour-title" style="display:none">
+    <div class="tour-backdrop"></div>
+    <div class="tour-card">
+
+      <div class="tour-dots" id="tourDots">
+        <span class="tour-dot active"></span>
+        <span class="tour-dot"></span>
+        <span class="tour-dot"></span>
+        <span class="tour-dot"></span>
+      </div>
+
+      <!-- Step 1: Welcome -->
+      <div class="tour-step active" id="tour-step-1">
+        <div class="tour-icon">🎉</div>
+        <h2 class="tour-title" id="tour-title">Your workspace is ready.</h2>
+        <p class="tour-body">Welcome to ProofLink. This is where you run your entire business — orders, customers, products, schedule, and money in one place.</p>
+        <div class="tour-actions">
+          <button class="tour-btn" onclick="tourNext()">Show me around →</button>
+        </div>
+      </div>
+
+      <!-- Step 2: Menu tour -->
+      <div class="tour-step" id="tour-step-2">
+        <div class="tour-icon">🧭</div>
+        <h2 class="tour-title">Here's what each section does</h2>
+        <ul class="tour-list">
+          <li><strong>Dashboard</strong> — Your daily snapshot. Jobs in, money out, what needs attention.</li>
+          <li><strong>Orders</strong> — Every request that comes in. Tap one to review and update it.</li>
+          <li><strong>Customers</strong> — Who ordered, how much they've spent, your notes on them.</li>
+          <li><strong>Products</strong> — Add or edit the things you sell. Turn items on or off.</li>
+          <li><strong>Availability</strong> — Set which days and hours customers can book you.</li>
+          <li><strong>Expenses</strong> — Log costs so you can see your real profit.</li>
+          <li><strong>Guidance</strong> — Plain-language advice based on your actual data.</li>
+        </ul>
+        <div class="tour-actions">
+          <button class="tour-btn-ghost" onclick="tourBack()">← Back</button>
+          <button class="tour-btn" onclick="tourNext()">Got it →</button>
+        </div>
+      </div>
+
+      <!-- Step 3: Setup checklist -->
+      <div class="tour-step" id="tour-step-3">
+        <div class="tour-icon">✅</div>
+        <h2 class="tour-title">3 things to do first</h2>
+        <ol class="tour-checklist">
+          <li>
+            <span class="tour-num">1</span>
+            <div>
+              <strong>Complete your business profile</strong>
+              <p>Add your business name, logo, and contact info so customers recognise you.</p>
+            </div>
+          </li>
+          <li>
+            <span class="tour-num">2</span>
+            <div>
+              <strong>Add products or services</strong>
+              <p>Go to <em>Products</em> and add at least one thing you sell. Keep it simple to start.</p>
+            </div>
+          </li>
+          <li>
+            <span class="tour-num">3</span>
+            <div>
+              <strong>Test your storefront</strong>
+              <p>Preview your live storefront link and place one test order to make sure it works.</p>
+            </div>
+          </li>
+        </ol>
+        <div class="tour-actions">
+          <button class="tour-btn-ghost" onclick="tourBack()">← Back</button>
+          <button class="tour-btn" onclick="tourNext()">Almost there →</button>
+        </div>
+      </div>
+
+      <!-- Step 4: Finish -->
+      <div class="tour-step" id="tour-step-4">
+        <div class="tour-icon">🚀</div>
+        <h2 class="tour-title">You're set — go make money.</h2>
+        <p class="tour-body">Start by adding your first product or service. It only takes a minute.</p>
+        <p class="tour-hint">You can replay this tour anytime from the <strong>Guidance</strong> tab.</p>
+        <div class="tour-actions">
+          <button class="tour-btn-ghost" onclick="tourBack()">← Back</button>
+          <button class="tour-btn" onclick="tourFinish()">Go to my dashboard →</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <style>
+  .tour-modal{position:fixed;inset:0;z-index:300;display:flex;align-items:center;justify-content:center;padding:1rem}
+  .tour-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(3px)}
+  .tour-card{
+    position:relative;z-index:1;width:min(520px,100%);
+    background:linear-gradient(150deg,#181613,#111009);
+    border:1px solid rgba(255,220,160,.12);
+    border-radius:22px;padding:2rem 2rem 1.75rem;
+    box-shadow:0 28px 70px rgba(0,0,0,.7);
+  }
+  .tour-dots{display:flex;gap:8px;justify-content:center;margin-bottom:1.75rem}
+  .tour-dot{width:7px;height:7px;border-radius:99px;background:rgba(255,255,255,.15);transition:background .2s,width .25s}
+  .tour-dot.active{background:var(--accent);width:22px}
+  .tour-step{display:none}
+  .tour-step.active{display:block}
+  .tour-icon{font-size:2.25rem;text-align:center;margin-bottom:.875rem}
+  .tour-title{font-family:var(--font-display);font-size:1.3rem;font-weight:800;letter-spacing:-.025em;text-align:center;color:var(--text);margin-bottom:.875rem}
+  .tour-body{font-size:.9rem;color:var(--muted);text-align:center;line-height:1.65;margin-bottom:.5rem}
+  .tour-hint{font-size:.78rem;color:var(--muted);text-align:center;margin-top:.75rem;opacity:.75}
+  .tour-hint strong{color:var(--text)}
+  .tour-list{list-style:none;padding:0;margin:0 0 1.25rem;display:flex;flex-direction:column;gap:.5rem}
+  .tour-list li{
+    border:1px solid var(--border);background:rgba(255,255,255,.02);
+    border-radius:10px;padding:.7rem .875rem;
+    font-size:.83rem;color:var(--muted);line-height:1.5;
+  }
+  .tour-list strong{color:var(--text)}
+  .tour-checklist{list-style:none;padding:0;margin:0 0 1.25rem;display:flex;flex-direction:column;gap:.6rem}
+  .tour-checklist li{
+    display:flex;gap:.875rem;align-items:flex-start;
+    border:1px solid var(--border);background:rgba(255,255,255,.02);
+    border-radius:10px;padding:.875rem;
+    font-size:.85rem;line-height:1.55;
+  }
+  .tour-num{
+    width:26px;height:26px;border-radius:50%;flex-shrink:0;
+    background:rgba(200,75,47,.15);border:1px solid rgba(200,75,47,.35);
+    color:var(--accent);font-family:var(--font-display);font-weight:800;font-size:.8rem;
+    display:flex;align-items:center;justify-content:center;margin-top:1px;
+  }
+  .tour-checklist strong{display:block;color:var(--text);margin-bottom:.2rem}
+  .tour-checklist p{margin:0;color:var(--muted)}
+  .tour-checklist em{font-style:normal;color:var(--text)}
+  .tour-actions{display:flex;gap:.75rem;justify-content:flex-end;margin-top:.25rem}
+  .tour-btn{
+    background:rgba(200,75,47,.15);border:1px solid rgba(200,75,47,.45);
+    color:var(--text);font-family:var(--font-display);font-weight:700;font-size:.85rem;
+    padding:.6rem 1.2rem;border-radius:10px;cursor:pointer;
+    transition:background .15s,transform .1s;
+  }
+  .tour-btn:hover{background:rgba(200,75,47,.28);transform:translateY(-1px)}
+  .tour-btn-ghost{
+    background:rgba(255,255,255,.02);border:1px solid var(--border);
+    color:var(--muted);font-size:.85rem;
+    padding:.6rem 1.2rem;border-radius:10px;cursor:pointer;
+    transition:background .15s;
+  }
+  .tour-btn-ghost:hover{background:rgba(255,255,255,.05);color:var(--text)}
+  </style>
+
+  <script>
+(function(){
+  var TOUR_KEY = 'pl_tour_v1';
+  var step = 1;
+  var TOTAL = 4;
+  var autoShowAttempts = 0;
+  var maxAutoShowAttempts = 20;
+
+  function modal(){ return document.getElementById('tourModal'); }
+  function viewApp(){ return document.getElementById('viewApp'); }
+  function viewLogin(){ return document.getElementById('viewLogin'); }
+  function viewPasswordSetup(){ return document.getElementById('viewPasswordSetup'); }
+  function viewForgotPassword(){ return document.getElementById('viewForgotPassword'); }
+
+  function isHidden(el){
+    return !el || el.classList.contains('hidden');
+  }
+
+  function canAutoShowTour(){
+    return (
+      !localStorage.getItem(TOUR_KEY) &&
+      window.PROOFLINK_BOOT_READY === true &&
+      !isHidden(viewApp()) &&
+      isHidden(viewLogin()) &&
+      isHidden(viewPasswordSetup()) &&
+      isHidden(viewForgotPassword())
+    );
+  }
+
+  function goTo(n){
+    step = Math.max(1, Math.min(n, TOTAL));
+    document.querySelectorAll('.tour-step').forEach(function(el,i){
+      el.classList.toggle('active', i+1===step);
+    });
+    document.querySelectorAll('.tour-dot').forEach(function(el,i){
+      el.classList.toggle('active', i+1===step);
+    });
+  }
+
+  window.tourNext = function(){ goTo(step+1); };
+  window.tourBack = function(){ goTo(step-1); };
+  window.tourFinish = function(){
+    localStorage.setItem(TOUR_KEY,'1');
+    modal().style.display='none';
+  };
+
+  window.showTour = function(){
+    goTo(1);
+    modal().style.display='flex';
+  };
+
+  document.querySelector('.tour-backdrop').addEventListener('click', window.tourFinish);
+
+  // Exposed so operator.js can re-trigger the tour check after a post-password-setup boot,
+  // by which point the page-load poll may have already expired.
+  window.__plTourReady = maybeAutoShowTour;
+
+  function maybeAutoShowTour(){
+    if (canAutoShowTour()) {
+      goTo(1);
+      modal().style.display = 'flex';
+      return;
+    }
+
+    autoShowAttempts += 1;
+    if (autoShowAttempts < maxAutoShowAttempts && !localStorage.getItem(TOUR_KEY)) {
+      setTimeout(maybeAutoShowTour, 600);
+    }
+  }
+
+  if (!localStorage.getItem(TOUR_KEY)) {
+    setTimeout(maybeAutoShowTour, 900);
+  }
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,1016 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ProofLink — Sell. Track. Get Paid.</title>
+  <meta name="description" content="ProofLink helps small businesses sell products and services online. Simple onboarding. Professional storefronts. Get paid fast." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --ink:     #0d0d0d;
+      --paper:   #f5f2eb;
+      --cream:   #ede8dd;
+      --accent:  #c84b2f;
+      --gold:    #d4a843;
+      --muted:   #6b6560;
+      --border:  #d9d4c9;
+      --card:    #ffffff;
+      --font-display: 'Syne', sans-serif;
+      --font-body:    'DM Sans', sans-serif;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--paper);
+      color: var(--ink);
+      font-family: var(--font-body);
+      font-size: 16px;
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    /* ── NAV ── */
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1rem 2rem;
+      background: var(--paper);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .nav-logo {
+      font-family: var(--font-display);
+      font-weight: 800;
+      font-size: 1.25rem;
+      color: var(--ink);
+      text-decoration: none;
+      letter-spacing: -0.02em;
+    }
+
+    .nav-logo span { color: var(--accent); }
+
+    nav a.nav-link {
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--muted);
+      text-decoration: none;
+      margin-left: 2rem;
+      transition: color 0.2s;
+    }
+
+    nav a.nav-link:hover { color: var(--ink); }
+
+    .nav-cta {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      background: var(--accent);
+      color: #fff !important;
+      padding: 0.5rem 1.25rem;
+      border-radius: 2px;
+      font-weight: 600 !important;
+      font-size: 0.875rem !important;
+      text-decoration: none;
+      transition: background 0.2s, transform 0.15s;
+      margin-left: 2rem;
+    }
+
+    .nav-cta:hover { background: #a83820; transform: translateY(-1px); }
+
+    /* ── HERO ── */
+    .hero {
+      position: relative;
+      min-height: 92vh;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      align-items: center;
+      gap: 4rem;
+      padding: 6rem 2rem 4rem;
+      max-width: 1280px;
+      margin: 0 auto;
+    }
+
+    .hero-eyebrow {
+      display: inline-block;
+      font-family: var(--font-display);
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--accent);
+      background: rgba(200, 75, 47, 0.08);
+      border: 1px solid rgba(200, 75, 47, 0.2);
+      padding: 0.35rem 0.85rem;
+      border-radius: 2px;
+      margin-bottom: 1.5rem;
+    }
+
+    .hero-headline {
+      font-family: var(--font-display);
+      font-size: clamp(3rem, 6vw, 5.5rem);
+      font-weight: 800;
+      line-height: 1.0;
+      letter-spacing: -0.04em;
+      color: var(--ink);
+      margin-bottom: 1rem;
+    }
+
+    .hero-headline .accent-word {
+      color: var(--accent);
+      position: relative;
+      display: inline-block;
+    }
+
+    .hero-headline .accent-word::after {
+      content: '';
+      position: absolute;
+      bottom: 0.05em;
+      left: 0;
+      width: 100%;
+      height: 3px;
+      background: var(--gold);
+      border-radius: 2px;
+    }
+
+    .hero-tagline {
+      font-family: var(--font-display);
+      font-size: clamp(1.5rem, 3vw, 2.25rem);
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      color: var(--muted);
+      margin-bottom: 1.75rem;
+    }
+
+    .hero-tagline strong {
+      color: var(--ink);
+      font-weight: 700;
+    }
+
+    .hero-body {
+      font-size: 1.1rem;
+      color: var(--muted);
+      font-weight: 300;
+      max-width: 480px;
+      margin-bottom: 2.5rem;
+      line-height: 1.75;
+    }
+
+    .hero-actions {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: var(--accent);
+      color: #fff;
+      padding: 0.9rem 2.25rem;
+      border-radius: 2px;
+      font-family: var(--font-display);
+      font-weight: 700;
+      font-size: 1rem;
+      text-decoration: none;
+      letter-spacing: 0.01em;
+      transition: background 0.2s, transform 0.15s, box-shadow 0.2s;
+      box-shadow: 0 4px 20px rgba(200, 75, 47, 0.25);
+    }
+
+    .btn-primary:hover {
+      background: #a83820;
+      transform: translateY(-2px);
+      box-shadow: 0 8px 30px rgba(200, 75, 47, 0.35);
+    }
+
+    .btn-secondary {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: var(--ink);
+      padding: 0.9rem 1.5rem;
+      font-weight: 500;
+      font-size: 0.95rem;
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .btn-secondary:hover { color: var(--accent); }
+
+    .hero-social-proof {
+      margin-top: 3rem;
+      padding-top: 2rem;
+      border-top: 1px solid var(--border);
+      display: flex;
+      gap: 2.5rem;
+      flex-wrap: wrap;
+    }
+
+    .proof-item {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .proof-number {
+      font-family: var(--font-display);
+      font-size: 1.75rem;
+      font-weight: 800;
+      color: var(--ink);
+      letter-spacing: -0.03em;
+    }
+
+    .proof-label {
+      font-size: 0.8rem;
+      color: var(--muted);
+      font-weight: 400;
+    }
+
+    /* Hero visual panel */
+    .hero-visual {
+      position: relative;
+    }
+
+    .storefront-preview {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 24px 80px rgba(0,0,0,0.10), 0 4px 16px rgba(0,0,0,0.06);
+      transform: perspective(1000px) rotateY(-4deg) rotateX(2deg);
+      transition: transform 0.4s ease;
+    }
+
+    .storefront-preview:hover {
+      transform: perspective(1000px) rotateY(-1deg) rotateX(0.5deg);
+    }
+
+    .preview-bar {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 10px 14px;
+      background: var(--cream);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .preview-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+    }
+
+    .preview-dot:nth-child(1) { background: #ff5f57; }
+    .preview-dot:nth-child(2) { background: #febc2e; }
+    .preview-dot:nth-child(3) { background: #28c840; }
+
+    .preview-url {
+      flex: 1;
+      background: var(--paper);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 4px 10px;
+      font-size: 0.72rem;
+      color: var(--muted);
+      font-family: monospace;
+      margin-left: 8px;
+    }
+
+    .preview-body {
+      padding: 1.5rem;
+    }
+
+    .preview-shop-header {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 1.25rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .preview-logo-box {
+      width: 40px; height: 40px;
+      background: var(--accent);
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-family: var(--font-display);
+      font-weight: 800;
+      font-size: 1rem;
+    }
+
+    .preview-shop-name {
+      font-family: var(--font-display);
+      font-weight: 700;
+      font-size: 0.95rem;
+    }
+
+    .preview-shop-tagline {
+      font-size: 0.7rem;
+      color: var(--muted);
+    }
+
+    .preview-products {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+    }
+
+    .preview-product {
+      background: var(--cream);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .preview-product-img {
+      height: 60px;
+      background: var(--border);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .preview-product-img::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, transparent 40%, rgba(255,255,255,0.3));
+    }
+
+    .preview-product-img.p1 { background: #e8d5c4; }
+    .preview-product-img.p2 { background: #d4c8b8; }
+    .preview-product-img.p3 { background: #c9bfb2; }
+
+    .preview-product-info {
+      padding: 0.5rem;
+    }
+
+    .preview-product-name {
+      font-size: 0.65rem;
+      font-weight: 600;
+      color: var(--ink);
+      margin-bottom: 0.2rem;
+    }
+
+    .preview-product-price {
+      font-size: 0.6rem;
+      color: var(--accent);
+      font-weight: 700;
+    }
+
+    .preview-order-button {
+      width: 100%;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      padding: 0.6rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: var(--font-display);
+    }
+
+    .floating-badge {
+      position: absolute;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.1);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .badge-top-left {
+      top: -1.5rem;
+      left: -2rem;
+      animation: float1 4s ease-in-out infinite;
+    }
+
+    .badge-bottom-right {
+      bottom: -1.5rem;
+      right: -1.5rem;
+      animation: float2 5s ease-in-out infinite 0.5s;
+    }
+
+    @keyframes float1 {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-8px); }
+    }
+
+    @keyframes float2 {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(6px); }
+    }
+
+    .badge-icon { font-size: 1.2rem; }
+    .badge-text { font-size: 0.75rem; font-weight: 600; color: var(--ink); }
+    .badge-sub { font-size: 0.65rem; color: var(--muted); }
+
+    /* ── SECTION SHARED ── */
+    .section {
+      padding: 6rem 2rem;
+      max-width: 1280px;
+      margin: 0 auto;
+    }
+
+    .section-label {
+      font-family: var(--font-display);
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 0.75rem;
+    }
+
+    .section-heading {
+      font-family: var(--font-display);
+      font-size: clamp(2rem, 4vw, 3.25rem);
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      line-height: 1.1;
+      color: var(--ink);
+      margin-bottom: 1rem;
+    }
+
+    .section-sub {
+      font-size: 1.05rem;
+      color: var(--muted);
+      font-weight: 300;
+      max-width: 580px;
+      line-height: 1.75;
+    }
+
+    /* ── WHO IT'S FOR ── */
+    .who-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 1.25rem;
+      margin-top: 3rem;
+    }
+
+    .who-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 1.75rem 1.5rem;
+      transition: box-shadow 0.2s, transform 0.2s;
+    }
+
+    .who-card:hover {
+      box-shadow: 0 12px 40px rgba(0,0,0,0.07);
+      transform: translateY(-3px);
+    }
+
+    .who-icon {
+      font-size: 2rem;
+      margin-bottom: 0.75rem;
+      display: block;
+    }
+
+    .who-title {
+      font-family: var(--font-display);
+      font-weight: 700;
+      font-size: 1rem;
+      margin-bottom: 0.4rem;
+      color: var(--ink);
+    }
+
+    .who-desc {
+      font-size: 0.85rem;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    /* ── HOW IT WORKS ── */
+    .how-section {
+      background: var(--ink);
+      color: var(--paper);
+      padding: 6rem 2rem;
+    }
+
+    .how-inner {
+      max-width: 1280px;
+      margin: 0 auto;
+    }
+
+    .how-section .section-label { color: var(--gold); }
+    .how-section .section-heading { color: var(--paper); }
+    .how-section .section-sub { color: rgba(245,242,235,0.6); }
+
+    .how-steps {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 0;
+      margin-top: 4rem;
+      position: relative;
+    }
+
+    .how-steps::before {
+      content: '';
+      position: absolute;
+      top: 2.5rem;
+      left: 3rem;
+      right: 3rem;
+      height: 1px;
+      background: rgba(245,242,235,0.1);
+    }
+
+    .how-step {
+      padding: 0 2rem 0 0;
+      position: relative;
+    }
+
+    .step-number {
+      width: 48px; height: 48px;
+      background: var(--accent);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-display);
+      font-weight: 800;
+      font-size: 1.1rem;
+      color: #fff;
+      margin-bottom: 1.5rem;
+      position: relative;
+      z-index: 1;
+    }
+
+    .step-title {
+      font-family: var(--font-display);
+      font-weight: 700;
+      font-size: 1.05rem;
+      margin-bottom: 0.6rem;
+      color: var(--paper);
+    }
+
+    .step-desc {
+      font-size: 0.875rem;
+      color: rgba(245,242,235,0.55);
+      line-height: 1.65;
+    }
+
+    /* ── WHAT YOU GET ── */
+    .features-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+      margin-top: 3.5rem;
+    }
+
+    .feature-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 2rem;
+      display: grid;
+      grid-template-columns: 48px 1fr;
+      gap: 1.25rem;
+      align-items: start;
+      transition: box-shadow 0.2s;
+    }
+
+    .feature-card:hover {
+      box-shadow: 0 8px 30px rgba(0,0,0,0.06);
+    }
+
+    .feature-icon-box {
+      width: 48px; height: 48px;
+      background: rgba(200, 75, 47, 0.08);
+      border: 1px solid rgba(200, 75, 47, 0.15);
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.25rem;
+      flex-shrink: 0;
+    }
+
+    .feature-title {
+      font-family: var(--font-display);
+      font-weight: 700;
+      font-size: 1rem;
+      margin-bottom: 0.4rem;
+      color: var(--ink);
+    }
+
+    .feature-desc {
+      font-size: 0.875rem;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    /* ── CTA BAND ── */
+    .cta-band {
+      background: var(--accent);
+      padding: 5rem 2rem;
+      text-align: center;
+    }
+
+    .cta-band h2 {
+      font-family: var(--font-display);
+      font-weight: 800;
+      font-size: clamp(2rem, 5vw, 3.5rem);
+      letter-spacing: -0.03em;
+      color: #fff;
+      margin-bottom: 1rem;
+    }
+
+    .cta-band p {
+      font-size: 1.1rem;
+      color: rgba(255,255,255,0.75);
+      margin-bottom: 2.5rem;
+      font-weight: 300;
+    }
+
+    .btn-white {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: #fff;
+      color: var(--accent);
+      padding: 1rem 2.5rem;
+      border-radius: 2px;
+      font-family: var(--font-display);
+      font-weight: 700;
+      font-size: 1.05rem;
+      text-decoration: none;
+      transition: transform 0.15s, box-shadow 0.2s;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+    }
+
+    .btn-white:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+    }
+
+    .cta-note {
+      margin-top: 1rem;
+      font-size: 0.8rem;
+      color: rgba(255,255,255,0.55);
+    }
+
+    /* ── FOOTER ── */
+    footer {
+      background: var(--ink);
+      color: rgba(245,242,235,0.5);
+      padding: 3rem 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+
+    .footer-logo {
+      font-family: var(--font-display);
+      font-weight: 800;
+      font-size: 1rem;
+      color: var(--paper);
+      text-decoration: none;
+    }
+
+    .footer-logo span { color: var(--accent); }
+
+    .footer-links {
+      display: flex;
+      gap: 2rem;
+    }
+
+    .footer-links a {
+      font-size: 0.825rem;
+      color: rgba(245,242,235,0.45);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .footer-links a:hover { color: var(--paper); }
+
+    .footer-copy {
+      font-size: 0.75rem;
+    }
+
+    /* ── DIVIDER ── */
+    .divider {
+      height: 1px;
+      background: var(--border);
+      max-width: 1280px;
+      margin: 0 auto;
+    }
+
+    /* ── ANIMATIONS ── */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(24px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .hero-content > * {
+      opacity: 0;
+      animation: fadeUp 0.6s ease forwards;
+    }
+
+    .hero-content > *:nth-child(1) { animation-delay: 0.1s; }
+    .hero-content > *:nth-child(2) { animation-delay: 0.2s; }
+    .hero-content > *:nth-child(3) { animation-delay: 0.3s; }
+    .hero-content > *:nth-child(4) { animation-delay: 0.4s; }
+    .hero-content > *:nth-child(5) { animation-delay: 0.5s; }
+    .hero-content > *:nth-child(6) { animation-delay: 0.6s; }
+
+    .hero-visual {
+      opacity: 0;
+      animation: fadeUp 0.8s ease 0.5s forwards;
+    }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 900px) {
+      .hero {
+        grid-template-columns: 1fr;
+        min-height: auto;
+        padding: 4rem 1.5rem 3rem;
+        gap: 3rem;
+      }
+
+      .how-steps::before { display: none; }
+      .features-grid { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 600px) {
+      nav { padding: 0.75rem 1rem; }
+      .nav-link { display: none; }
+      .hero { padding: 3rem 1rem; }
+      .storefront-preview { transform: none; }
+      .floating-badge { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- NAV -->
+  <nav>
+    <a href="/" class="nav-logo">Proof<span>Link</span></a>
+    <div style="display:flex;align-items:center;">
+      <a href="#how-it-works" class="nav-link">How it works</a>
+      <a href="#features" class="nav-link">Features</a>
+      <a href="/operator/" class="nav-link">Operator Login</a>
+      <a href="/join" class="nav-cta">Start Now →</a>
+    </div>
+  </nav>
+
+  <!-- HERO -->
+  <section style="background: var(--paper); border-bottom: 1px solid var(--border);">
+    <div class="hero">
+      <div class="hero-content">
+        <span class="hero-eyebrow">For small businesses</span>
+        <h1 class="hero-headline">
+          <span class="accent-word">Sell.</span><br/>
+          Track.<br/>
+          Get Paid.
+        </h1>
+        <p class="hero-tagline">
+          Your business online<br/>
+          <strong>in minutes.</strong>
+        </p>
+        <p class="hero-body">
+          ProofLink gives small businesses — bakers, contractors, lawn care pros, and more — a professional online storefront, order management, and direct payouts. No tech skills needed.
+        </p>
+        <div class="hero-actions">
+          <a href="/join" class="btn-primary">Start Your Free Application →</a>
+          <a href="#how-it-works" class="btn-secondary">See how it works ↓</a>
+        </div>
+        <div class="hero-social-proof">
+          <div class="proof-item">
+            <span class="proof-number">5 min</span>
+            <span class="proof-label">to apply</span>
+          </div>
+          <div class="proof-item">
+            <span class="proof-number">$0</span>
+            <span class="proof-label">to start</span>
+          </div>
+          <div class="proof-item">
+            <span class="proof-number">24hr</span>
+            <span class="proof-label">approval time</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="hero-visual">
+        <div class="storefront-preview">
+          <div class="preview-bar">
+            <div class="preview-dot"></div>
+            <div class="preview-dot"></div>
+            <div class="preview-dot"></div>
+            <div class="preview-url">prooflink.app/your-shop</div>
+          </div>
+          <div class="preview-body">
+            <div class="preview-shop-header">
+              <div class="preview-logo-box">B</div>
+              <div>
+                <div class="preview-shop-name">Barker's Bakes</div>
+                <div class="preview-shop-tagline">Fresh baked weekly • Pickup available</div>
+              </div>
+            </div>
+            <div class="preview-products">
+              <div class="preview-product">
+                <div class="preview-product-img p1"></div>
+                <div class="preview-product-info">
+                  <div class="preview-product-name">Sourdough</div>
+                  <div class="preview-product-price">$12.00</div>
+                </div>
+              </div>
+              <div class="preview-product">
+                <div class="preview-product-img p2"></div>
+                <div class="preview-product-info">
+                  <div class="preview-product-name">Cinn. Roll</div>
+                  <div class="preview-product-price">$4.50</div>
+                </div>
+              </div>
+              <div class="preview-product">
+                <div class="preview-product-img p3"></div>
+                <div class="preview-product-info">
+                  <div class="preview-product-name">Cookie Box</div>
+                  <div class="preview-product-price">$18.00</div>
+                </div>
+              </div>
+            </div>
+            <button class="preview-order-button">Request an Order</button>
+          </div>
+        </div>
+        <div class="floating-badge badge-top-left">
+          <span class="badge-icon">💳</span>
+          <div>
+            <div class="badge-text">Payment received</div>
+            <div class="badge-sub">$48.00 deposited</div>
+          </div>
+        </div>
+        <div class="floating-badge badge-bottom-right">
+          <span class="badge-icon">📦</span>
+          <div>
+            <div class="badge-text">New order</div>
+            <div class="badge-sub">Sourdough × 2</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- WHO IT'S FOR -->
+  <section class="section">
+    <p class="section-label">Who it's for</p>
+    <h2 class="section-heading">Built for local businesses<br/>that do the work themselves.</h2>
+    <p class="section-sub">Whether you bake, build, or mow — ProofLink gives you a professional online presence without the complexity.</p>
+    <div class="who-grid">
+      <div class="who-card">
+        <span class="who-icon">🥖</span>
+        <div class="who-title">Cottage Bakers</div>
+        <div class="who-desc">Sell baked goods, manage pickup windows, and stay compliant with state cottage food rules.</div>
+      </div>
+      <div class="who-card">
+        <span class="who-icon">🔨</span>
+        <div class="who-title">Contractors</div>
+        <div class="who-desc">Post services, collect deposits, and invoice clients — all from one simple dashboard.</div>
+      </div>
+      <div class="who-card">
+        <span class="who-icon">🌿</span>
+        <div class="who-title">Lawn Care</div>
+        <div class="who-desc">Let customers book recurring services and pay online. No phone tag required.</div>
+      </div>
+      <div class="who-card">
+        <span class="who-icon">🎨</span>
+        <div class="who-title">Makers & Crafters</div>
+        <div class="who-desc">Showcase your work, take custom orders, and get paid directly to your bank.</div>
+      </div>
+      <div class="who-card">
+        <span class="who-icon">🐾</span>
+        <div class="who-title">Pet Services</div>
+        <div class="who-desc">Groomers, walkers, and sitters can manage bookings and take online payments easily.</div>
+      </div>
+      <div class="who-card">
+        <span class="who-icon">🍱</span>
+        <div class="who-title">Meal Prep</div>
+        <div class="who-desc">Run weekly order windows, collect payment upfront, and deliver with confidence.</div>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- HOW IT WORKS -->
+  <section class="how-section" id="how-it-works">
+    <div class="how-inner">
+      <p class="section-label">How it works</p>
+      <h2 class="section-heading">From application<br/>to open for business.</h2>
+      <p class="section-sub">Onboarding takes only a few minutes. We handle the rest.</p>
+      <div class="how-steps">
+        <div class="how-step">
+          <div class="step-number">1</div>
+          <div class="step-title">Apply in minutes</div>
+          <div class="step-desc">Fill out a short form with your business name, type, and contact info. No credit card needed to apply.</div>
+        </div>
+        <div class="how-step">
+          <div class="step-number">2</div>
+          <div class="step-title">We review & approve</div>
+          <div class="step-desc">Our team reviews your application within 24 hours and sets up your account when approved.</div>
+        </div>
+        <div class="how-step">
+          <div class="step-number">3</div>
+          <div class="step-title">Launch your storefront</div>
+          <div class="step-desc">Log in to your dashboard, add your products or services, and go live. Your storefront is ready to share.</div>
+        </div>
+        <div class="how-step">
+          <div class="step-number">4</div>
+          <div class="step-title">Get paid directly</div>
+          <div class="step-desc">Connect your bank account via Stripe and receive payouts directly — no platform holds or delays.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FEATURES -->
+  <section class="section" id="features">
+    <p class="section-label">What you get</p>
+    <h2 class="section-heading">Everything a small business<br/>needs to sell online.</h2>
+    <p class="section-sub">ProofLink includes everything in one place — no plugins, no subscriptions to stack.</p>
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon-box">🏪</div>
+        <div>
+          <div class="feature-title">Your own storefront</div>
+          <div class="feature-desc">A professional page with your branding, products, and contact info. Shareable link included.</div>
+        </div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon-box">📋</div>
+        <div>
+          <div class="feature-title">Order management</div>
+          <div class="feature-desc">View and manage all incoming orders from a simple operator dashboard. Confirm, fulfill, done.</div>
+        </div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon-box">💸</div>
+        <div>
+          <div class="feature-title">Direct payouts via Stripe</div>
+          <div class="feature-desc">You own your Stripe account. Payments go directly to you — ProofLink never holds your money.</div>
+        </div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon-box">📱</div>
+        <div>
+          <div class="feature-title">Mobile-friendly</div>
+          <div class="feature-desc">Your storefront looks great on any device. Customers can browse and order from their phones.</div>
+        </div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon-box">🔒</div>
+        <div>
+          <div class="feature-title">Secure checkout</div>
+          <div class="feature-desc">All payments are processed securely through Stripe. PCI compliance handled automatically.</div>
+        </div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon-box">🚀</div>
+        <div>
+          <div class="feature-title">Fast setup</div>
+          <div class="feature-desc">Apply in under 5 minutes. Once approved, your store is ready to customize and launch same-day.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA BAND -->
+  <section class="cta-band">
+    <h2>Ready to get started?</h2>
+    <p>Apply now and have your store live within 24 hours.</p>
+    <a href="/join" class="btn-white">Start Your Free Application →</a>
+    <p class="cta-note">Takes about 5 minutes &nbsp;·&nbsp; No credit card required &nbsp;·&nbsp; Approval within 24 hours</p>
+  </section>
+
+  <!-- FOOTER -->
+  <footer>
+    <a href="/" class="footer-logo">Proof<span>Link</span></a>
+    <div class="footer-links">
+      <a href="/">Home</a>
+      <a href="/join">Join</a>
+      <a href="/operator/">Operator Login</a>
+    </div>
+    <span class="footer-copy">© 2025 ProofLink. All rights reserved.</span>
+  </footer>
+
+</body>
+</html>

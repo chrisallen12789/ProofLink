@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Start with ProofLink</title>
+  <meta name="description" content="Create your ProofLink business account and start onboarding." />
+  <style>
+    :root{
+      --bg:#0f1115;
+      --panel:#171a21;
+      --panel-2:#1d222b;
+      --text:#f3f5f7;
+      --muted:#a7b0bb;
+      --border:rgba(255,255,255,.08);
+      --accent:#c9a227;
+      --danger:#ff6b6b;
+      --good:#36c275;
+      --shadow:0 16px 40px rgba(0,0,0,.28);
+      --radius:18px;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font:16px/1.5 Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+      color:var(--text);
+      background:
+        radial-gradient(circle at top, rgba(201,162,39,.16), transparent 28%),
+        linear-gradient(180deg, #0c0e12 0%, var(--bg) 100%);
+      min-height:100vh;
+    }
+    .wrap{
+      max-width:1080px;
+      margin:0 auto;
+      padding:32px 18px 60px;
+    }
+    .hero{
+      display:grid;
+      grid-template-columns:1.2fr .8fr;
+      gap:24px;
+      align-items:start;
+    }
+    .hero-copy{
+      padding:10px 4px 0;
+    }
+    .eyebrow{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:6px 10px;
+      border:1px solid var(--border);
+      border-radius:999px;
+      color:var(--muted);
+      font-size:12px;
+      letter-spacing:.04em;
+      text-transform:uppercase;
+      background:rgba(255,255,255,.03);
+    }
+    h1{
+      margin:14px 0 12px;
+      font-size:clamp(2rem,4vw,3.3rem);
+      line-height:1.02;
+      letter-spacing:-.03em;
+    }
+    .sub{
+      margin:0;
+      color:var(--muted);
+      max-width:62ch;
+      font-size:1.02rem;
+    }
+    .bullets{
+      margin:20px 0 0;
+      display:grid;
+      gap:10px;
+      color:#dfe5ea;
+    }
+    .bullet{
+      display:flex;
+      gap:10px;
+      align-items:flex-start;
+    }
+    .dot{
+      width:10px;
+      height:10px;
+      border-radius:50%;
+      background:var(--accent);
+      flex:0 0 10px;
+      margin-top:8px;
+    }
+
+    .card{
+      background:linear-gradient(180deg,var(--panel),var(--panel-2));
+      border:1px solid var(--border);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+    }
+    .form-card{
+      padding:22px;
+    }
+    .form-head{
+      margin-bottom:14px;
+    }
+    .form-head h2{
+      margin:0 0 6px;
+      font-size:1.25rem;
+    }
+    .form-head p{
+      margin:0;
+      color:var(--muted);
+      font-size:.95rem;
+    }
+    form{
+      display:grid;
+      gap:14px;
+    }
+    .grid{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:14px;
+    }
+    .field{
+      display:grid;
+      gap:7px;
+    }
+    .field.full{
+      grid-column:1 / -1;
+    }
+    label{
+      font-size:.92rem;
+      color:#dfe5ea;
+      font-weight:600;
+    }
+    input, select, textarea{
+      width:100%;
+      border:1px solid var(--border);
+      background:#101319;
+      color:var(--text);
+      border-radius:12px;
+      padding:12px 13px;
+      font:inherit;
+      outline:none;
+    }
+    textarea{
+      min-height:110px;
+      resize:vertical;
+    }
+    input:focus, select:focus, textarea:focus{
+      border-color:rgba(201,162,39,.7);
+      box-shadow:0 0 0 3px rgba(201,162,39,.16);
+    }
+    .help{
+      color:var(--muted);
+      font-size:.83rem;
+    }
+    .actions{
+      display:flex;
+      gap:12px;
+      align-items:center;
+      flex-wrap:wrap;
+      margin-top:4px;
+    }
+    button{
+      appearance:none;
+      border:0;
+      border-radius:12px;
+      padding:12px 16px;
+      font:inherit;
+      font-weight:700;
+      cursor:pointer;
+      background:var(--accent);
+      color:#201806;
+    }
+    button[disabled]{
+      opacity:.65;
+      cursor:not-allowed;
+    }
+    .ghost{
+      background:transparent;
+      color:var(--text);
+      border:1px solid var(--border);
+    }
+    .msg{
+      min-height:24px;
+      font-size:.92rem;
+      color:var(--muted);
+    }
+    .msg.bad{ color:var(--danger); }
+    .msg.good{ color:var(--good); }
+
+    .steps{
+      margin-top:24px;
+      display:grid;
+      grid-template-columns:repeat(4,1fr);
+      gap:14px;
+    }
+    .step{
+      padding:16px;
+    }
+    .step-num{
+      width:28px;
+      height:28px;
+      display:grid;
+      place-items:center;
+      border-radius:999px;
+      background:rgba(201,162,39,.14);
+      color:var(--accent);
+      font-weight:800;
+      margin-bottom:10px;
+    }
+    .step h3{
+      margin:0 0 6px;
+      font-size:1rem;
+    }
+    .step p{
+      margin:0;
+      color:var(--muted);
+      font-size:.92rem;
+    }
+
+    @media (max-width: 900px){
+      .hero{grid-template-columns:1fr}
+      .steps{grid-template-columns:1fr 1fr}
+    }
+    @media (max-width: 640px){
+      .grid{grid-template-columns:1fr}
+      .steps{grid-template-columns:1fr}
+      .wrap{padding-top:20px}
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="hero">
+      <div class="hero-copy">
+        <div class="eyebrow">ProofLink onboarding</div>
+        <h1>Launch a business account in minutes.</h1>
+        <p class="sub">
+          Create the tenant, assign the operator, lock in the subdomain, then move directly into billing and payout setup.
+          This is the front door for service businesses, cottage food operators, and small local sellers.
+        </p>
+
+        <div class="bullets">
+          <div class="bullet"><span class="dot"></span><div>Creates the tenant bundle in one backend action.</div></div>
+          <div class="bullet"><span class="dot"></span><div>Moves the owner straight into the guided setup flow.</div></div>
+          <div class="bullet"><span class="dot"></span><div>Keeps platform billing and tenant payouts separate.</div></div>
+        </div>
+      </div>
+
+      <div class="card form-card">
+        <div class="form-head">
+          <h2>Create your business workspace</h2>
+          <p>This creates the tenant shell. Billing and Stripe Connect happen next.</p>
+        </div>
+
+        <form id="startForm" novalidate>
+          <div class="grid">
+            <div class="field">
+              <label for="businessName">Business name</label>
+              <input id="businessName" name="businessName" required autocomplete="organization" placeholder="Lakeside Lawn Care" />
+            </div>
+
+            <div class="field">
+              <label for="ownerName">Owner name</label>
+              <input id="ownerName" name="ownerName" required autocomplete="name" placeholder="Chris Lane" />
+            </div>
+
+            <div class="field">
+              <label for="email">Email</label>
+              <input id="email" name="email" type="email" required autocomplete="email" placeholder="owner@example.com" />
+            </div>
+
+            <div class="field">
+              <label for="phone">Phone</label>
+              <input id="phone" name="phone" required autocomplete="tel" placeholder="555-555-5555" />
+            </div>
+
+            <div class="field">
+              <label for="businessCategory">Business category</label>
+              <select id="businessCategory" name="businessCategory" required>
+                <option value="">Select one</option>
+                <option value="lawn_care">Lawn care</option>
+                <option value="cleaning">Cleaning</option>
+                <option value="handyman">Handyman</option>
+                <option value="bakery">Bakery</option>
+                <option value="cottage_food">Cottage food</option>
+                <option value="home_services">Home services</option>
+                <option value="general_service">General service</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <label for="selectedPlan">ProofLink plan</label>
+              <select id="selectedPlan" name="selectedPlan">
+                <option value="starter">Starter</option>
+                <option value="growth">Growth</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <label for="fulfillmentModel">Fulfillment model</label>
+              <select id="fulfillmentModel" name="fulfillmentModel">
+                <option value="service">Service</option>
+                <option value="pickup">Pickup</option>
+                <option value="delivery">Delivery</option>
+                <option value="pickup_delivery">Pickup + delivery</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <label for="subdomainPreference">Subdomain preference</label>
+              <input id="subdomainPreference" name="subdomainPreference" placeholder="lakeside-lawn-care" />
+              <div class="help">Leave blank to auto-generate from the business name.</div>
+            </div>
+
+            <div class="field full">
+              <label for="serviceArea">Service area</label>
+              <input id="serviceArea" name="serviceArea" placeholder="Livingston County, Michigan" />
+            </div>
+
+            <div class="field full">
+              <label for="notes">Notes</label>
+              <textarea id="notes" name="notes" placeholder="Anything important about this business setup."></textarea>
+            </div>
+          </div>
+
+          <div class="actions">
+            <button type="submit" id="btnCreate">Create business workspace</button>
+            <button type="button" class="ghost" id="btnDemoFill">Fill demo data</button>
+          </div>
+
+          <div id="startMsg" class="msg"></div>
+        </form>
+      </div>
+    </section>
+
+    <section class="steps">
+      <div class="card step">
+        <div class="step-num">1</div>
+        <h3>Create tenant</h3>
+        <p>Business workspace, operator shell, slug, and initial defaults are created in one call.</p>
+      </div>
+      <div class="card step">
+        <div class="step-num">2</div>
+        <h3>Activate billing</h3>
+        <p>Start the ProofLink subscription so the platform account is live.</p>
+      </div>
+      <div class="card step">
+        <div class="step-num">3</div>
+        <h3>Connect payouts</h3>
+        <p>Tenant connects Stripe so customer money flows to the tenant account.</p>
+      </div>
+      <div class="card step">
+        <div class="step-num">4</div>
+        <h3>Publish and sell</h3>
+        <p>Finish the setup, add the first offer, and open the storefront.</p>
+      </div>
+    </section>
+  </div>
+
+  <script src="/start.js"></script>
+</body>
+</html>

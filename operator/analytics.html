@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>ProofLink — Analytics</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{
+      --ink:#0d0d0d;--bg:#f0ede6;--card:#ffffff;--cream:#e8e4dc;
+      --accent:#c84b2f;--gold:#d4a843;--muted:#6b6560;--border:#d9d4c9;
+      --success:#2e7d32;--error:#c62828;--info:#1565c0;
+      --font-display:'Syne',sans-serif;--font-body:'DM Sans',sans-serif;
+    }
+    body{background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:14px;line-height:1.5}
+    .op-layout{display:grid;grid-template-columns:220px 1fr;min-height:100vh}
+    /* sidebar */
+    .sidebar{background:var(--ink);padding:1.5rem 0;position:sticky;top:0;height:100vh;overflow-y:auto}
+    .sidebar-logo{display:block;font-family:var(--font-display);font-weight:800;font-size:1.15rem;color:#f5f2eb;text-decoration:none;padding:0 1.5rem 1.5rem;border-bottom:1px solid rgba(255,255,255,0.07);margin-bottom:1.5rem}
+    .sidebar-logo span{color:var(--accent)}
+    .sidebar-nav{list-style:none;padding:0 0.75rem}
+    .sidebar-nav li a{display:flex;align-items:center;gap:0.6rem;padding:0.6rem 0.75rem;border-radius:4px;color:rgba(245,242,235,0.5);text-decoration:none;font-size:0.82rem;font-weight:500;transition:background 0.15s,color 0.15s}
+    .sidebar-nav li a:hover,.sidebar-nav li a.active{background:rgba(255,255,255,0.07);color:#f5f2eb}
+    .sidebar-nav li a.active{color:#fff;background:rgba(200,75,47,0.2)}
+    .sidebar-section-label{font-size:0.62rem;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:rgba(245,242,235,0.25);padding:1.25rem 1.5rem 0.5rem}
+    /* main */
+    .main{padding:2rem 2.5rem;max-width:1200px}
+    .page-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:2rem;padding-bottom:1.5rem;border-bottom:1px solid var(--border)}
+    .page-title{font-family:var(--font-display);font-size:1.5rem;font-weight:700;letter-spacing:-0.02em}
+    .page-sub{font-size:0.82rem;color:var(--muted);margin-top:0.2rem}
+    /* KPI grid */
+    .kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:2rem}
+    .kpi-card{background:var(--card);border:1px solid var(--border);border-radius:6px;padding:1.5rem}
+    .kpi-label{font-size:0.7rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:0.5rem}
+    .kpi-value{font-family:var(--font-display);font-size:2.25rem;font-weight:800;letter-spacing:-0.03em;color:var(--ink);line-height:1}
+    .kpi-delta{display:inline-flex;align-items:center;gap:0.25rem;font-size:0.75rem;font-weight:500;margin-top:0.5rem;color:var(--muted)}
+    .kpi-delta.up{color:var(--success)}.kpi-delta.down{color:var(--error)}
+    .kpi-icon{float:right;font-size:1.5rem;margin-top:-0.25rem;opacity:0.4}
+    /* two-col layout */
+    .two-col{display:grid;grid-template-columns:1.5fr 1fr;gap:1.5rem;margin-bottom:1.5rem}
+    .panel{background:var(--card);border:1px solid var(--border);border-radius:6px}
+    .panel-header{padding:1rem 1.25rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+    .panel-title{font-family:var(--font-display);font-weight:700;font-size:0.9rem;letter-spacing:-0.01em}
+    .panel-body{padding:1.25rem}
+    /* status bar chart */
+    .status-bars{display:flex;flex-direction:column;gap:0.85rem}
+    .status-bar-row{display:grid;grid-template-columns:100px 1fr 40px;align-items:center;gap:0.75rem}
+    .status-bar-label{font-size:0.75rem;color:var(--muted);text-align:right;text-transform:capitalize}
+    .bar-track{background:var(--cream);border-radius:20px;height:8px;overflow:hidden}
+    .bar-fill{height:100%;border-radius:20px;transition:width 1s ease}
+    .bar-submitted{background:#9c9490}
+    .bar-approved{background:var(--gold)}
+    .bar-provisioning{background:var(--info)}
+    .bar-provisioned{background:var(--success)}
+    .bar-failed{background:var(--error)}
+    .bar-rejected{background:#ccc}
+    .status-bar-count{font-size:0.75rem;font-weight:600;color:var(--ink);text-align:right}
+    /* activity feed */
+    .activity-list{display:flex;flex-direction:column;gap:0}
+    .activity-item{display:flex;align-items:flex-start;gap:0.85rem;padding:0.85rem 0;border-bottom:1px solid var(--border)}
+    .activity-item:last-child{border-bottom:none}
+    .activity-dot{width:8px;height:8px;border-radius:50%;margin-top:4px;flex-shrink:0}
+    .dot-submitted{background:#9c9490}.dot-approved{background:var(--gold)}
+    .dot-provisioned{background:var(--success)}.dot-failed{background:var(--error)}
+    .dot-rejected{background:#ccc}
+    .activity-text{font-size:0.8rem;color:var(--ink);line-height:1.5}
+    .activity-meta{font-size:0.72rem;color:var(--muted)}
+    /* recent tenants */
+    .tenant-list{display:flex;flex-direction:column;gap:0}
+    .tenant-row{display:flex;align-items:center;gap:0.75rem;padding:0.75rem 0;border-bottom:1px solid var(--border)}
+    .tenant-row:last-child{border-bottom:none}
+    .tenant-avatar{width:32px;height:32px;border-radius:4px;background:var(--accent);display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:700;font-size:0.9rem;color:#fff;flex-shrink:0}
+    .tenant-name{font-size:0.82rem;font-weight:600;color:var(--ink)}
+    .tenant-slug{font-size:0.72rem;color:var(--muted);font-family:monospace}
+    .badge-sm{display:inline-block;padding:0.15rem 0.5rem;border-radius:10px;font-size:0.65rem;font-weight:600}
+    .badge-active{background:rgba(46,125,50,0.1);color:var(--success)}
+    .badge-stripe-active{background:rgba(21,101,192,0.1);color:var(--info)}
+    .badge-stripe-pending{background:rgba(212,168,67,0.1);color:#8a6a00}
+    .badge-stripe-none{background:var(--cream);color:var(--muted)}
+    /* gmv highlight */
+    .gmv-block{text-align:center;padding:1.5rem 0}
+    .gmv-value{font-family:var(--font-display);font-size:3rem;font-weight:800;letter-spacing:-0.04em;color:var(--ink)}
+    .gmv-label{font-size:0.8rem;color:var(--muted);margin-top:0.25rem}
+    .gmv-week{font-size:1.1rem;font-weight:600;color:var(--success);margin-top:0.5rem}
+    /* loading */
+    .skeleton{background:linear-gradient(90deg,var(--cream) 25%,var(--border) 50%,var(--cream) 75%);background-size:200% 100%;animation:shimmer 1.4s infinite;border-radius:4px;height:1rem}
+    @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+    /* spinner */
+    .spinner{display:inline-block;width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.7s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .btn-sm{display:inline-flex;align-items:center;gap:0.3rem;padding:0.4rem 0.9rem;border-radius:3px;font-size:0.75rem;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--card);color:var(--muted);font-family:var(--font-body);transition:all 0.15s}
+    .btn-sm:hover{border-color:var(--ink);color:var(--ink)}
+    /* auth */
+    #auth-gate{display:flex;align-items:center;justify-content:center;min-height:100vh;background:var(--bg)}
+    .auth-card{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:2.5rem;width:100%;max-width:380px;text-align:center}
+    .auth-logo{font-family:var(--font-display);font-weight:800;font-size:1.5rem;color:var(--ink);margin-bottom:0.5rem}
+    .auth-logo span{color:var(--accent)}
+    .auth-sub{font-size:0.875rem;color:var(--muted);margin-bottom:1.75rem}
+    .auth-input{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:0.7rem 0.9rem;font-size:0.9rem;font-family:var(--font-body);color:var(--ink);margin-bottom:0.75rem;outline:none;transition:border-color 0.2s}
+    .auth-input:focus{border-color:var(--accent)}
+    .auth-btn{width:100%;background:var(--accent);color:#fff;border:none;border-radius:4px;padding:0.75rem;font-family:var(--font-display);font-weight:700;font-size:0.9rem;cursor:pointer;transition:background 0.2s}
+    .auth-btn:hover{background:#a83820}
+    .auth-error{color:var(--error);font-size:0.8rem;margin-top:0.5rem}
+    @media(max-width:900px){.kpi-grid{grid-template-columns:1fr 1fr}.two-col{grid-template-columns:1fr}}
+    @media(max-width:600px){.kpi-grid{grid-template-columns:1fr}.op-layout{grid-template-columns:1fr}.sidebar{position:static;height:auto}}
+  </style>
+</head>
+<body>
+
+<div id="auth-gate">
+  <div class="auth-card">
+    <div class="auth-logo">Proof<span>Link</span></div>
+    <div class="auth-sub">Operator sign in</div>
+    <input type="email" id="auth-email" class="auth-input" placeholder="operator@example.com"/>
+    <input type="password" id="auth-password" class="auth-input" placeholder="Password"/>
+    <button class="auth-btn" id="auth-btn">Sign In</button>
+    <div class="auth-error" id="auth-error"></div>
+  </div>
+</div>
+
+<div class="op-layout" id="op-shell" style="display:none">
+  <aside class="sidebar">
+    <a href="/operator/" class="sidebar-logo">Proof<span>Link</span></a>
+    <div class="sidebar-section-label">Manage</div>
+    <ul class="sidebar-nav">
+      <li><a href="/operator/">📊 &nbsp;Dashboard</a></li>
+      <li><a href="/operator/orders.html">📦 &nbsp;Orders</a></li>
+      <li><a href="/operator/products.html">🛍️ &nbsp;Products</a></li>
+      <li><a href="/operator/tenants.html">🏪 &nbsp;Tenants</a></li>
+    </ul>
+    <div class="sidebar-section-label">Platform</div>
+    <ul class="sidebar-nav">
+      <li><a href="/operator/analytics.html" class="active">📈 &nbsp;Analytics</a></li>
+      <li><a href="/operator/provisioning.html">🔧 &nbsp;Provisioning</a></li>
+      <li><a href="/operator/settings.html">⚙️ &nbsp;Settings</a></li>
+    </ul>
+    <div style="position:absolute;bottom:1.5rem;left:0;right:0;padding:0 1.5rem">
+      <button id="sign-out-btn" style="width:100%;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:rgba(245,242,235,0.5);padding:0.5rem;border-radius:4px;cursor:pointer;font-size:0.75rem;font-family:var(--font-body)">Sign out</button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="page-header">
+      <div>
+        <div class="page-title">Analytics</div>
+        <div class="page-sub">Platform-wide metrics and activity.</div>
+      </div>
+      <button class="btn-sm" id="refresh-btn">↻ Refresh</button>
+    </div>
+
+    <!-- KPI Cards -->
+    <div class="kpi-grid" id="kpi-grid">
+      <div class="kpi-card"><div class="kpi-label">Total Tenants</div><div class="kpi-value" id="kpi-tenants">–</div><div class="kpi-delta" id="kpi-tenants-delta"></div></div>
+      <div class="kpi-card"><div class="kpi-label">Applications</div><div class="kpi-value" id="kpi-requests">–</div><div class="kpi-delta" id="kpi-requests-delta"></div></div>
+      <div class="kpi-card"><div class="kpi-label">Total Orders</div><div class="kpi-value" id="kpi-orders">–</div><div class="kpi-delta" id="kpi-orders-delta"></div></div>
+      <div class="kpi-card"><div class="kpi-label">GMV (All Time)</div><div class="kpi-value" id="kpi-gmv">–</div><div class="kpi-delta" id="kpi-gmv-delta"></div></div>
+    </div>
+
+    <!-- Row 2: Status breakdown + Recent tenants -->
+    <div class="two-col">
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">Application pipeline</div>
+        </div>
+        <div class="panel-body">
+          <div class="status-bars" id="status-bars">
+            <div style="text-align:center;padding:2rem;color:var(--muted)"><div class="spinner"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">GMV breakdown</div>
+        </div>
+        <div class="panel-body">
+          <div class="gmv-block">
+            <div class="gmv-value" id="gmv-big">–</div>
+            <div class="gmv-label">total gross merchandise value</div>
+            <div class="gmv-week" id="gmv-week">– this week</div>
+          </div>
+          <hr style="border:none;border-top:1px solid var(--border);margin:1rem 0"/>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
+            <div>
+              <div style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);margin-bottom:0.3rem">Stripe connected</div>
+              <div style="font-family:var(--font-display);font-size:1.4rem;font-weight:800" id="stripe-count">–</div>
+            </div>
+            <div>
+              <div style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);margin-bottom:0.3rem">New this month</div>
+              <div style="font-family:var(--font-display);font-size:1.4rem;font-weight:800" id="new-month">–</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Row 3: Activity feed + Recent tenants -->
+    <div class="two-col">
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">Recent applications</div>
+          <a href="/operator/provisioning.html" style="font-size:0.75rem;color:var(--muted);text-decoration:none">View all →</a>
+        </div>
+        <div class="panel-body" style="padding:0 1.25rem">
+          <div class="activity-list" id="activity-list">
+            <div style="text-align:center;padding:2rem;color:var(--muted)"><div class="spinner"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">Recent tenants</div>
+          <a href="/operator/tenants.html" style="font-size:0.75rem;color:var(--muted);text-decoration:none">View all →</a>
+        </div>
+        <div class="panel-body" style="padding:0 1.25rem">
+          <div class="tenant-list" id="tenant-list">
+            <div style="text-align:center;padding:2rem;color:var(--muted)"><div class="spinner"></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+(function(){
+  const SUPABASE_URL  = document.querySelector('meta[name="supabase-url"]')?.content  || window.SUPABASE_URL  || '';
+  const SUPABASE_ANON = document.querySelector('meta[name="supabase-anon-key"]')?.content || window.SUPABASE_ANON_KEY || '';
+  let token = null;
+
+  // Auth
+  document.getElementById('auth-btn').addEventListener('click', signIn);
+  document.getElementById('auth-password').addEventListener('keydown', e => { if(e.key==='Enter') signIn(); });
+  document.getElementById('sign-out-btn').addEventListener('click', () => {
+    token = null; sessionStorage.removeItem('pl_op_token');
+    document.getElementById('op-shell').style.display='none';
+    document.getElementById('auth-gate').style.display='flex';
+  });
+  document.getElementById('refresh-btn').addEventListener('click', loadStats);
+
+  // Init
+  token = sessionStorage.getItem('pl_op_token');
+  if(token){ showShell(); loadStats(); }
+
+  async function signIn(){
+    const email = document.getElementById('auth-email').value.trim();
+    const pass  = document.getElementById('auth-password').value;
+    const errEl = document.getElementById('auth-error');
+    const btn   = document.getElementById('auth-btn');
+    if(!email||!pass){ errEl.textContent='Enter email and password.'; return; }
+    btn.textContent='Signing in…'; btn.disabled=true; errEl.textContent='';
+    try{
+      const r = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`,{
+        method:'POST', headers:{'Content-Type':'application/json','apikey':SUPABASE_ANON},
+        body:JSON.stringify({email,password:pass})
+      });
+      const d = await r.json();
+      if(!r.ok||!d.access_token){ errEl.textContent=d.error_description||'Sign in failed.'; btn.textContent='Sign In'; btn.disabled=false; return; }
+      token=d.access_token; sessionStorage.setItem('pl_op_token',token);
+      showShell(); loadStats();
+    }catch(e){ errEl.textContent='Network error.'; btn.textContent='Sign In'; btn.disabled=false; }
+  }
+
+  function showShell(){
+    document.getElementById('auth-gate').style.display='none';
+    document.getElementById('op-shell').style.display='grid';
+  }
+
+  async function loadStats(){
+    try{
+      const r = await fetch('/.netlify/functions/get-platform-stats',{headers:{Authorization:`Bearer ${token}`}});
+      if(r.status===401||r.status===403){ sessionStorage.removeItem('pl_op_token'); location.reload(); return; }
+      const d = await r.json();
+      renderKPIs(d);
+      renderStatusBars(d.onboarding?.by_status||{}, d.onboarding?.total||0);
+      renderActivity(d.recent_requests||[]);
+      renderTenants(d.recent_tenants||[]);
+      renderGMV(d);
+    }catch(e){ console.error('Stats error',e); }
+  }
+
+  function fmt(n){ return new Intl.NumberFormat('en-US').format(n); }
+  function fmtMoney(n){ return '$'+new Intl.NumberFormat('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}).format(n); }
+
+  function renderKPIs(d){
+    setText('kpi-tenants', fmt(d.tenants?.total||0));
+    setText('kpi-requests', fmt(d.onboarding?.total||0));
+    setText('kpi-orders', fmt(d.orders?.total||0));
+    setText('kpi-gmv', fmtMoney(d.orders?.gmv_total||0));
+    setDelta('kpi-tenants-delta', d.tenants?.new_week, 'new this week');
+    setDelta('kpi-requests-delta', d.onboarding?.new_week, 'new this week');
+    setDelta('kpi-orders-delta', d.orders?.new_week, 'new this week');
+    setDelta('kpi-gmv-delta', null, fmtMoney(d.orders?.gmv_week||0)+' this week', false);
+  }
+
+  function setText(id, val){ const el=document.getElementById(id); if(el) el.textContent=val; }
+  function setDelta(id, count, label, showArrow=true){
+    const el=document.getElementById(id); if(!el) return;
+    if(count===null||count===undefined){ el.innerHTML=`<span>${label}</span>`; return; }
+    const up=count>=0;
+    el.innerHTML=`<span class="${up?'up':''}">${showArrow?(up?'↑':'↓'):''}${count} ${label}</span>`;
+  }
+
+  function renderStatusBars(byStatus, total){
+    const statuses=[
+      {key:'submitted',label:'Submitted',cls:'bar-submitted'},
+      {key:'approved',label:'Approved',cls:'bar-approved'},
+      {key:'provisioning',label:'Provisioning',cls:'bar-provisioning'},
+      {key:'provisioned',label:'Provisioned',cls:'bar-provisioned'},
+      {key:'failed',label:'Failed',cls:'bar-failed'},
+      {key:'rejected',label:'Rejected',cls:'bar-rejected'},
+    ];
+    const container=document.getElementById('status-bars');
+    if(total===0){ container.innerHTML='<p style="text-align:center;color:var(--muted);font-size:0.82rem;padding:1rem">No applications yet.</p>'; return; }
+    container.innerHTML=statuses.map(s=>{
+      const count=byStatus[s.key]||0;
+      const pct=total>0?Math.max(count/total*100,0):0;
+      return `<div class="status-bar-row">
+        <div class="status-bar-label">${s.label}</div>
+        <div class="bar-track"><div class="bar-fill ${s.cls}" style="width:0%" data-pct="${pct.toFixed(1)}"></div></div>
+        <div class="status-bar-count">${count}</div>
+      </div>`;
+    }).join('');
+    // Animate bars
+    requestAnimationFrame(()=>{
+      container.querySelectorAll('.bar-fill').forEach(el=>{
+        setTimeout(()=>{ el.style.width=el.dataset.pct+'%'; },100);
+      });
+    });
+  }
+
+  function renderActivity(requests){
+    const el=document.getElementById('activity-list');
+    if(!requests.length){ el.innerHTML='<p style="text-align:center;color:var(--muted);font-size:0.82rem;padding:1.5rem">No recent activity.</p>'; return; }
+    el.innerHTML=requests.map(r=>{
+      const date=r.created_at?timeAgo(new Date(r.created_at)):'';
+      return `<div class="activity-item">
+        <div class="activity-dot dot-${r.status}"></div>
+        <div>
+          <div class="activity-text"><strong>${esc(r.business_name)}</strong> — ${esc(r.owner_email)}</div>
+          <div class="activity-meta">${r.status} · ${r.business_type||'–'} · ${date}</div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  function renderTenants(tenants){
+    const el=document.getElementById('tenant-list');
+    if(!tenants.length){ el.innerHTML='<p style="text-align:center;color:var(--muted);font-size:0.82rem;padding:1.5rem">No tenants yet.</p>'; return; }
+    el.innerHTML=tenants.map(t=>{
+      const init=(t.name||'?').charAt(0).toUpperCase();
+      return `<div class="tenant-row">
+        <div class="tenant-avatar">${init}</div>
+        <div style="flex:1;min-width:0">
+          <div class="tenant-name">${esc(t.name)}</div>
+          <div class="tenant-slug">${esc(t.slug)}</div>
+        </div>
+        <span class="badge-sm badge-active">${t.status||'active'}</span>
+      </div>`;
+    }).join('');
+  }
+
+  function renderGMV(d){
+    document.getElementById('gmv-big').textContent = fmtMoney(d.orders?.gmv_total||0);
+    document.getElementById('gmv-week').textContent = fmtMoney(d.orders?.gmv_week||0)+' this week';
+    document.getElementById('stripe-count').textContent = d.tenants?.stripe_connected||0;
+    document.getElementById('new-month').textContent = d.tenants?.new_month||0;
+  }
+
+  function timeAgo(date){
+    const s=Math.floor((Date.now()-date)/1000);
+    if(s<60) return 'just now';
+    if(s<3600) return Math.floor(s/60)+'m ago';
+    if(s<86400) return Math.floor(s/3600)+'h ago';
+    return Math.floor(s/86400)+'d ago';
+  }
+
+  function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+})();
+</script>
+</body>
+</html>

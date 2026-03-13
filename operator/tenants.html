@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>ProofLink — Tenants</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{
+      --ink:#0d0d0d;--bg:#f0ede6;--card:#fff;--cream:#e8e4dc;
+      --accent:#c84b2f;--gold:#d4a843;--muted:#6b6560;--border:#d9d4c9;
+      --success:#2e7d32;--error:#c62828;--info:#1565c0;
+      --font-display:'Syne',sans-serif;--font-body:'DM Sans',sans-serif;
+    }
+    body{background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:14px}
+    .op-layout{display:grid;grid-template-columns:220px 1fr;min-height:100vh}
+    .sidebar{background:var(--ink);padding:1.5rem 0;position:sticky;top:0;height:100vh;overflow-y:auto}
+    .sidebar-logo{display:block;font-family:var(--font-display);font-weight:800;font-size:1.15rem;color:#f5f2eb;text-decoration:none;padding:0 1.5rem 1.5rem;border-bottom:1px solid rgba(255,255,255,0.07);margin-bottom:1.5rem}
+    .sidebar-logo span{color:var(--accent)}
+    .sidebar-nav{list-style:none;padding:0 0.75rem}
+    .sidebar-nav li a{display:flex;align-items:center;gap:0.6rem;padding:0.6rem 0.75rem;border-radius:4px;color:rgba(245,242,235,0.5);text-decoration:none;font-size:0.82rem;font-weight:500;transition:background 0.15s,color 0.15s}
+    .sidebar-nav li a:hover,.sidebar-nav li a.active{background:rgba(255,255,255,0.07);color:#f5f2eb}
+    .sidebar-nav li a.active{color:#fff;background:rgba(200,75,47,0.2)}
+    .sidebar-section-label{font-size:0.62rem;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:rgba(245,242,235,0.25);padding:1.25rem 1.5rem 0.5rem}
+    .main{padding:2rem 2.5rem;max-width:1200px}
+    .page-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:1.5rem;padding-bottom:1.5rem;border-bottom:1px solid var(--border)}
+    .page-title{font-family:var(--font-display);font-size:1.5rem;font-weight:700;letter-spacing:-0.02em}
+    .page-sub{font-size:0.82rem;color:var(--muted);margin-top:0.2rem}
+    /* search bar */
+    .search-row{display:flex;gap:0.75rem;margin-bottom:1.25rem;align-items:center}
+    .search-input{flex:1;background:var(--card);border:1px solid var(--border);border-radius:4px;padding:0.6rem 0.9rem;font-size:0.85rem;font-family:var(--font-body);color:var(--ink);outline:none;transition:border-color 0.2s;max-width:360px}
+    .search-input:focus{border-color:var(--accent)}
+    .btn-sm{display:inline-flex;align-items:center;gap:0.3rem;padding:0.4rem 0.9rem;border-radius:3px;font-size:0.75rem;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--card);color:var(--muted);font-family:var(--font-body);transition:all 0.15s}
+    .btn-sm:hover{border-color:var(--ink);color:var(--ink)}
+    .btn-accent{background:var(--accent);color:#fff;border-color:var(--accent)}
+    .btn-accent:hover{background:#a83820;border-color:#a83820;color:#fff}
+    /* table */
+    .table-card{background:var(--card);border:1px solid var(--border);border-radius:6px;overflow:hidden}
+    table{width:100%;border-collapse:collapse}
+    thead th{padding:0.75rem 1rem;text-align:left;font-size:0.7rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);background:var(--cream);border-bottom:1px solid var(--border)}
+    tbody tr{border-bottom:1px solid var(--border);transition:background 0.1s;cursor:pointer}
+    tbody tr:last-child{border-bottom:none}
+    tbody tr:hover{background:#fafaf8}
+    td{padding:0.9rem 1rem;font-size:0.82rem;color:var(--ink);vertical-align:middle}
+    .tenant-name-cell{font-weight:600}
+    .tenant-email-cell{font-size:0.75rem;color:var(--muted)}
+    .td-mono{font-family:monospace;font-size:0.75rem;color:var(--muted)}
+    .badge{display:inline-flex;align-items:center;gap:0.25rem;padding:0.2rem 0.6rem;border-radius:12px;font-size:0.68rem;font-weight:600;text-transform:capitalize}
+    .badge-active{background:rgba(46,125,50,0.08);color:var(--success)}
+    .badge-stripe-active{background:rgba(21,101,192,0.08);color:var(--info)}
+    .badge-stripe-pending{background:rgba(212,168,67,0.08);color:#8a6a00}
+    .badge-stripe-none{background:var(--cream);color:var(--muted)}
+    /* loading */
+    .loading-cell{text-align:center;padding:3rem;color:var(--muted)}
+    .spinner{width:22px;height:22px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.7s linear infinite;margin:0 auto 0.5rem}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    /* MODAL */
+    .modal-overlay{position:fixed;inset:0;background:rgba(13,13,13,0.55);display:flex;align-items:center;justify-content:center;z-index:1000;padding:1rem;opacity:0;pointer-events:none;transition:opacity 0.2s}
+    .modal-overlay.open{opacity:1;pointer-events:all}
+    .modal{background:var(--card);border:1px solid var(--border);border-radius:8px;width:100%;max-width:580px;max-height:90vh;overflow-y:auto;transform:translateY(10px);transition:transform 0.2s;box-shadow:0 24px 80px rgba(0,0,0,0.15)}
+    .modal-overlay.open .modal{transform:translateY(0)}
+    .modal-header{display:flex;align-items:center;justify-content:space-between;padding:1.25rem 1.5rem;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--card);z-index:1}
+    .modal-title{font-family:var(--font-display);font-weight:700;font-size:1rem}
+    .modal-close{background:none;border:none;cursor:pointer;font-size:1.25rem;color:var(--muted);line-height:1;padding:0.25rem;border-radius:3px;transition:color 0.15s}
+    .modal-close:hover{color:var(--ink)}
+    .modal-body{padding:1.5rem}
+    .modal-section{margin-bottom:1.5rem}
+    .modal-section-title{font-size:0.68rem;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);margin-bottom:0.85rem}
+    .info-grid{display:grid;grid-template-columns:1fr 1fr;gap:0.85rem}
+    .info-item{display:flex;flex-direction:column;gap:0.2rem}
+    .info-label{font-size:0.7rem;color:var(--muted)}
+    .info-value{font-size:0.85rem;font-weight:500;color:var(--ink)}
+    /* Config editor */
+    .config-grid{display:grid;grid-template-columns:1fr 1fr;gap:0.85rem}
+    .field{display:flex;flex-direction:column;gap:0.3rem}
+    .field label{font-size:0.75rem;font-weight:600;color:var(--ink)}
+    .field input,.field select,.field textarea{background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:0.55rem 0.75rem;font-size:0.85rem;font-family:var(--font-body);color:var(--ink);outline:none;transition:border-color 0.2s;width:100%}
+    .field input:focus,.field select:focus,.field textarea:focus{border-color:var(--accent)}
+    .modal-footer{padding:1rem 1.5rem;border-top:1px solid var(--border);display:flex;gap:0.75rem;justify-content:flex-end}
+    .btn-save{background:var(--accent);color:#fff;border:none;border-radius:4px;padding:0.6rem 1.5rem;font-family:var(--font-display);font-weight:700;font-size:0.85rem;cursor:pointer;transition:background 0.2s;display:flex;align-items:center;gap:0.4rem}
+    .btn-save:hover{background:#a83820}
+    .btn-save:disabled{opacity:0.5;cursor:not-allowed}
+    .save-success{color:var(--success);font-size:0.8rem;display:none}
+    .save-error{color:var(--error);font-size:0.8rem;display:none}
+    /* storefront link */
+    .storefront-link{display:inline-flex;align-items:center;gap:0.3rem;font-size:0.78rem;color:var(--accent);text-decoration:none;font-weight:500}
+    .storefront-link:hover{text-decoration:underline}
+    /* toast */
+    #toast-container{position:fixed;bottom:1.5rem;right:1.5rem;display:flex;flex-direction:column;gap:0.5rem;z-index:9999}
+    .toast{background:var(--ink);color:#f5f2eb;padding:0.75rem 1.25rem;border-radius:4px;font-size:0.82rem;box-shadow:0 8px 30px rgba(0,0,0,0.2);animation:toastIn 0.25s ease;max-width:320px}
+    .toast.success{border-left:3px solid #66bb6a}.toast.error{border-left:3px solid #ef5350}
+    @keyframes toastIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+    /* auth */
+    #auth-gate{display:flex;align-items:center;justify-content:center;min-height:100vh;background:var(--bg)}
+    .auth-card{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:2.5rem;width:100%;max-width:380px;text-align:center}
+    .auth-logo{font-family:var(--font-display);font-weight:800;font-size:1.5rem;color:var(--ink);margin-bottom:0.5rem}
+    .auth-logo span{color:var(--accent)}
+    .auth-sub{font-size:0.875rem;color:var(--muted);margin-bottom:1.75rem}
+    .auth-input{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:0.7rem 0.9rem;font-size:0.9rem;font-family:var(--font-body);color:var(--ink);margin-bottom:0.75rem;outline:none;transition:border-color 0.2s}
+    .auth-input:focus{border-color:var(--accent)}
+    .auth-btn{width:100%;background:var(--accent);color:#fff;border:none;border-radius:4px;padding:0.75rem;font-family:var(--font-display);font-weight:700;font-size:0.9rem;cursor:pointer;transition:background 0.2s}
+    .auth-btn:hover{background:#a83820}
+    .auth-error{color:var(--error);font-size:0.8rem;margin-top:0.5rem}
+    @media(max-width:768px){.op-layout{grid-template-columns:1fr}.sidebar{position:static;height:auto}.config-grid,.info-grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+
+<div id="auth-gate">
+  <div class="auth-card">
+    <div class="auth-logo">Proof<span>Link</span></div>
+    <div class="auth-sub">Operator sign in</div>
+    <input type="email" id="auth-email" class="auth-input" placeholder="operator@example.com"/>
+    <input type="password" id="auth-password" class="auth-input" placeholder="Password"/>
+    <button class="auth-btn" id="auth-btn">Sign In</button>
+    <div class="auth-error" id="auth-error"></div>
+  </div>
+</div>
+
+<div class="op-layout" id="op-shell" style="display:none">
+  <aside class="sidebar">
+    <a href="/operator/" class="sidebar-logo">Proof<span>Link</span></a>
+    <div class="sidebar-section-label">Manage</div>
+    <ul class="sidebar-nav">
+      <li><a href="/operator/">📊 &nbsp;Dashboard</a></li>
+      <li><a href="/operator/orders.html">📦 &nbsp;Orders</a></li>
+      <li><a href="/operator/products.html">🛍️ &nbsp;Products</a></li>
+      <li><a href="/operator/tenants.html" class="active">🏪 &nbsp;Tenants</a></li>
+    </ul>
+    <div class="sidebar-section-label">Platform</div>
+    <ul class="sidebar-nav">
+      <li><a href="/operator/analytics.html">📈 &nbsp;Analytics</a></li>
+      <li><a href="/operator/provisioning.html">🔧 &nbsp;Provisioning</a></li>
+      <li><a href="/operator/settings.html">⚙️ &nbsp;Settings</a></li>
+    </ul>
+    <div style="position:absolute;bottom:1.5rem;left:0;right:0;padding:0 1.5rem">
+      <button id="sign-out-btn" style="width:100%;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:rgba(245,242,235,0.5);padding:0.5rem;border-radius:4px;cursor:pointer;font-size:0.75rem;font-family:var(--font-body)">Sign out</button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="page-header">
+      <div>
+        <div class="page-title">Tenants</div>
+        <div class="page-sub">All provisioned businesses on the platform.</div>
+      </div>
+      <button class="btn-sm" id="refresh-btn">↻ Refresh</button>
+    </div>
+
+    <div class="search-row">
+      <input type="search" id="search-input" class="search-input" placeholder="Search by name, email, or slug…"/>
+      <span id="tenant-count" style="font-size:0.8rem;color:var(--muted)"></span>
+    </div>
+
+    <div class="table-card">
+      <table>
+        <thead>
+          <tr>
+            <th>Business</th>
+            <th>Slug / URL</th>
+            <th>Type</th>
+            <th>Stripe</th>
+            <th>Products</th>
+            <th>Orders</th>
+            <th>Joined</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="tenants-tbody">
+          <tr><td colspan="8" class="loading-cell"><div class="spinner"></div>Loading tenants…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+</div>
+
+<!-- CONFIG EDIT MODAL -->
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="modal-tenant-name">Tenant Details</div>
+      <button class="modal-close" id="modal-close">✕</button>
+    </div>
+    <div class="modal-body">
+
+      <!-- Info section -->
+      <div class="modal-section">
+        <div class="modal-section-title">Business info</div>
+        <div class="info-grid">
+          <div class="info-item"><span class="info-label">Owner email</span><span class="info-value" id="mi-email">–</span></div>
+          <div class="info-item"><span class="info-label">Business type</span><span class="info-value" id="mi-type">–</span></div>
+          <div class="info-item"><span class="info-label">Location</span><span class="info-value" id="mi-location">–</span></div>
+          <div class="info-item"><span class="info-label">Storefront</span><span class="info-value"><a class="storefront-link" id="mi-storefront" href="#" target="_blank">–</a></span></div>
+          <div class="info-item"><span class="info-label">Stripe status</span><span class="info-value" id="mi-stripe">–</span></div>
+          <div class="info-item"><span class="info-label">Joined</span><span class="info-value" id="mi-joined">–</span></div>
+        </div>
+      </div>
+
+      <hr style="border:none;border-top:1px solid var(--border);margin:0 0 1.5rem"/>
+
+      <!-- Config editor -->
+      <div class="modal-section">
+        <div class="modal-section-title">Store configuration</div>
+        <div class="config-grid">
+          <div class="field">
+            <label for="cfg-title">Store title</label>
+            <input type="text" id="cfg-title" placeholder="e.g. Sarah's Sourdough"/>
+          </div>
+          <div class="field">
+            <label for="cfg-tagline">Tagline</label>
+            <input type="text" id="cfg-tagline" placeholder="Short description"/>
+          </div>
+          <div class="field" style="grid-column:1/-1">
+            <label for="cfg-hero">Hero heading</label>
+            <input type="text" id="cfg-hero" placeholder="What customers see first"/>
+          </div>
+          <div class="field">
+            <label for="cfg-email">Contact email</label>
+            <input type="email" id="cfg-email" placeholder="hello@yourbiz.com"/>
+          </div>
+          <div class="field">
+            <label for="cfg-theme">Theme</label>
+            <select id="cfg-theme">
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
+              <option value="warm">Warm</option>
+              <option value="minimal">Minimal</option>
+            </select>
+          </div>
+          <div class="field" style="grid-column:1/-1">
+            <label for="cfg-logo">Logo URL</label>
+            <input type="url" id="cfg-logo" placeholder="https://…/logo.png"/>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <span class="save-success" id="save-success">✓ Saved</span>
+      <span class="save-error" id="save-error">Save failed</span>
+      <button class="btn-sm" id="modal-cancel">Cancel</button>
+      <button class="btn-save" id="btn-save-config">Save changes</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+
+<script>
+(function(){
+  const SUPABASE_URL  = document.querySelector('meta[name="supabase-url"]')?.content  || window.SUPABASE_URL  || '';
+  const SUPABASE_ANON = document.querySelector('meta[name="supabase-anon-key"]')?.content || window.SUPABASE_ANON_KEY || '';
+  const SITE_URL = window.SITE_URL || '';
+
+  let token=null, allTenants=[], currentTenantId=null;
+
+  // Auth
+  document.getElementById('auth-btn').addEventListener('click', signIn);
+  document.getElementById('auth-password').addEventListener('keydown', e=>{ if(e.key==='Enter') signIn(); });
+  document.getElementById('sign-out-btn').addEventListener('click',()=>{
+    token=null; sessionStorage.removeItem('pl_op_token');
+    document.getElementById('op-shell').style.display='none';
+    document.getElementById('auth-gate').style.display='flex';
+  });
+
+  // Init
+  token=sessionStorage.getItem('pl_op_token');
+  if(token){ showShell(); loadTenants(); }
+
+  // Refresh + search
+  document.getElementById('refresh-btn').addEventListener('click', loadTenants);
+  let searchTimer;
+  document.getElementById('search-input').addEventListener('input', e=>{
+    clearTimeout(searchTimer);
+    searchTimer=setTimeout(()=>loadTenants(e.target.value),300);
+  });
+
+  // Modal
+  document.getElementById('modal-close').addEventListener('click', closeModal);
+  document.getElementById('modal-cancel').addEventListener('click', closeModal);
+  document.getElementById('modal-overlay').addEventListener('click', e=>{ if(e.target.id==='modal-overlay') closeModal(); });
+  document.getElementById('btn-save-config').addEventListener('click', saveConfig);
+
+  async function signIn(){
+    const email=document.getElementById('auth-email').value.trim();
+    const pass=document.getElementById('auth-password').value;
+    const errEl=document.getElementById('auth-error');
+    const btn=document.getElementById('auth-btn');
+    if(!email||!pass){ errEl.textContent='Enter email and password.'; return; }
+    btn.textContent='Signing in…'; btn.disabled=true; errEl.textContent='';
+    try{
+      const r=await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`,{
+        method:'POST',headers:{'Content-Type':'application/json','apikey':SUPABASE_ANON},
+        body:JSON.stringify({email,password:pass})
+      });
+      const d=await r.json();
+      if(!r.ok||!d.access_token){ errEl.textContent=d.error_description||'Sign in failed.'; btn.textContent='Sign In'; btn.disabled=false; return; }
+      token=d.access_token; sessionStorage.setItem('pl_op_token',token);
+      showShell(); loadTenants();
+    }catch(e){ errEl.textContent='Network error.'; btn.textContent='Sign In'; btn.disabled=false; }
+  }
+
+  function showShell(){
+    document.getElementById('auth-gate').style.display='none';
+    document.getElementById('op-shell').style.display='grid';
+  }
+
+  async function loadTenants(q=''){
+    const tbody=document.getElementById('tenants-tbody');
+    tbody.innerHTML='<tr><td colspan="8" class="loading-cell"><div class="spinner"></div>Loading…</td></tr>';
+    const url='/.netlify/functions/get-tenants'+(q?`?q=${encodeURIComponent(q)}`:'');
+    try{
+      const r=await fetch(url,{headers:{Authorization:`Bearer ${token}`}});
+      if(r.status===401||r.status===403){ sessionStorage.removeItem('pl_op_token'); location.reload(); return; }
+      const d=await r.json();
+      allTenants=d.tenants||[];
+      document.getElementById('tenant-count').textContent=`${allTenants.length} tenant${allTenants.length!==1?'s':''}`;
+      renderTable(allTenants);
+    }catch(e){ tbody.innerHTML=`<tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--error)">Error: ${esc(e.message)}</td></tr>`; }
+  }
+
+  function renderTable(tenants){
+    const tbody=document.getElementById('tenants-tbody');
+    if(!tenants.length){ tbody.innerHTML='<tr><td colspan="8" style="text-align:center;padding:3rem;color:var(--muted)">No tenants found.</td></tr>'; return; }
+    tbody.innerHTML=tenants.map(t=>{
+      const stripeClass=t.stripe_status==='active'?'badge-stripe-active':t.stripe_status==='pending'?'badge-stripe-pending':'badge-stripe-none';
+      const stripeLabel=t.stripe_status==='active'?'Connected':t.stripe_status==='pending'?'Pending':'Not connected';
+      const joined=t.created_at?new Date(t.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):'–';
+      return `<tr data-id="${t.id}">
+        <td><div class="tenant-name-cell">${esc(t.name)}</div><div class="tenant-email-cell">${esc(t.owner_email||'')}</div></td>
+        <td class="td-mono">${esc(t.slug)}</td>
+        <td style="color:var(--muted)">${esc(t.business_type||'–')}</td>
+        <td><span class="badge ${stripeClass}">${stripeLabel}</span></td>
+        <td style="text-align:center">${t.product_count||0}</td>
+        <td style="text-align:center">${t.order_count||0}</td>
+        <td style="color:var(--muted);white-space:nowrap">${joined}</td>
+        <td>
+          <button class="btn-sm" style="font-size:0.72rem" onclick="event.stopPropagation();openModal('${t.id}')">Edit ✏️</button>
+        </td>
+      </tr>`;
+    }).join('');
+    // Row click → open modal
+    tbody.querySelectorAll('tr[data-id]').forEach(row=>{
+      row.addEventListener('click', ()=> openModal(row.dataset.id));
+    });
+  }
+
+  function openModal(tenantId){
+    const t=allTenants.find(x=>x.id===tenantId);
+    if(!t) return;
+    currentTenantId=tenantId;
+    document.getElementById('modal-tenant-name').textContent=t.name;
+    document.getElementById('mi-email').textContent=t.owner_email||'–';
+    document.getElementById('mi-type').textContent=t.business_type||'–';
+    document.getElementById('mi-location').textContent=t.city_state||'–';
+    const storeUrl=SITE_URL?`${SITE_URL}/${t.slug}`:`/${t.slug}`;
+    const link=document.getElementById('mi-storefront');
+    link.href=storeUrl; link.textContent=`/${t.slug}`;
+    document.getElementById('mi-stripe').textContent=t.stripe_status==='active'?'Connected':t.stripe_status==='pending'?'Pending setup':'Not connected';
+    document.getElementById('mi-joined').textContent=t.created_at?new Date(t.created_at).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}):'–';
+    // Fill config fields
+    const cfg=t.config||{};
+    document.getElementById('cfg-title').value=cfg.site_title||t.name||'';
+    document.getElementById('cfg-tagline').value=cfg.tagline||'';
+    document.getElementById('cfg-hero').value=cfg.hero_heading||'';
+    document.getElementById('cfg-email').value=cfg.contact_email||t.owner_email||'';
+    document.getElementById('cfg-theme').value=cfg.theme||'light';
+    document.getElementById('cfg-logo').value=cfg.logo_url||t.logo_url||'';
+    // Reset save state
+    document.getElementById('save-success').style.display='none';
+    document.getElementById('save-error').style.display='none';
+    document.getElementById('modal-overlay').classList.add('open');
+    document.body.style.overflow='hidden';
+  }
+
+  function closeModal(){
+    document.getElementById('modal-overlay').classList.remove('open');
+    document.body.style.overflow='';
+    currentTenantId=null;
+  }
+
+  async function saveConfig(){
+    if(!currentTenantId) return;
+    const btn=document.getElementById('btn-save-config');
+    const successEl=document.getElementById('save-success');
+    const errorEl=document.getElementById('save-error');
+    btn.disabled=true; btn.textContent='Saving…';
+    successEl.style.display='none'; errorEl.style.display='none';
+    const config={
+      site_title   : document.getElementById('cfg-title').value.trim(),
+      tagline      : document.getElementById('cfg-tagline').value.trim(),
+      hero_heading : document.getElementById('cfg-hero').value.trim(),
+      contact_email: document.getElementById('cfg-email').value.trim(),
+      theme        : document.getElementById('cfg-theme').value,
+      logo_url     : document.getElementById('cfg-logo').value.trim(),
+    };
+    try{
+      const r=await fetch('/.netlify/functions/update-tenant-config',{
+        method:'POST', headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},
+        body:JSON.stringify({tenant_id:currentTenantId,config})
+      });
+      const d=await r.json();
+      if(!r.ok) throw new Error(d.error||'Save failed');
+      // Update local data
+      const t=allTenants.find(x=>x.id===currentTenantId);
+      if(t) t.config={...t.config,...config};
+      successEl.style.display='inline';
+      btn.textContent='Save changes'; btn.disabled=false;
+      showToast('Config saved','success');
+      setTimeout(closeModal,800);
+    }catch(e){
+      errorEl.textContent=e.message; errorEl.style.display='inline';
+      btn.textContent='Save changes'; btn.disabled=false;
+    }
+  }
+
+  window.openModal=openModal; // expose for inline onclick
+
+  function showToast(msg,type='success'){
+    const c=document.getElementById('toast-container');
+    const el=document.createElement('div');
+    el.className=`toast ${type}`; el.textContent=msg;
+    c.appendChild(el);
+    setTimeout(()=>{ el.style.opacity='0'; el.style.transition='opacity 0.3s'; setTimeout(()=>el.remove(),350); },3000);
+  }
+
+  function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+})();
+</script>
+</body>
+</html>

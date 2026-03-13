@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>ProofLink — Launch Your Store</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{
+      --ink:#0d0d0d;--paper:#f5f2eb;--cream:#ede8dd;
+      --accent:#c84b2f;--gold:#d4a843;--muted:#6b6560;--border:#d9d4c9;--card:#fff;
+      --success:#2e7d32;--success-bg:rgba(46,125,50,0.08);--success-border:rgba(46,125,50,0.25);
+      --font-display:'Syne',sans-serif;--font-body:'DM Sans',sans-serif;
+    }
+    body{background:var(--paper);color:var(--ink);font-family:var(--font-body);min-height:100vh}
+    nav{display:flex;align-items:center;justify-content:space-between;padding:1rem 2rem;background:var(--paper);border-bottom:1px solid var(--border)}
+    .nav-logo{font-family:var(--font-display);font-weight:800;font-size:1.25rem;color:var(--ink);text-decoration:none}
+    .nav-logo span{color:var(--accent)}
+    .nav-dash{font-size:0.875rem;color:var(--muted);text-decoration:none;transition:color 0.2s}
+    .nav-dash:hover{color:var(--ink)}
+
+    .container{max-width:680px;margin:0 auto;padding:4rem 2rem 6rem}
+
+    /* Loading state */
+    .loading-state{text-align:center;padding:4rem 0;color:var(--muted)}
+    .spinner{width:28px;height:28px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.7s linear infinite;margin:0 auto 1rem}
+    @keyframes spin{to{transform:rotate(360deg)}}
+
+    /* Header */
+    .launch-header{margin-bottom:2.5rem}
+    .welcome-pill{display:inline-flex;align-items:center;gap:0.4rem;background:var(--success-bg);border:1px solid var(--success-border);color:var(--success);border-radius:20px;padding:0.35rem 0.9rem;font-size:0.78rem;font-weight:600;margin-bottom:1.25rem}
+    .launch-title{font-family:var(--font-display);font-size:clamp(1.75rem,4vw,2.5rem);font-weight:800;letter-spacing:-0.04em;line-height:1.1;margin-bottom:0.75rem}
+    .launch-sub{font-size:0.95rem;color:var(--muted);font-weight:300;line-height:1.75}
+
+    /* Progress bar */
+    .progress-block{margin-bottom:2.5rem}
+    .progress-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:0.6rem}
+    .progress-label{font-size:0.78rem;font-weight:600;color:var(--muted)}
+    .progress-pct{font-family:var(--font-display);font-size:0.9rem;font-weight:700;color:var(--ink)}
+    .progress-track{height:6px;background:var(--cream);border-radius:20px;overflow:hidden}
+    .progress-fill{height:100%;background:var(--accent);border-radius:20px;transition:width 0.8s cubic-bezier(0.4,0,0.2,1)}
+    .progress-fill.complete{background:var(--success)}
+
+    /* Steps */
+    .steps{display:flex;flex-direction:column;gap:0.75rem;margin-bottom:2.5rem}
+
+    .step{background:var(--card);border:1px solid var(--border);border-radius:6px;padding:1.25rem 1.5rem;display:flex;align-items:flex-start;gap:1rem;transition:box-shadow 0.2s,border-color 0.2s}
+    .step.complete{border-color:var(--success-border);background:var(--success-bg)}
+    .step.incomplete{cursor:default}
+    .step.active-step{border-color:rgba(200,75,47,0.3);box-shadow:0 0 0 3px rgba(200,75,47,0.07)}
+
+    .step-indicator{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;font-size:0.75rem;font-weight:700;transition:all 0.3s}
+    .step-indicator.done{background:var(--success);color:#fff}
+    .step-indicator.pending{background:var(--cream);border:2px solid var(--border);color:var(--muted)}
+    .step-indicator.next{background:var(--accent);color:#fff;animation:pulse-ring 2s ease-in-out infinite}
+    @keyframes pulse-ring{0%,100%{box-shadow:0 0 0 0 rgba(200,75,47,0.3)}50%{box-shadow:0 0 0 6px rgba(200,75,47,0)}}
+
+    .step-content{flex:1}
+    .step-title{font-family:var(--font-display);font-weight:700;font-size:0.95rem;margin-bottom:0.3rem;color:var(--ink)}
+    .step.complete .step-title{color:var(--success)}
+    .step-detail{font-size:0.82rem;color:var(--muted);line-height:1.55}
+    .step-cta{display:inline-flex;align-items:center;gap:0.3rem;margin-top:0.75rem;background:var(--accent);color:#fff;padding:0.45rem 1rem;border-radius:3px;font-size:0.78rem;font-weight:700;text-decoration:none;font-family:var(--font-display);transition:background 0.2s}
+    .step-cta:hover{background:#a83820}
+    .step-badge-done{display:inline-flex;align-items:center;gap:0.3rem;margin-top:0.5rem;font-size:0.75rem;color:var(--success);font-weight:600}
+
+    /* All done state */
+    .all-done{display:none;text-align:center;background:var(--card);border:1px solid var(--success-border);border-radius:8px;padding:3rem 2rem}
+    .all-done.visible{display:block}
+    .all-done-icon{font-size:3.5rem;margin-bottom:1rem}
+    .all-done-title{font-family:var(--font-display);font-size:1.75rem;font-weight:800;letter-spacing:-0.03em;margin-bottom:0.75rem}
+    .all-done-sub{font-size:0.95rem;color:var(--muted);margin-bottom:2rem;line-height:1.7}
+    .btn-storefront{display:inline-flex;align-items:center;gap:0.5rem;background:var(--accent);color:#fff;padding:0.9rem 2.25rem;border-radius:4px;font-family:var(--font-display);font-weight:700;font-size:1rem;text-decoration:none;transition:background 0.2s,transform 0.15s}
+    .btn-storefront:hover{background:#a83820;transform:translateY(-1px)}
+
+    /* Refresh */
+    .refresh-row{text-align:center;margin-top:1.5rem}
+    .btn-refresh{background:none;border:1px solid var(--border);color:var(--muted);padding:0.5rem 1.25rem;border-radius:4px;cursor:pointer;font-size:0.8rem;font-family:var(--font-body);transition:all 0.15s}
+    .btn-refresh:hover{border-color:var(--ink);color:var(--ink)}
+
+    @media(max-width:600px){.container{padding:2.5rem 1rem 4rem}}
+  </style>
+</head>
+<body>
+  <nav>
+    <a href="/" class="nav-logo">Proof<span>Link</span></a>
+    <a href="/operator/" class="nav-dash">Operator dashboard →</a>
+  </nav>
+
+  <div class="container">
+    <!-- Loading -->
+    <div class="loading-state" id="loading-state">
+      <div class="spinner"></div>
+      <p>Loading your checklist…</p>
+    </div>
+
+    <!-- Error -->
+    <div id="error-state" style="display:none;text-align:center;padding:4rem 0;color:var(--muted)">
+      <p style="font-size:2rem;margin-bottom:1rem">⚠️</p>
+      <p style="font-size:0.95rem" id="error-msg">Could not load your checklist.</p>
+      <button class="btn-refresh" style="margin-top:1.5rem" onclick="loadChecklist()">Try again</button>
+    </div>
+
+    <!-- Main content -->
+    <div id="main-content" style="display:none">
+      <div class="launch-header">
+        <div class="welcome-pill" id="welcome-pill">🎉 You're approved!</div>
+        <h1 class="launch-title" id="launch-title">Let's get your store live.</h1>
+        <p class="launch-sub" id="launch-sub">Complete these steps to launch your storefront and start accepting orders.</p>
+      </div>
+
+      <!-- Progress bar -->
+      <div class="progress-block">
+        <div class="progress-header">
+          <span class="progress-label" id="progress-label">0 of 5 steps complete</span>
+          <span class="progress-pct" id="progress-pct">0%</span>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill" id="progress-fill" style="width:0%"></div>
+        </div>
+      </div>
+
+      <!-- Steps container -->
+      <div class="steps" id="steps-container"></div>
+
+      <!-- All done -->
+      <div class="all-done" id="all-done">
+        <div class="all-done-icon">🚀</div>
+        <div class="all-done-title">You're live!</div>
+        <p class="all-done-sub">Your store is set up and ready for customers. Share your link and start taking orders.</p>
+        <a href="#" id="storefront-link" class="btn-storefront">View my storefront →</a>
+      </div>
+
+      <div class="refresh-row">
+        <button class="btn-refresh" onclick="loadChecklist()">↻ Refresh checklist</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  (function(){
+    const SITE_URL = window.SITE_URL || '';
+
+    // Get tenant slug from URL param or session
+    function getTenantSlug(){
+      const params = new URLSearchParams(window.location.search);
+      return params.get('slug') || params.get('tenant') || sessionStorage.getItem('pl_tenant_slug') || '';
+    }
+
+    function getTenantId(){
+      const params = new URLSearchParams(window.location.search);
+      return params.get('tenant_id') || '';
+    }
+
+    async function loadChecklist(){
+      show('loading-state'); hide('error-state'); hide('main-content');
+
+      const slug     = getTenantSlug();
+      const tenantId = getTenantId();
+
+      if (!slug && !tenantId) {
+        showError('No tenant identifier found. Please use the link from your welcome email.');
+        return;
+      }
+
+      const qs = tenantId ? `tenant_id=${tenantId}` : `slug=${slug}`;
+      try{
+        const r = await fetch(`/.netlify/functions/get-launch-checklist?${qs}`);
+        if(!r.ok){
+          const d = await r.json();
+          throw new Error(d.error || 'Request failed');
+        }
+        const data = await r.json();
+        renderChecklist(data);
+      }catch(e){
+        showError(e.message);
+      }
+    }
+
+    function renderChecklist(data){
+      hide('loading-state'); hide('error-state');
+
+      // Store slug for future refreshes
+      if(data.tenant_slug) sessionStorage.setItem('pl_tenant_slug', data.tenant_slug);
+
+      // Update header
+      if(data.tenant_name){
+        document.getElementById('launch-title').textContent = `Launch ${data.tenant_name}.`;
+      }
+      document.getElementById('welcome-pill').textContent = data.launch_ready ? '🚀 You\'re live!' : '🎉 You\'re approved!';
+      document.getElementById('launch-sub').textContent = data.launch_ready
+        ? 'Congratulations! Your store is fully set up and ready for customers.'
+        : `Complete these steps to launch your storefront. You've finished ${data.completed} of ${data.total}.`;
+
+      // Progress
+      const pct = data.percent || 0;
+      document.getElementById('progress-label').textContent = `${data.completed} of ${data.total} steps complete`;
+      document.getElementById('progress-pct').textContent = `${pct}%`;
+      const fill = document.getElementById('progress-fill');
+      fill.classList.toggle('complete', data.launch_ready);
+      setTimeout(()=>{ fill.style.width = pct + '%'; }, 50);
+
+      // Steps
+      const stepsEl = document.getElementById('steps-container');
+      // Find the first incomplete step for "next" highlight
+      const nextIdx = data.steps.findIndex(s => !s.complete);
+      stepsEl.innerHTML = data.steps.map((step, i) => {
+        const isNext = i === nextIdx;
+        const indicatorClass = step.complete ? 'done' : isNext ? 'next' : 'pending';
+        const indicatorContent = step.complete ? '✓' : (i + 1);
+        return `<div class="step ${step.complete?'complete':''} ${isNext?'active-step':''}">
+          <div class="step-indicator ${indicatorClass}">${indicatorContent}</div>
+          <div class="step-content">
+            <div class="step-title">${esc(step.label)}</div>
+            <div class="step-detail">${esc(step.detail||'')}</div>
+            ${step.complete
+              ? `<div class="step-badge-done">✓ Complete</div>`
+              : step.cta
+                ? `<a href="${esc(step.cta.href)}" class="step-cta">${esc(step.cta.label)} →</a>`
+                : ''
+            }
+          </div>
+        </div>`;
+      }).join('');
+
+      // All done
+      const allDone = document.getElementById('all-done');
+      if(data.launch_ready){
+        allDone.classList.add('visible');
+        const slug = data.tenant_slug;
+        const storeUrl = slug ? (SITE_URL ? `${SITE_URL}/${slug}` : `/${slug}`) : '/';
+        document.getElementById('storefront-link').href = storeUrl;
+        document.getElementById('storefront-link').textContent = `View ${data.tenant_name || 'my storefront'} →`;
+      } else {
+        allDone.classList.remove('visible');
+      }
+
+      show('main-content');
+    }
+
+    function show(id){ document.getElementById(id).style.display=''; }
+    function hide(id){ document.getElementById(id).style.display='none'; }
+
+    function showError(msg){
+      hide('loading-state'); hide('main-content');
+      document.getElementById('error-msg').textContent = msg;
+      document.getElementById('error-state').style.display = 'block';
+    }
+
+    function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+    window.loadChecklist = loadChecklist;
+    loadChecklist();
+  })();
+  </script>
+</body>
+</html>

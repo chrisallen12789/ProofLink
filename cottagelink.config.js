@@ -1,0 +1,65 @@
+(() => {
+  const tenant = window.COTTAGELINK_TENANT || {};
+  const storefront = tenant.storefront || {};
+  const branding = tenant.branding || {};
+  const cart = tenant.cart || {};
+  const fulfillment = tenant.fulfillment || {};
+  const backend = tenant.backend || {};
+  const contact = tenant.contact || {};
+  const payments = tenant.payments || {};
+  const domains = tenant.domains || {};
+  const help = tenant.help || {};
+
+  window.COTTAGELINK_CONFIG = window.COTTAGELINK_CONFIG || {
+    platform: {
+      name: tenant.platformName || "ProofLink",
+      version: "phase3.5",
+    },
+    tenant: {
+      id: tenant.id || "default",
+      slug: tenant.slug || "default",
+      businessName: tenant.businessName || "Tenant",
+      businessType: tenant.businessType || "food-business",
+      storefront,
+      branding,
+      contact,
+      payments,
+      domains,
+      help,
+      backend: {
+        tenantColumn: backend.tenantColumn || "tenant_id",
+        operatorColumn: backend.operatorColumn || "operator_id",
+        enforceTenantScope: backend.enforceTenantScope === true,
+        orderBridgeKey: backend.orderBridgeKey || `cottagelink_operator_order_bridge_v1_${tenant.slug || "default"}`,
+      },
+      operator: tenant.operator || {},
+    },
+    supabase: {
+      url: "https://ygfpawksbqfbgohztisv.supabase.co",
+      anonKey: "sb_publishable_bcILNxLX87f-G2zq_SbDGA_Vvs62biB",
+      publicCatalogRpc: "get_public_catalog_by_tenant",
+      catalogFetchTimeoutMs: 8000,
+    },
+    storefront: {
+      cart: {
+        storageKey: cart.storageKey || "cl_cart_v1",
+        catalogCacheKey: cart.catalogCacheKey || `cl_public_catalog_${tenant.slug || "default"}`,
+      },
+      delivery: {
+        freeThresholdCents: Number.isFinite(+fulfillment.freeThresholdCents) ? Math.max(0, Math.round(+fulfillment.freeThresholdCents)) : 0,
+        zipFees: fulfillment.zipFees || {},
+        unavailableMessage: fulfillment.unavailableMessage || "Delivery is unavailable for the selected ZIP code.",
+        pickupOnlyMessage: fulfillment.pickupOnlyMessage || "One or more items in this cart are pickup only.",
+        zipFeeMessage: fulfillment.zipFeeMessage || "Delivery fee is based on your ZIP code.",
+        freeMessage: fulfillment.freeMessage || "Delivery is free on qualifying orders.",
+        pickupMessage: fulfillment.pickupMessage || "Pickup selected.",
+      },
+      pricing: {
+        fixedLabel: "Fixed product price.",
+        startsAtLabel: "Customization may increase final price.",
+        quoteLabel: "Final price confirmed after review.",
+        quoteDisplay: "Contact for quote",
+      },
+    },
+  };
+})();

@@ -1,0 +1,68 @@
+# ProofLink — netlify.toml
+# Do not modify the [build] block unless you are changing your build tool.
+
+[build]
+  publish   = "."
+  functions = "netlify/functions"
+
+# ── Public routes ─────────────────────────────────────────────────────────────
+[[redirects]]
+  from   = "/join"
+  to     = "/join.html"
+  status = 200
+
+# ── Operator routes ───────────────────────────────────────────────────────────
+[[redirects]]
+  from   = "/operator"
+  to     = "/operator/index.html"
+  status = 200
+
+[[redirects]]
+  from   = "/operator/launch"
+  to     = "/operator/launch.html"
+  status = 200
+
+[[redirects]]
+  from   = "/operator/onboarding"
+  to     = "/operator/onboarding.html"
+  status = 200
+
+# ── Admin routes ──────────────────────────────────────────────────────────────
+[[redirects]]
+  from   = "/admin"
+  to     = "/admin/index.html"
+  status = 200
+
+# ── API proxy routes → Netlify functions ────────────────────────────────────
+[[redirects]]
+  from   = "/api/contact"
+  to     = "/.netlify/functions/contact"
+  status = 200
+
+[[redirects]]
+  from   = "/api/order"
+  to     = "/.netlify/functions/order"
+  status = 200
+
+[[redirects]]
+  from   = "/api/onboarding"
+  to     = "/.netlify/functions/onboarding"
+  status = 200
+
+[[redirects]]
+  from   = "/api/link-operator-user"
+  to     = "/.netlify/functions/link-operator-user"
+  status = 200
+
+[[redirects]]
+  from   = "/api/abuse-monitor"
+  to     = "/.netlify/functions/platform-abuse-monitor"
+  status = 200
+
+# ── Netlify function CORS headers ─────────────────────────────────────────────
+[[headers]]
+  for = "/.netlify/functions/*"
+  [headers.values]
+    Access-Control-Allow-Origin  = "*"
+    Access-Control-Allow-Headers = "Content-Type, Authorization"
+    Access-Control-Allow-Methods = "GET, POST, OPTIONS"

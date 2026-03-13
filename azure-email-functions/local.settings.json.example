@@ -1,0 +1,11 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "node",
+    "ACS_CONNECTION_STRING": "<put-your-acs-connection-string-here>",
+    "PUBLIC_SITE_URL": "https://honesttocrust.com",
+    "MAIL_TO": "info@honesttocrust.com",
+    "ORDERS_TO": "orders@honesttocrust.com"
+  }
+}
