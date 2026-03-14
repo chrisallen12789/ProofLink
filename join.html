@@ -293,7 +293,7 @@
           <label for="requested_subdomain">Preferred URL handle</label>
           <input type="text" id="requested_subdomain" placeholder="e.g. honest-to-crust" autocomplete="off"/>
           <div id="slug-status" style="margin-top:0.4rem;font-size:0.78rem;display:flex;align-items:center;gap:0.4rem;min-height:1.2rem;"></div>
-          <p class="hint">Your store will be at: <span id="slug-preview-text" style="font-family:monospace;color:var(--ink)">prooflink.app/your-handle</span></p>
+          <p class="hint">Your store will be at: <span id="slug-preview-text" style="font-family:monospace;color:var(--ink)">prooflink.co/your-handle</span></p>
         </div>
       </div>
 
@@ -601,7 +601,7 @@
     input.addEventListener('input', function(){
       const raw  = this.value;
       const slug = slugify(raw);
-      preview.textContent = slug ? `prooflink.app/${slug}` : 'prooflink.app/your-handle';
+      preview.textContent = slug ? `prooflink.co/${slug}` : 'prooflink.co/your-handle';
       if(!slug){ status.innerHTML=''; return; }
       if(slug === lastChecked) return;
       clearTimeout(checkTimer);

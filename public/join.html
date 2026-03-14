@@ -579,7 +579,7 @@
               placeholder="e.g. sarahs-sourdough"
               autocomplete="off"
             />
-            <span class="slug-preview" id="slug-preview">prooflink.app/your-store-name</span>
+            <span class="slug-preview" id="slug-preview">prooflink.co/your-store-name</span>
           </div>
         </div>
 
@@ -653,7 +653,7 @@
     function updateSlugPreview() {
       const val = slugInput.value.trim() || businessInput.value.trim();
       const slug = val ? slugify(val) : 'your-store-name';
-      slugPreview.textContent = `prooflink.app/${slug}`;
+      slugPreview.textContent = `prooflink.co/${slug}`;
     }
 
     slugInput.addEventListener('input', updateSlugPreview);

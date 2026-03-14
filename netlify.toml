@@ -100,3 +100,17 @@
   to     = "https://prooflink.co/:splat"
   status = 301
   force  = true
+
+# ── www.prooflink.co → canonical redirect ─────────────────────────────────────
+[[redirects]]
+  from   = "https://www.prooflink.co/*"
+  to     = "https://prooflink.co/:splat"
+  status = 301
+  force  = true
+
+# ── siteflows.netlify.app → canonical redirect ────────────────────────────────
+[[redirects]]
+  from   = "https://siteflows.netlify.app/*"
+  to     = "https://prooflink.co/:splat"
+  status = 301
+  force  = true

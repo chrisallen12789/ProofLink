@@ -31,11 +31,12 @@ function getEnv(name, fallback = '') {
 }
 
 function getBaseUrl(event) {
-  const explicit = getEnv('URL') || getEnv('DEPLOY_PRIME_URL') || getEnv('SITE_URL');
+  // Prefer explicit canonical domain — PUBLIC_SITE_URL is the source of truth
+  const explicit = getEnv('PUBLIC_SITE_URL') || getEnv('SITE_URL') || getEnv('URL') || getEnv('DEPLOY_PRIME_URL');
   if (explicit) return explicit.replace(/\/+$/, '');
   const proto = event?.headers?.['x-forwarded-proto'] || 'https';
   const host = event?.headers?.host || '';
-  return host ? `${proto}://${host}` : 'http://localhost:8888';
+  return host ? `${proto}://${host}` : 'https://prooflink.co';
 }
 
 function getAuthToken(event) {

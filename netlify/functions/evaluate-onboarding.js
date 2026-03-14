@@ -22,7 +22,7 @@ const { createClient } = require('@supabase/supabase-js');
 
 const SUPABASE_URL         = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const SITE_URL             = process.env.URL || '';
+const SITE_URL             = process.env.PUBLIC_SITE_URL || process.env.SITE_URL || process.env.URL || 'https://prooflink.co';
 const INTERNAL_SECRET      = process.env.INTERNAL_SECRET || '';
 
 // ── Baseline reserved slugs ───────────────────────────────────────────────────
