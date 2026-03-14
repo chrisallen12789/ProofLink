@@ -81,3 +81,13 @@
   from   = "/blog/"
   to     = "/blog/index.html"
   status = 200
+
+[[redirects]]
+  from   = "/api/blog-comment"
+  to     = "/.netlify/functions/blog-comment"
+  status = 200
+
+[[redirects]]
+  from   = "/api/blog-subscribe"
+  to     = "/.netlify/functions/blog-subscribe"
+  status = 200

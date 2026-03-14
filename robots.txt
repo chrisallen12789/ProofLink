@@ -1,4 +1,9 @@
 User-agent: *
 Allow: /
+Allow: /blog
+Allow: /blog/articles/
+Disallow: /operator/
+Disallow: /admin/
+Disallow: /.netlify/
 
-Sitemap: https://honesttocrust.com/sitemap.xml
+Sitemap: https://prooflink.co/sitemap.xml

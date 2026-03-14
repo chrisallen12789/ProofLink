@@ -879,3 +879,52 @@ create or replace view public.onboarding_requests as
 
 -- Grant access so the function can query through it
 grant select, update on public.onboarding_requests to service_role, authenticated;
+
+
+-- ── 19. blog_comments table ──────────────────────────────────────────────────
+
+create table if not exists public.blog_comments (
+  id           uuid        primary key default gen_random_uuid(),
+  article_slug text        not null,
+  name         text        not null,
+  email        text        not null,
+  comment      text        not null,
+  created_at   timestamptz not null default now()
+);
+
+create index if not exists idx_blog_comments_slug on public.blog_comments (article_slug, created_at desc);
+
+alter table public.blog_comments enable row level security;
+
+do $$ begin
+  create policy "Service role full access on blog_comments"
+    on public.blog_comments for all to service_role
+    using (true) with check (true);
+exception when duplicate_object then null;
+end $$;
+
+comment on table public.blog_comments is 'Public blog article comments. Export email column for outreach.';
+
+
+-- ── 20. blog_subscribers table ───────────────────────────────────────────────
+
+create table if not exists public.blog_subscribers (
+  id         uuid        primary key default gen_random_uuid(),
+  email      text        not null unique,
+  name       text,
+  source     text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_blog_subscribers_created on public.blog_subscribers (created_at desc);
+
+alter table public.blog_subscribers enable row level security;
+
+do $$ begin
+  create policy "Service role full access on blog_subscribers"
+    on public.blog_subscribers for all to service_role
+    using (true) with check (true);
+exception when duplicate_object then null;
+end $$;
+
+comment on table public.blog_subscribers is 'Blog email subscribers. Export email + name for newsletter use.';
