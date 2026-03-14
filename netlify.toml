@@ -71,3 +71,13 @@
   from   = "/api/admin/set-tester-exempt"
   to     = "/.netlify/functions/admin-set-tester-exempt"
   status = 200
+
+[[redirects]]
+  from   = "/blog"
+  to     = "/blog/index.html"
+  status = 200
+
+[[redirects]]
+  from   = "/blog/"
+  to     = "/blog/index.html"
+  status = 200
