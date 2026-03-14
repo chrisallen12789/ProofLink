@@ -1,9 +1,24 @@
+# ProofLink — robots.txt
+# Public blog and marketing pages: fully indexable
+# Application, operator, admin, and API routes: blocked
+
 User-agent: *
-Allow: /
+
+# Allow public pages
+Allow: /$
 Allow: /blog
+Allow: /blog/
 Allow: /blog/articles/
+Allow: /join
+
+# Block private application routes
+Disallow: /operator
 Disallow: /operator/
+Disallow: /admin
 Disallow: /admin/
+Disallow: /api/
+Disallow: /auth/
+Disallow: /dashboard/
 Disallow: /.netlify/
 
 Sitemap: https://prooflink.co/sitemap.xml
