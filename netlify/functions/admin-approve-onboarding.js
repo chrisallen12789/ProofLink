@@ -109,7 +109,7 @@ exports.handler = async (event) => {
       message   : 'Tenant already provisioned (idempotent)',
       tenant_id : existingTenant.id,
       slug      : existingTenant.slug,
-      login_url : (process.env.SITE_URL || 'https://siteflows.netlify.app') + '/operator/',
+      login_url : (process.env.SITE_URL || 'https://prooflink.co') + '/operator/',
     });
   }
 
@@ -211,7 +211,7 @@ exports.handler = async (event) => {
   await seedTenantSettings(supabase, tenantId, req);
 
   // ── Create Supabase auth user (if not already existing) ───────────────────
-  const redirectTo = (process.env.SITE_URL || 'https://siteflows.netlify.app') + '/operator/';
+  const redirectTo = (process.env.SITE_URL || 'https://prooflink.co') + '/operator/';
   let authUserId = null;
 
   const { data: newAuthUser, error: createAuthErr } = await supabase.auth.admin.createUser({

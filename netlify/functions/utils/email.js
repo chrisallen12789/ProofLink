@@ -5,9 +5,9 @@
 'use strict';
 
 const RESEND_API_URL = 'https://api.resend.com/emails';
-const FROM     = process.env.FROM_EMAIL     || 'ProofLink <hello@prooflink.app>';
-const REPLY_TO = process.env.REPLY_TO_EMAIL || 'hello@prooflink.app';
-const SITE_URL = (process.env.SITE_URL      || 'https://prooflink.app').replace(/\/$/, '');
+const FROM     = process.env.FROM_EMAIL     || 'ProofLink <hello@prooflink.co>';
+const REPLY_TO = process.env.REPLY_TO_EMAIL || 'hello@prooflink.co';
+const SITE_URL = (process.env.SITE_URL      || 'https://prooflink.co').replace(/\/$/, '');
 
 async function sendEmail({ to, subject, html, replyTo }) {
   const apiKey = process.env.RESEND_API_KEY;
@@ -297,7 +297,7 @@ const templates = {
         ${badge('Application received',T.greenLt,T.green,T.greenBd)}<br/><br/>
         ${h1(`Hey ${owner_name}, you're in the queue.`)}
         ${sub('Thanks for applying to ProofLink. We review every application and will be in touch within 24 hours.')}
-        ${infoBox([['Business',business_name],['Store URL',`prooflink.app/${business_slug||'...'}`],['Email',owner_email],['Review time','Within 24 hours']])}
+        ${infoBox([['Business',business_name],['Store URL',`prooflink.co/${business_slug||'...'}`],['Email',owner_email],['Review time','Within 24 hours']])}
         ${divider()}
         ${p("You don't need to do anything else right now. When your application is approved we'll send you a link to set up your store.")}
         ${p(`<span style="color:${T.hint};">Questions? Just reply to this email.</span>`)}
@@ -330,7 +330,7 @@ const templates = {
         ${h1(`Your store is live, ${owner_name}.`)}
         ${sub(`${business_name} is set up on ProofLink. Click below to log in and start building.`)}
         <div style="text-align:center;margin:0 0 32px;">${cta('Log in to my dashboard →', loginHref)}</div>
-        ${infoBox([...(store_slug?[['Your store URL',`prooflink.app/${store_slug}`]]:[]),['Dashboard',`${SITE_URL}/operator/`]])}
+        ${infoBox([...(store_slug?[['Your store URL',`prooflink.co/${store_slug}`]]:[]),['Dashboard',`${SITE_URL}/operator/`]])}
         ${divider()}
         <p style="margin:0 0 20px;font-size:15px;font-weight:700;color:${T.ink};">Complete your store setup</p>
         ${p('Your store is live but needs your branding, photos, and business details to look its best. Here is exactly what to gather.')}

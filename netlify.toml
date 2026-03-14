@@ -91,3 +91,12 @@
   from   = "/api/blog-subscribe"
   to     = "/.netlify/functions/blog-subscribe"
   status = 200
+
+# ── app.prooflink.co → prooflink.co canonical redirect ────────────────────────
+# If app.prooflink.co is added as a domain alias in Netlify, this redirects
+# all traffic to the canonical root domain so there's no duplicate content.
+[[redirects]]
+  from   = "https://app.prooflink.co/*"
+  to     = "https://prooflink.co/:splat"
+  status = 301
+  force  = true

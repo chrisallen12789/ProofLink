@@ -167,7 +167,7 @@ exports.handler = async (event) => {
   await seedTemplateForTenant(supabase, tenantId, newOperatorId, req.seed_template_key);
 
   // ── Create Supabase auth user (if not already existing) ───────────────────
-  const redirectTo = (process.env.SITE_URL || '') + '/operator/';
+  const redirectTo = (process.env.SITE_URL || 'https://prooflink.co') + '/operator/';
   let authUserId = null;
 
   const { data: newAuthUser, error: createAuthErr } = await supabase.auth.admin.createUser({
