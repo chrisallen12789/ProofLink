@@ -362,9 +362,10 @@
     <!-- ── Success ── -->
     <div id="success-screen">
       <div class="success-icon">✓</div>
-      <h2>You're in the queue!</h2>
-      <p>We saved your application and sent a secure login link to your email.</p>
-      <p>Check your inbox at <strong id="success-email"></strong> — click the link when you're ready to open your operator dashboard.</p>
+      <h2>Application received!</h2>
+      <p>We've saved your application. Our team will review it within 24 hours.</p>
+      <p><strong>This is not a login confirmation.</strong> You don't have an account yet — your account will be created after we approve your application.</p>
+      <p>Once approved you'll receive a separate email at <strong id="success-email"></strong> with a link to access your operator dashboard. No action needed from you right now.</p>
       <p id="success-ref"></p>
       <div style="margin-top:1.5rem;">
         <a href="/" style="color:var(--accent);font-size:0.9rem;">← Back to ProofLink home</a>
@@ -556,19 +557,9 @@
         throw new Error(json.error || `Server error (${res.status})`);
       }
 
-      // Step 2: Send Supabase magic-link login email so user lands in /operator/
-      // Non-fatal — application is saved regardless of OTP result.
-      try {
-        const { error: otpError } = await sb.auth.signInWithOtp({
-          email: payload.owner_email,
-          options: { emailRedirectTo: window.location.origin + '/operator/' }
-        });
-        if (otpError) console.warn('[ProofLink] OTP send (non-fatal):', otpError.message);
-      } catch (otpErr) {
-        console.warn('[ProofLink] OTP error (non-fatal):', otpErr);
-      }
-
-      // Show success
+      // Application saved — do NOT send a login link here.
+      // Auth account is created only after admin approval and provisioning.
+      // Show success screen.
       document.getElementById('progress-bar').style.display = 'none';
       document.querySelectorAll('.form-section').forEach(s => s.classList.remove('visible'));
       const successEl = document.getElementById('success-screen');

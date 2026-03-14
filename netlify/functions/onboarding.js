@@ -140,12 +140,17 @@ exports.handler = async (event) => {
       </div>`;
     const customerHtml = `
       <div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.6;">
-        <h2>We received your ProofLink onboarding request</h2>
-        <p>Thanks, ${escapeHtml(payload.owner_name)}. Your business has been placed into the review queue.</p>
-        <p>ProofLink will review the submission before enabling subscription billing, Stripe Connect, or live online payments.</p>
-        <p><strong>Business</strong> ${escapeHtml(payload.business_name)}<br>
+        <h2 style="font-size:18px;margin-bottom:12px;">Application received — ProofLink</h2>
+        <p>Hi ${escapeHtml(payload.owner_name)},</p>
+        <p>We received your application for <strong>${escapeHtml(payload.business_name)}</strong>. Our team will review it within 24 hours.</p>
+        <hr style="border:none;border-top:1px solid #eee;margin:16px 0;" />
+        <p><strong>This email is not a login link.</strong> Your ProofLink account does not exist yet — it will be created only after we approve your application.</p>
+        <p>Once your application is approved you'll receive a separate email with instructions to access your operator dashboard. You don't need to do anything right now.</p>
+        <hr style="border:none;border-top:1px solid #eee;margin:16px 0;" />
+        <p style="font-size:12px;color:#888;"><strong>Business</strong> ${escapeHtml(payload.business_name)}<br>
         <strong>Plan</strong> ${escapeHtml(payload.selected_plan)}<br>
-        <strong>Domain preference</strong> ${escapeHtml(payload.domain_preference)}</p>
+        <strong>Submitted</strong> ${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
+        <p style="font-size:12px;color:#888;">Questions? Reply to this email or contact us at support@prooflink.co</p>
       </div>`;
 
     await Promise.all([

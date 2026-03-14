@@ -613,9 +613,15 @@ async function requireOperatorContext() {
     throw new Error("No operator membership found for this user." + (detail ? " Server: " + detail : "") + (linkStatus ? " (HTTP " + linkStatus + ")" : ""));
   }
 
-  const operatorTenantId = String(data.operators.tenant_id || "").trim();
+  const operatorTenantId = String(data.operators.tenant_id || '').trim();
   if (TENANT_SCOPE_ENABLED && operatorTenantId && operatorTenantId !== TENANT_ID) {
-    throw new Error(`Operator tenant mismatch. Expected ${TENANT_ID} but membership is scoped to ${operatorTenantId}.`);
+    // Tenant in database doesn't match static config — update the module-level
+    // TENANT_ID to the real value from the database so all queries use the correct
+    // tenant. This allows the operator dashboard to work for any provisioned tenant,
+    // not just the demo tenant hardcoded in cottagelink.tenant.js.
+    console.log(`[ProofLink] Tenant scope updated: ${TENANT_ID} → ${operatorTenantId}`);
+    // eslint-disable-next-line no-global-assign
+    TENANT_ID = operatorTenantId;
   }
 
   CURRENT_OPERATOR = {
