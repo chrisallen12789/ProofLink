@@ -428,6 +428,81 @@
       line-height: 1.55;
     }
 
+    /* ── Mobile nav toggle ───────────────────────────────────── */
+    .nav-toggle {
+      display: none;
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      padding: 0.45rem 0.75rem;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--ink);
+      cursor: pointer;
+      font-family: var(--font-b);
+    }
+
+    /* ── Blog teaser ─────────────────────────────────────────── */
+    .blog-teaser {
+      background: var(--cream-2);
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      padding: 4.5rem 2.25rem;
+    }
+    .blog-teaser-inner {
+      max-width: var(--max);
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 1fr 1.4fr;
+      gap: 4rem;
+      align-items: start;
+    }
+    .blog-teaser-text h2 {
+      font-family: var(--font-d);
+      font-size: clamp(1.5rem, 3vw, 2rem);
+      font-weight: 800;
+      letter-spacing: -0.035em;
+      color: var(--ink);
+      margin-bottom: 0.75rem;
+      line-height: 1.2;
+    }
+    .blog-teaser-text p {
+      font-size: 0.95rem;
+      color: var(--muted);
+      line-height: 1.7;
+      margin-bottom: 1.25rem;
+    }
+    .blog-teaser-cards { display: flex; flex-direction: column; gap: 0.75rem; }
+    .teaser-card {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: var(--r2);
+      padding: 1.1rem 1.25rem;
+      text-decoration: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      transition: border-color 0.15s, box-shadow 0.15s, transform 0.12s;
+    }
+    .teaser-card:hover {
+      border-color: var(--border-2);
+      box-shadow: 0 4px 16px rgba(13,13,11,.07);
+      transform: translateY(-1px);
+    }
+    .teaser-tag {
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--orange);
+    }
+    .teaser-card strong {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--ink);
+      line-height: 1.4;
+    }
+
     /* ── CTA banner ──────────────────────────────────────────── */
     .cta-banner {
       background: var(--orange);
@@ -541,11 +616,27 @@
       .steps-grid::before { display: none; }
       footer { flex-direction: column; text-align: center; padding: 1.5rem; }
       .footer-links { justify-content: center; }
+      .blog-teaser-inner { grid-template-columns: 1fr; gap: 2rem; }
+      .blog-teaser { padding: 3.5rem 1.5rem; }
     }
 
     @media (max-width: 540px) {
-      nav { padding: 0.875rem 1.25rem; }
-      .nav-links a:not(.btn-nav) { display: none; }
+      nav { padding: 0.875rem 1.25rem; position: relative; }
+      .nav-toggle { display: block; }
+      .nav-links {
+        display: none;
+        position: absolute;
+        top: 100%;
+        left: 0; right: 0;
+        background: var(--cream);
+        border-bottom: 1px solid var(--border);
+        flex-direction: column;
+        padding: 1rem 1.25rem 1.25rem;
+        gap: 0.875rem;
+        z-index: 200;
+      }
+      .nav-links.open { display: flex; }
+      .nav-links a { font-size: 1rem; }
       .hero { padding: 2.5rem 1.25rem 2rem; }
       .hero-visual { display: none; }
       .feature-grid { grid-template-columns: 1fr; }
@@ -554,6 +645,7 @@
       .steps-section,
       .who-section { padding: 3.5rem 1.25rem; }
       .cta-banner { padding: 3.5rem 1.25rem; }
+      .blog-teaser { padding: 2.5rem 1.25rem; }
     }
   </style>
 </head>
@@ -590,6 +682,7 @@
 <!-- ── Navigation ── -->
 <nav>
   <a href="/" class="nav-logo">Proof<span>Link</span></a>
+  <button class="nav-toggle" aria-expanded="false" onclick="this.setAttribute('aria-expanded',document.querySelector('.nav-links').classList.toggle('open'));this.textContent=document.querySelector('.nav-links').classList.contains('open')?'Close':'Menu'">Menu</button>
   <div class="nav-links">
     <a href="#features">Features</a>
     <a href="#how-it-works">How it works</a>
@@ -617,6 +710,10 @@
       <a href="/join" class="btn-primary">Start your free setup →</a>
       <a href="#how-it-works" class="btn-secondary">See how it works</a>
     </div>
+    <p style="margin-top:1.25rem;font-size:0.82rem;color:var(--muted);">
+      Not ready to sign up yet?
+      <a href="/blog" style="color:var(--orange);font-weight:500;text-decoration:none;">Read our blog for small business tips →</a>
+    </p>
   </div>
 
   <div class="hero-visual" aria-hidden="true">
@@ -743,6 +840,32 @@
       <div class="step-num">4</div>
       <h3>Launch &amp; get paid</h3>
       <p>Add your services, connect Stripe, and start taking orders.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ── Blog teaser ── -->
+<section class="blog-teaser">
+  <div class="blog-teaser-inner">
+    <div class="blog-teaser-text">
+      <span class="hero-tag">From the blog</span>
+      <h2>Insights for small business operators</h2>
+      <p>Real articles on organization, workflow, customer management, and what actually holds small businesses back. Written for operators by operators.</p>
+      <a href="/blog" class="btn-primary" style="margin-top:0.5rem;">Browse all articles →</a>
+    </div>
+    <div class="blog-teaser-cards">
+      <a href="/blog/articles/simple-workflow-system-for-small-businesses.html" class="teaser-card">
+        <span class="teaser-tag">Workflow</span>
+        <strong>The Simple Workflow System That Keeps Small Businesses Organized</strong>
+      </a>
+      <a href="/blog/articles/hidden-advantage-small-businesses-have-over-large-companies.html" class="teaser-card">
+        <span class="teaser-tag">Strategy</span>
+        <strong>The Hidden Advantage Small Businesses Have Over Large Companies</strong>
+      </a>
+      <a href="/blog/articles/why-crm-systems-fail-small-business.html" class="teaser-card">
+        <span class="teaser-tag">Customer Management</span>
+        <strong>Why Most CRM Systems Fail Small Businesses</strong>
+      </a>
     </div>
   </div>
 </section>
