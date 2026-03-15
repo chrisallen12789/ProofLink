@@ -8,7 +8,7 @@ const SUPABASE_ANON_KEY = OPERATOR_CONFIG.supabaseAnonKey || "sb_publishable_bcI
 window.sb = window.sb || window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const sb = window.sb;
 
-const TENANT_ID = OPERATOR_CONFIG.tenantId || "default";
+let TENANT_ID = OPERATOR_CONFIG.tenantId || "default";
 const TENANT_SCOPE_ENABLED = OPERATOR_CONFIG.enforceTenantScope === true;
 const TENANT_COLUMN = OPERATOR_CONFIG.tenantColumn || "tenant_id";
 const OPERATOR_COLUMN = OPERATOR_CONFIG.operatorColumn || "operator_id";
