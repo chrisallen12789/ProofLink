@@ -96,7 +96,7 @@ const btnSaveSetupTop = $("btnSaveSetupTop");
 const btnMarkSetupComplete = $("btnMarkSetupComplete");
 const setupMsg = $("setupMsg");
 const setupPreviewWrap = $("setupPreviewWrap");
-const setupBusinessName = $("setupBusinessName");
+const setupLockedRecord = $("setupLockedRecord");
 const setupTagline = $("setupTagline");
 const setupHeroHeading = $("setupHeroHeading");
 const setupHeroSubheading = $("setupHeroSubheading");
@@ -104,12 +104,9 @@ const setupAbout = $("setupAbout");
 const setupAccentColor = $("setupAccentColor");
 const setupLogoUrl = $("setupLogoUrl");
 const setupHeroImageUrl = $("setupHeroImageUrl");
-const setupContactEmail = $("setupContactEmail");
-const setupBusinessPhone = $("setupBusinessPhone");
-const setupBusinessType = $("setupBusinessType");
-const setupCityState = $("setupCityState");
+const setupPublicContactEmail = $("setupPublicContactEmail");
+const setupPublicBusinessPhone = $("setupPublicBusinessPhone");
 const setupServiceArea = $("setupServiceArea");
-const setupLicenseNumber = $("setupLicenseNumber");
 const setupInstagram = $("setupInstagram");
 const setupFacebook = $("setupFacebook");
 const setupHoursNotes = $("setupHoursNotes");
@@ -298,7 +295,7 @@ function setSetupMessage(message = "", tone = "") {
   setupMsg.textContent = message;
 }
 
-function setupPreviewHtml(payload = {}) {
+function setupPreviewHtml(payload = {}, record = null) {
   const logoUrl = String(payload.logo_url || "").trim();
   const heroUrl = String(payload.hero_image_url || "").trim();
   return `
@@ -308,27 +305,43 @@ function setupPreviewHtml(payload = {}) {
           ${logoUrl ? `<img src="${escapeAttr(logoUrl)}" alt="Logo" style="width:100%;height:100%;object-fit:cover;" />` : `<span class="muted" style="font-size:.8rem;">No logo</span>`}
         </div>
         <div>
-          <div style="font-weight:800;font-size:1.05rem;">${escapeHtml(payload.site_title || OPERATOR_CONFIG.tenantBusinessName || "Business")}</div>
+          <div style="font-weight:800;font-size:1.05rem;">${escapeHtml(record?.legal_business_name || OPERATOR_CONFIG.tenantBusinessName || "Business")}</div>
           <div class="muted">${escapeHtml(payload.tagline || "No tagline yet.")}</div>
         </div>
       </div>
       <div style="padding:14px;border-radius:14px;border:1px solid var(--border);background:rgba(255,255,255,.02);">
-        <div style="font-weight:800;font-size:1rem;margin-bottom:6px;">${escapeHtml(payload.hero_heading || payload.site_title || "Hero heading not set")}</div>
+        <div style="font-weight:800;font-size:1rem;margin-bottom:6px;">${escapeHtml(payload.hero_heading || record?.legal_business_name || "Hero heading not set")}</div>
         <div class="muted">${escapeHtml(payload.hero_subheading || "No hero subheading yet.")}</div>
         ${heroUrl ? `<div style="margin-top:12px;border-radius:12px;overflow:hidden;border:1px solid var(--border);"><img src="${escapeAttr(heroUrl)}" alt="Hero" style="display:block;width:100%;height:220px;object-fit:cover;" /></div>` : ``}
       </div>
       <div class="table">
-        <div class="tr"><div>Contact</div><div>${escapeHtml(payload.contact_email || "—")}</div></div>
-        <div class="tr"><div>Phone</div><div>${escapeHtml(payload.business_phone || "—")}</div></div>
-        <div class="tr"><div>Location</div><div>${escapeHtml(payload.city_state || "—")}</div></div>
+        <div class="tr"><div>Public contact</div><div>${escapeHtml(payload.public_contact_email || payload.contact_email || "—")}</div></div>
+        <div class="tr"><div>Public phone</div><div>${escapeHtml(payload.public_business_phone || payload.business_phone || "—")}</div></div>
+        <div class="tr"><div>Location</div><div>${escapeHtml(record?.city_state || payload.city_state || "—")}</div></div>
         <div class="tr"><div>Service area</div><div>${escapeHtml(payload.service_area || "—")}</div></div>
       </div>
     </div>
   `;
 }
 
-function fillSetupForm(payload = {}) {
-  if (setupBusinessName) setupBusinessName.value = payload.site_title || OPERATOR_CONFIG.tenantBusinessName || "";
+function renderLockedBusinessRecord(record = {}) {
+  if (!setupLockedRecord) return;
+  const rows = [
+    ["Legal business name", record.legal_business_name || "—"],
+    ["Owner name", record.owner_name || "—"],
+    ["Login email", record.login_email || "—"],
+    ["Business type", record.business_type || "—"],
+    ["City / State", record.city_state || "—"],
+    ["License number", record.license_number || "—"],
+    ["Tenant slug", record.slug || "—"],
+    ["Tenant status", record.active ? "Active" : "Inactive"],
+  ];
+  setupLockedRecord.innerHTML = rows.map(([label, value]) => `
+    <div class="tr"><div>${escapeHtml(label)}</div><div>${escapeHtml(String(value || "—"))}</div></div>
+  `).join("");
+}
+
+function fillSetupForm(payload = {}, record = null) {
   if (setupTagline) setupTagline.value = payload.tagline || "";
   if (setupHeroHeading) setupHeroHeading.value = payload.hero_heading || "";
   if (setupHeroSubheading) setupHeroSubheading.value = payload.hero_subheading || "";
@@ -336,24 +349,21 @@ function fillSetupForm(payload = {}) {
   if (setupAccentColor) setupAccentColor.value = payload.accent_color || window.COTTAGELINK_BRAND?.accent || "#c84b2f";
   if (setupLogoUrl) setupLogoUrl.value = payload.logo_url || "";
   if (setupHeroImageUrl) setupHeroImageUrl.value = payload.hero_image_url || "";
-  if (setupContactEmail) setupContactEmail.value = payload.contact_email || "";
-  if (setupBusinessPhone) setupBusinessPhone.value = payload.business_phone || "";
-  if (setupBusinessType) setupBusinessType.value = payload.business_type || "";
-  if (setupCityState) setupCityState.value = payload.city_state || "";
+  if (setupPublicContactEmail) setupPublicContactEmail.value = payload.public_contact_email || payload.contact_email || "";
+  if (setupPublicBusinessPhone) setupPublicBusinessPhone.value = payload.public_business_phone || payload.business_phone || "";
   if (setupServiceArea) setupServiceArea.value = payload.service_area || "";
-  if (setupLicenseNumber) setupLicenseNumber.value = payload.license_number || "";
   if (setupInstagram) setupInstagram.value = payload.instagram || "";
   if (setupFacebook) setupFacebook.value = payload.facebook || "";
   if (setupHoursNotes) setupHoursNotes.value = payload.hours_notes || "";
   if (setupFulfillmentNotes) setupFulfillmentNotes.value = payload.fulfillment_notes || "";
   if (setupShowPrices) setupShowPrices.checked = payload.show_prices !== false;
   if (setupAllowCustomRequests) setupAllowCustomRequests.checked = payload.allow_custom_requests !== false;
-  if (setupPreviewWrap) setupPreviewWrap.innerHTML = setupPreviewHtml(payload);
+  if (setupPreviewWrap) setupPreviewWrap.innerHTML = setupPreviewHtml(payload, record || SETUP_STATE?.locked_record || null);
+  renderLockedBusinessRecord(record || SETUP_STATE?.locked_record || {});
 }
 
 function collectSetupPayload(extra = {}) {
   return {
-    site_title: setupBusinessName?.value?.trim() || OPERATOR_CONFIG.tenantBusinessName || "",
     tagline: setupTagline?.value?.trim() || "",
     hero_heading: setupHeroHeading?.value?.trim() || "",
     hero_subheading: setupHeroSubheading?.value?.trim() || "",
@@ -361,12 +371,9 @@ function collectSetupPayload(extra = {}) {
     accent_color: setupAccentColor?.value?.trim() || "",
     logo_url: setupLogoUrl?.value?.trim() || "",
     hero_image_url: setupHeroImageUrl?.value?.trim() || "",
-    contact_email: setupContactEmail?.value?.trim() || "",
-    business_phone: setupBusinessPhone?.value?.trim() || "",
-    business_type: setupBusinessType?.value?.trim() || "",
-    city_state: setupCityState?.value?.trim() || "",
+    public_contact_email: setupPublicContactEmail?.value?.trim() || "",
+    public_business_phone: setupPublicBusinessPhone?.value?.trim() || "",
     service_area: setupServiceArea?.value?.trim() || "",
-    license_number: setupLicenseNumber?.value?.trim() || "",
     instagram: setupInstagram?.value?.trim().replace(/^@/, "") || "",
     facebook: setupFacebook?.value?.trim() || "",
     hours_notes: setupHoursNotes?.value?.trim() || "",
@@ -385,7 +392,7 @@ async function fetchOperatorSetup() {
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || 'Failed to load setup.');
   SETUP_STATE = data;
-  fillSetupForm(data.config || {});
+  fillSetupForm(data.config || {}, data.locked_record || data.tenant || {});
   return data;
 }
 
@@ -403,8 +410,8 @@ async function saveOperatorSetup(extra = {}) {
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || 'Failed to save setup.');
-  SETUP_STATE = { ...(SETUP_STATE || {}), config: data.config || payload };
-  fillSetupForm(data.config || payload);
+  SETUP_STATE = { ...(SETUP_STATE || {}), config: data.config || payload, locked_record: SETUP_STATE?.locked_record || null };
+  fillSetupForm(data.config || payload, SETUP_STATE?.locked_record || null);
   initBranding();
   setSetupMessage('Setup saved.', 'good');
   return data;
@@ -1284,7 +1291,7 @@ btnUploadSetupLogo?.addEventListener('click', async () => {
     if (setupLogoStatus) setupLogoStatus.textContent = 'Uploading…';
     if (setupLogoUrl) setupLogoUrl.value = await uploadSetupAsset(file, 'logo');
     if (setupLogoStatus) setupLogoStatus.textContent = 'Uploaded. Save setup to keep it.';
-    fillSetupForm(collectSetupPayload());
+    fillSetupForm(collectSetupPayload(), SETUP_STATE?.locked_record || null);
   } catch (err) {
     if (setupLogoStatus) setupLogoStatus.textContent = err.message || String(err);
   }
@@ -1299,16 +1306,16 @@ btnUploadSetupHero?.addEventListener('click', async () => {
     if (setupHeroStatus) setupHeroStatus.textContent = 'Uploading…';
     if (setupHeroImageUrl) setupHeroImageUrl.value = await uploadSetupAsset(file, 'hero');
     if (setupHeroStatus) setupHeroStatus.textContent = 'Uploaded. Save setup to keep it.';
-    fillSetupForm(collectSetupPayload());
+    fillSetupForm(collectSetupPayload(), SETUP_STATE?.locked_record || null);
   } catch (err) {
     if (setupHeroStatus) setupHeroStatus.textContent = err.message || String(err);
   }
 });
-[setupBusinessName, setupTagline, setupHeroHeading, setupHeroSubheading, setupAbout, setupLogoUrl, setupHeroImageUrl, setupContactEmail, setupBusinessPhone, setupBusinessType, setupCityState, setupServiceArea, setupLicenseNumber, setupInstagram, setupFacebook, setupHoursNotes, setupFulfillmentNotes, setupAccentColor].forEach((el) => {
-  el?.addEventListener('input', () => { if (setupPreviewWrap) setupPreviewWrap.innerHTML = setupPreviewHtml(collectSetupPayload()); });
+[setupTagline, setupHeroHeading, setupHeroSubheading, setupAbout, setupLogoUrl, setupHeroImageUrl, setupPublicContactEmail, setupPublicBusinessPhone, setupServiceArea, setupInstagram, setupFacebook, setupHoursNotes, setupFulfillmentNotes, setupAccentColor].forEach((el) => {
+  el?.addEventListener('input', () => { if (setupPreviewWrap) setupPreviewWrap.innerHTML = setupPreviewHtml(collectSetupPayload(), SETUP_STATE?.locked_record || null); });
 });
 [setupShowPrices, setupAllowCustomRequests].forEach((el) => {
-  el?.addEventListener('change', () => { if (setupPreviewWrap) setupPreviewWrap.innerHTML = setupPreviewHtml(collectSetupPayload()); });
+  el?.addEventListener('change', () => { if (setupPreviewWrap) setupPreviewWrap.innerHTML = setupPreviewHtml(collectSetupPayload(), SETUP_STATE?.locked_record || null); });
 });
 
 btnRefreshPricing?.addEventListener("click", async () => {

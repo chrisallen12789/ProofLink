@@ -387,26 +387,38 @@
             <div class="panel-head">
               <div>
                 <h2>Business Setup</h2>
-                <div class="muted">Give each operator a proper setup workspace so branding, contact details, storefront copy, and launch assets are managed without touching code.</div>
+                <div class="muted">This workspace is for branding, storefront media, and customer-facing profile upkeep. Application and account-record fields stay protected.</div>
               </div>
               <div class="panel-actions">
                 <button id="btnRefreshSetup" class="btn btn-ghost" type="button">Refresh</button>
-                <button id="btnSaveSetupTop" class="btn btn-primary" type="button">Save setup</button>
+                <button id="btnSaveSetupTop" class="btn btn-primary" type="button">Save media and profile</button>
               </div>
             </div>
 
             <div class="grid two">
               <div class="card">
                 <div class="card-hd">
-                  <strong>Branding and storefront</strong>
+                  <strong>Verified business record</strong>
+                  <span class="muted">Read-only account and onboarding data</span>
+                </div>
+                <div class="card-bd">
+                  <div class="muted" style="margin-bottom:12px;line-height:1.65;">
+                    These values are part of the operator account record created during onboarding, provisioning, or approval. They are shown here for reference and are not editable from this page.
+                  </div>
+                  <div id="setupLockedRecord" class="table muted">Loading protected business record…</div>
+                  <div class="muted" style="margin-top:12px;line-height:1.65;">
+                    Need one of these corrected? Route the request through platform support or the admin review flow rather than changing it here.
+                  </div>
+                </div>
+              </div>
+
+              <div class="card">
+                <div class="card-hd">
+                  <strong>Branding and media</strong>
                   <span class="muted">What customers see first</span>
                 </div>
                 <div class="card-bd">
                   <form id="setupForm" class="form">
-                    <label>Business name
-                      <input id="setupBusinessName" placeholder="Acme Services" />
-                    </label>
-
                     <label>Tagline
                       <input id="setupTagline" placeholder="One clear sentence that explains the business." />
                     </label>
@@ -461,36 +473,26 @@
                   </form>
                 </div>
               </div>
+            </div>
 
+            <div class="grid two" style="margin-top:16px;">
               <div class="card">
                 <div class="card-hd">
-                  <strong>Business details</strong>
-                  <span class="muted">Operational details the operator should control</span>
+                  <strong>Public business profile</strong>
+                  <span class="muted">Editable customer-facing contact and service details</span>
                 </div>
                 <div class="card-bd">
                   <div class="form">
-                    <label>Contact email
-                      <input id="setupContactEmail" type="email" placeholder="owner@business.com" />
+                    <label>Public contact email
+                      <input id="setupPublicContactEmail" type="email" placeholder="hello@business.com" />
                     </label>
 
-                    <label>Phone
-                      <input id="setupBusinessPhone" placeholder="(555) 555-5555" />
-                    </label>
-
-                    <label>Business type
-                      <input id="setupBusinessType" placeholder="Bakery, pressure washing, detailing, etc." />
-                    </label>
-
-                    <label>City / State
-                      <input id="setupCityState" placeholder="Detroit, MI" />
+                    <label>Public phone
+                      <input id="setupPublicBusinessPhone" placeholder="(555) 555-5555" />
                     </label>
 
                     <label>Service area
                       <input id="setupServiceArea" placeholder="Oakland County and surrounding areas" />
-                    </label>
-
-                    <label>License number
-                      <input id="setupLicenseNumber" placeholder="Optional" />
                     </label>
 
                     <label>Instagram
@@ -510,7 +512,7 @@
                     </label>
 
                     <div class="row">
-                      <button id="btnSaveSetup" class="btn btn-primary" type="button">Save setup</button>
+                      <button id="btnSaveSetup" class="btn btn-primary" type="button">Save media and profile</button>
                       <button id="btnMarkSetupComplete" class="btn" type="button">Mark setup complete</button>
                     </div>
 
@@ -518,9 +520,7 @@
                   </div>
                 </div>
               </div>
-            </div>
 
-            <div class="grid two" style="margin-top:16px;">
               <div class="card">
                 <div class="card-hd">
                   <strong>Setup preview</strong>
@@ -530,15 +530,29 @@
                   <div id="setupPreviewWrap" class="muted">Load setup data to preview the current business profile.</div>
                 </div>
               </div>
+            </div>
+
+            <div class="grid two" style="margin-top:16px;">
+              <div class="card">
+                <div class="card-hd">
+                  <strong>Protection model</strong>
+                  <span class="muted">Why some fields are locked</span>
+                </div>
+                <div class="card-bd">
+                  <div class="muted" style="line-height:1.65;">
+                    This page is intentionally split. Verified business record fields stay protected to preserve application integrity, compliance, billing alignment, and tenant identity. Editable fields are limited to branding, public profile, and storefront presentation so operators can keep the business current without risking structural data drift.
+                  </div>
+                </div>
+              </div>
 
               <div class="card">
                 <div class="card-hd">
-                  <strong>Why this exists</strong>
+                  <strong>What this page is for</strong>
                   <span class="muted">For owners, not developers</span>
                 </div>
                 <div class="card-bd">
                   <div class="muted" style="line-height:1.65;">
-                    This page is the operator-safe replacement for hand-editing code. Use it to load logos, hero images, contact details, business copy, and storefront settings from one place. The goal is simple: the operator owns the business setup, not the codebase.
+                    Use this page to manage logos, hero images, storefront copy, customer-facing contact details, and social presence. Core business record values still exist here for visibility, but they are not writable from the operator console.
                   </div>
                 </div>
               </div>

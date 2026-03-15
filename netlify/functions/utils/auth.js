@@ -53,7 +53,7 @@ async function requireOperatorContext(event) {
   // Confirm the user exists in the operators table
   const { data: operator, error: opErr } = await supabase
     .from('operators')
-    .select('id, email, role')
+    .select('id, email, role, tenant_id')
     .eq('email', user.email)
     .single();
 
@@ -67,6 +67,7 @@ async function requireOperatorContext(event) {
     operatorId : operator.id,
     email      : operator.email,
     role       : operator.role,
+    tenantId   : operator.tenant_id || null,
     supabase,
   };
 }

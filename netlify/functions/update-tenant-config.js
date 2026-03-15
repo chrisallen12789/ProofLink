@@ -1,16 +1,37 @@
 // netlify/functions/update-tenant-config.js
-// Operator-only. Updates a tenant's site configuration.
-// POST body: { tenant_id, config: { site_title, tagline, theme, logo_url, ... } }
+// Operator-only. Updates editable tenant site configuration.
 
 const { requireOperatorContext, respond } = require('./utils/auth');
 
 const ALLOWED_KEYS = new Set([
-  'site_title', 'tagline', 'hero_heading', 'hero_subheading',
-  'theme', 'logo_url', 'hero_image_url', 'contact_email', 'city_state', 'license_number', 'instagram',
-  'business_type', 'currency', 'order_flow', 'onboarding_complete',
-  'accent_color', 'font_family', 'show_prices', 'allow_custom_requests',
-  'about', 'business_phone', 'service_area', 'facebook', 'hours_notes', 'fulfillment_notes',
+  'tagline', 'hero_heading', 'hero_subheading',
+  'logo_url', 'hero_image_url', 'public_contact_email', 'public_business_phone',
+  'service_area', 'instagram', 'facebook', 'hours_notes', 'fulfillment_notes',
+  'accent_color', 'show_prices', 'allow_custom_requests', 'about', 'onboarding_complete',
 ]);
+
+const PROTECTED_KEYS = new Set([
+  'site_title', 'contact_email', 'business_phone', 'business_type', 'city_state',
+  'license_number', 'tenant_id', 'owner_email', 'owner_name', 'slug',
+]);
+
+function parseConfig(value) {
+  if (!value) return {};
+  if (typeof value === 'object') return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return {};
+  }
+}
+
+function normalizeValue(key, value) {
+  if (value === null || value === undefined) return '';
+  if (key === 'show_prices' || key === 'allow_custom_requests' || key === 'onboarding_complete') {
+    return !!value;
+  }
+  return String(value).trim();
+}
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return respond(200, {});
@@ -23,7 +44,8 @@ exports.handler = async (event) => {
     return respond(err.statusCode || 401, { error: err.message });
   }
 
-  const { supabase } = ctx;
+  const { supabase, tenantId } = ctx;
+  if (!tenantId) return respond(403, { error: 'Operator is not linked to a tenant' });
 
   let body;
   try {
@@ -34,50 +56,51 @@ exports.handler = async (event) => {
 
   const { tenant_id, config } = body;
   if (!tenant_id) return respond(400, { error: 'tenant_id is required' });
+  if (tenant_id !== tenantId) return respond(403, { error: 'Tenant mismatch' });
   if (!config || typeof config !== 'object') return respond(400, { error: 'config object is required' });
 
-  // Whitelist config keys
+  const attemptedProtected = Object.keys(config).filter((k) => PROTECTED_KEYS.has(k));
+  if (attemptedProtected.length) {
+    return respond(400, {
+      error: `Protected fields cannot be changed from Business Setup: ${attemptedProtected.join(', ')}`,
+    });
+  }
+
   const sanitized = {};
   Object.entries(config).forEach(([k, v]) => {
-    if (ALLOWED_KEYS.has(k)) sanitized[k] = v;
+    if (ALLOWED_KEYS.has(k)) sanitized[k] = normalizeValue(k, v);
   });
 
   if (Object.keys(sanitized).length === 0) {
-    return respond(400, { error: 'No valid config keys provided' });
+    return respond(400, { error: 'No valid editable config keys provided' });
   }
 
-  // Verify tenant exists
   const { data: tenant, error: tenantErr } = await supabase
     .from('tenants')
-    .select('id, name')
+    .select('id')
     .eq('id', tenant_id)
     .maybeSingle();
 
   if (tenantErr || !tenant) return respond(404, { error: 'Tenant not found' });
 
-  // Upsert site_settings config row
-  // Try to merge with existing config
-  const { data: existing } = await supabase
+  const { data: existing, error: existingErr } = await supabase
     .from('tenant_config')
     .select('config_value')
     .eq('tenant_id', tenant_id)
     .eq('config_key', 'site_settings')
     .maybeSingle();
 
-  let merged = sanitized;
-  if (existing?.config_value) {
-    try {
-      const prev = JSON.parse(existing.config_value);
-      merged = { ...prev, ...sanitized };
-    } catch {}
-  }
+  if (existingErr) return respond(500, { error: 'Failed to load existing config' });
+
+  const prev = parseConfig(existing?.config_value);
+  const merged = { ...prev, ...sanitized };
 
   const { error: upsertErr } = await supabase
     .from('tenant_config')
     .upsert(
       {
-        tenant_id   : tenant_id,
-        config_key  : 'site_settings',
+        tenant_id,
+        config_key: 'site_settings',
         config_value: JSON.stringify(merged),
       },
       { onConflict: 'tenant_id,config_key' }
@@ -88,20 +111,10 @@ exports.handler = async (event) => {
     return respond(500, { error: 'Failed to update config' });
   }
 
-  // Also update top-level tenant fields if relevant
-  const tenantUpdates = {};
-  if (sanitized.logo_url !== undefined) tenantUpdates.logo_url = sanitized.logo_url;
-  if (sanitized.site_title !== undefined) tenantUpdates.name   = sanitized.site_title;
-  if (sanitized.business_type !== undefined) tenantUpdates.business_type = sanitized.business_type;
-  if (sanitized.city_state !== undefined) tenantUpdates.city_state = sanitized.city_state;
-
-  if (Object.keys(tenantUpdates).length > 0) {
-    await supabase.from('tenants').update(tenantUpdates).eq('id', tenant_id);
-  }
-
   return respond(200, {
-    success  : true,
+    success: true,
     tenant_id,
-    config   : merged,
+    protected_fields_rejected: [],
+    config: merged,
   });
 };
