@@ -73,17 +73,11 @@
   }
 
   async function refreshPaymentState() {
-  const runtime = window.PROOFLINK_OPERATOR_RUNTIME || {};
-  const resolvedTenantId =
-    typeof runtime.getTenantId === 'function'
-      ? runtime.getTenantId()
-      : tenant.id;
-    
-  console.log('tenant-payment-status tenantId:', resolvedTenantId);
-    
-  const data = await apiPost('/.netlify/functions/tenant-payment-status', {
-    tenantId: resolvedTenantId
-  });
+    const data = await apiPost('/.netlify/functions/tenant-payment-status', {});
+    livePaymentState = data.paymentState || null;
+    applyPaymentButtonState();
+    return livePaymentState;
+  }
 
   livePaymentState = data.paymentState || null;
   applyPaymentButtonState();
