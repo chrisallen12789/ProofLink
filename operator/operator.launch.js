@@ -78,12 +78,7 @@
     applyPaymentButtonState();
     return livePaymentState;
   }
-
-  livePaymentState = data.paymentState || null;
-  applyPaymentButtonState();
-  return livePaymentState;
-}
-
+  
   function setPaymentMsg(text, bad) {
     const el = $('paymentActionMsg');
     if (!el) return;
