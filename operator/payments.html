@@ -1,0 +1,80 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Payments – ProofLink</title>
+<link rel="stylesheet" href="/assets/css/subscription.css">
+</head>
+<body>
+
+<div class="container">
+  <h1>Platform Plan</h1>
+  <div class="plan-card">
+    <p>Current Plan: <strong id="currentPlan">Starter</strong></p>
+    <button id="changePlanBtn">Change Plan</button>
+  </div>
+
+  <h1>Payout Setup</h1>
+  <div class="card">
+    <p>Connect Stripe to receive payments from customers.</p>
+  </div>
+
+  <h1>Customer Checkout</h1>
+  <div class="card">
+    <p>Control how customers pay you.</p>
+  </div>
+</div>
+
+<div id="planModal" class="modal hidden">
+  <div class="modal-content">
+    <h2>Choose how you want to run your business</h2>
+
+    <div class="plans">
+
+      <div class="plan">
+        <h3>Starter</h3>
+        <p>Best for new operators</p>
+        <ul>
+          <li>CRM</li>
+          <li>Product catalog</li>
+          <li>Manual orders</li>
+          <li>Expense tracking</li>
+        </ul>
+        <button data-plan="Starter">Start my business</button>
+      </div>
+
+      <div class="plan recommended">
+        <h3>Growth</h3>
+        <p>For growing businesses</p>
+        <ul>
+          <li>Online checkout</li>
+          <li>Inventory</li>
+          <li>Automation</li>
+          <li>Advanced reports</li>
+        </ul>
+        <button data-plan="Growth">Grow my business</button>
+      </div>
+
+      <div class="plan enterprise">
+        <h3>Full Operations</h3>
+        <p>Complete business system</p>
+        <ul>
+          <li>Employee roles</li>
+          <li>Workflow automation</li>
+          <li>AI guidance</li>
+          <li>Advanced analytics</li>
+        </ul>
+        <button data-plan="Full">Run my business</button>
+      </div>
+
+    </div>
+
+    <button id="closeModal">Close</button>
+  </div>
+</div>
+
+<script src="/assets/js/subscription.js"></script>
+
+</body>
+</html>
