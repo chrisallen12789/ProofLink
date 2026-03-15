@@ -77,7 +77,7 @@
   const resolvedTenantId =
     typeof runtime.getTenantId === 'function'
       ? runtime.getTenantId()
-      : (tenant.id || tenant.slug);
+      : tenant.id;
     
   console.log('tenant-payment-status tenantId:', resolvedTenantId);
     
