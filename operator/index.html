@@ -57,7 +57,7 @@
 
       <section class="side-card">
         <div class="side-card__hd">Startup progress</div>
-        <div id="startupChecklist" class="checklist">
+        <div id="startupChecklist" class="checklist" data-tour="checklist">
           <div class="checklist-item">
             <span class="dot"></span>
             <span>Loading checklist…</span>
@@ -65,19 +65,19 @@
         </div>
       </section>
 
-      <div class="nav" aria-label="Sections">
-        <button class="tab active" data-tab="dashboard" type="button">Dashboard</button>
-        <button class="tab" data-tab="orders" type="button">Orders</button>
-        <button class="tab" data-tab="customers" type="button">Customers</button>
-        <button class="tab" data-tab="payments" type="button">Payments</button>
-        <button class="tab" data-tab="domains" type="button">Domains</button>
-        <button class="tab" data-tab="setup" type="button">Business Setup</button>
-        <button class="tab" data-tab="products" type="button">Products</button>
-        <button class="tab" data-tab="pricing" type="button">Pricing</button>
-        <button class="tab" data-tab="availability" type="button">Availability</button>
-        <button class="tab" data-tab="expenses" type="button">Expenses</button>
-        <button class="tab" data-tab="money" type="button">Money</button>
-        <button class="tab" data-tab="guidance" type="button">Guidance</button>
+      <div class="nav" aria-label="Sections" data-tour="sidebar-nav">
+        <button class="tab active" data-tab="dashboard" data-tour-tab="dashboard" type="button">Dashboard</button>
+        <button class="tab" data-tab="orders" data-tour-tab="orders" type="button">Orders</button>
+        <button class="tab" data-tab="customers" data-tour-tab="customers" type="button">Customers</button>
+        <button class="tab" data-tab="payments" data-tour-tab="payments" type="button">Payments</button>
+        <button class="tab" data-tab="domains" data-tour-tab="domains" type="button">Domains</button>
+        <button class="tab" data-tab="setup" data-tour-tab="setup" type="button">Business Setup</button>
+        <button class="tab" data-tab="products" data-tour-tab="products" type="button">Products</button>
+        <button class="tab" data-tab="pricing" data-tour-tab="pricing" type="button">Pricing</button>
+        <button class="tab" data-tab="availability" data-tour-tab="availability" type="button">Availability</button>
+        <button class="tab" data-tab="expenses" data-tour-tab="expenses" type="button">Expenses</button>
+        <button class="tab" data-tab="money" data-tour-tab="money" type="button">Money</button>
+        <button class="tab" data-tab="guidance" data-tour-tab="guidance" type="button">Guidance</button>
       </div>
 
       <section class="side-card">
@@ -112,6 +112,7 @@
           <div class="sub">CRM, orders, scheduling, products, expenses, and operator guidance in one place.</div>
         </div>
         <div class="top-actions">
+          <button id="btnStartTour" class="btn btn-ghost hidden" type="button">Start tour</button>
           <button id="btnSignOut" class="btn btn-ghost hidden" type="button">Sign out</button>
         </div>
       </header>
@@ -227,7 +228,7 @@
                   <span class="muted">Newest requests first</span>
                 </div>
                 <div class="card-bd">
-                  <div id="ordersList" class="list"></div>
+                  <div id="ordersList" class="list" data-tour="orders-list"></div>
                 </div>
               </div>
 
@@ -262,7 +263,7 @@
                   <span class="muted">Highest value first</span>
                 </div>
                 <div class="card-bd">
-                  <div id="customersList" class="list"></div>
+                  <div id="customersList" class="list" data-tour="customers-list"></div>
                 </div>
               </div>
 
@@ -371,7 +372,7 @@
                 </div>
               </div>
 
-              <div class="card">
+              <div class="card" data-tour="domains-card">
                 <div class="card-hd">
                   <strong>DNS instructions</strong>
                   <span class="muted">What the operator must do</span>
@@ -418,7 +419,7 @@
                   <span class="muted">What customers see first</span>
                 </div>
                 <div class="card-bd">
-                  <form id="setupForm" class="form">
+                  <form id="setupForm" class="form" data-tour="branding-form">
                     <label>Tagline
                       <input id="setupTagline" placeholder="One clear sentence that explains the business." />
                     </label>
@@ -567,7 +568,7 @@
               </div>
               <div class="panel-actions">
                 <input id="productSearch" class="input" placeholder="Search…" />
-                <button id="btnNewProduct" class="btn" type="button">New product</button>
+                <button id="btnNewProduct" class="btn" data-tour="new-product" type="button">New product</button>
                 <button id="btnRefreshProducts" class="btn btn-ghost" type="button">Refresh</button>
               </div>
             </div>
@@ -619,7 +620,7 @@
 
                     <label>Upload image (recommended)
                       <input id="productImageFile" type="file" accept="image/*" />
-                      <button id="btnUploadProductImage" class="btn btn-ghost" type="button">Upload selected image</button>
+                      <button id="btnUploadProductImage" class="btn btn-ghost" data-tour="product-image-upload" type="button">Upload selected image</button>
                       <div class="muted" id="productImageStatus"></div>
                     </label>
 
@@ -787,7 +788,7 @@
 
             <div class="card">
               <div class="card-bd">
-                <div id="guidanceWrap"></div>
+                <div id="guidanceWrap" data-tour="guidance-wrap"></div>
               </div>
             </div>
           </section>

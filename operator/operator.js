@@ -53,6 +53,7 @@ const $ = (id) => document.getElementById(id);
 const viewLogin = $("viewLogin");
 const viewApp = $("viewApp");
 const btnSignOut = $("btnSignOut");
+const btnStartTour = $("btnStartTour");
 const sessionEmail = $("sessionEmail");
 
 const loginForm = $("loginForm");
@@ -273,19 +274,22 @@ function initBranding() {
 function renderStartupChecklist() {
   if (!startupChecklist) return;
   const items = [
-    { done: PRODUCTS_CACHE.length > 0, label: "Add your first product" },
-    { done: PRODUCTS_CACHE.some((p) => !!p.is_active), label: "Publish at least one product to the storefront" },
-    { done: PRODUCTS_CACHE.some((p) => !!p.image_url), label: "Add at least one product image" },
-    { done: EXPENSES_CACHE.length > 0, label: "Track your first expense" },
-    { done: CUSTOMERS_CACHE.length > 0, label: "Capture your first customer in CRM" },
-    { done: CRM_ORDERS_CACHE.length > 0, label: "Convert at least one request into a tracked order" },
+    { done: PRODUCTS_CACHE.length > 0, label: "Add your first product", tab: "products", action: "Open products" },
+    { done: PRODUCTS_CACHE.some((p) => !!p.is_active), label: "Publish at least one product to the storefront", tab: "products", action: "Review products" },
+    { done: PRODUCTS_CACHE.some((p) => !!p.image_url), label: "Add at least one product image", tab: "products", action: "Add image" },
+    { done: EXPENSES_CACHE.length > 0, label: "Track your first expense", tab: "expenses", action: "Open expenses" },
+    { done: CUSTOMERS_CACHE.length > 0, label: "Capture your first customer in CRM", tab: "customers", action: "Open CRM" },
+    { done: CRM_ORDERS_CACHE.length > 0, label: "Convert at least one request into a tracked order", tab: "orders", action: "Open orders" },
+    { done: !!(SETUP_STATE?.payload?.logo_url || SETUP_STATE?.payload?.hero_image_url || SETUP_STATE?.payload?.tagline), label: "Add branding, media, and public profile details", tab: "setup", action: "Open setup" },
+    { done: PAYMENTS_CACHE.length > 0, label: "Review payment setup and payout readiness", tab: "payments", action: "Open payments" },
   ];
 
   startupChecklist.innerHTML = items.map((item) => `
-    <div class="checklist-item ${item.done ? "is-done" : ""}">
+    <button class="checklist-item ${item.done ? "is-done" : ""}" type="button" data-tour-go="${escapeAttr(item.tab)}" style="width:100%;text-align:left;background:transparent;border:0;padding:0;cursor:pointer;">
       <span class="dot"></span>
-      <span>${escapeHtml(item.label)}</span>
-    </div>
+      <span style="flex:1;">${escapeHtml(item.label)}</span>
+      <span class="pill" style="margin-left:8px;">${escapeHtml(item.action)}</span>
+    </button>
   `).join("");
 }
 
@@ -467,6 +471,18 @@ function switchTab(tab, opts = {}) {
 document.querySelectorAll(".tab").forEach((btn) => {
   btn.addEventListener("click", () => switchTab(btn.dataset.tab));
 });
+startupChecklist?.addEventListener("click", (e) => {
+  const trigger = e.target.closest("[data-tour-go]");
+  if (!trigger) return;
+  const tab = trigger.getAttribute("data-tour-go");
+  if (!tab) return;
+  switchTab(tab);
+});
+
+btnStartTour?.addEventListener("click", () => {
+  if (window.PROOFLINK_WALKTHROUGH?.start) window.PROOFLINK_WALKTHROUGH.start({ force: true });
+});
+
 window.addEventListener('hashchange', () => {
   const target = panelFromLocation();
   if (target !== document.querySelector('.tab.active')?.dataset.tab) {
@@ -481,6 +497,7 @@ function showLogin(message = "") {
   viewPasswordSetup?.classList.add("hidden");
   viewForgotPassword?.classList.add("hidden");
   btnSignOut?.classList.add("hidden");
+  btnStartTour?.classList.add("hidden");
   if (sessionEmail) sessionEmail.textContent = "";
   if (loginMsg) loginMsg.textContent = message || "";
 }
@@ -490,6 +507,7 @@ function showApp(user) {
   viewPasswordSetup?.classList.add("hidden");
   viewForgotPassword?.classList.add("hidden");
   btnSignOut?.classList.remove("hidden");
+  btnStartTour?.classList.remove("hidden");
   if (sessionEmail) sessionEmail.textContent = user?.email || "";
   if (loginMsg) loginMsg.textContent = "";
 }
@@ -529,6 +547,7 @@ async function showPasswordSetup(mode) {
   viewPasswordSetup?.classList.remove("hidden");
   viewForgotPassword?.classList.add("hidden");
   btnSignOut?.classList.remove("hidden");
+  btnStartTour?.classList.remove("hidden");
   if (passwordSetupMsg) passwordSetupMsg.textContent = "";
   if (newPasswordInput) newPasswordInput.value = "";
   if (confirmPasswordInput) confirmPasswordInput.value = "";
@@ -564,6 +583,7 @@ function showForgotPassword() {
   viewPasswordSetup?.classList.add("hidden");
   viewForgotPassword?.classList.remove("hidden");
   btnSignOut?.classList.add("hidden");
+  btnStartTour?.classList.add("hidden");
   if (forgotMsg) forgotMsg.textContent = "";
   if (forgotEmail) forgotEmail.value = loginEmail?.value || "";
 }
