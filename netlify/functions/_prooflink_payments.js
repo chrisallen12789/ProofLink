@@ -104,16 +104,16 @@ async function requireOperatorContext(event, requestedTenantId) {
   const user = await getAuthUser(accessToken);
 
   const rows = await supabaseAdmin(
-    `/rest/v1/operator_members?select=role,operators!operator_id(id,name,tenant_id)&user_id=eq.${encodeURIComponent(user.id)}&limit=1`
+    `/rest/v1/operator_members?select=role,tenant_id,operator_id,operators!operator_id(id,name)&user_id=eq.${encodeURIComponent(user.id)}&limit=1`
   );
 
   const row = Array.isArray(rows) ? rows[0] : null;
 
-  if (!row?.operators?.id) {
+  if (!row?.operator_id) {
     throw Object.assign(new Error('No operator membership found.'), { statusCode: 403 });
   }
 
-  const tenantId = clean(row.operators.tenant_id);
+  const tenantId = clean(row.tenant_id);
 
   if (requestedTenantId && tenantId && clean(requestedTenantId) !== tenantId) {
     throw Object.assign(new Error('Tenant scope mismatch.'), { statusCode: 403 });
@@ -123,9 +123,9 @@ async function requireOperatorContext(event, requestedTenantId) {
     accessToken,
     user,
     role: row.role,
-    operatorId: row.operators.id,
-    operatorName: row.operators.name,
-    operatorSlug: "",
+    operatorId: row.operator_id,
+    operatorName: row?.operators?.name || '',
+    operatorSlug: '',
     tenantId: tenantId || clean(requestedTenantId),
   };
 }
