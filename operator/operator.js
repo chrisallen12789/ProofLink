@@ -47,6 +47,65 @@ window.PROOFLINK_BOOT_READY = false;
 let passwordSetupMode = null;
 let ACTIVE_ORDER_ID = null;
 let ACTIVE_CUSTOMER_ID = null;
+let DASHBOARD_PAYMENT_STATE = null;
+let DASHBOARD_LAUNCH_CHECKLIST = null;
+
+function currentMonthRevenueCents() {
+  const mk = yyyymm(new Date());
+  return PAYMENTS_CACHE.filter((row) => monthKeyFromDate(row.paid_at || row.created_at || row.updated_at || new Date()) === mk)
+    .reduce((sum, row) => sum + Number(row.amount_cents || row.net_amount_cents || row.total_cents || 0), 0);
+}
+function lastMonthRevenueCents() {
+  const d = new Date();
+  d.setMonth(d.getMonth() - 1);
+  const mk = yyyymm(d);
+  return PAYMENTS_CACHE.filter((row) => monthKeyFromDate(row.paid_at || row.created_at || row.updated_at || new Date()) === mk)
+    .reduce((sum, row) => sum + Number(row.amount_cents || row.net_amount_cents || row.total_cents || 0), 0);
+}
+function currentMonthCustomerCount() {
+  const mk = yyyymm(new Date());
+  return CUSTOMERS_CACHE.filter((row) => monthKeyFromDate(row.created_at || row.updated_at || new Date()) === mk).length;
+}
+function currentMonthOrderCount() {
+  const mk = yyyymm(new Date());
+  return CRM_ORDERS_CACHE.filter((row) => monthKeyFromDate(row.created_at || row.updated_at || new Date()) === mk).length;
+}
+function averageOrderValueCents() {
+  const rows = Array.isArray(CRM_ORDERS_CACHE) ? CRM_ORDERS_CACHE : [];
+  if (!rows.length) return 0;
+  const total = rows.reduce((sum, row) => sum + Number(row.total_cents || row.subtotal_cents || row.estimated_total_cents || 0), 0);
+  return Math.round(total / rows.length);
+}
+async function fetchDashboardPaymentState() {
+  try {
+    let token = sessionStorage.getItem('pl_op_token') || '';
+    if (!token && sb?.auth?.getSession) {
+      const { data } = await sb.auth.getSession();
+      token = data?.session?.access_token || '';
+    }
+    const res = await fetch('/.netlify/functions/tenant-payment-status?tenant_id=' + encodeURIComponent(TENANT_ID), {
+      headers: token ? { Authorization: `Bearer ${token}` } : {}
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.ok) return null;
+    DASHBOARD_PAYMENT_STATE = data.paymentState || null;
+    return DASHBOARD_PAYMENT_STATE;
+  } catch (_) {
+    return null;
+  }
+}
+async function fetchDashboardLaunchChecklist() {
+  if (!TENANT_ID) return null;
+  try {
+    const res = await fetch(`/.netlify/functions/get-launch-checklist?tenant_id=${encodeURIComponent(TENANT_ID)}`);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return null;
+    DASHBOARD_LAUNCH_CHECKLIST = data;
+    return data;
+  } catch (_) {
+    return null;
+  }
+}
 
 const $ = (id) => document.getElementById(id);
 
@@ -2451,7 +2510,33 @@ function renderDashboard() {
   if (!CRM_ORDERS_CACHE.length) alerts.push("No CRM orders exist yet. That means lifetime value and customer ranking are still shallow.");
   if (!EXPENSES_CACHE.length) alerts.push("No expenses are logged yet, so profit visibility is still weak.");
 
+  const metricsHtml = window.ProofLinkAnalyticsWidgets?.renderCards
+    ? window.ProofLinkAnalyticsWidgets.renderCards({
+        revenueThisMonth: currentMonthRevenueCents() / 100,
+        revenueLastMonth: lastMonthRevenueCents() / 100,
+        orderCountThisMonth: currentMonthOrderCount(),
+        averageOrderValue: averageOrderValueCents() / 100,
+        newCustomersThisMonth: currentMonthCustomerCount(),
+        expensesThisMonth: currentExpenses / 100,
+        outstandingOrders: openOrdersCount()
+      })
+    : '';
+
+  const checklistHtml = window.ProofLinkChecklistEngine?.renderServerChecklist
+    ? window.ProofLinkChecklistEngine.renderServerChecklist(DASHBOARD_LAUNCH_CHECKLIST || { steps: [], percent: 0, launch_ready: false })
+    : '';
+
+  const paymentHtml = window.ProofLinkStripeReadiness?.render && DASHBOARD_PAYMENT_STATE
+    ? window.ProofLinkStripeReadiness.render({
+        billing_status: DASHBOARD_PAYMENT_STATE.billingStatus,
+        connect_status: DASHBOARD_PAYMENT_STATE.connectStatus,
+        online_payments_enabled: DASHBOARD_PAYMENT_STATE.onlinePaymentsEligible
+      })
+    : '';
+
   dashboardWrap.innerHTML = `
+    ${metricsHtml}
+
     <div class="cards">
       <div class="card mini">
         <div class="card-bd">
@@ -2487,6 +2572,16 @@ function renderDashboard() {
         <h3>Cash awareness</h3>
         <p>Tracked expenses this month: <strong>${formatUsd(currentExpenses)}</strong></p>
         <p>Forecasted month orders: <strong>${forecastMonthOrders()}</strong></p>
+      </div>
+    </div>
+
+    <div class="insight-grid">
+      <div class="insight">${checklistHtml || '<h3>Launch checklist</h3><p>Checklist unavailable right now.</p>'}</div>
+      <div class="insight">${paymentHtml || '<h3>Payment readiness</h3><p>Payment truth will appear here once tenant state loads.</p>'}</div>
+      <div class="insight">
+        <h3>Tier posture</h3>
+        <p>Use the payments page to control tier, connect Stripe, and see when online checkout is truly ready.</p>
+        <p><strong>Next move:</strong> finish the highest-priority pending checklist step before adding new complexity.</p>
       </div>
     </div>
   `;
@@ -2619,7 +2714,8 @@ function renderGuidance() {
     </div>
   `;
 }
-btnRefreshDashboard?.addEventListener("click", () => {
+btnRefreshDashboard?.addEventListener("click", async () => {
+  await Promise.allSettled([fetchDashboardLaunchChecklist(), fetchDashboardPaymentState()]);
   renderDashboard();
   renderGuidance();
 });
@@ -2759,6 +2855,7 @@ async function boot() {
     renderExpenses(EXPENSES_CACHE);
     await refreshPicklists();
     renderStartupChecklist();
+    await Promise.allSettled([fetchDashboardLaunchChecklist(), fetchDashboardPaymentState()]);
     renderDashboard();
     renderOrders();
     renderCustomersList("");

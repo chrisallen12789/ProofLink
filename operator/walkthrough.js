@@ -6,7 +6,8 @@
   var AUTO_STARTED = false;
 
   function isLoggedIn() {
-    return !!sessionStorage.getItem('pl_op_token');
+    var app = document.getElementById('viewApp');
+    return !!sessionStorage.getItem('pl_op_token') || !!(app && !app.classList.contains('hidden'));
   }
 
   function isCompleted() {

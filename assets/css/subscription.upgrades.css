@@ -1,0 +1,71 @@
+.pl-billing-cta,
+.pl-billing-status-card,
+.pl-plan-comparison,
+.pl-upgrade-modal__panel {
+  background: #111;
+  color: #f5f5f5;
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 18px;
+  padding: 20px;
+  margin: 0 0 18px;
+}
+
+.pl-upgrade-btn {
+  display: inline-block;
+  background: #d26a2e;
+  color: #fff;
+  text-decoration: none;
+  border: 0;
+  border-radius: 12px;
+  padding: 12px 16px;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.pl-plan-comparison__table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.pl-plan-comparison__table th,
+.pl-plan-comparison__table td {
+  text-align: left;
+  padding: 10px 8px;
+  border-bottom: 1px solid rgba(255,255,255,.08);
+}
+
+.pl-upgrade-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+}
+
+.pl-upgrade-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,.6);
+}
+
+.pl-upgrade-modal__panel {
+  position: relative;
+  max-width: 960px;
+  margin: 40px auto;
+  z-index: 2;
+}
+
+.pl-upgrade-modal__close {
+  position: absolute;
+  right: 14px;
+  top: 14px;
+  background: transparent;
+  color: #fff;
+  border: 0;
+  font-size: 28px;
+  cursor: pointer;
+}
+
+.pl-billing-page {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 24px;
+}

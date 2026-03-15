@@ -741,3 +741,26 @@ input:focus, textarea:focus, select:focus{
 @media (max-width: 920px){
   .status-kv{ grid-template-columns:1fr; }
 }
+
+
+/* dashboard activation engine */
+.pl-launch-checklist-card__head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:10px;}
+.pl-launch-checklist-card__head h3{margin:0 0 4px;}
+.pl-launch-checklist-card__head p{margin:0;color:var(--muted);}
+.pl-launch-checklist-card__percent{font-weight:800;font-size:1.15rem;}
+.pl-launch-checklist-card__bar{height:8px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden;margin-bottom:12px;}
+.pl-launch-checklist-card__bar span{display:block;height:100%;background:var(--accent);border-radius:999px;}
+.pl-launch-checklist-card__list{list-style:none;display:grid;gap:10px;margin:0;padding:0;}
+.pl-launch-checklist-card__list li{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:start;padding:10px;border:1px solid var(--border);border-radius:12px;background:rgba(255,255,255,.02);}
+.pl-launch-checklist-card__list li.is-complete{border-color:rgba(37,163,98,.45);}
+.pl-launch-checklist-card__dot{font-weight:800;color:var(--accent);}
+.pl-launch-checklist-card__copy strong{display:block;margin-bottom:4px;}
+.pl-launch-checklist-card__copy p{margin:0;color:var(--muted);font-size:.9rem;}
+.pl-launch-checklist-card__cta{white-space:nowrap;text-decoration:none;color:var(--text);font-weight:700;}
+.pl-launch-checklist-card__cta.is-passive{color:var(--muted);}
+.pl-analytics-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:18px;}
+.pl-analytics-card{border:1px solid var(--border);border-radius:14px;padding:14px;background:rgba(255,255,255,.02);}
+.pl-analytics-card p{margin:0 0 8px;color:var(--muted);font-size:.85rem;}
+.pl-analytics-card h3{margin:0;font-size:1.45rem;}
+@media (max-width: 1000px){.pl-analytics-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}
+@media (max-width: 680px){.pl-analytics-grid{grid-template-columns:1fr;}.pl-launch-checklist-card__list li{grid-template-columns:auto 1fr;}.pl-launch-checklist-card__cta{grid-column:2;}}

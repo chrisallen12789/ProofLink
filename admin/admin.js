@@ -517,6 +517,11 @@ function loadTenants() {
 
       rows.forEach(function (t) { tenantCache[t.id] = t; });
 
+      if (window.ProofLinkAdminControlTower) {
+        var mount = document.getElementById('tenant-control-tower-mount');
+        if (mount) mount.innerHTML = window.ProofLinkAdminControlTower.renderTable(rows);
+      }
+
       if (!rows.length) {
         tbody.innerHTML = '<tr><td colspan="9" class="empty">No tenants found.</td></tr>';
         return;
@@ -552,6 +557,8 @@ function loadTenants() {
       }).join('');
     })
     .catch(function (e) {
+      var mount = document.getElementById('tenant-control-tower-mount');
+      if (mount) mount.innerHTML = '';
       tbody.innerHTML = '<tr><td colspan="9" style="padding:1.5rem;color:var(--error);font-size:.82rem">' + esc(e.message) + '</td></tr>';
       toast('Tenants: ' + e.message, true);
     });

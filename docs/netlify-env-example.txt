@@ -1,0 +1,7 @@
+STRIPE_SECRET_KEY=sk_live_or_test_xxx
+STRIPE_BILLING_WEBHOOK_SECRET=whsec_xxx
+STRIPE_PRICE_GROWTH=price_xxx
+STRIPE_PRICE_ENTERPRISE=price_xxx
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+URL=https://app.prooflink.co
