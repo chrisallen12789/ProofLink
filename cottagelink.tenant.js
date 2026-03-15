@@ -1,19 +1,20 @@
-// FILE: cottagelink.tenant.js
 window.COTTAGELINK_TENANT = window.COTTAGELINK_TENANT || {
-  id: "honest-to-crust",
-  slug: "honest-to-crust",
-  businessName: "Honest To Crust",
+  id: "",
+  slug: "",
+  businessName: "Company Name",
   platformName: "ProofLink",
-  businessType: "bakery",
+  businessType: "",
+
   storefront: {
-    titleSuffix: "Honest To Crust",
-    intro: "Add items to your cart. Submit your request. Then we confirm details by email before baking.",
-    orderIntro: "This is not instant checkout. We will email you to confirm details and schedule pickup or delivery.",
-    quoteDisclaimer: "Some items may still require confirmation pricing.",
-    deliveryDisclaimer: "Delivery is available only in Livingston County service ZIP codes. Orders of $100 or more receive free delivery.",
-    complianceNotice: "Made in a home kitchen that has not been inspected by the Michigan Department of Agriculture and Rural Development.",
-    allergenNotice: "Allergen notice: made in a kitchen that uses wheat, eggs, dairy, and nuts. Because this is a home kitchen, cross contact with allergens is possible.",
+    titleSuffix: "Company Name",
+    intro: "",
+    orderIntro: "",
+    quoteDisclaimer: "",
+    deliveryDisclaimer: "",
+    complianceNotice: "",
+    allergenNotice: "",
   },
+
   branding: {
     tenantLogoUrl: "/assets/logo.png",
     platformLogoUrl: "/assets/cottagelink-logo.png",
@@ -27,69 +28,63 @@ window.COTTAGELINK_TENANT = window.COTTAGELINK_TENANT || {
     muted: "#b8b1a5",
     border: "rgba(255,255,255,.08)",
   },
+
   cart: {
-    storageKey: "htc_cart_v2",
-    catalogCacheKey: "cottagelink_public_catalog_v1_honest-to-crust",
+    storageKey: "prooflink_cart_v2",
+    catalogCacheKey: "prooflink_public_catalog_v1",
   },
+
   fulfillment: {
-    freeThresholdCents: 10000,
-    zipFees: {
-      "48843": 500,
-      "48855": 500,
-      "48114": 1000,
-      "48116": 1000,
-      "48353": 1000,
-      "48836": 1500,
-      "48169": 1500,
-      "48380": 1500,
-    },
-    unavailableMessage: "Delivery is currently available only in Livingston County ZIP codes we service.",
-    pickupOnlyMessage: "One or more items in this cart are pickup only.",
-    zipFeeMessage: "Delivery fee is based on your ZIP code.",
-    freeMessage: "Delivery is free on orders of $100 or more.",
-    pickupMessage: "Pickup selected.",
+    freeThresholdCents: 0,
+    zipFees: {},
+    unavailableMessage: "",
+    pickupOnlyMessage: "",
+    pickupMessage: "",
   },
+
   contact: {
-    email: "info@honesttocrust.com",
-    replyToName: "Megan Lane",
-    cityState: "Hartland, Michigan",
+    email: "",
+    replyToName: "",
+    cityState: "",
   },
+
   backend: {
     tenantColumn: "tenant_id",
     operatorColumn: "operator_id",
     enforceTenantScope: true,
-    orderBridgeKey: "cottagelink_operator_order_bridge_v1_honest-to-crust",
+    orderBridgeKey: "prooflink_operator_order_bridge_v1",
   },
+
   operator: {
     redirectPath: "/operator/",
   },
+
   payments: {
     platformBilling: {
       planKey: "starter",
       planLabel: "Starter",
-      billingInterval: "monthly",
-      checkoutPath: "/onboarding.html",
-      notes: "Static tenant config only. Live billing state must come from backend payment truth.",
+      billingInterval: "month",
+      checkoutPath: "/.netlify/functions/stripe-platform-checkout",
     },
     commerce: {
-      connectPath: "/operator/#payments",
-      applicationFeeBps: 0,
-      allowedModes: ["pay_online", "pay_on_pickup", "invoice_later", "quote_required"],
-      defaultMode: "pay_on_pickup",
-      notes: "Static tenant config only. Live Connect state and pay-online eligibility must come from backend payment truth.",
+      connectPath: "/.netlify/functions/stripe-connect-link",
+      applicationFeeBps: 750,
+      allowedModes: ["invoice", "checkout"],
+      defaultMode: "invoice",
     },
     ledger: {
       livemode: false,
       currency: "usd",
     },
   },
+
   domains: {
-    prooflinkSubdomain: "honesttocrust.prooflink.co",
+    prooflinkSubdomain: "",
     customDomain: "",
-    customDomainStatus: "not_connected",
-    dnsTarget: "prooflink.co",
-    verificationNotes: "Point your CNAME to the ProofLink target after approval. Registrar accounts stay under the business owner.",
+    customDomainStatus: "",
+    dnsTarget: "",
   },
+
   help: {
     enabled: true,
   },
