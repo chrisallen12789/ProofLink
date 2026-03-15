@@ -89,6 +89,41 @@ const customerSearch = $("customerSearch");
 const paymentsList = $("paymentsList");
 const btnRefreshPayments = $("btnRefreshPayments");
 
+const setupForm = $("setupForm");
+const btnRefreshSetup = $("btnRefreshSetup");
+const btnSaveSetup = $("btnSaveSetup");
+const btnSaveSetupTop = $("btnSaveSetupTop");
+const btnMarkSetupComplete = $("btnMarkSetupComplete");
+const setupMsg = $("setupMsg");
+const setupPreviewWrap = $("setupPreviewWrap");
+const setupBusinessName = $("setupBusinessName");
+const setupTagline = $("setupTagline");
+const setupHeroHeading = $("setupHeroHeading");
+const setupHeroSubheading = $("setupHeroSubheading");
+const setupAbout = $("setupAbout");
+const setupAccentColor = $("setupAccentColor");
+const setupLogoUrl = $("setupLogoUrl");
+const setupHeroImageUrl = $("setupHeroImageUrl");
+const setupContactEmail = $("setupContactEmail");
+const setupBusinessPhone = $("setupBusinessPhone");
+const setupBusinessType = $("setupBusinessType");
+const setupCityState = $("setupCityState");
+const setupServiceArea = $("setupServiceArea");
+const setupLicenseNumber = $("setupLicenseNumber");
+const setupInstagram = $("setupInstagram");
+const setupFacebook = $("setupFacebook");
+const setupHoursNotes = $("setupHoursNotes");
+const setupFulfillmentNotes = $("setupFulfillmentNotes");
+const setupShowPrices = $("setupShowPrices");
+const setupAllowCustomRequests = $("setupAllowCustomRequests");
+const setupLogoFile = $("setupLogoFile");
+const setupHeroFile = $("setupHeroFile");
+const btnUploadSetupLogo = $("btnUploadSetupLogo");
+const btnUploadSetupHero = $("btnUploadSetupHero");
+const setupLogoStatus = $("setupLogoStatus");
+const setupHeroStatus = $("setupHeroStatus");
+let SETUP_STATE = null;
+
 const productsList = $("productsList");
 const btnNewProduct = $("btnNewProduct");
 const btnRefreshProducts = $("btnRefreshProducts");
@@ -257,6 +292,137 @@ function renderStartupChecklist() {
   `).join("");
 }
 
+function setSetupMessage(message = "", tone = "") {
+  if (!setupMsg) return;
+  setupMsg.className = `msg${tone ? ` ${tone}` : ""}`;
+  setupMsg.textContent = message;
+}
+
+function setupPreviewHtml(payload = {}) {
+  const logoUrl = String(payload.logo_url || "").trim();
+  const heroUrl = String(payload.hero_image_url || "").trim();
+  return `
+    <div class="stack" style="display:grid;gap:14px;">
+      <div style="display:flex;align-items:center;gap:14px;">
+        <div style="width:64px;height:64px;border-radius:14px;border:1px solid var(--border);background:rgba(255,255,255,.03);display:grid;place-items:center;overflow:hidden;">
+          ${logoUrl ? `<img src="${escapeAttr(logoUrl)}" alt="Logo" style="width:100%;height:100%;object-fit:cover;" />` : `<span class="muted" style="font-size:.8rem;">No logo</span>`}
+        </div>
+        <div>
+          <div style="font-weight:800;font-size:1.05rem;">${escapeHtml(payload.site_title || OPERATOR_CONFIG.tenantBusinessName || "Business")}</div>
+          <div class="muted">${escapeHtml(payload.tagline || "No tagline yet.")}</div>
+        </div>
+      </div>
+      <div style="padding:14px;border-radius:14px;border:1px solid var(--border);background:rgba(255,255,255,.02);">
+        <div style="font-weight:800;font-size:1rem;margin-bottom:6px;">${escapeHtml(payload.hero_heading || payload.site_title || "Hero heading not set")}</div>
+        <div class="muted">${escapeHtml(payload.hero_subheading || "No hero subheading yet.")}</div>
+        ${heroUrl ? `<div style="margin-top:12px;border-radius:12px;overflow:hidden;border:1px solid var(--border);"><img src="${escapeAttr(heroUrl)}" alt="Hero" style="display:block;width:100%;height:220px;object-fit:cover;" /></div>` : ``}
+      </div>
+      <div class="table">
+        <div class="tr"><div>Contact</div><div>${escapeHtml(payload.contact_email || "—")}</div></div>
+        <div class="tr"><div>Phone</div><div>${escapeHtml(payload.business_phone || "—")}</div></div>
+        <div class="tr"><div>Location</div><div>${escapeHtml(payload.city_state || "—")}</div></div>
+        <div class="tr"><div>Service area</div><div>${escapeHtml(payload.service_area || "—")}</div></div>
+      </div>
+    </div>
+  `;
+}
+
+function fillSetupForm(payload = {}) {
+  if (setupBusinessName) setupBusinessName.value = payload.site_title || OPERATOR_CONFIG.tenantBusinessName || "";
+  if (setupTagline) setupTagline.value = payload.tagline || "";
+  if (setupHeroHeading) setupHeroHeading.value = payload.hero_heading || "";
+  if (setupHeroSubheading) setupHeroSubheading.value = payload.hero_subheading || "";
+  if (setupAbout) setupAbout.value = payload.about || "";
+  if (setupAccentColor) setupAccentColor.value = payload.accent_color || window.COTTAGELINK_BRAND?.accent || "#c84b2f";
+  if (setupLogoUrl) setupLogoUrl.value = payload.logo_url || "";
+  if (setupHeroImageUrl) setupHeroImageUrl.value = payload.hero_image_url || "";
+  if (setupContactEmail) setupContactEmail.value = payload.contact_email || "";
+  if (setupBusinessPhone) setupBusinessPhone.value = payload.business_phone || "";
+  if (setupBusinessType) setupBusinessType.value = payload.business_type || "";
+  if (setupCityState) setupCityState.value = payload.city_state || "";
+  if (setupServiceArea) setupServiceArea.value = payload.service_area || "";
+  if (setupLicenseNumber) setupLicenseNumber.value = payload.license_number || "";
+  if (setupInstagram) setupInstagram.value = payload.instagram || "";
+  if (setupFacebook) setupFacebook.value = payload.facebook || "";
+  if (setupHoursNotes) setupHoursNotes.value = payload.hours_notes || "";
+  if (setupFulfillmentNotes) setupFulfillmentNotes.value = payload.fulfillment_notes || "";
+  if (setupShowPrices) setupShowPrices.checked = payload.show_prices !== false;
+  if (setupAllowCustomRequests) setupAllowCustomRequests.checked = payload.allow_custom_requests !== false;
+  if (setupPreviewWrap) setupPreviewWrap.innerHTML = setupPreviewHtml(payload);
+}
+
+function collectSetupPayload(extra = {}) {
+  return {
+    site_title: setupBusinessName?.value?.trim() || OPERATOR_CONFIG.tenantBusinessName || "",
+    tagline: setupTagline?.value?.trim() || "",
+    hero_heading: setupHeroHeading?.value?.trim() || "",
+    hero_subheading: setupHeroSubheading?.value?.trim() || "",
+    about: setupAbout?.value?.trim() || "",
+    accent_color: setupAccentColor?.value?.trim() || "",
+    logo_url: setupLogoUrl?.value?.trim() || "",
+    hero_image_url: setupHeroImageUrl?.value?.trim() || "",
+    contact_email: setupContactEmail?.value?.trim() || "",
+    business_phone: setupBusinessPhone?.value?.trim() || "",
+    business_type: setupBusinessType?.value?.trim() || "",
+    city_state: setupCityState?.value?.trim() || "",
+    service_area: setupServiceArea?.value?.trim() || "",
+    license_number: setupLicenseNumber?.value?.trim() || "",
+    instagram: setupInstagram?.value?.trim().replace(/^@/, "") || "",
+    facebook: setupFacebook?.value?.trim() || "",
+    hours_notes: setupHoursNotes?.value?.trim() || "",
+    fulfillment_notes: setupFulfillmentNotes?.value?.trim() || "",
+    show_prices: !!setupShowPrices?.checked,
+    allow_custom_requests: !!setupAllowCustomRequests?.checked,
+    ...extra,
+  };
+}
+
+async function fetchOperatorSetup() {
+  const token = await window.PROOFLINK_OPERATOR_RUNTIME?.getAccessToken?.();
+  const res = await fetch('/.netlify/functions/get-operator-setup', {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Failed to load setup.');
+  SETUP_STATE = data;
+  fillSetupForm(data.config || {});
+  return data;
+}
+
+async function saveOperatorSetup(extra = {}) {
+  const payload = collectSetupPayload(extra);
+  setSetupMessage('Saving setup…');
+  const token = await window.PROOFLINK_OPERATOR_RUNTIME?.getAccessToken?.();
+  const res = await fetch('/.netlify/functions/update-tenant-config', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({ tenant_id: TENANT_ID, config: payload }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Failed to save setup.');
+  SETUP_STATE = { ...(SETUP_STATE || {}), config: data.config || payload };
+  fillSetupForm(data.config || payload);
+  initBranding();
+  setSetupMessage('Setup saved.', 'good');
+  return data;
+}
+
+async function uploadSetupAsset(file, slot = 'asset') {
+  const key = `branding/${TENANT_ID}/${slot}_${Date.now()}_${safeFilename(file.name)}`;
+  const { error: upErr } = await sb.storage.from('product-images').upload(key, file, {
+    cacheControl: '3600',
+    upsert: false,
+    contentType: file.type || 'image/png',
+  });
+  if (upErr) throw upErr;
+  const { data } = sb.storage.from('product-images').getPublicUrl(key);
+  if (!data?.publicUrl) throw new Error('Upload succeeded but no public URL returned.');
+  return data.publicUrl;
+}
+
 function normalizePanel(panel) {
   const value = String(panel || '').trim().toLowerCase();
   return document.querySelector(`.tab[data-tab="${value}"]`) ? value : 'dashboard';
@@ -287,6 +453,7 @@ function switchTab(tab, opts = {}) {
   if (nextTab === "orders") renderOrders();
   if (nextTab === "customers") renderCustomersList(customerSearch?.value || "");
   if (nextTab === "payments") renderPayments();
+  if (nextTab === "setup") fetchOperatorSetup().catch((err) => setSetupMessage(err.message || String(err), "bad"));
   if (nextTab === "guidance") renderGuidance();
   if (opts.updateHash !== false) syncPanelHash(nextTab);
 }
@@ -1076,6 +1243,74 @@ function renderPricing(rows) {
     });
   });
 }
+btnRefreshSetup?.addEventListener("click", async () => {
+  try {
+    setSetupMessage('Refreshing setup…');
+    await fetchOperatorSetup();
+    setSetupMessage('Setup reloaded.', 'good');
+  } catch (err) {
+    setSetupMessage(err.message || String(err), 'bad');
+  }
+});
+btnSaveSetup?.addEventListener("click", async () => {
+  try {
+    await saveOperatorSetup();
+  } catch (err) {
+    setSetupMessage(err.message || String(err), 'bad');
+  }
+});
+btnSaveSetupTop?.addEventListener("click", async () => {
+  try {
+    await saveOperatorSetup();
+  } catch (err) {
+    setSetupMessage(err.message || String(err), 'bad');
+  }
+});
+btnMarkSetupComplete?.addEventListener("click", async () => {
+  try {
+    await saveOperatorSetup({ onboarding_complete: true });
+    setSetupMessage('Setup marked complete.', 'good');
+  } catch (err) {
+    setSetupMessage(err.message || String(err), 'bad');
+  }
+});
+btnUploadSetupLogo?.addEventListener('click', async () => {
+  const file = setupLogoFile?.files?.[0];
+  if (!file) {
+    if (setupLogoStatus) setupLogoStatus.textContent = 'Choose a logo file first.';
+    return;
+  }
+  try {
+    if (setupLogoStatus) setupLogoStatus.textContent = 'Uploading…';
+    if (setupLogoUrl) setupLogoUrl.value = await uploadSetupAsset(file, 'logo');
+    if (setupLogoStatus) setupLogoStatus.textContent = 'Uploaded. Save setup to keep it.';
+    fillSetupForm(collectSetupPayload());
+  } catch (err) {
+    if (setupLogoStatus) setupLogoStatus.textContent = err.message || String(err);
+  }
+});
+btnUploadSetupHero?.addEventListener('click', async () => {
+  const file = setupHeroFile?.files?.[0];
+  if (!file) {
+    if (setupHeroStatus) setupHeroStatus.textContent = 'Choose a hero image first.';
+    return;
+  }
+  try {
+    if (setupHeroStatus) setupHeroStatus.textContent = 'Uploading…';
+    if (setupHeroImageUrl) setupHeroImageUrl.value = await uploadSetupAsset(file, 'hero');
+    if (setupHeroStatus) setupHeroStatus.textContent = 'Uploaded. Save setup to keep it.';
+    fillSetupForm(collectSetupPayload());
+  } catch (err) {
+    if (setupHeroStatus) setupHeroStatus.textContent = err.message || String(err);
+  }
+});
+[setupBusinessName, setupTagline, setupHeroHeading, setupHeroSubheading, setupAbout, setupLogoUrl, setupHeroImageUrl, setupContactEmail, setupBusinessPhone, setupBusinessType, setupCityState, setupServiceArea, setupLicenseNumber, setupInstagram, setupFacebook, setupHoursNotes, setupFulfillmentNotes, setupAccentColor].forEach((el) => {
+  el?.addEventListener('input', () => { if (setupPreviewWrap) setupPreviewWrap.innerHTML = setupPreviewHtml(collectSetupPayload()); });
+});
+[setupShowPrices, setupAllowCustomRequests].forEach((el) => {
+  el?.addEventListener('change', () => { if (setupPreviewWrap) setupPreviewWrap.innerHTML = setupPreviewHtml(collectSetupPayload()); });
+});
+
 btnRefreshPricing?.addEventListener("click", async () => {
   try {
     await fetchProducts();
@@ -2486,6 +2721,7 @@ async function boot() {
       fetchCrmOrders(),
       fetchPayments(),
       fetchAvailability(),
+      fetchOperatorSetup().catch(() => null),
     ]);
 
     showApp(user);

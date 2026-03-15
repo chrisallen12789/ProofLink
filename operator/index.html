@@ -71,6 +71,7 @@
         <button class="tab" data-tab="customers" type="button">Customers</button>
         <button class="tab" data-tab="payments" type="button">Payments</button>
         <button class="tab" data-tab="domains" type="button">Domains</button>
+        <button class="tab" data-tab="setup" type="button">Business Setup</button>
         <button class="tab" data-tab="products" type="button">Products</button>
         <button class="tab" data-tab="pricing" type="button">Pricing</button>
         <button class="tab" data-tab="availability" type="button">Availability</button>
@@ -377,6 +378,168 @@
                 </div>
                 <div class="card-bd">
                   <div id="domainInstructionsWrap"></div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel hidden" data-panel="setup">
+            <div class="panel-head">
+              <div>
+                <h2>Business Setup</h2>
+                <div class="muted">Give each operator a proper setup workspace so branding, contact details, storefront copy, and launch assets are managed without touching code.</div>
+              </div>
+              <div class="panel-actions">
+                <button id="btnRefreshSetup" class="btn btn-ghost" type="button">Refresh</button>
+                <button id="btnSaveSetupTop" class="btn btn-primary" type="button">Save setup</button>
+              </div>
+            </div>
+
+            <div class="grid two">
+              <div class="card">
+                <div class="card-hd">
+                  <strong>Branding and storefront</strong>
+                  <span class="muted">What customers see first</span>
+                </div>
+                <div class="card-bd">
+                  <form id="setupForm" class="form">
+                    <label>Business name
+                      <input id="setupBusinessName" placeholder="Acme Services" />
+                    </label>
+
+                    <label>Tagline
+                      <input id="setupTagline" placeholder="One clear sentence that explains the business." />
+                    </label>
+
+                    <label>Hero heading
+                      <input id="setupHeroHeading" placeholder="The main headline shown on the storefront." />
+                    </label>
+
+                    <label>Hero subheading
+                      <textarea id="setupHeroSubheading" rows="3" placeholder="Short supporting copy for the hero section."></textarea>
+                    </label>
+
+                    <label>About the business
+                      <textarea id="setupAbout" rows="5" placeholder="Plain-English description of what this operator does and why customers should trust them."></textarea>
+                    </label>
+
+                    <label>Accent color
+                      <input id="setupAccentColor" placeholder="#c84b2f" />
+                    </label>
+
+                    <label>Logo image URL
+                      <input id="setupLogoUrl" placeholder="https://..." />
+                    </label>
+
+                    <label>Upload logo
+                      <input id="setupLogoFile" type="file" accept="image/*" />
+                      <button id="btnUploadSetupLogo" class="btn btn-ghost" type="button">Upload logo</button>
+                      <div class="muted" id="setupLogoStatus"></div>
+                    </label>
+
+                    <label>Hero image URL
+                      <input id="setupHeroImageUrl" placeholder="https://..." />
+                    </label>
+
+                    <label>Upload hero image
+                      <input id="setupHeroFile" type="file" accept="image/*" />
+                      <button id="btnUploadSetupHero" class="btn btn-ghost" type="button">Upload hero image</button>
+                      <div class="muted" id="setupHeroStatus"></div>
+                    </label>
+
+                    <div class="row">
+                      <label class="check">
+                        <input id="setupShowPrices" type="checkbox" />
+                        Show prices on storefront
+                      </label>
+
+                      <label class="check">
+                        <input id="setupAllowCustomRequests" type="checkbox" />
+                        Allow custom requests
+                      </label>
+                    </div>
+                  </form>
+                </div>
+              </div>
+
+              <div class="card">
+                <div class="card-hd">
+                  <strong>Business details</strong>
+                  <span class="muted">Operational details the operator should control</span>
+                </div>
+                <div class="card-bd">
+                  <div class="form">
+                    <label>Contact email
+                      <input id="setupContactEmail" type="email" placeholder="owner@business.com" />
+                    </label>
+
+                    <label>Phone
+                      <input id="setupBusinessPhone" placeholder="(555) 555-5555" />
+                    </label>
+
+                    <label>Business type
+                      <input id="setupBusinessType" placeholder="Bakery, pressure washing, detailing, etc." />
+                    </label>
+
+                    <label>City / State
+                      <input id="setupCityState" placeholder="Detroit, MI" />
+                    </label>
+
+                    <label>Service area
+                      <input id="setupServiceArea" placeholder="Oakland County and surrounding areas" />
+                    </label>
+
+                    <label>License number
+                      <input id="setupLicenseNumber" placeholder="Optional" />
+                    </label>
+
+                    <label>Instagram
+                      <input id="setupInstagram" placeholder="username without @" />
+                    </label>
+
+                    <label>Facebook URL
+                      <input id="setupFacebook" placeholder="https://facebook.com/..." />
+                    </label>
+
+                    <label>Hours note
+                      <textarea id="setupHoursNotes" rows="3" placeholder="Example: Mon-Fri 8 to 5. Weekend work by request."></textarea>
+                    </label>
+
+                    <label>Pickup / delivery / scheduling instructions
+                      <textarea id="setupFulfillmentNotes" rows="4" placeholder="Anything the customer should know before ordering or booking."></textarea>
+                    </label>
+
+                    <div class="row">
+                      <button id="btnSaveSetup" class="btn btn-primary" type="button">Save setup</button>
+                      <button id="btnMarkSetupComplete" class="btn" type="button">Mark setup complete</button>
+                    </div>
+
+                    <div id="setupMsg" class="msg"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="grid two" style="margin-top:16px;">
+              <div class="card">
+                <div class="card-hd">
+                  <strong>Setup preview</strong>
+                  <span class="muted">Quick sanity check before launch</span>
+                </div>
+                <div class="card-bd">
+                  <div id="setupPreviewWrap" class="muted">Load setup data to preview the current business profile.</div>
+                </div>
+              </div>
+
+              <div class="card">
+                <div class="card-hd">
+                  <strong>Why this exists</strong>
+                  <span class="muted">For owners, not developers</span>
+                </div>
+                <div class="card-bd">
+                  <div class="muted" style="line-height:1.65;">
+                    This page is the operator-safe replacement for hand-editing code. Use it to load logos, hero images, contact details, business copy, and storefront settings from one place. The goal is simple: the operator owns the business setup, not the codebase.
+                  </div>
                 </div>
               </div>
             </div>

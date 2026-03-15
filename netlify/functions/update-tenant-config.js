@@ -9,6 +9,7 @@ const ALLOWED_KEYS = new Set([
   'theme', 'logo_url', 'hero_image_url', 'contact_email', 'city_state', 'license_number', 'instagram',
   'business_type', 'currency', 'order_flow', 'onboarding_complete',
   'accent_color', 'font_family', 'show_prices', 'allow_custom_requests',
+  'about', 'business_phone', 'service_area', 'facebook', 'hours_notes', 'fulfillment_notes',
 ]);
 
 exports.handler = async (event) => {
@@ -91,6 +92,8 @@ exports.handler = async (event) => {
   const tenantUpdates = {};
   if (sanitized.logo_url !== undefined) tenantUpdates.logo_url = sanitized.logo_url;
   if (sanitized.site_title !== undefined) tenantUpdates.name   = sanitized.site_title;
+  if (sanitized.business_type !== undefined) tenantUpdates.business_type = sanitized.business_type;
+  if (sanitized.city_state !== undefined) tenantUpdates.city_state = sanitized.city_state;
 
   if (Object.keys(tenantUpdates).length > 0) {
     await supabase.from('tenants').update(tenantUpdates).eq('id', tenant_id);
