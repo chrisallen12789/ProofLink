@@ -8,7 +8,7 @@
     cart,
   } = CL;
 
-  const STORAGE_KEY = config?.storefront?.cart?.storageKey || "htc_cart_v2";
+  const STORAGE_KEY = config?.storefront?.cart?.storageKey || "prooflink_cart_v2";
   const $ = (sel, root = document) => root.querySelector(sel);
   const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
@@ -40,7 +40,7 @@
   function loadCatalogRows(rows) {
     CATALOG_CACHE = Array.isArray(rows) ? rows.map(catalog.normalizeProduct).filter(Boolean) : [];
     CATALOG_BY_ID = catalog.buildIndex(CATALOG_CACHE);
-    window.HTC_CATALOG = CATALOG_CACHE;
+    window.PROOFLINK_CATALOG = CATALOG_CACHE;
   }
 
   async function syncCartWithCatalog() {
@@ -499,7 +499,7 @@
   renderOrderCart();
   syncCartWithCatalog().then(() => notify()).catch(console.error);
 
-  window.HTC_CART = {
+  window.PROOFLINK_CART = {
     add,
     setQty,
     remove,
