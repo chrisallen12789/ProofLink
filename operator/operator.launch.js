@@ -73,13 +73,22 @@
   }
 
   async function refreshPaymentState() {
-    const data = await apiPost('/.netlify/functions/tenant-payment-status', {
-      tenantId: tenant.id || tenant.slug
-    });
-    livePaymentState = data.paymentState || null;
-    applyPaymentButtonState();
-    return livePaymentState;
-  }
+  const runtime = window.PROOFLINK_OPERATOR_RUNTIME || {};
+  const resolvedTenantId =
+    typeof runtime.getTenantId === 'function'
+      ? runtime.getTenantId()
+      : (tenant.id || tenant.slug);
+    
+  console.log('tenant-payment-status tenantId:', resolvedTenantId);
+    
+  const data = await apiPost('/.netlify/functions/tenant-payment-status', {
+    tenantId: resolvedTenantId
+  });
+
+  livePaymentState = data.paymentState || null;
+  applyPaymentButtonState();
+  return livePaymentState;
+}
 
   function setPaymentMsg(text, bad) {
     const el = $('paymentActionMsg');
