@@ -4,7 +4,8 @@
   "description": "ProofLink serverless functions",
   "private": true,
   "dependencies": {
-    "@supabase/supabase-js": "^2.39.0"
+    "@supabase/supabase-js": "^2.39.0",
+    "stripe": "^20.4.1"
   },
   "engines": {
     "node": ">=18"
