@@ -6,22 +6,23 @@ exports.handler = async (event) => {
   if (event.httpMethod !== 'GET') return respond(405, { ok: false, error: 'Method not allowed' });
 
   try {
-    const ctx = await requireOperatorContext(event);
     const requestedTenantId = String(
       event.queryStringParameters?.tenant_id ||
       event.queryStringParameters?.tenantId ||
-      ctx.tenantId || ''
+      ''
     ).trim();
+    const ctx = await requireOperatorContext(event, requestedTenantId);
+    const effectiveTenantId = requestedTenantId || String(ctx.tenantId || '').trim();
 
-    if (!requestedTenantId) {
+    if (!effectiveTenantId) {
       return respond(400, { ok: false, error: 'Missing tenant_id' });
     }
 
-    if (ctx.role !== 'admin' && ctx.role !== 'platform_admin' && ctx.tenantId && ctx.tenantId !== requestedTenantId) {
+    if (ctx.role !== 'admin' && ctx.role !== 'platform_admin' && ctx.tenantId && ctx.tenantId !== effectiveTenantId) {
       return respond(403, { ok: false, error: 'Forbidden: tenant mismatch' });
     }
 
-    const raw = await fetchTenantLimitHealthRaw(ctx.supabase, requestedTenantId);
+    const raw = await fetchTenantLimitHealthRaw(ctx.supabase, effectiveTenantId);
     if (!raw) {
       return respond(404, { ok: false, error: 'Tenant limit health not found' });
     }
@@ -30,7 +31,7 @@ exports.handler = async (event) => {
 
     return respond(200, {
       ok: true,
-      tenant_id: requestedTenantId,
+      tenant_id: effectiveTenantId,
       health,
       generated_at: new Date().toISOString(),
     });

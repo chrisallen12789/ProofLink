@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Order Request</title>
+
+      <!-- favicon -->
+    <link rel="icon" type="image/png" href="/assets/favicon.png">
+    <link rel="shortcut icon" href="/favicon.ico">
+
+    <link rel="stylesheet" href="styles.css" />
+    <script src="layout.js" defer></script>
+    <script src="cottagelink.tenant.js" defer></script>
+    <script src="cottagelink.config.js" defer></script>
+    <script src="cottagelink.core.js" defer></script>
+    <script src="cart.js?v=20260307-6" defer></script>
+    <script src="forms.js" defer></script>
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+  </head>
+  <body>
+    <header>
+      <div class="container topbar">
+        <div id="site-nav"></div>
+      </div>
+    </header>
+
+    <main class="container">
+      <section class="section-card form-page-card">
+        <h1>Order request</h1>
+        <p class="muted">
+          <span data-cl-order-intro>This is not instant checkout. We will email you to confirm details and schedule pickup or delivery.</span>
+        </p>
+
+        <section class="cart-box" aria-label="Your cart">
+          <h2>Your cart</h2>
+
+          <p id="cartEmpty" class="muted" style="display:none;">Your cart is empty. Browse products to add items.</p>
+
+          <div id="cartItems" class="cart-items" aria-live="polite"></div>
+
+          <div id="trialSuggestion"></div>
+
+          <div class="cart-summary" style="margin-top:18px;">
+            <div class="row">
+              <span class="label">Estimated subtotal</span>
+              <span class="value" id="cartSummaryField">$0.00</span>
+            </div>
+
+            <div style="display:grid; gap:14px; margin-top:16px;">
+              <div class="form__row">
+                <div class="form__field">
+                  <label for="orderFulfillment">Pickup or delivery</label>
+                  <select id="orderFulfillment" name="fulfillment">
+                    <option value="pickup">Pickup</option>
+                    <option value="delivery">Delivery</option>
+                  </select>
+                </div>
+
+                <div class="form__field" id="deliveryZipWrap" style="display:none;">
+                  <label for="orderDeliveryZip">Delivery ZIP code</label>
+                  <input
+                    id="orderDeliveryZip"
+                    name="deliveryZip"
+                    type="text"
+                    inputmode="numeric"
+                    autocomplete="postal-code"
+                    maxlength="5"
+                    placeholder="48843"
+                  />
+                </div>
+              </div>
+
+              <div class="form__row">
+                <div class="form__field">
+                  <label for="orderRequestedDate">Requested date</label>
+                  <input id="orderRequestedDate" name="requestedDate" type="date" />
+                </div>
+
+                <div class="form__field">
+                  <label for="orderRequestedTime">Preferred time window</label>
+                  <select id="orderRequestedTime" name="requestedTime">
+                    <option value="">Choose one</option>
+                    <option value="Morning (8 AM – 11 AM)">Morning (8 AM – 11 AM)</option>
+                    <option value="Midday (11 AM – 2 PM)">Midday (11 AM – 2 PM)</option>
+                    <option value="Afternoon (2 PM – 5 PM)">Afternoon (2 PM – 5 PM)</option>
+                    <option value="Evening (5 PM – 7 PM)">Evening (5 PM – 7 PM)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div style="border:1px solid rgba(0,0,0,.08); border-radius:16px; padding:14px; background:#fff;">
+                <div class="row">
+                  <span class="label">Item subtotal</span>
+                  <span class="value" id="cartSubtotalField">$0.00</span>
+                </div>
+                <div class="row" style="margin-top:8px;">
+                  <span class="label">Delivery</span>
+                  <span class="value" id="cartDeliveryField">Pickup</span>
+                </div>
+                <div class="row" style="margin-top:8px;">
+                  <span class="label"><strong>Estimated total</strong></span>
+                  <span class="value" id="cartTotalField"><strong>$0.00</strong></span>
+                </div>
+                <p id="cartQuoteField" class="muted small" style="margin-top:10px;">
+                  <span data-cl-quote-disclaimer>Some items may still require confirmation pricing.</span>
+                </p>
+                <p id="cartDeliveryMessage" class="muted small" style="margin-top:6px;">
+                  Pickup selected.
+                </p>
+              </div>
+            </div>
+
+            <p class="muted small" style="margin-top:14px;">
+              <span data-cl-delivery-disclaimer>Delivery is available only in Livingston County service ZIP codes. Orders of $100 or more receive free delivery.</span>
+            </p>
+          </div>
+        </section>
+
+        <div id="toastHost" class="toast-host" aria-live="polite" aria-atomic="true"></div>
+
+        <form id="orderForm" class="form" novalidate>
+          <div class="hp-field" aria-hidden="true">
+            <label>Website
+              <input type="text" name="website" tabindex="-1" autocomplete="off" />
+            </label>
+          </div>
+
+          <div class="form__row">
+            <div class="form__field">
+              <label for="orderName">Name</label>
+              <input
+                id="orderName"
+                name="name"
+                type="text"
+                autocomplete="name"
+                required
+              />
+            </div>
+
+            <div class="form__field">
+              <label for="orderEmail">Email</label>
+              <input
+                id="orderEmail"
+                name="email"
+                type="email"
+                autocomplete="email"
+                required
+              />
+            </div>
+          </div>
+
+          <div class="form__row">
+            <div class="form__field">
+              <label for="orderPhone">Phone</label>
+              <input
+                id="orderPhone"
+                name="phone"
+                type="tel"
+                autocomplete="tel"
+                required
+              />
+            </div>
+
+            <div class="form__field">
+              <label for="orderPreferred">Preferred contact</label>
+              <select id="orderPreferred" name="preferred">
+                <option value="email">Email</option>
+                <option value="phone">Phone</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form__field">
+            <label for="orderNotes">Notes (optional)</label>
+            <textarea id="orderNotes" name="notes" rows="5"></textarea>
+          </div>
+
+          <input type="hidden" name="startedAt" value="" />
+
+          <input
+            type="text"
+            name="fax"
+            tabindex="-1"
+            autocomplete="off"
+            aria-hidden="true"
+            style="position:absolute;left:-10000px;top:auto;width:1px;height:1px;overflow:hidden;"
+          />
+
+          <div class="form__field">
+            <div class="cf-turnstile" data-sitekey="0x4AAAAAACn_IoLznmZ3urmV"></div>
+            <p class="form-agreement">Spam protection is enabled. If you see an error, refresh and try again.</p>
+            <p class="form-agreement">
+              By submitting this request, you agree to our
+              <a href="terms.html">Terms</a> and acknowledge our
+              <a href="refunds.html">Refunds and cancellations</a> and
+              <a href="privacy.html">Privacy</a>.
+            </p>
+          </div>
+
+          <div class="form__actions">
+            <button type="submit" class="btn btn--primary">
+              Request confirmation
+            </button>
+            <a class="btn btn--ghost" href="products.html">Keep shopping</a>
+          </div>
+
+          <div class="status" data-status style="display:none;"></div>
+
+          <p class="availability-note">
+            Made in a home kitchen that has not been inspected by the Michigan
+            Department of Agriculture and Rural Development.
+          </p>
+        </form>
+      </section>
+    </main>
+
+    <footer>
+      <div class="container">
+        <div id="site-footer"></div>
+      </div>
+    </footer>
+  </body>
+</html>

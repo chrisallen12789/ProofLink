@@ -1,0 +1,53 @@
+name: Test
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - "codex/**"
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      TEST_SUPABASE_URL: ${{ secrets.TEST_SUPABASE_URL }}
+      TEST_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.TEST_SUPABASE_SERVICE_ROLE_KEY }}
+      TEST_SUPABASE_ANON_KEY: ${{ secrets.TEST_SUPABASE_ANON_KEY }}
+      TEST_SITE_URL: ${{ secrets.TEST_SITE_URL }}
+      TEST_PLATFORM_ADMIN_EMAIL: ${{ secrets.TEST_PLATFORM_ADMIN_EMAIL }}
+      TEST_PLATFORM_ADMIN_PASSWORD: ${{ secrets.TEST_PLATFORM_ADMIN_PASSWORD }}
+      TEST_TENANT_A_ADMIN_EMAIL: ${{ secrets.TEST_TENANT_A_ADMIN_EMAIL }}
+      TEST_TENANT_A_ADMIN_PASSWORD: ${{ secrets.TEST_TENANT_A_ADMIN_PASSWORD }}
+      TEST_TENANT_B_ADMIN_EMAIL: ${{ secrets.TEST_TENANT_B_ADMIN_EMAIL }}
+      TEST_TENANT_B_ADMIN_PASSWORD: ${{ secrets.TEST_TENANT_B_ADMIN_PASSWORD }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Audit dependencies for high severity vulnerabilities
+        run: npm audit --audit-level=high
+
+      - name: Run unit tests
+        run: npm run test:unit
+
+      - name: Cleanup hosted test data
+        run: npm run test:cleanup
+
+      - name: Seed hosted test data
+        run: npm run test:seed
+
+      - name: Run integration tests
+        run: npm run test:integration

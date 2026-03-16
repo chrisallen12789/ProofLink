@@ -1,33 +1,43 @@
 // netlify/functions/get-launch-checklist.js
-// Public (reads own tenant only via token) or operator-accessible.
+// Authenticated tenant-scoped launch checklist.
 // GET /.netlify/functions/get-launch-checklist?tenant_id=xxx
 // Returns the real-time completion state of the 5-step launch checklist.
 
 const { getAdminClient, respond } = require('./utils/auth');
+const { clean, requireOperatorContext } = require('./_prooflink_payments');
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return respond(200, {});
   if (event.httpMethod !== 'GET') return respond(405, { error: 'Method not allowed' });
 
-  const params    = event.queryStringParameters || {};
-  const tenantId  = params.tenant_id;
-  const slug      = params.slug;
-
-  if (!tenantId && !slug) {
-    return respond(400, { error: 'tenant_id or slug is required' });
+  let ctx;
+  try {
+    ctx = await requireOperatorContext(event);
+  } catch (error) {
+    return respond(error.statusCode || 401, { error: error.message || 'Unauthorized' });
   }
 
+  const params = event.queryStringParameters || {};
+  const requestedTenantId = clean(params.tenant_id || '');
+  const requestedSlug = clean(params.slug || '');
   const supabase = getAdminClient();
 
-  // Load tenant
-  let tenantQuery = supabase.from('tenants').select('*');
-  if (tenantId) tenantQuery = tenantQuery.eq('id', tenantId);
-  else           tenantQuery = tenantQuery.eq('slug', slug);
-
-  const { data: tenant, error } = await tenantQuery.maybeSingle();
+  const { data: tenant, error } = await supabase
+    .from('tenants')
+    .select('*')
+    .eq('id', ctx.tenantId)
+    .maybeSingle();
 
   if (error || !tenant) {
     return respond(404, { error: 'Tenant not found' });
+  }
+
+  if (requestedTenantId && requestedTenantId !== tenant.id) {
+    return respond(403, { error: 'Forbidden: tenant mismatch' });
+  }
+
+  if (requestedSlug && requestedSlug !== tenant.slug) {
+    return respond(403, { error: 'Forbidden: tenant mismatch' });
   }
 
   // ── Run checklist checks in parallel ──────────────────────────────────────

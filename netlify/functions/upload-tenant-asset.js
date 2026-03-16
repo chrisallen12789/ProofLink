@@ -6,9 +6,10 @@ exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') return respond(405, { ok: false, error: 'Method not allowed' });
 
   try {
-    const ctx = await requireOperatorContext(event);
     const body = JSON.parse(event.body || '{}');
-    const tenantId = String(body.tenant_id || ctx.tenantId || '').trim();
+    const requestedTenantId = String(body.tenant_id || '').trim();
+    const ctx = await requireOperatorContext(event, requestedTenantId);
+    const tenantId = String(requestedTenantId || ctx.tenantId || '').trim();
     const operatorId = String(ctx.operatorId || '').trim();
     const filename = String(body.filename || 'file').trim();
     const contentType = String(body.content_type || body.contentType || 'application/octet-stream').trim();

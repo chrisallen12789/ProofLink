@@ -4,7 +4,7 @@
 // Sets an onboarding request status to 'approved'.
 // POST body: { id: "<uuid>" }
 
-const { requireOperatorContext, respond } = require('./utils/auth');
+const { requireOnboardingAdminContext, respond } = require('./utils/auth');
 const { sendEmail, templates }            = require('./utils/email');
 
 exports.handler = async (event) => {
@@ -14,7 +14,7 @@ exports.handler = async (event) => {
   // ── Require operator auth
   let ctx;
   try {
-    ctx = await requireOperatorContext(event);
+    ctx = await requireOnboardingAdminContext(event);
   } catch (err) {
     return respond(err.statusCode || 401, { error: err.message });
   }

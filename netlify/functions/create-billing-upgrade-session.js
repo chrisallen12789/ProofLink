@@ -1,12 +1,11 @@
 const Stripe = require("stripe");
-
-function json(statusCode, body) {
-  return {
-    statusCode,
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body)
-  };
-}
+const {
+  clean,
+  findTenantById,
+  json,
+  readJson,
+  requireOperatorContext,
+} = require("./_prooflink_payments");
 
 function getStripe() {
   const secret = process.env.STRIPE_SECRET_KEY;
@@ -37,18 +36,25 @@ exports.handler = async function(event) {
   }
 
   try {
-    const body = JSON.parse(event.body || "{}");
-    const tenantId = body.tenantId;
-    const targetPlan = body.targetPlan;
-    const featureKey = body.featureKey || null;
-    const customerEmail = body.customerEmail || null;
+    const body = readJson(event);
+    const tenantId = clean(body.tenantId || body.tenant_id);
+    const targetPlan = clean(body.targetPlan || body.target_plan);
+    const featureKey = clean(body.featureKey || body.feature_key) || null;
 
     if (!tenantId) return json(400, { ok: false, error: "Missing tenantId" });
     if (!targetPlan) return json(400, { ok: false, error: "Missing targetPlan" });
 
+    await requireOperatorContext(event, tenantId);
+
+    const tenant = await findTenantById(tenantId);
+    if (!tenant) {
+      return json(404, { ok: false, error: "Tenant not found" });
+    }
+
     const stripe = getStripe();
     const price = getPriceIdForPlan(targetPlan);
     const appUrl = requireEnv("URL");
+    const customerEmail = clean(tenant.owner_email || body.customerEmail || body.customer_email) || null;
 
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",

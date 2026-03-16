@@ -37,22 +37,22 @@ exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return respond(200, {});
   if (event.httpMethod !== 'POST') return respond(405, { error: 'Method not allowed' });
 
-  let ctx;
-  try {
-    ctx = await requireOperatorContext(event);
-  } catch (err) {
-    return respond(err.statusCode || 401, { error: err.message });
-  }
-
-  const { supabase, tenantId } = ctx;
-  if (!tenantId) return respond(403, { error: 'Operator is not linked to a tenant' });
-
   let body;
   try {
     body = JSON.parse(event.body || '{}');
   } catch {
     return respond(400, { error: 'Invalid JSON' });
   }
+
+  let ctx;
+  try {
+    ctx = await requireOperatorContext(event, body.tenant_id || body.tenantId || '');
+  } catch (err) {
+    return respond(err.statusCode || 401, { error: err.message });
+  }
+
+  const { supabase, tenantId } = ctx;
+  if (!tenantId) return respond(403, { error: 'Operator is not linked to a tenant' });
 
   const { tenant_id, config } = body;
   if (!tenant_id) return respond(400, { error: 'tenant_id is required' });

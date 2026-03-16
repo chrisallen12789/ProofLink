@@ -1,0 +1,45 @@
+{
+  "root": true,
+  "env": {
+    "es2022": true,
+    "node": true
+  },
+  "ignorePatterns": [
+    "node_modules/",
+    "coverage/",
+    "playwright-report/",
+    "test-results/",
+    "docs/",
+    "ProofLink/"
+  ],
+  "extends": [
+    "eslint:recommended",
+    "prettier"
+  ],
+  "parserOptions": {
+    "ecmaVersion": 2022,
+    "sourceType": "script"
+  },
+  "rules": {
+    "no-console": "off",
+    "no-unused-vars": [
+      "warn",
+      {
+        "argsIgnorePattern": "^_",
+        "varsIgnorePattern": "^_"
+      }
+    ]
+  },
+  "overrides": [
+    {
+      "files": [
+        "tests/**/*.js",
+        "playwright.config.js",
+        "vitest.config.js"
+      ],
+      "env": {
+        "node": true
+      }
+    }
+  ]
+}

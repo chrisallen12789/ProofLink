@@ -26,10 +26,23 @@ function clean(val) {
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return respond(200, {});
 
+  const requestedTenantId = clean(
+    event.httpMethod === 'GET'
+      ? event.queryStringParameters?.tenantId
+      : (() => {
+          try {
+            const body = JSON.parse(event.body || '{}');
+            return body.tenantId || body.tenant_id;
+          } catch {
+            return '';
+          }
+        })()
+  );
+
   // ── Auth ────────────────────────────────────────────────────────────────────
   let ctx;
   try {
-    ctx = await requireAdminContext(event);
+    ctx = await requireAdminContext(event, requestedTenantId);
   } catch (err) {
     return respond(err.statusCode || 401, { error: err.message });
   }
@@ -38,7 +51,7 @@ exports.handler = async (event) => {
 
   // ── GET — check exemption state for a tenant ───────────────────────────────
   if (event.httpMethod === 'GET') {
-    const tenantId = clean(event.queryStringParameters?.tenantId);
+    const tenantId = requestedTenantId;
     if (!tenantId) return respond(400, { error: 'tenantId is required' });
 
     const { data: tenant, error } = await supabase

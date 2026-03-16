@@ -4,6 +4,17 @@ const { getAdminClient } = require('../utils/auth');
 const BUCKET = 'product-images';
 const EXPIRY_MINUTES = 15;
 
+function getUploadSecret() {
+  const secret = String(process.env.TENANT_UPLOAD_SECRET || '').trim();
+  if (!secret) {
+    throw Object.assign(new Error('Upload receipt signing secret is not configured'), {
+      statusCode: 500,
+      code: 'upload_secret_missing',
+    });
+  }
+  return secret;
+}
+
 function safeFilename(name) {
   return String(name || 'file').trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9._-]/g, '');
 }
@@ -23,7 +34,7 @@ function makeReceipt({ tenantId, operatorId, objectPath, expectedBytes, contentT
     folder: String(folder || ''),
     exp: Date.now() + (EXPIRY_MINUTES * 60 * 1000),
   };
-  const secret = process.env.TENANT_UPLOAD_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY || 'prooflink-upload-secret';
+  const secret = getUploadSecret();
   const body = JSON.stringify(payload);
   const sig = crypto.createHmac('sha256', secret).update(body).digest('hex');
   return Buffer.from(JSON.stringify({ payload, sig }), 'utf8').toString('base64url');
@@ -37,7 +48,7 @@ function parseReceipt(receipt) {
   } catch {
     throw Object.assign(new Error('Invalid receipt'), { statusCode: 400 });
   }
-  const secret = process.env.TENANT_UPLOAD_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY || 'prooflink-upload-secret';
+  const secret = getUploadSecret();
   const body = JSON.stringify(parsed.payload || {});
   const sig = crypto.createHmac('sha256', secret).update(body).digest('hex');
   if (sig !== parsed.sig) throw Object.assign(new Error('Receipt signature mismatch'), { statusCode: 403 });
@@ -141,6 +152,7 @@ async function readUploadedObjectBytes(objectPath) {
 module.exports = {
   BUCKET,
   buildObjectPath,
+  getUploadSecret,
   makeReceipt,
   parseReceipt,
   checkStorageLimit,

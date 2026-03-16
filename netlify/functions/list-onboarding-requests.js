@@ -5,7 +5,7 @@
 // Supports:  GET ?status=submitted|approved|provisioning|provisioned|failed
 //            GET ?id=<uuid>  — fetch single request
 
-const { requireOperatorContext, respond } = require('./utils/auth');
+const { requireOnboardingAdminContext, respond } = require('./utils/auth');
 
 exports.handler = async (event) => {
   // CORS pre-flight
@@ -20,7 +20,7 @@ exports.handler = async (event) => {
   // ── Require operator auth
   let ctx;
   try {
-    ctx = await requireOperatorContext(event);
+    ctx = await requireOnboardingAdminContext(event);
   } catch (err) {
     return respond(err.statusCode || 401, { error: err.message });
   }

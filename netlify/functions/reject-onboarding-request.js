@@ -2,7 +2,7 @@
 // Operator-only. Rejects an onboarding request and optionally emails the applicant.
 // POST body: { id, rejection_reason? }
 
-const { requireOperatorContext, respond } = require('./utils/auth');
+const { requireOnboardingAdminContext, respond } = require('./utils/auth');
 const { sendEmail, templates }            = require('./utils/email');
 
 exports.handler = async (event) => {
@@ -11,7 +11,7 @@ exports.handler = async (event) => {
 
   let ctx;
   try {
-    ctx = await requireOperatorContext(event);
+    ctx = await requireOnboardingAdminContext(event);
   } catch (err) {
     return respond(err.statusCode || 401, { error: err.message });
   }
