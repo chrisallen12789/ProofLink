@@ -124,6 +124,53 @@ describe("create-billing-portal-session integration", () => {
     }
   });
 
+  test("mismatched tenantId and customerId are rejected", async () => {
+    const mockCreate = vi.fn();
+    const { handler, restore } = loadHandlerWithStripeMock(mockCreate);
+
+    try {
+      const admin = createAdminClient();
+      const tenantA = await admin
+        .from("tenants")
+        .select("id")
+        .eq("slug", TENANTS.tenantA.slug)
+        .single();
+      const tenantB = await admin
+        .from("tenants")
+        .select("id")
+        .eq("slug", TENANTS.tenantB.slug)
+        .single();
+
+      await admin
+        .from("tenants")
+        .update({ stripe_customer_id: "cus_pltest_tenant_a" })
+        .eq("id", tenantA.data.id);
+
+      await admin
+        .from("tenants")
+        .update({ stripe_customer_id: "cus_pltest_tenant_b" })
+        .eq("id", tenantB.data.id);
+
+      const accessToken = await getAccessToken(USERS.tenantAAdmin);
+      const res = await handler(
+        buildEvent({
+          method: "POST",
+          headers: { Authorization: `Bearer ${accessToken}` },
+          body: {
+            tenantId: tenantA.data.id,
+            customerId: "cus_pltest_tenant_b",
+          },
+        })
+      );
+
+      expect(res.statusCode).toBe(403);
+      expect(JSON.parse(res.body).error).toMatch(/customerId.*tenant/i);
+      expect(mockCreate).not.toHaveBeenCalled();
+    } finally {
+      restore();
+    }
+  });
+
   test("valid tenant-scoped request still succeeds", async () => {
     const mockCreate = vi.fn().mockResolvedValue({
       url: "https://billing.example.test/session/pltest",
@@ -149,7 +196,10 @@ describe("create-billing-portal-session integration", () => {
         buildEvent({
           method: "POST",
           headers: { Authorization: `Bearer ${accessToken}` },
-          body: { tenantId: tenantA.data.id },
+          body: {
+            tenantId: tenantA.data.id,
+            customerId: tenantACustomerId,
+          },
         })
       );
 

@@ -1,62 +1,73 @@
-# ProofLink — SQL Reference
+# ProofLink SQL Reference
 
-## Active files (what matters)
+## Active files
 
 ### `CATCHUP_RUN_THIS.sql`
-The single source of truth for the full database schema. Run this on any fresh Supabase project and you get everything. Safe to run — every statement uses `IF NOT EXISTS` or `ADD COLUMN IF NOT EXISTS`.
+This is the versioned source of truth for the core live app schema that currently exists in the repo. It is intended to be runnable on a fresh Supabase project for the main ProofLink tables, views, RLS policies, and core RPCs.
 
-**What it creates:**
-- `tenants` — all columns including Stripe, billing, governance, tester exempt, branding
-- `tenant_onboarding_requests` — all columns including governance/evaluation fields
-- `products` — full catalog table with pricing modes, images, sort order
-- `pricing` — per-product cost and pricing detail
-- `availability` — business hours, lead time, blackout dates
-- `expenses` — per-job and monthly expense tracking
-- `customers` — CRM customer records
-- `orders` — storefront and CRM orders
-- `payments` — Stripe payment records
-- `customer_interactions` — timestamped interaction log per customer
-- `tenant_conduct_log` — immutable audit trail of conduct actions
-- `tenant_config` — key/value site settings per tenant
-- `tenant_settings` — structured branding + contact per tenant
-- `operator_members` — links operators to tenants with roles
-- `operators` — authenticated users who can log in
-- `pl_reserved_slugs` — admin-managed slug blocklist
-- `pl_banned_keywords` — admin-managed keyword blocklist
-- `pl_protected_brands` — admin-managed brand protection list
-- `pl_prohibited_categories` — admin-managed category rules
-- `profiles` — maps auth.users to platform roles (used for admin checks)
-- `onboarding_requests` — view alias for `tenant_onboarding_requests` (backward compat)
-- `operator_member_access()` — RLS helper function
-- `submit_storefront_order()` — RPC used by storefront cart
-- `get_public_catalog_by_tenant()` — RPC used by storefront product display
-- All RLS policies and indexes
+It now includes:
+- `tenant_onboarding_requests`
+- `tenants`
+- `operators`
+- `operator_members`
+- `tenant_config`
+- `tenant_settings`
+- `products`
+- `pricing`
+- `availability`
+- `expenses`
+- `customers`
+- `orders`
+- `payments`
+- `customer_interactions`
+- `tenant_conduct_log`
+- `pl_reserved_slugs`
+- `pl_banned_keywords`
+- `pl_protected_brands`
+- `pl_prohibited_categories`
+- `profiles`
+- `onboarding_requests` view
+- `operator_tenants` view
+- `operator_member_access()` and `operator_member_tenant_access()`
+- `submit_storefront_order()`
+- `get_public_catalog_by_tenant()`
+- `resolve_tenant_row()`
+- `check_storage_limit(...)`
+- `increment_tenant_storage_usage(...)`
+- `sync_tenant_usage_counters(...)`
+- `v_tenant_limit_health`
+- the current repo-defined RLS policies and indexes for those objects
+
+Recently promoted into `CATCHUP_RUN_THIS.sql` from older migrations:
+- base `tenant_onboarding_requests` schema from `archive/onboarding-migration.sql`
+- base `tenants`, `operators`, `operator_members`, `tenant_config`, and `tenant_settings` schema from `archive/phase3_tenants_migration.sql`
+- tenant governance and storage helper objects from `tenant_governance_limits.sql`
 
 ### `diagnostic.sql`
-Run this any time to see a snapshot of every table and its column count. Useful for confirming a migration ran correctly.
+Read-only diagnostic queries for inspecting the current database state.
 
----
+## Archive
 
-## Archive (do not run)
+The `/archive/` folder contains older migrations kept for reference. Some schema from those files has been promoted into `CATCHUP_RUN_THIS.sql`, but the archive should not be run directly on a live project because it contains overlapping definitions and older assumptions.
 
-The `/archive/` folder contains all old migration files from earlier development. They are kept for historical reference only. Everything they did is already covered by `CATCHUP_RUN_THIS.sql`.
+## Fresh project usage
 
-**Do not run any archive files.** Several contain test data backfills, old table names, and duplicate statements that will conflict with the current schema.
+1. Create a new Supabase project.
+2. Open SQL Editor.
+3. Run `CATCHUP_RUN_THIS.sql`.
+4. Set the required environment variables from the root `.env.example`.
+5. Deploy or run the app against that project.
 
----
+## Change process
 
-## How to use on a fresh project
+1. Add schema changes to `CATCHUP_RUN_THIS.sql`.
+2. Apply the same change in Supabase SQL Editor for the target environment.
+3. Commit both together.
 
-1. Create a new Supabase project
-2. Open SQL Editor
-3. Paste and run `CATCHUP_RUN_THIS.sql`
-4. Set your Netlify environment variables (see `.env.example` in the root)
-5. Deploy
+This keeps `CATCHUP_RUN_THIS.sql` current as the repo source of truth for the versioned core schema.
 
-## How to make schema changes going forward
+## Intentionally outside catch-up
 
-1. Make the change in `CATCHUP_RUN_THIS.sql` (it's additive — add new columns/tables, don't remove)
-2. Also run the specific change in your Supabase SQL editor directly
-3. Commit both together
+`tenant_governance_limits.sql` is now mirrored into `CATCHUP_RUN_THIS.sql`, so the app's current limit-health and storage RPC dependencies are covered in the catch-up file.
 
-This keeps `CATCHUP_RUN_THIS.sql` always current as the single source of truth.
+Objects that may still exist in live environments but are not currently claimed as part of the repo source of truth should stay in standalone migrations until they are reconciled and promoted intentionally.

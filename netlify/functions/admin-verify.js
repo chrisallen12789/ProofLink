@@ -13,10 +13,10 @@
 
 const { getAdminClient, respond } = require('./utils/auth');
 
-// The UID of the initial platform admin.  Set via Netlify env var or
-// fall back to the hardcoded value for christopher@prooflink.co.
-const BOOTSTRAP_ADMIN_UID =
-  process.env.PLATFORM_ADMIN_UID || '4e777b53-cf80-4c46-982b-7afa32053f69';
+// Bootstrap is opt-in and requires explicit configuration.
+const BOOTSTRAP_ADMIN_UID = String(process.env.PLATFORM_ADMIN_UID || '').trim();
+const BOOTSTRAP_ENABLED =
+  String(process.env.PLATFORM_ADMIN_BOOTSTRAP_ENABLED || '').trim().toLowerCase() === 'true';
 
 const ADMIN_ROLES = new Set(['admin', 'platform_admin']);
 
@@ -54,7 +54,7 @@ exports.handler = async (event) => {
   }
 
   // ── 3. Bootstrap: create platform_admin row if this is the designated UID ──
-  if (!operator && user.id === BOOTSTRAP_ADMIN_UID) {
+  if (!operator && BOOTSTRAP_ENABLED && BOOTSTRAP_ADMIN_UID && user.id === BOOTSTRAP_ADMIN_UID) {
     console.log(`[admin-verify] Bootstrapping platform_admin for ${email} (uid=${user.id})`);
 
     const displayName =
@@ -83,7 +83,13 @@ exports.handler = async (event) => {
   }
 
   // ── 3b. Upgrade existing row if it has wrong role and matches bootstrap UID
-  if (operator && !ADMIN_ROLES.has(operator.role) && user.id === BOOTSTRAP_ADMIN_UID) {
+  if (
+    operator &&
+    !ADMIN_ROLES.has(operator.role) &&
+    BOOTSTRAP_ENABLED &&
+    BOOTSTRAP_ADMIN_UID &&
+    user.id === BOOTSTRAP_ADMIN_UID
+  ) {
     console.log(`[admin-verify] Upgrading operator ${operator.id} to platform_admin`);
     const { error: upErr } = await supabase
       .from('operators')

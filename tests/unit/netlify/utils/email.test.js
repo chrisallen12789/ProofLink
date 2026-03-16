@@ -1,0 +1,58 @@
+"use strict";
+
+const path = require("path");
+
+describe("netlify/functions/utils/email", () => {
+  const emailUtilsPath = path.resolve(process.cwd(), "netlify/functions/utils/email.js");
+
+  beforeEach(() => {
+    vi.resetModules();
+    vi.stubGlobal("fetch", vi.fn());
+    process.env.PUBLIC_SITE_URL = "http://127.0.0.1:8888";
+    process.env.SITE_URL = "http://127.0.0.1:8888";
+    process.env.URL = "http://127.0.0.1:8888";
+    process.env.RESEND_API_KEY = "resend_pltest";
+    process.env.ALLOW_LOCAL_EMAIL_SKIP = "";
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  test("missing RESEND_API_KEY fails closed outside explicit local email mode", async () => {
+    process.env.PUBLIC_SITE_URL = "https://app.prooflink.test";
+    process.env.SITE_URL = "https://app.prooflink.test";
+    process.env.URL = "https://app.prooflink.test";
+    process.env.RESEND_API_KEY = "";
+
+    const { sendEmail } = require(emailUtilsPath);
+
+    await expect(
+      sendEmail({
+        to: "ops@example.com",
+        subject: "ProofLink config test",
+        html: "<p>Hello</p>",
+      })
+    ).rejects.toMatchObject({
+      code: "configuration_error",
+      statusCode: 503,
+    });
+
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  test("explicit local email skip remains controlled", async () => {
+    process.env.RESEND_API_KEY = "";
+    process.env.ALLOW_LOCAL_EMAIL_SKIP = "true";
+
+    const { sendEmail } = require(emailUtilsPath);
+    const result = await sendEmail({
+      to: "ops@example.com",
+      subject: "ProofLink local skip",
+      html: "<p>Hello</p>",
+    });
+
+    expect(result).toEqual({ skipped: true });
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+});

@@ -61,7 +61,6 @@ exports.handler = async (event) => {
 
     await patchTenant(tenantId, {
       billing_status: 'checkout_started',
-      prooflink_plan_key: planKey,
       stripe_customer_id: session.customer || null,
       updated_at: new Date().toISOString(),
     }).catch(() => null);

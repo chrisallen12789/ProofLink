@@ -1,10 +1,25 @@
 // FILE: netlify/functions/contact.js
 // Contact form handler using Turnstile + Resend.
 
+const { getRequiredResendApiKey } = require("./utils/runtime-config");
+
 const TURNSTILE_SECRET_KEY = process.env.TURNSTILE_SECRET_KEY || "";
-const RESEND_API_KEY = process.env.RESEND_API_KEY || "";
 const MIN_SUBMIT_MS = Number(process.env.MIN_SUBMIT_MS || 2500);
 const MAX_SUBMIT_MS = Number(process.env.MAX_SUBMIT_MS || 60 * 60 * 1000);
+
+function localCaptchaBypassEnabled() {
+  const allowBypass = String(process.env.ALLOW_LOCAL_TURNSTILE_BYPASS || "").trim().toLowerCase() === "true";
+  const siteUrl = String(
+    process.env.PUBLIC_SITE_URL || process.env.SITE_URL || process.env.URL || ""
+  ).trim().toLowerCase();
+  const isLocalUrl =
+    siteUrl.startsWith("http://127.0.0.1") ||
+    siteUrl.startsWith("http://localhost") ||
+    siteUrl.startsWith("https://127.0.0.1") ||
+    siteUrl.startsWith("https://localhost");
+
+  return allowBypass && isLocalUrl;
+}
 
 function json(statusCode, obj) {
   return {
@@ -38,7 +53,13 @@ function parseBody(event) {
 }
 
 async function verifyTurnstile(token, ip) {
-  if (!TURNSTILE_SECRET_KEY) return { skipped: true, success: true };
+  if (!TURNSTILE_SECRET_KEY) {
+    if (localCaptchaBypassEnabled()) return { skipped: true, success: true, bypassed: true };
+    throw Object.assign(new Error("CAPTCHA is not configured."), {
+      statusCode: 503,
+      code: "configuration_error",
+    });
+  }
   if (!token) return { success: false };
 
   const form = new URLSearchParams();
@@ -84,12 +105,13 @@ function escapeHtml(s) {
 }
 
 async function sendResendEmail({ from, to, replyTo, subject, html }) {
-  if (!RESEND_API_KEY) throw new Error("Missing RESEND_API_KEY");
+  const apiKey = getRequiredResendApiKey();
+  if (!apiKey) return { skipped: true, localOnly: true };
 
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${RESEND_API_KEY}`,
+      Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
@@ -183,6 +205,9 @@ exports.handler = async (event) => {
     return json(200, { ok: true });
   } catch (e) {
     const statusCode = Number(e?.statusCode || 500);
-    return json(statusCode, { ok: false, error: String(e?.message || e) });
+    return json(statusCode, {
+      ok: false,
+      error: e?.code === "configuration_error" ? "configuration_error" : String(e?.message || e),
+    });
   }
 };

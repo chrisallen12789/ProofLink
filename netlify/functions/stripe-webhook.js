@@ -335,6 +335,7 @@ exports.handler = async (event) => {
         const tenantFromCustomer = await findTenantByStripeCustomer(clean(obj?.customer)).catch(
           () => null
         );
+        const planKey = clean(obj?.metadata?.plan_key || obj?.metadata?.target_plan);
 
         const tenantId =
           clean(obj?.metadata?.tenant_id) ||
@@ -345,6 +346,7 @@ exports.handler = async (event) => {
         if (tenantId) {
           await patchTenant(tenantId, {
             billing_status: 'active',
+            ...(planKey ? { prooflink_plan_key: planKey } : {}),
             stripe_customer_id: obj.customer || null,
             stripe_subscription_id: obj.subscription || null,
             updated_at: new Date().toISOString(),

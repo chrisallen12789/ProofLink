@@ -27,6 +27,7 @@ const { requireAdminContext, respond } = require('./utils/auth');
 const { sendEmail, templates }            = require('./utils/email');
 const { uniqueTenantSlug }               = require('./utils/slugify');
 const { seedTemplateForTenant }          = require('./lib/seed-templates');
+const { getConfiguredSiteUrl }           = require('./utils/runtime-config');
 
 // ── Seed branding + contact into tenant_settings ────────────────────────────
 async function seedTenantSettings(supabase, tenantId, req) {
@@ -68,6 +69,12 @@ exports.handler = async (event) => {
   }
 
   const { operatorId, supabase } = ctx;
+  let siteUrl;
+  try {
+    siteUrl = getConfiguredSiteUrl();
+  } catch (err) {
+    return respond(err.statusCode || 503, { error: err.code === 'configuration_error' ? 'configuration_error' : err.message });
+  }
 
   // Parse body
   let body;
@@ -109,7 +116,7 @@ exports.handler = async (event) => {
       message   : 'Tenant already provisioned (idempotent)',
       tenant_id : existingTenant.id,
       slug      : existingTenant.slug,
-      login_url : (process.env.SITE_URL || 'https://prooflink.co') + '/operator/',
+      login_url : siteUrl + '/operator/',
     });
   }
 
@@ -211,7 +218,7 @@ exports.handler = async (event) => {
   await seedTenantSettings(supabase, tenantId, req);
 
   // ── Create Supabase auth user (if not already existing) ───────────────────
-  const redirectTo = (process.env.SITE_URL || 'https://prooflink.co') + '/operator/';
+  const redirectTo = siteUrl + '/operator/';
   let authUserId = null;
 
   const { data: newAuthUser, error: createAuthErr } = await supabase.auth.admin.createUser({

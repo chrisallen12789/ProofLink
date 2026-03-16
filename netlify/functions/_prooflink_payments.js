@@ -36,7 +36,11 @@ function getBaseUrl(event) {
   if (explicit) return explicit.replace(/\/+$/, '');
   const proto = event?.headers?.['x-forwarded-proto'] || 'https';
   const host = event?.headers?.host || '';
-  return host ? `${proto}://${host}` : 'https://prooflink.co';
+  if (host) return `${proto}://${host}`;
+  throw Object.assign(new Error('SITE_URL or PUBLIC_SITE_URL is not configured.'), {
+    statusCode: 503,
+    code: 'configuration_error'
+  });
 }
 
 function getAuthToken(event) {

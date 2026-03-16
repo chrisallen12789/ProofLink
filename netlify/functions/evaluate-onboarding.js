@@ -19,10 +19,10 @@
 'use strict';
 
 const { createClient } = require('@supabase/supabase-js');
+const { getConfiguredSiteUrl } = require('./utils/runtime-config');
 
 const SUPABASE_URL         = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const SITE_URL             = process.env.PUBLIC_SITE_URL || process.env.SITE_URL || process.env.URL || 'https://prooflink.co';
 const INTERNAL_SECRET      = process.env.INTERNAL_SECRET || '';
 
 // ── Baseline reserved slugs ───────────────────────────────────────────────────
@@ -437,8 +437,18 @@ exports.handler = async function (event) {
   }
 
   // Auto-provision approved applications asynchronously
-  if (result.status === 'approved' && SITE_URL) {
-    fetch(SITE_URL + '/.netlify/functions/provision-tenant', {
+  if (result.status === 'approved') {
+    let siteUrl;
+    try {
+      siteUrl = getConfiguredSiteUrl();
+    } catch (err) {
+      return {
+        statusCode: err.statusCode || 503,
+        body: JSON.stringify({ error: err.code === 'configuration_error' ? 'configuration_error' : err.message }),
+      };
+    }
+
+    fetch(siteUrl + '/.netlify/functions/provision-tenant', {
       method : 'POST',
       headers: {
         'Content-Type'           : 'application/json',

@@ -16,6 +16,7 @@ const { requireOnboardingAdminContext, respond } = require('./utils/auth');
 const { sendEmail, templates }            = require('./utils/email');
 const { uniqueTenantSlug }               = require('./utils/slugify');
 const { seedTemplateForTenant }          = require('./lib/seed-templates');
+const { getConfiguredSiteUrl }           = require('./utils/runtime-config');
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return respond(200, {});
@@ -30,6 +31,12 @@ exports.handler = async (event) => {
   }
 
   const { operatorId, supabase } = ctx;
+  let siteUrl;
+  try {
+    siteUrl = getConfiguredSiteUrl();
+  } catch (err) {
+    return respond(err.statusCode || 503, { error: err.code === 'configuration_error' ? 'configuration_error' : err.message });
+  }
 
   // ── Parse + validate body ─────────────────────────────────────────────────
   let body;
@@ -167,7 +174,7 @@ exports.handler = async (event) => {
   await seedTemplateForTenant(supabase, tenantId, newOperatorId, req.seed_template_key);
 
   // ── Create Supabase auth user (if not already existing) ───────────────────
-  const redirectTo = (process.env.SITE_URL || 'https://prooflink.co') + '/operator/';
+  const redirectTo = siteUrl + '/operator/';
   let authUserId = null;
 
   const { data: newAuthUser, error: createAuthErr } = await supabase.auth.admin.createUser({

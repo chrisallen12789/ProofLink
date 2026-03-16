@@ -4,17 +4,34 @@
 // Saves the order to Supabase via the local proxy
 // Sends admin + customer emails via Resend
 
-const SITE_URL = (process.env.PUBLIC_SITE_URL || "https://prooflink.co").replace(/\/$/, "");
+const { getConfiguredSiteUrl, getRequiredResendApiKey } = require("./utils/runtime-config");
+
 const DEFAULT_TENANT_BUSINESS_NAME = process.env.TENANT_BUSINESS_NAME || "Honest To Crust";
 const PLATFORM_NAME = process.env.PLATFORM_NAME || "ProofLink";
 const TENANT_REPLY_TO_NAME = process.env.TENANT_REPLY_TO_NAME || DEFAULT_TENANT_BUSINESS_NAME;
 const TENANT_CITY_STATE = process.env.TENANT_CITY_STATE || "";
-const LOGO_URL = `${SITE_URL}/assets/logo.png`;
 
 const TURNSTILE_SECRET_KEY = process.env.TURNSTILE_SECRET_KEY || "";
-const RESEND_API_KEY = process.env.RESEND_API_KEY || "";
 const MIN_SUBMIT_MS = Number(process.env.MIN_SUBMIT_MS || 2500);
 const MAX_SUBMIT_MS = Number(process.env.MAX_SUBMIT_MS || 60 * 60 * 1000);
+
+function localCaptchaBypassEnabled() {
+  const allowBypass = String(process.env.ALLOW_LOCAL_TURNSTILE_BYPASS || "").trim().toLowerCase() === "true";
+  const siteUrl = String(
+    process.env.PUBLIC_SITE_URL || process.env.SITE_URL || process.env.URL || ""
+  ).trim().toLowerCase();
+  const isLocalUrl =
+    siteUrl.startsWith("http://127.0.0.1") ||
+    siteUrl.startsWith("http://localhost") ||
+    siteUrl.startsWith("https://127.0.0.1") ||
+    siteUrl.startsWith("https://localhost");
+
+  return allowBypass && isLocalUrl;
+}
+
+function getSiteUrl() {
+  return getConfiguredSiteUrl();
+}
 
 function json(statusCode, obj) {
   return {
@@ -75,7 +92,13 @@ function normalizePayload(input) {
 }
 
 async function verifyTurnstile(token, ip) {
-  if (!TURNSTILE_SECRET_KEY) return { skipped: true, success: true };
+  if (!TURNSTILE_SECRET_KEY) {
+    if (localCaptchaBypassEnabled()) return { skipped: true, success: true, bypassed: true };
+    throw Object.assign(new Error("CAPTCHA is not configured."), {
+      statusCode: 503,
+      code: "configuration_error",
+    });
+  }
   if (!token) return { success: false };
 
   const form = new URLSearchParams();
@@ -194,6 +217,7 @@ function buildCustomerHtml(payload) {
   const requestedDate = escapeHtml(payload.requestedDate || "");
   const requestedTime = escapeHtml(payload.requestedTime || "");
   const fulfill = escapeHtml(fulfillmentPreference(payload));
+  const logoUrl = `${getSiteUrl()}/assets/logo.png`;
 
   return `
   <div style="margin:0;padding:0;background:#f8f5f0;">
@@ -236,7 +260,7 @@ function buildCustomerHtml(payload) {
                       <div style="color:#6b625c;">${escapeHtml(TENANT_CITY_STATE)}</div>
                     </td>
                     <td align="right" style="width:140px;">
-                      <img src="${LOGO_URL}" alt="${tenantName(payload)}" width="110" style="display:block;border:0;outline:none;text-decoration:none;">
+                      <img src="${logoUrl}" alt="${tenantName(payload)}" width="110" style="display:block;border:0;outline:none;text-decoration:none;">
                     </td>
                   </tr>
                 </table>
@@ -250,12 +274,13 @@ function buildCustomerHtml(payload) {
 }
 
 async function sendResendEmail({ from, to, replyTo, subject, html }) {
-  if (!RESEND_API_KEY) throw new Error("Missing RESEND_API_KEY");
+  const apiKey = getRequiredResendApiKey();
+  if (!apiKey) return { skipped: true, localOnly: true };
 
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${RESEND_API_KEY}`,
+      Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
@@ -276,8 +301,7 @@ async function sendResendEmail({ from, to, replyTo, subject, html }) {
 }
 
 async function saveOrderToSupabase(payload) {
-  const siteUrl = process.env.URL || process.env.DEPLOY_PRIME_URL || process.env.PUBLIC_SITE_URL || "";
-  if (!siteUrl) throw new Error("Missing site URL for order proxy call");
+  const siteUrl = getSiteUrl();
 
   const apiUrl = `${siteUrl.replace(/\/$/, "")}/.netlify/functions/supabase-order-proxy`;
   const res = await fetch(apiUrl, {
@@ -336,6 +360,9 @@ exports.handler = async (event) => {
     return json(200, { ok: true, orderId: saveResult?.orderId || null });
   } catch (e) {
     const statusCode = Number(e?.statusCode || 500);
-    return json(statusCode, { ok: false, error: String(e?.message || e) });
+    return json(statusCode, {
+      ok: false,
+      error: e?.code === "configuration_error" ? "configuration_error" : String(e?.message || e),
+    });
   }
 };

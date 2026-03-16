@@ -802,21 +802,38 @@ function bootAdmin() {
 
 var _testerSearchTimeout = null;
 
+function fetchAdminTenants(params) {
+  params = params || {};
+  var searchParams = new URLSearchParams();
+  Object.keys(params).forEach(function(key) {
+    var value = params[key];
+    if (value === undefined || value === null || value === '') return;
+    searchParams.set(key, String(value));
+  });
+  var qs = searchParams.toString();
+  var url = '/.netlify/functions/get-tenants' + (qs ? '?' + qs : '');
+  return authFetch(url)
+    .then(function(r) {
+      return r.json().then(function(d) { return { ok: r.ok, d: d }; });
+    })
+    .then(function(res) {
+      if (!res.ok) throw new Error(res.d.error || 'Failed to load tenants');
+      return Array.isArray(res.d.tenants) ? res.d.tenants : [];
+    });
+}
+
 function loadTesters() {
   var tbody = document.getElementById('testers-tbody');
   if (tbody) tbody.innerHTML = '<tr class="loading-row"><td colspan="6"><span class="spinner"></span></td></tr>';
 
-  // Load all tenants with billing_exempt = true from Supabase directly
-  authFetch(SUPABASE_URL + '/rest/v1/tenants?select=id,name,slug,billing_status,billing_exempt,billing_exempt_until&billing_exempt=eq.true&apikey=' + SUPABASE_ANON, {
-    headers: { 'apikey': SUPABASE_ANON }
-  })
-  .then(function(r) { return r.json(); })
+  fetchAdminTenants({ limit: 200 })
   .then(function(rows) {
     rows = Array.isArray(rows) ? rows : [];
     var now = new Date();
 
     // Filter to only active (non-expired) exemptions
     var active = rows.filter(function(t) {
+      if (!t.billing_exempt) return false;
       if (!t.billing_exempt_until) return true;
       return new Date(t.billing_exempt_until) > now;
     });
@@ -863,10 +880,7 @@ function searchTenantsForExempt() {
       return;
     }
 
-    authFetch(SUPABASE_URL + '/rest/v1/tenants?select=id,name,slug,billing_status,billing_exempt,billing_exempt_until&limit=10&apikey=' + SUPABASE_ANON, {
-      headers: { 'apikey': SUPABASE_ANON }
-    })
-    .then(function(r) { return r.json(); })
+    fetchAdminTenants({ limit: 25, q: q })
     .then(function(rows) {
       rows = Array.isArray(rows) ? rows : [];
       var filtered = rows.filter(function(t) {
