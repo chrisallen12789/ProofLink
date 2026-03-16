@@ -49,7 +49,6 @@ let ACTIVE_ORDER_ID = null;
 let ACTIVE_CUSTOMER_ID = null;
 let DASHBOARD_PAYMENT_STATE = null;
 let DASHBOARD_LAUNCH_CHECKLIST = null;
-let DASHBOARD_LIMIT_HEALTH = null;
 
 function currentMonthRevenueCents() {
   const mk = yyyymm(new Date());
@@ -95,14 +94,6 @@ async function fetchDashboardPaymentState() {
     return null;
   }
 }
-async function getOperatorAccessToken() {
-  let token = sessionStorage.getItem('pl_op_token') || '';
-  if (!token && sb?.auth?.getSession) {
-    const { data } = await sb.auth.getSession();
-    token = data?.session?.access_token || '';
-  }
-  return token;
-}
 async function fetchDashboardLaunchChecklist() {
   if (!TENANT_ID) return null;
   try {
@@ -114,70 +105,6 @@ async function fetchDashboardLaunchChecklist() {
   } catch (_) {
     return null;
   }
-}
-async function fetchTenantLimitHealth() {
-  if (!TENANT_ID) return null;
-  try {
-    const token = await getOperatorAccessToken();
-    const res = await fetch(`/.netlify/functions/get-tenant-limit-health?tenant_id=${encodeURIComponent(TENANT_ID)}`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {}
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok || !data.ok) return null;
-    DASHBOARD_LIMIT_HEALTH = data.health || null;
-    return DASHBOARD_LIMIT_HEALTH;
-  } catch (_) {
-    return null;
-  }
-}
-async function prepareTenantAssetUpload(file, folder = 'uploads', slot = '') {
-  const token = await getOperatorAccessToken();
-  const res = await fetch('/.netlify/functions/upload-tenant-asset', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: JSON.stringify({
-      tenant_id: TENANT_ID,
-      filename: file?.name || 'file',
-      bytes: Number(file?.size || 0),
-      content_type: file?.type || 'application/octet-stream',
-      folder,
-      slot,
-    }),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok || !data.ok) throw new Error(data.error || 'Upload preparation failed.');
-  return data;
-}
-async function commitTenantAssetUpload(receipt) {
-  const token = await getOperatorAccessToken();
-  const res = await fetch('/.netlify/functions/commit-tenant-asset', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: JSON.stringify({ receipt }),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok || !data.ok) throw new Error(data.error || 'Upload commit failed.');
-  return data;
-}
-async function uploadTenantAsset(file, folder = 'uploads', slot = '') {
-  const prep = await prepareTenantAssetUpload(file, folder, slot);
-  const { error: upErr } = await sb.storage.from(prep.bucket || 'product-images').upload(prep.objectPath, file, {
-    cacheControl: '3600',
-    upsert: false,
-    contentType: file.type || 'application/octet-stream',
-  });
-  if (upErr) throw upErr;
-  const commit = await commitTenantAssetUpload(prep.receipt);
-  const { data } = sb.storage.from(prep.bucket || 'product-images').getPublicUrl(commit.objectPath || prep.objectPath);
-  if (!data?.publicUrl) throw new Error('Upload succeeded but no public URL returned.');
-  await fetchTenantLimitHealth().catch(() => null);
-  return data.publicUrl;
 }
 
 const $ = (id) => document.getElementById(id);
@@ -554,7 +481,16 @@ async function saveOperatorSetup(extra = {}) {
 }
 
 async function uploadSetupAsset(file, slot = 'asset') {
-  return uploadTenantAsset(file, 'branding', slot);
+  const key = `branding/${TENANT_ID}/${slot}_${Date.now()}_${safeFilename(file.name)}`;
+  const { error: upErr } = await sb.storage.from('product-images').upload(key, file, {
+    cacheControl: '3600',
+    upsert: false,
+    contentType: file.type || 'image/png',
+  });
+  if (upErr) throw upErr;
+  const { data } = sb.storage.from('product-images').getPublicUrl(key);
+  if (!data?.publicUrl) throw new Error('Upload succeeded but no public URL returned.');
+  return data.publicUrl;
 }
 
 function normalizePanel(panel) {
@@ -1178,7 +1114,16 @@ btnArchiveProduct?.addEventListener("click", async () => {
   }
 });
 async function uploadProductImage(file) {
-  return uploadTenantAsset(file, 'products', 'product-image');
+  const key = `products/${opId()}/${Date.now()}_${safeFilename(file.name)}`;
+  const { error: upErr } = await sb.storage.from("product-images").upload(key, file, {
+    cacheControl: "3600",
+    upsert: false,
+    contentType: file.type || "image/png",
+  });
+  if (upErr) throw upErr;
+  const { data } = sb.storage.from("product-images").getPublicUrl(key);
+  if (!data?.publicUrl) throw new Error("Upload succeeded but no public URL returned.");
+  return data.publicUrl;
 }
 btnUploadProductImage?.addEventListener("click", async () => {
   const file = productImageFile?.files?.[0];
@@ -2588,15 +2533,8 @@ function renderDashboard() {
         online_payments_enabled: DASHBOARD_PAYMENT_STATE.onlinePaymentsEligible
       })
     : '';
-  const limitBannerHtml = window.ProofLinkLimitBanner?.renderFromHealth
-    ? window.ProofLinkLimitBanner.renderFromHealth(DASHBOARD_LIMIT_HEALTH)
-    : '';
-  const upgradePanelHtml = window.ProofLinkUpgradePanel?.renderFromHealth
-    ? window.ProofLinkUpgradePanel.renderFromHealth(DASHBOARD_LIMIT_HEALTH)
-    : '';
 
   dashboardWrap.innerHTML = `
-    ${limitBannerHtml || ''}
     ${metricsHtml}
 
     <div class="cards">
@@ -2640,7 +2578,11 @@ function renderDashboard() {
     <div class="insight-grid">
       <div class="insight">${checklistHtml || '<h3>Launch checklist</h3><p>Checklist unavailable right now.</p>'}</div>
       <div class="insight">${paymentHtml || '<h3>Payment readiness</h3><p>Payment truth will appear here once tenant state loads.</p>'}</div>
-      <div class="insight">${upgradePanelHtml || '<h3>Tier posture</h3><p>Use the payments page to control tier, connect Stripe, and see when online checkout is truly ready.</p><p><strong>Next move:</strong> finish the highest-priority pending checklist step before adding new complexity.</p>'}</div>
+      <div class="insight">
+        <h3>Tier posture</h3>
+        <p>Use the payments page to control tier, connect Stripe, and see when online checkout is truly ready.</p>
+        <p><strong>Next move:</strong> finish the highest-priority pending checklist step before adding new complexity.</p>
+      </div>
     </div>
   `;
 }
@@ -2773,7 +2715,7 @@ function renderGuidance() {
   `;
 }
 btnRefreshDashboard?.addEventListener("click", async () => {
-  await Promise.allSettled([fetchDashboardLaunchChecklist(), fetchDashboardPaymentState(), fetchTenantLimitHealth()]);
+  await Promise.allSettled([fetchDashboardLaunchChecklist(), fetchDashboardPaymentState()]);
   renderDashboard();
   renderGuidance();
 });
@@ -2913,7 +2855,7 @@ async function boot() {
     renderExpenses(EXPENSES_CACHE);
     await refreshPicklists();
     renderStartupChecklist();
-    await Promise.allSettled([fetchDashboardLaunchChecklist(), fetchDashboardPaymentState(), fetchTenantLimitHealth()]);
+    await Promise.allSettled([fetchDashboardLaunchChecklist(), fetchDashboardPaymentState()]);
     renderDashboard();
     renderOrders();
     renderCustomersList("");
