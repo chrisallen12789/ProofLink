@@ -1,3 +1,6 @@
+-- Hosted compatibility helper for older environments that already have most
+-- governance objects but still need the final get_tenant_plan_limits overloads.
+
 drop function if exists public.get_tenant_plan_limits(text);
 
 create or replace function public.get_tenant_plan_limits(p_tenant_id uuid)
@@ -20,11 +23,11 @@ set search_path = public
 as $$
   select
     coalesce(t.prooflink_plan_key, 'starter') as plan_key,
-    coalesce(t.max_products, p.max_products, 10) as max_products,
-    coalesce(t.max_customers, p.max_customers, 50) as max_customers,
-    coalesce(t.max_orders_per_month, p.max_orders_per_month, 100) as max_orders_per_month,
-    coalesce(t.max_operator_seats, p.max_operator_seats, 1) as max_operator_seats,
-    coalesce(t.max_storage_mb, p.max_storage_mb, 100)::integer as max_storage_mb,
+    case when p.plan_key is not null then coalesce(t.max_products, p.max_products) else coalesce(t.max_products, 10) end as max_products,
+    case when p.plan_key is not null then coalesce(t.max_customers, p.max_customers) else coalesce(t.max_customers, 50) end as max_customers,
+    case when p.plan_key is not null then coalesce(t.max_orders_per_month, p.max_orders_per_month) else coalesce(t.max_orders_per_month, 100) end as max_orders_per_month,
+    case when p.plan_key is not null then coalesce(t.max_operator_seats, p.max_operator_seats) else coalesce(t.max_operator_seats, 1) end as max_operator_seats,
+    case when p.plan_key is not null then coalesce(t.max_storage_mb::integer, p.max_storage_mb::integer) else coalesce(t.max_storage_mb::integer, 100) end as max_storage_mb,
     coalesce(t.allow_online_checkout, p.allow_online_checkout, false) as allow_online_checkout,
     coalesce(t.allow_custom_domain, p.allow_custom_domain, false) as allow_custom_domain,
     coalesce(t.allow_advanced_analytics, p.allow_advanced_analytics, false) as allow_advanced_analytics,
@@ -57,11 +60,11 @@ set search_path = public
 as $$
   select
     coalesce(t.prooflink_plan_key, 'starter') as plan_key,
-    coalesce(t.max_products, p.max_products, 10) as max_products,
-    coalesce(t.max_customers, p.max_customers, 50) as max_customers,
-    coalesce(t.max_orders_per_month, p.max_orders_per_month, 100) as max_orders_per_month,
-    coalesce(t.max_operator_seats, p.max_operator_seats, 1) as max_operator_seats,
-    coalesce(t.max_storage_mb, p.max_storage_mb, 100)::integer as max_storage_mb,
+    case when p.plan_key is not null then coalesce(t.max_products, p.max_products) else coalesce(t.max_products, 10) end as max_products,
+    case when p.plan_key is not null then coalesce(t.max_customers, p.max_customers) else coalesce(t.max_customers, 50) end as max_customers,
+    case when p.plan_key is not null then coalesce(t.max_orders_per_month, p.max_orders_per_month) else coalesce(t.max_orders_per_month, 100) end as max_orders_per_month,
+    case when p.plan_key is not null then coalesce(t.max_operator_seats, p.max_operator_seats) else coalesce(t.max_operator_seats, 1) end as max_operator_seats,
+    case when p.plan_key is not null then coalesce(t.max_storage_mb::integer, p.max_storage_mb::integer) else coalesce(t.max_storage_mb::integer, 100) end as max_storage_mb,
     coalesce(t.allow_online_checkout, p.allow_online_checkout, false) as allow_online_checkout,
     coalesce(t.allow_custom_domain, p.allow_custom_domain, false) as allow_custom_domain,
     coalesce(t.allow_advanced_analytics, p.allow_advanced_analytics, false) as allow_advanced_analytics,

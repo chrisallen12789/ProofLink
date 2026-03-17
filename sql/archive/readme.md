@@ -11,3 +11,5 @@ Do not run any of these files against your database. Several contain:
 - Outdated RLS policies that have been superseded
 
 If you need to understand the history of how the schema evolved, these files tell that story in order.
+
+If you need to repair an older hosted environment, prefer the active helper scripts in the parent `sql/` directory, such as `get_tenant_plan_limits_compat.sql`, instead of running anything from `archive/`.

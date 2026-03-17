@@ -8,6 +8,7 @@ This is the versioned source of truth for the core live app schema that currentl
 It now includes:
 - `tenant_onboarding_requests`
 - `tenants`
+- `plan_limits`
 - `operators`
 - `operator_members`
 - `tenant_config`
@@ -32,11 +33,14 @@ It now includes:
 - `submit_storefront_order()`
 - `get_public_catalog_by_tenant()`
 - `resolve_tenant_row()`
+- `get_tenant_plan_limits(uuid)`
+- `get_tenant_plan_limits(text)`
 - `check_storage_limit(...)`
 - `increment_tenant_storage_usage(...)`
 - `sync_tenant_usage_counters(...)`
 - `v_tenant_limit_health`
 - the current repo-defined RLS policies and indexes for those objects
+- tenant feature flag columns such as `allow_online_checkout`, `allow_custom_domain`, `allow_advanced_analytics`, and `allow_automation`
 
 Recently promoted into `CATCHUP_RUN_THIS.sql` from older migrations:
 - base `tenant_onboarding_requests` schema from `archive/onboarding-migration.sql`
@@ -45,6 +49,9 @@ Recently promoted into `CATCHUP_RUN_THIS.sql` from older migrations:
 
 ### `diagnostic.sql`
 Read-only diagnostic queries for inspecting the current database state.
+
+### `get_tenant_plan_limits_compat.sql`
+Targeted repair script for older hosted environments that already have most governance schema, but need the final `get_tenant_plan_limits(...)` overloads reconciled without rerunning the full catch-up file.
 
 ## Archive
 
@@ -61,8 +68,9 @@ The `/archive/` folder contains older migrations kept for reference. Some schema
 ## Change process
 
 1. Add schema changes to `CATCHUP_RUN_THIS.sql`.
-2. Apply the same change in Supabase SQL Editor for the target environment.
-3. Commit both together.
+2. If the change is also needed as a safe live-environment repair, update `get_tenant_plan_limits_compat.sql` or add a similarly targeted helper.
+3. Apply the same change in Supabase SQL Editor for the target environment.
+4. Commit the SQL source-of-truth and any targeted live repair together.
 
 This keeps `CATCHUP_RUN_THIS.sql` current as the repo source of truth for the versioned core schema.
 
