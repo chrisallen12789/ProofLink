@@ -16,6 +16,10 @@ describe("product limit enforcement", () => {
 
   test("starter tenant product creation is rejected once the limit is reached", async () => {
     const admin = createAdminClient();
+    await admin
+      .from("tenants")
+      .update({ prooflink_plan_key: "starter" })
+      .eq("slug", TENANTS.tenantA.slug);
     const tenant = await admin.from("tenants").select("*").eq("slug", TENANTS.tenantA.slug).single();
     const operator = await admin
       .from("operators")

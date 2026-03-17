@@ -72,7 +72,7 @@ describe("stripe-platform-checkout integration", () => {
       const tenantBefore = await admin
         .from("tenants")
         .select("id, prooflink_plan_key, billing_status, stripe_customer_id")
-        .eq("slug", TENANTS.tenantA.slug)
+        .eq("slug", TENANTS.storageNearLimit.slug)
         .single();
 
       await admin

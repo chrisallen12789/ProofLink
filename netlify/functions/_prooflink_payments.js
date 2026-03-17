@@ -123,7 +123,10 @@ async function requireOperatorContext(event, requestedTenantId) {
   }
   
   if (!row?.operator_id) {
-    throw Object.assign(new Error('No operator membership found.'), { statusCode: 403 });
+    const message = rows.length > 0 && requested
+      ? 'Forbidden: tenant mismatch'
+      : 'No operator membership found.';
+    throw Object.assign(new Error(message), { statusCode: 403 });
   }
   
   const tenantId = clean(row.tenant_id);
@@ -196,27 +199,32 @@ async function patchTenant(tenantId, patch) {
   const value = clean(tenantId);
   if (!value) return null;
 
-  try {
-    return await supabaseAdmin(
-      `/rest/v1/tenants?slug=eq.${encodeURIComponent(value)}`,
-      'PATCH',
-      patch
-    );
-  } catch {
-    try {
-      return await supabaseAdmin(
-        `/rest/v1/tenants?id=eq.${encodeURIComponent(value)}`,
-        'PATCH',
-        patch
-      );
-    } catch {
-      return supabaseAdmin(
-        `/rest/v1/tenants?tenant_id=eq.${encodeURIComponent(value)}`,
-        'PATCH',
-        patch
-      ).catch(() => null);
-    }
+  async function patchAndRequireMatch(path) {
+    const result = await supabaseAdmin(path, 'PATCH', patch);
+    return Array.isArray(result) ? (result[0] || null) : result;
   }
+
+  try {
+    const bySlug = await patchAndRequireMatch(
+      `/rest/v1/tenants?slug=eq.${encodeURIComponent(value)}`,
+    );
+    if (bySlug) return bySlug;
+  } catch {
+    // fall through
+  }
+
+  try {
+    const byId = await patchAndRequireMatch(
+      `/rest/v1/tenants?id=eq.${encodeURIComponent(value)}`
+    );
+    if (byId) return byId;
+  } catch {
+    // fall through
+  }
+
+  return patchAndRequireMatch(
+    `/rest/v1/tenants?tenant_id=eq.${encodeURIComponent(value)}`
+  ).catch(() => null);
 }
 
 async function upsertPaymentRecord(payload) {

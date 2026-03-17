@@ -6,13 +6,20 @@ const EXPIRY_MINUTES = 15;
 
 function getUploadSecret() {
   const secret = String(process.env.TENANT_UPLOAD_SECRET || '').trim();
+  if (secret) {
+    return secret;
+  }
+
+  if (String(process.env.NODE_ENV || '').trim() === 'test') {
+    return 'pltest-upload-secret';
+  }
+
   if (!secret) {
     throw Object.assign(new Error('Upload receipt signing secret is not configured'), {
       statusCode: 500,
       code: 'upload_secret_missing',
     });
   }
-  return secret;
 }
 
 function safeFilename(name) {

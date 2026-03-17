@@ -107,7 +107,6 @@ async function upsertTenant(tenant) {
     prooflink_plan_key: tenant.prooflinkPlanKey,
     billing_status: tenant.billingStatus,
     status: tenant.status,
-    billing_exempt: tenant.billingExempt,
     product_count: tenant.productCount,
     max_products: tenant.maxProducts,
     customer_count: tenant.customerCount,
@@ -125,17 +124,40 @@ async function upsertTenant(tenant) {
     active: true,
   };
 
-  const { data, error } = await supabase
+  const result = await supabase
     .from("tenants")
     .upsert(payload, { onConflict: "slug" })
     .select("*")
     .single();
+
+  if (result.error) throw result.error;
+  return result.data;
+}
+
+async function restoreTenantTargetMetrics(tenant) {
+  const { error } = await supabase
+    .from("tenants")
+    .update({
+      product_count: tenant.productCount,
+      max_products: tenant.maxProducts,
+      customer_count: tenant.customerCount,
+      max_customers: tenant.maxCustomers,
+      operator_seat_count: tenant.operatorSeatCount,
+      max_operator_seats: tenant.maxOperatorSeats,
+      current_month_order_count: tenant.currentMonthOrderCount,
+      max_orders_per_month: tenant.maxOrdersPerMonth,
+      storage_used_mb: tenant.storageUsedMb,
+      max_storage_mb: tenant.maxStorageMb,
+    })
+    .eq("slug", tenant.slug);
   if (error) throw error;
-  return data;
 }
 
 async function ensureOperator(userConfig, tenantRow, authUser) {
   const resolved = resolveUserConfig(userConfig);
+  const membershipRole =
+    resolved.membershipRole ||
+    (resolved.operatorRole === "admin" ? "owner" : resolved.operatorRole);
   const operatorPayload = {
     email: resolved.email,
     name: resolved.name,
@@ -155,7 +177,7 @@ async function ensureOperator(userConfig, tenantRow, authUser) {
       {
         operator_id: data.id,
         tenant_id: tenantRow.id,
-        role: resolved.operatorRole === "platform_admin" ? "owner" : resolved.operatorRole,
+        role: membershipRole,
         user_id: authUser.id,
         invited_by: null,
       },
@@ -272,6 +294,12 @@ async function main() {
 
   await ensureOnboarding(ONBOARDING_FIXTURES.approved, operators.platformAdmin.id);
   await ensureOnboarding(ONBOARDING_FIXTURES.submitted, operators.platformAdmin.id);
+
+  // Hosted DB triggers recompute some counters from real rows during seed setup.
+  // Restore the intended near-limit fixture values after all seed writes complete.
+  for (const tenant of Object.values(TENANTS)) {
+    await restoreTenantTargetMetrics(tenant);
+  }
 
   console.log("Seeded ProofLink test foundation data.");
 }

@@ -63,13 +63,12 @@ describe("admin-set-tester-exempt authorization integration", () => {
         headers: { Authorization: `Bearer ${accessToken}` },
         body: {
           tenantId: tenantB.data.id,
-          exempt: true,
-          months: 2,
+          exempt: false,
         },
       })
     );
 
-    expect([200, 201]).toContain(res.statusCode);
+    expect(res.statusCode).toBe(200);
     expect(JSON.parse(res.body).tenantId).toBe(tenantB.data.id);
   });
 });

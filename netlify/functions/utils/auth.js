@@ -78,17 +78,24 @@ async function requireOperatorContext(event) {
     : rows[0] || null;
 
   if (membership?.operator_id) {
+    const operatorRole = membership.operators?.role || '';
+    const effectiveRole = operatorRole === 'platform_admin' ? 'platform_admin' : membership.role;
+
     return {
       operatorId : membership.operator_id,
       email      : membership.operators?.email || user.email || '',
-      role       : membership.operators?.role === 'platform_admin'
-        ? 'platform_admin'
-        : membership.role,
+      role       : effectiveRole,
       tenantId   : membership.tenant_id || membership.operators?.tenant_id || null,
       memberships: rows,
       supabase,
       user,
     };
+  }
+
+  if (rows.length > 0 && requested) {
+    const err = new Error('Forbidden: tenant mismatch');
+    err.statusCode = 403;
+    throw err;
   }
 
   const { data: operator, error: opErr } = await supabase
@@ -130,7 +137,7 @@ async function requireAdminContext(event) {
   const requestedTenantId = arguments[1] || '';
   const ctx = await requireOperatorContext(event, requestedTenantId);
 
-  const adminRoles = new Set(['admin', 'platform_admin']);
+  const adminRoles = new Set(['admin', 'owner', 'manager', 'platform_admin']);
   if (!adminRoles.has(ctx.role)) {
     const err = new Error('Forbidden: admin role required');
     err.statusCode = 403;

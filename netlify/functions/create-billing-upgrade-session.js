@@ -76,7 +76,7 @@ exports.handler = async function(event) {
       targetPlan
     });
   } catch (error) {
-    return json(500, {
+    return json(Number(error.statusCode || 500), {
       ok: false,
       error: error.message || "Unable to create billing session"
     });

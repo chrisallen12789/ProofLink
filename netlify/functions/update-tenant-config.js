@@ -1,7 +1,7 @@
 // netlify/functions/update-tenant-config.js
 // Operator-only. Updates editable tenant site configuration.
 
-const { requireOperatorContext, respond } = require('./utils/auth');
+const { requireAdminContext, respond } = require('./utils/auth');
 
 const ALLOWED_KEYS = new Set([
   'tagline', 'hero_heading', 'hero_subheading',
@@ -46,7 +46,7 @@ exports.handler = async (event) => {
 
   let ctx;
   try {
-    ctx = await requireOperatorContext(event, body.tenant_id || body.tenantId || '');
+    ctx = await requireAdminContext(event, body.tenant_id || body.tenantId || '');
   } catch (err) {
     return respond(err.statusCode || 401, { error: err.message });
   }
