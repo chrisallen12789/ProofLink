@@ -4,6 +4,7 @@ module.exports = defineConfig({
   test: {
     globals: true,
     environment: "node",
+    fileParallelism: false,
     setupFiles: ["./tests/setup/vitest.setup.js"],
     include: ["tests/unit/**/*.test.js", "tests/integration/**/*.int.test.js"],
     coverage: {

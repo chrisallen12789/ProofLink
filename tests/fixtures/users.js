@@ -41,6 +41,16 @@ const USERS = {
     tenantKey: "tenantB",
     name: "PL Test Tenant B Admin",
   },
+  storageNearLimitAdmin: {
+    key: "storageNearLimitAdmin",
+    email: "pltest.storage.owner@example.com",
+    password: "ChangeMe123!",
+    operatorRole: "admin",
+    membershipRole: "owner",
+    profileRole: "operator",
+    tenantKey: "storageNearLimit",
+    name: "PL Test Storage Limit Admin",
+  },
 };
 
 function resolveUserConfig(user) {

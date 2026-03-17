@@ -84,7 +84,7 @@ describe("stripe-platform-checkout integration", () => {
         })
         .eq("id", tenantBefore.data.id);
 
-      const accessToken = await getAccessToken(USERS.tenantAAdmin);
+      const accessToken = await getAccessToken(USERS.platformAdmin);
       const res = await handler(
         buildEvent({
           method: "POST",

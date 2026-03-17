@@ -121,25 +121,42 @@ async function requireOperatorContext(event, requestedTenantId) {
   } else {
     row = rows[0] || null;
   }
-  
-  if (!row?.operator_id) {
-    const message = rows.length > 0 && requested
-      ? 'Forbidden: tenant mismatch'
-      : 'No operator membership found.';
-    throw Object.assign(new Error(message), { statusCode: 403 });
+
+  if (row?.operator_id) {
+    const tenantId = clean(row.tenant_id);
+
+    return {
+      accessToken,
+      user,
+      role: row.role,
+      operatorId: row.operator_id,
+      operatorName: row?.operators?.name || '',
+      operatorSlug: '',
+      tenantId,
+    };
   }
-  
-  const tenantId = clean(row.tenant_id);
-  
-  return {
-    accessToken,
-    user,
-    role: row.role,
-    operatorId: row.operator_id,
-    operatorName: row?.operators?.name || '',
-    operatorSlug: '',
-    tenantId: tenantId,
-  };
+
+  const operators = await supabaseAdmin(
+    `/rest/v1/operators?select=id,email,role,tenant_id,name&email=eq.${encodeURIComponent(user.email)}&limit=1`
+  ).catch(() => null);
+  const operator = Array.isArray(operators) ? operators[0] || null : null;
+
+  if (operator?.role === 'platform_admin') {
+    return {
+      accessToken,
+      user,
+      role: operator.role,
+      operatorId: operator.id,
+      operatorName: operator.name || '',
+      operatorSlug: '',
+      tenantId: clean(operator.tenant_id),
+    };
+  }
+
+  const message = rows.length > 0 && requested
+    ? 'Forbidden: tenant mismatch'
+    : 'No operator membership found.';
+  throw Object.assign(new Error(message), { statusCode: 403 });
 }
 
 async function stripeRequest(path, method = 'POST', params = {}) {

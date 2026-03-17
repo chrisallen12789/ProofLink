@@ -21,12 +21,16 @@ describe("plan enforcement integration", () => {
 
   test("seeded starter tenant reflects near-limit health", async () => {
     const admin = createAdminClient();
-    const tenant = await admin.from("tenants").select("*").eq("slug", TENANTS.tenantA.slug).single();
+    const tenant = await admin
+      .from("tenants")
+      .select("*")
+      .eq("slug", TENANTS.storageNearLimit.slug)
+      .single();
     expect(tenant.error).toBeNull();
-    expect(tenant.data.current_month_order_count).toBeGreaterThanOrEqual(98);
-    expect(tenant.data.max_orders_per_month).toBe(100);
+    expect(Number(tenant.data.storage_used_mb)).toBeGreaterThanOrEqual(99);
+    expect(Number(tenant.data.max_storage_mb)).toBe(100);
 
-    const accessToken = await getAccessToken(USERS.tenantAAdmin);
+    const accessToken = await getAccessToken(USERS.storageNearLimitAdmin);
     const res = await handler(
       buildEvent({
         method: "GET",

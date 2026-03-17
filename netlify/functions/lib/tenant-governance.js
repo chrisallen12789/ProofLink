@@ -119,6 +119,8 @@ async function fetchTenantCore(supabase, tenantId) {
 }
 
 async function fetchTenantLimitHealthRaw(supabase, tenantId) {
+  const core = await fetchTenantCore(supabase, tenantId);
+
   const selectors = [
     () => supabase.from('v_tenant_limit_health').select('*').eq('tenant_id', tenantId).maybeSingle(),
     () => supabase.from('v_tenant_limit_health').select('*').eq('id', tenantId).maybeSingle(),
@@ -126,10 +128,9 @@ async function fetchTenantLimitHealthRaw(supabase, tenantId) {
   ];
   for (const run of selectors) {
     const { data, error } = await run();
-    if (!error && data) return data;
+    if (!error && data) return core ? { ...data, ...core } : data;
   }
 
-  const core = await fetchTenantCore(supabase, tenantId);
   if (!core) return null;
   return core;
 }
