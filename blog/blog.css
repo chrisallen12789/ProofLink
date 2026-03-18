@@ -15,8 +15,8 @@
   --orange-h   : #a83820;
   --orange-bg  : rgba(200,75,47,.08);
   --white      : #ffffff;
-  --font-d     : 'Syne', ui-sans-serif, sans-serif;
-  --font-b     : 'DM Sans', ui-sans-serif, sans-serif;
+  --font-d     : 'Public Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-b     : 'Public Sans', ui-sans-serif, system-ui, sans-serif;
   --r          : 8px;
   --r2         : 14px;
   --max        : 1060px;

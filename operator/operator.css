@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@300;400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Public+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,500;1,600&display=swap');
 
 /* FILE: operator.css */
 /* ProofLink Admin UI theme (tenant-branded) */
@@ -14,8 +14,8 @@
   --shadow: 0 10px 30px rgba(0,0,0,.40);
   --radius: 18px;
   --radius2: 24px;
-  --font-display: 'Syne', ui-sans-serif, sans-serif;
-  --font: 'DM Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Public Sans', ui-sans-serif, system-ui, sans-serif;
+  --font: 'Public Sans', ui-sans-serif, system-ui, sans-serif;
 }
 
 *{box-sizing:border-box}

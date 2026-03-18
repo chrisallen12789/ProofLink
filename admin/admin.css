@@ -14,8 +14,8 @@
   --success : #2e7d32;
   --error   : #c62828;
   --warn    : #b45309;
-  --font-display: 'Syne', sans-serif;
-  --font-body   : 'DM Sans', sans-serif;
+  --font-display: 'Public Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-body   : 'Public Sans', ui-sans-serif, system-ui, sans-serif;
 }
 
 body {

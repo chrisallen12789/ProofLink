@@ -6,7 +6,7 @@
   <title>ProofLink — Admin</title>
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,500;1,600&display=swap" rel="stylesheet"/>
   <link rel="stylesheet" href="admin.css"/>
   <!--
     Supabase config for browser-side password auth.
@@ -62,7 +62,7 @@
         <strong id="admin-email-display">—</strong>
         Platform admin
       </div>
-      <button onclick="handleSignOut()" style="margin-top:.75rem;background:none;border:1px solid rgba(255,255,255,.15);color:rgba(245,242,235,.5);border-radius:4px;padding:.35rem .75rem;font-size:.75rem;cursor:pointer;font-family:'DM Sans',sans-serif;">Sign out</button>
+      <button onclick="handleSignOut()" style="margin-top:.75rem;background:none;border:1px solid rgba(255,255,255,.15);color:rgba(245,242,235,.5);border-radius:4px;padding:.35rem .75rem;font-size:.75rem;cursor:pointer;font-family:var(--font-body);">Sign out</button>
     </div>
   </aside>
 
@@ -132,7 +132,7 @@
         </div>
         <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
           <input class="search-input" id="ob-search" placeholder="Search name / email…" oninput="debounceObSearch()" style="width:200px"/>
-          <select id="ob-filter" onchange="loadOnboarding()" style="border:1px solid var(--border);border-radius:4px;padding:.45rem .7rem;font-size:.8rem;font-family:'DM Sans',sans-serif;color:var(--ink);background:#fff;outline:none">
+          <select id="ob-filter" onchange="loadOnboarding()" style="border:1px solid var(--border);border-radius:4px;padding:.45rem .7rem;font-size:.8rem;font-family:var(--font-body);color:var(--ink);background:#fff;outline:none">
             <option value="">All statuses</option>
             <option value="submitted">Submitted</option>
             <option value="needs_review">Needs review</option>
@@ -185,7 +185,7 @@
         <div class="panel-body" style="padding:.75rem 1.25rem">
           <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
             <input class="search-input" id="tenant-search" placeholder="Search name / email / slug…" oninput="debounceTenantSearch()" style="width:220px"/>
-            <select id="tenant-status-filter" onchange="loadTenants()" style="border:1px solid var(--border);border-radius:4px;padding:.45rem .7rem;font-size:.8rem;font-family:'DM Sans',sans-serif;color:var(--ink);background:#fff;outline:none">
+            <select id="tenant-status-filter" onchange="loadTenants()" style="border:1px solid var(--border);border-radius:4px;padding:.45rem .7rem;font-size:.8rem;font-family:var(--font-body);color:var(--ink);background:#fff;outline:none">
               <option value="">All statuses</option>
               <option value="active">Active</option>
               <option value="flagged">Flagged</option>

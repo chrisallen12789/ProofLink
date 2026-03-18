@@ -16,8 +16,8 @@
   --radius-md: 16px;
   --radius-sm: 12px;
   --max: 1180px;
-  --font-display: 'Syne', ui-sans-serif, sans-serif;
-  --font-body: 'DM Sans', ui-sans-serif, sans-serif;
+  --font-display: 'Public Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-body: 'Public Sans', ui-sans-serif, system-ui, sans-serif;
 }
 
 *,

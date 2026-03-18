@@ -15,8 +15,8 @@
   --radius-lg: 18px;
   --radius-md: 14px;
   --radius-sm: 10px;
-  --font-display: 'Syne', ui-sans-serif, sans-serif;
-  --font-body: 'DM Sans', ui-sans-serif, sans-serif;
+  --font-display: 'Public Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-body: 'Public Sans', ui-sans-serif, system-ui, sans-serif;
   --shadow: 0 24px 60px rgba(17, 24, 32, 0.08);
 }
 
