@@ -16,6 +16,18 @@ concurrency:
   group: test-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  TEST_SUPABASE_URL: ${{ secrets.TEST_SUPABASE_URL }}
+  TEST_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.TEST_SUPABASE_SERVICE_ROLE_KEY }}
+  TEST_SUPABASE_ANON_KEY: ${{ secrets.TEST_SUPABASE_ANON_KEY }}
+  TEST_SITE_URL: ${{ secrets.TEST_SITE_URL }}
+  TEST_PLATFORM_ADMIN_EMAIL: ${{ secrets.TEST_PLATFORM_ADMIN_EMAIL }}
+  TEST_PLATFORM_ADMIN_PASSWORD: ${{ secrets.TEST_PLATFORM_ADMIN_PASSWORD }}
+  TEST_TENANT_A_ADMIN_EMAIL: ${{ secrets.TEST_TENANT_A_ADMIN_EMAIL }}
+  TEST_TENANT_A_ADMIN_PASSWORD: ${{ secrets.TEST_TENANT_A_ADMIN_PASSWORD }}
+  TEST_TENANT_B_ADMIN_EMAIL: ${{ secrets.TEST_TENANT_B_ADMIN_EMAIL }}
+  TEST_TENANT_B_ADMIN_PASSWORD: ${{ secrets.TEST_TENANT_B_ADMIN_PASSWORD }}
+
 jobs:
   unit:
     name: Unit
@@ -46,17 +58,6 @@ jobs:
     needs: unit
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    env:
-      TEST_SUPABASE_URL: ${{ secrets.TEST_SUPABASE_URL }}
-      TEST_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.TEST_SUPABASE_SERVICE_ROLE_KEY }}
-      TEST_SUPABASE_ANON_KEY: ${{ secrets.TEST_SUPABASE_ANON_KEY }}
-      TEST_SITE_URL: ${{ secrets.TEST_SITE_URL }}
-      TEST_PLATFORM_ADMIN_EMAIL: ${{ secrets.TEST_PLATFORM_ADMIN_EMAIL }}
-      TEST_PLATFORM_ADMIN_PASSWORD: ${{ secrets.TEST_PLATFORM_ADMIN_PASSWORD }}
-      TEST_TENANT_A_ADMIN_EMAIL: ${{ secrets.TEST_TENANT_A_ADMIN_EMAIL }}
-      TEST_TENANT_A_ADMIN_PASSWORD: ${{ secrets.TEST_TENANT_A_ADMIN_PASSWORD }}
-      TEST_TENANT_B_ADMIN_EMAIL: ${{ secrets.TEST_TENANT_B_ADMIN_EMAIL }}
-      TEST_TENANT_B_ADMIN_PASSWORD: ${{ secrets.TEST_TENANT_B_ADMIN_PASSWORD }}
 
     steps:
       - name: Checkout

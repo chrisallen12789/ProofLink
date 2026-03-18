@@ -21,12 +21,12 @@ Notes:
 
 The default CI workflow lives at [`.github/workflows/test.yml`](/C:/Users/Chris/ProofLink/.github/workflows/test.yml).
 
-- The `unit` job always runs.
+- The `unit` job always runs, and it shares the same `TEST_*` secrets as the hosted suite because some unit tests load the common test environment bootstrap.
 - The `hosted-integration` job runs `cleanup -> seed -> integration` against the hosted Supabase project.
 - On pushes, manual runs, and pull requests from this repository, missing hosted test secrets fail the workflow immediately with a clear error.
 - On pull requests from forks, the hosted suite is skipped because GitHub does not expose repository secrets to untrusted forks.
 
-Required GitHub Actions secrets for the hosted suite:
+Required GitHub Actions secrets for the workflow:
 
 - `TEST_SUPABASE_URL`
 - `TEST_SUPABASE_SERVICE_ROLE_KEY`
