@@ -6,6 +6,7 @@
     paymentState: null,
     tenantSlug: '',
     tenantId: '',
+    planKey: '',
     currentStep: 1,
     firstOfferDone: false,
   };
@@ -21,6 +22,16 @@
   function getTenantFromUrl() {
     const params = new URLSearchParams(window.location.search || '');
     return String(params.get('tenant') || '').trim();
+  }
+
+  function getPlanFromUrl() {
+    const Public = window.PROOFLINK_PUBLIC;
+    if (Public && typeof Public.readQueryPlanIntent === 'function') {
+      return Public.readQueryPlanIntent(window.location.search || '')?.planKey || '';
+    }
+
+    const params = new URLSearchParams(window.location.search || '');
+    return String(params.get('plan') || '').trim().toLowerCase();
   }
 
   function setMsg(step, text, tone) {
@@ -61,7 +72,7 @@
   }
 
   function getPlanKey() {
-    return state.startContext?.planKey || 'starter';
+    return state.planKey || state.startContext?.planKey || 'starter';
   }
 
   function getStorefrontUrl() {
@@ -76,7 +87,7 @@
     const businessName = ctx.businessName || tenantSlug;
     const ownerName = ctx.ownerName || 'Unknown';
     const email = ctx.email || 'Unknown';
-    const planKey = ctx.planKey || 'starter';
+    const planKey = state.planKey || ctx.planKey || 'starter';
 
     $('pageTitle').textContent = `Finish setup for ${businessName}`;
     $('pageSub').textContent = `Complete billing, payouts, and launch for ${tenantSlug}.`;
@@ -162,19 +173,41 @@
   }
 
   async function startBilling() {
+    if (getPlanKey() === 'enterprise') {
+      throw new Error('Enterprise billing is finalized through a guided rollout after setup.');
+    }
+
+    const params = new URLSearchParams();
+    if (state.tenantSlug) params.set('tenant', state.tenantSlug);
+    if (getPlanKey()) params.set('plan', getPlanKey());
+    const query = params.toString();
+    const returnBase = `${window.location.origin}/operator/onboarding.html${query ? `?${query}` : ''}`;
+    const joiner = query ? '&' : '?';
+
     setMsg(2, 'Creating Stripe subscription checkout…', '');
     const data = await apiPost('/.netlify/functions/stripe-platform-checkout', {
       tenantId: state.tenantSlug || state.tenantId,
       planKey: getPlanKey(),
+      successUrl: `${returnBase}${joiner}billing=success#payments`,
+      cancelUrl: `${returnBase}${joiner}billing=cancel#payments`,
     });
     setMsg(2, 'Redirecting to Stripe…', '');
     if (data.url) window.location.href = data.url;
   }
 
   async function startConnect() {
+    const params = new URLSearchParams();
+    if (state.tenantSlug) params.set('tenant', state.tenantSlug);
+    if (getPlanKey()) params.set('plan', getPlanKey());
+    const query = params.toString();
+    const returnBase = `${window.location.origin}/operator/onboarding.html${query ? `?${query}` : ''}`;
+    const joiner = query ? '&' : '?';
+
     setMsg(3, 'Creating Stripe Connect onboarding link…', '');
     const data = await apiPost('/.netlify/functions/stripe-connect-link', {
       tenantId: state.tenantSlug || state.tenantId,
+      refreshUrl: `${returnBase}${joiner}connect=refresh#payments`,
+      returnUrl: `${returnBase}${joiner}connect=return#payments`,
     });
     setMsg(3, 'Redirecting to Stripe Connect…', '');
     if (data.url) window.location.href = data.url;
@@ -226,7 +259,13 @@
     state.startContext = readStartContext();
     state.tenantSlug = getTenantFromUrl() || state.startContext?.tenantSlug || '';
     state.tenantId = state.startContext?.tenantId || '';
+    state.planKey = getPlanFromUrl() || state.startContext?.planKey || 'starter';
     state.firstOfferDone = localStorage.getItem(`prooflink_first_offer_done:${state.tenantSlug}`) === '1';
+
+    if (state.startContext) {
+      state.startContext.planKey = state.planKey;
+      localStorage.setItem('prooflink_start_context', JSON.stringify(state.startContext));
+    }
 
     renderStaticBusinessContext();
     bind();

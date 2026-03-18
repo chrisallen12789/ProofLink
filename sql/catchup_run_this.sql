@@ -22,6 +22,7 @@ create table if not exists public.tenant_onboarding_requests (
   requested_subdomain text,
   logo_url            text,
   seed_template_key   text,
+  selected_plan       text        not null default 'starter',
   created_at          timestamptz not null default now(),
   updated_at          timestamptz not null default now(),
   approved_at         timestamptz,
@@ -327,7 +328,8 @@ alter table public.tenant_onboarding_requests
   add column if not exists compliance_notes  text,
   add column if not exists manual_override   boolean default false,
   add column if not exists reviewed_by       uuid,
-  add column if not exists reviewed_at       timestamptz;
+  add column if not exists reviewed_at       timestamptz,
+  add column if not exists selected_plan     text        not null default 'starter';
 
 -- Extend status constraint to include all values the code uses
 do $$ begin

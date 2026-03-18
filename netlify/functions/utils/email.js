@@ -306,7 +306,7 @@ function buildChecklistSection(businessType, loginHref) {
 
 const templates = {
 
-  submitted({ owner_name, business_name, owner_email, business_slug }) {
+  submitted({ owner_name, business_name, owner_email, business_slug, selected_plan }) {
     return {
       to: owner_email,
       subject: `We received your application — ${business_name}`,
@@ -314,7 +314,7 @@ const templates = {
         ${badge('Application received',T.greenLt,T.green,T.greenBd)}<br/><br/>
         ${h1(`Hey ${owner_name}, you're in the queue.`)}
         ${sub('Thanks for applying to ProofLink. We review every application and will be in touch within 24 hours.')}
-        ${infoBox([['Business',business_name],['Store URL',`${getSiteUrl()}/${business_slug||'...'}`],['Email',owner_email],['Review time','Within 24 hours']])}
+        ${infoBox([['Business',business_name],['Selected plan',selected_plan ? String(selected_plan).replace(/\b\w/g, (m) => m.toUpperCase()) : 'Starter'],['Store URL',`${getSiteUrl()}/${business_slug||'...'}`],['Email',owner_email],['Review time','Within 24 hours']])}
         ${divider()}
         ${p("You don't need to do anything else right now. When your application is approved we'll send you a link to set up your store.")}
         ${p(`<span style="color:${T.hint};">Questions? Just reply to this email.</span>`)}
@@ -373,7 +373,7 @@ const templates = {
     };
   },
 
-  operatorNewRequest({ operator_email, owner_name, business_name, business_type, city_state, owner_email }) {
+  operatorNewRequest({ operator_email, owner_name, business_name, business_type, city_state, owner_email, selected_plan }) {
     return {
       to: operator_email,
       subject: `New application — ${business_name}`,
@@ -381,7 +381,7 @@ const templates = {
         ${badge('New application',T.amberLt,T.amber,T.amberBd)}<br/><br/>
         ${h1('New business application')}
         ${sub('A business just applied to join ProofLink.')}
-        ${infoBox([['Business',business_name],['Owner',owner_name],['Email',owner_email],['Type',business_type||'—'],['Location',city_state||'—']])}
+        ${infoBox([['Business',business_name],['Owner',owner_name],['Email',owner_email],['Plan',selected_plan ? String(selected_plan).replace(/\b\w/g, (m) => m.toUpperCase()) : 'Starter'],['Type',business_type||'—'],['Location',city_state||'—']])}
         <div style="text-align:left;">${cta('Review in admin dashboard →',`${SITE_URL}/admin/`)}</div>
       `)}</table>`, { preheader: `${business_name} just applied to join ProofLink.` }),
     };

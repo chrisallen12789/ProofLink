@@ -42,6 +42,7 @@ exports.handler = async (event) => {
     requested_subdomain,
     logo_url,
     seed_template_key,
+    selected_plan,
   } = body;
 
   // ── Validate required fields
@@ -57,6 +58,11 @@ exports.handler = async (event) => {
   const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRe.test(owner_email.trim())) {
     return respond(400, { error: 'Invalid email address' });
+  }
+
+  const normalizedPlan = String(selected_plan || 'starter').trim().toLowerCase();
+  if (!['starter', 'growth', 'enterprise'].includes(normalizedPlan)) {
+    return respond(400, { error: 'Invalid selected_plan' });
   }
 
   // ── Build slug
@@ -89,6 +95,7 @@ exports.handler = async (event) => {
       requested_subdomain : requested_subdomain || null,
       logo_url            : logo_url            || null,
       seed_template_key   : seed_template_key   || 'default',
+      selected_plan       : normalizedPlan,
     }])
     .select('id, business_name, status')
     .single();
@@ -104,6 +111,7 @@ exports.handler = async (event) => {
     business_name: business_name.trim(),
     owner_email  : owner_email.trim().toLowerCase(),
     business_slug,
+    selected_plan: normalizedPlan,
   };
 
   sendEmail(templates.submitted(emailPayload)).catch((e) =>
@@ -119,6 +127,7 @@ exports.handler = async (event) => {
       business_type : business_type || null,
       city_state    : city_state    || null,
       owner_email   : owner_email.trim().toLowerCase(),
+      selected_plan : normalizedPlan,
     })).catch((e) => console.warn('[submit] operator email failed:', e.message));
   }
 
@@ -127,5 +136,6 @@ exports.handler = async (event) => {
     request_id : data.id,
     business   : data.business_name,
     status     : data.status,
+    selected_plan: normalizedPlan,
   });
 };

@@ -159,7 +159,7 @@ exports.handler = async (event) => {
 
   await seedTemplateForTenant(supabase, tenantId, newOperatorId, req.seed_template_key);
 
-  const redirectTo = `${siteUrl}/operator/`;
+  const redirectTo = `${siteUrl}/operator/onboarding.html?tenant=${encodeURIComponent(tenantSlug)}&plan=${encodeURIComponent(req.selected_plan || 'starter')}`;
   let authUserId = null;
 
   const { data: newAuthUser, error: createAuthErr } = await supabase.auth.admin.createUser({

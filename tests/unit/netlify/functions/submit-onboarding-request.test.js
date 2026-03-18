@@ -148,6 +148,7 @@ describe("netlify/functions/submit-onboarding-request", () => {
         owner_email: "OWNER@Example.com",
         requested_subdomain: "Test Handle",
         business_type: "bakery",
+        selected_plan: "growth",
       }),
     });
 
@@ -159,6 +160,7 @@ describe("netlify/functions/submit-onboarding-request", () => {
         expect.objectContaining({
           owner_email: "owner@example.com",
           business_slug: "slug-Test Handle",
+          selected_plan: "growth",
         }),
       ])
     );
@@ -168,7 +170,25 @@ describe("netlify/functions/submit-onboarding-request", () => {
       request_id: "req_123",
       business: "Test Biz",
       status: "submitted",
+      selected_plan: "growth",
     });
     expect(sendEmailMock).toHaveBeenCalledTimes(2);
+  });
+
+  test("returns 400 for invalid selected_plan", async () => {
+    const handler = await loadHandler();
+    const res = await handler({
+      httpMethod: "POST",
+      headers: {},
+      body: JSON.stringify({
+        business_name: "Test Biz",
+        owner_name: "Owner",
+        owner_email: "owner@example.com",
+        selected_plan: "vip",
+      }),
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(JSON.parse(res.body)).toEqual({ error: "Invalid selected_plan" });
   });
 });
