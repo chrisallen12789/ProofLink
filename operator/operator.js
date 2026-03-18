@@ -47,20 +47,22 @@ window.PROOFLINK_BOOT_READY = false;
 let passwordSetupMode = null;
 let ACTIVE_ORDER_ID = null;
 let ACTIVE_CUSTOMER_ID = null;
+let CUSTOMER_CREATING = false;
+let ACTIVE_PAYMENT_ID = null;
 let DASHBOARD_PAYMENT_STATE = null;
 let DASHBOARD_LAUNCH_CHECKLIST = null;
 
 function currentMonthRevenueCents() {
   const mk = yyyymm(new Date());
   return PAYMENTS_CACHE.filter((row) => monthKeyFromDate(row.paid_at || row.created_at || row.updated_at || new Date()) === mk)
-    .reduce((sum, row) => sum + Number(row.amount_cents || row.net_amount_cents || row.total_cents || 0), 0);
+    .reduce((sum, row) => sum + paymentRevenueContributionCents(row), 0);
 }
 function lastMonthRevenueCents() {
   const d = new Date();
   d.setMonth(d.getMonth() - 1);
   const mk = yyyymm(d);
   return PAYMENTS_CACHE.filter((row) => monthKeyFromDate(row.paid_at || row.created_at || row.updated_at || new Date()) === mk)
-    .reduce((sum, row) => sum + Number(row.amount_cents || row.net_amount_cents || row.total_cents || 0), 0);
+    .reduce((sum, row) => sum + paymentRevenueContributionCents(row), 0);
 }
 function currentMonthCustomerCount() {
   const mk = yyyymm(new Date());
@@ -143,11 +145,35 @@ const btnRefreshGuidance = $("btnRefreshGuidance");
 
 const customersList = $("customersList");
 const customerDetailWrap = $("customerDetailWrap");
+const btnNewCustomer = $("btnNewCustomer");
 const btnRefreshCustomers = $("btnRefreshCustomers");
 const customerSearch = $("customerSearch");
+const customerForm = $("customerForm");
+const customerFormTitle = $("customerFormTitle");
+const customerMsg = $("customerMsg");
+const btnClearCustomerForm = $("btnClearCustomerForm");
+const customerId = $("customerId");
+const customerName = $("customerName");
+const customerEmail = $("customerEmail");
+const customerPhone = $("customerPhone");
+const customerPreferredContact = $("customerPreferredContact");
+const customerNotes = $("customerNotes");
 
 const paymentsList = $("paymentsList");
 const btnRefreshPayments = $("btnRefreshPayments");
+const paymentForm = $("paymentForm");
+const paymentFormTitle = $("paymentFormTitle");
+const paymentMsg = $("paymentMsg");
+const btnNewPayment = $("btnNewPayment");
+const paymentId = $("paymentId");
+const paymentCustomerId = $("paymentCustomerId");
+const paymentOrderId = $("paymentOrderId");
+const paymentMode = $("paymentMode");
+const paymentStatus = $("paymentStatus");
+const paymentAmount = $("paymentAmount");
+const paymentPaidAt = $("paymentPaidAt");
+const paymentReference = $("paymentReference");
+const paymentNote = $("paymentNote");
 
 const setupForm = $("setupForm");
 const btnRefreshSetup = $("btnRefreshSetup");
@@ -271,6 +297,71 @@ function formatTime12(value) {
   const suffix = h >= 12 ? "PM" : "AM";
   const hour12 = ((h + 11) % 12) + 1;
   return `${hour12}:${String(mStr || "00").padStart(2, "0")} ${suffix}`;
+}
+
+function setInlineMessage(el, message = "", tone = "") {
+  if (!el) return;
+  el.textContent = message || "";
+  el.className = tone ? `msg ${tone}` : "msg";
+}
+function paymentAmountCents(row) {
+  return Number(row?.amount_total ?? row?.amount_subtotal ?? row?.amount_cents ?? row?.net_amount_cents ?? row?.total_cents ?? 0);
+}
+function paymentRevenueContributionCents(row) {
+  const amount = paymentAmountCents(row);
+  const status = String(row?.status || "").trim().toLowerCase();
+  if (!amount) return 0;
+  if (["pending", "failed", "cancelled", "voided", "checkout_created"].includes(status)) return 0;
+  if (status.includes("refund")) return -amount;
+  return amount;
+}
+function customerLifetimeValueCents(customer) {
+  const stored = Number(customer?.lifetime_value_cents || 0);
+  const paid = PAYMENTS_CACHE
+    .filter((row) => row.customer_id === customer?.id)
+    .reduce((sum, row) => sum + Math.max(0, paymentRevenueContributionCents(row)), 0);
+  return Math.max(stored, paid);
+}
+function paymentSortTimestamp(row) {
+  return new Date(row?.paid_at || row?.created_at || row?.updated_at || 0).getTime() || 0;
+}
+function formatPaymentMode(mode) {
+  const labels = {
+    ach: "ACH",
+    cash: "Cash",
+    check: "Check",
+    external_card: "Card on site",
+    manual_other: "Other",
+    pay_online: "Online checkout",
+    venmo: "Venmo",
+    zelle: "Zelle",
+  };
+  return labels[String(mode || "").trim().toLowerCase()] || (mode ? String(mode) : "Manual");
+}
+function toDateTimeLocalValue(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const local = new Date(d.getTime() - (d.getTimezoneOffset() * 60000));
+  return local.toISOString().slice(0, 16);
+}
+function toIsoDateTime(value) {
+  if (!value) return null;
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+function isManualPaymentRecord(row) {
+  return String(row?.source || "").trim().toLowerCase() === "manual";
+}
+function sortedCustomers(rows = CUSTOMERS_CACHE) {
+  return [...(rows || [])].sort((a, b) => {
+    const valueDiff = customerLifetimeValueCents(b) - customerLifetimeValueCents(a);
+    if (valueDiff) return valueDiff;
+    return new Date(b?.updated_at || 0).getTime() - new Date(a?.updated_at || 0).getTime();
+  });
+}
+function sortedPayments(rows = PAYMENTS_CACHE) {
+  return [...(rows || [])].sort((a, b) => paymentSortTimestamp(b) - paymentSortTimestamp(a));
 }
 
 function isPasswordSetupVisible() {
@@ -2477,6 +2568,446 @@ btnRefreshPayments?.addEventListener("click", async () => {
   }
 });
 
+function populateCustomerForm(customer = null) {
+  if (customerFormTitle) customerFormTitle.textContent = customer?.id ? "Customer workspace" : "New customer";
+  if (customerId) customerId.value = customer?.id || "";
+  if (customerName) customerName.value = customer?.name || "";
+  if (customerEmail) customerEmail.value = customer?.email || "";
+  if (customerPhone) customerPhone.value = customer?.phone || "";
+  if (customerPreferredContact) customerPreferredContact.value = customer?.preferred_contact || "email";
+  if (customerNotes) customerNotes.value = customer?.notes || "";
+}
+function startNewCustomer() {
+  CUSTOMER_CREATING = true;
+  ACTIVE_CUSTOMER_ID = null;
+  populateCustomerForm(null);
+  setInlineMessage(customerMsg, "");
+  renderCustomersList(customerSearch?.value || "");
+}
+function renderCustomersList(filter = "") {
+  if (!customersList) return;
+  const q = String(filter || "").trim().toLowerCase();
+  const ranked = sortedCustomers(CUSTOMERS_CACHE);
+  const rows = ranked.filter((c) =>
+    !q || [c.name, c.email, c.phone].some((x) => String(x || "").toLowerCase().includes(q))
+  );
+
+  const emptyMessage = CUSTOMERS_CACHE.length
+    ? `No customers match this search.`
+    : `No customers yet. Create one to start linking work and payments.`;
+  customersList.innerHTML = rows.length ? "" : `<div class="muted">${emptyMessage}</div>`;
+
+  rows.forEach((c) => {
+    const el = document.createElement("button");
+    el.type = "button";
+    el.className = `list-item ${ACTIVE_CUSTOMER_ID === c.id && !CUSTOMER_CREATING ? "is-active" : ""}`;
+    el.innerHTML = `
+      <div class="li-main">
+        <div class="li-title">${escapeHtml(c.name || "Unnamed customer")}</div>
+        <div class="li-sub muted">${escapeHtml(c.email || "No email")} &middot; ${escapeHtml(c.phone || "No phone")}</div>
+      </div>
+      <div class="li-meta">
+        <span class="pill pill-on">${formatUsd(customerLifetimeValueCents(c))}</span>
+        <span class="pill">${escapeHtml(String(c.order_count || 0))} orders</span>
+      </div>
+    `;
+    el.addEventListener("click", () => {
+      CUSTOMER_CREATING = false;
+      ACTIVE_CUSTOMER_ID = c.id;
+      setInlineMessage(customerMsg, "");
+      renderCustomersList(customerSearch?.value || "");
+    });
+    customersList.appendChild(el);
+  });
+
+  if (!rows.length) {
+    if (!CUSTOMERS_CACHE.length) {
+      CUSTOMER_CREATING = true;
+      ACTIVE_CUSTOMER_ID = null;
+      renderCustomerDetail(null).catch(console.error);
+      return;
+    }
+    renderCustomerDetail(CUSTOMER_CREATING ? null : ACTIVE_CUSTOMER_ID).catch(console.error);
+    return;
+  }
+
+  if (!ACTIVE_CUSTOMER_ID && !CUSTOMER_CREATING && rows[0]) ACTIVE_CUSTOMER_ID = rows[0].id;
+  if (ACTIVE_CUSTOMER_ID) CUSTOMER_CREATING = false;
+  renderCustomerDetail(CUSTOMER_CREATING ? null : ACTIVE_CUSTOMER_ID).catch(console.error);
+}
+async function renderCustomerDetail(customerIdValue) {
+  if (!customerDetailWrap) return;
+  const customer = CUSTOMERS_CACHE.find((c) => c.id === customerIdValue) || null;
+  populateCustomerForm(customer);
+
+  if (!customer) {
+    customerDetailWrap.innerHTML = `
+      <div class="detail-card">
+        <div class="kicker">Customer intake</div>
+        <div><strong>Create the account before the work gets messy.</strong></div>
+        <div class="detail-copy">This record becomes the place to attach bids, jobs, payment history, follow-up, and anything the operator learns over time.</div>
+      </div>
+    `;
+    return;
+  }
+
+  const customerOrders = CRM_ORDERS_CACHE
+    .filter((o) => o.customer_id === customerIdValue)
+    .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
+    .slice(0, 12);
+  const interactions = await fetchCustomerInteractions(customerIdValue);
+  const customerPayments = sortedPayments(PAYMENTS_CACHE.filter((p) => p.customer_id === customerIdValue)).slice(0, 12);
+
+  customerDetailWrap.innerHTML = `
+    <div class="detail-card">
+      <div class="kicker">Customer profile</div>
+      <div><strong>${escapeHtml(customer.name || "Unnamed customer")}</strong></div>
+      <div class="detail-copy">${escapeHtml(customer.email || "No email")} &middot; ${escapeHtml(customer.phone || "No phone")}</div>
+      <div class="detail-copy">Preferred contact: ${escapeHtml(customer.preferred_contact || "email")}</div>
+      <div class="detail-copy">Lifetime value: ${formatUsd(customerLifetimeValueCents(customer))} &middot; Orders: ${escapeHtml(String(customer.order_count || 0))}</div>
+      <div class="detail-copy">Last touch: ${escapeHtml(customer.last_contact_at ? formatDateTime(customer.last_contact_at) : "Not recorded")}</div>
+    </div>
+
+    <div class="grid two" style="margin-top:14px;">
+      <div class="card">
+        <div class="card-hd">
+          <strong>Recent orders</strong>
+          <span class="muted">Most recent first</span>
+        </div>
+        <div class="card-bd">
+          ${customerOrders.length ? `
+            <div class="list">
+              ${customerOrders.map((o) => `
+                <div class="list-item">
+                  <div class="li-main">
+                    <div class="li-title">${escapeHtml(String(o.status || "new"))}</div>
+                    <div class="li-sub muted">${escapeHtml(String(o.scheduled_date || "No scheduled date"))} &middot; ${escapeHtml(String(o.scheduled_time || "No time"))}</div>
+                  </div>
+                  <div class="li-meta">
+                    <span class="pill pill-on">${formatUsd(o.total_cents || 0)}</span>
+                  </div>
+                </div>
+              `).join("")}
+            </div>
+          ` : `<div class="muted">No CRM orders for this customer yet.</div>`}
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <strong>Payments</strong>
+          <span class="muted">Manual and online collections in one place.</span>
+        </div>
+        <div class="card-bd">
+          ${customerPayments.length ? `
+            <div class="list">
+              ${customerPayments.map((p) => `
+                <div class="list-item">
+                  <div class="li-main">
+                    <div class="li-title">${escapeHtml(formatPaymentMode(p.payment_mode))} &middot; ${escapeHtml(String(p.status || "pending"))}</div>
+                    <div class="li-sub muted">${escapeHtml(formatDateTime(p.paid_at || p.created_at || p.updated_at))}${p.metadata?.reference ? ` &middot; Ref ${escapeHtml(String(p.metadata.reference))}` : ""}</div>
+                  </div>
+                  <div class="li-meta">
+                    <span class="pill pill-on">${formatUsd(paymentAmountCents(p))}</span>
+                  </div>
+                </div>
+              `).join("")}
+            </div>
+          ` : `<div class="muted">No payments recorded yet.</div>`}
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:14px;">
+      <div class="card-hd">
+        <strong>Interaction timeline</strong>
+        <span class="muted">Capture live notes while you are on the phone.</span>
+      </div>
+      <div class="card-bd">
+        <div class="row">
+          <select id="customerInteractionType" style="max-width:200px;">
+            <option value="note">Note</option>
+            <option value="call">Call</option>
+            <option value="email">Email</option>
+            <option value="order">Order</option>
+            <option value="payment">Payment</option>
+          </select>
+          <input id="customerInteractionSummary" class="input" style="flex:1;max-width:none;" placeholder="What happened with this customer?" />
+          <button id="btnAddCustomerInteraction" class="btn btn-primary" type="button">Add interaction</button>
+        </div>
+
+        <div style="margin-top:14px;">
+          ${interactions.length ? `
+            <div class="list">
+              ${interactions.map((i) => `
+                <div class="list-item">
+                  <div class="li-main">
+                    <div class="li-title">${escapeHtml(i.type)}</div>
+                    <div class="li-sub muted">${escapeHtml(i.summary || "No summary")}</div>
+                  </div>
+                  <div class="li-meta">
+                    <span class="pill">${escapeHtml(formatDateTime(i.created_at))}</span>
+                  </div>
+                </div>
+              `).join("")}
+            </div>
+          ` : `<div class="muted">No interactions logged yet.</div>`}
+        </div>
+      </div>
+    </div>
+  `;
+
+  $("btnAddCustomerInteraction")?.addEventListener("click", async () => {
+    const type = $("customerInteractionType")?.value || "note";
+    const summary = $("customerInteractionSummary")?.value?.trim() || "";
+    if (!summary) return;
+
+    const nowIso = new Date().toISOString();
+    const { error } = await sb.from("customer_interactions").insert(withTenantScope({
+      operator_id: opId(),
+      customer_id: customerIdValue,
+      type,
+      summary,
+      metadata: {},
+      created_at: nowIso,
+    }));
+    if (error) {
+      alert(error.message || String(error));
+      return;
+    }
+
+    await sb.from("customers")
+      .update({ last_contact_at: nowIso, updated_at: nowIso })
+      .eq("id", customerIdValue).eq(OPERATOR_COLUMN, opId()).eq(TENANT_COLUMN, TENANT_ID);
+
+    CUSTOMER_CREATING = false;
+    ACTIVE_CUSTOMER_ID = customerIdValue;
+    await fetchCustomers();
+    renderCustomersList(customerSearch?.value || "");
+    renderDashboard();
+    renderMoney().catch(console.error);
+  });
+}
+function renderPaymentCustomerOptions(selectedCustomerId = "") {
+  if (!paymentCustomerId) return;
+  const options = sortedCustomers(CUSTOMERS_CACHE);
+  paymentCustomerId.innerHTML = `
+    <option value="">No linked customer yet</option>
+    ${options.map((customer) => `<option value="${escapeAttr(customer.id)}">${escapeHtml(customer.name || customer.email || customer.phone || "Customer")}</option>`).join("")}
+  `;
+  paymentCustomerId.value = options.some((customer) => customer.id === selectedCustomerId) ? selectedCustomerId : "";
+}
+function renderPaymentOrderOptions(selectedCustomerId = "", selectedOrderId = "") {
+  if (!paymentOrderId) return;
+  const rows = [...CRM_ORDERS_CACHE]
+    .filter((order) => !selectedCustomerId || order.customer_id === selectedCustomerId)
+    .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+
+  paymentOrderId.innerHTML = `
+    <option value="">No linked order</option>
+    ${rows.map((order) => {
+      const customer = CUSTOMERS_CACHE.find((row) => row.id === order.customer_id);
+      const scheduled = order.scheduled_date || getScheduledDateFromOrder(order) || "No date";
+      const label = `${customer?.name || order.customer_name || "Customer"} | ${String(order.status || "new")} | ${String(scheduled)}`;
+      return `<option value="${escapeAttr(order.id)}">${escapeHtml(label)}</option>`;
+    }).join("")}
+  `;
+  paymentOrderId.value = rows.some((order) => order.id === selectedOrderId) ? selectedOrderId : "";
+}
+function clearPaymentForm(options = {}) {
+  const preferredOrder = CRM_ORDERS_CACHE.find((row) => row.id === (options.orderId || ACTIVE_ORDER_ID)) || null;
+  const defaultCustomerId = options.customerId ?? ACTIVE_CUSTOMER_ID ?? preferredOrder?.customer_id ?? "";
+  const defaultOrderId = options.orderId ?? (preferredOrder?.customer_id === defaultCustomerId ? preferredOrder?.id || "" : "");
+
+  ACTIVE_PAYMENT_ID = null;
+  if (paymentFormTitle) paymentFormTitle.textContent = "Manual payment entry";
+  if (paymentId) paymentId.value = "";
+  renderPaymentCustomerOptions(defaultCustomerId);
+  renderPaymentOrderOptions(defaultCustomerId, defaultOrderId);
+  if (paymentMode) paymentMode.value = options.mode || "cash";
+  if (paymentStatus) paymentStatus.value = options.status || "paid";
+  if (paymentAmount) paymentAmount.value = options.amount || "";
+  if (paymentPaidAt) paymentPaidAt.value = options.paidAt || toDateTimeLocalValue(new Date().toISOString());
+  if (paymentReference) paymentReference.value = options.reference || "";
+  if (paymentNote) paymentNote.value = options.note || "";
+  setInlineMessage(paymentMsg, "");
+}
+function loadPaymentIntoForm(payment) {
+  if (!payment || !isManualPaymentRecord(payment)) return;
+  ACTIVE_PAYMENT_ID = payment.id;
+  if (paymentFormTitle) paymentFormTitle.textContent = "Edit manual payment";
+  if (paymentId) paymentId.value = payment.id || "";
+  renderPaymentCustomerOptions(payment.customer_id || "");
+  renderPaymentOrderOptions(payment.customer_id || "", payment.order_id || "");
+  if (paymentMode) paymentMode.value = payment.payment_mode || "cash";
+  if (paymentStatus) paymentStatus.value = payment.status || "paid";
+  if (paymentAmount) paymentAmount.value = money(paymentAmountCents(payment));
+  if (paymentPaidAt) paymentPaidAt.value = toDateTimeLocalValue(payment.paid_at || payment.created_at || payment.updated_at);
+  if (paymentReference) paymentReference.value = payment.metadata?.reference || "";
+  if (paymentNote) paymentNote.value = payment.metadata?.note || "";
+  setInlineMessage(paymentMsg, "Editing a manual payment record.");
+}
+customerForm?.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  setInlineMessage(customerMsg, "Saving...");
+
+  const id = customerId?.value || null;
+  const nowIso = new Date().toISOString();
+  const payload = withTenantScope({
+    operator_id: opId(),
+    name: customerName?.value?.trim() || customerEmail?.value?.trim() || customerPhone?.value?.trim() || "Customer",
+    email: customerEmail?.value?.trim() || null,
+    phone: customerPhone?.value?.trim() || null,
+    preferred_contact: customerPreferredContact?.value || "email",
+    notes: customerNotes?.value?.trim() || "",
+    updated_at: nowIso,
+  });
+
+  try {
+    const query = id
+      ? sb.from("customers").update(payload).eq("id", id).eq(OPERATOR_COLUMN, opId()).eq(TENANT_COLUMN, TENANT_ID)
+      : sb.from("customers").insert({ ...payload, created_at: nowIso });
+
+    const { data, error } = await query.select("*").single();
+    if (error) throw error;
+
+    CUSTOMER_CREATING = false;
+    ACTIVE_CUSTOMER_ID = data.id;
+    setInlineMessage(customerMsg, "Customer saved.", "ok");
+    await fetchCustomers();
+    renderCustomersList(customerSearch?.value || "");
+    renderPayments();
+    renderDashboard();
+    renderMoney().catch(console.error);
+  } catch (err) {
+    setInlineMessage(customerMsg, err.message || String(err), "error");
+  }
+});
+btnNewCustomer?.addEventListener("click", startNewCustomer);
+btnClearCustomerForm?.addEventListener("click", startNewCustomer);
+
+function renderPayments() {
+  if (!paymentsList) return;
+  if (paymentId?.value) {
+    renderPaymentCustomerOptions(paymentCustomerId?.value || "");
+    renderPaymentOrderOptions(paymentCustomerId?.value || "", paymentOrderId?.value || "");
+  } else {
+    clearPaymentForm({ customerId: paymentCustomerId?.value || ACTIVE_CUSTOMER_ID || "" });
+  }
+
+  const rows = sortedPayments(PAYMENTS_CACHE);
+  paymentsList.innerHTML = rows.length ? "" : `<div class="muted">No payments recorded yet.</div>`;
+
+  rows.forEach((p) => {
+    const customer = CUSTOMERS_CACHE.find((c) => c.id === p.customer_id);
+    const order = CRM_ORDERS_CACHE.find((o) => o.id === p.order_id);
+    const ref = p.metadata?.reference ? ` | Ref ${String(p.metadata.reference)}` : "";
+
+    const el = document.createElement("button");
+    el.type = "button";
+    el.className = `list-item ${ACTIVE_PAYMENT_ID === p.id ? "is-active" : ""}`;
+    el.innerHTML = `
+      <div class="li-main">
+        <div class="li-title">${escapeHtml(customer?.name || "Unlinked payment")}</div>
+        <div class="li-sub muted">${escapeHtml(formatPaymentMode(p.payment_mode))} &middot; ${escapeHtml(formatDateTime(p.paid_at || p.created_at || p.updated_at))}${escapeHtml(ref)}</div>
+        <div class="li-sub muted">${escapeHtml(order ? `Order ${String(order.status || "new")}` : "No linked order")} &middot; ${escapeHtml(String(p.source || "manual"))}</div>
+      </div>
+      <div class="li-meta">
+        <span class="pill">${escapeHtml(String(p.status || "pending"))}</span>
+        <span class="pill pill-on">${formatUsd(paymentAmountCents(p))}</span>
+      </div>
+    `;
+    el.addEventListener("click", () => {
+      if (!isManualPaymentRecord(p)) {
+        ACTIVE_PAYMENT_ID = null;
+        renderPayments();
+        setInlineMessage(paymentMsg, "Stripe-created payment records are read-only here. Use this form for manual collections.", "error");
+        return;
+      }
+
+      loadPaymentIntoForm(p);
+      renderPayments();
+    });
+    paymentsList.appendChild(el);
+  });
+}
+paymentCustomerId?.addEventListener("change", () => {
+  renderPaymentOrderOptions(paymentCustomerId.value || "", paymentOrderId?.value || "");
+});
+paymentOrderId?.addEventListener("change", () => {
+  const order = CRM_ORDERS_CACHE.find((row) => row.id === paymentOrderId.value);
+  if (order?.customer_id) {
+    renderPaymentCustomerOptions(order.customer_id);
+    if (paymentCustomerId) paymentCustomerId.value = order.customer_id;
+    renderPaymentOrderOptions(order.customer_id, order.id);
+  }
+});
+btnNewPayment?.addEventListener("click", () => {
+  clearPaymentForm();
+  renderPayments();
+});
+paymentForm?.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  setInlineMessage(paymentMsg, "Saving...");
+
+  const id = paymentId?.value || null;
+  const linkedOrder = CRM_ORDERS_CACHE.find((row) => row.id === (paymentOrderId?.value || ""));
+  const resolvedCustomerId = paymentCustomerId?.value || linkedOrder?.customer_id || null;
+  const amountCents = toCents(paymentAmount?.value || 0);
+  if (!amountCents) {
+    setInlineMessage(paymentMsg, "Enter a payment amount greater than zero.", "error");
+    return;
+  }
+
+  const nowIso = new Date().toISOString();
+  const payload = withTenantScope({
+    operator_id: opId(),
+    customer_id: resolvedCustomerId,
+    order_id: paymentOrderId?.value || null,
+    payment_mode: paymentMode?.value || "manual_other",
+    status: paymentStatus?.value || "paid",
+    amount_subtotal: amountCents,
+    amount_total: amountCents,
+    currency: "usd",
+    source: "manual",
+    metadata: {
+      reference: paymentReference?.value?.trim() || null,
+      note: paymentNote?.value?.trim() || null,
+      recorded_via: "operator_console",
+    },
+    paid_at: toIsoDateTime(paymentPaidAt?.value) || null,
+    updated_at: nowIso,
+  });
+
+  try {
+    if (id) {
+      const existing = PAYMENTS_CACHE.find((row) => row.id === id);
+      if (!isManualPaymentRecord(existing)) throw new Error("Only manual payment records can be edited here.");
+    }
+
+    const query = id
+      ? sb.from("payments").update(payload).eq("id", id).eq(OPERATOR_COLUMN, opId()).eq(TENANT_COLUMN, TENANT_ID)
+      : sb.from("payments").insert({ ...payload, created_at: nowIso });
+
+    const { data, error } = await query.select("*").single();
+    if (error) throw error;
+
+    ACTIVE_PAYMENT_ID = data.id;
+    await Promise.all([fetchPayments(), fetchCustomers()]);
+    const fresh = PAYMENTS_CACHE.find((row) => row.id === data.id) || data;
+    loadPaymentIntoForm(fresh);
+    renderPayments();
+    renderCustomersList(customerSearch?.value || "");
+    renderDashboard();
+    renderMoney().catch(console.error);
+    renderGuidance();
+    if (ACTIVE_CUSTOMER_ID) renderCustomerDetail(ACTIVE_CUSTOMER_ID).catch(console.error);
+    setInlineMessage(paymentMsg, "Payment saved.", "ok");
+  } catch (err) {
+    setInlineMessage(paymentMsg, err.message || String(err), "error");
+  }
+});
+
 function currentMonthExpenseCents() {
   const mk = yyyymm(new Date());
   return EXPENSES_CACHE.filter((row) => monthKeyFromDate(row.date) === mk)
@@ -2504,6 +3035,7 @@ function renderDashboard() {
   const currentExpenses = currentMonthExpenseCents();
   const quotedRevenue = quotedRevenueCents();
   const publishedProducts = PRODUCTS_CACHE.filter((p) => !!p.is_active).length;
+  const topCustomer = sortedCustomers(CUSTOMERS_CACHE)[0] || null;
   const alerts = [];
 
   if (!CUSTOMERS_CACHE.length) alerts.push("No customers are in CRM yet. Once storefront orders hit the database, customer history gets stronger.");
@@ -2565,7 +3097,7 @@ function renderDashboard() {
       </div>
       <div class="insight">
         <h3>CRM value</h3>
-        <p>Top customer today: <strong>${escapeHtml(CUSTOMERS_CACHE[0]?.name || "None yet")}</strong>${CUSTOMERS_CACHE[0] ? ` • ${formatUsd(CUSTOMERS_CACHE[0].lifetime_value_cents || 0)}` : ""}</p>
+        <p>Top customer today: <strong>${escapeHtml(topCustomer?.name || "None yet")}</strong>${topCustomer ? ` | ${formatUsd(customerLifetimeValueCents(topCustomer))}` : ""}</p>
         <p>Published products: <strong>${publishedProducts}</strong></p>
       </div>
       <div class="insight">
@@ -2754,6 +3286,7 @@ async function renderMoney() {
   if (!moneyWrap) return;
 
   const pricingRows = await fetchPricing();
+  const topCustomer = sortedCustomers(CUSTOMERS_CACHE)[0] || null;
   const expByMonth = new Map();
   EXPENSES_CACHE.forEach((e) => {
     const mk = monthKeyFromDate(e.date);
@@ -2791,7 +3324,7 @@ async function renderMoney() {
       <div class="card mini">
         <div class="card-bd">
           <div class="muted">Top customer value</div>
-          <div class="money">${formatUsd(CUSTOMERS_CACHE[0]?.lifetime_value_cents || 0)}</div>
+          <div class="money">${formatUsd(topCustomer ? customerLifetimeValueCents(topCustomer) : 0)}</div>
         </div>
       </div>
     </div>

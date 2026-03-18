@@ -186,6 +186,24 @@ a {
   background: var(--accent-strong);
 }
 
+.site-nav .btn-primary {
+  min-height: 50px;
+  padding: 0.9rem 1.35rem;
+  border: 1px solid rgba(16, 59, 73, 0.22);
+  background: linear-gradient(135deg, #1a6f88 0%, var(--accent) 55%, var(--accent-strong) 100%);
+  box-shadow: 0 12px 24px rgba(16, 59, 73, 0.18);
+  color: #ffffff;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+.site-nav .btn-primary:hover,
+.site-nav .btn-primary:focus-visible {
+  background: linear-gradient(135deg, #2387a3 0%, #1a6f88 50%, var(--accent-strong) 100%);
+  box-shadow: 0 14px 28px rgba(16, 59, 73, 0.24);
+}
+
 .btn-secondary {
   border: 1px solid var(--line-strong);
   background: var(--panel);

@@ -252,6 +252,7 @@
               </div>
               <div class="panel-actions">
                 <input id="customerSearch" class="input" placeholder="Search customer…" />
+                <button id="btnNewCustomer" class="btn" type="button">New customer</button>
                 <button id="btnRefreshCustomers" class="btn btn-ghost" type="button">Refresh</button>
               </div>
             </div>
@@ -269,11 +270,50 @@
 
               <div class="card">
                 <div class="card-hd">
-                  <strong>Customer detail</strong>
-                  <span class="muted">Profile, notes, orders, and interactions</span>
+                  <strong id="customerFormTitle">Customer workspace</strong>
+                  <span class="muted">Create or update the record, then review history below.</span>
                 </div>
                 <div class="card-bd">
-                  <div id="customerDetailWrap" class="muted">Select a customer to inspect the record.</div>
+                  <form id="customerForm" class="form">
+                    <input type="hidden" id="customerId" />
+
+                    <div class="grid two form-grid">
+                      <label>Name
+                        <input id="customerName" required />
+                      </label>
+
+                      <label>Preferred contact
+                        <select id="customerPreferredContact">
+                          <option value="email">Email</option>
+                          <option value="phone">Phone</option>
+                          <option value="text">Text</option>
+                        </select>
+                      </label>
+                    </div>
+
+                    <div class="grid two form-grid">
+                      <label>Email
+                        <input id="customerEmail" type="email" placeholder="name@company.com" />
+                      </label>
+
+                      <label>Phone
+                        <input id="customerPhone" type="tel" placeholder="(555) 555-5555" />
+                      </label>
+                    </div>
+
+                    <label>Internal notes
+                      <textarea id="customerNotes" rows="4" placeholder="Anything the operator should remember about this account."></textarea>
+                    </label>
+
+                    <div class="row">
+                      <button class="btn btn-primary" type="submit">Save customer</button>
+                      <button id="btnClearCustomerForm" class="btn btn-ghost" type="button">Clear form</button>
+                    </div>
+
+                    <div id="customerMsg" class="msg"></div>
+                  </form>
+
+                  <div id="customerDetailWrap" style="margin-top:16px;" class="muted">Create a customer record or select one from the list to inspect it.</div>
                 </div>
               </div>
             </div>
@@ -332,6 +372,90 @@
                 </div>
                 <div class="card-bd">
                   <div id="paymentEducationWrap"></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="grid two">
+              <div class="card">
+                <div class="card-hd">
+                  <strong id="paymentFormTitle">Manual payment entry</strong>
+                  <span class="muted">Log cash, check, ACH, Zelle, Venmo, or card-on-site.</span>
+                </div>
+                <div class="card-bd">
+                  <form id="paymentForm" class="form">
+                    <input type="hidden" id="paymentId" />
+
+                    <div class="grid two form-grid">
+                      <label>Customer
+                        <select id="paymentCustomerId"></select>
+                      </label>
+
+                      <label>Related order
+                        <select id="paymentOrderId"></select>
+                      </label>
+                    </div>
+
+                    <div class="grid three form-grid">
+                      <label>Payment method
+                        <select id="paymentMode">
+                          <option value="cash">Cash</option>
+                          <option value="check">Check</option>
+                          <option value="ach">ACH</option>
+                          <option value="zelle">Zelle</option>
+                          <option value="venmo">Venmo</option>
+                          <option value="external_card">Card on site</option>
+                          <option value="manual_other">Other</option>
+                        </select>
+                      </label>
+
+                      <label>Status
+                        <select id="paymentStatus">
+                          <option value="paid">Paid</option>
+                          <option value="pending">Pending</option>
+                          <option value="refunded">Refunded</option>
+                          <option value="cancelled">Cancelled</option>
+                        </select>
+                      </label>
+
+                      <label>Amount (USD)
+                        <input id="paymentAmount" type="number" step="0.01" min="0" required />
+                      </label>
+                    </div>
+
+                    <div class="grid two form-grid">
+                      <label>Paid / received at
+                        <input id="paymentPaidAt" type="datetime-local" />
+                      </label>
+
+                      <label>Reference number
+                        <input id="paymentReference" placeholder="Check #, confirmation, last fourâ€¦" />
+                      </label>
+                    </div>
+
+                    <label>Internal note
+                      <textarea id="paymentNote" rows="3" placeholder="How this was collected, partial payment detail, or anything finance should know."></textarea>
+                    </label>
+
+                    <div class="row">
+                      <button class="btn btn-primary" type="submit">Save payment</button>
+                      <button id="btnNewPayment" class="btn btn-ghost" type="button">New entry</button>
+                    </div>
+
+                    <div id="paymentMsg" class="msg"></div>
+                  </form>
+                </div>
+              </div>
+
+              <div class="card">
+                <div class="card-hd">
+                  <strong>Offline payment policy</strong>
+                  <span class="muted">Keep collection clear and audit-friendly.</span>
+                </div>
+                <div class="card-bd">
+                  <div class="muted" style="line-height:1.65;">
+                    Link the payment to a customer whenever possible. Add the related order if the payment belongs to a specific job. Use the reference field for check numbers, ACH confirmations, or the last four of a card receipt so reconciliation stays easy later.
+                  </div>
                 </div>
               </div>
             </div>

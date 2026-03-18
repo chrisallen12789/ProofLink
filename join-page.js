@@ -20,14 +20,18 @@
 
   const typeLabels = {
     bakery: 'Bakery / Food',
-    contractor: 'Contractor',
-    lawn_care: 'Lawn Care',
     cleaning: 'Cleaning',
-    photography: 'Photography',
-    pet_services: 'Pet Services',
+    contractor: 'Contractor / Remodeling',
     events: 'Events',
     handyman: 'Handyman',
+    hvac: 'HVAC',
+    lawn_care: 'Lawn Care',
     other: 'Other',
+    pet_services: 'Pet Services',
+    photography: 'Photography',
+    plumbing: 'Plumbing',
+    pressure_washing: 'Pressure Washing',
+    property_maintenance: 'Property Maintenance',
   };
 
   function $(id) {

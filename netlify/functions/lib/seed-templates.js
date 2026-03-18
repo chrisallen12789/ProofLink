@@ -329,9 +329,9 @@ const TEMPLATES = {
 };
 
 // ── Key aliases — map join.html chip values to template keys ─────────────────
-// join.html uses: bakery, contractor, lawn_care, cleaning, photography,
-//                 pet_services, events, handyman, other
-// We also accept hvac, plumbing, property_maintenance from direct API calls.
+// join.html uses: bakery, pressure_washing, contractor, lawn_care, cleaning,
+//                 photography, pet_services, events, handyman, hvac, plumbing,
+//                 property_maintenance, other
 
 const ALIASES = {
   bakery              : 'bakery',
