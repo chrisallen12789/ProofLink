@@ -85,10 +85,10 @@
 
   function planSubmissionNote(plan) {
     if (plan.key === 'enterprise') {
-      return 'Enterprise requests are reviewed with a guided rollout. We will confirm implementation scope before billing starts.';
+      return 'Enterprise requests go through a guided rollout. We confirm scope, controls, and implementation before billing starts.';
     }
 
-    return `You are reserving the ${plan.name} plan now. Billing for ${plan.name} starts after your workspace is approved, provisioned, and you enter guided onboarding.`;
+    return `You are locking in the ${plan.name} plan now. You are not paying today. Billing for ${plan.name} starts after the workspace is approved, provisioned, and moved into onboarding.`;
   }
 
   function syncQueryString() {
@@ -287,8 +287,8 @@
       $('success-screen').style.display = 'block';
       $('success-email').textContent = state.ownerEmail;
       $('successPlanText').textContent = plan.key === 'enterprise'
-        ? 'Your Enterprise request is queued for a guided rollout discussion before billing.'
-        : `Your ${plan.name} plan choice is saved. Billing starts during guided onboarding after your workspace is provisioned.`;
+        ? 'Your Enterprise request is queued for rollout planning before billing begins.'
+        : `Your ${plan.name} plan is saved. We will use it to provision the right workspace, then start billing during guided onboarding.`;
       if (data.request_id) {
         $('success-ref').textContent = `Reference ID: ${data.request_id}`;
       }

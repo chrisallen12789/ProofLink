@@ -3,15 +3,15 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>ProofLink Setup</title>
-  <meta name="description" content="Finish ProofLink business setup." />
+  <title>ProofLink Rollout</title>
+  <meta name="description" content="Finish the ProofLink rollout and get the business ready to sell." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,500;1,600&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;600;700;800&family=Google+Sans+Text:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <style>
     :root{
-      --font-display: 'Public Sans', ui-sans-serif, system-ui, sans-serif;
-      --font-body: 'Public Sans', ui-sans-serif, system-ui, sans-serif;
+      --font-display: 'Google Sans', ui-sans-serif, system-ui, sans-serif;
+      --font-body: 'Google Sans Text', ui-sans-serif, system-ui, sans-serif;
       --bg:#0f0e0b;
       --panel:#1a1816;
       --panel-2:#211f1c;
@@ -254,9 +254,9 @@
   <div class="wrap">
     <div class="top">
       <div>
-        <div class="eyebrow">Guided setup</div>
-        <h1 id="pageTitle">Finish your ProofLink setup</h1>
-        <p class="sub" id="pageSub">This wizard takes the business from created to billable to payout-ready.</p>
+        <div class="eyebrow">Guided rollout</div>
+        <h1 id="pageTitle">Get the business live</h1>
+        <p class="sub" id="pageSub">This wizard takes the workspace from approved to billable, payout-ready, and ready to sell.</p>
       </div>
       <a class="btn secondary" href="/operator/">Open operator dashboard</a>
     </div>
@@ -269,9 +269,9 @@
           <div class="step-item" id="nav-step-1">
             <div class="step-line">
               <div class="step-num">1</div>
-              <h3>Business created</h3>
+              <h3>Workspace created</h3>
             </div>
-            <p>Tenant shell, operator shell, and subdomain are reserved.</p>
+            <p>The shell is live. Now we turn it into a working business system.</p>
           </div>
 
           <div class="step-item" id="nav-step-2">
@@ -279,7 +279,7 @@
               <div class="step-num">2</div>
               <h3>Activate ProofLink billing</h3>
             </div>
-            <p>Turn on the platform subscription.</p>
+            <p>Turn on the ProofLink subscription for this workspace.</p>
           </div>
 
           <div class="step-item" id="nav-step-3">
@@ -287,7 +287,7 @@
               <div class="step-num">3</div>
               <h3>Connect Stripe payouts</h3>
             </div>
-            <p>Link the tenant payout account.</p>
+            <p>Route customer money to the business.</p>
           </div>
 
           <div class="step-item" id="nav-step-4">
@@ -295,15 +295,15 @@
               <div class="step-num">4</div>
               <h3>Add the first offer</h3>
             </div>
-            <p>Create the first product or service.</p>
+            <p>Give the system something to sell.</p>
           </div>
 
           <div class="step-item" id="nav-step-5">
             <div class="step-line">
               <div class="step-num">5</div>
-              <h3>Publish and sell</h3>
+              <h3>Publish and take the first order</h3>
             </div>
-            <p>Open the storefront and start taking orders.</p>
+            <p>Open the storefront and prove the flow works.</p>
           </div>
         </div>
       </aside>
@@ -312,20 +312,20 @@
         <div class="statusbar" id="livePills"></div>
 
         <section class="panel active" id="step-1">
-          <h2>Business workspace created</h2>
+          <h2>Workspace created</h2>
           <p>The tenant bundle is in place. Now activate billing so the account becomes live on the platform.</p>
           <div class="kv" id="businessKv"></div>
           <div class="actions">
             <button class="btn" id="goToBillingBtn">Start platform billing</button>
             <button class="btn secondary" id="refreshStateBtn1">Refresh status</button>
           </div>
-          <div class="note">The business exists already. This step is just confirmation and routing.</div>
+          <div class="note">The shell already exists. This step is simply confirmation and routing.</div>
           <div class="msg" id="msg-step-1"></div>
         </section>
 
         <section class="panel" id="step-2">
           <h2>Activate ProofLink billing</h2>
-          <p>The tenant pays ProofLink here. This is separate from tenant customer payments.</p>
+          <p>This turns on the ProofLink subscription for the workspace. It is separate from customer payments.</p>
           <div class="checks">
             <div class="check">
               <strong>Current billing status</strong>
@@ -346,7 +346,7 @@
 
         <section class="panel" id="step-3">
           <h2>Connect Stripe payouts</h2>
-          <p>This links the tenant’s Stripe account so customer payments go to the tenant, not to ProofLink.</p>
+          <p>This connects the tenant's Stripe account so customer payments go to the business, not to ProofLink.</p>
           <div class="checks">
             <div class="check">
               <strong>Connect status</strong>
@@ -367,17 +367,17 @@
 
         <section class="panel" id="step-4">
           <h2>Add the first offer</h2>
-          <p>Create the first product or service so the storefront has something to sell.</p>
+          <p>Create the first product or service so the storefront has something real to sell.</p>
           <div class="actions">
             <a class="btn" href="/operator/#products">Go to products</a>
             <button class="btn secondary" id="markProductsDoneBtn">I added the first offer</button>
           </div>
-          <div class="note">For a service business, add one simple starter service first. Do not overbuild the menu.</div>
+          <div class="note">For a service business, add one simple starter offer first. Do not overbuild the menu.</div>
           <div class="msg" id="msg-step-4"></div>
         </section>
 
         <section class="panel" id="step-5">
-          <h2>Publish and sell</h2>
+          <h2>Publish and take the first order</h2>
           <p>The account is ready to move into live use.</p>
           <div class="checks">
             <div class="check">
@@ -386,14 +386,14 @@
             </div>
             <div class="check">
               <strong>Next move</strong>
-              <span>Open the storefront, test one order, then hand the tenant their login.</span>
+              <span>Open the storefront, test one order, then hand the tenant the login.</span>
             </div>
           </div>
           <div class="actions">
             <a class="btn" id="openStorefrontBtn" href="/" target="_blank" rel="noopener">Open storefront</a>
             <a class="btn secondary" href="/operator/">Open dashboard</a>
           </div>
-          <div class="note">This is the point where you can demo the platform in the field.</div>
+          <div class="note">This is the point where the system proves itself in the field.</div>
           <div class="msg" id="msg-step-5"></div>
         </section>
       </main>

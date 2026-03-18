@@ -5,11 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,500;1,600&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;600;700;800&family=Google+Sans+Text:wght@400;500;600;700&display=swap" rel="stylesheet"/>
   <title>Choose a Plan and Apply | ProofLink</title>
   <meta
     name="description"
-    content="Choose the ProofLink plan that fits your business, then submit your business application with that plan attached."
+    content="Choose the ProofLink plan that matches your operational mess, then apply for the workspace with that plan attached."
   />
   <link rel="stylesheet" href="/join-page.css" />
 </head>
@@ -21,12 +21,12 @@
 
   <main class="page">
     <header class="page-header">
-      <span class="eyebrow">Plan-first application</span>
-      <h1>Choose your plan, then start your business workspace.</h1>
+      <span class="eyebrow">Problem-first rollout</span>
+      <h1>Choose the level of control your business needs, then apply for the workspace.</h1>
       <p>
-        ProofLink is reviewed and provisioned per business. Pick the tier you want now,
-        keep that choice attached to your application, and move into guided setup once
-        your workspace is approved.
+        If work is getting scattered across calls, DMs, spreadsheets, and payment links, start
+        here. Pick the plan that matches your volume and complexity, keep it attached to your
+        application, and we will build the workspace around that choice.
       </p>
     </header>
 
@@ -35,15 +35,15 @@
         <span class="plan-context-label">Selected plan</span>
         <h2 id="selectedPlanTitle">Starter</h2>
         <p id="selectedPlanSummary">
-          One system for products, customers, orders, pricing, and payments.
+          A clean operating system for offers, customers, orders, pricing, and payments.
         </p>
       </div>
 
       <div class="plan-choice-grid" id="planChoiceGrid" role="radiogroup" aria-label="Choose a ProofLink plan"></div>
 
       <div class="plan-context-note" id="planIntentNote">
-        You are choosing your plan now. Billing starts after your workspace is provisioned
-        and you enter the guided setup flow.
+        You are not paying today. You are locking in the rollout level so the workspace is
+        provisioned correctly.
       </div>
     </section>
 
@@ -58,9 +58,9 @@
 
     <section class="card form-card">
       <div class="form-section visible" id="section-1">
-        <h2 class="form-section-title">What kind of business are you running?</h2>
+        <h2 class="form-section-title">What kind of business needs the system?</h2>
         <p class="form-section-sub">
-          This helps us seed the right starting structure for your workspace.
+          We use this to load a starting structure that matches how you sell and fulfill.
         </p>
 
         <div class="type-grid" id="businessTypeGrid">
@@ -102,9 +102,9 @@
       </div>
 
       <div class="form-section" id="section-2">
-        <h2 class="form-section-title">Tell us about the business</h2>
+        <h2 class="form-section-title">What should the workspace be called?</h2>
         <p class="form-section-sub">
-          This becomes the name and URL handle for your ProofLink workspace.
+          This becomes the business name and URL your team works from inside ProofLink.
         </p>
 
         <div class="field-row single">
@@ -119,10 +119,10 @@
           <div class="field">
             <label for="city_state">City &amp; state</label>
             <input type="text" id="city_state" placeholder="e.g. Fenton, MI" />
-            <p class="hint">Used for store context and regional setup.</p>
+            <p class="hint">Used to set regional context and location defaults.</p>
           </div>
           <div class="field">
-            <label for="requested_subdomain">Preferred URL handle</label>
+            <label for="requested_subdomain">Preferred workspace URL</label>
             <input type="text" id="requested_subdomain" placeholder="e.g. honest-to-crust" autocomplete="off" />
             <div id="slug-status" class="hint" style="min-height:1.2rem;"></div>
             <p class="hint">
@@ -139,9 +139,9 @@
       </div>
 
       <div class="form-section" id="section-3">
-        <h2 class="form-section-title">Who should we contact?</h2>
+        <h2 class="form-section-title">Who owns this rollout?</h2>
         <p class="form-section-sub">
-          We use this person for application review, approval, and the first secure login link.
+          This is the person we contact for review, approval, and the first secure login.
         </p>
 
         <div class="field-row">
@@ -153,7 +153,7 @@
           <div class="field">
             <label for="phone">Phone number</label>
             <input type="tel" id="phone" placeholder="(555) 000-0000" autocomplete="tel" />
-            <p class="hint">Optional, but useful if we need to confirm setup details quickly.</p>
+            <p class="hint">Optional, but helpful if we need to unblock setup quickly.</p>
           </div>
         </div>
 
@@ -172,9 +172,9 @@
       </div>
 
       <div class="form-section" id="section-4">
-        <h2 class="form-section-title">Review your application</h2>
+        <h2 class="form-section-title">Review before we build</h2>
         <p class="form-section-sub">
-          Your selected plan will be attached to this request and preserved into setup after approval.
+          We use this info and your selected plan to provision the right starting workspace.
         </p>
 
         <table class="review-table" id="review-table">
@@ -202,11 +202,11 @@
         <div class="success-icon">✓</div>
         <h2 id="successTitle">Application received</h2>
         <p id="successLead">
-          We saved your request and attached your selected ProofLink plan to it.
+          We saved your business details and locked in your selected plan.
         </p>
         <p>
-          You will receive the next email at <strong id="success-email"></strong> after your
-          business is reviewed and provisioned.
+          The next email will go to <strong id="success-email"></strong> after your business is
+          reviewed and provisioned.
         </p>
         <p id="successPlanText"></p>
         <p id="success-ref"></p>
