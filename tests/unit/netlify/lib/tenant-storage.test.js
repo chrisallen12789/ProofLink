@@ -14,6 +14,7 @@ function loadTenantStorage() {
 
 describe("tenant-storage receipt signing", () => {
   const originalSecret = process.env.TENANT_UPLOAD_SECRET;
+  const originalNodeEnv = process.env.NODE_ENV;
 
   afterEach(() => {
     if (originalSecret === undefined) {
@@ -21,11 +22,57 @@ describe("tenant-storage receipt signing", () => {
     } else {
       process.env.TENANT_UPLOAD_SECRET = originalSecret;
     }
+    if (originalNodeEnv === undefined) {
+      delete process.env.NODE_ENV;
+    } else {
+      process.env.NODE_ENV = originalNodeEnv;
+    }
     delete require.cache[modulePath];
   });
 
-  test("receipt generation fails when upload secret is missing", () => {
+  test("receipt generation uses the deterministic fallback secret in test mode", () => {
     delete process.env.TENANT_UPLOAD_SECRET;
+    process.env.NODE_ENV = "test";
+    const { makeReceipt } = loadTenantStorage();
+
+    const receipt = makeReceipt({
+      tenantId: "tenant-1",
+      operatorId: "operator-1",
+      objectPath: "tenant-1/uploads/operator-1/file.png",
+      expectedBytes: 1024,
+      contentType: "image/png",
+      slot: "hero",
+      folder: "uploads",
+    });
+
+    expect(typeof receipt).toBe("string");
+    expect(receipt.length).toBeGreaterThan(0);
+  });
+
+  test("receipt verification uses the deterministic fallback secret in test mode", () => {
+    delete process.env.TENANT_UPLOAD_SECRET;
+    process.env.NODE_ENV = "test";
+    const { makeReceipt, parseReceipt } = loadTenantStorage();
+    const receipt = makeReceipt({
+      tenantId: "tenant-1",
+      operatorId: "operator-1",
+      objectPath: "tenant-1/uploads/operator-1/file.png",
+      expectedBytes: 1024,
+      contentType: "image/png",
+      slot: "hero",
+      folder: "uploads",
+    });
+
+    const parsed = parseReceipt(receipt);
+
+    expect(parsed.tenantId).toBe("tenant-1");
+    expect(parsed.operatorId).toBe("operator-1");
+    expect(parsed.expectedBytes).toBe(1024);
+  });
+
+  test("receipt generation fails outside test mode when upload secret is missing", () => {
+    delete process.env.TENANT_UPLOAD_SECRET;
+    process.env.NODE_ENV = "production";
     const { makeReceipt } = loadTenantStorage();
 
     expect(() =>
@@ -41,8 +88,9 @@ describe("tenant-storage receipt signing", () => {
     ).toThrow(/signing secret is not configured/i);
   });
 
-  test("receipt verification fails when upload secret is missing", () => {
+  test("receipt verification fails outside test mode when upload secret is missing", () => {
     process.env.TENANT_UPLOAD_SECRET = "pltest-upload-secret";
+    process.env.NODE_ENV = "test";
     const { makeReceipt } = loadTenantStorage();
     const receipt = makeReceipt({
       tenantId: "tenant-1",
@@ -55,6 +103,7 @@ describe("tenant-storage receipt signing", () => {
     });
 
     delete process.env.TENANT_UPLOAD_SECRET;
+    process.env.NODE_ENV = "production";
     const { parseReceipt } = loadTenantStorage();
 
     expect(() => parseReceipt(receipt)).toThrow(/signing secret is not configured/i);

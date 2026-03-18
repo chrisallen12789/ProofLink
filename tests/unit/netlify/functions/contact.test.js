@@ -11,7 +11,9 @@ describe("netlify/functions/contact", () => {
     process.env.MAIL_FROM = "hello@example.com";
     process.env.MAIL_TO = "ops@example.com";
     process.env.PUBLIC_SITE_URL = "http://127.0.0.1:8888";
+    process.env.SITE_URL = "http://127.0.0.1:8888";
     process.env.URL = "http://127.0.0.1:8888";
+    process.env.DEPLOY_PRIME_URL = "";
     process.env.TURNSTILE_SECRET_KEY = "";
     process.env.ALLOW_LOCAL_TURNSTILE_BYPASS = "";
     process.env.ALLOW_LOCAL_EMAIL_SKIP = "";
@@ -23,11 +25,13 @@ describe("netlify/functions/contact", () => {
   });
 
   async function loadHandler() {
+    delete require.cache[handlerPath];
     return require(handlerPath).handler;
   }
 
   test("fails closed when TURNSTILE_SECRET_KEY is missing outside explicit local mode", async () => {
     process.env.PUBLIC_SITE_URL = "https://prooflink.co";
+    process.env.SITE_URL = "https://prooflink.co";
     process.env.URL = "https://prooflink.co";
 
     const handler = await loadHandler();
@@ -121,6 +125,7 @@ describe("netlify/functions/contact", () => {
     process.env.TURNSTILE_SECRET_KEY = "turnstile-secret";
     process.env.RESEND_API_KEY = "";
     process.env.PUBLIC_SITE_URL = "https://app.prooflink.test";
+    process.env.SITE_URL = "https://app.prooflink.test";
     process.env.URL = "https://app.prooflink.test";
     global.fetch.mockResolvedValueOnce({
       ok: true,
