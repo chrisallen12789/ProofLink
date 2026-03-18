@@ -7,6 +7,7 @@ on:
       - master
       - "codex/**"
   pull_request:
+  workflow_dispatch:
   schedule:
     - cron: "0 8 * * 1"
 
@@ -18,6 +19,7 @@ permissions:
 jobs:
   codeql:
     name: CodeQL
+    if: ${{ vars.ENABLE_CODEQL == 'true' || github.event.repository.private != true }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -35,3 +37,13 @@ jobs:
 
       - name: Perform CodeQL analysis
         uses: github/codeql-action/analyze@v3
+
+  codeql-skipped:
+    name: CodeQL Skipped
+    if: ${{ !(vars.ENABLE_CODEQL == 'true' || github.event.repository.private != true) }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Explain why CodeQL is skipped
+        run: |
+          echo "Skipping CodeQL because this repository is private and code scanning is not enabled."
+          echo "Enable GitHub code scanning / Advanced Security, then set the repository variable ENABLE_CODEQL=true to turn this workflow back on."
