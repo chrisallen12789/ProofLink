@@ -100,7 +100,8 @@ jobs:
 
       - name: Skip hosted suite on external pull requests without secrets
         if: ${{ steps.hosted_secrets.outputs.ready != 'true' && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
-        run: echo "Skipping hosted integration suite for external pull requests; missing secrets: ${{ steps.hosted_secrets.outputs.missing }}"
+        run: |
+          echo "Skipping hosted integration suite for external pull requests; missing secrets: ${{ steps.hosted_secrets.outputs.missing }}"
 
       - name: Setup Node
         if: ${{ steps.hosted_secrets.outputs.ready == 'true' }}
