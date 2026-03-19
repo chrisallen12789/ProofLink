@@ -746,6 +746,38 @@ input:focus, textarea:focus, select:focus{
   flex-wrap:wrap;
 }
 
+.bid-inline-create{
+  border:1px solid var(--border);
+  border-radius:18px;
+  padding:14px;
+  background:rgba(255,255,255,.03);
+}
+
+.bid-inline-create.is-open{
+  background:rgba(255,255,255,.05);
+}
+
+.bid-inline-create__top{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:14px;
+}
+
+.bid-inline-create__copy{
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  max-width:720px;
+}
+
+.bid-inline-create__fields{
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+  margin-top:14px;
+}
+
 .bid-stat{
   border:1px solid var(--border);
   border-radius:16px;
@@ -1188,6 +1220,7 @@ input:focus, textarea:focus, select:focus{
 .stat-copy{ color:var(--muted); font-size:13px; line-height:1.45; }
 @media (max-width: 920px){
   .status-kv{ grid-template-columns:1fr; }
+  .bid-inline-create__top{ flex-direction:column; }
 }
 
 

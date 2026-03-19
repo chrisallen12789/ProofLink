@@ -254,6 +254,7 @@
               <div class="panel-actions">
                 <input id="bidSearch" class="input" placeholder="Search bid..." />
                 <button id="btnNewBid" class="btn" type="button">New bid</button>
+                <button id="btnConvertBidToOrder" class="btn btn-primary" type="button">Create tracked order</button>
                 <button id="btnPrintBidProposal" class="btn btn-ghost" type="button">Print proposal</button>
               </div>
             </div>
@@ -339,6 +340,53 @@
                           <option value="contractor_remodeling">Contractor / remodeling</option>
                         </select>
                       </label>
+                    </div>
+
+                    <div id="bidQuickCustomerCard" class="bid-inline-create">
+                      <div class="bid-inline-create__top">
+                        <div class="bid-inline-create__copy">
+                          <strong id="bidQuickCustomerHeading">Need a customer record first?</strong>
+                          <div id="bidQuickCustomerSummary" class="muted">Capture the minimum here without leaving the walkthrough. You can enrich the full CRM record later.</div>
+                        </div>
+                        <button id="btnToggleBidQuickCustomer" class="btn btn-ghost" type="button">Create customer here</button>
+                      </div>
+
+                      <div id="bidQuickCustomerForm" class="bid-inline-create__fields hidden">
+                        <div class="grid three form-grid">
+                          <label>Customer name
+                            <input id="bidQuickCustomerName" placeholder="Pine Street HOA" />
+                          </label>
+
+                          <label>Email
+                            <input id="bidQuickCustomerEmail" type="email" placeholder="name@company.com" />
+                          </label>
+
+                          <label>Phone
+                            <input id="bidQuickCustomerPhone" type="tel" placeholder="(555) 555-5555" />
+                          </label>
+                        </div>
+
+                        <div class="grid two form-grid">
+                          <label>Preferred contact
+                            <select id="bidQuickCustomerPreferredContact">
+                              <option value="email">Email</option>
+                              <option value="phone">Phone</option>
+                              <option value="text">Text</option>
+                            </select>
+                          </label>
+
+                          <label>Operator note
+                            <textarea id="bidQuickCustomerNote" rows="2" placeholder="Decision maker, gate code, best callback time, or anything worth remembering."></textarea>
+                          </label>
+                        </div>
+
+                        <div class="row">
+                          <button id="btnSaveBidQuickCustomer" class="btn btn-primary" type="button">Save and link customer</button>
+                          <button id="btnCancelBidQuickCustomer" class="btn btn-ghost" type="button">Cancel</button>
+                        </div>
+                      </div>
+
+                      <div id="bidQuickCustomerMsg" class="msg"></div>
                     </div>
 
                     <div class="grid three form-grid">

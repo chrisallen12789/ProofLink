@@ -52,6 +52,7 @@ let ACTIVE_CUSTOMER_ID = null;
 let CUSTOMER_CREATING = false;
 let ACTIVE_PAYMENT_ID = null;
 let ACTIVE_BID_LINE_ITEM_ID = null;
+let BID_QUICK_CUSTOMER_OPEN = false;
 let DASHBOARD_PAYMENT_STATE = null;
 let DASHBOARD_LAUNCH_CHECKLIST = null;
 
@@ -145,6 +146,7 @@ const btnExportOrders = $("btnExportOrders");
 const btnImportBridgeOrders = $("btnImportBridgeOrders");
 const bidSearch = $("bidSearch");
 const btnNewBid = $("btnNewBid");
+const btnConvertBidToOrder = $("btnConvertBidToOrder");
 const btnPrintBidProposal = $("btnPrintBidProposal");
 const bidGuideFlow = $("bidGuideFlow");
 const bidsList = $("bidsList");
@@ -157,6 +159,19 @@ const bidMsg = $("bidMsg");
 const bidId = $("bidId");
 const bidTitle = $("bidTitle");
 const bidCustomerId = $("bidCustomerId");
+const bidQuickCustomerCard = $("bidQuickCustomerCard");
+const bidQuickCustomerHeading = $("bidQuickCustomerHeading");
+const bidQuickCustomerSummary = $("bidQuickCustomerSummary");
+const btnToggleBidQuickCustomer = $("btnToggleBidQuickCustomer");
+const bidQuickCustomerForm = $("bidQuickCustomerForm");
+const bidQuickCustomerName = $("bidQuickCustomerName");
+const bidQuickCustomerEmail = $("bidQuickCustomerEmail");
+const bidQuickCustomerPhone = $("bidQuickCustomerPhone");
+const bidQuickCustomerPreferredContact = $("bidQuickCustomerPreferredContact");
+const bidQuickCustomerNote = $("bidQuickCustomerNote");
+const btnSaveBidQuickCustomer = $("btnSaveBidQuickCustomer");
+const btnCancelBidQuickCustomer = $("btnCancelBidQuickCustomer");
+const bidQuickCustomerMsg = $("bidQuickCustomerMsg");
 const bidProfile = $("bidProfile");
 const bidStatus = $("bidStatus");
 const bidWalkthroughAt = $("bidWalkthroughAt");
@@ -3077,38 +3092,62 @@ function loadPaymentIntoForm(payment) {
   if (paymentNote) paymentNote.value = payment.metadata?.note || "";
   setInlineMessage(paymentMsg, "Editing a manual payment record.");
 }
+function customerInputPayload(fields = {}) {
+  const name = String(fields.name || "").trim();
+  const email = String(fields.email || "").trim();
+  const phone = String(fields.phone || "").trim();
+  return {
+    id: fields.id || null,
+    name: name || email || phone || "Customer",
+    email: email || null,
+    phone: phone || null,
+    preferred_contact: fields.preferred_contact || "email",
+    notes: String(fields.notes || "").trim(),
+  };
+}
+async function saveCustomerRecord(fields = {}) {
+  const input = customerInputPayload(fields);
+  const nowIso = new Date().toISOString();
+  const payload = withTenantScope({
+    operator_id: opId(),
+    name: input.name,
+    email: input.email,
+    phone: input.phone,
+    preferred_contact: input.preferred_contact,
+    notes: input.notes,
+    updated_at: nowIso,
+  });
+
+  const query = input.id
+    ? sb.from("customers").update(payload).eq("id", input.id).eq(OPERATOR_COLUMN, opId()).eq(TENANT_COLUMN, TENANT_ID)
+    : sb.from("customers").insert({ ...payload, created_at: nowIso });
+
+  const { data, error } = await query.select("*").single();
+  if (error) throw error;
+
+  CUSTOMER_CREATING = false;
+  ACTIVE_CUSTOMER_ID = data.id;
+  await fetchCustomers();
+  renderCustomersList(customerSearch?.value || "");
+  renderPayments();
+  renderDashboard();
+  renderMoney().catch(console.error);
+  return data;
+}
 customerForm?.addEventListener("submit", async (e) => {
   e.preventDefault();
   setInlineMessage(customerMsg, "Saving...");
 
-  const id = customerId?.value || null;
-  const nowIso = new Date().toISOString();
-  const payload = withTenantScope({
-    operator_id: opId(),
-    name: customerName?.value?.trim() || customerEmail?.value?.trim() || customerPhone?.value?.trim() || "Customer",
-    email: customerEmail?.value?.trim() || null,
-    phone: customerPhone?.value?.trim() || null,
-    preferred_contact: customerPreferredContact?.value || "email",
-    notes: customerNotes?.value?.trim() || "",
-    updated_at: nowIso,
-  });
-
   try {
-    const query = id
-      ? sb.from("customers").update(payload).eq("id", id).eq(OPERATOR_COLUMN, opId()).eq(TENANT_COLUMN, TENANT_ID)
-      : sb.from("customers").insert({ ...payload, created_at: nowIso });
-
-    const { data, error } = await query.select("*").single();
-    if (error) throw error;
-
-    CUSTOMER_CREATING = false;
-    ACTIVE_CUSTOMER_ID = data.id;
+    await saveCustomerRecord({
+      id: customerId?.value || null,
+      name: customerName?.value,
+      email: customerEmail?.value,
+      phone: customerPhone?.value,
+      preferred_contact: customerPreferredContact?.value,
+      notes: customerNotes?.value,
+    });
     setInlineMessage(customerMsg, "Customer saved.", "ok");
-    await fetchCustomers();
-    renderCustomersList(customerSearch?.value || "");
-    renderPayments();
-    renderDashboard();
-    renderMoney().catch(console.error);
   } catch (err) {
     setInlineMessage(customerMsg, err.message || String(err), "error");
   }
@@ -3314,6 +3353,12 @@ function calculateBidTotals(bid) {
   const deposit = explicitDeposit > 0 ? explicitDeposit : percentDeposit;
   return { base, allowances, options, total, deposit };
 }
+function bidIncludedLineItemsForOrder(bid) {
+  return (bid?.line_items || []).filter((item) => String(item.kind || "base").toLowerCase() !== "option");
+}
+function bidOptionalLineItems(bid) {
+  return (bid?.line_items || []).filter((item) => String(item.kind || "").toLowerCase() === "option");
+}
 function escapeParagraphs(value) {
   const text = String(value || "").trim();
   return text ? escapeHtml(text).replace(/\n/g, "<br>") : "—";
@@ -3426,6 +3471,64 @@ function renderBidCustomerOptions(selected = "") {
     `<option value="">Link customer later</option>`,
     ...options.map((customer) => `<option value="${escapeAttr(customer.id)}" ${customer.id === selected ? "selected" : ""}>${escapeHtml(customer.name || "Unnamed customer")}</option>`),
   ].join("");
+}
+function clearBidQuickCustomerForm() {
+  if (bidQuickCustomerName) bidQuickCustomerName.value = "";
+  if (bidQuickCustomerEmail) bidQuickCustomerEmail.value = "";
+  if (bidQuickCustomerPhone) bidQuickCustomerPhone.value = "";
+  if (bidQuickCustomerPreferredContact) bidQuickCustomerPreferredContact.value = "email";
+  if (bidQuickCustomerNote) bidQuickCustomerNote.value = "";
+  setInlineMessage(bidQuickCustomerMsg, "");
+}
+function setBidQuickCustomerOpen(nextOpen, opts = {}) {
+  BID_QUICK_CUSTOMER_OPEN = !!nextOpen;
+  if (bidQuickCustomerCard) bidQuickCustomerCard.classList.toggle("is-open", BID_QUICK_CUSTOMER_OPEN);
+  if (bidQuickCustomerForm) bidQuickCustomerForm.classList.toggle("hidden", !BID_QUICK_CUSTOMER_OPEN);
+  if (!BID_QUICK_CUSTOMER_OPEN && opts.keepValues !== true) clearBidQuickCustomerForm();
+}
+function renderBidQuickCustomerCard(draft) {
+  if (!bidQuickCustomerCard) return;
+  const linkedCustomer = findBidCustomer(draft?.customer_id || "");
+  const hasCustomers = CUSTOMERS_CACHE.length > 0;
+  const forceOpen = !linkedCustomer && !hasCustomers;
+  const nextOpen = forceOpen || BID_QUICK_CUSTOMER_OPEN;
+
+  if (bidQuickCustomerHeading) {
+    bidQuickCustomerHeading.textContent = linkedCustomer
+      ? "Customer record linked"
+      : (!hasCustomers ? "No customers in CRM yet" : "Need a new customer?");
+  }
+  if (bidQuickCustomerSummary) {
+    bidQuickCustomerSummary.textContent = linkedCustomer
+      ? `${linkedCustomer.name || "This customer"} is attached to the bid. Create another customer here only if this walkthrough belongs to someone else.`
+      : (!hasCustomers
+          ? "Capture the first customer here without leaving the walkthrough. A name plus email or phone is enough to keep moving."
+          : "Link an existing customer above, or capture a brand-new one here without leaving the walkthrough.");
+  }
+  if (btnToggleBidQuickCustomer) {
+    btnToggleBidQuickCustomer.textContent = forceOpen
+      ? "Customer details below"
+      : (nextOpen ? "Hide quick customer" : "Create customer here");
+    btnToggleBidQuickCustomer.disabled = forceOpen;
+  }
+  setBidQuickCustomerOpen(nextOpen, { keepValues: true });
+}
+function attachCustomerToCurrentBid(customer) {
+  if (!customer?.id) return null;
+  const active = updateCurrentBidFromForm({ allowCreate: true }) || currentBid();
+  if (!active) return null;
+  const currentTitle = String(active.title || "").trim();
+  const previousDefaultTitle = defaultBidTitleFromDraft(active);
+  const nextDraft = {
+    ...active,
+    customer_id: customer.id,
+    updated_at: new Date().toISOString(),
+  };
+  if (!currentTitle || currentTitle === previousDefaultTitle) {
+    nextDraft.title = defaultBidTitleFromDraft(nextDraft);
+  }
+  replaceBidDraft(nextDraft);
+  return nextDraft;
 }
 function clearBidLineItemForm() {
   ACTIVE_BID_LINE_ITEM_ID = null;
@@ -3598,16 +3701,17 @@ function clearBidForm() {
 }
 function bidGuidedSteps(draft) {
   const totals = calculateBidTotals(draft || {});
-  const hasPricedBaseScope = (draft?.line_items || []).some((item) => String(item.kind || "base").toLowerCase() !== "option" && bidLineItemTotalCents(item) > 0);
+  const hasPricedBaseScope = bidIncludedLineItemsForOrder(draft).some((item) => bidLineItemTotalCents(item) > 0);
   const readyStatuses = ["ready_to_send", "sent", "approved"];
+  const hasCustomers = CUSTOMERS_CACHE.length > 0;
   return [
     {
       id: "client_site",
       title: "Anchor the bid to a real client and place",
       copy: "Link the customer record and add the service address so this proposal belongs to a real job, not just a note.",
       done: !!draft?.customer_id && !!String(draft?.service_address || "").trim(),
-      actionLabel: !draft?.customer_id ? "Link customer" : "Add address",
-      targetId: !draft?.customer_id ? "bidCustomerId" : "bidServiceAddress",
+      actionLabel: !draft?.customer_id ? (hasCustomers ? "Link customer" : "Create customer") : "Add address",
+      targetId: !draft?.customer_id ? (hasCustomers ? "bidCustomerId" : "btnToggleBidQuickCustomer") : "bidServiceAddress",
     },
     {
       id: "problem",
@@ -3641,6 +3745,14 @@ function bidGuidedSteps(draft) {
       actionLabel: !String(draft?.cover_note || "").trim() ? "Write delivery note" : (!String(draft?.valid_until || "").trim() ? "Set validity" : "Set ready status"),
       targetId: !String(draft?.cover_note || "").trim() ? "bidCoverNote" : (!String(draft?.valid_until || "").trim() ? "bidValidUntil" : "bidStatus"),
     },
+    {
+      id: "operations",
+      title: "Push the bid into live work",
+      copy: "Once the proposal is real, convert it into a tracked order so the rest of the business can manage it without relying on memory.",
+      done: !!draft?.converted_order_id,
+      actionLabel: draft?.converted_order_id ? "Open order" : "Create tracked order",
+      targetId: "btnConvertBidToOrder",
+    },
   ];
 }
 function focusBidFieldForStep(step) {
@@ -3648,6 +3760,14 @@ function focusBidFieldForStep(step) {
   if (!targetId) return;
   const target = $(targetId);
   if (!target) return;
+  if (targetId === "btnToggleBidQuickCustomer") {
+    if (!BID_QUICK_CUSTOMER_OPEN) setBidQuickCustomerOpen(true, { keepValues: true });
+    renderBidQuickCustomerCard(currentBid());
+    target.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
+    if (typeof target.click === "function") target.click();
+    window.setTimeout(() => bidQuickCustomerName?.focus({ preventScroll: true }), 80);
+    return;
+  }
   target.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
   if (targetId === "bidPhotoFile") {
     try {
@@ -3771,6 +3891,10 @@ function renderBidStatsCard(draft) {
         <div class="bid-stat__label">Last saved</div>
         <div class="bid-stat__value" style="font-size:14px;">${escapeHtml(formatDateTime(draft.updated_at || draft.created_at))}</div>
       </div>
+      <div class="bid-stat">
+        <div class="bid-stat__label">Tracked order</div>
+        <div class="bid-stat__value" style="font-size:14px;">${escapeHtml(draft.converted_order_id ? "Created" : "Not yet")}</div>
+      </div>
     </div>
   `;
 }
@@ -3781,13 +3905,14 @@ function renderBidDeliveryCard(draft) {
     return;
   }
   const items = [];
-  if (!draft.customer_id) items.push("Link the bid to a customer record.");
+  if (!draft.customer_id) items.push(CUSTOMERS_CACHE.length ? "Link the bid to a customer record." : "Create the first customer record and link this bid to it.");
   if (!String(draft.service_address || "").trim()) items.push("Add the service address.");
   if (!String(draft.project_summary || "").trim()) items.push("Write the problem summary in plain English.");
-  if (!Array.isArray(draft.line_items) || !draft.line_items.length) items.push("Add at least one priced line item.");
+  if (!bidIncludedLineItemsForOrder(draft).some((item) => bidLineItemTotalCents(item) > 0)) items.push("Add at least one priced base-scope line item.");
   if (!Array.isArray(draft.photos) || !draft.photos.length) items.push("Capture walkthrough photos from the site.");
   if (!String(draft.cover_note || "").trim()) items.push("Write the client delivery note.");
   if (!String(draft.valid_until || "").trim()) items.push("Set the proposal validity window.");
+  if (!draft.converted_order_id) items.push("Convert the bid into tracked work when it is ready to move into operations.");
   bidDeliveryWrap.innerHTML = items.length
     ? `<ul class="bid-readiness-list">${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`
     : `<div class="note-item"><strong>Ready to deliver</strong><div class="muted">This draft has the essentials for a professional client proposal.</div></div>`;
@@ -3813,6 +3938,7 @@ function renderBidList(filter = "") {
         </div>
         <div class="li-meta">
           <span class="pill">${escapeHtml(formatBidStatus(row.status))}</span>
+          ${row.converted_order_id ? `<span class="pill pill-on">Tracked order</span>` : ""}
           <span class="pill">${formatUsd(totals.total)}</span>
         </div>
       </button>
@@ -3920,6 +4046,11 @@ function renderBidLineItems(draft) {
 function renderBidWorkspace(draft, opts = {}) {
   if (!draft) {
     clearBidForm();
+    if (btnConvertBidToOrder) {
+      btnConvertBidToOrder.textContent = "Create tracked order";
+      btnConvertBidToOrder.disabled = true;
+    }
+    renderBidQuickCustomerCard(null);
     renderBidGuideFlow(null);
     renderBidProfileGuideCard(null);
     renderBidStatsCard(null);
@@ -3930,6 +4061,12 @@ function renderBidWorkspace(draft, opts = {}) {
     return;
   }
   if (!opts.preserveForm) populateBidForm(draft);
+  if (btnConvertBidToOrder) {
+    const linkedOrder = currentBidOrder(draft);
+    btnConvertBidToOrder.disabled = false;
+    btnConvertBidToOrder.textContent = linkedOrder ? "Open tracked order" : "Create tracked order";
+  }
+  renderBidQuickCustomerCard(draft);
   renderBidGuideFlow(draft);
   renderBidProfileGuideCard(draft);
   renderBidStatsCard(draft);
@@ -4231,6 +4368,137 @@ function buildBidClientEmail(draft) {
     bidBrandContext().phone || null,
   ].filter(Boolean).join("\n");
 }
+function currentBidOrder(draft) {
+  if (!draft) return null;
+  return CRM_ORDERS_CACHE.find((row) => row.id === draft.converted_order_id)
+    || CRM_ORDERS_CACHE.find((row) => row.source_type === "walkthrough_bid" && row.source_ref === draft.id)
+    || null;
+}
+function buildOrderNotesFromBid(draft) {
+  const sections = [
+    draft.project_summary ? `Problem summary:\n${draft.project_summary}` : "",
+    draft.scope_of_work ? `Scope of work:\n${draft.scope_of_work}` : "",
+    draft.proposed_solution ? `Recommended solution:\n${draft.proposed_solution}` : "",
+    draft.materials_plan ? `Materials plan:\n${draft.materials_plan}` : "",
+    draft.unused_materials_plan ? `Unused / overage handling:\n${draft.unused_materials_plan}` : "",
+    draft.exclusions ? `Exclusions / assumptions:\n${draft.exclusions}` : "",
+    draft.terms ? `Commercial terms:\n${draft.terms}` : "",
+  ].filter(Boolean);
+  const optionalItems = bidOptionalLineItems(draft);
+  if (optionalItems.length) {
+    sections.push(`Optional add-ons:\n${optionalItems.map((item) => `- ${item.name}: ${formatUsd(bidLineItemTotalCents(item))}`).join("\n")}`);
+  }
+  if (draft.photos?.length) {
+    sections.push(`Walkthrough photo count: ${draft.photos.length}`);
+  }
+  return sections.join("\n\n");
+}
+async function existingOrderForBidId(bidIdValue) {
+  const { data, error } = await scopeQuery(sb
+    .from("orders")
+    .select("*"))
+    .eq("source_type", "walkthrough_bid")
+    .eq("source_ref", bidIdValue)
+    .limit(1);
+  if (error) throw error;
+  return Array.isArray(data) && data.length ? data[0] : null;
+}
+async function convertBidToTrackedOrder() {
+  const baseDraft = updateCurrentBidFromForm({ allowCreate: true }) || currentBid();
+  if (!baseDraft) throw new Error("Create a bid first.");
+  if (!baseDraft.customer_id) throw new Error("Link the bid to a customer before converting it into tracked work.");
+  const customer = findBidCustomer(baseDraft.customer_id);
+  if (!customer) throw new Error("The linked customer record could not be found. Refresh customers and try again.");
+
+  const existing = currentBidOrder(baseDraft) || await existingOrderForBidId(baseDraft.id);
+  if (existing) {
+    ACTIVE_ORDER_ID = existing.id;
+    const nextDraft = {
+      ...baseDraft,
+      converted_order_id: existing.id,
+      converted_at: baseDraft.converted_at || new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    replaceBidDraft(nextDraft);
+    await fetchCrmOrders();
+    renderOrders();
+    renderDashboard();
+    renderGuidance();
+    renderMoney().catch(console.error);
+    return { order: existing, draft: nextDraft, existed: true };
+  }
+
+  const items = bidIncludedLineItemsForOrder(baseDraft).map((item) => ({
+    name: item.name,
+    description: item.description || "",
+    quantity: Number(item.quantity || 0),
+    unit: item.unit || "job",
+    kind: item.kind || "base",
+    unitPriceCents: Number(item.unit_price_cents || 0),
+    totalCents: bidLineItemTotalCents(item),
+  }));
+  if (!items.length) throw new Error("Add at least one non-optional line item before converting the bid.");
+
+  const totals = calculateBidTotals(baseDraft);
+  const status = String(baseDraft.status || "").toLowerCase() === "approved" ? "confirmed" : "quoted";
+  const nowIso = new Date().toISOString();
+  const payload = withTenantScope({
+    operator_id: opId(),
+    customer_id: customer.id,
+    status,
+    fulfillment: "service",
+    scheduled_date: null,
+    scheduled_time: baseDraft.schedule_window || null,
+    items,
+    subtotal_cents: totals.total,
+    total_cents: totals.total,
+    estimated_total_cents: totals.total + totals.options,
+    item_count: items.length,
+    unpriced_count: items.filter((item) => !Number(item.unitPriceCents || 0)).length,
+    cart_summary: baseDraft.project_summary || baseDraft.title || "",
+    notes: buildOrderNotesFromBid(baseDraft),
+    customer_name: customer.name || "",
+    email: customer.email || null,
+    phone: customer.phone || null,
+    preferred_contact: customer.preferred_contact || "email",
+    source_type: "walkthrough_bid",
+    source_ref: baseDraft.id,
+    created_at: nowIso,
+    updated_at: nowIso,
+  });
+  const { data, error } = await sb.from("orders").insert(payload).select("*").single();
+  if (error) throw error;
+
+  await sb.from("customer_interactions").insert(withTenantScope({
+    operator_id: opId(),
+    customer_id: customer.id,
+    type: "bid_converted",
+    summary: `Converted walkthrough bid into tracked order for ${formatUsd(totals.total)}`,
+    metadata: {
+      bid_id: baseDraft.id,
+      order_id: data.id,
+      status,
+      service_address: baseDraft.service_address || null,
+    },
+    created_at: nowIso,
+  }));
+
+  ACTIVE_ORDER_ID = data.id;
+  const nextDraft = {
+    ...baseDraft,
+    converted_order_id: data.id,
+    converted_at: nowIso,
+    updated_at: nowIso,
+  };
+  replaceBidDraft(nextDraft);
+  await Promise.all([fetchCrmOrders(), fetchCustomers(), fetchPayments()]);
+  renderOrders();
+  renderCustomersList(customerSearch?.value || "");
+  renderDashboard();
+  renderGuidance();
+  renderMoney().catch(console.error);
+  return { order: data, draft: nextDraft, existed: false };
+}
 function fileToDataUrl(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -4263,6 +4531,72 @@ bidSearch?.addEventListener("input", () => renderBids(bidSearch.value, { preserv
 btnNewBid?.addEventListener("click", () => startNewBid(preferredBidProfile()));
 btnDuplicateBid?.addEventListener("click", () => duplicateCurrentBid());
 btnApplyBidProfile?.addEventListener("click", () => applyBidProfileStructure(false));
+btnToggleBidQuickCustomer?.addEventListener("click", () => {
+  setBidQuickCustomerOpen(!BID_QUICK_CUSTOMER_OPEN, { keepValues: BID_QUICK_CUSTOMER_OPEN });
+  renderBidQuickCustomerCard(currentBid());
+  if (BID_QUICK_CUSTOMER_OPEN) bidQuickCustomerName?.focus();
+});
+btnCancelBidQuickCustomer?.addEventListener("click", () => {
+  setBidQuickCustomerOpen(false);
+  renderBidQuickCustomerCard(currentBid());
+});
+btnSaveBidQuickCustomer?.addEventListener("click", async () => {
+  const active = updateCurrentBidFromForm({ allowCreate: true }) || currentBid();
+  if (!active) {
+    setInlineMessage(bidQuickCustomerMsg, "Create a bid first so there is something to link.", "error");
+    return;
+  }
+  const hasIdentity = [bidQuickCustomerName?.value, bidQuickCustomerEmail?.value, bidQuickCustomerPhone?.value]
+    .some((value) => String(value || "").trim());
+  if (!hasIdentity) {
+    setInlineMessage(bidQuickCustomerMsg, "Add at least a name, email, or phone so the customer record is usable.", "error");
+    bidQuickCustomerName?.focus();
+    return;
+  }
+
+  setInlineMessage(bidQuickCustomerMsg, "Saving and linking customer...");
+  try {
+    const customer = await saveCustomerRecord({
+      name: bidQuickCustomerName?.value,
+      email: bidQuickCustomerEmail?.value,
+      phone: bidQuickCustomerPhone?.value,
+      preferred_contact: bidQuickCustomerPreferredContact?.value,
+      notes: bidQuickCustomerNote?.value,
+    });
+    const nextDraft = attachCustomerToCurrentBid(customer) || currentBid();
+    setBidQuickCustomerOpen(false);
+    renderBids(bidSearch?.value || "");
+    setInlineMessage(bidMsg, `${customer.name || "Customer"} saved and linked to this bid.`, "ok");
+    if (nextDraft?.service_address) return;
+    bidServiceAddress?.focus();
+  } catch (err) {
+    setInlineMessage(bidQuickCustomerMsg, err.message || String(err), "error");
+  }
+});
+btnConvertBidToOrder?.addEventListener("click", async () => {
+  const draft = currentBid();
+  if (!draft) {
+    setInlineMessage(bidMsg, "Create a bid first so there is something to convert.", "error");
+    return;
+  }
+  const existing = currentBidOrder(draft);
+  if (existing) {
+    ACTIVE_ORDER_ID = existing.id;
+    switchTab("orders");
+    renderOrders();
+    return;
+  }
+  setInlineMessage(bidMsg, "Creating tracked order...");
+  try {
+    const result = await convertBidToTrackedOrder();
+    renderBids(bidSearch?.value || "", { preserveForm: true });
+    setInlineMessage(bidMsg, result.existed ? "Tracked order already existed. Opening Orders next." : "Tracked order created. Opening Orders next.", "ok");
+    switchTab("orders");
+    renderOrders();
+  } catch (err) {
+    setInlineMessage(bidMsg, err.message || String(err), "error");
+  }
+});
 bidForm?.addEventListener("submit", (e) => {
   e.preventDefault();
   const nextDraft = updateCurrentBidFromForm({ showMessage: true, allowCreate: true }) || startNewBid(preferredBidProfile());
@@ -4274,6 +4608,10 @@ bidForm?.addEventListener("submit", (e) => {
   el?.addEventListener("change", () => {
     scheduleBidAutosave();
     if (el === bidProfile) renderBidProfileGuideCard(collectBidFormDraft());
+    if (el === bidCustomerId) {
+      if (bidCustomerId?.value) setBidQuickCustomerOpen(false);
+      renderBidQuickCustomerCard(collectBidFormDraft());
+    }
   });
 });
 bidPhotoForm?.addEventListener("submit", async (e) => {
@@ -4505,6 +4843,7 @@ function renderDashboard() {
 function renderOrders() {
   if (!ordersList) return;
   const rows = Array.isArray(CRM_ORDERS_CACHE) ? CRM_ORDERS_CACHE : [];
+  const statusOptions = ["new", "quoted", "confirmed", "fulfilled", "completed", "paid", "cancelled"];
 
   if (!rows.length) {
     ordersList.innerHTML = `<div class="muted">No orders yet.</div>`;
@@ -4552,6 +4891,7 @@ function renderOrders() {
   const scheduledTime = active.scheduled_time || active.pickupWindow || "Not specified";
   const itemCount = Array.isArray(active.items) ? active.items.length : Number(active.item_count || active.itemCount || 0);
   const notesText = active.notes || active.cartSummary || "No extra notes provided.";
+  const sourceLabel = String(active.source_type || "storefront").replace(/_/g, " ");
 
   orderDetailWrap.innerHTML = `
     <div class="detail-card">
@@ -4568,6 +4908,7 @@ function renderOrders() {
       <div class="detail-copy">Scheduled date: ${escapeHtml(String(scheduledDate))}</div>
       <div class="detail-copy">Scheduled time: ${escapeHtml(String(scheduledTime))}</div>
       <div class="detail-copy">Items: ${escapeHtml(String(itemCount))}</div>
+      <div class="detail-copy">Source: ${escapeHtml(sourceLabel)}</div>
     </div>
 
     <div class="detail-card" style="margin-top:14px;">
@@ -4583,7 +4924,7 @@ function renderOrders() {
         <label class="field" style="flex:1;">
           <span>Status</span>
           <select id="orderStatusSelect">
-            ${["new", "confirmed", "fulfilled", "cancelled"].map((status) => `<option value="${status}" ${String(active.status || "new").toLowerCase() === status ? "selected" : ""}>${status}</option>`).join("")}
+            ${statusOptions.map((status) => `<option value="${status}" ${String(active.status || "new").toLowerCase() === status ? "selected" : ""}>${status}</option>`).join("")}
           </select>
         </label>
         <button id="btnSaveOrderStatus" class="btn btn-primary" type="button">Save status</button>
