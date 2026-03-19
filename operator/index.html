@@ -68,6 +68,7 @@
       <div class="nav" aria-label="Sections" data-tour="sidebar-nav">
         <button class="tab active" data-tab="dashboard" data-tour-tab="dashboard" type="button">Dashboard</button>
         <button class="tab" data-tab="orders" data-tour-tab="orders" type="button">Orders</button>
+        <button class="tab" data-tab="bids" data-tour-tab="bids" type="button">Walkthrough Bids</button>
         <button class="tab" data-tab="customers" data-tour-tab="customers" type="button">Customers</button>
         <button class="tab" data-tab="payments" data-tour-tab="payments" type="button">Payments</button>
         <button class="tab" data-tab="domains" data-tour-tab="domains" type="button">Domains</button>
@@ -240,6 +241,321 @@
                 <div class="card-bd">
                   <div id="orderDetailWrap" class="muted">Select an order to inspect it.</div>
                 </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel hidden" data-panel="bids">
+            <div class="panel-head">
+              <div>
+                <h2>Walkthrough Bids</h2>
+                <div class="muted">Build service bids from the field with walkthrough notes, camera photos, line items, and a polished client proposal.</div>
+              </div>
+              <div class="panel-actions">
+                <input id="bidSearch" class="input" placeholder="Search bid..." />
+                <button id="btnNewBid" class="btn" type="button">New bid</button>
+                <button id="btnPrintBidProposal" class="btn btn-ghost" type="button">Print proposal</button>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-hd">
+                <strong>Guided bid flow</strong>
+                <span class="muted">Simple enough to teach, strong enough to run.</span>
+              </div>
+              <div class="card-bd">
+                <div id="bidGuideFlow" class="muted">Start a bid to see the next-best action and guided workflow.</div>
+              </div>
+            </div>
+
+            <div class="grid three">
+              <div class="card">
+                <div class="card-hd">
+                  <strong>Service playbook</strong>
+                  <span class="muted">Profile-aware guidance</span>
+                </div>
+                <div class="card-bd">
+                  <div id="bidProfileGuide" class="muted">Choose a service profile to load walkthrough prompts.</div>
+                </div>
+              </div>
+
+              <div class="card">
+                <div class="card-hd">
+                  <strong>Bid posture</strong>
+                  <span class="muted">Draft health</span>
+                </div>
+                <div class="card-bd">
+                  <div id="bidStatsWrap" class="muted">No walkthrough bid selected yet.</div>
+                </div>
+              </div>
+
+              <div class="card">
+                <div class="card-hd">
+                  <strong>Delivery readiness</strong>
+                  <span class="muted">What is still missing</span>
+                </div>
+                <div class="card-bd">
+                  <div id="bidDeliveryWrap" class="muted">The proposal checklist will appear here once a draft is active.</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="grid two">
+              <div class="card">
+                <div class="card-hd">
+                  <strong>Bid pipeline</strong>
+                  <span class="muted">Saved locally in this browser, with photo assets uploaded when possible.</span>
+                </div>
+                <div class="card-bd">
+                  <div id="bidsList" class="list"></div>
+                </div>
+              </div>
+
+              <div class="card">
+                <div class="card-hd">
+                  <strong id="bidFormTitle">Walkthrough workspace</strong>
+                  <span class="muted">Capture the scope, job facts, commercial structure, and client-facing language.</span>
+                </div>
+                <div class="card-bd">
+                  <form id="bidForm" class="form">
+                    <input type="hidden" id="bidId" />
+
+                    <div class="grid three form-grid">
+                      <label>Bid title
+                        <input id="bidTitle" placeholder="Exterior wash at Pine Street" />
+                      </label>
+
+                      <label>Customer
+                        <select id="bidCustomerId"></select>
+                      </label>
+
+                      <label>Service profile
+                        <select id="bidProfile">
+                          <option value="general_service">General service</option>
+                          <option value="pressure_washing">Pressure washing</option>
+                          <option value="hvac">HVAC</option>
+                          <option value="plumbing">Plumbing</option>
+                          <option value="property_maintenance">Property maintenance</option>
+                          <option value="contractor_remodeling">Contractor / remodeling</option>
+                        </select>
+                      </label>
+                    </div>
+
+                    <div class="grid three form-grid">
+                      <label>Status
+                        <select id="bidStatus">
+                          <option value="draft">Draft</option>
+                          <option value="walkthrough_complete">Walkthrough complete</option>
+                          <option value="ready_to_send">Ready to send</option>
+                          <option value="sent">Sent to client</option>
+                          <option value="approved">Approved</option>
+                          <option value="declined">Declined</option>
+                        </select>
+                      </label>
+
+                      <label>Walkthrough date
+                        <input id="bidWalkthroughAt" type="datetime-local" />
+                      </label>
+
+                      <label>Valid until
+                        <input id="bidValidUntil" type="date" />
+                      </label>
+                    </div>
+
+                    <label>Service address
+                      <input id="bidServiceAddress" placeholder="123 Main Street, City, State" />
+                    </label>
+
+                    <div class="grid two form-grid">
+                      <label>Site contact
+                        <input id="bidSiteContact" placeholder="Decision maker, tenant, or on-site contact" />
+                      </label>
+
+                      <label>Preferred schedule window
+                        <input id="bidScheduleWindow" placeholder="Example: Tue-Fri, 8am-2pm" />
+                      </label>
+                    </div>
+
+                    <label>Project summary
+                      <textarea id="bidProjectSummary" rows="3" placeholder="What the customer needs solved and why they called."></textarea>
+                    </label>
+
+                    <div class="grid two form-grid">
+                      <label>Scope of work
+                        <textarea id="bidScopeOfWork" rows="5" placeholder="What is included in the base scope."></textarea>
+                      </label>
+
+                      <label>Recommended solution
+                        <textarea id="bidProposedSolution" rows="5" placeholder="How your team plans to solve the problem professionally."></textarea>
+                      </label>
+                    </div>
+
+                    <div class="grid two form-grid">
+                      <label>Materials plan
+                        <textarea id="bidMaterialsPlan" rows="4" placeholder="Materials, equipment, staging, or truck stock expected for this job."></textarea>
+                      </label>
+
+                      <label>Unused / overage handling
+                        <textarea id="bidUnusedMaterialsPlan" rows="4" placeholder="How leftover material, unused stock, or overages will be handled and tracked."></textarea>
+                      </label>
+                    </div>
+
+                    <div class="grid two form-grid">
+                      <label>Exclusions / assumptions
+                        <textarea id="bidExclusions" rows="4" placeholder="Anything intentionally not included, or site assumptions the price relies on."></textarea>
+                      </label>
+
+                      <label>Warranty / workmanship note
+                        <textarea id="bidWarranty" rows="4" placeholder="How the work is backed and what follow-up looks like."></textarea>
+                      </label>
+                    </div>
+
+                    <div class="grid two form-grid">
+                      <label>Client delivery note
+                        <textarea id="bidCoverNote" rows="4" placeholder="Short note that frames the proposal professionally for the client."></textarea>
+                      </label>
+
+                      <label>Internal operator notes
+                        <textarea id="bidInternalNotes" rows="4" placeholder="Internal reminders, labor concerns, job-cost notes, or red flags."></textarea>
+                      </label>
+                    </div>
+
+                    <div class="grid two form-grid">
+                      <label>Deposit percent
+                        <input id="bidDepositPercent" type="number" min="0" max="100" step="1" placeholder="0" />
+                      </label>
+
+                      <label>Deposit amount (USD)
+                        <input id="bidDepositAmount" type="number" min="0" step="0.01" placeholder="0.00" />
+                      </label>
+                    </div>
+
+                    <label>Commercial terms
+                      <textarea id="bidTerms" rows="4" placeholder="Payment timing, change-order rules, scheduling, and any approval terms."></textarea>
+                    </label>
+
+                    <div class="row">
+                      <button class="btn btn-primary" type="submit">Save bid</button>
+                      <button id="btnDuplicateBid" class="btn btn-ghost" type="button">Duplicate bid</button>
+                      <button id="btnApplyBidProfile" class="btn btn-ghost" type="button">Apply profile structure</button>
+                    </div>
+
+                    <div id="bidMsg" class="msg"></div>
+                  </form>
+                </div>
+              </div>
+            </div>
+
+            <div class="grid two">
+              <div class="card">
+                <div class="card-hd">
+                  <strong>Walkthrough photos</strong>
+                  <span class="muted">Capture with the camera, name each image, and preserve the field context.</span>
+                </div>
+                <div class="card-bd">
+                  <form id="bidPhotoForm" class="form">
+                    <label>Capture or upload photo
+                      <input id="bidPhotoFile" type="file" accept="image/*" capture="environment" />
+                    </label>
+
+                    <div class="grid two form-grid">
+                      <label>Photo name
+                        <input id="bidPhotoName" placeholder="Front elevation" />
+                      </label>
+
+                      <label>Photo category
+                        <select id="bidPhotoCategory">
+                          <option value="overview">Overview</option>
+                          <option value="concern">Concern</option>
+                          <option value="access">Access</option>
+                          <option value="materials">Materials</option>
+                          <option value="measurement">Measurement</option>
+                          <option value="finish">Finish detail</option>
+                        </select>
+                      </label>
+                    </div>
+
+                    <label>Photo note
+                      <textarea id="bidPhotoNote" rows="3" placeholder="What this photo proves, shows, or reminds the operator to price around."></textarea>
+                    </label>
+
+                    <div class="row">
+                      <button class="btn btn-primary" type="submit">Save photo</button>
+                    </div>
+
+                    <div id="bidPhotoMsg" class="msg"></div>
+                  </form>
+
+                  <div id="bidPhotosList" class="photo-grid" style="margin-top:16px;"></div>
+                </div>
+              </div>
+
+              <div class="card">
+                <div class="card-hd">
+                  <strong>Scope and pricing builder</strong>
+                  <span class="muted">Build the offer the client will actually receive.</span>
+                </div>
+                <div class="card-bd">
+                  <form id="bidLineItemForm" class="form">
+                    <input type="hidden" id="bidLineItemId" />
+
+                    <div class="grid two form-grid">
+                      <label>Line item
+                        <input id="bidLineItemName" placeholder="House wash" />
+                      </label>
+
+                      <label>Type
+                        <select id="bidLineItemKind">
+                          <option value="base">Base scope</option>
+                          <option value="option">Client option</option>
+                          <option value="allowance">Allowance</option>
+                        </select>
+                      </label>
+                    </div>
+
+                    <label>Description
+                      <textarea id="bidLineItemDescription" rows="3" placeholder="What this line covers, how it is measured, and any visible assumptions."></textarea>
+                    </label>
+
+                    <div class="grid three form-grid">
+                      <label>Quantity
+                        <input id="bidLineItemQuantity" type="number" min="0" step="0.01" value="1" />
+                      </label>
+
+                      <label>Unit
+                        <input id="bidLineItemUnit" placeholder="job, hour, sq ft" />
+                      </label>
+
+                      <label>Unit price (USD)
+                        <input id="bidLineItemUnitPrice" type="number" min="0" step="0.01" value="0.00" />
+                      </label>
+                    </div>
+
+                    <div class="row">
+                      <button class="btn btn-primary" type="submit">Save line item</button>
+                      <button id="btnClearBidLineItem" class="btn btn-ghost" type="button">Clear item</button>
+                    </div>
+
+                    <div id="bidLineItemMsg" class="msg"></div>
+                  </form>
+
+                  <div id="bidLineItemsList" class="list" style="margin-top:16px;"></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-hd">
+                <strong>Proposal preview</strong>
+                <span class="muted">Client-facing version with scope, pricing, photos, and next steps.</span>
+              </div>
+              <div class="card-bd">
+                <div class="row" style="margin-bottom:14px;">
+                  <button id="btnCopyBidEmail" class="btn btn-ghost" type="button">Copy client email</button>
+                  <button id="btnExportBidJson" class="btn btn-ghost" type="button">Export bid JSON</button>
+                </div>
+
+                <div id="bidProposalPreview" class="proposal-preview muted">Create a walkthrough bid or select one from the list to preview the proposal.</div>
               </div>
             </div>
           </section>

@@ -6,11 +6,7 @@
   var AUTO_STARTED = false;
 
   function isLoggedIn() {
-<<<<<<< HEAD
     var app = document.getElementById('viewApp');
-=======
-    const app = document.getElementById('viewApp');
->>>>>>> 16eea6c0f5a9409dd72cf5f924f250af6996ce89
     return !!sessionStorage.getItem('pl_op_token') || !!(app && !app.classList.contains('hidden'));
   }
 

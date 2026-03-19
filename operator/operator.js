@@ -36,6 +36,7 @@ let EXPENSES_CACHE = [];
 let CUSTOMERS_CACHE = [];
 let CRM_ORDERS_CACHE = [];
 let PAYMENTS_CACHE = [];
+let BIDS_CACHE = [];
 let PICK_PRODUCT_CATEGORIES = [];
 let PICK_EXPENSE_CATEGORIES = [];
 let PICK_VENDORS = [];
@@ -46,9 +47,11 @@ window.PROOFLINK_BOOT_READY = false;
 // Tracks which password-setup flow is active: "reset" | "first-time" | null
 let passwordSetupMode = null;
 let ACTIVE_ORDER_ID = null;
+let ACTIVE_BID_ID = null;
 let ACTIVE_CUSTOMER_ID = null;
 let CUSTOMER_CREATING = false;
 let ACTIVE_PAYMENT_ID = null;
+let ACTIVE_BID_LINE_ITEM_ID = null;
 let DASHBOARD_PAYMENT_STATE = null;
 let DASHBOARD_LAUNCH_CHECKLIST = null;
 
@@ -140,6 +143,62 @@ const orderDetailWrap = $("orderDetailWrap");
 const btnRefreshOrders = $("btnRefreshOrders");
 const btnExportOrders = $("btnExportOrders");
 const btnImportBridgeOrders = $("btnImportBridgeOrders");
+const bidSearch = $("bidSearch");
+const btnNewBid = $("btnNewBid");
+const btnPrintBidProposal = $("btnPrintBidProposal");
+const bidGuideFlow = $("bidGuideFlow");
+const bidsList = $("bidsList");
+const bidProfileGuide = $("bidProfileGuide");
+const bidStatsWrap = $("bidStatsWrap");
+const bidDeliveryWrap = $("bidDeliveryWrap");
+const bidForm = $("bidForm");
+const bidFormTitle = $("bidFormTitle");
+const bidMsg = $("bidMsg");
+const bidId = $("bidId");
+const bidTitle = $("bidTitle");
+const bidCustomerId = $("bidCustomerId");
+const bidProfile = $("bidProfile");
+const bidStatus = $("bidStatus");
+const bidWalkthroughAt = $("bidWalkthroughAt");
+const bidValidUntil = $("bidValidUntil");
+const bidServiceAddress = $("bidServiceAddress");
+const bidSiteContact = $("bidSiteContact");
+const bidScheduleWindow = $("bidScheduleWindow");
+const bidProjectSummary = $("bidProjectSummary");
+const bidScopeOfWork = $("bidScopeOfWork");
+const bidProposedSolution = $("bidProposedSolution");
+const bidMaterialsPlan = $("bidMaterialsPlan");
+const bidUnusedMaterialsPlan = $("bidUnusedMaterialsPlan");
+const bidExclusions = $("bidExclusions");
+const bidWarranty = $("bidWarranty");
+const bidCoverNote = $("bidCoverNote");
+const bidInternalNotes = $("bidInternalNotes");
+const bidDepositPercent = $("bidDepositPercent");
+const bidDepositAmount = $("bidDepositAmount");
+const bidTerms = $("bidTerms");
+const btnDuplicateBid = $("btnDuplicateBid");
+const btnApplyBidProfile = $("btnApplyBidProfile");
+const bidPhotoForm = $("bidPhotoForm");
+const bidPhotoFile = $("bidPhotoFile");
+const bidPhotoName = $("bidPhotoName");
+const bidPhotoCategory = $("bidPhotoCategory");
+const bidPhotoNote = $("bidPhotoNote");
+const bidPhotoMsg = $("bidPhotoMsg");
+const bidPhotosList = $("bidPhotosList");
+const bidLineItemForm = $("bidLineItemForm");
+const bidLineItemId = $("bidLineItemId");
+const bidLineItemName = $("bidLineItemName");
+const bidLineItemKind = $("bidLineItemKind");
+const bidLineItemDescription = $("bidLineItemDescription");
+const bidLineItemQuantity = $("bidLineItemQuantity");
+const bidLineItemUnit = $("bidLineItemUnit");
+const bidLineItemUnitPrice = $("bidLineItemUnitPrice");
+const btnClearBidLineItem = $("btnClearBidLineItem");
+const bidLineItemMsg = $("bidLineItemMsg");
+const bidLineItemsList = $("bidLineItemsList");
+const btnCopyBidEmail = $("btnCopyBidEmail");
+const btnExportBidJson = $("btnExportBidJson");
+const bidProposalPreview = $("bidProposalPreview");
 const guidanceWrap = $("guidanceWrap");
 const btnRefreshGuidance = $("btnRefreshGuidance");
 
@@ -265,6 +324,176 @@ const forgotEmail        = $("forgotEmail");
 const btnSendReset       = $("btnSendReset");
 const btnBackToLogin     = $("btnBackToLogin");
 const forgotMsg          = $("forgotMsg");
+
+const BID_PROFILE_LIBRARY = {
+  general_service: {
+    label: "General service",
+    intro: "For field-service businesses that need a clean walkthrough, clear scope, and a professional proposal without retail-style inventory clutter.",
+    scopePrompt: "Document the visible problem, the service area, access notes, and the exact result the customer expects when the work is complete.",
+    solutionPrompt: "Spell out the service approach, the crew plan, and anything that protects quality, safety, or scheduling on site.",
+    photoPrompts: [
+      "Wide shot of the overall work area",
+      "Close-up of the main issue or concern",
+      "Access points, gate codes, hose or power access",
+      "Measurements, counts, or labeled equipment",
+    ],
+    pricingPrompts: [
+      "Base service scope",
+      "Allowance for unknowns or site-specific extras",
+      "Optional add-on work the customer may approve",
+    ],
+    lineItems: [
+      { name: "On-site walkthrough and planning", description: "Measurements, site review, and production planning built from the visit.", quantity: 1, unit: "visit", unit_price_cents: 0, kind: "allowance" },
+      { name: "Primary service scope", description: "Core labor and materials for the agreed work listed in this proposal.", quantity: 1, unit: "job", unit_price_cents: 0, kind: "base" },
+    ],
+    materials: "Materials and equipment are allocated from truck stock, shop inventory, or ordered supply based on the walkthrough record.",
+    unused: "Unused serviceable material is returned to storage, while waste and overage are tracked in job closeout notes.",
+    exclusions: "Hidden conditions, customer-requested additions, permit costs, and work outside the stated scope are excluded unless listed.",
+    warranty: "Workmanship is reviewed at completion and backed according to the service performed and the materials used.",
+    terms: "Pricing is based on the site conditions visible during the walkthrough. Extra work or hidden conditions require approval before additional charges are added.",
+    deliveryNote: "Here is the proposal built from our walkthrough. It shows the problem we saw, the scope we recommend, and how the work is priced.",
+  },
+  pressure_washing: {
+    label: "Pressure washing",
+    intro: "Built for exterior cleaning, stain treatment, soft-wash recommendations, and upsells that depend on what the operator sees on site.",
+    scopePrompt: "Document surfaces, approximate square footage, water access, stain severity, oxidation, and any delicate areas that require soft washing.",
+    solutionPrompt: "Specify detergents, surface prep, rinse method, protection steps, and whether nearby items need to be moved or masked.",
+    photoPrompts: [
+      "Front elevation and curb view",
+      "Heavy buildup, algae, rust, or oil staining",
+      "Water access and drainage path",
+      "Delicate surfaces, windows, fixtures, or landscaping",
+    ],
+    pricingPrompts: [
+      "House or building wash",
+      "Flatwork cleaning by section",
+      "Optional gutter brightening, rust removal, or sealing",
+    ],
+    lineItems: [
+      { name: "Exterior wash", description: "Primary wash scope priced from the visible surfaces and access conditions captured on site.", quantity: 1, unit: "job", unit_price_cents: 0, kind: "base" },
+      { name: "Spot treatment / stain removal", description: "Allowance for targeted treatment where buildup or staining requires additional chemistry or passes.", quantity: 1, unit: "allowance", unit_price_cents: 0, kind: "allowance" },
+      { name: "Optional surface protection", description: "Optional add-on for sealing or post-cleaning protection if approved by the client.", quantity: 1, unit: "option", unit_price_cents: 0, kind: "option" },
+    ],
+    materials: "Chemistry, hoses, reels, and protection materials are staged based on the site conditions documented in the walkthrough.",
+    unused: "Unused chemical and serviceable materials are returned to truck or shop stock; unusable waste is documented during closeout.",
+    exclusions: "Deep restoration, paint correction, or repairs outside the cleaning scope are excluded unless listed as an option.",
+    warranty: "Cleaning results are reviewed with the customer at completion. Permanent staining or substrate damage outside the cleaning scope is not covered.",
+    terms: "Pricing assumes standard access, available water, and no hidden substrate failure. Additional treatment outside the listed scope requires approval.",
+    deliveryNote: "Attached is the wash proposal from the site visit, including the visible buildup we saw, the recommended cleaning approach, and the investment.",
+  },
+  hvac: {
+    label: "HVAC",
+    intro: "Designed for diagnostics, equipment replacements, maintenance agreements, and code-sensitive service bids where the proposal must inspire trust.",
+    scopePrompt: "Capture equipment type, model details, visible condition, performance symptoms, access constraints, and any urgent comfort or safety issues.",
+    solutionPrompt: "Explain the diagnostic finding, the recommended repair or replacement path, and what labor, parts, startup, or testing are included.",
+    photoPrompts: [
+      "Equipment overview with labels or model tags",
+      "Area of failure, wear, or restricted access",
+      "Duct, drain, line set, or thermostat conditions",
+      "Electrical disconnect, pad, or mounting details",
+    ],
+    pricingPrompts: [
+      "Diagnostic and repair labor",
+      "Parts or equipment allowance",
+      "Optional maintenance plan or IAQ upgrade",
+    ],
+    lineItems: [
+      { name: "Diagnostic and service labor", description: "Labor to diagnose, perform the listed repair, verify operation, and document results.", quantity: 1, unit: "job", unit_price_cents: 0, kind: "base" },
+      { name: "Parts / equipment allowance", description: "Allowance for confirmed materials, specialty parts, or code-required accessories.", quantity: 1, unit: "allowance", unit_price_cents: 0, kind: "allowance" },
+      { name: "Maintenance or IAQ upgrade", description: "Optional add-on that improves equipment life or indoor air quality if the client wants to proceed.", quantity: 1, unit: "option", unit_price_cents: 0, kind: "option" },
+    ],
+    materials: "Parts, pads, fittings, and standard install materials are allocated from stocked inventory or ordered once scope is approved.",
+    unused: "Unused serviceable parts remain tagged to the job record before being returned to stock for future service work.",
+    exclusions: "Permit fees, structural modifications, hidden code issues, and additional duct or electrical work are excluded unless listed.",
+    warranty: "Workmanship follows the installed scope, and manufacturer warranties apply to covered parts or equipment where available.",
+    terms: "Proposal pricing is based on the visible equipment and accessible conditions during the walkthrough. Hidden failures or code issues require change approval.",
+    deliveryNote: "This proposal lays out the HVAC findings from the walkthrough, the recommended solution, and the investment needed to complete the work properly.",
+  },
+  plumbing: {
+    label: "Plumbing",
+    intro: "Built for leak repair, fixture replacement, drain work, and service proposals where visible conditions and access drive the price.",
+    scopePrompt: "Document fixture type, leak location, shutoff access, visible damage, material type, and whether finish repair or restoration is needed.",
+    solutionPrompt: "Describe the repair or replacement path, what is included in the service visit, and what conditions could trigger a change order.",
+    photoPrompts: [
+      "Fixture or affected plumbing area",
+      "Visible leak, corrosion, or water damage",
+      "Access panel, shutoff, or crawlspace conditions",
+      "Finish surfaces that may need protection or follow-up",
+    ],
+    pricingPrompts: [
+      "Repair or replacement labor",
+      "Material and fixture allowance",
+      "Optional restoration or upgrade work",
+    ],
+    lineItems: [
+      { name: "Plumbing repair scope", description: "Labor and standard tools needed to complete the listed repair or replacement scope.", quantity: 1, unit: "job", unit_price_cents: 0, kind: "base" },
+      { name: "Material / fixture allowance", description: "Allowance for valves, fittings, trim, or owner-selected fixtures tied to this repair.", quantity: 1, unit: "allowance", unit_price_cents: 0, kind: "allowance" },
+      { name: "Optional finish restoration", description: "Optional add-on for patching, trim, or secondary restoration that may be approved separately.", quantity: 1, unit: "option", unit_price_cents: 0, kind: "option" },
+    ],
+    materials: "Repair materials are staged from truck stock or purchased supply based on the service conditions observed during the visit.",
+    unused: "Unused fittings, trim kits, or stocked materials are returned to inventory and noted against the job if they were reserved for this work.",
+    exclusions: "Hidden damage, restoration outside the listed scope, permit costs, and code upgrades not visible during the walkthrough are excluded.",
+    warranty: "Completed plumbing work is reviewed with the client, and workmanship is backed according to the repair or installation completed.",
+    terms: "Pricing assumes shutoff access and visible service conditions match the walkthrough. Hidden failures or added restoration require approval.",
+    deliveryNote: "Attached is the plumbing proposal from our visit, including the visible conditions we documented and the scope we recommend to fix the issue cleanly.",
+  },
+  property_maintenance: {
+    label: "Property maintenance",
+    intro: "For recurring grounds work, turnovers, repair punch lists, and mixed-scope site visits where the operator needs flexible documentation.",
+    scopePrompt: "Capture the full punch list, access notes, property manager expectations, recurring needs, and any task that should be priced separately.",
+    solutionPrompt: "Break the site into work zones or task groups so the client can see what is included now, later, or as an optional add-on.",
+    photoPrompts: [
+      "Wide shots of each work zone",
+      "Deferred maintenance concerns",
+      "Access points, locks, or tenant constraints",
+      "Debris, storage, or leftover materials on site",
+    ],
+    pricingPrompts: [
+      "Core maintenance scope",
+      "Debris haul-off or consumables allowance",
+      "Optional recurring visits or add-on repairs",
+    ],
+    lineItems: [
+      { name: "Core maintenance scope", description: "Labor and routine materials for the listed maintenance tasks or turnover work.", quantity: 1, unit: "job", unit_price_cents: 0, kind: "base" },
+      { name: "Consumables / haul-off allowance", description: "Allowance for dump fees, consumables, or site-specific extras that depend on final quantities.", quantity: 1, unit: "allowance", unit_price_cents: 0, kind: "allowance" },
+      { name: "Optional recurring service", description: "Optional ongoing visit schedule or extra punch-list work if the client wants a larger maintenance plan.", quantity: 1, unit: "option", unit_price_cents: 0, kind: "option" },
+    ],
+    materials: "Consumables, truck stock, and site-specific materials are planned from the walkthrough record and assigned to this property scope.",
+    unused: "Unused materials are returned to shop or truck stock, while leftover site material stays documented so it can be reused or billed correctly later.",
+    exclusions: "Structural repairs, permit work, hidden code issues, and trade-specific specialty work are excluded unless listed.",
+    warranty: "Workmanship is reviewed by task type. Recurring maintenance outcomes depend on the ongoing service cadence approved by the client.",
+    terms: "Pricing reflects the visible site conditions at the walkthrough. New tenant requests, hidden issues, or scope expansion require approval.",
+    deliveryNote: "Here is the property maintenance proposal from the walkthrough, including the active punch list, recommended sequencing, and the investment.",
+  },
+  contractor_remodeling: {
+    label: "Contractor / remodeling",
+    intro: "For renovation, carpentry, finish work, and mixed-scope projects where the bid must balance professionalism, allowances, and change-order discipline.",
+    scopePrompt: "Capture the rooms or zones involved, measurements, finish selections, demolition constraints, and any owner decisions still pending.",
+    solutionPrompt: "Explain the construction sequence, who handles what, and where allowances or change-order controls protect both sides.",
+    photoPrompts: [
+      "Overall room or project zone",
+      "Existing conditions that affect prep or demo",
+      "Measurements, fixture locations, and utilities",
+      "Finish details the client wants matched or replaced",
+    ],
+    pricingPrompts: [
+      "Base labor and installation scope",
+      "Allowance for owner-selected materials or hidden conditions",
+      "Optional upgrades or alternates",
+    ],
+    lineItems: [
+      { name: "Base construction scope", description: "Labor, setup, and standard install work tied to the listed remodeling scope.", quantity: 1, unit: "job", unit_price_cents: 0, kind: "base" },
+      { name: "Material / hidden-condition allowance", description: "Allowance for owner selections, concealed conditions, or site-specific materials not finalized yet.", quantity: 1, unit: "allowance", unit_price_cents: 0, kind: "allowance" },
+      { name: "Optional upgrade or alternate", description: "Optional scope the client can approve separately without rewriting the whole bid.", quantity: 1, unit: "option", unit_price_cents: 0, kind: "option" },
+    ],
+    materials: "Primary materials are staged from approved selections and tracked against the job so usage and overage stay visible.",
+    unused: "Unused materials that remain in good condition are inventoried back into storage or tagged to the client for future approved work.",
+    exclusions: "Permit fees, structural engineering, unforeseen concealed conditions, and client-requested scope additions are excluded unless listed.",
+    warranty: "Workmanship is backed according to the trade scope completed, with manufacturer warranties applying where materials provide them.",
+    terms: "Pricing is based on visible site conditions, current selections, and the listed scope. Any added work or concealed issues move through a change-order approval step.",
+    deliveryNote: "Attached is the remodeling proposal built from our walkthrough, with the visible conditions, recommended scope, and commercial structure laid out clearly.",
+  },
+};
 
 function escapeHtml(str) {
   return String(str ?? "").replace(/[&<>"']/g, (s) => ({
@@ -612,6 +841,7 @@ function switchTab(tab, opts = {}) {
   if (nextTab === "money") renderMoney().catch(console.error);
   if (nextTab === "dashboard") renderDashboard();
   if (nextTab === "orders") renderOrders();
+  if (nextTab === "bids") renderBids(bidSearch?.value || "");
   if (nextTab === "customers") renderCustomersList(customerSearch?.value || "");
   if (nextTab === "payments") renderPayments();
   if (nextTab === "setup") fetchOperatorSetup().catch((err) => setSetupMessage(err.message || String(err), "bad"));
@@ -3008,6 +3238,1160 @@ paymentForm?.addEventListener("submit", async (e) => {
   }
 });
 
+function normalizeBidProfile(value) {
+  const key = String(value || "").trim().toLowerCase();
+  return BID_PROFILE_LIBRARY[key] ? key : "general_service";
+}
+function preferredBidProfile() {
+  const raw = String(
+    SETUP_STATE?.locked_record?.business_type ||
+    SETUP_STATE?.tenant?.business_type ||
+    SETUP_STATE?.config?.business_type ||
+    ""
+  ).trim().toLowerCase();
+  const map = {
+    contractor: "contractor_remodeling",
+    contractor_remodeling: "contractor_remodeling",
+    pressure_washing: "pressure_washing",
+    hvac: "hvac",
+    plumbing: "plumbing",
+    property_maintenance: "property_maintenance",
+  };
+  return map[raw] || "general_service";
+}
+function bidStorageKey() {
+  return `prooflink.walkthrough-bids.v1:${TENANT_ID}:${CURRENT_OPERATOR?.operator_id || "anon"}`;
+}
+function createLocalId(prefix = "id") {
+  return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
+function cloneJson(value, fallback) {
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch (_) {
+    return fallback;
+  }
+}
+function bidProfileConfig(profileKey) {
+  return BID_PROFILE_LIBRARY[normalizeBidProfile(profileKey)];
+}
+function formatBidStatus(status) {
+  const labels = {
+    draft: "Draft",
+    walkthrough_complete: "Walkthrough complete",
+    ready_to_send: "Ready to send",
+    sent: "Sent to client",
+    approved: "Approved",
+    declined: "Declined",
+  };
+  return labels[String(status || "").trim().toLowerCase()] || (status ? String(status) : "Draft");
+}
+function formatBidLineItemKind(kind) {
+  const labels = {
+    base: "Base scope",
+    option: "Client option",
+    allowance: "Allowance",
+  };
+  return labels[String(kind || "").trim().toLowerCase()] || "Line item";
+}
+function bidLineItemTotalCents(item) {
+  return Math.round(Number(item?.quantity || 0) * Number(item?.unit_price_cents || 0));
+}
+function calculateBidTotals(bid) {
+  const rows = Array.isArray(bid?.line_items) ? bid.line_items : [];
+  const base = rows
+    .filter((item) => String(item.kind || "base").toLowerCase() === "base")
+    .reduce((sum, item) => sum + bidLineItemTotalCents(item), 0);
+  const allowances = rows
+    .filter((item) => String(item.kind || "").toLowerCase() === "allowance")
+    .reduce((sum, item) => sum + bidLineItemTotalCents(item), 0);
+  const options = rows
+    .filter((item) => String(item.kind || "").toLowerCase() === "option")
+    .reduce((sum, item) => sum + bidLineItemTotalCents(item), 0);
+  const total = base + allowances;
+  const explicitDeposit = Number(bid?.deposit_amount_cents || 0);
+  const percentDeposit = Math.round(total * (Number(bid?.deposit_percent || 0) / 100));
+  const deposit = explicitDeposit > 0 ? explicitDeposit : percentDeposit;
+  return { base, allowances, options, total, deposit };
+}
+function escapeParagraphs(value) {
+  const text = String(value || "").trim();
+  return text ? escapeHtml(text).replace(/\n/g, "<br>") : "—";
+}
+function findBidCustomer(customerIdValue) {
+  return CUSTOMERS_CACHE.find((row) => row.id === customerIdValue) || null;
+}
+function currentBid() {
+  if (!BIDS_CACHE.length) return null;
+  const active = BIDS_CACHE.find((row) => row.id === ACTIVE_BID_ID) || null;
+  if (active) return active;
+  ACTIVE_BID_ID = BIDS_CACHE[0].id;
+  return BIDS_CACHE[0];
+}
+function defaultBidTitleFromDraft(draft) {
+  const customer = findBidCustomer(draft?.customer_id);
+  const label = customer?.name || bidProfileConfig(draft?.profile).label;
+  const date = draft?.walkthrough_at ? formatDateOnly(draft.walkthrough_at) : formatDateOnly(new Date().toISOString());
+  return `${label} proposal - ${date}`;
+}
+function emptyBidDraft(profileKey = preferredBidProfile()) {
+  const profile = bidProfileConfig(profileKey);
+  const nowIso = new Date().toISOString();
+  const validUntil = new Date();
+  validUntil.setDate(validUntil.getDate() + 14);
+  return {
+    id: createLocalId("bid"),
+    title: "",
+    customer_id: "",
+    profile: normalizeBidProfile(profileKey),
+    status: "draft",
+    walkthrough_at: nowIso,
+    valid_until: validUntil.toISOString().slice(0, 10),
+    service_address: "",
+    site_contact: "",
+    schedule_window: "",
+    project_summary: "",
+    scope_of_work: profile.scopePrompt || "",
+    proposed_solution: profile.solutionPrompt || "",
+    materials_plan: profile.materials || "",
+    unused_materials_plan: profile.unused || "",
+    exclusions: profile.exclusions || "",
+    warranty: profile.warranty || "",
+    cover_note: profile.deliveryNote || "",
+    internal_notes: "",
+    deposit_percent: 0,
+    deposit_amount_cents: 0,
+    terms: profile.terms || "",
+    line_items: (profile.lineItems || []).map((item) => ({
+      id: createLocalId("line"),
+      name: item.name || "",
+      description: item.description || "",
+      quantity: Number(item.quantity || 1),
+      unit: item.unit || "job",
+      unit_price_cents: Number(item.unit_price_cents || 0),
+      kind: String(item.kind || "base"),
+    })),
+    photos: [],
+    created_at: nowIso,
+    updated_at: nowIso,
+  };
+}
+function persistBidDrafts() {
+  try {
+    window.localStorage.setItem(bidStorageKey(), JSON.stringify(BIDS_CACHE || []));
+    return true;
+  } catch (err) {
+    setInlineMessage(bidMsg, err.message || "Bid drafts could not be saved in this browser.", "error");
+    return false;
+  }
+}
+function loadBidDrafts() {
+  try {
+    const raw = window.localStorage.getItem(bidStorageKey());
+    const parsed = raw ? JSON.parse(raw) : [];
+    BIDS_CACHE = Array.isArray(parsed) ? parsed : [];
+  } catch (_) {
+    BIDS_CACHE = [];
+  }
+  ACTIVE_BID_ID = BIDS_CACHE[0]?.id || null;
+}
+function replaceBidDraft(nextDraft) {
+  BIDS_CACHE = [...(BIDS_CACHE || []).filter((row) => row.id !== nextDraft.id), nextDraft]
+    .sort((a, b) => new Date(b.updated_at || 0).getTime() - new Date(a.updated_at || 0).getTime());
+  ACTIVE_BID_ID = nextDraft.id;
+  persistBidDrafts();
+  return nextDraft;
+}
+function sortedBids(filter = "") {
+  const needle = String(filter || "").trim().toLowerCase();
+  const rows = [...(BIDS_CACHE || [])].sort((a, b) => new Date(b.updated_at || 0).getTime() - new Date(a.updated_at || 0).getTime());
+  if (!needle) return rows;
+  return rows.filter((row) => {
+    const customer = findBidCustomer(row.customer_id);
+    const haystack = [
+      row.title,
+      customer?.name,
+      row.service_address,
+      row.status,
+      bidProfileConfig(row.profile).label,
+      row.project_summary,
+    ].join(" ").toLowerCase();
+    return haystack.includes(needle);
+  });
+}
+function renderBidCustomerOptions(selected = "") {
+  if (!bidCustomerId) return;
+  const options = sortedCustomers(CUSTOMERS_CACHE);
+  bidCustomerId.innerHTML = [
+    `<option value="">Link customer later</option>`,
+    ...options.map((customer) => `<option value="${escapeAttr(customer.id)}" ${customer.id === selected ? "selected" : ""}>${escapeHtml(customer.name || "Unnamed customer")}</option>`),
+  ].join("");
+}
+function clearBidLineItemForm() {
+  ACTIVE_BID_LINE_ITEM_ID = null;
+  if (bidLineItemId) bidLineItemId.value = "";
+  if (bidLineItemName) bidLineItemName.value = "";
+  if (bidLineItemKind) bidLineItemKind.value = "base";
+  if (bidLineItemDescription) bidLineItemDescription.value = "";
+  if (bidLineItemQuantity) bidLineItemQuantity.value = "1";
+  if (bidLineItemUnit) bidLineItemUnit.value = "job";
+  if (bidLineItemUnitPrice) bidLineItemUnitPrice.value = "0.00";
+  setInlineMessage(bidLineItemMsg, "");
+}
+function populateBidLineItemForm(item) {
+  ACTIVE_BID_LINE_ITEM_ID = item?.id || null;
+  if (bidLineItemId) bidLineItemId.value = item?.id || "";
+  if (bidLineItemName) bidLineItemName.value = item?.name || "";
+  if (bidLineItemKind) bidLineItemKind.value = String(item?.kind || "base");
+  if (bidLineItemDescription) bidLineItemDescription.value = item?.description || "";
+  if (bidLineItemQuantity) bidLineItemQuantity.value = String(item?.quantity ?? 1);
+  if (bidLineItemUnit) bidLineItemUnit.value = item?.unit || "job";
+  if (bidLineItemUnitPrice) bidLineItemUnitPrice.value = money(item?.unit_price_cents || 0);
+}
+function clearBidPhotoForm() {
+  if (bidPhotoFile) bidPhotoFile.value = "";
+  if (bidPhotoName) bidPhotoName.value = "";
+  if (bidPhotoCategory) bidPhotoCategory.value = "overview";
+  if (bidPhotoNote) bidPhotoNote.value = "";
+  setInlineMessage(bidPhotoMsg, "");
+}
+function collectBidFormDraft() {
+  const active = currentBid();
+  const profileKey = normalizeBidProfile(bidProfile?.value || active?.profile || preferredBidProfile());
+  const draft = {
+    ...(active || emptyBidDraft(profileKey)),
+    id: bidId?.value || active?.id || createLocalId("bid"),
+    title: bidTitle?.value?.trim() || "",
+    customer_id: bidCustomerId?.value || "",
+    profile: profileKey,
+    status: String(bidStatus?.value || "draft"),
+    walkthrough_at: toIsoDateTime(bidWalkthroughAt?.value) || active?.walkthrough_at || null,
+    valid_until: bidValidUntil?.value || "",
+    service_address: bidServiceAddress?.value?.trim() || "",
+    site_contact: bidSiteContact?.value?.trim() || "",
+    schedule_window: bidScheduleWindow?.value?.trim() || "",
+    project_summary: bidProjectSummary?.value?.trim() || "",
+    scope_of_work: bidScopeOfWork?.value?.trim() || "",
+    proposed_solution: bidProposedSolution?.value?.trim() || "",
+    materials_plan: bidMaterialsPlan?.value?.trim() || "",
+    unused_materials_plan: bidUnusedMaterialsPlan?.value?.trim() || "",
+    exclusions: bidExclusions?.value?.trim() || "",
+    warranty: bidWarranty?.value?.trim() || "",
+    cover_note: bidCoverNote?.value?.trim() || "",
+    internal_notes: bidInternalNotes?.value?.trim() || "",
+    deposit_percent: Number(bidDepositPercent?.value || 0),
+    deposit_amount_cents: toCents(bidDepositAmount?.value || 0),
+    terms: bidTerms?.value?.trim() || "",
+    line_items: cloneJson(active?.line_items || [], []),
+    photos: cloneJson(active?.photos || [], []),
+    updated_at: new Date().toISOString(),
+  };
+  if (!draft.title) draft.title = defaultBidTitleFromDraft(draft);
+  return draft;
+}
+function updateCurrentBidFromForm(opts = {}) {
+  const active = currentBid();
+  if (!active && opts.allowCreate !== true) return null;
+  const nextDraft = collectBidFormDraft();
+  replaceBidDraft(nextDraft);
+  if (opts.showMessage) setInlineMessage(bidMsg, "Bid saved.", "ok");
+  return nextDraft;
+}
+let bidAutosaveTimer = null;
+function scheduleBidAutosave() {
+  if (!currentBid()) return;
+  clearTimeout(bidAutosaveTimer);
+  bidAutosaveTimer = setTimeout(() => {
+    const nextDraft = updateCurrentBidFromForm();
+    if (nextDraft) renderBidWorkspace(nextDraft, { preserveForm: true });
+    renderBidList(bidSearch?.value || "");
+  }, 250);
+}
+function applyBidProfileStructure(force = false) {
+  const active = currentBid();
+  if (!active) return null;
+  const profile = bidProfileConfig(bidProfile?.value || active.profile);
+  const hasCustomLineItems = Array.isArray(active.line_items) && active.line_items.length > 0;
+  if (force && hasCustomLineItems && !window.confirm("Replace existing line items with the service-profile starter structure?")) {
+    return active;
+  }
+  const nextDraft = {
+    ...collectBidFormDraft(),
+    profile: normalizeBidProfile(bidProfile?.value || active.profile),
+    scope_of_work: force || !String(active.scope_of_work || "").trim() ? (profile.scopePrompt || "") : active.scope_of_work,
+    proposed_solution: force || !String(active.proposed_solution || "").trim() ? (profile.solutionPrompt || "") : active.proposed_solution,
+    materials_plan: force || !String(active.materials_plan || "").trim() ? (profile.materials || "") : active.materials_plan,
+    unused_materials_plan: force || !String(active.unused_materials_plan || "").trim() ? (profile.unused || "") : active.unused_materials_plan,
+    exclusions: force || !String(active.exclusions || "").trim() ? (profile.exclusions || "") : active.exclusions,
+    warranty: force || !String(active.warranty || "").trim() ? (profile.warranty || "") : active.warranty,
+    cover_note: force || !String(active.cover_note || "").trim() ? (profile.deliveryNote || "") : active.cover_note,
+    terms: force || !String(active.terms || "").trim() ? (profile.terms || "") : active.terms,
+    line_items: (force || !hasCustomLineItems)
+      ? (profile.lineItems || []).map((item) => ({
+          id: createLocalId("line"),
+          name: item.name || "",
+          description: item.description || "",
+          quantity: Number(item.quantity || 1),
+          unit: item.unit || "job",
+          unit_price_cents: Number(item.unit_price_cents || 0),
+          kind: String(item.kind || "base"),
+        }))
+      : cloneJson(active.line_items || [], []),
+    updated_at: new Date().toISOString(),
+  };
+  replaceBidDraft(nextDraft);
+  renderBids(bidSearch?.value || "");
+  setInlineMessage(bidMsg, "Service profile guidance applied.", "ok");
+  return nextDraft;
+}
+function populateBidForm(draft) {
+  renderBidCustomerOptions(draft?.customer_id || "");
+  if (bidId) bidId.value = draft?.id || "";
+  if (bidTitle) bidTitle.value = draft?.title || "";
+  if (bidProfile) bidProfile.value = normalizeBidProfile(draft?.profile);
+  if (bidStatus) bidStatus.value = String(draft?.status || "draft");
+  if (bidWalkthroughAt) bidWalkthroughAt.value = toDateTimeLocalValue(draft?.walkthrough_at);
+  if (bidValidUntil) bidValidUntil.value = draft?.valid_until || "";
+  if (bidServiceAddress) bidServiceAddress.value = draft?.service_address || "";
+  if (bidSiteContact) bidSiteContact.value = draft?.site_contact || "";
+  if (bidScheduleWindow) bidScheduleWindow.value = draft?.schedule_window || "";
+  if (bidProjectSummary) bidProjectSummary.value = draft?.project_summary || "";
+  if (bidScopeOfWork) bidScopeOfWork.value = draft?.scope_of_work || "";
+  if (bidProposedSolution) bidProposedSolution.value = draft?.proposed_solution || "";
+  if (bidMaterialsPlan) bidMaterialsPlan.value = draft?.materials_plan || "";
+  if (bidUnusedMaterialsPlan) bidUnusedMaterialsPlan.value = draft?.unused_materials_plan || "";
+  if (bidExclusions) bidExclusions.value = draft?.exclusions || "";
+  if (bidWarranty) bidWarranty.value = draft?.warranty || "";
+  if (bidCoverNote) bidCoverNote.value = draft?.cover_note || "";
+  if (bidInternalNotes) bidInternalNotes.value = draft?.internal_notes || "";
+  if (bidDepositPercent) bidDepositPercent.value = String(draft?.deposit_percent ?? 0);
+  if (bidDepositAmount) bidDepositAmount.value = money(draft?.deposit_amount_cents || 0);
+  if (bidTerms) bidTerms.value = draft?.terms || "";
+  if (bidFormTitle) bidFormTitle.textContent = draft?.title || "Walkthrough workspace";
+}
+function clearBidForm() {
+  renderBidCustomerOptions("");
+  if (bidId) bidId.value = "";
+  if (bidTitle) bidTitle.value = "";
+  if (bidProfile) bidProfile.value = preferredBidProfile();
+  if (bidStatus) bidStatus.value = "draft";
+  if (bidWalkthroughAt) bidWalkthroughAt.value = "";
+  if (bidValidUntil) bidValidUntil.value = "";
+  if (bidServiceAddress) bidServiceAddress.value = "";
+  if (bidSiteContact) bidSiteContact.value = "";
+  if (bidScheduleWindow) bidScheduleWindow.value = "";
+  if (bidProjectSummary) bidProjectSummary.value = "";
+  if (bidScopeOfWork) bidScopeOfWork.value = "";
+  if (bidProposedSolution) bidProposedSolution.value = "";
+  if (bidMaterialsPlan) bidMaterialsPlan.value = "";
+  if (bidUnusedMaterialsPlan) bidUnusedMaterialsPlan.value = "";
+  if (bidExclusions) bidExclusions.value = "";
+  if (bidWarranty) bidWarranty.value = "";
+  if (bidCoverNote) bidCoverNote.value = "";
+  if (bidInternalNotes) bidInternalNotes.value = "";
+  if (bidDepositPercent) bidDepositPercent.value = "0";
+  if (bidDepositAmount) bidDepositAmount.value = "0.00";
+  if (bidTerms) bidTerms.value = "";
+  if (bidFormTitle) bidFormTitle.textContent = "Walkthrough workspace";
+  clearBidLineItemForm();
+  clearBidPhotoForm();
+}
+function bidGuidedSteps(draft) {
+  const totals = calculateBidTotals(draft || {});
+  const hasPricedBaseScope = (draft?.line_items || []).some((item) => String(item.kind || "base").toLowerCase() !== "option" && bidLineItemTotalCents(item) > 0);
+  const readyStatuses = ["ready_to_send", "sent", "approved"];
+  return [
+    {
+      id: "client_site",
+      title: "Anchor the bid to a real client and place",
+      copy: "Link the customer record and add the service address so this proposal belongs to a real job, not just a note.",
+      done: !!draft?.customer_id && !!String(draft?.service_address || "").trim(),
+      actionLabel: !draft?.customer_id ? "Link customer" : "Add address",
+      targetId: !draft?.customer_id ? "bidCustomerId" : "bidServiceAddress",
+    },
+    {
+      id: "problem",
+      title: "Describe the problem in plain English",
+      copy: "Write what the customer needs solved, then make sure the base scope explains what is actually included.",
+      done: !!String(draft?.project_summary || "").trim() && !!String(draft?.scope_of_work || "").trim(),
+      actionLabel: !String(draft?.project_summary || "").trim() ? "Write summary" : "Review scope",
+      targetId: !String(draft?.project_summary || "").trim() ? "bidProjectSummary" : "bidScopeOfWork",
+    },
+    {
+      id: "pricing",
+      title: "Put real money on the scope",
+      copy: "A bid becomes usable when the line items carry actual pricing, not placeholders. Price the base work before polishing the proposal.",
+      done: hasPricedBaseScope && totals.total > 0,
+      actionLabel: "Price scope",
+      targetId: "bidLineItemUnitPrice",
+    },
+    {
+      id: "proof",
+      title: "Capture field proof",
+      copy: "Photos reduce memory errors, justify pricing, and give the client visible confidence in what you saw during the walkthrough.",
+      done: Array.isArray(draft?.photos) && draft.photos.length > 0,
+      actionLabel: "Add photo",
+      targetId: "bidPhotoFile",
+    },
+    {
+      id: "delivery",
+      title: "Package it so it is ready to send",
+      copy: "Finish the client note, confirm the validity window, and mark the bid ready so anyone on the team knows it can go out professionally.",
+      done: !!String(draft?.cover_note || "").trim() && !!String(draft?.valid_until || "").trim() && readyStatuses.includes(String(draft?.status || "").toLowerCase()),
+      actionLabel: !String(draft?.cover_note || "").trim() ? "Write delivery note" : (!String(draft?.valid_until || "").trim() ? "Set validity" : "Set ready status"),
+      targetId: !String(draft?.cover_note || "").trim() ? "bidCoverNote" : (!String(draft?.valid_until || "").trim() ? "bidValidUntil" : "bidStatus"),
+    },
+  ];
+}
+function focusBidFieldForStep(step) {
+  const targetId = step?.targetId;
+  if (!targetId) return;
+  const target = $(targetId);
+  if (!target) return;
+  target.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
+  if (targetId === "bidPhotoFile") {
+    try {
+      target.click();
+      return;
+    } catch (_) {
+      // Fall through to focus.
+    }
+  }
+  if (typeof target.focus === "function") target.focus({ preventScroll: true });
+}
+function renderBidGuideFlow(draft) {
+  if (!bidGuideFlow) return;
+  if (!draft) {
+    bidGuideFlow.innerHTML = `<div class="muted">Start a bid to see the next-best action and guided workflow.</div>`;
+    return;
+  }
+
+  const steps = bidGuidedSteps(draft);
+  const completed = steps.filter((step) => step.done).length;
+  const percent = Math.round((completed / steps.length) * 100);
+  const nextStep = steps.find((step) => !step.done) || null;
+
+  bidGuideFlow.innerHTML = `
+    <div class="bid-guide-flow">
+      <div class="bid-guide-flow__top">
+        <div class="bid-guide-flow__progress">
+          <strong>${completed}/${steps.length}</strong>
+          <span>guided steps complete</span>
+          <div class="bid-progress-bar"><span style="width:${percent}%;"></span></div>
+        </div>
+        <div class="bid-guide-flow__copy">
+          This bid follows a teach-through flow so an operator does not need to be naturally organized to build a strong proposal.
+          ${nextStep ? `<br><br><strong>Next best action:</strong> ${escapeHtml(nextStep.title)}.` : `<br><br><strong>Ready:</strong> this proposal has the core pieces in place and can move into delivery.`}
+        </div>
+        ${nextStep ? `<button class="btn btn-primary" type="button" data-bid-guide-next="${escapeAttr(nextStep.id)}">${escapeHtml(nextStep.actionLabel)}</button>` : `<span class="pill pill-on">Client-ready structure</span>`}
+      </div>
+      <div class="bid-step-list">
+        ${steps.map((step, index) => `
+          <div class="bid-step ${step.done ? "is-done" : ""}">
+            <div class="bid-step__left">
+              <div class="bid-step__num">${step.done ? "✓" : index + 1}</div>
+              <div>
+                <div class="bid-step__title">${escapeHtml(step.title)}</div>
+                <div class="bid-step__copy">${escapeHtml(step.copy)}</div>
+              </div>
+            </div>
+            <div class="bid-step__meta">
+              <span class="pill ${step.done ? "pill-on" : ""}">${step.done ? "Done" : "Pending"}</span>
+              <button class="btn btn-ghost btn-sm" type="button" data-bid-guide-step="${escapeAttr(step.id)}">${escapeHtml(step.done ? "Review" : step.actionLabel)}</button>
+            </div>
+          </div>
+        `).join("")}
+      </div>
+    </div>
+  `;
+
+  bidGuideFlow.querySelectorAll("[data-bid-guide-step]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const step = steps.find((entry) => entry.id === btn.getAttribute("data-bid-guide-step"));
+      if (step) focusBidFieldForStep(step);
+    });
+  });
+  bidGuideFlow.querySelectorAll("[data-bid-guide-next]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const step = steps.find((entry) => entry.id === btn.getAttribute("data-bid-guide-next"));
+      if (step) focusBidFieldForStep(step);
+    });
+  });
+}
+function renderBidProfileGuideCard(draft) {
+  if (!bidProfileGuide) return;
+  if (!draft) {
+    bidProfileGuide.innerHTML = `<div class="muted">Choose a service profile to load walkthrough prompts.</div>`;
+    return;
+  }
+  const profile = bidProfileConfig(draft.profile);
+  bidProfileGuide.innerHTML = `
+    <div class="bid-stack">
+      <div>
+        <div class="kicker">${escapeHtml(profile.label)}</div>
+        <div class="detail-copy">${escapeHtml(profile.intro)}</div>
+      </div>
+      <div>
+        <strong>What to capture</strong>
+        <ul class="bid-guide-list">
+          ${profile.photoPrompts.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
+        </ul>
+      </div>
+      <div>
+        <strong>How to price it</strong>
+        <ul class="bid-guide-list">
+          ${profile.pricingPrompts.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
+        </ul>
+      </div>
+    </div>
+  `;
+}
+function renderBidStatsCard(draft) {
+  if (!bidStatsWrap) return;
+  if (!draft) {
+    bidStatsWrap.innerHTML = `<div class="muted">No walkthrough bid selected yet.</div>`;
+    return;
+  }
+  const totals = calculateBidTotals(draft);
+  bidStatsWrap.innerHTML = `
+    <div class="bid-status-grid">
+      <div class="bid-stat">
+        <div class="bid-stat__label">Base investment</div>
+        <div class="bid-stat__value">${formatUsd(totals.total)}</div>
+      </div>
+      <div class="bid-stat">
+        <div class="bid-stat__label">Optional upsells</div>
+        <div class="bid-stat__value">${formatUsd(totals.options)}</div>
+      </div>
+      <div class="bid-stat">
+        <div class="bid-stat__label">Walkthrough photos</div>
+        <div class="bid-stat__value">${String(draft.photos?.length || 0)}</div>
+      </div>
+      <div class="bid-stat">
+        <div class="bid-stat__label">Last saved</div>
+        <div class="bid-stat__value" style="font-size:14px;">${escapeHtml(formatDateTime(draft.updated_at || draft.created_at))}</div>
+      </div>
+    </div>
+  `;
+}
+function renderBidDeliveryCard(draft) {
+  if (!bidDeliveryWrap) return;
+  if (!draft) {
+    bidDeliveryWrap.innerHTML = `<div class="muted">The proposal checklist will appear here once a draft is active.</div>`;
+    return;
+  }
+  const items = [];
+  if (!draft.customer_id) items.push("Link the bid to a customer record.");
+  if (!String(draft.service_address || "").trim()) items.push("Add the service address.");
+  if (!String(draft.project_summary || "").trim()) items.push("Write the problem summary in plain English.");
+  if (!Array.isArray(draft.line_items) || !draft.line_items.length) items.push("Add at least one priced line item.");
+  if (!Array.isArray(draft.photos) || !draft.photos.length) items.push("Capture walkthrough photos from the site.");
+  if (!String(draft.cover_note || "").trim()) items.push("Write the client delivery note.");
+  if (!String(draft.valid_until || "").trim()) items.push("Set the proposal validity window.");
+  bidDeliveryWrap.innerHTML = items.length
+    ? `<ul class="bid-readiness-list">${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`
+    : `<div class="note-item"><strong>Ready to deliver</strong><div class="muted">This draft has the essentials for a professional client proposal.</div></div>`;
+}
+function renderBidList(filter = "") {
+  if (!bidsList) return;
+  const rows = sortedBids(filter);
+  if (!rows.length) {
+    bidsList.innerHTML = `<div class="muted">${BIDS_CACHE.length ? "No walkthrough bids match this search." : "No walkthrough bids yet. Click New bid to start the first one."}</div>`;
+    if (!BIDS_CACHE.length) ACTIVE_BID_ID = null;
+    return;
+  }
+  if (!rows.find((row) => row.id === ACTIVE_BID_ID)) ACTIVE_BID_ID = rows[0].id;
+  bidsList.innerHTML = rows.map((row) => {
+    const customer = findBidCustomer(row.customer_id);
+    const totals = calculateBidTotals(row);
+    return `
+      <button type="button" class="list-item ${row.id === ACTIVE_BID_ID ? "is-active" : ""}" data-bid-id="${escapeAttr(row.id)}">
+        <div class="li-main">
+          <div class="li-title">${escapeHtml(row.title || defaultBidTitleFromDraft(row))}</div>
+          <div class="li-sub muted">${escapeHtml(customer?.name || "Unlinked customer")} &middot; ${escapeHtml(bidProfileConfig(row.profile).label)}</div>
+          <div class="li-sub muted">${escapeHtml(row.service_address || "No service address")} &middot; ${escapeHtml(formatDateTime(row.updated_at || row.created_at))}</div>
+        </div>
+        <div class="li-meta">
+          <span class="pill">${escapeHtml(formatBidStatus(row.status))}</span>
+          <span class="pill">${formatUsd(totals.total)}</span>
+        </div>
+      </button>
+    `;
+  }).join("");
+  bidsList.querySelectorAll("[data-bid-id]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      ACTIVE_BID_ID = btn.getAttribute("data-bid-id");
+      renderBids(bidSearch?.value || "");
+    });
+  });
+}
+function renderBidPhotos(draft) {
+  if (!bidPhotosList) return;
+  const photos = Array.isArray(draft?.photos) ? draft.photos : [];
+  if (!photos.length) {
+    bidPhotosList.innerHTML = `<div class="muted">No walkthrough photos saved yet.</div>`;
+    return;
+  }
+  bidPhotosList.innerHTML = photos.map((photo) => `
+    <div class="photo-card">
+      <img src="${escapeAttr(photo.url || "")}" alt="${escapeAttr(photo.name || "Walkthrough photo")}" />
+      <div class="photo-card__body">
+        <div class="row" style="justify-content:space-between;">
+          <div class="photo-card__title">${escapeHtml(photo.name || "Walkthrough photo")}</div>
+          <span class="pill">${escapeHtml(photo.category || "overview")}</span>
+        </div>
+        <div class="photo-card__copy">${escapeParagraphs(photo.note || "")}</div>
+        <div class="photo-card__copy">Saved ${escapeHtml(formatDateTime(photo.captured_at || draft.updated_at || draft.created_at))}</div>
+        <div class="photo-card__actions">
+          <button class="btn btn-ghost btn-sm" type="button" data-remove-photo-id="${escapeAttr(photo.id)}">Remove</button>
+        </div>
+      </div>
+    </div>
+  `).join("");
+  bidPhotosList.querySelectorAll("[data-remove-photo-id]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const active = currentBid();
+      if (!active) return;
+      const photoId = btn.getAttribute("data-remove-photo-id");
+      const nextDraft = {
+        ...active,
+        photos: (active.photos || []).filter((photo) => photo.id !== photoId),
+        updated_at: new Date().toISOString(),
+      };
+      replaceBidDraft(nextDraft);
+      renderBidWorkspace(nextDraft, { preserveForm: true });
+      renderBidList(bidSearch?.value || "");
+      setInlineMessage(bidPhotoMsg, "Photo removed from the bid.", "ok");
+    });
+  });
+}
+function renderBidLineItems(draft) {
+  if (!bidLineItemsList) return;
+  const rows = Array.isArray(draft?.line_items) ? draft.line_items : [];
+  if (!rows.length) {
+    bidLineItemsList.innerHTML = `<div class="muted">No line items added yet.</div>`;
+    return;
+  }
+  bidLineItemsList.innerHTML = rows.map((item) => `
+    <div class="line-item-card">
+      <div class="line-item-card__top">
+        <div>
+          <div class="line-item-card__title">${escapeHtml(item.name || "Line item")}</div>
+          <div class="line-item-card__copy">${escapeParagraphs(item.description || "")}</div>
+        </div>
+        <span class="pill pill-on">${escapeHtml(formatBidLineItemKind(item.kind))}</span>
+      </div>
+      <div class="line-item-card__meta">
+        <span class="pill">${escapeHtml(String(item.quantity || 0))} ${escapeHtml(item.unit || "unit")}</span>
+        <span class="pill">${formatUsd(Number(item.unit_price_cents || 0))} each</span>
+        <span class="pill pill-on">${formatUsd(bidLineItemTotalCents(item))}</span>
+      </div>
+      <div class="line-item-actions">
+        <button class="btn btn-ghost btn-sm" type="button" data-edit-line-id="${escapeAttr(item.id)}">Edit</button>
+        <button class="btn btn-ghost btn-sm" type="button" data-remove-line-id="${escapeAttr(item.id)}">Remove</button>
+      </div>
+    </div>
+  `).join("");
+  bidLineItemsList.querySelectorAll("[data-edit-line-id]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const active = currentBid();
+      const item = active?.line_items?.find((row) => row.id === btn.getAttribute("data-edit-line-id"));
+      if (item) populateBidLineItemForm(item);
+    });
+  });
+  bidLineItemsList.querySelectorAll("[data-remove-line-id]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const active = currentBid();
+      if (!active) return;
+      const lineId = btn.getAttribute("data-remove-line-id");
+      const nextDraft = {
+        ...active,
+        line_items: (active.line_items || []).filter((item) => item.id !== lineId),
+        updated_at: new Date().toISOString(),
+      };
+      replaceBidDraft(nextDraft);
+      clearBidLineItemForm();
+      renderBidWorkspace(nextDraft, { preserveForm: true });
+      renderBidList(bidSearch?.value || "");
+      setInlineMessage(bidLineItemMsg, "Line item removed.", "ok");
+    });
+  });
+}
+function renderBidWorkspace(draft, opts = {}) {
+  if (!draft) {
+    clearBidForm();
+    renderBidGuideFlow(null);
+    renderBidProfileGuideCard(null);
+    renderBidStatsCard(null);
+    renderBidDeliveryCard(null);
+    if (bidPhotosList) bidPhotosList.innerHTML = `<div class="muted">No walkthrough photos saved yet.</div>`;
+    if (bidLineItemsList) bidLineItemsList.innerHTML = `<div class="muted">No line items added yet.</div>`;
+    renderBidProposalPreview(null);
+    return;
+  }
+  if (!opts.preserveForm) populateBidForm(draft);
+  renderBidGuideFlow(draft);
+  renderBidProfileGuideCard(draft);
+  renderBidStatsCard(draft);
+  renderBidDeliveryCard(draft);
+  renderBidPhotos(draft);
+  renderBidLineItems(draft);
+  renderBidProposalPreview(draft);
+}
+function renderBids(filter = "", opts = {}) {
+  const active = currentBid();
+  renderBidList(filter);
+  renderBidWorkspace(active, opts);
+}
+function startNewBid(profileKey = preferredBidProfile()) {
+  const draft = emptyBidDraft(profileKey);
+  BIDS_CACHE = [draft, ...(BIDS_CACHE || [])];
+  ACTIVE_BID_ID = draft.id;
+  persistBidDrafts();
+  clearBidLineItemForm();
+  clearBidPhotoForm();
+  renderBids(bidSearch?.value || "");
+  setInlineMessage(bidMsg, "New walkthrough bid ready.", "ok");
+  return draft;
+}
+function duplicateCurrentBid() {
+  const active = currentBid();
+  if (!active) return startNewBid(preferredBidProfile());
+  const copy = {
+    ...cloneJson(active, {}),
+    id: createLocalId("bid"),
+    title: `${active.title || defaultBidTitleFromDraft(active)} copy`,
+    status: "draft",
+    line_items: (active.line_items || []).map((item) => ({ ...item, id: createLocalId("line") })),
+    photos: (active.photos || []).map((photo) => ({ ...photo, id: createLocalId("photo") })),
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+  replaceBidDraft(copy);
+  clearBidLineItemForm();
+  clearBidPhotoForm();
+  renderBids(bidSearch?.value || "");
+  setInlineMessage(bidMsg, "Bid duplicated into a fresh draft.", "ok");
+  return copy;
+}
+function bidBrandContext() {
+  return {
+    accent: getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#c84b2f",
+    tenantName: brandTenant?.textContent?.trim() || "ProofLink",
+    logoUrl: brandLogo?.getAttribute("src") || "",
+    tagline: SETUP_STATE?.config?.tagline || "Professional service proposal",
+    contactEmail: SETUP_STATE?.config?.public_contact_email || "",
+    phone: SETUP_STATE?.config?.public_business_phone || "",
+  };
+}
+function renderProposalLineItemRows(items) {
+  if (!items.length) return `<div class="muted">No items yet.</div>`;
+  return items.map((item) => `
+    <div class="proposal-line-item">
+      <div>
+        <div class="proposal-line-item__title">${escapeHtml(item.name || "Line item")}</div>
+        <div class="proposal-line-item__copy">${escapeParagraphs(item.description || "")}</div>
+      </div>
+      <div class="proposal-line-item__right">
+        <div>${escapeHtml(String(item.quantity || 0))} ${escapeHtml(item.unit || "unit")}</div>
+        <div class="proposal-line-item__copy">${escapeHtml(formatBidLineItemKind(item.kind))}</div>
+      </div>
+      <div class="proposal-line-item__right">
+        <div>${formatUsd(Number(item.unit_price_cents || 0))}</div>
+        <div class="proposal-line-item__copy">${formatUsd(bidLineItemTotalCents(item))}</div>
+      </div>
+    </div>
+  `).join("");
+}
+function buildBidProposalMarkup(draft) {
+  if (!draft) return `<div class="muted">Create a walkthrough bid or select one from the list to preview the proposal.</div>`;
+  const brand = bidBrandContext();
+  const customer = findBidCustomer(draft.customer_id);
+  const profile = bidProfileConfig(draft.profile);
+  const totals = calculateBidTotals(draft);
+  const depositNote = totals.deposit > 0 ? `${formatUsd(totals.deposit)} deposit requested to schedule.` : "No deposit requested on this proposal.";
+  const baseItems = (draft.line_items || []).filter((item) => String(item.kind || "base").toLowerCase() !== "option");
+  const optionItems = (draft.line_items || []).filter((item) => String(item.kind || "").toLowerCase() === "option");
+
+  return `
+    <div class="proposal-shell">
+      <div class="proposal-hero">
+        <div>
+          <div class="proposal-brand">
+            <div class="proposal-brand__logo">${brand.logoUrl ? `<img src="${escapeAttr(brand.logoUrl)}" alt="${escapeAttr(brand.tenantName)} logo" />` : ""}</div>
+            <div>
+              <div class="proposal-kicker">${escapeHtml(profile.label)} proposal</div>
+              <div class="proposal-title">${escapeHtml(draft.title || defaultBidTitleFromDraft(draft))}</div>
+              <div class="proposal-copy">${escapeHtml(brand.tagline)}</div>
+            </div>
+          </div>
+          <div class="proposal-copy">${escapeParagraphs(draft.cover_note || profile.deliveryNote || "")}</div>
+        </div>
+        <div class="bid-stack">
+          <div class="proposal-box">
+            <div class="proposal-box__label">Prepared for</div>
+            <div class="proposal-box__value">${escapeHtml(customer?.name || draft.site_contact || "Client to be confirmed")}</div>
+            <div class="proposal-copy">${escapeHtml(customer?.email || "")}${customer?.email && customer?.phone ? "<br>" : ""}${escapeHtml(customer?.phone || "")}</div>
+          </div>
+          <div class="proposal-box">
+            <div class="proposal-box__label">Service address</div>
+            <div class="proposal-box__value">${escapeHtml(draft.service_address || "To be confirmed")}</div>
+          </div>
+          <div class="proposal-box">
+            <div class="proposal-box__label">Investment</div>
+            <div class="proposal-box__value"><strong>${formatUsd(totals.total)}</strong></div>
+            <div class="proposal-copy">${escapeHtml(depositNote)}${draft.valid_until ? `<br>Valid through ${escapeHtml(formatDateOnly(draft.valid_until))}.` : ""}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="proposal-grid three">
+        <div class="proposal-box">
+          <div class="proposal-box__label">Problem to solve</div>
+          <div class="proposal-box__value">${escapeParagraphs(draft.project_summary || "")}</div>
+        </div>
+        <div class="proposal-box">
+          <div class="proposal-box__label">Walkthrough date</div>
+          <div class="proposal-box__value">${escapeHtml(draft.walkthrough_at ? formatDateTime(draft.walkthrough_at) : "Not recorded")}</div>
+        </div>
+        <div class="proposal-box">
+          <div class="proposal-box__label">Schedule window</div>
+          <div class="proposal-box__value">${escapeHtml(draft.schedule_window || "To be scheduled with client")}</div>
+        </div>
+      </div>
+
+      <div class="proposal-grid">
+        <div class="proposal-section proposal-box">
+          <div class="proposal-box__label">Scope of work</div>
+          <div class="proposal-box__value">${escapeParagraphs(draft.scope_of_work || "")}</div>
+        </div>
+        <div class="proposal-section proposal-box">
+          <div class="proposal-box__label">Recommended solution</div>
+          <div class="proposal-box__value">${escapeParagraphs(draft.proposed_solution || "")}</div>
+        </div>
+      </div>
+
+      <div class="proposal-section proposal-box">
+        <div class="proposal-box__label">Base scope and investment</div>
+        ${renderProposalLineItemRows(baseItems)}
+        <div class="proposal-total-row">
+          <span>Total base investment</span>
+          <strong>${formatUsd(totals.total)}</strong>
+        </div>
+      </div>
+
+      ${optionItems.length ? `
+        <div class="proposal-section proposal-box">
+          <div class="proposal-box__label">Optional add-ons</div>
+          ${renderProposalLineItemRows(optionItems)}
+          <div class="proposal-total-row">
+            <span>Optional work if approved</span>
+            <strong>${formatUsd(totals.options)}</strong>
+          </div>
+        </div>
+      ` : ""}
+
+      ${(draft.photos || []).length ? `
+        <div class="proposal-section">
+          <h3>Walkthrough photo record</h3>
+          <div class="proposal-photo-grid">
+            ${(draft.photos || []).map((photo) => `
+              <div class="proposal-photo">
+                <img src="${escapeAttr(photo.url || "")}" alt="${escapeAttr(photo.name || "Walkthrough photo")}" />
+                <div class="proposal-photo__body">
+                  <div class="proposal-photo__title">${escapeHtml(photo.name || "Walkthrough photo")}</div>
+                  <div class="proposal-photo__copy">${escapeParagraphs(photo.note || "")}</div>
+                </div>
+              </div>
+            `).join("")}
+          </div>
+        </div>
+      ` : ""}
+
+      <div class="proposal-grid">
+        <div class="proposal-box">
+          <div class="proposal-box__label">Materials plan</div>
+          <div class="proposal-box__value">${escapeParagraphs(draft.materials_plan || "")}</div>
+        </div>
+        <div class="proposal-box">
+          <div class="proposal-box__label">Unused / overage handling</div>
+          <div class="proposal-box__value">${escapeParagraphs(draft.unused_materials_plan || "")}</div>
+        </div>
+        <div class="proposal-box">
+          <div class="proposal-box__label">Exclusions / assumptions</div>
+          <div class="proposal-box__value">${escapeParagraphs(draft.exclusions || "")}</div>
+        </div>
+        <div class="proposal-box">
+          <div class="proposal-box__label">Warranty</div>
+          <div class="proposal-box__value">${escapeParagraphs(draft.warranty || "")}</div>
+        </div>
+      </div>
+
+      <div class="proposal-grid">
+        <div class="proposal-box">
+          <div class="proposal-box__label">Commercial terms</div>
+          <div class="proposal-box__value">${escapeParagraphs(draft.terms || "")}</div>
+        </div>
+        <div class="proposal-box">
+          <div class="proposal-box__label">Next step</div>
+          <div class="proposal-box__value">${escapeHtml(depositNote)}</div>
+          <div class="proposal-copy">Reply with approval, or send back revisions before ${escapeHtml(draft.valid_until ? formatDateOnly(draft.valid_until) : "the stated validity date")}.</div>
+          ${brand.contactEmail || brand.phone ? `<div class="proposal-copy">${escapeHtml(brand.contactEmail || "")}${brand.contactEmail && brand.phone ? "<br>" : ""}${escapeHtml(brand.phone || "")}</div>` : ""}
+        </div>
+      </div>
+    </div>
+  `;
+}
+function renderBidProposalPreview(draft) {
+  if (!bidProposalPreview) return;
+  bidProposalPreview.innerHTML = buildBidProposalMarkup(draft);
+}
+function bidDocumentHtml(draft) {
+  const accent = bidBrandContext().accent;
+  const body = buildBidProposalMarkup(draft);
+  return `<!doctype html>
+  <html lang="en">
+    <head>
+      <meta charset="utf-8" />
+      <title>${escapeHtml(draft?.title || "ProofLink proposal")}</title>
+      <style>
+        body{margin:0;padding:32px;font-family:Arial,sans-serif;background:#faf8f5;color:#151515;}
+        .proposal-shell{display:flex;flex-direction:column;gap:18px;}
+        .proposal-hero{display:grid;grid-template-columns:1.2fr .8fr;gap:16px;padding-bottom:18px;border-bottom:1px solid #ddd;}
+        .proposal-brand{display:flex;align-items:flex-start;gap:14px;}
+        .proposal-brand__logo{width:56px;height:56px;border-radius:18px;overflow:hidden;border:1px solid #ddd;background:#fff;}
+        .proposal-brand__logo img{width:100%;height:100%;object-fit:cover;}
+        .proposal-kicker{color:${accent};font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;}
+        .proposal-title{font-size:30px;line-height:1.05;font-weight:800;margin-top:6px;}
+        .proposal-copy{color:#555;line-height:1.65;margin-top:8px;}
+        .proposal-box{border:1px solid #ddd;border-radius:18px;padding:14px;background:#fff;}
+        .proposal-box__label{color:#666;font-size:12px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;}
+        .proposal-box__value{font-size:15px;line-height:1.55;}
+        .proposal-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;}
+        .proposal-grid.three{grid-template-columns:repeat(3,minmax(0,1fr));}
+        .proposal-line-item{display:grid;grid-template-columns:1.5fr .7fr .7fr;gap:12px;align-items:start;padding:12px 0;border-top:1px solid #ddd;}
+        .proposal-line-item:first-child{border-top:none;padding-top:0;}
+        .proposal-line-item__title{font-weight:700;}
+        .proposal-line-item__copy{color:#555;font-size:12px;line-height:1.5;margin-top:6px;}
+        .proposal-line-item__right{text-align:right;}
+        .proposal-total-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-top:12px;margin-top:12px;border-top:1px solid #ddd;}
+        .proposal-total-row strong{font-size:18px;}
+        .proposal-photo-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;}
+        .proposal-photo{border:1px solid #ddd;border-radius:18px;overflow:hidden;background:#fff;}
+        .proposal-photo img{width:100%;height:160px;object-fit:cover;display:block;}
+        .proposal-photo__body{padding:12px;}
+        .proposal-photo__title{font-weight:700;}
+        .proposal-photo__copy{color:#555;font-size:12px;line-height:1.5;margin-top:6px;}
+        .proposal-section h3{margin:0 0 10px;font-size:14px;}
+        @media print{body{padding:18px;}}
+      </style>
+    </head>
+    <body>${body}</body>
+  </html>`;
+}
+async function copyTextValue(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch (_) {
+    const area = document.createElement("textarea");
+    area.value = text;
+    document.body.appendChild(area);
+    area.select();
+    document.execCommand("copy");
+    area.remove();
+    return true;
+  }
+}
+function buildBidClientEmail(draft) {
+  const customer = findBidCustomer(draft?.customer_id);
+  const profile = bidProfileConfig(draft?.profile);
+  const totals = calculateBidTotals(draft);
+  const baseItems = (draft?.line_items || []).filter((item) => String(item.kind || "base").toLowerCase() !== "option");
+  const bulletLines = baseItems.slice(0, 4).map((item) => `- ${item.name}: ${item.description || `${item.quantity} ${item.unit}`}`.trim());
+  return [
+    `Hi ${customer?.name || "there"},`,
+    ``,
+    `Thanks again for walking the project with us at ${draft?.service_address || "the site"}.`,
+    ``,
+    `${draft?.cover_note || profile.deliveryNote || "Attached is the proposal we prepared from the walkthrough."}`,
+    ``,
+    `Included in this proposal:`,
+    ...(bulletLines.length ? bulletLines : ["- Scope and pricing are attached in the proposal document."]),
+    ``,
+    `Base investment: ${formatUsd(totals.total)}`,
+    totals.options > 0 ? `Optional add-ons available: ${formatUsd(totals.options)}` : null,
+    totals.deposit > 0 ? `Requested deposit: ${formatUsd(totals.deposit)}` : null,
+    draft?.valid_until ? `Proposal valid through: ${formatDateOnly(draft.valid_until)}` : null,
+    ``,
+    `Reply with approval, questions, or requested revisions and we will get the next step moving.`,
+    ``,
+    `${bidBrandContext().tenantName}`,
+    bidBrandContext().contactEmail || null,
+    bidBrandContext().phone || null,
+  ].filter(Boolean).join("\n");
+}
+function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(reader.error || new Error("Failed to read image."));
+    reader.readAsDataURL(file);
+  });
+}
+async function uploadBidPhotoAsset(file, bidDraft) {
+  const key = `walkthrough-bids/${TENANT_ID}/${opId()}/${bidDraft.id}/${Date.now()}_${safeFilename(file.name || "photo.jpg")}`;
+  try {
+    const { error } = await sb.storage.from("product-images").upload(key, file, {
+      cacheControl: "3600",
+      upsert: false,
+      contentType: file.type || "image/jpeg",
+    });
+    if (error) throw error;
+    const { data } = sb.storage.from("product-images").getPublicUrl(key);
+    if (!data?.publicUrl) throw new Error("Photo uploaded but no public URL returned.");
+    return { url: data.publicUrl, storage_mode: "cloud" };
+  } catch (err) {
+    return {
+      url: await fileToDataUrl(file),
+      storage_mode: "local",
+      warning: err.message || String(err),
+    };
+  }
+}
+bidSearch?.addEventListener("input", () => renderBids(bidSearch.value, { preserveForm: true }));
+btnNewBid?.addEventListener("click", () => startNewBid(preferredBidProfile()));
+btnDuplicateBid?.addEventListener("click", () => duplicateCurrentBid());
+btnApplyBidProfile?.addEventListener("click", () => applyBidProfileStructure(false));
+bidForm?.addEventListener("submit", (e) => {
+  e.preventDefault();
+  const nextDraft = updateCurrentBidFromForm({ showMessage: true, allowCreate: true }) || startNewBid(preferredBidProfile());
+  renderBidWorkspace(nextDraft, { preserveForm: true });
+  renderBidList(bidSearch?.value || "");
+});
+[bidTitle, bidCustomerId, bidProfile, bidStatus, bidWalkthroughAt, bidValidUntil, bidServiceAddress, bidSiteContact, bidScheduleWindow, bidProjectSummary, bidScopeOfWork, bidProposedSolution, bidMaterialsPlan, bidUnusedMaterialsPlan, bidExclusions, bidWarranty, bidCoverNote, bidInternalNotes, bidDepositPercent, bidDepositAmount, bidTerms].forEach((el) => {
+  el?.addEventListener("input", scheduleBidAutosave);
+  el?.addEventListener("change", () => {
+    scheduleBidAutosave();
+    if (el === bidProfile) renderBidProfileGuideCard(collectBidFormDraft());
+  });
+});
+bidPhotoForm?.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  let active = currentBid();
+  if (!active) active = startNewBid(preferredBidProfile());
+  const file = bidPhotoFile?.files?.[0];
+  if (!file) {
+    setInlineMessage(bidPhotoMsg, "Choose or capture a photo first.", "error");
+    return;
+  }
+  const photoName = bidPhotoName?.value?.trim() || file.name || "Walkthrough photo";
+  setInlineMessage(bidPhotoMsg, "Saving photo...", "");
+  try {
+    const upload = await uploadBidPhotoAsset(file, active);
+    const baseDraft = updateCurrentBidFromForm({ allowCreate: true }) || active;
+    const nextDraft = {
+      ...baseDraft,
+      photos: [
+        {
+          id: createLocalId("photo"),
+          name: photoName,
+          category: bidPhotoCategory?.value || "overview",
+          note: bidPhotoNote?.value?.trim() || "",
+          url: upload.url,
+          storage_mode: upload.storage_mode,
+          captured_at: new Date().toISOString(),
+        },
+        ...(baseDraft.photos || []),
+      ],
+      updated_at: new Date().toISOString(),
+    };
+    replaceBidDraft(nextDraft);
+    clearBidPhotoForm();
+    renderBidWorkspace(nextDraft, { preserveForm: true });
+    renderBidList(bidSearch?.value || "");
+    setInlineMessage(bidPhotoMsg, upload.warning ? `Photo saved locally in this browser. ${upload.warning}` : "Photo saved to the bid.", "ok");
+  } catch (err) {
+    setInlineMessage(bidPhotoMsg, err.message || String(err), "error");
+  }
+});
+btnClearBidLineItem?.addEventListener("click", clearBidLineItemForm);
+bidLineItemForm?.addEventListener("submit", (e) => {
+  e.preventDefault();
+  let active = currentBid();
+  if (!active) active = startNewBid(preferredBidProfile());
+  const itemName = bidLineItemName?.value?.trim() || "";
+  if (!itemName) {
+    setInlineMessage(bidLineItemMsg, "Line item name is required.", "error");
+    return;
+  }
+  const item = {
+    id: bidLineItemId?.value || createLocalId("line"),
+    name: itemName,
+    description: bidLineItemDescription?.value?.trim() || "",
+    quantity: Number(bidLineItemQuantity?.value || 0),
+    unit: bidLineItemUnit?.value?.trim() || "job",
+    unit_price_cents: toCents(bidLineItemUnitPrice?.value || 0),
+    kind: String(bidLineItemKind?.value || "base"),
+  };
+  const baseDraft = updateCurrentBidFromForm({ allowCreate: true }) || active;
+  const nextDraft = {
+    ...baseDraft,
+    line_items: [
+      ...(baseDraft.line_items || []).filter((row) => row.id !== item.id),
+      item,
+    ].sort((a, b) => a.name.localeCompare(b.name)),
+    updated_at: new Date().toISOString(),
+  };
+  replaceBidDraft(nextDraft);
+  clearBidLineItemForm();
+  renderBidWorkspace(nextDraft, { preserveForm: true });
+  renderBidList(bidSearch?.value || "");
+  setInlineMessage(bidLineItemMsg, "Line item saved.", "ok");
+});
+btnPrintBidProposal?.addEventListener("click", () => {
+  const active = updateCurrentBidFromForm({ allowCreate: true }) || currentBid();
+  if (!active) {
+    setInlineMessage(bidMsg, "Create a bid first so there is something to print.", "error");
+    return;
+  }
+  const win = window.open("", "_blank", "noopener,noreferrer");
+  if (!win) {
+    setInlineMessage(bidMsg, "Allow popups to print the proposal.", "error");
+    return;
+  }
+  win.document.open();
+  win.document.write(bidDocumentHtml(active));
+  win.document.close();
+  win.focus();
+  setTimeout(() => win.print(), 350);
+});
+btnCopyBidEmail?.addEventListener("click", async () => {
+  const active = updateCurrentBidFromForm({ allowCreate: true }) || currentBid();
+  if (!active) {
+    setInlineMessage(bidMsg, "Create a bid first so there is a message to copy.", "error");
+    return;
+  }
+  await copyTextValue(buildBidClientEmail(active));
+  setInlineMessage(bidMsg, "Client email copy is on the clipboard.", "ok");
+});
+btnExportBidJson?.addEventListener("click", () => {
+  const active = updateCurrentBidFromForm({ allowCreate: true }) || currentBid();
+  if (!active) {
+    setInlineMessage(bidMsg, "Create a bid first so there is something to export.", "error");
+    return;
+  }
+  const blob = new Blob([JSON.stringify(active, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${slugify(active.title || "walkthrough-bid") || "walkthrough-bid"}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+});
+
 function currentMonthExpenseCents() {
   const mk = yyyymm(new Date());
   return EXPENSES_CACHE.filter((row) => monthKeyFromDate(row.date) === mk)
@@ -3379,6 +4763,7 @@ async function boot() {
       fetchAvailability(),
       fetchOperatorSetup().catch(() => null),
     ]);
+    loadBidDrafts();
 
     showApp(user);
 
@@ -3391,6 +4776,7 @@ async function boot() {
     await Promise.allSettled([fetchDashboardLaunchChecklist(), fetchDashboardPaymentState()]);
     renderDashboard();
     renderOrders();
+    renderBids("");
     renderCustomersList("");
     renderPayments();
     renderGuidance();
