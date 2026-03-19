@@ -36,7 +36,9 @@ let EXPENSES_CACHE = [];
 let CUSTOMERS_CACHE = [];
 let CRM_ORDERS_CACHE = [];
 let PAYMENTS_CACHE = [];
+let LEADS_CACHE = [];
 let BIDS_CACHE = [];
+let JOBS_CACHE = [];
 let PICK_PRODUCT_CATEGORIES = [];
 let PICK_EXPENSE_CATEGORIES = [];
 let PICK_VENDORS = [];
@@ -49,12 +51,17 @@ let passwordSetupMode = null;
 let ACTIVE_ORDER_ID = null;
 let ACTIVE_BID_ID = null;
 let ACTIVE_CUSTOMER_ID = null;
+let ACTIVE_LEAD_ID = null;
 let CUSTOMER_CREATING = false;
 let ACTIVE_PAYMENT_ID = null;
+let ACTIVE_JOB_ID = null;
 let ACTIVE_BID_LINE_ITEM_ID = null;
 let BID_QUICK_CUSTOMER_OPEN = false;
 let DASHBOARD_PAYMENT_STATE = null;
 let DASHBOARD_LAUNCH_CHECKLIST = null;
+let WORKSPACE_BLUEPRINT = null;
+let BID_SYNC_TIMER = null;
+let BID_SYNC_IN_FLIGHT = false;
 
 function currentMonthRevenueCents() {
   const mk = yyyymm(new Date());
@@ -95,6 +102,7 @@ async function fetchDashboardPaymentState() {
     const data = await res.json().catch(() => ({}));
     if (!res.ok || !data.ok) return null;
     DASHBOARD_PAYMENT_STATE = data.paymentState || null;
+    applyWorkspaceBlueprint();
     return DASHBOARD_PAYMENT_STATE;
   } catch (_) {
     return null;
@@ -114,6 +122,7 @@ async function fetchDashboardLaunchChecklist() {
 }
 
 const $ = (id) => document.getElementById(id);
+const sectionNav = document.querySelector('.nav[aria-label="Sections"]');
 
 const viewLogin = $("viewLogin");
 const viewApp = $("viewApp");
@@ -139,6 +148,28 @@ const operatorFooterText = $("operatorFooterText");
 
 const dashboardWrap = $("dashboardWrap");
 const btnRefreshDashboard = $("btnRefreshDashboard");
+const leadsList = $("leadsList");
+const leadDetailWrap = $("leadDetailWrap");
+const btnNewLead = $("btnNewLead");
+const leadSearch = $("leadSearch");
+const leadForm = $("leadForm");
+const leadId = $("leadId");
+const leadStatus = $("leadStatus");
+const leadPriority = $("leadPriority");
+const leadCustomerId = $("leadCustomerId");
+const leadTitle = $("leadTitle");
+const leadRequestedService = $("leadRequestedService");
+const leadContactName = $("leadContactName");
+const leadContactEmail = $("leadContactEmail");
+const leadContactPhone = $("leadContactPhone");
+const leadPreferredContact = $("leadPreferredContact");
+const leadSourceType = $("leadSourceType");
+const leadServiceAddress = $("leadServiceAddress");
+const leadSummary = $("leadSummary");
+const leadNotes = $("leadNotes");
+const leadMsg = $("leadMsg");
+const btnLeadCreateBid = $("btnLeadCreateBid");
+const btnLeadOpenBid = $("btnLeadOpenBid");
 const ordersList = $("ordersList");
 const orderDetailWrap = $("orderDetailWrap");
 const btnRefreshOrders = $("btnRefreshOrders");
@@ -193,6 +224,7 @@ const bidDepositAmount = $("bidDepositAmount");
 const bidTerms = $("bidTerms");
 const btnDuplicateBid = $("btnDuplicateBid");
 const btnApplyBidProfile = $("btnApplyBidProfile");
+const bidPhotoGuide = $("bidPhotoGuide");
 const bidPhotoForm = $("bidPhotoForm");
 const bidPhotoFile = $("bidPhotoFile");
 const bidPhotoName = $("bidPhotoName");
@@ -200,6 +232,7 @@ const bidPhotoCategory = $("bidPhotoCategory");
 const bidPhotoNote = $("bidPhotoNote");
 const bidPhotoMsg = $("bidPhotoMsg");
 const bidPhotosList = $("bidPhotosList");
+const bidScopeStarters = $("bidScopeStarters");
 const bidLineItemForm = $("bidLineItemForm");
 const bidLineItemId = $("bidLineItemId");
 const bidLineItemName = $("bidLineItemName");
@@ -216,6 +249,25 @@ const btnExportBidJson = $("btnExportBidJson");
 const bidProposalPreview = $("bidProposalPreview");
 const guidanceWrap = $("guidanceWrap");
 const btnRefreshGuidance = $("btnRefreshGuidance");
+const jobsList = $("jobsList");
+const jobDetailWrap = $("jobDetailWrap");
+const btnNewJob = $("btnNewJob");
+const jobSearch = $("jobSearch");
+const jobForm = $("jobForm");
+const jobId = $("jobId");
+const jobStatus = $("jobStatus");
+const jobOrderId = $("jobOrderId");
+const jobCustomerId = $("jobCustomerId");
+const jobTitle = $("jobTitle");
+const jobServiceAddress = $("jobServiceAddress");
+const jobScheduledDate = $("jobScheduledDate");
+const jobScheduledTime = $("jobScheduledTime");
+const jobScheduleWindow = $("jobScheduleWindow");
+const jobSummary = $("jobSummary");
+const jobNotes = $("jobNotes");
+const jobMsg = $("jobMsg");
+const btnJobOpenOrder = $("btnJobOpenOrder");
+const btnJobRecordPayment = $("btnJobRecordPayment");
 
 const customersList = $("customersList");
 const customerDetailWrap = $("customerDetailWrap");
@@ -240,6 +292,7 @@ const paymentFormTitle = $("paymentFormTitle");
 const paymentMsg = $("paymentMsg");
 const btnNewPayment = $("btnNewPayment");
 const paymentId = $("paymentId");
+const paymentJobId = $("paymentJobId");
 const paymentCustomerId = $("paymentCustomerId");
 const paymentOrderId = $("paymentOrderId");
 const paymentMode = $("paymentMode");
@@ -261,6 +314,7 @@ const setupTagline = $("setupTagline");
 const setupHeroHeading = $("setupHeroHeading");
 const setupHeroSubheading = $("setupHeroSubheading");
 const setupAbout = $("setupAbout");
+const setupWorkspaceBusinessType = $("setupWorkspaceBusinessType");
 const setupAccentColor = $("setupAccentColor");
 const setupLogoUrl = $("setupLogoUrl");
 const setupHeroImageUrl = $("setupHeroImageUrl");
@@ -367,6 +421,24 @@ const BID_PROFILE_LIBRARY = {
     warranty: "Workmanship is reviewed at completion and backed according to the service performed and the materials used.",
     terms: "Pricing is based on the site conditions visible during the walkthrough. Extra work or hidden conditions require approval before additional charges are added.",
     deliveryNote: "Here is the proposal built from our walkthrough. It shows the problem we saw, the scope we recommend, and how the work is priced.",
+    photoCategories: [
+      { value: "overview", label: "Overview", name: "Wide work area", note: "Wide photo showing the full work area and what is included in the visible scope." },
+      { value: "concern", label: "Concern", name: "Main issue", note: "Close photo of the issue, buildup, damage, or condition that affects the price or scope." },
+      { value: "access", label: "Access", name: "Access point", note: "Show gates, entries, power, water, ladder setup, or anything that changes labor and logistics." },
+      { value: "measurement", label: "Measurement", name: "Measurements and counts", note: "Capture measured sections, equipment counts, or boundaries used to build the bid." },
+      { value: "materials", label: "Materials", name: "Materials and staging", note: "Document equipment, consumables, or jobsite staging that supports the proposed work." },
+      { value: "finish", label: "Finish detail", name: "Finish detail", note: "Show delicate finishes, matching concerns, or details that need protection or special handling." },
+    ],
+    scopeStarters: [
+      { key: "service_visit", name: "Primary service scope", description: "Core labor and materials for the main problem the customer needs solved on this visit.", quantity: 1, unit: "job", unit_price_cents: 0, kind: "base" },
+      { key: "site_allowance", name: "Site-specific allowance", description: "Allowance for access issues, unknowns, or field conditions that can only be confirmed once work begins.", quantity: 1, unit: "allowance", unit_price_cents: 0, kind: "allowance" },
+      { key: "service_upgrade", name: "Optional add-on", description: "Upgrade or adjacent work the customer may approve without rewriting the full proposal.", quantity: 1, unit: "option", unit_price_cents: 0, kind: "option" },
+    ],
+    proposalPrompts: [
+      "Separate the base scope from allowances and optional add-ons so the client can say yes without confusion.",
+      "Use photos to explain what you saw on site so the price feels documented instead of guessed.",
+      "Call out access, schedule, and protection steps so the proposal reads like a real operating plan.",
+    ],
   },
   pressure_washing: {
     label: "Pressure washing",
@@ -395,6 +467,27 @@ const BID_PROFILE_LIBRARY = {
     warranty: "Cleaning results are reviewed with the customer at completion. Permanent staining or substrate damage outside the cleaning scope is not covered.",
     terms: "Pricing assumes standard access, available water, and no hidden substrate failure. Additional treatment outside the listed scope requires approval.",
     deliveryNote: "Attached is the wash proposal from the site visit, including the visible buildup we saw, the recommended cleaning approach, and the investment.",
+    photoCategories: [
+      { value: "overview", label: "Front elevation", name: "Front elevation and curb view", note: "Wide shot of the full structure or work zone so the client can see the visible wash scope in one frame." },
+      { value: "concern", label: "Stain or buildup", name: "Heavy buildup and staining", note: "Close photo showing algae, rust, oil, oxidation, or deep staining that affects chemistry, labor, or expectations." },
+      { value: "access", label: "Water and drainage", name: "Water access and drainage path", note: "Show spigot access, hose path, runoff direction, and any area that needs containment or extra prep." },
+      { value: "finish", label: "Delicate surfaces", name: "Windows, fixtures, and landscaping", note: "Show glass, fixtures, paint, plants, or delicate surfaces that need masking, protection, or soft-wash treatment." },
+      { value: "measurement", label: "Measured sections", name: "Measured flatwork or work sections", note: "Capture sections, footage, or boundaries used to price driveways, sidewalks, patios, or other flatwork cleanly." },
+      { value: "materials", label: "Obstacles and setup", name: "Access obstacles and setup factors", note: "Show gates, steep grade, parked vehicles, furniture, or obstacles that change setup time and wash sequencing." },
+    ],
+    scopeStarters: [
+      { key: "house_soft_wash", name: "House soft wash", description: "Low-pressure wash of siding, soffits, fascia, trim, and entry surfaces based on visible organic buildup and access.", quantity: 1, unit: "job", unit_price_cents: 0, kind: "base" },
+      { key: "flatwork_cleaning", name: "Driveway and flatwork cleaning", description: "Surface cleaning for driveway, sidewalk, patio, or other flatwork sections priced from the measured areas captured on site.", quantity: 1, unit: "section", unit_price_cents: 0, kind: "base" },
+      { key: "gutter_brightening", name: "Gutter brightening", description: "Optional add-on for tiger-striping, oxidation, or visible gutter staining that needs dedicated treatment.", quantity: 1, unit: "option", unit_price_cents: 0, kind: "option" },
+      { key: "rust_treatment", name: "Rust or stain treatment", description: "Targeted treatment for rust, oil, red clay, or deep staining that requires extra chemistry and additional passes.", quantity: 1, unit: "allowance", unit_price_cents: 0, kind: "allowance" },
+      { key: "deck_fence_wash", name: "Deck or fence wash", description: "Cleaning scope for wood, vinyl, or composite deck and fence surfaces when those areas are included beyond the base wash.", quantity: 1, unit: "section", unit_price_cents: 0, kind: "option" },
+      { key: "surface_protection", name: "Post-clean protection", description: "Optional sealing or surface protection quoted separately so the customer can approve it without changing the wash scope.", quantity: 1, unit: "option", unit_price_cents: 0, kind: "option" },
+    ],
+    proposalPrompts: [
+      "Break out the wash, stain treatment, and protection work so the client can approve the right level of service quickly.",
+      "Use the walkthrough photos to show buildup, oxidation, and access conditions that justify the recommended chemistry and labor.",
+      "Call out water access, drainage, and landscape protection so the proposal feels careful and professional before anyone arrives on site.",
+    ],
   },
   hvac: {
     label: "HVAC",
@@ -534,7 +627,7 @@ function formatDateOnly(iso) { const d = new Date(iso || Date.now()); return Num
 function prettifyDay(day) { const value = String(day || "").trim().toLowerCase(); return value ? value.charAt(0).toUpperCase() + value.slice(1) : "Day"; }
 function formatTime12(value) {
   const raw = String(value || "").trim();
-  if (!raw.includes(":")) return raw || "—";
+  if (!raw.includes(":")) return raw || "-";
   const [hStr, mStr] = raw.split(":");
   const h = Number(hStr);
   if (Number.isNaN(h)) return raw;
@@ -547,6 +640,24 @@ function setInlineMessage(el, message = "", tone = "") {
   if (!el) return;
   el.textContent = message || "";
   el.className = tone ? `msg ${tone}` : "msg";
+}
+function errorText(error) {
+  return String(error?.message || error?.details || error?.hint || "").toLowerCase();
+}
+function isMissingDatabaseFeatureError(error, hints = []) {
+  const code = String(error?.code || "").toUpperCase();
+  const message = errorText(error);
+  const featureHints = Array.isArray(hints) ? hints.map((item) => String(item || "").toLowerCase()).filter(Boolean) : [];
+  const mentionsHint = !featureHints.length || featureHints.some((hint) => message.includes(hint));
+  if (["42P01", "42883", "PGRST202", "PGRST205"].includes(code)) return true;
+  if (!mentionsHint) return false;
+  return (
+    message.includes("does not exist") ||
+    message.includes("could not find the function") ||
+    message.includes("schema cache") ||
+    message.includes("relation") ||
+    message.includes("function")
+  );
 }
 function paymentAmountCents(row) {
   return Number(row?.amount_total ?? row?.amount_subtotal ?? row?.amount_cents ?? row?.net_amount_cents ?? row?.total_cents ?? 0);
@@ -607,6 +718,70 @@ function sortedCustomers(rows = CUSTOMERS_CACHE) {
 function sortedPayments(rows = PAYMENTS_CACHE) {
   return [...(rows || [])].sort((a, b) => paymentSortTimestamp(b) - paymentSortTimestamp(a));
 }
+function isUuidLike(value) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || "").trim());
+}
+function normalizeWorkflowPaymentState(value) {
+  const raw = String(value || "").trim().toLowerCase();
+  if (["paid", "partial", "overdue", "refunded", "void"].includes(raw)) return raw;
+  return "unpaid";
+}
+function orderTotalCents(row) {
+  return Number(row?.total_cents || row?.estimated_total_cents || row?.subtotal_cents || 0);
+}
+function orderAmountPaidCents(row) {
+  const explicit = Number(row?.amount_paid_cents || 0);
+  if (explicit > 0) return explicit;
+  return PAYMENTS_CACHE
+    .filter((payment) => payment.order_id === row?.id)
+    .reduce((sum, payment) => sum + Math.max(0, paymentRevenueContributionCents(payment)), 0);
+}
+function orderAmountDueCents(row) {
+  const explicit = Number(row?.amount_due_cents || 0);
+  if (explicit > 0 || normalizeWorkflowPaymentState(row?.payment_state) === "paid") return explicit;
+  return Math.max(orderTotalCents(row) - orderAmountPaidCents(row), 0);
+}
+function orderPaymentState(row) {
+  const explicit = normalizeWorkflowPaymentState(row?.payment_state);
+  if (explicit !== "unpaid" || Number(row?.amount_paid_cents || 0) > 0 || Number(row?.amount_due_cents || 0) > 0) {
+    return explicit;
+  }
+  const paid = orderAmountPaidCents(row);
+  const due = Math.max(orderTotalCents(row) - paid, 0);
+  if (due <= 0 && paid > 0) return "paid";
+  if (paid > 0 && due > 0) return "partial";
+  const dueDate = row?.payment_due_date ? new Date(row.payment_due_date) : null;
+  if (due > 0 && dueDate && !Number.isNaN(dueDate.getTime()) && dueDate < new Date()) return "overdue";
+  return "unpaid";
+}
+function formatWorkflowPaymentState(value) {
+  const labels = {
+    unpaid: "Unpaid",
+    partial: "Partially paid",
+    paid: "Paid",
+    overdue: "Overdue",
+    refunded: "Refunded",
+    void: "Void",
+  };
+  return labels[normalizeWorkflowPaymentState(value)] || "Unpaid";
+}
+function paymentStateClass(value) {
+  const state = normalizeWorkflowPaymentState(value);
+  if (state === "paid") return "pill-on";
+  if (state === "partial") return "pill-warn";
+  if (state === "overdue") return "pill-bad";
+  if (state === "refunded" || state === "void") return "pill-muted";
+  return "";
+}
+function linkedOrderForJob(job) {
+  return CRM_ORDERS_CACHE.find((row) => row.id === job?.order_id) || null;
+}
+function currentLead() {
+  return LEADS_CACHE.find((row) => row.id === ACTIVE_LEAD_ID) || null;
+}
+function currentJob() {
+  return JOBS_CACHE.find((row) => row.id === ACTIVE_JOB_ID) || null;
+}
 
 function isPasswordSetupVisible() {
   return !!viewPasswordSetup && !viewPasswordSetup.classList.contains("hidden");
@@ -661,22 +836,509 @@ function initBranding() {
     platformLogo.style.display = "block";
   }
   if (operatorFooterText) {
-    operatorFooterText.textContent = `Operator UI v3 — ${b.tenantName || "Tenant"} • Powered by ${b.productName || "ProofLink"}${TENANT_SCOPE_ENABLED ? ` • ${TENANT_COLUMN} ready (${TENANT_ID})` : ""}`;
+    operatorFooterText.textContent = `Operator UI v3 - ${b.tenantName || "Tenant"}  |  Powered by ${b.productName || "ProofLink"}${TENANT_SCOPE_ENABLED ? `  |  ${TENANT_COLUMN} ready (${TENANT_ID})` : ""}`;
   }
+}
+
+const WORKSPACE_BASE_TAB_ORDER = [
+  "dashboard",
+  "leads",
+  "orders",
+  "bids",
+  "jobs",
+  "customers",
+  "payments",
+  "domains",
+  "setup",
+  "products",
+  "pricing",
+  "availability",
+  "expenses",
+  "money",
+  "guidance",
+];
+const WORKSPACE_PRIORITY_TAB_MAP = {
+  crm: "customers",
+  intake: "orders",
+  bids: "bids",
+  orders_jobs: "orders",
+  payments: "payments",
+  expenses: "expenses",
+  inventory_materials: "products",
+  schedule: "availability",
+  proof: "bids",
+  reporting: "guidance",
+};
+const WORKSPACE_SERVICE_FAMILIES = new Set([
+  "field_service",
+  "project_trade",
+  "recurring_field_service",
+  "mixed_scope_service",
+]);
+const WORKSPACE_BOOKING_FAMILIES = new Set([
+  "appointment_service",
+  "creative_service",
+]);
+const WORKSPACE_EVENT_FAMILIES = new Set(["event_service"]);
+
+function uniqList(values = []) {
+  return [...new Set((values || []).filter(Boolean))];
+}
+function titleCaseWords(value) {
+  return String(value || "")
+    .replace(/[_-]+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (match) => match.toUpperCase()) || "Unknown";
+}
+function workspaceTenantRecord() {
+  return {
+    ...(SETUP_STATE?.tenant || {}),
+    ...(SETUP_STATE?.locked_record || {}),
+    prooflink_plan_key:
+      SETUP_STATE?.tenant?.prooflink_plan_key ||
+      SETUP_STATE?.locked_record?.prooflink_plan_key ||
+      DASHBOARD_PAYMENT_STATE?.prooflinkPlanKey ||
+      "starter",
+  };
+}
+function workspacePlanKey() {
+  const Architecture = window.PROOFLINK_WORKSPACE_ARCHITECTURE;
+  const tenant = workspaceTenantRecord();
+  const raw = window.ProofLinkPlan?.getPlanKey
+    ? window.ProofLinkPlan.getPlanKey(tenant)
+    : tenant.prooflink_plan_key;
+  if (Architecture?.sanitizeTier) return Architecture.sanitizeTier(raw);
+  return String(raw || "starter").trim().toLowerCase() || "starter";
+}
+function workspaceBusinessType() {
+  const Architecture = window.PROOFLINK_WORKSPACE_ARCHITECTURE;
+  const raw = String(
+    SETUP_STATE?.tenant?.business_type ||
+    SETUP_STATE?.config?.workspace_business_type ||
+    SETUP_STATE?.locked_record?.business_type ||
+    SETUP_STATE?.config?.business_type ||
+    ""
+  ).trim().toLowerCase();
+  if (Architecture?.sanitizeBusinessType) return Architecture.sanitizeBusinessType(raw);
+  return raw || "other";
+}
+function workspaceProfileChoices() {
+  const Architecture = window.PROOFLINK_WORKSPACE_ARCHITECTURE;
+  const profiles = Architecture?.BUSINESS_PROFILES || {};
+  const preferredOrder = [
+    "service_business",
+    "pressure_washing",
+    "property_maintenance",
+    "contractor",
+    "handyman",
+    "hvac",
+    "plumbing",
+    "cleaning",
+    "lawn_care",
+    "events",
+    "photography",
+    "pet_services",
+    "bakery",
+    "other",
+  ];
+  return uniqList([...preferredOrder, ...Object.keys(profiles)])
+    .filter((key) => profiles[key])
+    .map((key) => ({ key, label: profiles[key].label || titleCaseWords(key) }));
+}
+function hydrateWorkspaceProfileOptions(selectedValue = "") {
+  if (!setupWorkspaceBusinessType) return;
+  const selected = String(selectedValue || "").trim().toLowerCase();
+  const options = workspaceProfileChoices();
+  setupWorkspaceBusinessType.innerHTML = [
+    `<option value="">Use protected business type if set</option>`,
+    ...options.map((option) => `<option value="${escapeAttr(option.key)}">${escapeHtml(option.label)}</option>`),
+  ].join("");
+  const matches = options.some((option) => option.key === selected);
+  setupWorkspaceBusinessType.value = matches ? selected : "";
+}
+function currentWorkspaceBlueprint() {
+  const Architecture = window.PROOFLINK_WORKSPACE_ARCHITECTURE;
+  const planKey = workspacePlanKey();
+  const businessType = workspaceBusinessType();
+  if (Architecture?.resolveWorkspaceBlueprint) {
+    WORKSPACE_BLUEPRINT = Architecture.resolveWorkspaceBlueprint(planKey, businessType);
+    return WORKSPACE_BLUEPRINT;
+  }
+  WORKSPACE_BLUEPRINT = {
+    tier: { key: planKey, label: titleCaseWords(planKey), promise: "Keep the business organized as it grows." },
+    business: {
+      key: businessType,
+      label: titleCaseWords(businessType),
+      family: "general_business",
+      workspaceMode: "guided_generalist",
+      bidProfile: "general_service",
+      operatorNeeds: [],
+    },
+    enabledFeatures: [],
+    deferredFeatures: [],
+    priorityViews: ["crm", "orders_jobs", "payments", "reporting"],
+    hiddenByDefault: [],
+    recommendedModules: ["crm", "orders_jobs", "payments", "reporting"],
+    bidProfile: "general_service",
+  };
+  return WORKSPACE_BLUEPRINT;
+}
+function workspaceFamily(blueprint = currentWorkspaceBlueprint()) {
+  return blueprint?.business?.family || "general_business";
+}
+function isServiceWorkspace(blueprint = currentWorkspaceBlueprint()) {
+  return WORKSPACE_SERVICE_FAMILIES.has(workspaceFamily(blueprint));
+}
+function isBookingWorkspace(blueprint = currentWorkspaceBlueprint()) {
+  return WORKSPACE_BOOKING_FAMILIES.has(workspaceFamily(blueprint));
+}
+function isEventWorkspace(blueprint = currentWorkspaceBlueprint()) {
+  return WORKSPACE_EVENT_FAMILIES.has(workspaceFamily(blueprint));
+}
+function workspaceUsesServiceCatalog(blueprint = currentWorkspaceBlueprint()) {
+  return isServiceWorkspace(blueprint);
+}
+function workspaceOrderLabel(blueprint = currentWorkspaceBlueprint()) {
+  if (isEventWorkspace(blueprint)) return "Events";
+  if (isBookingWorkspace(blueprint)) return "Bookings";
+  if (isServiceWorkspace(blueprint)) return "Jobs";
+  return "Orders";
+}
+function workspaceOrderLabelLower(blueprint = currentWorkspaceBlueprint()) {
+  return workspaceOrderLabel(blueprint).toLowerCase();
+}
+function workspaceCatalogLabel(blueprint = currentWorkspaceBlueprint()) {
+  if (workspaceUsesServiceCatalog(blueprint)) return "Services";
+  if (isBookingWorkspace(blueprint) || isEventWorkspace(blueprint)) return "Packages";
+  return "Products";
+}
+function workspaceCatalogLabelLower(blueprint = currentWorkspaceBlueprint()) {
+  return workspaceCatalogLabel(blueprint).toLowerCase();
+}
+function workspaceCatalogSingular(blueprint = currentWorkspaceBlueprint()) {
+  if (workspaceUsesServiceCatalog(blueprint)) return "service template";
+  if (isBookingWorkspace(blueprint) || isEventWorkspace(blueprint)) return "package or offering";
+  return "product";
+}
+function workspaceBidLabel(blueprint = currentWorkspaceBlueprint()) {
+  if (isServiceWorkspace(blueprint)) return "Walkthrough Bids";
+  if (isEventWorkspace(blueprint)) return "Proposals";
+  return "Bids";
+}
+function workspaceAnalyticsMode() {
+  const rules = window.ProofLinkPlan?.getPlanRules?.(workspaceTenantRecord()) || {};
+  return String(rules.analytics || "basic").trim().toLowerCase();
+}
+function workspaceFeatureEnabled(featureKey, blueprint = currentWorkspaceBlueprint()) {
+  const Architecture = window.PROOFLINK_WORKSPACE_ARCHITECTURE;
+  if (Architecture?.isFeatureEnabled) {
+    return Architecture.isFeatureEnabled(workspacePlanKey(), workspaceBusinessType(), featureKey);
+  }
+  return Array.isArray(blueprint?.enabledFeatures) && blueprint.enabledFeatures.includes(featureKey);
+}
+function workspaceFeatureLabel(featureKey) {
+  const Architecture = window.PROOFLINK_WORKSPACE_ARCHITECTURE;
+  return Architecture?.FEATURE_CATALOG?.[featureKey] || titleCaseWords(featureKey);
+}
+function workspacePriorityTabs(blueprint = currentWorkspaceBlueprint()) {
+  return uniqList((blueprint?.priorityViews || []).map((moduleKey) => WORKSPACE_PRIORITY_TAB_MAP[moduleKey]).filter(Boolean));
+}
+function workspaceTabLabel(tab, blueprint = currentWorkspaceBlueprint()) {
+  switch (tab) {
+    case "dashboard":
+      return "Today";
+    case "leads":
+      return "Leads";
+    case "orders":
+      return workspaceOrderLabel(blueprint);
+    case "bids":
+      return workspaceBidLabel(blueprint);
+    case "jobs":
+      return "Jobs";
+    case "products":
+      return workspaceCatalogLabel(blueprint);
+    case "pricing":
+      return workspaceUsesServiceCatalog(blueprint)
+        ? "Pricing / Rates"
+        : (isBookingWorkspace(blueprint) || isEventWorkspace(blueprint) ? "Packages / Pricing" : "Pricing");
+    case "availability":
+      return (isServiceWorkspace(blueprint) || isBookingWorkspace(blueprint) || isEventWorkspace(blueprint))
+        ? "Schedule"
+        : "Availability";
+    case "money":
+      return "Insights";
+    default:
+      return titleCaseWords(tab);
+  }
+}
+function workspacePanelCopy(tab, blueprint = currentWorkspaceBlueprint()) {
+  const businessLabel = blueprint?.business?.label || "Business";
+  const orderLower = workspaceOrderLabelLower(blueprint);
+  const catalogLower = workspaceCatalogLabelLower(blueprint);
+  switch (tab) {
+    case "dashboard":
+      return {
+        title: "Today",
+        subtitle: `${businessLabel} at a glance, with the next customer, work, and money actions made obvious.`,
+      };
+    case "leads":
+      return {
+        title: "Leads",
+        subtitle: "Capture inbound work cleanly and move qualified opportunities into pricing without rebuilding the record.",
+      };
+    case "orders":
+      return {
+        title: workspaceOrderLabel(blueprint),
+        subtitle: isServiceWorkspace(blueprint)
+          ? `Review live ${orderLower}, schedule commitments, and the next action for each customer.`
+          : `Review live ${orderLower}, intake details, and what needs to happen next.`,
+      };
+    case "bids":
+      return {
+        title: workspaceBidLabel(blueprint),
+        subtitle: isServiceWorkspace(blueprint)
+          ? "Build on-site scope, photos, pricing, and delivery language in one professional record."
+          : "Build clear offers, pricing, and customer-ready delivery language in one place.",
+      };
+    case "jobs":
+      return {
+        title: "Jobs",
+        subtitle: "Track scheduled work, field progress, proof, and payment state without splitting execution from the customer record.",
+      };
+    case "products":
+      return {
+        title: workspaceCatalogLabel(blueprint),
+        subtitle: workspaceUsesServiceCatalog(blueprint)
+          ? `Create reusable ${catalogLower}, scope building blocks, and job starters.`
+          : `Create and edit ${catalogLower}. Keep what the customer buys easy to understand.`,
+      };
+    case "pricing":
+      return {
+        title: workspaceTabLabel("pricing", blueprint),
+        subtitle: workspaceUsesServiceCatalog(blueprint)
+          ? "Keep pricing practical today and layer in better rate logic as the business matures."
+          : "Control how offers are priced without forcing the team into accounting language.",
+      };
+    case "availability":
+      return {
+        title: workspaceTabLabel("availability", blueprint),
+        subtitle: (isServiceWorkspace(blueprint) || isBookingWorkspace(blueprint) || isEventWorkspace(blueprint))
+          ? "Show when the team can actually take on more work and where the schedule is tight."
+          : "Track availability and operating windows in one place.",
+      };
+    case "expenses":
+      return {
+        title: "Expenses",
+        subtitle: isServiceWorkspace(blueprint)
+          ? `Track overhead and job costs so ${orderLower} stay profitable.`
+          : "Track expenses for bookkeeping, visibility, and margin awareness.",
+      };
+    case "money":
+      return {
+        title: workspaceTabLabel("money", blueprint),
+        subtitle: "Business signals, customer value, and margin clues without accounting clutter.",
+      };
+    case "guidance":
+      return {
+        title: "Guidance",
+        subtitle: `Operator advice shaped around how ${businessLabel} actually sells and delivers work.`,
+      };
+    case "setup":
+      return {
+        title: "Business Setup",
+        subtitle: "Branding, public business profile, and customer-facing details stay editable here.",
+      };
+    default:
+      return {
+        title: workspaceTabLabel(tab, blueprint),
+        subtitle: "",
+      };
+  }
+}
+function isTabVisibleInWorkspace(tab, blueprint = currentWorkspaceBlueprint()) {
+  const hidden = new Set(blueprint?.hiddenByDefault || []);
+  if (hidden.has(tab)) return false;
+  if (tab === "bids") {
+    if (hidden.has("bids")) return false;
+    const priorityTabs = workspacePriorityTabs(blueprint);
+    if (!priorityTabs.includes("bids") && !blueprint?.business?.bidProfile) return false;
+  }
+  return true;
+}
+function isTabLockedInWorkspace(tab, blueprint = currentWorkspaceBlueprint()) {
+  if (!isTabVisibleInWorkspace(tab, blueprint)) return false;
+  if (tab === "domains") {
+    return !window.ProofLinkPlan?.canUse?.("customDomain", workspaceTenantRecord());
+  }
+  return false;
+}
+function tabLockBadge(tab, blueprint = currentWorkspaceBlueprint()) {
+  if (!isTabLockedInWorkspace(tab, blueprint)) return "";
+  if (tab === "domains") return "Growth+";
+  return "Locked";
+}
+function panelNoticeHtml(tab, blueprint = currentWorkspaceBlueprint()) {
+  if (tab === "domains" && isTabLockedInWorkspace(tab, blueprint)) {
+    return `
+      <div class="workspace-panel-notice is-warn">
+        <div class="workspace-panel-notice__title">Custom domains unlock on Growth</div>
+        <div class="workspace-panel-notice__copy">Starter keeps the ProofLink subdomain live. Use this page for launch guidance now, then move to a branded domain when the business truly needs it.</div>
+      </div>
+    `;
+  }
+  if (tab === "products" && workspaceUsesServiceCatalog(blueprint)) {
+    return `
+      <div class="workspace-panel-notice is-soft">
+        <div class="workspace-panel-notice__title">Use this as your service catalog</div>
+        <div class="workspace-panel-notice__copy">For service businesses, this is where reusable offerings, scope starters, and repeatable work templates live.</div>
+      </div>
+    `;
+  }
+  if (tab === "pricing" && workspaceUsesServiceCatalog(blueprint) && !workspaceFeatureEnabled("rate_sheets", blueprint)) {
+    return `
+      <div class="workspace-panel-notice is-soft">
+        <div class="workspace-panel-notice__title">Basic pricing is active now</div>
+        <div class="workspace-panel-notice__copy">Use simple price anchors today. Advanced rate sheets unlock when the business is ready for more structured service pricing.</div>
+      </div>
+    `;
+  }
+  if (tab === "money" && workspaceAnalyticsMode() === "basic") {
+    return `
+      <div class="workspace-panel-notice is-soft">
+        <div class="workspace-panel-notice__title">This view stays intentionally simple</div>
+        <div class="workspace-panel-notice__copy">You already have the essentials. Deeper reporting, team accountability, and more advanced visibility can layer in later without making the workspace harder to teach.</div>
+      </div>
+    `;
+  }
+  return "";
+}
+function renderPanelNotice(tab, blueprint = currentWorkspaceBlueprint()) {
+  const panel = document.querySelector(`.panel[data-panel="${tab}"]`);
+  const head = panel?.querySelector(".panel-head");
+  if (!panel || !head) return;
+  panel.querySelector(".workspace-panel-notice")?.remove();
+  const html = panelNoticeHtml(tab, blueprint);
+  if (!html) return;
+  head.insertAdjacentHTML("afterend", html);
+}
+function updateWorkspaceTabPresentation(tab, blueprint = currentWorkspaceBlueprint()) {
+  const btn = sectionNav?.querySelector(`.tab[data-tab="${tab}"]`);
+  if (!btn) return;
+  const visible = isTabVisibleInWorkspace(tab, blueprint);
+  const locked = isTabLockedInWorkspace(tab, blueprint);
+  const priorityTabs = workspacePriorityTabs(blueprint);
+  const isPrimary = tab === "dashboard" || priorityTabs.includes(tab);
+  btn.hidden = !visible;
+  btn.classList.toggle("is-secondary", visible && !isPrimary);
+  btn.classList.toggle("is-locked", locked);
+  btn.setAttribute("aria-hidden", visible ? "false" : "true");
+  const label = workspaceTabLabel(tab, blueprint);
+  const badge = tabLockBadge(tab, blueprint);
+  btn.innerHTML = `
+    <span class="tab__label">${escapeHtml(label)}</span>
+    ${badge ? `<span class="tab-badge">${escapeHtml(badge)}</span>` : ""}
+  `;
+}
+function updateWorkspacePanelPresentation(tab, blueprint = currentWorkspaceBlueprint()) {
+  const panel = document.querySelector(`.panel[data-panel="${tab}"]`);
+  if (!panel) return;
+  const titleEl = panel.querySelector(".panel-head h2");
+  const subtitleEl = panel.querySelector(".panel-head .muted");
+  const copy = workspacePanelCopy(tab, blueprint);
+  if (titleEl) titleEl.textContent = copy.title;
+  if (subtitleEl && copy.subtitle) subtitleEl.textContent = copy.subtitle;
+  renderPanelNotice(tab, blueprint);
+}
+function workspaceSummaryData(blueprint = currentWorkspaceBlueprint()) {
+  const focusTabs = workspacePriorityTabs(blueprint).map((tab) => workspaceTabLabel(tab, blueprint));
+  const deferredLabels = uniqList((blueprint?.deferredFeatures || []).map(workspaceFeatureLabel)).slice(0, 4);
+  return {
+    businessLabel: blueprint?.business?.label || "Business",
+    tierLabel: blueprint?.tier?.label || titleCaseWords(workspacePlanKey()),
+    workspaceModeLabel: titleCaseWords(blueprint?.business?.workspaceMode || "guided_generalist"),
+    promise: blueprint?.tier?.promise || "Keep the operation clear as it grows.",
+    focusTabs,
+    deferredLabels,
+    operatorNeeds: blueprint?.business?.operatorNeeds || [],
+    priorityOutcomes: blueprint?.tier?.priorityOutcomes || [],
+  };
+}
+function hasPricedBidDraft() {
+  return (BIDS_CACHE || []).some((row) => calculateBidTotals(row).total > 0);
+}
+function applyWorkspaceBlueprint() {
+  const blueprint = currentWorkspaceBlueprint();
+  if (!blueprint) return null;
+
+  WORKSPACE_BASE_TAB_ORDER.forEach((tab) => {
+    updateWorkspaceTabPresentation(tab, blueprint);
+    updateWorkspacePanelPresentation(tab, blueprint);
+  });
+
+  if (sectionNav) {
+    const orderedTabs = uniqList([
+      "dashboard",
+      ...workspacePriorityTabs(blueprint).filter((tab) => isTabVisibleInWorkspace(tab, blueprint)),
+      ...WORKSPACE_BASE_TAB_ORDER.filter((tab) => isTabVisibleInWorkspace(tab, blueprint)),
+    ]);
+    orderedTabs.forEach((tab) => {
+      const btn = sectionNav.querySelector(`.tab[data-tab="${tab}"]`);
+      if (btn) sectionNav.appendChild(btn);
+    });
+  }
+
+  const topbarSub = document.querySelector(".topbar .sub");
+  if (topbarSub) {
+    const focus = workspaceSummaryData(blueprint).focusTabs.slice(0, 3).join(", ");
+    topbarSub.textContent = `${workspaceSummaryData(blueprint).businessLabel} workspace on ${workspaceSummaryData(blueprint).tierLabel}. ${focus ? `Priority views: ${focus}.` : blueprint.tier.promise}`;
+  }
+
+  const sideCopy = document.querySelector(".side-copy");
+  if (sideCopy) {
+    sideCopy.textContent = blueprint?.business?.operatorNeeds?.[0]
+      ? `${blueprint.business.operatorNeeds[0]}. ${blueprint.tier.promise}`
+      : "Track the sale from first contact to payment, keep customer history in one place, and make business decisions with less guesswork.";
+  }
+
+  const activeTab = currentPanel();
+  if (!isTabVisibleInWorkspace(activeTab, blueprint)) {
+    switchTab("dashboard");
+  }
+  return blueprint;
 }
 
 function renderStartupChecklist() {
   if (!startupChecklist) return;
+  const blueprint = currentWorkspaceBlueprint();
+  const catalogSingular = workspaceCatalogSingular(blueprint);
+  const catalogTabLabel = workspaceTabLabel("products", blueprint);
+  const orderLabel = workspaceOrderLabelLower(blueprint);
+  const pricingReady = PRODUCTS_CACHE.some((row) => {
+    const mode = String(row.pricing_mode || "").trim().toLowerCase();
+    return Number(row.sell_price_cents || row.starting_price_cents || 0) > 0 || ["fixed", "starts_at", "quote"].includes(mode);
+  });
+  const brandingReady = !!(
+    SETUP_STATE?.config?.logo_url ||
+    SETUP_STATE?.config?.hero_image_url ||
+    SETUP_STATE?.config?.tagline
+  );
   const items = [
-    { done: PRODUCTS_CACHE.length > 0, label: "Add your first product", tab: "products", action: "Open products" },
-    { done: PRODUCTS_CACHE.some((p) => !!p.is_active), label: "Publish at least one product to the storefront", tab: "products", action: "Review products" },
-    { done: PRODUCTS_CACHE.some((p) => !!p.image_url), label: "Add at least one product image", tab: "products", action: "Add image" },
-    { done: EXPENSES_CACHE.length > 0, label: "Track your first expense", tab: "expenses", action: "Open expenses" },
-    { done: CUSTOMERS_CACHE.length > 0, label: "Capture your first customer in CRM", tab: "customers", action: "Open CRM" },
-    { done: CRM_ORDERS_CACHE.length > 0, label: "Convert at least one request into a tracked order", tab: "orders", action: "Open orders" },
-    { done: !!(SETUP_STATE?.payload?.logo_url || SETUP_STATE?.payload?.hero_image_url || SETUP_STATE?.payload?.tagline), label: "Add branding, media, and public profile details", tab: "setup", action: "Open setup" },
-    { done: PAYMENTS_CACHE.length > 0, label: "Review payment setup and payout readiness", tab: "payments", action: "Open payments" },
+    { done: PRODUCTS_CACHE.length > 0, label: `Add your first ${catalogSingular}`, tab: "products", action: `Open ${catalogTabLabel}` },
+    { done: PRODUCTS_CACHE.some((row) => !!row.is_active), label: `Make at least one ${catalogSingular} live for intake`, tab: "products", action: `Review ${catalogTabLabel}` },
+    { done: pricingReady, label: workspaceUsesServiceCatalog(blueprint) ? "Give at least one service a usable price anchor" : `Price at least one ${catalogSingular}`, tab: workspaceUsesServiceCatalog(blueprint) ? "pricing" : "products", action: `Open ${workspaceTabLabel(workspaceUsesServiceCatalog(blueprint) ? "pricing" : "products", blueprint)}` },
+    { done: CUSTOMERS_CACHE.length > 0, label: "Capture your first customer in CRM", tab: "customers", action: "Open Customers" },
+    { done: CRM_ORDERS_CACHE.length > 0, label: `Convert at least one request into tracked ${orderLabel}`, tab: "orders", action: `Open ${workspaceTabLabel("orders", blueprint)}` },
+    { done: EXPENSES_CACHE.length > 0, label: isServiceWorkspace(blueprint) ? `Track your first expense against real ${orderLabel}` : "Track your first expense", tab: "expenses", action: "Open Expenses" },
+    { done: brandingReady, label: "Add branding, media, and public profile details", tab: "setup", action: "Open Setup" },
+    { done: PAYMENTS_CACHE.length > 0, label: "Log your first payment, deposit, or offline collection", tab: "payments", action: "Open Payments" },
   ];
+
+  if (isTabVisibleInWorkspace("bids", blueprint)) {
+    items.splice(4, 0,
+      { done: BIDS_CACHE.length > 0, label: "Create your first professional bid draft", tab: "bids", action: `Open ${workspaceBidLabel(blueprint)}` },
+      { done: hasPricedBidDraft(), label: "Price at least one real bid scope", tab: "bids", action: "Finish pricing" }
+    );
+  }
 
   startupChecklist.innerHTML = items.map((item) => `
     <button class="checklist-item ${item.done ? "is-done" : ""}" type="button" data-tour-go="${escapeAttr(item.tab)}" style="width:100%;text-align:left;background:transparent;border:0;padding:0;cursor:pointer;">
@@ -713,37 +1375,22 @@ function setupPreviewHtml(payload = {}, record = null) {
         ${heroUrl ? `<div style="margin-top:12px;border-radius:12px;overflow:hidden;border:1px solid var(--border);"><img src="${escapeAttr(heroUrl)}" alt="Hero" style="display:block;width:100%;height:220px;object-fit:cover;" /></div>` : ``}
       </div>
       <div class="table">
-        <div class="tr"><div>Public contact</div><div>${escapeHtml(payload.public_contact_email || payload.contact_email || "—")}</div></div>
-        <div class="tr"><div>Public phone</div><div>${escapeHtml(payload.public_business_phone || payload.business_phone || "—")}</div></div>
-        <div class="tr"><div>Location</div><div>${escapeHtml(record?.city_state || payload.city_state || "—")}</div></div>
-        <div class="tr"><div>Service area</div><div>${escapeHtml(payload.service_area || "—")}</div></div>
+        <div class="tr"><div>Public contact</div><div>${escapeHtml(payload.public_contact_email || payload.contact_email || "-")}</div></div>
+        <div class="tr"><div>Public phone</div><div>${escapeHtml(payload.public_business_phone || payload.business_phone || "-")}</div></div>
+        <div class="tr"><div>Location</div><div>${escapeHtml(record?.city_state || payload.city_state || "-")}</div></div>
+        <div class="tr"><div>Service area</div><div>${escapeHtml(payload.service_area || "-")}</div></div>
       </div>
     </div>
   `;
 }
 
-function renderLockedBusinessRecord(record = {}) {
-  if (!setupLockedRecord) return;
-  const rows = [
-    ["Legal business name", record.legal_business_name || "—"],
-    ["Owner name", record.owner_name || "—"],
-    ["Login email", record.login_email || "—"],
-    ["Business type", record.business_type || "—"],
-    ["City / State", record.city_state || "—"],
-    ["License number", record.license_number || "—"],
-    ["Tenant slug", record.slug || "—"],
-    ["Tenant status", record.active ? "Active" : "Inactive"],
-  ];
-  setupLockedRecord.innerHTML = rows.map(([label, value]) => `
-    <div class="tr"><div>${escapeHtml(label)}</div><div>${escapeHtml(String(value || "—"))}</div></div>
-  `).join("");
-}
-
 function fillSetupForm(payload = {}, record = null) {
+  hydrateWorkspaceProfileOptions(payload.workspace_business_type || record?.business_type || "");
   if (setupTagline) setupTagline.value = payload.tagline || "";
   if (setupHeroHeading) setupHeroHeading.value = payload.hero_heading || "";
   if (setupHeroSubheading) setupHeroSubheading.value = payload.hero_subheading || "";
   if (setupAbout) setupAbout.value = payload.about || "";
+  if (setupWorkspaceBusinessType) setupWorkspaceBusinessType.value = String(payload.workspace_business_type || record?.business_type || "").trim().toLowerCase();
   if (setupAccentColor) setupAccentColor.value = payload.accent_color || window.COTTAGELINK_BRAND?.accent || "#c84b2f";
   if (setupLogoUrl) setupLogoUrl.value = payload.logo_url || "";
   if (setupHeroImageUrl) setupHeroImageUrl.value = payload.hero_image_url || "";
@@ -766,6 +1413,7 @@ function collectSetupPayload(extra = {}) {
     hero_heading: setupHeroHeading?.value?.trim() || "",
     hero_subheading: setupHeroSubheading?.value?.trim() || "",
     about: setupAbout?.value?.trim() || "",
+    workspace_business_type: setupWorkspaceBusinessType?.value?.trim() || "",
     accent_color: setupAccentColor?.value?.trim() || "",
     logo_url: setupLogoUrl?.value?.trim() || "",
     hero_image_url: setupHeroImageUrl?.value?.trim() || "",
@@ -782,6 +1430,25 @@ function collectSetupPayload(extra = {}) {
   };
 }
 
+function renderLockedBusinessRecord(record = {}) {
+  if (!setupLockedRecord) return;
+  const blueprint = currentWorkspaceBlueprint();
+  const rows = [
+    ["Legal business name", record.legal_business_name || "-"],
+    ["Owner name", record.owner_name || "-"],
+    ["Login email", record.login_email || "-"],
+    ["Business type", blueprint?.business?.label || record.business_type || "-"],
+    ["ProofLink plan", blueprint?.tier?.label || titleCaseWords(record.prooflink_plan_key || workspacePlanKey())],
+    ["City / State", record.city_state || "-"],
+    ["License number", record.license_number || "-"],
+    ["Tenant slug", record.slug || "-"],
+    ["Tenant status", record.active ? "Active" : "Inactive"],
+  ];
+  setupLockedRecord.innerHTML = rows.map(([label, value]) => `
+    <div class="tr"><div>${escapeHtml(label)}</div><div>${escapeHtml(String(value || "-"))}</div></div>
+  `).join("");
+}
+
 async function fetchOperatorSetup() {
   const token = await window.PROOFLINK_OPERATOR_RUNTIME?.getAccessToken?.();
   const res = await fetch('/.netlify/functions/get-operator-setup', {
@@ -791,12 +1458,13 @@ async function fetchOperatorSetup() {
   if (!res.ok) throw new Error(data.error || 'Failed to load setup.');
   SETUP_STATE = data;
   fillSetupForm(data.config || {}, data.locked_record || data.tenant || {});
+  applyWorkspaceBlueprint();
   return data;
 }
 
 async function saveOperatorSetup(extra = {}) {
   const payload = collectSetupPayload(extra);
-  setSetupMessage('Saving setup…');
+  setSetupMessage('Saving setup...');
   const token = await window.PROOFLINK_OPERATOR_RUNTIME?.getAccessToken?.();
   const res = await fetch('/.netlify/functions/update-tenant-config', {
     method: 'POST',
@@ -810,6 +1478,7 @@ async function saveOperatorSetup(extra = {}) {
   if (!res.ok) throw new Error(data.error || 'Failed to save setup.');
   SETUP_STATE = { ...(SETUP_STATE || {}), config: data.config || payload, locked_record: SETUP_STATE?.locked_record || null };
   fillSetupForm(data.config || payload, SETUP_STATE?.locked_record || null);
+  applyWorkspaceBlueprint();
   initBranding();
   setSetupMessage('Setup saved.', 'good');
   return data;
@@ -830,7 +1499,7 @@ async function uploadSetupAsset(file, slot = 'asset') {
 
 function normalizePanel(panel) {
   const value = String(panel || '').trim().toLowerCase();
-  return document.querySelector(`.tab[data-tab="${value}"]`) ? value : 'dashboard';
+  return document.querySelector(`.tab[data-tab="${value}"]:not([hidden])`) ? value : 'dashboard';
 }
 function panelFromLocation() {
   const hash = String(window.location.hash || '').replace(/^#/, '');
@@ -855,10 +1524,13 @@ function switchTab(tab, opts = {}) {
 
   if (nextTab === "money") renderMoney().catch(console.error);
   if (nextTab === "dashboard") renderDashboard();
+  if (nextTab === "leads") renderLeads(leadSearch?.value || "");
   if (nextTab === "orders") renderOrders();
   if (nextTab === "bids") renderBids(bidSearch?.value || "");
+  if (nextTab === "jobs") renderJobs(jobSearch?.value || "");
   if (nextTab === "customers") renderCustomersList(customerSearch?.value || "");
   if (nextTab === "payments") renderPayments();
+  if (nextTab === "domains") window.renderDomains?.();
   if (nextTab === "setup") fetchOperatorSetup().catch((err) => setSetupMessage(err.message || String(err), "bad"));
   if (nextTab === "guidance") renderGuidance();
   if (opts.updateHash !== false) syncPanelHash(nextTab);
@@ -914,7 +1586,7 @@ function getAuthCallbackType() {
   if (hash.includes("type=invite")    || search.includes("type=invite"))    return "invite";
   if (hash.includes("type=recovery")  || search.includes("type=recovery"))  return "recovery";
   if (hash.includes("type=signup")    || search.includes("type=signup"))    return "signup";
-  // Bare access_token without explicit type → treat as magic link (first-time setup)
+  // Bare access_token without explicit type -> treat as magic link (first-time setup)
   if (hash.includes("access_token=")) return "magiclink";
   return null;
 }
@@ -1016,7 +1688,7 @@ btnSetPassword?.addEventListener("click", async () => {
   }
 
   if (btnSetPassword) btnSetPassword.disabled = true;
-  if (passwordSetupMsg) { passwordSetupMsg.textContent = "Setting password…"; passwordSetupMsg.className = "msg"; }
+  if (passwordSetupMsg) { passwordSetupMsg.textContent = "Setting password..."; passwordSetupMsg.className = "msg"; }
 
   const { error } = await sb.auth.updateUser({ password: pw });
 
@@ -1029,7 +1701,7 @@ btnSetPassword?.addEventListener("click", async () => {
   const isReset = passwordSetupMode === "reset";
   passwordSetupMode = null;
 
-  if (passwordSetupMsg) { passwordSetupMsg.textContent = isReset ? "Password updated. Loading your dashboard…" : "Password set. Loading your dashboard…"; passwordSetupMsg.className = "msg ok"; }
+  if (passwordSetupMsg) { passwordSetupMsg.textContent = isReset ? "Password updated. Loading your dashboard..." : "Password set. Loading your dashboard..."; passwordSetupMsg.className = "msg ok"; }
 
   setTimeout(() => {
     window.PROOFLINK_BOOT_READY = false;
@@ -1047,7 +1719,7 @@ btnSetPassword?.addEventListener("click", async () => {
 
 loginForm?.addEventListener("submit", async (e) => {
   e.preventDefault();
-  if (loginMsg) loginMsg.textContent = "Signing in…";
+  if (loginMsg) loginMsg.textContent = "Signing in...";
   const { error } = await sb.auth.signInWithPassword({
     email: loginEmail.value.trim(),
     password: loginPassword.value,
@@ -1065,7 +1737,7 @@ btnMagicLink?.addEventListener("click", async () => {
     return;
   }
   try {
-    if (loginMsg) loginMsg.textContent = "Sending sign-in link…";
+    if (loginMsg) loginMsg.textContent = "Sending sign-in link...";
     await sendMagicLink(email);
     if (loginMsg) loginMsg.textContent = "Check your inbox for the newest sign-in link.";
   } catch (err) {
@@ -1073,7 +1745,7 @@ btnMagicLink?.addEventListener("click", async () => {
   }
 });
 
-// ── Forgot password flow ──────────────────────────────────────────────────
+// -- Forgot password flow --------------------------------------------------
 $("btnForgotPassword")?.addEventListener("click", (e) => {
   e.preventDefault();
   showForgotPassword();
@@ -1088,7 +1760,7 @@ btnSendReset?.addEventListener("click", async () => {
     return;
   }
   if (btnSendReset) btnSendReset.disabled = true;
-  if (forgotMsg) { forgotMsg.textContent = "Sending reset link…"; forgotMsg.className = "msg"; }
+  if (forgotMsg) { forgotMsg.textContent = "Sending reset link..."; forgotMsg.className = "msg"; }
 
   try {
     const { error } = await sb.auth.resetPasswordForEmail(email, {
@@ -1204,11 +1876,11 @@ async function requireOperatorContext() {
 
   const operatorTenantId = String(data.operators.tenant_id || '').trim();
   if (TENANT_SCOPE_ENABLED && operatorTenantId && operatorTenantId !== TENANT_ID) {
-    // Tenant in database doesn't match static config — update the module-level
+    // Tenant in database doesn't match static config - update the module-level
     // TENANT_ID to the real value from the database so all queries use the correct
     // tenant. This allows the operator dashboard to work for any provisioned tenant,
     // not just the demo tenant hardcoded in cottagelink.tenant.js.
-    console.log(`[ProofLink] Tenant scope updated: ${TENANT_ID} → ${operatorTenantId}`);
+    console.log(`[ProofLink] Tenant scope updated: ${TENANT_ID} -> ${operatorTenantId}`);
     // eslint-disable-next-line no-global-assign
     TENANT_ID = operatorTenantId;
   }
@@ -1253,7 +1925,7 @@ function renderProductsList(filter = "") {
     el.innerHTML = `
       <div class="li-main">
         <div class="li-title">${escapeHtml(p.name)}</div>
-        <div class="li-sub muted">${escapeHtml(p.category || "—")} • ${escapeHtml(p.slug)}</div>
+        <div class="li-sub muted">${escapeHtml(p.category || "-")}  |  ${escapeHtml(p.slug)}</div>
       </div>
       <div class="li-meta">
         <span class="pill ${p.is_active ? "pill-on" : ""}">${p.is_active ? "On site" : "Hidden"}</span>
@@ -1381,7 +2053,7 @@ btnRefreshProducts?.addEventListener("click", async () => {
 btnNewProduct?.addEventListener("click", clearProductForm);
 productForm?.addEventListener("submit", async (e) => {
   e.preventDefault();
-  if (productMsg) productMsg.textContent = "Saving…";
+  if (productMsg) productMsg.textContent = "Saving...";
 
   const id = productId.value || null;
   const payload = withTenantScope({
@@ -1468,7 +2140,7 @@ btnUploadProductImage?.addEventListener("click", async () => {
     return;
   }
   try {
-    if (productImageStatus) productImageStatus.textContent = "Uploading…";
+    if (productImageStatus) productImageStatus.textContent = "Uploading...";
     productImageUrl.value = await uploadProductImage(file);
     if (productImageStatus) productImageStatus.textContent = "Uploaded. Click Save to store URL.";
   } catch (err) {
@@ -1532,7 +2204,7 @@ function renderPricing(rows) {
     el.innerHTML = `
       <div class="li-main">
         <div class="li-title">${escapeHtml(r.product_name || r.product_id)}</div>
-        <div class="li-sub muted">${escapeHtml(r.product_category || "")} • ${escapeHtml(r.unit_label || "each")}</div>
+        <div class="li-sub muted">${escapeHtml(r.product_category || "")}  |  ${escapeHtml(r.unit_label || "each")}</div>
       </div>
       <div class="li-meta" style="display:flex;gap:12px;flex-wrap:wrap;align-items:end;">
         <label class="inline">
@@ -1667,7 +2339,7 @@ function renderPricing(rows) {
 }
 btnRefreshSetup?.addEventListener("click", async () => {
   try {
-    setSetupMessage('Refreshing setup…');
+    setSetupMessage('Refreshing setup...');
     await fetchOperatorSetup();
     setSetupMessage('Setup reloaded.', 'good');
   } catch (err) {
@@ -1703,7 +2375,7 @@ btnUploadSetupLogo?.addEventListener('click', async () => {
     return;
   }
   try {
-    if (setupLogoStatus) setupLogoStatus.textContent = 'Uploading…';
+    if (setupLogoStatus) setupLogoStatus.textContent = 'Uploading...';
     if (setupLogoUrl) setupLogoUrl.value = await uploadSetupAsset(file, 'logo');
     if (setupLogoStatus) setupLogoStatus.textContent = 'Uploaded. Save setup to keep it.';
     fillSetupForm(collectSetupPayload(), SETUP_STATE?.locked_record || null);
@@ -1718,7 +2390,7 @@ btnUploadSetupHero?.addEventListener('click', async () => {
     return;
   }
   try {
-    if (setupHeroStatus) setupHeroStatus.textContent = 'Uploading…';
+    if (setupHeroStatus) setupHeroStatus.textContent = 'Uploading...';
     if (setupHeroImageUrl) setupHeroImageUrl.value = await uploadSetupAsset(file, 'hero');
     if (setupHeroStatus) setupHeroStatus.textContent = 'Uploaded. Save setup to keep it.';
     fillSetupForm(collectSetupPayload(), SETUP_STATE?.locked_record || null);
@@ -1786,8 +2458,8 @@ function renderExpenses(rows) {
     el.className = "list-item";
     el.innerHTML = `
       <div class="li-main">
-        <div class="li-title">${escapeHtml(r.category || "Expense")} — $${money(r.amount_cents)}</div>
-        <div class="li-sub muted">${escapeHtml(r.date || "")} • ${escapeHtml(r.vendor || "")}</div>
+        <div class="li-title">${escapeHtml(r.category || "Expense")} - $${money(r.amount_cents)}</div>
+        <div class="li-sub muted">${escapeHtml(r.date || "")}  |  ${escapeHtml(r.vendor || "")}</div>
       </div>
       <div class="li-meta">
         <span class="pill">${escapeHtml(r.description || r.notes || "")}</span>
@@ -1809,7 +2481,7 @@ btnRefreshExpenses?.addEventListener("click", async () => {
 });
 expenseForm?.addEventListener("submit", async (e) => {
   e.preventDefault();
-  if (expenseMsg) expenseMsg.textContent = "Saving…";
+  if (expenseMsg) expenseMsg.textContent = "Saving...";
 
   const id = expenseId.value || null;
   const payload = withTenantScope({
@@ -1937,7 +2609,7 @@ function formatEnabledDaySummary(av) {
   return groups.map((group) => {
     const first = prettifyDay(group[0].day);
     const last = prettifyDay(group[group.length - 1].day);
-    return `${group.length === 1 ? first : `${first}–${last}`} ${formatTime12(group[0].start)} to ${formatTime12(group[0].end)}`;
+    return `${group.length === 1 ? first : `${first}-${last}`} ${formatTime12(group[0].start)} to ${formatTime12(group[0].end)}`;
   }).join("; ");
 }
 function availabilitySummaryText(av) {
@@ -2212,7 +2884,7 @@ function renderAvailability() {
           </div>
           <div class="row" style="gap:8px;flex-wrap:wrap;">
             <button id="btnCopyMondayToWeekdays" class="btn btn-ghost" type="button">Copy Monday to weekdays</button>
-            <button id="btnSetWeekdaysStandard" class="btn btn-ghost" type="button">Set weekdays 8–5</button>
+            <button id="btnSetWeekdaysStandard" class="btn btn-ghost" type="button">Set weekdays 8-5</button>
             <button id="btnCopyWeekdaysToWeekend" class="btn btn-ghost" type="button">Copy Friday to weekend</button>
             <button id="btnClearWeekend" class="btn btn-ghost" type="button">Close weekend</button>
           </div>
@@ -2256,7 +2928,7 @@ function renderAvailability() {
                     <span class="muted">${escapeHtml(cell.weekday)}</span>
                   </div>
                   <div class="muted" style="font-size:12px;">${escapeHtml(cell.stateLabel)}</div>
-                  <div style="font-size:12px;margin-top:6px;">${cell.open && cell.start && cell.end ? `${escapeHtml(formatTime12(cell.start))}–${escapeHtml(formatTime12(cell.end))}` : "—"}</div>
+                  <div style="font-size:12px;margin-top:6px;">${cell.open && cell.start && cell.end ? `${escapeHtml(formatTime12(cell.start))}-${escapeHtml(formatTime12(cell.end))}` : "-"}</div>
                   <div style="font-size:12px;margin-top:6px;">Orders: <strong>${cell.count}</strong></div>
                   <div style="font-size:12px;margin-top:4px;">Value: <strong>${formatUsd(cell.revenueCents || 0)}</strong></div>
                 </div>
@@ -2282,7 +2954,7 @@ function renderAvailability() {
                         <span>${escapeHtml(row.name || "Customer")}</span>
                       </div>
                       <div class="muted" style="font-size:12px;margin-top:4px;">
-                        ${escapeHtml(row.pickupWindow || row.occasion || "Scheduled request")} • ${formatUsd(row.estimatedTotalCents || 0)}
+                        ${escapeHtml(row.pickupWindow || row.occasion || "Scheduled request")}  |  ${formatUsd(row.estimatedTotalCents || 0)}
                       </div>
                     </div>
                   `).join("")}
@@ -2294,7 +2966,7 @@ function renderAvailability() {
               <div class="muted" style="margin-bottom:6px;">Top upcoming items</div>
               ${prepOutlook.topItems.length ? `
                 <div style="display:flex;flex-wrap:wrap;gap:8px;">
-                  ${prepOutlook.topItems.map(([name, qty]) => `<span class="pill pill-on">${escapeHtml(name)} × ${escapeHtml(String(qty))}</span>`).join("")}
+                  ${prepOutlook.topItems.map(([name, qty]) => `<span class="pill pill-on">${escapeHtml(name)} x ${escapeHtml(String(qty))}</span>`).join("")}
                 </div>
               ` : `<div class="muted">No item-level counts available yet.</div>`}
             </div>
@@ -2303,7 +2975,7 @@ function renderAvailability() {
               <div class="muted" style="margin-bottom:6px;">Ingredient watchlist</div>
               ${prepOutlook.topIngredients.length ? `
                 <div style="display:flex;flex-wrap:wrap;gap:8px;">
-                  ${prepOutlook.topIngredients.map(([name, qty]) => `<span class="pill">${escapeHtml(name)} × ${escapeHtml(String(qty))}</span>`).join("")}
+                  ${prepOutlook.topIngredients.map(([name, qty]) => `<span class="pill">${escapeHtml(name)} x ${escapeHtml(String(qty))}</span>`).join("")}
                 </div>
               ` : `<div class="muted">Ingredient forecasting becomes stronger as product ingredients and dated orders fill in.</div>`}
             </div>
@@ -2408,7 +3080,7 @@ btnRefreshAvailability?.addEventListener("click", async () => {
 });
 btnSaveAvailability?.addEventListener("click", async () => {
   try {
-    if (availabilityMsg) availabilityMsg.textContent = "Saving…";
+    if (availabilityMsg) availabilityMsg.textContent = "Saving...";
     const payload = collectAvailabilityFromForm();
     const { error } = await sb.from("availability").upsert(payload, { onConflict: `${TENANT_COLUMN},${OPERATOR_COLUMN}` });
     if (error) throw error;
@@ -2442,6 +3114,24 @@ async function fetchCustomerInteractions(customerId) {
   if (error) throw error;
   return data || [];
 }
+async function fetchLeads() {
+  const { data, error } = await scopeQuery(sb
+    .from("leads")
+    .select("*"))
+    .order("updated_at", { ascending: false })
+    .order("created_at", { ascending: false })
+    .limit(250);
+
+  if (error) {
+    if (isMissingDatabaseFeatureError(error, ["leads"])) {
+      LEADS_CACHE = [];
+      return LEADS_CACHE;
+    }
+    throw error;
+  }
+  LEADS_CACHE = data || [];
+  return LEADS_CACHE;
+}
 async function fetchCrmOrders() {
   let query = scopeQuery(sb
     .from("orders")
@@ -2454,6 +3144,19 @@ async function fetchCrmOrders() {
   CRM_ORDERS_CACHE = data || [];
   return CRM_ORDERS_CACHE;
 }
+async function fetchPersistedBids() {
+  const { data, error } = await scopeQuery(sb
+    .from("bids")
+    .select("*"))
+    .order("updated_at", { ascending: false })
+    .limit(250);
+
+  if (error) {
+    if (isMissingDatabaseFeatureError(error, ["bids"])) return [];
+    throw error;
+  }
+  return data || [];
+}
 async function fetchPayments() {
   const { data, error } = await scopeQuery(sb
     .from("payments")
@@ -2464,6 +3167,24 @@ async function fetchPayments() {
   if (error) throw error;
   PAYMENTS_CACHE = data || [];
   return PAYMENTS_CACHE;
+}
+async function fetchJobs() {
+  const { data, error } = await scopeQuery(sb
+    .from("jobs")
+    .select("*"))
+    .order("updated_at", { ascending: false })
+    .order("created_at", { ascending: false })
+    .limit(250);
+
+  if (error) {
+    if (isMissingDatabaseFeatureError(error, ["jobs"])) {
+      JOBS_CACHE = [];
+      return JOBS_CACHE;
+    }
+    throw error;
+  }
+  JOBS_CACHE = data || [];
+  return JOBS_CACHE;
 }
 function findExistingCustomerRecord(row) {
   const email = String(row?.email || "").trim().toLowerCase();
@@ -2591,7 +3312,7 @@ function renderCustomersList(filter = "") {
     el.innerHTML = `
       <div class="li-main">
         <div class="li-title">${escapeHtml(c.name || "Unnamed customer")}</div>
-        <div class="li-sub muted">${escapeHtml(c.email || "No email")} • ${escapeHtml(c.phone || "No phone")}</div>
+        <div class="li-sub muted">${escapeHtml(c.email || "No email")}  |  ${escapeHtml(c.phone || "No phone")}</div>
       </div>
       <div class="li-meta">
         <span class="pill pill-on">${formatUsd(c.lifetime_value_cents || 0)}</span>
@@ -2625,9 +3346,9 @@ async function renderCustomerDetail(customerId) {
     <div class="detail-card">
       <div class="kicker">Customer profile</div>
       <div><strong>${escapeHtml(customer.name || "Unnamed customer")}</strong></div>
-      <div class="detail-copy">${escapeHtml(customer.email || "No email")} • ${escapeHtml(customer.phone || "No phone")}</div>
+      <div class="detail-copy">${escapeHtml(customer.email || "No email")}  |  ${escapeHtml(customer.phone || "No phone")}</div>
       <div class="detail-copy">Preferred contact: ${escapeHtml(customer.preferred_contact || "email")}</div>
-      <div class="detail-copy">Lifetime value: ${formatUsd(customer.lifetime_value_cents || 0)} • Orders: ${escapeHtml(String(customer.order_count || 0))}</div>
+      <div class="detail-copy">Lifetime value: ${formatUsd(customer.lifetime_value_cents || 0)}  |  Orders: ${escapeHtml(String(customer.order_count || 0))}</div>
       <div class="detail-copy">Last touch: ${escapeHtml(customer.last_contact_at ? formatDateTime(customer.last_contact_at) : "Not recorded")}</div>
     </div>
 
@@ -2652,7 +3373,7 @@ async function renderCustomerDetail(customerId) {
                 <div class="list-item">
                   <div class="li-main">
                     <div class="li-title">${escapeHtml(o.status || "draft")}</div>
-                    <div class="li-sub muted">${escapeHtml(o.scheduled_date || "No scheduled date")} • ${escapeHtml(o.scheduled_time || "No time")}</div>
+                    <div class="li-sub muted">${escapeHtml(o.scheduled_date || "No scheduled date")}  |  ${escapeHtml(o.scheduled_time || "No time")}</div>
                   </div>
                   <div class="li-meta">
                     <span class="pill pill-on">${formatUsd(o.total_cents || 0)}</span>
@@ -2794,7 +3515,7 @@ function renderPayments() {
     el.innerHTML = `
       <div class="li-main">
         <div class="li-title">${escapeHtml(customer?.name || "Customer")}</div>
-        <div class="li-sub muted">${escapeHtml(order?.status || "order")} • ${escapeHtml(formatDateTime(p.created_at))}</div>
+        <div class="li-sub muted">${escapeHtml(order?.status || "order")}  |  ${escapeHtml(formatDateTime(p.created_at))}</div>
       </div>
       <div class="li-meta">
         <span class="pill">${escapeHtml(p.status || "pending")}</span>
@@ -3067,6 +3788,7 @@ function clearPaymentForm(options = {}) {
   ACTIVE_PAYMENT_ID = null;
   if (paymentFormTitle) paymentFormTitle.textContent = "Manual payment entry";
   if (paymentId) paymentId.value = "";
+  if (paymentJobId) paymentJobId.value = options.jobId || "";
   renderPaymentCustomerOptions(defaultCustomerId);
   renderPaymentOrderOptions(defaultCustomerId, defaultOrderId);
   if (paymentMode) paymentMode.value = options.mode || "cash";
@@ -3082,6 +3804,7 @@ function loadPaymentIntoForm(payment) {
   ACTIVE_PAYMENT_ID = payment.id;
   if (paymentFormTitle) paymentFormTitle.textContent = "Edit manual payment";
   if (paymentId) paymentId.value = payment.id || "";
+  if (paymentJobId) paymentJobId.value = payment.job_id || "";
   renderPaymentCustomerOptions(payment.customer_id || "");
   renderPaymentOrderOptions(payment.customer_id || "", payment.order_id || "");
   if (paymentMode) paymentMode.value = payment.payment_mode || "cash";
@@ -3233,6 +3956,7 @@ paymentForm?.addEventListener("submit", async (e) => {
     operator_id: opId(),
     customer_id: resolvedCustomerId,
     order_id: paymentOrderId?.value || null,
+    job_id: paymentJobId?.value || null,
     payment_mode: paymentMode?.value || "manual_other",
     status: paymentStatus?.value || "paid",
     amount_subtotal: amountCents,
@@ -3262,10 +3986,12 @@ paymentForm?.addEventListener("submit", async (e) => {
     if (error) throw error;
 
     ACTIVE_PAYMENT_ID = data.id;
-    await Promise.all([fetchPayments(), fetchCustomers()]);
+    await Promise.all([fetchPayments(), fetchCustomers(), fetchCrmOrders(), fetchJobs()]);
     const fresh = PAYMENTS_CACHE.find((row) => row.id === data.id) || data;
     loadPaymentIntoForm(fresh);
     renderPayments();
+    renderOrders();
+    renderJobs(jobSearch?.value || "");
     renderCustomersList(customerSearch?.value || "");
     renderDashboard();
     renderMoney().catch(console.error);
@@ -3275,6 +4001,94 @@ paymentForm?.addEventListener("submit", async (e) => {
   } catch (err) {
     setInlineMessage(paymentMsg, err.message || String(err), "error");
   }
+});
+leadSearch?.addEventListener("input", () => renderLeads(leadSearch.value));
+btnNewLead?.addEventListener("click", () => {
+  ACTIVE_LEAD_ID = null;
+  clearLeadForm();
+  renderLeadDetail(null).catch(console.error);
+});
+leadForm?.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  setInlineMessage(leadMsg, "Saving...");
+  try {
+    await saveLeadRecord();
+    setInlineMessage(leadMsg, "Lead saved.", "ok");
+  } catch (err) {
+    setInlineMessage(leadMsg, err.message || String(err), "error");
+  }
+});
+btnLeadCreateBid?.addEventListener("click", async () => {
+  try {
+    setInlineMessage(leadMsg, "Creating bid...");
+    let lead = currentLead();
+    if (!lead || !lead.id) {
+      lead = await saveLeadRecord();
+    }
+    const result = await createBidFromLeadRecord(lead, { profile: preferredBidProfile() });
+    const target = result?.bid || BIDS_CACHE[0] || null;
+    if (target) ACTIVE_BID_ID = target.id;
+    renderBids(bidSearch?.value || "");
+    renderLeads(leadSearch?.value || "");
+    setInlineMessage(leadMsg, result?.existing ? "Linked bid opened." : "Lead converted into a bid.", "ok");
+    switchTab("bids");
+  } catch (err) {
+    setInlineMessage(leadMsg, err.message || String(err), "error");
+  }
+});
+btnLeadOpenBid?.addEventListener("click", async () => {
+  const lead = currentLead();
+  if (!lead?.converted_bid_id) return;
+  await loadPersistedBids();
+  const bid = findBidRecordById(lead.converted_bid_id);
+  if (bid) ACTIVE_BID_ID = bid.id;
+  renderBids(bidSearch?.value || "");
+  switchTab("bids");
+});
+jobSearch?.addEventListener("input", () => renderJobs(jobSearch.value));
+btnNewJob?.addEventListener("click", () => {
+  ACTIVE_JOB_ID = null;
+  clearJobForm();
+  renderJobDetail(null).catch(console.error);
+});
+jobOrderId?.addEventListener("change", () => {
+  const linkedOrder = CRM_ORDERS_CACHE.find((row) => row.id === (jobOrderId.value || ""));
+  if (!linkedOrder) return;
+  renderJobCustomerOptions(linkedOrder.customer_id || "");
+  if (jobTitle && !jobTitle.value.trim()) jobTitle.value = linkedOrder.cart_summary || linkedOrder.customer_name || "";
+  if (jobServiceAddress && !jobServiceAddress.value.trim()) jobServiceAddress.value = linkedOrder.service_address || "";
+  if (jobScheduledDate && !jobScheduledDate.value) jobScheduledDate.value = linkedOrder.scheduled_date || "";
+  if (jobScheduledTime && !jobScheduledTime.value.trim()) jobScheduledTime.value = linkedOrder.scheduled_time || "";
+});
+jobForm?.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  setInlineMessage(jobMsg, "Saving...");
+  try {
+    await saveJobRecord();
+    setInlineMessage(jobMsg, "Job saved.", "ok");
+  } catch (err) {
+    setInlineMessage(jobMsg, err.message || String(err), "error");
+  }
+});
+btnJobOpenOrder?.addEventListener("click", () => {
+  const job = currentJob();
+  if (!job?.order_id) return;
+  ACTIVE_ORDER_ID = job.order_id;
+  renderOrders();
+  switchTab("orders");
+});
+btnJobRecordPayment?.addEventListener("click", () => {
+  const job = currentJob();
+  if (!job) return;
+  const order = linkedOrderForJob(job);
+  ACTIVE_ORDER_ID = order?.id || job.order_id || null;
+  ACTIVE_JOB_ID = job.id;
+  clearPaymentForm({
+    customerId: job.customer_id || order?.customer_id || "",
+    orderId: order?.id || job.order_id || "",
+    jobId: job.id,
+  });
+  switchTab("payments");
 });
 
 function normalizeBidProfile(value) {
@@ -3288,6 +4102,10 @@ function preferredBidProfile() {
     SETUP_STATE?.config?.business_type ||
     ""
   ).trim().toLowerCase();
+  const Architecture = window.PROOFLINK_WORKSPACE_ARCHITECTURE;
+  if (Architecture?.resolveBidProfileForBusinessType) {
+    return normalizeBidProfile(Architecture.resolveBidProfileForBusinessType(raw));
+  }
   const map = {
     contractor: "contractor_remodeling",
     contractor_remodeling: "contractor_remodeling",
@@ -3314,6 +4132,57 @@ function cloneJson(value, fallback) {
 function bidProfileConfig(profileKey) {
   return BID_PROFILE_LIBRARY[normalizeBidProfile(profileKey)];
 }
+function bidPhotoCategories(profileKey) {
+  const profile = bidProfileConfig(profileKey);
+  const defaults = BID_PROFILE_LIBRARY.general_service?.photoCategories || [];
+  return Array.isArray(profile?.photoCategories) && profile.photoCategories.length
+    ? profile.photoCategories
+    : defaults;
+}
+function bidScopeStarterLibrary(profileKey) {
+  const profile = bidProfileConfig(profileKey);
+  const defaults = BID_PROFILE_LIBRARY.general_service?.scopeStarters || [];
+  return Array.isArray(profile?.scopeStarters) && profile.scopeStarters.length
+    ? profile.scopeStarters
+    : defaults;
+}
+function bidProposalPrompts(profileKey) {
+  const profile = bidProfileConfig(profileKey);
+  const defaults = BID_PROFILE_LIBRARY.general_service?.proposalPrompts || [];
+  return Array.isArray(profile?.proposalPrompts) && profile.proposalPrompts.length
+    ? profile.proposalPrompts
+    : defaults;
+}
+function bidPhotoCategoryByValue(profileKey, categoryValue) {
+  const key = String(categoryValue || "").trim().toLowerCase();
+  return bidPhotoCategories(profileKey).find((item) => item.value === key) || bidPhotoCategories(profileKey)[0] || null;
+}
+function hydrateBidPhotoCategoryOptions(profileKey, selectedValue = "") {
+  if (!bidPhotoCategory) return;
+  const selected = String(selectedValue || "").trim().toLowerCase();
+  const options = bidPhotoCategories(profileKey);
+  bidPhotoCategory.innerHTML = options.map((item) => `
+    <option value="${escapeAttr(item.value)}">${escapeHtml(item.label)}</option>
+  `).join("");
+  const fallback = options[0]?.value || "overview";
+  bidPhotoCategory.value = options.some((item) => item.value === selected) ? selected : fallback;
+}
+function bidPhotoPresetNeedsName(currentValue = "") {
+  const raw = String(currentValue || "").trim().toLowerCase();
+  return !raw || ["walkthrough photo", "photo", "image"].includes(raw);
+}
+function mergeBidLineItem(base = {}, item = {}) {
+  return {
+    id: item.id || base.id || createLocalId("line"),
+    name: item.name || base.name || "",
+    description: item.description || base.description || "",
+    quantity: Number(item.quantity ?? base.quantity ?? 1),
+    unit: item.unit || base.unit || "job",
+    unit_price_cents: Number(item.unit_price_cents ?? base.unit_price_cents ?? 0),
+    kind: String(item.kind || base.kind || "base"),
+    template_key: item.template_key || base.template_key || "",
+  };
+}
 function formatBidStatus(status) {
   const labels = {
     draft: "Draft",
@@ -3322,8 +4191,102 @@ function formatBidStatus(status) {
     sent: "Sent to client",
     approved: "Approved",
     declined: "Declined",
+    converted: "Converted",
   };
   return labels[String(status || "").trim().toLowerCase()] || (status ? String(status) : "Draft");
+}
+function bidRecordId(draft) {
+  return draft?.record_id || (isUuidLike(draft?.id) ? draft.id : "");
+}
+function bidMetadataValue(row) {
+  return row && typeof row.metadata === "object" && row.metadata
+    ? row.metadata
+    : {};
+}
+function draftFromBidRow(row) {
+  const metadata = bidMetadataValue(row);
+  const localId = metadata.local_draft_id || row.id;
+  return {
+    id: localId,
+    record_id: row.id,
+    title: row.title || "",
+    customer_id: row.customer_id || "",
+    lead_id: row.lead_id || "",
+    profile: normalizeBidProfile(row.profile || preferredBidProfile()),
+    status: String(row.status || "draft"),
+    walkthrough_at: row.walkthrough_at || null,
+    valid_until: row.valid_until || "",
+    service_address: row.service_address || "",
+    site_contact: row.site_contact || "",
+    schedule_window: row.schedule_window || "",
+    project_summary: row.project_summary || "",
+    scope_of_work: row.scope_of_work || "",
+    proposed_solution: row.proposed_solution || "",
+    materials_plan: row.materials_plan || "",
+    unused_materials_plan: row.unused_materials_plan || "",
+    exclusions: row.exclusions || "",
+    warranty: row.warranty || "",
+    cover_note: row.cover_note || "",
+    internal_notes: row.internal_notes || "",
+    deposit_percent: Number(row.deposit_percent || 0),
+    deposit_amount_cents: Number(row.deposit_amount_cents || 0),
+    terms: row.terms || "",
+    line_items: cloneJson(row.line_items || [], []),
+    photos: cloneJson(row.photos || [], []),
+    subtotal_cents: Number(row.subtotal_cents || 0),
+    optional_total_cents: Number(row.optional_total_cents || 0),
+    total_cents: Number(row.total_cents || 0),
+    converted_order_id: row.converted_order_id || "",
+    converted_at: row.converted_at || null,
+    sent_at: row.sent_at || null,
+    approved_at: row.approved_at || null,
+    metadata,
+    created_at: row.created_at || new Date().toISOString(),
+    updated_at: row.updated_at || new Date().toISOString(),
+  };
+}
+function bidRowFromDraft(draft) {
+  const totals = calculateBidTotals(draft);
+  return withTenantScope({
+    operator_id: opId(),
+    lead_id: draft?.lead_id || null,
+    customer_id: draft?.customer_id || null,
+    status: String(draft?.status || "draft"),
+    profile: normalizeBidProfile(draft?.profile || preferredBidProfile()),
+    title: draft?.title || defaultBidTitleFromDraft(draft),
+    walkthrough_at: draft?.walkthrough_at || null,
+    valid_until: draft?.valid_until || null,
+    service_address: draft?.service_address || null,
+    site_contact: draft?.site_contact || null,
+    schedule_window: draft?.schedule_window || null,
+    project_summary: draft?.project_summary || null,
+    scope_of_work: draft?.scope_of_work || null,
+    proposed_solution: draft?.proposed_solution || null,
+    materials_plan: draft?.materials_plan || null,
+    unused_materials_plan: draft?.unused_materials_plan || null,
+    exclusions: draft?.exclusions || null,
+    warranty: draft?.warranty || null,
+    cover_note: draft?.cover_note || null,
+    internal_notes: draft?.internal_notes || null,
+    deposit_percent: Number(draft?.deposit_percent || 0),
+    deposit_amount_cents: Number(draft?.deposit_amount_cents || 0),
+    terms: draft?.terms || null,
+    line_items: cloneJson(draft?.line_items || [], []),
+    photos: cloneJson(draft?.photos || [], []),
+    subtotal_cents: totals.base + totals.allowances,
+    optional_total_cents: totals.options,
+    total_cents: totals.total,
+    converted_order_id: draft?.converted_order_id || null,
+    sent_at: draft?.sent_at || null,
+    approved_at: draft?.approved_at || null,
+    converted_at: draft?.converted_at || null,
+    metadata: {
+      ...(draft?.metadata && typeof draft.metadata === "object" ? draft.metadata : {}),
+      local_draft_id: draft?.id || null,
+      client_version: "phase1",
+    },
+    updated_at: draft?.updated_at || new Date().toISOString(),
+  });
 }
 function formatBidLineItemKind(kind) {
   const labels = {
@@ -3361,7 +4324,7 @@ function bidOptionalLineItems(bid) {
 }
 function escapeParagraphs(value) {
   const text = String(value || "").trim();
-  return text ? escapeHtml(text).replace(/\n/g, "<br>") : "—";
+  return text ? escapeHtml(text).replace(/\n/g, "<br>") : "-";
 }
 function findBidCustomer(customerIdValue) {
   return CUSTOMERS_CACHE.find((row) => row.id === customerIdValue) || null;
@@ -3386,6 +4349,8 @@ function emptyBidDraft(profileKey = preferredBidProfile()) {
   validUntil.setDate(validUntil.getDate() + 14);
   return {
     id: createLocalId("bid"),
+    record_id: "",
+    lead_id: "",
     title: "",
     customer_id: "",
     profile: normalizeBidProfile(profileKey),
@@ -3421,6 +4386,22 @@ function emptyBidDraft(profileKey = preferredBidProfile()) {
     updated_at: nowIso,
   };
 }
+function mergeBidDraftCollections(localRows = [], remoteRows = []) {
+  const merged = new Map();
+  [...localRows, ...remoteRows].forEach((row) => {
+    if (!row) return;
+    const key = bidRecordId(row) || row.id;
+    const existing = merged.get(key);
+    if (!existing) {
+      merged.set(key, row);
+      return;
+    }
+    const existingAt = new Date(existing.updated_at || 0).getTime();
+    const nextAt = new Date(row.updated_at || 0).getTime();
+    merged.set(key, nextAt >= existingAt ? row : existing);
+  });
+  return [...merged.values()].sort((a, b) => new Date(b.updated_at || 0).getTime() - new Date(a.updated_at || 0).getTime());
+}
 function persistBidDrafts() {
   try {
     window.localStorage.setItem(bidStorageKey(), JSON.stringify(BIDS_CACHE || []));
@@ -3440,11 +4421,61 @@ function loadBidDrafts() {
   }
   ACTIVE_BID_ID = BIDS_CACHE[0]?.id || null;
 }
+async function loadPersistedBids() {
+  const remoteRows = await fetchPersistedBids();
+  const remoteDrafts = remoteRows.map(draftFromBidRow);
+  BIDS_CACHE = mergeBidDraftCollections(BIDS_CACHE, remoteDrafts);
+  persistBidDrafts();
+  ACTIVE_BID_ID = ACTIVE_BID_ID && BIDS_CACHE.some((row) => row.id === ACTIVE_BID_ID)
+    ? ACTIVE_BID_ID
+    : (BIDS_CACHE[0]?.id || null);
+  return BIDS_CACHE;
+}
+async function flushBidDraftSync() {
+  if (BID_SYNC_IN_FLIGHT) return;
+  const active = currentBid();
+  if (!active || !CURRENT_OPERATOR?.operator_id) return;
+  BID_SYNC_IN_FLIGHT = true;
+  try {
+    const rowPayload = bidRowFromDraft(active);
+    const recordId = bidRecordId(active);
+    const query = recordId
+      ? sb.from("bids").update(rowPayload).eq("id", recordId).eq(OPERATOR_COLUMN, opId()).eq(TENANT_COLUMN, TENANT_ID)
+      : sb.from("bids").insert({ ...rowPayload, created_at: active.created_at || new Date().toISOString() });
+    const { data, error } = await query.select("*").single();
+    if (error) throw error;
+    const nextDraft = {
+      ...active,
+      ...draftFromBidRow(data),
+      id: active.id,
+      record_id: data.id,
+      metadata: {
+        ...(draftFromBidRow(data).metadata || {}),
+        ...(active.metadata || {}),
+        local_draft_id: active.id,
+      },
+    };
+    BIDS_CACHE = BIDS_CACHE.map((row) => row.id === active.id ? nextDraft : row);
+    ACTIVE_BID_ID = nextDraft.id;
+    persistBidDrafts();
+  } catch (err) {
+    console.error("[bids] sync failed", err);
+  } finally {
+    BID_SYNC_IN_FLIGHT = false;
+  }
+}
+function queueBidDraftSync(delayMs = 500) {
+  if (BID_SYNC_TIMER) window.clearTimeout(BID_SYNC_TIMER);
+  BID_SYNC_TIMER = window.setTimeout(() => {
+    flushBidDraftSync().catch(console.error);
+  }, delayMs);
+}
 function replaceBidDraft(nextDraft) {
   BIDS_CACHE = [...(BIDS_CACHE || []).filter((row) => row.id !== nextDraft.id), nextDraft]
     .sort((a, b) => new Date(b.updated_at || 0).getTime() - new Date(a.updated_at || 0).getTime());
   ACTIVE_BID_ID = nextDraft.id;
   persistBidDrafts();
+  queueBidDraftSync();
   return nextDraft;
 }
 function sortedBids(filter = "") {
@@ -3552,9 +4583,10 @@ function populateBidLineItemForm(item) {
   if (bidLineItemUnitPrice) bidLineItemUnitPrice.value = money(item?.unit_price_cents || 0);
 }
 function clearBidPhotoForm() {
+  hydrateBidPhotoCategoryOptions(currentBid()?.profile || bidProfile?.value || preferredBidProfile(), bidPhotoCategory?.value || "");
   if (bidPhotoFile) bidPhotoFile.value = "";
   if (bidPhotoName) bidPhotoName.value = "";
-  if (bidPhotoCategory) bidPhotoCategory.value = "overview";
+  if (bidPhotoCategory && !bidPhotoCategory.value) bidPhotoCategory.value = "overview";
   if (bidPhotoNote) bidPhotoNote.value = "";
   setInlineMessage(bidPhotoMsg, "");
 }
@@ -3564,6 +4596,8 @@ function collectBidFormDraft() {
   const draft = {
     ...(active || emptyBidDraft(profileKey)),
     id: bidId?.value || active?.id || createLocalId("bid"),
+    record_id: active?.record_id || "",
+    lead_id: active?.lead_id || "",
     title: bidTitle?.value?.trim() || "",
     customer_id: bidCustomerId?.value || "",
     profile: profileKey,
@@ -3652,6 +4686,7 @@ function populateBidForm(draft) {
   if (bidId) bidId.value = draft?.id || "";
   if (bidTitle) bidTitle.value = draft?.title || "";
   if (bidProfile) bidProfile.value = normalizeBidProfile(draft?.profile);
+  hydrateBidPhotoCategoryOptions(draft?.profile, bidPhotoCategory?.value || "");
   if (bidStatus) bidStatus.value = String(draft?.status || "draft");
   if (bidWalkthroughAt) bidWalkthroughAt.value = toDateTimeLocalValue(draft?.walkthrough_at);
   if (bidValidUntil) bidValidUntil.value = draft?.valid_until || "";
@@ -3677,6 +4712,7 @@ function clearBidForm() {
   if (bidId) bidId.value = "";
   if (bidTitle) bidTitle.value = "";
   if (bidProfile) bidProfile.value = preferredBidProfile();
+  hydrateBidPhotoCategoryOptions(preferredBidProfile(), bidPhotoCategory?.value || "");
   if (bidStatus) bidStatus.value = "draft";
   if (bidWalkthroughAt) bidWalkthroughAt.value = "";
   if (bidValidUntil) bidValidUntil.value = "";
@@ -3809,7 +4845,7 @@ function renderBidGuideFlow(draft) {
         ${steps.map((step, index) => `
           <div class="bid-step ${step.done ? "is-done" : ""}">
             <div class="bid-step__left">
-              <div class="bid-step__num">${step.done ? "✓" : index + 1}</div>
+              <div class="bid-step__num">${step.done ? "OK" : index + 1}</div>
               <div>
                 <div class="bid-step__title">${escapeHtml(step.title)}</div>
                 <div class="bid-step__copy">${escapeHtml(step.copy)}</div>
@@ -3845,6 +4881,7 @@ function renderBidProfileGuideCard(draft) {
     return;
   }
   const profile = bidProfileConfig(draft.profile);
+  const proposalTips = bidProposalPrompts(draft.profile);
   bidProfileGuide.innerHTML = `
     <div class="bid-stack">
       <div>
@@ -3863,8 +4900,114 @@ function renderBidProfileGuideCard(draft) {
           ${profile.pricingPrompts.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
         </ul>
       </div>
+      <div>
+        <strong>How to make it feel professional</strong>
+        <ul class="bid-guide-list">
+          ${proposalTips.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
+        </ul>
+      </div>
     </div>
   `;
+}
+function applyBidPhotoPreset(categoryValue) {
+  const profileKey = normalizeBidProfile(bidProfile?.value || currentBid()?.profile || preferredBidProfile());
+  const category = bidPhotoCategoryByValue(profileKey, categoryValue);
+  if (!category) return;
+  hydrateBidPhotoCategoryOptions(profileKey, category.value);
+  if (bidPhotoName && bidPhotoPresetNeedsName(bidPhotoName.value)) bidPhotoName.value = category.name || category.label || "";
+  if (bidPhotoNote && !String(bidPhotoNote.value || "").trim()) bidPhotoNote.value = category.note || "";
+  setInlineMessage(bidPhotoMsg, `${category.label} preset loaded. Capture the photo and save it to the bid.`, "");
+  if (bidPhotoFile) bidPhotoFile.focus();
+}
+function renderBidPhotoGuide(draft) {
+  if (!bidPhotoGuide) return;
+  const profileKey = normalizeBidProfile(draft?.profile || bidProfile?.value || preferredBidProfile());
+  const profile = bidProfileConfig(profileKey);
+  const categories = bidPhotoCategories(profileKey);
+  if (!categories.length) {
+    bidPhotoGuide.innerHTML = `<div class="muted">No photo prompts are configured for this service profile yet.</div>`;
+    return;
+  }
+  bidPhotoGuide.innerHTML = `
+    <div class="bid-template-panel__top">
+      <div>
+        <strong>${escapeHtml(profile.label)} shot list</strong>
+        <div class="bid-template-panel__copy">Tap a photo prompt to load the category, a suggested name, and the note starter before you capture the image.</div>
+      </div>
+    </div>
+    <div class="bid-chip-row">
+      ${categories.map((item) => `
+        <button class="btn btn-ghost btn-sm" type="button" data-bid-photo-preset="${escapeAttr(item.value)}">${escapeHtml(item.label)}</button>
+      `).join("")}
+    </div>
+  `;
+  bidPhotoGuide.querySelectorAll("[data-bid-photo-preset]").forEach((btn) => {
+    btn.addEventListener("click", () => applyBidPhotoPreset(btn.getAttribute("data-bid-photo-preset")));
+  });
+}
+function addBidScopeStarter(starterKey) {
+  let active = updateCurrentBidFromForm({ allowCreate: true }) || currentBid();
+  if (!active) active = startNewBid(preferredBidProfile());
+  const starter = bidScopeStarterLibrary(active.profile).find((item) => item.key === starterKey);
+  if (!starter) return null;
+  const existing = (active.line_items || []).find((item) => item.template_key === starter.key);
+  if (existing) {
+    populateBidLineItemForm(existing);
+    setInlineMessage(bidLineItemMsg, `${starter.name} is already on this bid. Edit pricing or wording below.`, "ok");
+    bidLineItemUnitPrice?.focus();
+    return existing;
+  }
+  const nextItem = mergeBidLineItem({}, {
+    ...starter,
+    template_key: starter.key,
+  });
+  const nextDraft = {
+    ...active,
+    line_items: [...(active.line_items || []), nextItem],
+    updated_at: new Date().toISOString(),
+  };
+  replaceBidDraft(nextDraft);
+  renderBidWorkspace(nextDraft, { preserveForm: true });
+  renderBidList(bidSearch?.value || "");
+  populateBidLineItemForm(nextItem);
+  setInlineMessage(bidLineItemMsg, `${starter.name} added. Price it and tighten the wording below.`, "ok");
+  bidLineItemUnitPrice?.focus();
+  return nextItem;
+}
+function renderBidScopeStarters(draft) {
+  if (!bidScopeStarters) return;
+  const profileKey = normalizeBidProfile(draft?.profile || bidProfile?.value || preferredBidProfile());
+  const profile = bidProfileConfig(profileKey);
+  const starters = bidScopeStarterLibrary(profileKey);
+  if (!starters.length) {
+    bidScopeStarters.innerHTML = `<div class="muted">No scope starters are configured for this service profile yet.</div>`;
+    return;
+  }
+  const activeKeys = new Set((draft?.line_items || []).map((item) => item.template_key).filter(Boolean));
+  bidScopeStarters.innerHTML = `
+    <div class="bid-template-panel__top">
+      <div>
+        <strong>${escapeHtml(profile.label)} scope starters</strong>
+        <div class="bid-template-panel__copy">Tap a starter to drop a professional line item into the bid instead of building every wash scope from scratch.</div>
+      </div>
+    </div>
+    <div class="bid-template-grid">
+      ${starters.map((item) => `
+        <button class="bid-template-card ${activeKeys.has(item.key) ? "is-added" : ""}" type="button" data-bid-scope-starter="${escapeAttr(item.key)}">
+          <div class="bid-template-card__kicker">${escapeHtml(formatBidLineItemKind(item.kind))}</div>
+          <div class="bid-template-card__title">${escapeHtml(item.name)}</div>
+          <div class="bid-template-card__copy">${escapeHtml(item.description || "")}</div>
+          <div class="bid-template-card__meta">
+            <span class="pill">${escapeHtml(String(item.quantity || 1))} ${escapeHtml(item.unit || "job")}</span>
+            <span class="pill ${activeKeys.has(item.key) ? "pill-on" : ""}">${activeKeys.has(item.key) ? "Added" : "Add starter"}</span>
+          </div>
+        </button>
+      `).join("")}
+    </div>
+  `;
+  bidScopeStarters.querySelectorAll("[data-bid-scope-starter]").forEach((btn) => {
+    btn.addEventListener("click", () => addBidScopeStarter(btn.getAttribute("data-bid-scope-starter")));
+  });
 }
 function renderBidStatsCard(draft) {
   if (!bidStatsWrap) return;
@@ -3964,7 +5107,7 @@ function renderBidPhotos(draft) {
       <div class="photo-card__body">
         <div class="row" style="justify-content:space-between;">
           <div class="photo-card__title">${escapeHtml(photo.name || "Walkthrough photo")}</div>
-          <span class="pill">${escapeHtml(photo.category || "overview")}</span>
+          <span class="pill">${escapeHtml(bidPhotoCategoryByValue(draft?.profile, photo.category)?.label || photo.category || "overview")}</span>
         </div>
         <div class="photo-card__copy">${escapeParagraphs(photo.note || "")}</div>
         <div class="photo-card__copy">Saved ${escapeHtml(formatDateTime(photo.captured_at || draft.updated_at || draft.created_at))}</div>
@@ -4053,6 +5196,8 @@ function renderBidWorkspace(draft, opts = {}) {
     renderBidQuickCustomerCard(null);
     renderBidGuideFlow(null);
     renderBidProfileGuideCard(null);
+    renderBidPhotoGuide(null);
+    renderBidScopeStarters(null);
     renderBidStatsCard(null);
     renderBidDeliveryCard(null);
     if (bidPhotosList) bidPhotosList.innerHTML = `<div class="muted">No walkthrough photos saved yet.</div>`;
@@ -4069,6 +5214,8 @@ function renderBidWorkspace(draft, opts = {}) {
   renderBidQuickCustomerCard(draft);
   renderBidGuideFlow(draft);
   renderBidProfileGuideCard(draft);
+  renderBidPhotoGuide(draft);
+  renderBidScopeStarters(draft);
   renderBidStatsCard(draft);
   renderBidDeliveryCard(draft);
   renderBidPhotos(draft);
@@ -4237,6 +5384,7 @@ function buildBidProposalMarkup(draft) {
                 <img src="${escapeAttr(photo.url || "")}" alt="${escapeAttr(photo.name || "Walkthrough photo")}" />
                 <div class="proposal-photo__body">
                   <div class="proposal-photo__title">${escapeHtml(photo.name || "Walkthrough photo")}</div>
+                  <div class="proposal-photo__meta"><span class="pill">${escapeHtml(bidPhotoCategoryByValue(draft?.profile, photo.category)?.label || photo.category || "Overview")}</span></div>
                   <div class="proposal-photo__copy">${escapeParagraphs(photo.note || "")}</div>
                 </div>
               </div>
@@ -4318,8 +5466,10 @@ function bidDocumentHtml(draft) {
         .proposal-photo img{width:100%;height:160px;object-fit:cover;display:block;}
         .proposal-photo__body{padding:12px;}
         .proposal-photo__title{font-weight:700;}
+        .proposal-photo__meta{margin-top:8px;}
         .proposal-photo__copy{color:#555;font-size:12px;line-height:1.5;margin-top:6px;}
         .proposal-section h3{margin:0 0 10px;font-size:14px;}
+        .pill{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border:1px solid #ddd;border-radius:999px;font-size:11px;font-weight:700;background:#fff;}
         @media print{body{padding:18px;}}
       </style>
     </head>
@@ -4371,7 +5521,8 @@ function buildBidClientEmail(draft) {
 function currentBidOrder(draft) {
   if (!draft) return null;
   return CRM_ORDERS_CACHE.find((row) => row.id === draft.converted_order_id)
-    || CRM_ORDERS_CACHE.find((row) => row.source_type === "walkthrough_bid" && row.source_ref === draft.id)
+    || CRM_ORDERS_CACHE.find((row) => row.bid_id && row.bid_id === bidRecordId(draft))
+    || CRM_ORDERS_CACHE.find((row) => ["walkthrough_bid", "service_bid"].includes(String(row.source_type || "").toLowerCase()) && [draft.id, bidRecordId(draft)].includes(String(row.source_ref || "")))
     || null;
 }
 function buildOrderNotesFromBid(draft) {
@@ -4394,23 +5545,36 @@ function buildOrderNotesFromBid(draft) {
   return sections.join("\n\n");
 }
 async function existingOrderForBidId(bidIdValue) {
+  const key = String(bidIdValue || "").trim();
+  if (!key) return null;
+  if (isUuidLike(key)) {
+    const byBid = await scopeQuery(sb
+      .from("orders")
+      .select("*"))
+      .eq("bid_id", key)
+      .limit(1);
+    if (byBid.error) throw byBid.error;
+    if (Array.isArray(byBid.data) && byBid.data.length) return byBid.data[0];
+  }
   const { data, error } = await scopeQuery(sb
     .from("orders")
     .select("*"))
-    .eq("source_type", "walkthrough_bid")
-    .eq("source_ref", bidIdValue)
+    .eq("source_ref", key)
     .limit(1);
   if (error) throw error;
   return Array.isArray(data) && data.length ? data[0] : null;
 }
 async function convertBidToTrackedOrder() {
-  const baseDraft = updateCurrentBidFromForm({ allowCreate: true }) || currentBid();
+  let baseDraft = updateCurrentBidFromForm({ allowCreate: true }) || currentBid();
   if (!baseDraft) throw new Error("Create a bid first.");
   if (!baseDraft.customer_id) throw new Error("Link the bid to a customer before converting it into tracked work.");
   const customer = findBidCustomer(baseDraft.customer_id);
   if (!customer) throw new Error("The linked customer record could not be found. Refresh customers and try again.");
+  await flushBidDraftSync();
+  baseDraft = currentBid() || baseDraft;
+  const recordId = bidRecordId(baseDraft);
 
-  const existing = currentBidOrder(baseDraft) || await existingOrderForBidId(baseDraft.id);
+  const existing = currentBidOrder(baseDraft) || await existingOrderForBidId(recordId || baseDraft.id);
   if (existing) {
     ACTIVE_ORDER_ID = existing.id;
     const nextDraft = {
@@ -4442,9 +5606,28 @@ async function convertBidToTrackedOrder() {
   const totals = calculateBidTotals(baseDraft);
   const status = String(baseDraft.status || "").toLowerCase() === "approved" ? "confirmed" : "quoted";
   const nowIso = new Date().toISOString();
+  if (recordId) {
+    const { data, error } = await sb.rpc("create_order_from_bid", { p_bid_id: recordId });
+    if (!error) {
+      await Promise.all([fetchCrmOrders(), fetchCustomers(), fetchPayments(), fetchLeads(), fetchJobs(), loadPersistedBids()]);
+      const order = CRM_ORDERS_CACHE.find((row) => row.id === data?.order_id) || await existingOrderForBidId(recordId);
+      if (!order) throw new Error("The bid converted, but the tracked order could not be reloaded.");
+      ACTIVE_ORDER_ID = order.id;
+      const refreshedDraft = findBidRecordById(recordId) || currentBid() || baseDraft;
+      renderOrders();
+      renderCustomersList(customerSearch?.value || "");
+      renderDashboard();
+      renderGuidance();
+      renderMoney().catch(console.error);
+      return { order, draft: refreshedDraft, existed: !!data?.existing };
+    }
+    if (!isMissingDatabaseFeatureError(error, ["create_order_from_bid"])) throw error;
+  }
   const payload = withTenantScope({
     operator_id: opId(),
     customer_id: customer.id,
+    lead_id: baseDraft.lead_id || null,
+    bid_id: recordId || null,
     status,
     fulfillment: "service",
     scheduled_date: null,
@@ -4461,8 +5644,10 @@ async function convertBidToTrackedOrder() {
     email: customer.email || null,
     phone: customer.phone || null,
     preferred_contact: customer.preferred_contact || "email",
+    payment_due_date: baseDraft.valid_until || null,
+    deposit_required_cents: totals.deposit,
     source_type: "walkthrough_bid",
-    source_ref: baseDraft.id,
+    source_ref: recordId || baseDraft.id,
     created_at: nowIso,
     updated_at: nowIso,
   });
@@ -4484,6 +5669,32 @@ async function convertBidToTrackedOrder() {
   }));
 
   ACTIVE_ORDER_ID = data.id;
+  if (recordId) {
+    await Promise.allSettled([
+      sb.from("bids")
+        .update({
+          converted_order_id: data.id,
+          converted_at: nowIso,
+          status: String(baseDraft.status || "").toLowerCase() === "approved" ? "converted" : (baseDraft.status || "draft"),
+          updated_at: nowIso,
+        })
+        .eq("id", recordId)
+        .eq(OPERATOR_COLUMN, opId())
+        .eq(TENANT_COLUMN, TENANT_ID),
+      baseDraft.lead_id
+        ? sb.from("leads")
+          .update({
+            converted_order_id: data.id,
+            status: "converted",
+            last_activity_at: nowIso,
+            updated_at: nowIso,
+          })
+          .eq("id", baseDraft.lead_id)
+          .eq(OPERATOR_COLUMN, opId())
+          .eq(TENANT_COLUMN, TENANT_ID)
+        : Promise.resolve(),
+    ]);
+  }
   const nextDraft = {
     ...baseDraft,
     converted_order_id: data.id,
@@ -4491,7 +5702,7 @@ async function convertBidToTrackedOrder() {
     updated_at: nowIso,
   };
   replaceBidDraft(nextDraft);
-  await Promise.all([fetchCrmOrders(), fetchCustomers(), fetchPayments()]);
+  await Promise.all([fetchCrmOrders(), fetchCustomers(), fetchPayments(), fetchLeads(), fetchJobs(), loadPersistedBids()]);
   renderOrders();
   renderCustomersList(customerSearch?.value || "");
   renderDashboard();
@@ -4607,7 +5818,13 @@ bidForm?.addEventListener("submit", (e) => {
   el?.addEventListener("input", scheduleBidAutosave);
   el?.addEventListener("change", () => {
     scheduleBidAutosave();
-    if (el === bidProfile) renderBidProfileGuideCard(collectBidFormDraft());
+    if (el === bidProfile) {
+      const draft = collectBidFormDraft();
+      hydrateBidPhotoCategoryOptions(draft.profile, bidPhotoCategory?.value || "");
+      renderBidProfileGuideCard(draft);
+      renderBidPhotoGuide(draft);
+      renderBidScopeStarters(draft);
+    }
     if (el === bidCustomerId) {
       if (bidCustomerId?.value) setBidQuickCustomerOpen(false);
       renderBidQuickCustomerCard(collectBidFormDraft());
@@ -4663,7 +5880,8 @@ bidLineItemForm?.addEventListener("submit", (e) => {
     setInlineMessage(bidLineItemMsg, "Line item name is required.", "error");
     return;
   }
-  const item = {
+  const existingItem = (active.line_items || []).find((row) => row.id === (bidLineItemId?.value || ACTIVE_BID_LINE_ITEM_ID));
+  const item = mergeBidLineItem(existingItem, {
     id: bidLineItemId?.value || createLocalId("line"),
     name: itemName,
     description: bidLineItemDescription?.value?.trim() || "",
@@ -4671,7 +5889,7 @@ bidLineItemForm?.addEventListener("submit", (e) => {
     unit: bidLineItemUnit?.value?.trim() || "job",
     unit_price_cents: toCents(bidLineItemUnitPrice?.value || 0),
     kind: String(bidLineItemKind?.value || "base"),
-  };
+  });
   const baseDraft = updateCurrentBidFromForm({ allowCreate: true }) || active;
   const nextDraft = {
     ...baseDraft,
@@ -4751,17 +5969,571 @@ function forecastMonthOrders() {
   }).length;
   return Math.round((last14 / 14) * 30);
 }
+function findBidRecordById(value) {
+  const key = String(value || "").trim();
+  if (!key) return null;
+  return BIDS_CACHE.find((row) => row.id === key || bidRecordId(row) === key) || null;
+}
+function servicePipelineSnapshot() {
+  return {
+    leads: LEADS_CACHE.filter((row) => !["converted", "lost", "archived"].includes(String(row.status || "").toLowerCase())).length,
+    quoted: BIDS_CACHE.filter((row) => !["converted", "declined", "expired"].includes(String(row.status || "").toLowerCase())).length,
+    booked: JOBS_CACHE.filter((row) => ["scheduled", "dispatched"].includes(String(row.status || "").toLowerCase())).length,
+    inProgress: JOBS_CACHE.filter((row) => String(row.status || "").toLowerCase() === "in_progress").length,
+    completed: JOBS_CACHE.filter((row) => String(row.status || "").toLowerCase() === "completed").length,
+    paid: CRM_ORDERS_CACHE.filter((row) => orderPaymentState(row) === "paid").length,
+    overdue: CRM_ORDERS_CACHE.filter((row) => orderPaymentState(row) === "overdue").length,
+  };
+}
+function todayActionItems() {
+  const actions = [];
+  const urgentLead = [...LEADS_CACHE].sort((a, b) => new Date(b.updated_at || 0) - new Date(a.updated_at || 0))
+    .find((row) => !["converted", "lost", "archived"].includes(String(row.status || "").toLowerCase()));
+  if (urgentLead) {
+    actions.push({
+      tab: "leads",
+      title: urgentLead.converted_bid_id ? "Follow up active lead" : "Work the next lead",
+      detail: `${urgentLead.contact_name || urgentLead.title || "Lead"} | ${String(urgentLead.status || "new").replace(/_/g, " ")}`,
+      targetId: urgentLead.id,
+    });
+  }
+  const quoteReady = [...BIDS_CACHE].sort((a, b) => new Date(b.updated_at || 0) - new Date(a.updated_at || 0))
+    .find((row) => !row.converted_order_id && ["ready_to_send", "sent", "approved", "walkthrough_complete"].includes(String(row.status || "").toLowerCase()));
+  if (quoteReady) {
+    actions.push({
+      tab: "bids",
+      title: quoteReady.converted_order_id ? "Open converted bid" : "Advance a live bid",
+      detail: `${quoteReady.title || "Proposal"} | ${formatBidStatus(quoteReady.status)}`,
+      targetId: quoteReady.id,
+    });
+  }
+  const unpaidOrder = [...CRM_ORDERS_CACHE].sort((a, b) => new Date(a.payment_due_date || a.created_at || 0) - new Date(b.payment_due_date || b.created_at || 0))
+    .find((row) => ["unpaid", "partial", "overdue"].includes(orderPaymentState(row)));
+  if (unpaidOrder) {
+    actions.push({
+      tab: "orders",
+      title: "Collect or confirm payment",
+      detail: `${unpaidOrder.customer_name || "Customer"} | ${formatWorkflowPaymentState(orderPaymentState(unpaidOrder))} | ${formatUsd(orderAmountDueCents(unpaidOrder))} due`,
+      targetId: unpaidOrder.id,
+    });
+  }
+  const activeJob = [...JOBS_CACHE].sort((a, b) => new Date(a.scheduled_date || a.created_at || 0) - new Date(b.scheduled_date || b.created_at || 0))
+    .find((row) => ["scheduled", "dispatched", "in_progress", "blocked"].includes(String(row.status || "").toLowerCase()));
+  if (activeJob) {
+    actions.push({
+      tab: "jobs",
+      title: "Move active work forward",
+      detail: `${activeJob.title || "Job"} | ${String(activeJob.status || "scheduled").replace(/_/g, " ")}`,
+      targetId: activeJob.id,
+    });
+  }
+  return actions.slice(0, 4);
+}
+function renderLeadCustomerOptions(selectedCustomerId = "") {
+  if (!leadCustomerId) return;
+  const options = sortedCustomers(CUSTOMERS_CACHE);
+  leadCustomerId.innerHTML = `
+    <option value="">Create or link later</option>
+    ${options.map((customer) => `<option value="${escapeAttr(customer.id)}">${escapeHtml(customer.name || customer.email || customer.phone || "Customer")}</option>`).join("")}
+  `;
+  leadCustomerId.value = options.some((customer) => customer.id === selectedCustomerId) ? selectedCustomerId : "";
+}
+function clearLeadForm() {
+  if (leadId) leadId.value = "";
+  if (leadStatus) leadStatus.value = "new";
+  if (leadPriority) leadPriority.value = "normal";
+  renderLeadCustomerOptions("");
+  if (leadTitle) leadTitle.value = "";
+  if (leadRequestedService) leadRequestedService.value = "";
+  if (leadContactName) leadContactName.value = "";
+  if (leadContactEmail) leadContactEmail.value = "";
+  if (leadContactPhone) leadContactPhone.value = "";
+  if (leadPreferredContact) leadPreferredContact.value = "phone";
+  if (leadSourceType) leadSourceType.value = "manual";
+  if (leadServiceAddress) leadServiceAddress.value = "";
+  if (leadSummary) leadSummary.value = "";
+  if (leadNotes) leadNotes.value = "";
+  setInlineMessage(leadMsg, "");
+}
+function populateLeadForm(lead) {
+  if (!lead) {
+    clearLeadForm();
+    return;
+  }
+  if (leadId) leadId.value = lead.id || "";
+  if (leadStatus) leadStatus.value = String(lead.status || "new");
+  if (leadPriority) leadPriority.value = String(lead.priority || "normal");
+  renderLeadCustomerOptions(lead.customer_id || "");
+  if (leadTitle) leadTitle.value = lead.title || "";
+  if (leadRequestedService) leadRequestedService.value = lead.requested_service_type || "";
+  if (leadContactName) leadContactName.value = lead.contact_name || "";
+  if (leadContactEmail) leadContactEmail.value = lead.contact_email || "";
+  if (leadContactPhone) leadContactPhone.value = lead.contact_phone || "";
+  if (leadPreferredContact) leadPreferredContact.value = lead.preferred_contact || "phone";
+  if (leadSourceType) leadSourceType.value = lead.source_type || "manual";
+  if (leadServiceAddress) leadServiceAddress.value = lead.service_address || "";
+  if (leadSummary) leadSummary.value = lead.summary || "";
+  if (leadNotes) leadNotes.value = lead.notes || "";
+}
+async function renderLeadDetail(leadIdValue) {
+  if (!leadDetailWrap) return;
+  const lead = LEADS_CACHE.find((row) => row.id === leadIdValue) || null;
+  populateLeadForm(lead);
+  if (!lead) {
+    if (btnLeadOpenBid) btnLeadOpenBid.disabled = true;
+    leadDetailWrap.innerHTML = `<div class="detail-card"><div class="kicker">Lead intake</div><div><strong>Create or select a lead.</strong></div><div class="detail-copy">This record becomes the bridge between the customer conversation and the quote, order, and job that follow.</div></div>`;
+    return;
+  }
+  const linkedCustomer = CUSTOMERS_CACHE.find((row) => row.id === lead.customer_id) || null;
+  const linkedBid = findBidRecordById(lead.converted_bid_id);
+  const linkedOrder = CRM_ORDERS_CACHE.find((row) => row.id === lead.converted_order_id) || null;
+  leadDetailWrap.innerHTML = `
+    <div class="detail-card">
+      <div class="kicker">Lead summary</div>
+      <div><strong>${escapeHtml(lead.contact_name || lead.title || "Lead")}</strong></div>
+      <div class="detail-copy">${escapeHtml(lead.contact_email || "No email")} | ${escapeHtml(lead.contact_phone || "No phone")}</div>
+      <div class="detail-copy">Status: ${escapeHtml(String(lead.status || "new").replace(/_/g, " "))} | Priority: ${escapeHtml(String(lead.priority || "normal"))}</div>
+      <div class="detail-copy">Requested service: ${escapeHtml(lead.requested_service_type || "Not specified")}</div>
+      <div class="detail-copy">Last activity: ${escapeHtml(formatDateTime(lead.last_activity_at || lead.updated_at || lead.created_at))}</div>
+    </div>
+    <div class="detail-card" style="margin-top:14px;">
+      <div class="kicker">Workflow links</div>
+      <div class="detail-copy">Customer: ${escapeHtml(linkedCustomer?.name || "Not linked yet")}</div>
+      <div class="detail-copy">Bid: ${escapeHtml(linkedBid?.title || (lead.converted_bid_id ? "Linked record" : "Not created yet"))}</div>
+      <div class="detail-copy">Order: ${escapeHtml(linkedOrder?.customer_name || (lead.converted_order_id ? "Linked order" : "Not created yet"))}</div>
+    </div>
+  `;
+  if (btnLeadOpenBid) {
+    btnLeadOpenBid.disabled = !lead.converted_bid_id;
+  }
+}
+function sortedLeads(filter = "") {
+  const needle = String(filter || "").trim().toLowerCase();
+  const rows = [...(LEADS_CACHE || [])].sort((a, b) => new Date(b.updated_at || 0).getTime() - new Date(a.updated_at || 0).getTime());
+  if (!needle) return rows;
+  return rows.filter((row) => {
+    const haystack = [
+      row.title,
+      row.contact_name,
+      row.contact_email,
+      row.contact_phone,
+      row.requested_service_type,
+      row.summary,
+      row.service_address,
+      row.status,
+    ].join(" ").toLowerCase();
+    return haystack.includes(needle);
+  });
+}
+function renderLeads(filter = "") {
+  if (!leadsList) return;
+  const rows = sortedLeads(filter);
+  if (!rows.length) {
+    leadsList.innerHTML = `<div class="muted">No leads yet.</div>`;
+    ACTIVE_LEAD_ID = null;
+    renderLeadDetail(null).catch(console.error);
+    return;
+  }
+  if (!ACTIVE_LEAD_ID || !rows.some((row) => row.id === ACTIVE_LEAD_ID)) ACTIVE_LEAD_ID = rows[0].id;
+  const active = rows.find((row) => row.id === ACTIVE_LEAD_ID) || rows[0];
+  ACTIVE_LEAD_ID = active.id;
+  leadsList.innerHTML = rows.map((row) => `
+    <button type="button" class="list-item ${row.id === active.id ? "is-active" : ""}" data-lead-id="${escapeAttr(row.id)}">
+      <div class="li-main">
+        <div class="li-title">${escapeHtml(row.contact_name || row.title || "Lead")}</div>
+        <div class="li-sub muted">${escapeHtml(row.requested_service_type || "Service request")} | ${escapeHtml(String(row.status || "new").replace(/_/g, " "))}</div>
+        <div class="li-sub muted">${escapeHtml(row.service_address || "No service address")}</div>
+      </div>
+      <div class="li-meta">
+        <span class="pill">${escapeHtml(String(row.priority || "normal"))}</span>
+      </div>
+    </button>
+  `).join("");
+  leadsList.querySelectorAll("[data-lead-id]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      ACTIVE_LEAD_ID = btn.getAttribute("data-lead-id");
+      renderLeads(filter);
+    });
+  });
+  renderLeadDetail(ACTIVE_LEAD_ID).catch(console.error);
+}
+function renderJobOrderOptions(selectedOrderId = "") {
+  if (!jobOrderId) return;
+  const rows = [...CRM_ORDERS_CACHE].sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+  jobOrderId.innerHTML = `
+    <option value="">Link order</option>
+    ${rows.map((order) => `<option value="${escapeAttr(order.id)}">${escapeHtml(`${order.customer_name || "Customer"} | ${String(order.status || "new")} | ${formatWorkflowPaymentState(orderPaymentState(order))}`)}</option>`).join("")}
+  `;
+  jobOrderId.value = rows.some((row) => row.id === selectedOrderId) ? selectedOrderId : "";
+}
+function renderJobCustomerOptions(selectedCustomerId = "") {
+  if (!jobCustomerId) return;
+  const options = sortedCustomers(CUSTOMERS_CACHE);
+  jobCustomerId.innerHTML = `
+    <option value="">Link customer</option>
+    ${options.map((customer) => `<option value="${escapeAttr(customer.id)}">${escapeHtml(customer.name || customer.email || customer.phone || "Customer")}</option>`).join("")}
+  `;
+  jobCustomerId.value = options.some((customer) => customer.id === selectedCustomerId) ? selectedCustomerId : "";
+}
+function clearJobForm() {
+  if (jobId) jobId.value = "";
+  if (jobStatus) jobStatus.value = "scheduled";
+  renderJobOrderOptions(ACTIVE_ORDER_ID || "");
+  renderJobCustomerOptions("");
+  if (jobTitle) jobTitle.value = "";
+  if (jobServiceAddress) jobServiceAddress.value = "";
+  if (jobScheduledDate) jobScheduledDate.value = "";
+  if (jobScheduledTime) jobScheduledTime.value = "";
+  if (jobScheduleWindow) jobScheduleWindow.value = "";
+  if (jobSummary) jobSummary.value = "";
+  if (jobNotes) jobNotes.value = "";
+  setInlineMessage(jobMsg, "");
+}
+function populateJobForm(job) {
+  if (!job) {
+    clearJobForm();
+    return;
+  }
+  if (jobId) jobId.value = job.id || "";
+  if (jobStatus) jobStatus.value = String(job.status || "scheduled");
+  renderJobOrderOptions(job.order_id || "");
+  renderJobCustomerOptions(job.customer_id || "");
+  if (jobTitle) jobTitle.value = job.title || "";
+  if (jobServiceAddress) jobServiceAddress.value = job.service_address || "";
+  if (jobScheduledDate) jobScheduledDate.value = job.scheduled_date || "";
+  if (jobScheduledTime) jobScheduledTime.value = job.scheduled_time || "";
+  if (jobScheduleWindow) jobScheduleWindow.value = job.schedule_window || "";
+  if (jobSummary) jobSummary.value = job.summary || "";
+  if (jobNotes) jobNotes.value = job.notes || "";
+}
+async function renderJobDetail(jobIdValue) {
+  if (!jobDetailWrap) return;
+  const job = JOBS_CACHE.find((row) => row.id === jobIdValue) || null;
+  populateJobForm(job);
+  if (!job) {
+    if (btnJobOpenOrder) btnJobOpenOrder.disabled = true;
+    if (btnJobRecordPayment) btnJobRecordPayment.disabled = true;
+    jobDetailWrap.innerHTML = `<div class="detail-card"><div class="kicker">Job execution</div><div><strong>Create or select a job.</strong></div><div class="detail-copy">This becomes the execution record tied back to the customer, order, and payment state.</div></div>`;
+    return;
+  }
+  const order = linkedOrderForJob(job);
+  jobDetailWrap.innerHTML = `
+    <div class="detail-card">
+      <div class="kicker">Execution summary</div>
+      <div><strong>${escapeHtml(job.title || "Job")}</strong></div>
+      <div class="detail-copy">Status: ${escapeHtml(String(job.status || "scheduled").replace(/_/g, " "))}</div>
+      <div class="detail-copy">Scheduled: ${escapeHtml(String(job.scheduled_date || "No date"))} | ${escapeHtml(String(job.scheduled_time || "No time"))}</div>
+      <div class="detail-copy">Payment: <span class="pill ${paymentStateClass(job.payment_state || orderPaymentState(order))}">${escapeHtml(formatWorkflowPaymentState(job.payment_state || orderPaymentState(order)))}</span></div>
+      <div class="detail-copy">Due: ${formatUsd(Number(job.amount_due_cents || orderAmountDueCents(order) || 0))}</div>
+    </div>
+    <div class="detail-card" style="margin-top:14px;">
+      <div class="kicker">Linked work</div>
+      <div class="detail-copy">Order: ${escapeHtml(order?.customer_name || "Not linked")}</div>
+      <div class="detail-copy">Customer: ${escapeHtml((CUSTOMERS_CACHE.find((row) => row.id === job.customer_id) || {}).name || "Not linked")}</div>
+      <div class="detail-copy">${escapeHtml(job.service_address || "No service address recorded")}</div>
+    </div>
+  `;
+  if (btnJobOpenOrder) btnJobOpenOrder.disabled = !job.order_id;
+  if (btnJobRecordPayment) btnJobRecordPayment.disabled = !job.order_id;
+}
+function sortedJobs(filter = "") {
+  const needle = String(filter || "").trim().toLowerCase();
+  const rows = [...(JOBS_CACHE || [])].sort((a, b) => new Date(b.updated_at || 0).getTime() - new Date(a.updated_at || 0).getTime());
+  if (!needle) return rows;
+  return rows.filter((row) => {
+    const order = linkedOrderForJob(row);
+    const haystack = [
+      row.title,
+      row.service_address,
+      row.summary,
+      row.notes,
+      row.status,
+      order?.customer_name,
+      order?.email,
+    ].join(" ").toLowerCase();
+    return haystack.includes(needle);
+  });
+}
+function renderJobs(filter = "") {
+  if (!jobsList) return;
+  const rows = sortedJobs(filter);
+  if (!rows.length) {
+    jobsList.innerHTML = `<div class="muted">No jobs yet.</div>`;
+    ACTIVE_JOB_ID = null;
+    renderJobDetail(null).catch(console.error);
+    return;
+  }
+  if (!ACTIVE_JOB_ID || !rows.some((row) => row.id === ACTIVE_JOB_ID)) ACTIVE_JOB_ID = rows[0].id;
+  const active = rows.find((row) => row.id === ACTIVE_JOB_ID) || rows[0];
+  ACTIVE_JOB_ID = active.id;
+  jobsList.innerHTML = rows.map((row) => {
+    const order = linkedOrderForJob(row);
+    const paymentState = row.payment_state || orderPaymentState(order);
+    return `
+      <button type="button" class="list-item ${row.id === active.id ? "is-active" : ""}" data-job-id="${escapeAttr(row.id)}">
+        <div class="li-main">
+          <div class="li-title">${escapeHtml(row.title || order?.customer_name || "Job")}</div>
+          <div class="li-sub muted">${escapeHtml(String(row.status || "scheduled").replace(/_/g, " "))} | ${escapeHtml(String(row.scheduled_date || "No date"))}</div>
+          <div class="li-sub muted">${escapeHtml(row.service_address || "No service address")}</div>
+        </div>
+        <div class="li-meta">
+          <span class="pill ${paymentStateClass(paymentState)}">${escapeHtml(formatWorkflowPaymentState(paymentState))}</span>
+        </div>
+      </button>
+    `;
+  }).join("");
+  jobsList.querySelectorAll("[data-job-id]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      ACTIVE_JOB_ID = btn.getAttribute("data-job-id");
+      renderJobs(filter);
+    });
+  });
+  renderJobDetail(ACTIVE_JOB_ID).catch(console.error);
+}
+async function saveLeadRecord(fields = {}) {
+  const nowIso = new Date().toISOString();
+  const rawCustomerId = fields.customer_id || leadCustomerId?.value || "";
+  let resolvedCustomerId = rawCustomerId;
+  const contactName = String(fields.contact_name ?? leadContactName?.value ?? "").trim();
+  const contactEmail = String(fields.contact_email ?? leadContactEmail?.value ?? "").trim().toLowerCase();
+  const contactPhone = String(fields.contact_phone ?? leadContactPhone?.value ?? "").trim();
+  if (!resolvedCustomerId && (contactName || contactEmail || contactPhone)) {
+    const existing = findExistingCustomerRecord({ name: contactName, email: contactEmail, phone: contactPhone });
+    const customer = existing || await saveCustomerRecord({
+      name: contactName || fields.title || leadTitle?.value || "Customer",
+      email: contactEmail || null,
+      phone: contactPhone || null,
+      preferred_contact: fields.preferred_contact || leadPreferredContact?.value || "phone",
+      notes: fields.notes || leadNotes?.value || "",
+    });
+    resolvedCustomerId = customer?.id || "";
+  }
+  if (!resolvedCustomerId && !contactName && !contactEmail && !contactPhone) {
+    throw new Error("Link a customer or capture contact details before saving the lead.");
+  }
+  const payload = withTenantScope({
+    operator_id: opId(),
+    customer_id: resolvedCustomerId || null,
+    status: fields.status || leadStatus?.value || "new",
+    priority: fields.priority || leadPriority?.value || "normal",
+    source_type: fields.source_type || leadSourceType?.value || "manual",
+    title: fields.title || leadTitle?.value?.trim() || "",
+    requested_service_type: fields.requested_service_type || leadRequestedService?.value?.trim() || "",
+    service_address: fields.service_address || leadServiceAddress?.value?.trim() || "",
+    contact_name: contactName || null,
+    contact_email: contactEmail || null,
+    contact_phone: contactPhone || null,
+    preferred_contact: fields.preferred_contact || leadPreferredContact?.value || "phone",
+    summary: fields.summary || leadSummary?.value?.trim() || "",
+    notes: fields.notes || leadNotes?.value?.trim() || "",
+    metadata: {
+      submitted_via: "operator_console",
+      ...(fields.metadata && typeof fields.metadata === "object" ? fields.metadata : {}),
+    },
+    last_activity_at: nowIso,
+    updated_at: nowIso,
+  });
+  const id = fields.id || leadId?.value || "";
+  const query = id
+    ? sb.from("leads").update(payload).eq("id", id).eq(OPERATOR_COLUMN, opId()).eq(TENANT_COLUMN, TENANT_ID)
+    : sb.from("leads").insert({ ...payload, created_at: nowIso });
+  const { data, error } = await query.select("*").single();
+  if (error) throw error;
+  ACTIVE_LEAD_ID = data.id;
+  await fetchLeads();
+  renderLeads(leadSearch?.value || "");
+  renderDashboard();
+  renderGuidance();
+  return data;
+}
+async function createBidFromLeadRecord(lead, options = {}) {
+  if (!lead?.id) throw new Error("Save the lead before creating a bid.");
+  if (lead.converted_bid_id) {
+    await Promise.all([fetchLeads(), loadPersistedBids()]);
+    const existingBid = findBidRecordById(lead.converted_bid_id);
+    if (existingBid) {
+      ACTIVE_BID_ID = existingBid.id;
+      return { bid: existingBid, existing: true };
+    }
+  }
+
+  const profile = normalizeBidProfile(options.profile || preferredBidProfile());
+  const { data, error } = await sb.rpc("create_bid_from_lead", {
+    p_lead_id: lead.id,
+    p_profile: profile,
+  });
+
+  if (!error) {
+    await Promise.all([fetchLeads(), loadPersistedBids()]);
+    const bid = findBidRecordById(data?.bid_id) || BIDS_CACHE[0] || null;
+    if (bid) ACTIVE_BID_ID = bid.id;
+    return { bid, existing: !!data?.existing };
+  }
+  if (!isMissingDatabaseFeatureError(error, ["create_bid_from_lead"])) throw error;
+
+  const nowIso = new Date().toISOString();
+  const draft = {
+    ...emptyBidDraft(),
+    title: lead.title || lead.requested_service_type || "Service quote",
+    customer_id: lead.customer_id || "",
+    lead_id: lead.id,
+    profile,
+    status: "draft",
+    walkthrough_at: nowIso,
+    service_address: lead.service_address || "",
+    project_summary: lead.summary || "",
+    internal_notes: lead.notes || "",
+    created_at: nowIso,
+    updated_at: nowIso,
+  };
+  const rowPayload = bidRowFromDraft(draft);
+  const { data: bidRow, error: bidError } = await sb.from("bids")
+    .insert({ ...rowPayload, created_at: nowIso, updated_at: nowIso })
+    .select("*")
+    .single();
+  if (bidError) throw bidError;
+
+  const { error: leadError } = await sb.from("leads")
+    .update({
+      converted_bid_id: bidRow.id,
+      status: "quoted",
+      last_activity_at: nowIso,
+      updated_at: nowIso,
+    })
+    .eq("id", lead.id)
+    .eq(OPERATOR_COLUMN, opId())
+    .eq(TENANT_COLUMN, TENANT_ID);
+  if (leadError) throw leadError;
+
+  await Promise.all([fetchLeads(), loadPersistedBids()]);
+  const bid = findBidRecordById(bidRow.id) || draftFromBidRow(bidRow);
+  if (bid) ACTIVE_BID_ID = bid.id;
+  return { bid, existing: false };
+}
+async function saveJobRecord(fields = {}) {
+  const nowIso = new Date().toISOString();
+  const linkedOrder = CRM_ORDERS_CACHE.find((row) => row.id === (fields.order_id || jobOrderId?.value || ""));
+  const payload = withTenantScope({
+    operator_id: opId(),
+    order_id: fields.order_id || jobOrderId?.value || null,
+    customer_id: fields.customer_id || jobCustomerId?.value || linkedOrder?.customer_id || null,
+    status: fields.status || jobStatus?.value || "scheduled",
+    title: fields.title || jobTitle?.value?.trim() || linkedOrder?.cart_summary || "",
+    service_address: fields.service_address || jobServiceAddress?.value?.trim() || "",
+    scheduled_date: fields.scheduled_date || jobScheduledDate?.value || null,
+    scheduled_time: fields.scheduled_time || jobScheduledTime?.value?.trim() || null,
+    schedule_window: fields.schedule_window || jobScheduleWindow?.value?.trim() || null,
+    summary: fields.summary || jobSummary?.value?.trim() || "",
+    notes: fields.notes || jobNotes?.value?.trim() || "",
+    updated_at: nowIso,
+  });
+  if (!payload.order_id) throw new Error("Link the job to an order before saving it.");
+  const id = fields.id || jobId?.value || "";
+  const query = id
+    ? sb.from("jobs").update(payload).eq("id", id).eq(OPERATOR_COLUMN, opId()).eq(TENANT_COLUMN, TENANT_ID)
+    : sb.from("jobs").insert({ ...payload, created_at: nowIso });
+  const { data, error } = await query.select("*").single();
+  if (error) throw error;
+  ACTIVE_JOB_ID = data.id;
+  await Promise.all([fetchJobs(), fetchCrmOrders()]);
+  renderJobs(jobSearch?.value || "");
+  renderOrders();
+  renderDashboard();
+  renderGuidance();
+  return data;
+}
+async function createJobFromOrderRecord(order) {
+  if (!order?.id) throw new Error("Select an order before creating a job.");
+  const existingJob = JOBS_CACHE.find((row) => row.order_id === order.id || row.id === order.primary_job_id) || null;
+  if (existingJob) return { job: existingJob, existing: true };
+
+  const { data, error } = await sb.rpc("create_job_from_order", { p_order_id: order.id });
+  if (!error) {
+    await Promise.all([fetchJobs(), fetchCrmOrders()]);
+    const job = JOBS_CACHE.find((row) => row.id === data?.job_id || row.order_id === order.id) || null;
+    if (!job) throw new Error("The job was created, but it could not be reloaded.");
+    ACTIVE_JOB_ID = job.id;
+    return { job, existing: !!data?.existing };
+  }
+  if (!isMissingDatabaseFeatureError(error, ["create_job_from_order"])) throw error;
+
+  const customer = CUSTOMERS_CACHE.find((row) => row.id === order.customer_id) || null;
+  if (!customer && !order.customer_id) {
+    throw new Error("Link the order to a customer before creating a job.");
+  }
+  const linkedBid = order.bid_id ? findBidRecordById(order.bid_id) : null;
+  const nowIso = new Date().toISOString();
+  const payload = withTenantScope({
+    operator_id: order.operator_id || opId(),
+    order_id: order.id,
+    customer_id: order.customer_id || customer?.id || null,
+    bid_id: order.bid_id || null,
+    status: "scheduled",
+    title: linkedBid?.title || order.cart_summary || order.customer_name || "Service job",
+    service_address: linkedBid?.service_address || customer?.service_address || customer?.billing_address || "",
+    scheduled_date: order.scheduled_date || null,
+    scheduled_time: order.scheduled_time || null,
+    schedule_window: linkedBid?.schedule_window || null,
+    summary: order.cart_summary || linkedBid?.project_summary || "Tracked service work",
+    notes: order.notes || "",
+    payment_state: orderPaymentState(order),
+    amount_paid_cents: orderAmountPaidCents(order),
+    amount_due_cents: orderAmountDueCents(order),
+    updated_at: nowIso,
+  });
+  const { data: jobRow, error: jobError } = await sb.from("jobs")
+    .insert({ ...payload, created_at: nowIso })
+    .select("*")
+    .single();
+  if (jobError) throw jobError;
+
+  const nextStatus = ["new", "quoted"].includes(String(order.status || "").toLowerCase()) ? "confirmed" : order.status;
+  await Promise.allSettled([
+    sb.from("orders")
+      .update({
+        primary_job_id: jobRow.id,
+        booked_at: order.booked_at || nowIso,
+        status: nextStatus,
+        updated_at: nowIso,
+      })
+      .eq("id", order.id)
+      .eq(OPERATOR_COLUMN, opId())
+      .eq(TENANT_COLUMN, TENANT_ID),
+    order.lead_id
+      ? sb.from("leads")
+        .update({
+          converted_job_id: jobRow.id,
+          last_activity_at: nowIso,
+          updated_at: nowIso,
+        })
+        .eq("id", order.lead_id)
+        .eq(OPERATOR_COLUMN, opId())
+        .eq(TENANT_COLUMN, TENANT_ID)
+      : Promise.resolve(),
+  ]);
+
+  await Promise.all([fetchJobs(), fetchCrmOrders(), fetchLeads()]);
+  const job = JOBS_CACHE.find((row) => row.id === jobRow.id) || jobRow;
+  ACTIVE_JOB_ID = job.id;
+  return { job, existing: false };
+}
 function renderDashboard() {
   if (!dashboardWrap) return;
 
+  const blueprint = currentWorkspaceBlueprint();
+  const summary = workspaceSummaryData(blueprint);
+  const pipeline = servicePipelineSnapshot();
+  const todayActions = todayActionItems();
   const currentExpenses = currentMonthExpenseCents();
   const quotedRevenue = quotedRevenueCents();
-  const publishedProducts = PRODUCTS_CACHE.filter((p) => !!p.is_active).length;
+  const activeOfferings = PRODUCTS_CACHE.filter((p) => !!p.is_active).length;
   const topCustomer = sortedCustomers(CUSTOMERS_CACHE)[0] || null;
+  const orderLabel = workspaceOrderLabelLower(blueprint);
+  const catalogLabel = workspaceCatalogLabelLower(blueprint);
   const alerts = [];
 
-  if (!CUSTOMERS_CACHE.length) alerts.push("No customers are in CRM yet. Once storefront orders hit the database, customer history gets stronger.");
-  if (!CRM_ORDERS_CACHE.length) alerts.push("No CRM orders exist yet. That means lifetime value and customer ranking are still shallow.");
+  if (!CUSTOMERS_CACHE.length) alerts.push("No customers are in CRM yet. As real work lands here, relationship memory and follow-up get stronger.");
+  if (!CRM_ORDERS_CACHE.length) alerts.push(`No tracked ${orderLabel} exist yet. That means customer value and operational visibility are still shallow.`);
   if (!EXPENSES_CACHE.length) alerts.push("No expenses are logged yet, so profit visibility is still weak.");
 
   const metricsHtml = window.ProofLinkAnalyticsWidgets?.renderCards
@@ -4791,23 +6563,87 @@ function renderDashboard() {
   dashboardWrap.innerHTML = `
     ${metricsHtml}
 
+    <div class="workflow-strip">
+      <div class="workflow-stage">
+        <span class="workflow-stage__label">Leads</span>
+        <strong>${pipeline.leads}</strong>
+      </div>
+      <div class="workflow-stage">
+        <span class="workflow-stage__label">Quoted</span>
+        <strong>${pipeline.quoted}</strong>
+      </div>
+      <div class="workflow-stage">
+        <span class="workflow-stage__label">Booked</span>
+        <strong>${pipeline.booked}</strong>
+      </div>
+      <div class="workflow-stage">
+        <span class="workflow-stage__label">In progress</span>
+        <strong>${pipeline.inProgress}</strong>
+      </div>
+      <div class="workflow-stage">
+        <span class="workflow-stage__label">Completed</span>
+        <strong>${pipeline.completed}</strong>
+      </div>
+      <div class="workflow-stage">
+        <span class="workflow-stage__label">Paid</span>
+        <strong>${pipeline.paid}</strong>
+      </div>
+    </div>
+
     <div class="cards">
       <div class="card mini">
         <div class="card-bd">
-          <div class="muted">Open work</div>
+          <div class="muted">Open ${escapeHtml(orderLabel)}</div>
           <div class="money">${openOrdersCount()}</div>
         </div>
       </div>
       <div class="card mini">
         <div class="card-bd">
-          <div class="muted">Customer count</div>
-          <div class="money">${CUSTOMERS_CACHE.length}</div>
+          <div class="muted">Outstanding money</div>
+          <div class="money">${formatUsd(CRM_ORDERS_CACHE.reduce((sum, row) => sum + orderAmountDueCents(row), 0))}</div>
         </div>
       </div>
       <div class="card mini">
         <div class="card-bd">
-          <div class="muted">Quoted / ordered pipeline</div>
-          <div class="money">${formatUsd(quotedRevenue)}</div>
+          <div class="muted">Overdue collections</div>
+          <div class="money">${pipeline.overdue}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="today-actions-grid">
+      ${todayActions.length ? todayActions.map((item) => `
+        <button type="button" class="today-action-card" data-today-tab="${escapeAttr(item.tab)}" data-today-id="${escapeAttr(item.targetId || "")}">
+          <div class="kicker">${escapeHtml(workspaceTabLabel(item.tab, blueprint))}</div>
+          <strong>${escapeHtml(item.title)}</strong>
+          <div class="detail-copy">${escapeHtml(item.detail)}</div>
+        </button>
+      `).join("") : `<div class="detail-card"><div class="kicker">Today</div><div><strong>No urgent workflow blocks right now.</strong></div><div class="detail-copy">Use this screen to stay ahead of leads, active jobs, and unpaid work before the business gets noisy.</div></div>`}
+    </div>
+
+    <div class="workspace-summary-grid">
+      <div class="workspace-summary-card">
+        <div class="kicker">Workspace blueprint</div>
+        <h3>${escapeHtml(summary.businessLabel)} on ${escapeHtml(summary.tierLabel)}</h3>
+        <p>${escapeHtml(summary.promise)}</p>
+        <div class="workspace-chip-row">
+          <span class="pill">${escapeHtml(summary.workspaceModeLabel)}</span>
+          <span class="pill">${escapeHtml(workspaceTabLabel("orders", blueprint))}</span>
+          <span class="pill">${escapeHtml(workspaceTabLabel("products", blueprint))}</span>
+        </div>
+      </div>
+      <div class="workspace-summary-card">
+        <div class="kicker">Priority views</div>
+        <p>${escapeHtml(summary.operatorNeeds[0] || "Keep the next-best action obvious for the operator.")}</p>
+        <div class="workspace-chip-row">
+          ${(summary.focusTabs.length ? summary.focusTabs : ["Customers", workspaceTabLabel("orders", blueprint), "Payments"]).map((item) => `<span class="pill">${escapeHtml(item)}</span>`).join("")}
+        </div>
+      </div>
+      <div class="workspace-summary-card">
+        <div class="kicker">Later unlocks</div>
+        <p>${escapeHtml(summary.deferredLabels.length ? `Layer in ${summary.deferredLabels.join(", ")} when the business is ready for more depth.` : "This workspace already includes the advanced layers mapped for this profile.")}</p>
+        <div class="workspace-chip-row">
+          ${(summary.deferredLabels.length ? summary.deferredLabels : ["Keep it simple", "Teachable workflow", "One source of truth"]).map((item) => `<span class="pill">${escapeHtml(item)}</span>`).join("")}
         </div>
       </div>
     </div>
@@ -4820,12 +6656,12 @@ function renderDashboard() {
       <div class="insight">
         <h3>CRM value</h3>
         <p>Top customer today: <strong>${escapeHtml(topCustomer?.name || "None yet")}</strong>${topCustomer ? ` | ${formatUsd(customerLifetimeValueCents(topCustomer))}` : ""}</p>
-        <p>Published products: <strong>${publishedProducts}</strong></p>
+        <p>Active ${escapeHtml(catalogLabel)}: <strong>${activeOfferings}</strong></p>
       </div>
       <div class="insight">
         <h3>Cash awareness</h3>
         <p>Tracked expenses this month: <strong>${formatUsd(currentExpenses)}</strong></p>
-        <p>Forecasted month orders: <strong>${forecastMonthOrders()}</strong></p>
+        <p>Forecasted month ${escapeHtml(orderLabel)}: <strong>${forecastMonthOrders()}</strong></p>
       </div>
     </div>
 
@@ -4833,12 +6669,24 @@ function renderDashboard() {
       <div class="insight">${checklistHtml || '<h3>Launch checklist</h3><p>Checklist unavailable right now.</p>'}</div>
       <div class="insight">${paymentHtml || '<h3>Payment readiness</h3><p>Payment truth will appear here once tenant state loads.</p>'}</div>
       <div class="insight">
-        <h3>Tier posture</h3>
-        <p>Use the payments page to control tier, connect Stripe, and see when online checkout is truly ready.</p>
+        <h3>Operating posture</h3>
+        <p>${escapeHtml(summary.priorityOutcomes[0] || "Keep the team inside one operating system instead of scattered memory.")}</p>
         <p><strong>Next move:</strong> finish the highest-priority pending checklist step before adding new complexity.</p>
       </div>
     </div>
   `;
+
+  dashboardWrap.querySelectorAll("[data-today-tab]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const tab = btn.getAttribute("data-today-tab");
+      const targetId = btn.getAttribute("data-today-id");
+      if (tab === "leads" && targetId) ACTIVE_LEAD_ID = targetId;
+      if (tab === "bids" && targetId) ACTIVE_BID_ID = targetId;
+      if (tab === "orders" && targetId) ACTIVE_ORDER_ID = targetId;
+      if (tab === "jobs" && targetId) ACTIVE_JOB_ID = targetId;
+      switchTab(tab || "dashboard");
+    });
+  });
 }
 function renderOrders() {
   if (!ordersList) return;
@@ -4863,16 +6711,18 @@ function renderOrders() {
     const scheduledDate = row.scheduled_date || getScheduledDateFromOrder(row) || "No scheduled date";
     const scheduledTime = row.scheduled_time || row.pickupWindow || "No time";
     const totalCents = Number(row.total_cents || row.subtotal_cents || row.estimatedTotalCents || 0);
+    const paymentState = orderPaymentState(row);
 
     return `
       <button type="button" class="list-item ${row.id === active.id ? "is-active" : ""}" data-order-id="${escapeAttr(row.id)}">
         <div class="li-main">
           <div class="li-title">${escapeHtml(customerName)}</div>
-          <div class="li-sub muted">${escapeHtml(customerEmail)} • ${escapeHtml(formatDateTime(submittedAt))}</div>
-          <div class="li-sub muted">${escapeHtml(fulfillment)} • ${escapeHtml(String(scheduledDate))} • ${escapeHtml(String(scheduledTime))}</div>
+          <div class="li-sub muted">${escapeHtml(customerEmail)}  |  ${escapeHtml(formatDateTime(submittedAt))}</div>
+          <div class="li-sub muted">${escapeHtml(fulfillment)}  |  ${escapeHtml(String(scheduledDate))}  |  ${escapeHtml(String(scheduledTime))}</div>
         </div>
         <div class="li-meta">
           <span class="pill ${["fulfilled", "completed", "paid"].includes(String(row.status || "new").toLowerCase()) ? "pill-on" : ""}">${escapeHtml(String(row.status || "new"))}</span>
+          <span class="pill ${paymentStateClass(paymentState)}">${escapeHtml(formatWorkflowPaymentState(paymentState))}</span>
           <span class="pill">${formatUsd(totalCents)}</span>
         </div>
       </button>
@@ -4892,12 +6742,16 @@ function renderOrders() {
   const itemCount = Array.isArray(active.items) ? active.items.length : Number(active.item_count || active.itemCount || 0);
   const notesText = active.notes || active.cartSummary || "No extra notes provided.";
   const sourceLabel = String(active.source_type || "storefront").replace(/_/g, " ");
+  const linkedJob = JOBS_CACHE.find((row) => row.order_id === active.id || row.id === active.primary_job_id) || null;
+  const paymentState = orderPaymentState(active);
+  const amountDue = orderAmountDueCents(active);
+  const amountPaid = orderAmountPaidCents(active);
 
   orderDetailWrap.innerHTML = `
     <div class="detail-card">
       <div class="kicker">Customer</div>
       <div><strong>${escapeHtml(active.customer_name || active.name || "Unnamed customer")}</strong></div>
-      <div class="detail-copy">${escapeHtml(active.email || "No email")} • ${escapeHtml(active.phone || "No phone")}</div>
+      <div class="detail-copy">${escapeHtml(active.email || "No email")}  |  ${escapeHtml(active.phone || "No phone")}</div>
       <div class="detail-copy">Submitted: ${escapeHtml(formatDateTime(active.created_at || active.createdAt))}</div>
       <div class="detail-copy">Status: ${escapeHtml(String(active.status || "new"))}</div>
     </div>
@@ -4914,8 +6768,20 @@ function renderOrders() {
     <div class="detail-card" style="margin-top:14px;">
       <div class="kicker">Commercial read</div>
       <div class="detail-copy">Order value: ${formatUsd(totalCents)}</div>
+      <div class="detail-copy">Paid: ${formatUsd(amountPaid)} | Due: ${formatUsd(amountDue)}</div>
+      <div class="detail-copy">Payment state: ${escapeHtml(formatWorkflowPaymentState(paymentState))}</div>
       <div class="detail-copy">Tenant: ${escapeHtml(active.tenant_id || TENANT_ID)}</div>
       <div class="detail-copy">${escapeHtml(notesText)}</div>
+    </div>
+
+    <div class="detail-card" style="margin-top:14px;">
+      <div class="kicker">Workflow next step</div>
+      <div class="detail-copy">Tracked job: ${escapeHtml(linkedJob?.title || (linkedJob ? "Linked job" : "No job yet"))}</div>
+      <div class="detail-copy">${linkedJob ? `Execution status: ${escapeHtml(String(linkedJob.status || "scheduled").replace(/_/g, " "))}` : "Create a job when this work is ready to be scheduled or performed."}</div>
+      <div class="row" style="margin-top:10px;">
+        <button id="btnCreateJobFromOrder" class="btn btn-primary" type="button">${linkedJob ? "Open linked job" : "Create job"}</button>
+        <button id="btnRecordOrderPayment" class="btn btn-ghost" type="button">Record payment</button>
+      </div>
     </div>
 
     <div class="detail-card" style="margin-top:14px;">
@@ -4952,13 +6818,50 @@ function renderOrders() {
     renderDashboard();
     renderGuidance();
   });
+  $("btnCreateJobFromOrder")?.addEventListener("click", async () => {
+    if (linkedJob) {
+      ACTIVE_JOB_ID = linkedJob.id;
+      switchTab("jobs");
+      return;
+    }
+    try {
+      await createJobFromOrderRecord(active);
+      renderJobs(jobSearch?.value || "");
+      renderOrders();
+      renderDashboard();
+      renderGuidance();
+      switchTab("jobs");
+    } catch (err) {
+      alert(err.message || String(err));
+    }
+  });
+  $("btnRecordOrderPayment")?.addEventListener("click", () => {
+    ACTIVE_ORDER_ID = active.id;
+    clearPaymentForm({
+      customerId: active.customer_id || "",
+      orderId: active.id,
+    });
+    switchTab("payments");
+  });
 }
 function renderGuidance() {
   if (!guidanceWrap) return;
+  const blueprint = currentWorkspaceBlueprint();
+  const summary = workspaceSummaryData(blueprint);
   const notes = [];
-  notes.push(["CRM foundation", CUSTOMERS_CACHE.length ? `You now have ${CUSTOMERS_CACHE.length} customer record(s). Start ranking by lifetime value and following up based on order history.` : "No customers are in CRM yet. Database-backed orders are live, so customer history can now grow directly from storefront requests."]);
-  notes.push(["Payments", PAYMENTS_CACHE.length ? "Payments are flowing into the operator record. Stripe integration can now plug into an existing customer + order structure." : "Payments table is empty. Next serious upgrade is Stripe checkout + webhook updates."]);
-  notes.push(["Orders", CRM_ORDERS_CACHE.length ? `You have ${CRM_ORDERS_CACHE.length} live database order(s). This is the backbone for customer value tracking.` : "No database orders exist yet. Once storefront requests land in Supabase, customer value tracking starts immediately."]);
+  notes.push(["Workspace blueprint", `${summary.businessLabel} is running in ${summary.workspaceModeLabel}. Keep the team living inside ${(summary.focusTabs.length ? summary.focusTabs : ["Customers", workspaceTabLabel("orders", blueprint), "Payments"]).join(", ")}.`]);
+  notes.push(["How this should feel", summary.operatorNeeds[0] ? `${summary.operatorNeeds[0]}. ${summary.promise}` : summary.promise]);
+  notes.push(["Lead pipeline", LEADS_CACHE.length ? `You have ${LEADS_CACHE.length} lead record(s). Work them forward instead of letting website requests or phone notes die in memory.` : "No leads exist yet. As service intake starts landing here, the pipeline becomes much easier to trust."]);
+  notes.push(["CRM foundation", CUSTOMERS_CACHE.length ? `You now have ${CUSTOMERS_CACHE.length} customer record(s). Start ranking by lifetime value and following up based on real history.` : "No customers are in CRM yet. The next win is building customer memory that does not live in texts or somebody's head."]);
+  notes.push(["Execution", JOBS_CACHE.length ? `You have ${JOBS_CACHE.length} tracked job record(s). That means work no longer has to live only inside the order list.` : "No jobs are tracked yet. Convert booked work into jobs so schedule, proof, and collection all stay visible."]);
+  notes.push(["Payments", PAYMENTS_CACHE.length ? "Payments are flowing into the operator record. Online and offline collection can now sit on the same customer and work history." : "Payments table is empty. Start by logging real deposits and collections so the business history becomes trustworthy."]);
+  if (isTabVisibleInWorkspace("bids", blueprint)) {
+    notes.push(["Bids and sales flow", BIDS_CACHE.length ? `You have ${BIDS_CACHE.length} saved bid draft(s). Keep using the walkthrough record so scope, photos, and pricing stay together.` : "No professional bid drafts exist yet. The fastest upgrade is turning site visits into structured proposals instead of memory-based follow-up."]);
+  }
+  notes.push([workspaceTabLabel("orders", blueprint), CRM_ORDERS_CACHE.length ? `You have ${CRM_ORDERS_CACHE.length} tracked ${workspaceOrderLabelLower(blueprint)}. This is the operating backbone for accountability and customer value.` : `No tracked ${workspaceOrderLabelLower(blueprint)} exist yet. Once work starts landing here, operator visibility gets much stronger.`]);
+  if (summary.deferredLabels.length) {
+    notes.push(["Later unlocks", `When the business is ready for more depth, layer in ${summary.deferredLabels.join(", ")} without changing the core operating habits.`]);
+  }
 
   guidanceWrap.innerHTML = `
     <div class="guidance-grid">
@@ -4972,14 +6875,16 @@ function renderGuidance() {
   `;
 }
 btnRefreshDashboard?.addEventListener("click", async () => {
-  await Promise.allSettled([fetchDashboardLaunchChecklist(), fetchDashboardPaymentState()]);
+  await Promise.allSettled([fetchLeads(), fetchCrmOrders(), fetchPayments(), fetchJobs(), fetchDashboardLaunchChecklist(), fetchDashboardPaymentState(), loadPersistedBids()]);
   renderDashboard();
+  renderLeads(leadSearch?.value || "");
   renderGuidance();
 });
 btnRefreshOrders?.addEventListener("click", async () => {
   try {
-    await fetchCrmOrders();
+    await Promise.all([fetchCrmOrders(), fetchJobs()]);
     renderOrders();
+    renderJobs(jobSearch?.value || "");
     renderDashboard();
     renderGuidance();
   } catch (err) {
@@ -5010,6 +6915,7 @@ btnRefreshMoney?.addEventListener("click", () => renderMoney().catch(console.err
 async function renderMoney() {
   if (!moneyWrap) return;
 
+  const blueprint = currentWorkspaceBlueprint();
   const pricingRows = await fetchPricing();
   const topCustomer = sortedCustomers(CUSTOMERS_CACHE)[0] || null;
   const expByMonth = new Map();
@@ -5056,13 +6962,17 @@ async function renderMoney() {
 
     <div class="insight-grid">
       <div class="insight">
-        <h3>Catalog health</h3>
-        <p>Missing sell price: <strong>${productsMissingPrice}</strong></p>
-        <p>Missing image: <strong>${PRODUCTS_CACHE.filter((p) => !String(p.image_url || "").trim()).length}</strong></p>
+        <h3>${escapeHtml(workspaceUsesServiceCatalog(blueprint) ? "Service catalog health" : (isBookingWorkspace(blueprint) || isEventWorkspace(blueprint) ? "Package health" : "Catalog health"))}</h3>
+        <p>${escapeHtml(workspaceUsesServiceCatalog(blueprint) ? "Missing price anchor" : "Missing sell price")}: <strong>${productsMissingPrice}</strong></p>
+        <p>${escapeHtml(workspaceUsesServiceCatalog(blueprint) ? "Missing image or proof" : "Missing image")}: <strong>${PRODUCTS_CACHE.filter((p) => !String(p.image_url || "").trim()).length}</strong></p>
       </div>
       <div class="insight">
-        <h3>Revenue memory</h3>
-        <p>The system can now rank customers by value and tie revenue back to people instead of isolated receipts.</p>
+        <h3>Customer value</h3>
+        <p>The system now ranks customers by value and ties money back to real people instead of isolated receipts.</p>
+      </div>
+      <div class="insight">
+        <h3>${escapeHtml(titleCaseWords(workspaceOrderLabelLower(blueprint)))} economics</h3>
+        <p>Expenses by month show where money is leaving the business. As job costing gets deeper, this turns into real margin visibility.</p>
       </div>
     </div>
 
@@ -5099,14 +7009,18 @@ async function boot() {
       fetchProducts(),
       fetchExpenses(),
       fetchCustomers(),
+      fetchLeads(),
       fetchCrmOrders(),
       fetchPayments(),
+      fetchJobs(),
       fetchAvailability(),
       fetchOperatorSetup().catch(() => null),
     ]);
     loadBidDrafts();
+    await loadPersistedBids();
 
     showApp(user);
+    applyWorkspaceBlueprint();
 
     renderProductsList("");
     renderAvailability();
@@ -5115,9 +7029,12 @@ async function boot() {
     await refreshPicklists();
     renderStartupChecklist();
     await Promise.allSettled([fetchDashboardLaunchChecklist(), fetchDashboardPaymentState()]);
+    applyWorkspaceBlueprint();
     renderDashboard();
+    renderLeads("");
     renderOrders();
     renderBids("");
+    renderJobs("");
     renderCustomersList("");
     renderPayments();
     renderGuidance();
@@ -5146,6 +7063,8 @@ window.PROOFLINK_OPERATOR_RUNTIME = {
   getActiveOrder: () => CRM_ORDERS_CACHE.find((row) => row.id === ACTIVE_ORDER_ID) || null,
   refreshPayments: async () => { await fetchPayments(); renderPayments(); },
   refreshOrders: async () => { await fetchCrmOrders(); renderOrders(); },
+  refreshLeads: async () => { await fetchLeads(); renderLeads(leadSearch?.value || ""); },
+  refreshJobs: async () => { await fetchJobs(); renderJobs(jobSearch?.value || ""); },
 };
 
 initBranding();

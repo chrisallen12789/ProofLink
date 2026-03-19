@@ -8,6 +8,7 @@ const ALLOWED_KEYS = new Set([
   'logo_url', 'hero_image_url', 'public_contact_email', 'public_business_phone',
   'service_area', 'instagram', 'facebook', 'hours_notes', 'fulfillment_notes',
   'accent_color', 'show_prices', 'allow_custom_requests', 'about', 'onboarding_complete',
+  'workspace_business_type',
 ]);
 
 const PROTECTED_KEYS = new Set([

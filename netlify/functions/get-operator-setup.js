@@ -30,7 +30,7 @@ exports.handler = async (event) => {
   const [{ data: tenant, error: tenantErr }, { data: cfgRow, error: cfgErr }] = await Promise.all([
     supabase
       .from('tenants')
-      .select('id, name, slug, owner_email, owner_name, logo_url, business_type, city_state, active, setup_complete')
+      .select('id, name, slug, owner_email, owner_name, logo_url, business_type, city_state, active, setup_complete, prooflink_plan_key')
       .eq('id', tenantId)
       .maybeSingle(),
     supabase
@@ -45,16 +45,22 @@ exports.handler = async (event) => {
   if (cfgErr) return respond(500, { error: 'Failed to load tenant config' });
 
   const rawConfig = parseConfig(cfgRow?.config_value);
+  const resolvedBusinessType =
+    tenant.business_type ||
+    rawConfig.workspace_business_type ||
+    rawConfig.business_type ||
+    '';
   const lockedRecord = {
     legal_business_name: tenant.name || '',
     owner_name: tenant.owner_name || '',
     login_email: tenant.owner_email || '',
-    business_type: tenant.business_type || rawConfig.business_type || '',
+    business_type: resolvedBusinessType,
     city_state: tenant.city_state || rawConfig.city_state || '',
     license_number: rawConfig.license_number || '',
     slug: tenant.slug || '',
     active: !!tenant.active,
     setup_complete: !!tenant.setup_complete,
+    prooflink_plan_key: tenant.prooflink_plan_key || 'starter',
   };
 
   const config = {
@@ -64,6 +70,7 @@ exports.handler = async (event) => {
     allow_custom_requests: rawConfig.allow_custom_requests !== false,
     public_contact_email: rawConfig.public_contact_email || rawConfig.contact_email || '',
     public_business_phone: rawConfig.public_business_phone || rawConfig.business_phone || '',
+    workspace_business_type: rawConfig.workspace_business_type || tenant.business_type || '',
   };
 
   return respond(200, {
@@ -73,6 +80,7 @@ exports.handler = async (event) => {
       'tagline', 'hero_heading', 'hero_subheading', 'about', 'accent_color',
       'logo_url', 'hero_image_url', 'public_contact_email', 'public_business_phone',
       'service_area', 'instagram', 'facebook', 'hours_notes', 'fulfillment_notes',
+      'workspace_business_type',
       'show_prices', 'allow_custom_requests', 'onboarding_complete',
     ],
     protected_fields: [

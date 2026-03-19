@@ -1,5 +1,6 @@
 (function () {
   const Public = window.PROOFLINK_PUBLIC;
+  const Architecture = window.PROOFLINK_WORKSPACE_ARCHITECTURE;
 
   if (!Public) {
     console.error('ProofLink public plan config is missing.');
@@ -18,7 +19,7 @@
     phone: '',
   };
 
-  const typeLabels = {
+  const fallbackTypeLabels = {
     bakery: 'Bakery / Food',
     cleaning: 'Cleaning',
     contractor: 'Contractor / Remodeling',
@@ -33,6 +34,14 @@
     pressure_washing: 'Pressure Washing',
     property_maintenance: 'Property Maintenance',
   };
+  const typeLabels = { ...fallbackTypeLabels };
+
+  if (Architecture?.getBusinessProfile) {
+    Object.keys(typeLabels).forEach((key) => {
+      const profile = Architecture.getBusinessProfile(key);
+      if (profile?.label) typeLabels[key] = profile.label;
+    });
+  }
 
   function $(id) {
     return document.getElementById(id);

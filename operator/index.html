@@ -66,9 +66,11 @@
       </section>
 
       <div class="nav" aria-label="Sections" data-tour="sidebar-nav">
-        <button class="tab active" data-tab="dashboard" data-tour-tab="dashboard" type="button">Dashboard</button>
+        <button class="tab active" data-tab="dashboard" data-tour-tab="dashboard" type="button">Today</button>
+        <button class="tab" data-tab="leads" data-tour-tab="leads" type="button">Leads</button>
         <button class="tab" data-tab="orders" data-tour-tab="orders" type="button">Orders</button>
         <button class="tab" data-tab="bids" data-tour-tab="bids" type="button">Walkthrough Bids</button>
+        <button class="tab" data-tab="jobs" data-tour-tab="jobs" type="button">Jobs</button>
         <button class="tab" data-tab="customers" data-tour-tab="customers" type="button">Customers</button>
         <button class="tab" data-tab="payments" data-tour-tab="payments" type="button">Payments</button>
         <button class="tab" data-tab="domains" data-tour-tab="domains" type="button">Domains</button>
@@ -194,8 +196,8 @@
           <section class="panel" data-panel="dashboard">
             <div class="panel-head">
               <div>
-                <h2>Dashboard</h2>
-                <div class="muted">A plain-English business snapshot built for owners, not accountants.</div>
+                <h2>Today</h2>
+                <div class="muted">The next work, money, and customer moves that matter right now.</div>
               </div>
               <div class="panel-actions">
                 <button id="btnRefreshDashboard" class="btn btn-ghost" type="button">Refresh</button>
@@ -205,6 +207,130 @@
             <div class="card">
               <div class="card-bd">
                 <div id="dashboardWrap"></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel hidden" data-panel="leads">
+            <div class="panel-head">
+              <div>
+                <h2>Leads</h2>
+                <div class="muted">Capture service opportunities cleanly and move them into pricing without rebuilding the record.</div>
+              </div>
+              <div class="panel-actions">
+                <input id="leadSearch" class="input" placeholder="Search leads..." />
+                <button id="btnNewLead" class="btn" type="button">New lead</button>
+              </div>
+            </div>
+
+            <div class="grid two">
+              <div class="card">
+                <div class="card-hd">
+                  <strong>Pipeline intake</strong>
+                  <span class="muted">Newest and most urgent first</span>
+                </div>
+                <div class="card-bd">
+                  <div id="leadsList" class="list"></div>
+                </div>
+              </div>
+
+              <div class="card">
+                <div class="card-hd">
+                  <strong>Lead detail</strong>
+                  <span class="muted">Keep the customer context and next action in one place.</span>
+                </div>
+                <div class="card-bd">
+                  <form id="leadForm" class="form">
+                    <input id="leadId" type="hidden" />
+
+                    <div class="grid three form-grid">
+                      <label>Status
+                        <select id="leadStatus">
+                          <option value="new">New</option>
+                          <option value="contacted">Contacted</option>
+                          <option value="qualified">Qualified</option>
+                          <option value="quoted">Quoted</option>
+                          <option value="converted">Converted</option>
+                          <option value="lost">Lost</option>
+                          <option value="archived">Archived</option>
+                        </select>
+                      </label>
+
+                      <label>Priority
+                        <select id="leadPriority">
+                          <option value="normal">Normal</option>
+                          <option value="low">Low</option>
+                          <option value="high">High</option>
+                          <option value="urgent">Urgent</option>
+                        </select>
+                      </label>
+
+                      <label>Linked customer
+                        <select id="leadCustomerId"></select>
+                      </label>
+                    </div>
+
+                    <div class="grid two form-grid">
+                      <label>Lead title
+                        <input id="leadTitle" placeholder="Exterior wash request" />
+                      </label>
+
+                      <label>Requested service
+                        <input id="leadRequestedService" placeholder="House wash, gutter cleanout, repair, inspection..." />
+                      </label>
+                    </div>
+
+                    <div class="grid three form-grid">
+                      <label>Contact name
+                        <input id="leadContactName" placeholder="Customer name" />
+                      </label>
+
+                      <label>Email
+                        <input id="leadContactEmail" type="email" placeholder="name@example.com" />
+                      </label>
+
+                      <label>Phone
+                        <input id="leadContactPhone" type="tel" placeholder="(555) 555-5555" />
+                      </label>
+                    </div>
+
+                    <div class="grid three form-grid">
+                      <label>Preferred contact
+                        <select id="leadPreferredContact">
+                          <option value="phone">Phone</option>
+                          <option value="email">Email</option>
+                          <option value="text">Text</option>
+                        </select>
+                      </label>
+
+                      <label>Source
+                        <input id="leadSourceType" placeholder="website_service_intake" />
+                      </label>
+
+                      <label>Service address
+                        <input id="leadServiceAddress" placeholder="123 Main Street, City, State" />
+                      </label>
+                    </div>
+
+                    <label>Summary
+                      <textarea id="leadSummary" rows="3" placeholder="What the customer needs solved and what the operator should know before pricing."></textarea>
+                    </label>
+
+                    <label>Internal notes
+                      <textarea id="leadNotes" rows="3" placeholder="Callback details, gate codes, timing, access notes, or risk to price around."></textarea>
+                    </label>
+
+                    <div class="row">
+                      <button class="btn btn-primary" type="submit">Save lead</button>
+                      <button id="btnLeadCreateBid" class="btn" type="button">Create bid</button>
+                      <button id="btnLeadOpenBid" class="btn btn-ghost" type="button">Open linked bid</button>
+                    </div>
+
+                    <div id="leadMsg" class="msg"></div>
+                  </form>
+
+                  <div id="leadDetailWrap" class="muted" style="margin-top:16px;">Create or select a lead to see the workflow context.</div>
+                </div>
               </div>
             </div>
           </section>
@@ -240,6 +366,106 @@
                 </div>
                 <div class="card-bd">
                   <div id="orderDetailWrap" class="muted">Select an order to inspect it.</div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel hidden" data-panel="jobs">
+            <div class="panel-head">
+              <div>
+                <h2>Jobs</h2>
+                <div class="muted">Turn booked work into tracked execution with visible status and money state.</div>
+              </div>
+              <div class="panel-actions">
+                <input id="jobSearch" class="input" placeholder="Search jobs..." />
+                <button id="btnNewJob" class="btn" type="button">New job</button>
+              </div>
+            </div>
+
+            <div class="grid two">
+              <div class="card">
+                <div class="card-hd">
+                  <strong>Tracked jobs</strong>
+                  <span class="muted">Execution records tied back to work and money</span>
+                </div>
+                <div class="card-bd">
+                  <div id="jobsList" class="list"></div>
+                </div>
+              </div>
+
+              <div class="card">
+                <div class="card-hd">
+                  <strong>Job detail</strong>
+                  <span class="muted">Keep schedule, status, proof, and collection context together.</span>
+                </div>
+                <div class="card-bd">
+                  <form id="jobForm" class="form">
+                    <input id="jobId" type="hidden" />
+
+                    <div class="grid three form-grid">
+                      <label>Status
+                        <select id="jobStatus">
+                          <option value="scheduled">Scheduled</option>
+                          <option value="dispatched">Dispatched</option>
+                          <option value="in_progress">In progress</option>
+                          <option value="blocked">Blocked</option>
+                          <option value="completed">Completed</option>
+                          <option value="cancelled">Cancelled</option>
+                        </select>
+                      </label>
+
+                      <label>Linked order
+                        <select id="jobOrderId"></select>
+                      </label>
+
+                      <label>Linked customer
+                        <select id="jobCustomerId"></select>
+                      </label>
+                    </div>
+
+                    <div class="grid two form-grid">
+                      <label>Job title
+                        <input id="jobTitle" placeholder="Main Street exterior wash" />
+                      </label>
+
+                      <label>Service address
+                        <input id="jobServiceAddress" placeholder="123 Main Street, City, State" />
+                      </label>
+                    </div>
+
+                    <div class="grid three form-grid">
+                      <label>Scheduled date
+                        <input id="jobScheduledDate" type="date" />
+                      </label>
+
+                      <label>Scheduled time
+                        <input id="jobScheduledTime" placeholder="9:00 AM" />
+                      </label>
+
+                      <label>Schedule window
+                        <input id="jobScheduleWindow" placeholder="Tue-Fri, 8am-2pm" />
+                      </label>
+                    </div>
+
+                    <label>Job summary
+                      <textarea id="jobSummary" rows="3" placeholder="What the team is there to do and what the customer expects to be solved."></textarea>
+                    </label>
+
+                    <label>Operator notes
+                      <textarea id="jobNotes" rows="3" placeholder="Access, hazards, proof reminders, or collection notes."></textarea>
+                    </label>
+
+                    <div class="row">
+                      <button class="btn btn-primary" type="submit">Save job</button>
+                      <button id="btnJobOpenOrder" class="btn" type="button">Open linked order</button>
+                      <button id="btnJobRecordPayment" class="btn btn-ghost" type="button">Record payment</button>
+                    </div>
+
+                    <div id="jobMsg" class="msg"></div>
+                  </form>
+
+                  <div id="jobDetailWrap" class="muted" style="margin-top:16px;">Select or create a job to see the execution context.</div>
                 </div>
               </div>
             </div>
@@ -501,6 +727,8 @@
                   <span class="muted">Capture with the camera, name each image, and preserve the field context.</span>
                 </div>
                 <div class="card-bd">
+                  <div id="bidPhotoGuide" class="bid-template-panel muted">Profile-aware photo prompts will appear here once a bid profile is active.</div>
+
                   <form id="bidPhotoForm" class="form">
                     <label>Capture or upload photo
                       <input id="bidPhotoFile" type="file" accept="image/*" capture="environment" />
@@ -544,6 +772,8 @@
                   <span class="muted">Build the offer the client will actually receive.</span>
                 </div>
                 <div class="card-bd">
+                  <div id="bidScopeStarters" class="bid-template-panel muted">Profile-aware scope starters will appear here once a bid profile is active.</div>
+
                   <form id="bidLineItemForm" class="form">
                     <input type="hidden" id="bidLineItemId" />
 
@@ -749,6 +979,7 @@
                 <div class="card-bd">
                   <form id="paymentForm" class="form">
                     <input type="hidden" id="paymentId" />
+                    <input type="hidden" id="paymentJobId" />
 
                     <div class="grid two form-grid">
                       <label>Customer
@@ -922,6 +1153,11 @@
 
                     <label>About the business
                       <textarea id="setupAbout" rows="5" placeholder="Plain-English description of what this operator does and why customers should trust them."></textarea>
+                    </label>
+
+                    <label>Workspace profile
+                      <select id="setupWorkspaceBusinessType"></select>
+                      <div class="muted" style="margin-top:6px;line-height:1.5;">This shapes the operator workspace for how the business actually runs. It does not change the protected onboarding record.</div>
                     </label>
 
                     <label>Accent color
@@ -1292,15 +1528,16 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <script src="/platform/plan-rules.js" defer></script>
-  <script src="/platform/plan-check.js" defer></script>
-  <script src="./components/analytics-widgets.js" defer></script>
-  <script src="./components/stripe-readiness.js" defer></script>
-  <script src="./components/checklist-engine.js" defer></script>
-  <script src="./operator.config.js" defer></script>
-  <script src="./operator.data.js" defer></script>
-  <script src="./operator.js" defer></script>
-  <script src="./walkthrough.js" defer></script>
-  <script src="./operator.launch.js" defer></script>
+<script src="/platform/plan-check.js" defer></script>
+<script src="./components/analytics-widgets.js" defer></script>
+<script src="./components/stripe-readiness.js" defer></script>
+<script src="./components/checklist-engine.js" defer></script>
+<script src="./operator.config.js" defer></script>
+<script src="./operator.data.js" defer></script>
+<script src="/prooflink-workspace-architecture.js" defer></script>
+<script src="./operator.js" defer></script>
+<script src="./walkthrough.js" defer></script>
+<script src="./operator.launch.js" defer></script>
 
   <!-- ═══════════════════════════════════════════════════
        FIRST-LOGIN WALKTHROUGH MODAL
