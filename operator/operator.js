@@ -138,8 +138,6 @@ async function fetchDashboardLaunchChecklist() {
 
 const $ = (id) => document.getElementById(id);
 const sectionNav = document.querySelector('.nav[aria-label="Sections"]');
-const workspaceHub = $("workspaceHub");
-
 const viewLogin = $("viewLogin");
 const viewApp = $("viewApp");
 const btnSignOut = $("btnSignOut");
@@ -435,6 +433,25 @@ const expenseLaborRole = $("expenseLaborRole");
 const WORKSPACE_DIRTY_TABS = new Set();
 const WORKSPACE_SNAPSHOT_BY_TAB = new Map();
 const WORKSPACE_SNAPSHOT_TIMERS = new Map();
+const WORKSPACE_CONTEXT_GROUPS = {
+  dashboard: ["dashboard", "leads", "bids", "orders", "jobs", "payments", "customers", "import"],
+  leads: ["leads", "bids", "customers"],
+  bids: ["bids", "leads", "orders", "customers"],
+  orders: ["orders", "jobs", "payments", "customers"],
+  jobs: ["jobs", "orders", "payments", "expenses"],
+  plans: ["plans", "jobs", "customers", "payments"],
+  customers: ["customers", "leads", "bids", "payments"],
+  import: ["import", "customers", "orders", "payments"],
+  payments: ["payments", "orders", "jobs", "money"],
+  domains: ["domains", "setup"],
+  setup: ["setup", "domains", "guidance"],
+  products: ["products", "pricing", "availability"],
+  pricing: ["pricing", "products", "availability"],
+  availability: ["availability", "products", "pricing", "plans"],
+  expenses: ["expenses", "jobs", "money"],
+  money: ["money", "payments", "expenses", "jobs"],
+  guidance: ["guidance", "dashboard", "money"],
+};
 const expenseLaborHours = $("expenseLaborHours");
 const expenseLaborRate = $("expenseLaborRate");
 const expenseMaterialFields = $("expenseMaterialFields");
@@ -1748,7 +1765,8 @@ function renderPanelNotice(tab, blueprint = currentWorkspaceBlueprint()) {
   panel.querySelector(".workspace-panel-notice")?.remove();
   const html = panelNoticeHtml(tab, blueprint);
   if (!html) return;
-  head.insertAdjacentHTML("afterend", html);
+  const anchor = panel.querySelector(".workspace-context-nav") || head;
+  anchor.insertAdjacentHTML("afterend", html);
 }
 function updateWorkspaceTabPresentation(tab, blueprint = currentWorkspaceBlueprint()) {
   const btn = sectionNav?.querySelector(`.tab[data-tab="${tab}"]`);
@@ -2154,6 +2172,50 @@ function setWorkspaceCollapsed(tab, collapsed) {
   updateWorkspaceWindowControls(tab);
   renderWorkspaceHub();
 }
+function workspaceContextTabsFor(tab, blueprint = currentWorkspaceBlueprint()) {
+  const group = WORKSPACE_CONTEXT_GROUPS[tab] || [tab];
+  return uniqList(group.filter((candidate) => isTabVisibleInWorkspace(candidate, blueprint)));
+}
+function renderWorkspaceContextTabs() {
+  const blueprint = currentWorkspaceBlueprint();
+  const activeTab = document.querySelector(".tab.active")?.dataset.tab || "dashboard";
+  workspacePanels().forEach((panel) => {
+    const tab = panel.dataset.panel || "";
+    if (!tab) return;
+    const head = panel.querySelector(".panel-head");
+    if (!head) return;
+    let nav = panel.querySelector(".workspace-context-nav");
+    if (!nav) {
+      nav = document.createElement("div");
+      nav.className = "workspace-context-nav";
+      head.insertAdjacentElement("afterend", nav);
+    }
+    const tabs = tab === "dashboard" ? [tab] : workspaceContextTabsFor(tab, blueprint);
+    if (tabs.length <= 1) {
+      nav.innerHTML = "";
+      nav.classList.add("hidden");
+      return;
+    }
+    nav.classList.remove("hidden");
+    nav.innerHTML = `
+      <div class="workspace-context-nav__label">Related views</div>
+      <div class="workspace-context-nav__tabs">
+        ${tabs.map((relatedTab) => `
+          <button
+            class="workspace-context-tab ${relatedTab === activeTab ? "is-active" : ""}"
+            type="button"
+            data-context-tab="${escapeAttr(relatedTab)}"
+          >
+            ${escapeHtml(workspaceTabLabel(relatedTab, blueprint))}
+          </button>
+        `).join("")}
+      </div>
+    `;
+    nav.querySelectorAll("[data-context-tab]").forEach((button) => {
+      button.addEventListener("click", () => switchTab(button.getAttribute("data-context-tab") || "dashboard"));
+    });
+  });
+}
 function ensureWorkspaceWindowShell() {
   workspacePanels().forEach((panel) => {
     panel.classList.add("workspace-window");
@@ -2209,45 +2271,8 @@ function bindWorkspaceDirtyTracking() {
   });
 }
 function renderWorkspaceHub() {
-  if (!workspaceHub) return;
   ensureWorkspaceWindowShell();
-  const blueprint = currentWorkspaceBlueprint();
-  const activeTab = document.querySelector(".tab.active")?.dataset.tab || "dashboard";
-  const visibleTabs = Array.from(document.querySelectorAll('.tab:not([hidden])'))
-    .map((button) => button.dataset.tab)
-    .filter(Boolean);
-  workspaceHub.innerHTML = visibleTabs.map((tab) => {
-    const copy = workspacePanelCopy(tab, blueprint);
-    const panel = workspacePanel(tab);
-    const locked = isTabLockedInWorkspace(tab, blueprint);
-    const dirty = WORKSPACE_DIRTY_TABS.has(tab);
-    const active = tab === activeTab;
-    const collapsed = !!panel?.classList.contains("is-collapsed");
-    const status = dirty
-      ? "Unsaved"
-      : active
-        ? (collapsed ? "Collapsed" : "Open")
-        : (locked ? "Locked" : "Ready");
-    const meta = active ? "Current window" : (workspacePriorityTabs(blueprint).includes(tab) ? "Core workflow" : "Open workspace");
-    return `
-      <button
-        class="workspace-launch-card ${active ? "is-active" : ""} ${dirty ? "is-dirty" : ""} ${locked ? "is-locked" : ""}"
-        type="button"
-        data-workspace-launch="${escapeAttr(tab)}"
-      >
-        <div class="workspace-launch-card__meta">${escapeHtml(meta)}</div>
-        <div class="workspace-launch-card__title">${escapeHtml(copy.title)}</div>
-        <div class="workspace-launch-card__copy">${escapeHtml(copy.subtitle || "Open this workspace.")}</div>
-        <div class="workspace-launch-card__footer">
-          <span class="workspace-launch-card__status">${escapeHtml(status)}</span>
-          <span class="workspace-launch-card__open">${active ? "Working now" : "Open window"}</span>
-        </div>
-      </button>
-    `;
-  }).join("");
-  workspaceHub.querySelectorAll("[data-workspace-launch]").forEach((button) => {
-    button.addEventListener("click", () => switchTab(button.getAttribute("data-workspace-launch") || "dashboard"));
-  });
+  renderWorkspaceContextTabs();
 }
 
 function normalizePanel(panel) {
@@ -7536,6 +7561,81 @@ function todayActionItems() {
   }
   return actions.slice(0, 4);
 }
+function dashboardClientTrackerRows(todayActions = []) {
+  const rows = [];
+  const activeStatuses = new Set(["new", "quoted", "confirmed", "fulfilled", "completed", "scheduled", "dispatched", "in_progress", "blocked"]);
+  sortedCustomers(CUSTOMERS_CACHE).forEach((customer) => {
+    const customerOrders = CRM_ORDERS_CACHE
+      .filter((row) => row.customer_id === customer.id)
+      .sort((a, b) => new Date(b.updated_at || b.created_at || 0).getTime() - new Date(a.updated_at || a.created_at || 0).getTime());
+    const customerJobs = JOBS_CACHE
+      .filter((row) => row.customer_id === customer.id)
+      .sort((a, b) => new Date(b.updated_at || b.created_at || 0).getTime() - new Date(a.updated_at || a.created_at || 0).getTime());
+    const customerLeads = LEADS_CACHE
+      .filter((row) => row.customer_id === customer.id)
+      .sort((a, b) => new Date(b.updated_at || b.created_at || 0).getTime() - new Date(a.updated_at || a.created_at || 0).getTime());
+
+    const activeJob = customerJobs.find((row) => activeStatuses.has(String(row.status || "").toLowerCase()));
+    const activeOrder = customerOrders.find((row) => !["paid", "cancelled"].includes(String(row.status || "").toLowerCase())) || customerOrders[0] || null;
+    const activeLead = customerLeads.find((row) => !["converted", "lost", "archived"].includes(String(row.status || "").toLowerCase())) || null;
+    const outstanding = customerOrders.reduce((sum, row) => sum + orderAmountDueCents(row), 0);
+    const lifetime = customerLifetimeValueCents(customer);
+    const focusRecord = activeJob || activeOrder || activeLead;
+    if (!focusRecord && !outstanding && lifetime <= 0) return;
+
+    const targetTab = activeJob ? "jobs" : (activeOrder ? "orders" : (activeLead ? "leads" : "customers"));
+    const targetId = activeJob?.id || activeOrder?.id || activeLead?.id || customer.id;
+    const statusLabel = activeJob
+      ? `Job ${titleCaseWords(String(activeJob.status || "scheduled").replace(/_/g, " "))}`
+      : (activeOrder
+        ? `${titleCaseWords(String(activeOrder.status || "new").replace(/_/g, " "))} ${workspaceOrderLabel(currentWorkspaceBlueprint())}`
+        : (activeLead ? `Lead ${titleCaseWords(String(activeLead.status || "new").replace(/_/g, " "))}` : "Customer record"));
+    const summary = activeJob?.title
+      || activeOrder?.cart_summary
+      || activeLead?.title
+      || activeLead?.requested_service_type
+      || customer.email
+      || customer.phone
+      || "Customer record";
+    const serviceAddress = activeJob?.service_address
+      || activeOrder?.service_address
+      || customer.service_address
+      || customer.billing_address
+      || "";
+    const monetaryLabel = outstanding > 0
+      ? `${formatUsd(outstanding)} open`
+      : `${formatUsd(lifetime)} lifetime`;
+    const actionHint = activeLead
+      ? "Needs response"
+      : (activeJob
+        ? "Track field work"
+        : (activeOrder ? "Track work and payment" : "Open customer"));
+
+    rows.push({
+      customerId: customer.id,
+      customerName: customer.name || "Unnamed customer",
+      targetTab,
+      targetId,
+      statusLabel,
+      summary,
+      serviceAddress,
+      monetaryLabel,
+      actionHint,
+      sortValue: outstanding > 0 ? outstanding : lifetime,
+    });
+  });
+
+  const uniqueRows = uniqList(todayActions.map((item) => item.targetId).filter(Boolean));
+  const actionHints = new Map(todayActions.map((item) => [item.targetId, item.title]));
+  return rows
+    .sort((a, b) => b.sortValue - a.sortValue || a.customerName.localeCompare(b.customerName))
+    .map((row) => ({
+      ...row,
+      actionHint: actionHints.get(row.targetId) || row.actionHint,
+      isPriority: uniqueRows.includes(row.targetId),
+    }))
+    .slice(0, 6);
+}
 async function sendQueuedFollowUp(item) {
   if (!item?.canSend) throw new Error("This follow-up does not have an email delivery path.");
   const response = await postOperatorFunction("send-follow-up", {
@@ -8505,6 +8605,7 @@ function renderDashboard() {
   const summary = workspaceSummaryData(blueprint);
   const pipeline = servicePipelineSnapshot();
   const todayActions = todayActionItems();
+  const trackedClients = dashboardClientTrackerRows(todayActions);
   const followUps = buildFollowUpQueue();
   CURRENT_FOLLOW_UP_QUEUE = followUps;
   const currentExpenses = currentMonthExpenseCents();
@@ -8628,51 +8729,35 @@ function renderDashboard() {
       </div>
     </div>
 
-    <div class="dashboard-quick-actions">
-      ${(!CUSTOMERS_CACHE.length && !CRM_ORDERS_CACHE.length && !PAYMENTS_CACHE.length) ? `
-        <button type="button" class="dashboard-quick-action" data-dashboard-action="import">
-          <div class="kicker">Quick start</div>
-          <strong>Switch from the old system</strong>
-          <div class="detail-copy">Upload customers, live work, and payment history without retyping the office.</div>
-        </button>
-      ` : ""}
-      <button type="button" class="dashboard-quick-action" data-dashboard-action="new-lead">
-        <div class="kicker">Quick start</div>
-        <strong>Capture a lead</strong>
-        <div class="detail-copy">Start the next customer conversation without digging through tabs.</div>
-      </button>
-      <button type="button" class="dashboard-quick-action" data-dashboard-action="new-bid">
-        <div class="kicker">Quick start</div>
-        <strong>Build a walkthrough bid</strong>
-        <div class="detail-copy">Move from scope to price with photos, notes, and line items attached.</div>
-      </button>
-      <button type="button" class="dashboard-quick-action" data-dashboard-action="new-customer">
-        <div class="kicker">Quick start</div>
-        <strong>Add a customer</strong>
-        <div class="detail-copy">Get a clean record into CRM before the business runs on memory again.</div>
-      </button>
-      <button type="button" class="dashboard-quick-action" data-dashboard-action="record-payment">
-        <div class="kicker">Quick start</div>
-        <strong>Record a payment</strong>
-        <div class="detail-copy">Log cash, check, ACH, or field collection without losing the work link.</div>
-      </button>
-      ${isTabVisibleInWorkspace("plans", blueprint) ? `
-        <button type="button" class="dashboard-quick-action" data-dashboard-action="new-plan">
-          <div class="kicker">Quick start</div>
-          <strong>Start a recurring plan</strong>
-          <div class="detail-copy">Turn repeat service into scheduled orders and jobs before it slips back into memory.</div>
-        </button>
-      ` : ""}
-    </div>
-
-    <div class="today-actions-grid">
-      ${todayActions.length ? todayActions.map((item) => `
-        <button type="button" class="today-action-card" data-today-tab="${escapeAttr(item.tab)}" data-today-id="${escapeAttr(item.targetId || "")}">
-          <div class="kicker">${escapeHtml(workspaceTabLabel(item.tab, blueprint))}</div>
-          <strong>${escapeHtml(item.title)}</strong>
-          <div class="detail-copy">${escapeHtml(item.detail)}</div>
-        </button>
-      `).join("") : `<div class="detail-card"><div class="kicker">Today</div><div><strong>No urgent workflow blocks right now.</strong></div><div class="detail-copy">Use this screen to stay ahead of leads, active jobs, and unpaid work before the business gets noisy.</div></div>`}
+    <div class="dashboard-tracker">
+      <div class="dashboard-tracker__head">
+        <div>
+          <div class="kicker">Active client tracker</div>
+          <h3>See who is active, what stage they are in, and where the money still sits.</h3>
+          <p>Open the client, order, job, or lead directly from the tracking row instead of hunting across the system.</p>
+        </div>
+        <div class="workspace-chip-row">
+          <span class="pill">${escapeHtml(String(trackedClients.length))} clients in focus</span>
+          <span class="pill">${escapeHtml(String(todayActions.length))} live pressure points</span>
+        </div>
+      </div>
+      <div class="dashboard-tracker__list">
+        ${trackedClients.length ? trackedClients.map((item) => `
+          <button type="button" class="dashboard-tracker-row${item.isPriority ? " is-priority" : ""}" data-today-tab="${escapeAttr(item.targetTab)}" data-today-id="${escapeAttr(item.targetId || "")}">
+            <div class="dashboard-tracker-row__main">
+              <div class="dashboard-tracker-row__title">
+                <strong>${escapeHtml(item.customerName)}</strong>
+                <span class="pill${item.isPriority ? " pill-bad" : ""}">${escapeHtml(item.statusLabel)}</span>
+              </div>
+              <div class="dashboard-tracker-row__copy">${escapeHtml(item.summary)}${item.serviceAddress ? ` &middot; ${escapeHtml(item.serviceAddress)}` : ""}</div>
+            </div>
+            <div class="dashboard-tracker-row__meta">
+              <span>${escapeHtml(item.monetaryLabel)}</span>
+              <span>${escapeHtml(item.actionHint)}</span>
+            </div>
+          </button>
+        `).join("") : `<div class="detail-card"><div class="kicker">Client tracker</div><div><strong>No active clients are being tracked yet.</strong></div><div class="detail-copy">As customers, jobs, and payments land in ProofLink, the dashboard will keep the live records visible here.</div></div>`}
+      </div>
     </div>
 
     <div class="follow-up-queue">
@@ -8714,33 +8799,6 @@ function renderDashboard() {
             </div>
           </article>
         `).join("") : `<div class="detail-card"><div class="kicker">Queue</div><div><strong>No safe follow-up is queued right now.</strong></div><div class="detail-copy">That means leads are being worked, money is caught up, or recent contact already happened.</div></div>`}
-      </div>
-    </div>
-
-    <div class="workspace-summary-grid">
-      <div class="workspace-summary-card">
-        <div class="kicker">Workspace blueprint</div>
-        <h3>${escapeHtml(summary.businessLabel)} on ${escapeHtml(summary.tierLabel)}</h3>
-        <p>${escapeHtml(summary.promise)}</p>
-        <div class="workspace-chip-row">
-          <span class="pill">${escapeHtml(summary.workspaceModeLabel)}</span>
-          <span class="pill">${escapeHtml(workspaceTabLabel("orders", blueprint))}</span>
-          <span class="pill">${escapeHtml(workspaceTabLabel("products", blueprint))}</span>
-        </div>
-      </div>
-      <div class="workspace-summary-card">
-        <div class="kicker">Priority views</div>
-        <p>${escapeHtml(summary.operatorNeeds[0] || "Keep the next-best action obvious for the operator.")}</p>
-        <div class="workspace-chip-row">
-          ${(summary.focusTabs.length ? summary.focusTabs : ["Customers", workspaceTabLabel("orders", blueprint), "Payments"]).map((item) => `<span class="pill">${escapeHtml(item)}</span>`).join("")}
-        </div>
-      </div>
-      <div class="workspace-summary-card">
-        <div class="kicker">Later unlocks</div>
-        <p>${escapeHtml(summary.deferredLabels.length ? `Layer in ${summary.deferredLabels.join(", ")} when the business is ready for more depth.` : "This workspace already includes the advanced layers mapped for this profile.")}</p>
-        <div class="workspace-chip-row">
-          ${(summary.deferredLabels.length ? summary.deferredLabels : ["Keep it simple", "Teachable workflow", "One source of truth"]).map((item) => `<span class="pill">${escapeHtml(item)}</span>`).join("")}
-        </div>
       </div>
     </div>
 
@@ -8786,6 +8844,7 @@ function renderDashboard() {
       if (tab === "orders" && targetId) ACTIVE_ORDER_ID = targetId;
       if (tab === "jobs" && targetId) ACTIVE_JOB_ID = targetId;
       if (tab === "plans" && targetId) ACTIVE_PLAN_ID = targetId;
+      if (tab === "customers" && targetId) ACTIVE_CUSTOMER_ID = targetId;
       switchTab(tab || "dashboard");
     });
   });

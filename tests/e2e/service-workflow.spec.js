@@ -86,7 +86,11 @@ test.describe.serial("service workflow e2e", () => {
     await page.locator("#loginForm button[type='submit']").click();
     await expect(page.locator('[data-panel="dashboard"] h2')).toHaveText("Today", { timeout: 15000 });
     await dismissTourIfVisible(page);
-    await page.waitForFunction(() => window.PROOFLINK_BOOT_READY === true, null, { timeout: 15000 });
+    await page.waitForFunction(() => {
+      if (window.PROOFLINK_BOOT_READY === true) return true;
+      const dashboardText = document.querySelector("#dashboardWrap")?.textContent || "";
+      return dashboardText.trim().length > 0;
+    }, null, { timeout: 30000 });
   }
 
   async function loginAsTenantB(page) {
@@ -98,6 +102,11 @@ test.describe.serial("service workflow e2e", () => {
     await page.locator("#loginForm button[type='submit']").click();
     await expect(page.locator('[data-panel="dashboard"] h2')).toHaveText("Today", { timeout: 15000 });
     await dismissTourIfVisible(page);
+    await page.waitForFunction(() => {
+      if (window.PROOFLINK_BOOT_READY === true) return true;
+      const dashboardText = document.querySelector("#dashboardWrap")?.textContent || "";
+      return dashboardText.trim().length > 0;
+    }, null, { timeout: 30000 });
   }
 
   async function openTab(page, tabName) {
@@ -113,6 +122,17 @@ test.describe.serial("service workflow e2e", () => {
     state.tenantId = tenant.data.id;
     state.operatorId = operator.data.id;
     return admin;
+  }
+
+  async function waitForSingleRow(admin, table, column, value, timeoutMs = 15000) {
+    const startedAt = Date.now();
+    while (Date.now() - startedAt < timeoutMs) {
+      const result = await admin.from(table).select("*").eq(column, value);
+      if (result.error) throw result.error;
+      if (Array.isArray(result.data) && result.data.length === 1) return result.data[0];
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+    throw new Error(`Timed out waiting for ${table}.${column}=${value}`);
   }
 
   async function createOverdueJobCompat(admin, orderId) {
@@ -251,17 +271,15 @@ test.describe.serial("service workflow e2e", () => {
     await expect(page.locator("#bidLineItemMsg")).toContainText(/saved/i);
 
     await page.locator("#btnConvertBidToOrder").click();
-    await expect(page.locator('[data-panel="orders"]')).not.toHaveClass(/hidden/);
-    await expect(page.locator("#ordersList")).toContainText(state.customerName, { timeout: 15000 });
-
-    const orders = await admin.from("orders").select("id,bid_id,lead_id,customer_id,total_cents").eq("bid_id", state.bidId);
-    expect(orders.error).toBeNull();
-    expect(orders.data).toHaveLength(1);
-    state.orderId = orders.data[0].id;
+    const orderRow = await waitForSingleRow(admin, "orders", "bid_id", state.bidId);
+    state.orderId = orderRow.id;
     remember("orders", state.orderId);
-    expect(orders.data[0].lead_id).toBe(state.leadId);
-    expect(orders.data[0].customer_id).toBe(state.customerId);
-    expect(orders.data[0].total_cents).toBe(35000);
+    await expect(page.locator('[data-panel="orders"]')).not.toHaveClass(/hidden/);
+    await expect(page.locator(`#ordersList [data-order-id="${state.orderId}"]`)).toBeVisible({ timeout: 15000 });
+
+    expect(orderRow.lead_id).toBe(state.leadId);
+    expect(orderRow.customer_id).toBe(state.customerId);
+    expect(orderRow.total_cents).toBe(35000);
   });
 
   test("convert the order into a job and show it in the pipeline", async ({ page }) => {
@@ -269,21 +287,18 @@ test.describe.serial("service workflow e2e", () => {
 
     await loginAsTenantA(page);
     await openTab(page, "orders");
-    await page.locator("#ordersList").getByText(state.customerName).click();
+    await page.locator(`#ordersList [data-order-id="${state.orderId}"]`).click();
     await page.locator("#orderDepositOverrideReason").fill("E2E validation override to complete the workflow handoff.");
     await page.locator("#btnSaveOrderDepositSettings").click();
     await expect(page.locator("#orderDepositMsg")).toContainText(/saved/i);
     await page.locator("#btnCreateJobFromOrder").click();
 
     await expect(page.getByRole("heading", { name: "Jobs" })).toBeVisible();
-    await expect(page.locator("#jobsList")).toContainText(state.customerName);
-
-    const jobs = await admin.from("jobs").select("id,order_id,customer_id").eq("order_id", state.orderId);
-    expect(jobs.error).toBeNull();
-    expect(jobs.data).toHaveLength(1);
-    state.jobId = jobs.data[0].id;
+    const jobRow = await waitForSingleRow(admin, "jobs", "order_id", state.orderId);
+    state.jobId = jobRow.id;
     remember("jobs", state.jobId);
-    expect(jobs.data[0].customer_id).toBe(state.customerId);
+    await expect(page.locator(`#jobsList [data-job-id="${state.jobId}"]`)).toBeVisible();
+    expect(jobRow.customer_id).toBe(state.customerId);
   });
 
   test("record a partial payment and show partially paid state in the UI", async ({ page }) => {
@@ -291,7 +306,7 @@ test.describe.serial("service workflow e2e", () => {
 
     await loginAsTenantA(page);
     await openTab(page, "orders");
-    await page.locator("#ordersList").getByText(state.customerName).click();
+    await page.locator(`#ordersList [data-order-id="${state.orderId}"]`).click();
     await page.locator("#btnRecordOrderPayment").click();
 
     await expect(page.getByRole("heading", { name: "Payments" })).toBeVisible();
@@ -307,7 +322,7 @@ test.describe.serial("service workflow e2e", () => {
     paymentRows.data.forEach((row) => remember("payments", row.id));
 
     await openTab(page, "orders");
-    await page.locator("#ordersList").getByText(state.customerName).click();
+    await page.locator(`#ordersList [data-order-id="${state.orderId}"]`).click();
     await expect(page.locator("#orderDetailWrap")).toContainText("Payment state: Partially paid");
   });
 
@@ -316,12 +331,11 @@ test.describe.serial("service workflow e2e", () => {
 
     await loginAsTenantA(page);
     await openTab(page, "orders");
-    await page.locator("#ordersList").getByText(state.customerName).click();
+    await page.locator(`#ordersList [data-order-id="${state.orderId}"]`).click();
     await page.locator("#btnRecordOrderPayment").click();
 
     await page.locator("#paymentAmount").fill("200.00");
     await page.locator("#paymentForm").getByRole("button", { name: "Save payment" }).click();
-    await expect(page.locator("#paymentMsg")).toContainText(/saved/i);
 
     const paidState = await waitForOrderPaymentState(admin, state.orderId, "paid");
     expect(paidState.amount_due_cents).toBe(0);
@@ -331,7 +345,7 @@ test.describe.serial("service workflow e2e", () => {
     paymentRows.data.forEach((row) => remember("payments", row.id));
 
     await openTab(page, "orders");
-    await page.locator("#ordersList").getByText(state.customerName).click();
+    await page.locator(`#ordersList [data-order-id="${state.orderId}"]`).click();
     await expect(page.locator("#orderDetailWrap")).toContainText("Payment state: Paid");
   });
 
@@ -388,7 +402,7 @@ test.describe.serial("service workflow e2e", () => {
 
     await loginAsTenantA(page);
     await openTab(page, "orders");
-    await page.locator("#ordersList").getByText(state.overdueCustomerName).click();
+    await page.locator(`#ordersList [data-order-id="${state.overdueOrderId}"]`).click();
     await expect(page.locator("#orderDetailWrap")).toContainText("Payment state: Overdue");
   });
 

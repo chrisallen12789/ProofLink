@@ -307,11 +307,7 @@ a {
 }
 
 .screenshot-card--wide img {
-  height: 20rem;
-}
-
-.screenshot-stack__grid .screenshot-card img {
-  height: 15rem;
+  height: 24rem;
 }
 
 .screenshot-card figcaption {
@@ -456,7 +452,7 @@ a {
 
 .product-tour-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1rem;
 }
 
@@ -469,8 +465,12 @@ a {
 }
 
 .tour-card img {
-  height: 16rem;
+  height: 19rem;
   border-bottom: 1px solid var(--line);
+}
+
+.tour-card--wide {
+  grid-column: 1 / -1;
 }
 
 .tour-card__body {

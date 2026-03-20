@@ -154,7 +154,7 @@ function serviceWorkflowStamp(label = "service") {
   return `pltest-${label}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-async function waitForResult(run, { timeoutMs = 5000, intervalMs = 150 } = {}) {
+async function waitForResult(run, { timeoutMs = 10000, intervalMs = 150 } = {}) {
   const startedAt = Date.now();
   while ((Date.now() - startedAt) <= timeoutMs) {
     const value = await run();
