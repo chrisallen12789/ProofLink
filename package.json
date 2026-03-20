@@ -8,11 +8,14 @@
     "test": "vitest run tests/unit tests/integration",
     "test:unit": "vitest run tests/unit",
     "test:integration": "vitest run tests/integration",
+    "test:preflight:service-workflow": "node tests/setup/run-service-workflow-preflight.js",
+    "test:integration:service-workflow": "npm run test:preflight:service-workflow && vitest run tests/integration/netlify/functions/service-intake.int.test.js tests/integration/sql/service-workflow.int.test.js",
     "test:e2e": "playwright test --config=playwright.config.js",
+    "test:e2e:service-workflow": "npm run test:preflight:service-workflow && playwright test tests/e2e/service-workflow.spec.js --config=playwright.config.js",
     "test:e2e:headed": "playwright test --config=playwright.config.js --headed",
     "test:seed": "tsx tests/seeds/seed-test-foundation.js",
     "test:cleanup": "tsx tests/seeds/cleanup-test-foundation.js",
-    "test:all": "npm run test:cleanup && npm run test:seed && npm run test && npm run test:e2e"
+    "test:all": "npm run test:cleanup && npm run test:seed && npm run test:preflight:service-workflow && npm run test && npm run test:e2e"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",

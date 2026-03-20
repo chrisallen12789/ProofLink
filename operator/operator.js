@@ -62,6 +62,7 @@ let DASHBOARD_LAUNCH_CHECKLIST = null;
 let WORKSPACE_BLUEPRINT = null;
 let BID_SYNC_TIMER = null;
 let BID_SYNC_IN_FLIGHT = false;
+let BID_SYNC_PROMISE = null;
 
 function currentMonthRevenueCents() {
   const mk = yyyymm(new Date());
@@ -723,7 +724,8 @@ function isUuidLike(value) {
 }
 function normalizeWorkflowPaymentState(value) {
   const raw = String(value || "").trim().toLowerCase();
-  if (["paid", "partial", "overdue", "refunded", "void"].includes(raw)) return raw;
+  if (raw === "partial") return "partially_paid";
+  if (["paid", "partially_paid", "overdue", "refunded", "void"].includes(raw)) return raw;
   return "unpaid";
 }
 function orderTotalCents(row) {
@@ -749,7 +751,7 @@ function orderPaymentState(row) {
   const paid = orderAmountPaidCents(row);
   const due = Math.max(orderTotalCents(row) - paid, 0);
   if (due <= 0 && paid > 0) return "paid";
-  if (paid > 0 && due > 0) return "partial";
+  if (paid > 0 && due > 0) return "partially_paid";
   const dueDate = row?.payment_due_date ? new Date(row.payment_due_date) : null;
   if (due > 0 && dueDate && !Number.isNaN(dueDate.getTime()) && dueDate < new Date()) return "overdue";
   return "unpaid";
@@ -757,7 +759,7 @@ function orderPaymentState(row) {
 function formatWorkflowPaymentState(value) {
   const labels = {
     unpaid: "Unpaid",
-    partial: "Partially paid",
+    partially_paid: "Partially paid",
     paid: "Paid",
     overdue: "Overdue",
     refunded: "Refunded",
@@ -768,7 +770,7 @@ function formatWorkflowPaymentState(value) {
 function paymentStateClass(value) {
   const state = normalizeWorkflowPaymentState(value);
   if (state === "paid") return "pill-on";
-  if (state === "partial") return "pill-warn";
+  if (state === "partially_paid") return "pill-warn";
   if (state === "overdue") return "pill-bad";
   if (state === "refunded" || state === "void") return "pill-muted";
   return "";
@@ -4431,38 +4433,78 @@ async function loadPersistedBids() {
     : (BIDS_CACHE[0]?.id || null);
   return BIDS_CACHE;
 }
-async function flushBidDraftSync() {
-  if (BID_SYNC_IN_FLIGHT) return;
-  const active = currentBid();
-  if (!active || !CURRENT_OPERATOR?.operator_id) return;
+async function flushBidDraftSync(options = {}) {
+  if (BID_SYNC_PROMISE) {
+    try {
+      await BID_SYNC_PROMISE;
+    } catch (err) {
+      if (options.throwOnError) throw err;
+      return null;
+    }
+  }
+
+  const runSync = async () => {
+    let lastSyncedDraft = null;
+    while (true) {
+      const active = currentBid();
+      if (!active || !CURRENT_OPERATOR?.operator_id) return lastSyncedDraft;
+
+      const activeUpdatedAt = String(active.updated_at || "");
+      const rowPayload = bidRowFromDraft(active);
+      const recordId = bidRecordId(active);
+      const query = recordId
+        ? sb.from("bids").update(rowPayload).eq("id", recordId).eq(OPERATOR_COLUMN, opId()).eq(TENANT_COLUMN, TENANT_ID)
+        : sb.from("bids").insert({ ...rowPayload, created_at: active.created_at || new Date().toISOString() });
+      const { data, error } = await query.select("*").single();
+      if (error) throw error;
+
+      const remoteDraft = draftFromBidRow(data);
+      const latestDraft = BIDS_CACHE.find((row) => row.id === active.id) || active;
+      const changedWhileSyncing = String(latestDraft.updated_at || "") !== activeUpdatedAt;
+      const baseDraft = changedWhileSyncing ? latestDraft : active;
+      const nextDraft = changedWhileSyncing
+        ? {
+            ...baseDraft,
+            record_id: data.id,
+            metadata: {
+              ...(remoteDraft.metadata || {}),
+              ...(baseDraft.metadata || {}),
+              local_draft_id: baseDraft.id,
+            },
+          }
+        : {
+            ...baseDraft,
+            ...remoteDraft,
+            id: baseDraft.id,
+            record_id: data.id,
+            metadata: {
+              ...(remoteDraft.metadata || {}),
+              ...(baseDraft.metadata || {}),
+              local_draft_id: baseDraft.id,
+            },
+          };
+
+      BIDS_CACHE = BIDS_CACHE.map((row) => row.id === baseDraft.id ? nextDraft : row);
+      ACTIVE_BID_ID = nextDraft.id;
+      persistBidDrafts();
+      lastSyncedDraft = nextDraft;
+
+      if (!changedWhileSyncing) return lastSyncedDraft;
+    }
+  };
+
   BID_SYNC_IN_FLIGHT = true;
+  BID_SYNC_PROMISE = runSync();
   try {
-    const rowPayload = bidRowFromDraft(active);
-    const recordId = bidRecordId(active);
-    const query = recordId
-      ? sb.from("bids").update(rowPayload).eq("id", recordId).eq(OPERATOR_COLUMN, opId()).eq(TENANT_COLUMN, TENANT_ID)
-      : sb.from("bids").insert({ ...rowPayload, created_at: active.created_at || new Date().toISOString() });
-    const { data, error } = await query.select("*").single();
-    if (error) throw error;
-    const nextDraft = {
-      ...active,
-      ...draftFromBidRow(data),
-      id: active.id,
-      record_id: data.id,
-      metadata: {
-        ...(draftFromBidRow(data).metadata || {}),
-        ...(active.metadata || {}),
-        local_draft_id: active.id,
-      },
-    };
-    BIDS_CACHE = BIDS_CACHE.map((row) => row.id === active.id ? nextDraft : row);
-    ACTIVE_BID_ID = nextDraft.id;
-    persistBidDrafts();
+    return await BID_SYNC_PROMISE;
   } catch (err) {
     console.error("[bids] sync failed", err);
+    if (options.throwOnError) throw err;
   } finally {
     BID_SYNC_IN_FLIGHT = false;
+    BID_SYNC_PROMISE = null;
   }
+  return null;
 }
 function queueBidDraftSync(delayMs = 500) {
   if (BID_SYNC_TIMER) window.clearTimeout(BID_SYNC_TIMER);
@@ -5570,7 +5612,7 @@ async function convertBidToTrackedOrder() {
   if (!baseDraft.customer_id) throw new Error("Link the bid to a customer before converting it into tracked work.");
   const customer = findBidCustomer(baseDraft.customer_id);
   if (!customer) throw new Error("The linked customer record could not be found. Refresh customers and try again.");
-  await flushBidDraftSync();
+  await flushBidDraftSync({ throwOnError: true });
   baseDraft = currentBid() || baseDraft;
   const recordId = bidRecordId(baseDraft);
 
@@ -5808,11 +5850,27 @@ btnConvertBidToOrder?.addEventListener("click", async () => {
     setInlineMessage(bidMsg, err.message || String(err), "error");
   }
 });
-bidForm?.addEventListener("submit", (e) => {
+bidForm?.addEventListener("submit", async (e) => {
   e.preventDefault();
-  const nextDraft = updateCurrentBidFromForm({ showMessage: true, allowCreate: true }) || startNewBid(preferredBidProfile());
+  const nextDraft = updateCurrentBidFromForm({ allowCreate: true }) || startNewBid(preferredBidProfile());
   renderBidWorkspace(nextDraft, { preserveForm: true });
   renderBidList(bidSearch?.value || "");
+  if (BID_SYNC_TIMER) {
+    window.clearTimeout(BID_SYNC_TIMER);
+    BID_SYNC_TIMER = null;
+  }
+  try {
+    const syncedDraft = await flushBidDraftSync({ throwOnError: true });
+    if (syncedDraft) {
+      await loadPersistedBids();
+      const refreshed = currentBid() || syncedDraft;
+      renderBidWorkspace(refreshed, { preserveForm: true });
+      renderBidList(bidSearch?.value || "");
+    }
+    setInlineMessage(bidMsg, "Bid saved.", "ok");
+  } catch (err) {
+    setInlineMessage(bidMsg, err.message || String(err), "error");
+  }
 });
 [bidTitle, bidCustomerId, bidProfile, bidStatus, bidWalkthroughAt, bidValidUntil, bidServiceAddress, bidSiteContact, bidScheduleWindow, bidProjectSummary, bidScopeOfWork, bidProposedSolution, bidMaterialsPlan, bidUnusedMaterialsPlan, bidExclusions, bidWarranty, bidCoverNote, bidInternalNotes, bidDepositPercent, bidDepositAmount, bidTerms].forEach((el) => {
   el?.addEventListener("input", scheduleBidAutosave);
@@ -5985,15 +6043,52 @@ function servicePipelineSnapshot() {
     overdue: CRM_ORDERS_CACHE.filter((row) => orderPaymentState(row) === "overdue").length,
   };
 }
+function leadLastTouchedAt(row) {
+  return new Date(row?.last_activity_at || row?.updated_at || row?.created_at || 0).getTime();
+}
+function ageLabelFromTime(timeMs) {
+  if (!Number.isFinite(timeMs) || timeMs <= 0) return "just now";
+  const elapsed = Math.max(0, Date.now() - timeMs);
+  const minutes = Math.max(1, Math.floor(elapsed / 60000));
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 48) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
+}
+function staleLeads(hours = 24) {
+  const thresholdMs = Math.max(1, Number(hours || 24)) * 60 * 60 * 1000;
+  return LEADS_CACHE.filter((row) => {
+    const status = String(row.status || "").toLowerCase();
+    if (["converted", "lost", "archived"].includes(status)) return false;
+    const touchedAt = leadLastTouchedAt(row);
+    return Number.isFinite(touchedAt) && touchedAt > 0 && (Date.now() - touchedAt) >= thresholdMs;
+  });
+}
+function completedUnpaidOrders() {
+  return CRM_ORDERS_CACHE.filter((row) => {
+    const status = String(row.status || "").toLowerCase();
+    return ["fulfilled", "completed"].includes(status) && ["unpaid", "partially_paid", "overdue"].includes(orderPaymentState(row));
+  });
+}
+function outstandingBalanceCents() {
+  return CRM_ORDERS_CACHE.reduce((sum, row) => sum + orderAmountDueCents(row), 0);
+}
+function overdueBalanceCents() {
+  return CRM_ORDERS_CACHE
+    .filter((row) => orderPaymentState(row) === "overdue")
+    .reduce((sum, row) => sum + orderAmountDueCents(row), 0);
+}
 function todayActionItems() {
   const actions = [];
-  const urgentLead = [...LEADS_CACHE].sort((a, b) => new Date(b.updated_at || 0) - new Date(a.updated_at || 0))
+  const staleLead = [...staleLeads()].sort((a, b) => leadLastTouchedAt(a) - leadLastTouchedAt(b))[0] || null;
+  const urgentLead = staleLead || [...LEADS_CACHE].sort((a, b) => new Date(b.updated_at || 0) - new Date(a.updated_at || 0))
     .find((row) => !["converted", "lost", "archived"].includes(String(row.status || "").toLowerCase()));
   if (urgentLead) {
+    const stale = staleLead && staleLead.id === urgentLead.id;
     actions.push({
       tab: "leads",
-      title: urgentLead.converted_bid_id ? "Follow up active lead" : "Work the next lead",
-      detail: `${urgentLead.contact_name || urgentLead.title || "Lead"} | ${String(urgentLead.status || "new").replace(/_/g, " ")}`,
+      title: stale ? "Recover a missed lead" : (urgentLead.converted_bid_id ? "Follow up active lead" : "Work the next lead"),
+      detail: `${urgentLead.contact_name || urgentLead.title || "Lead"} | ${String(urgentLead.status || "new").replace(/_/g, " ")} | ${ageLabelFromTime(leadLastTouchedAt(urgentLead))}`,
       targetId: urgentLead.id,
     });
   }
@@ -6007,14 +6102,18 @@ function todayActionItems() {
       targetId: quoteReady.id,
     });
   }
-  const unpaidOrder = [...CRM_ORDERS_CACHE].sort((a, b) => new Date(a.payment_due_date || a.created_at || 0) - new Date(b.payment_due_date || b.created_at || 0))
-    .find((row) => ["unpaid", "partial", "overdue"].includes(orderPaymentState(row)));
-  if (unpaidOrder) {
+  const collectionRiskOrder = [...CRM_ORDERS_CACHE].sort((a, b) => new Date(a.payment_due_date || a.created_at || 0) - new Date(b.payment_due_date || b.created_at || 0))
+    .find((row) => ["overdue", "partially_paid", "unpaid"].includes(orderPaymentState(row)));
+  if (collectionRiskOrder) {
+    const paymentState = orderPaymentState(collectionRiskOrder);
+    const orderStatus = String(collectionRiskOrder.status || "").toLowerCase();
     actions.push({
       tab: "orders",
-      title: "Collect or confirm payment",
-      detail: `${unpaidOrder.customer_name || "Customer"} | ${formatWorkflowPaymentState(orderPaymentState(unpaidOrder))} | ${formatUsd(orderAmountDueCents(unpaidOrder))} due`,
-      targetId: unpaidOrder.id,
+      title: paymentState === "overdue"
+        ? "Collect overdue money"
+        : (["fulfilled", "completed"].includes(orderStatus) ? "Collect from completed work" : "Collect or confirm payment"),
+      detail: `${collectionRiskOrder.customer_name || "Customer"} | ${formatWorkflowPaymentState(paymentState)} | ${formatUsd(orderAmountDueCents(collectionRiskOrder))} due`,
+      targetId: collectionRiskOrder.id,
     });
   }
   const activeJob = [...JOBS_CACHE].sort((a, b) => new Date(a.scheduled_date || a.created_at || 0) - new Date(b.scheduled_date || b.created_at || 0))
@@ -6268,11 +6367,14 @@ function renderJobs(filter = "") {
   ACTIVE_JOB_ID = active.id;
   jobsList.innerHTML = rows.map((row) => {
     const order = linkedOrderForJob(row);
+    const customer = CUSTOMERS_CACHE.find((customerRow) => customerRow.id === row.customer_id) || null;
+    const customerLabel = customer?.name || order?.customer_name || "Unlinked customer";
     const paymentState = row.payment_state || orderPaymentState(order);
     return `
       <button type="button" class="list-item ${row.id === active.id ? "is-active" : ""}" data-job-id="${escapeAttr(row.id)}">
         <div class="li-main">
           <div class="li-title">${escapeHtml(row.title || order?.customer_name || "Job")}</div>
+          <div class="li-sub muted">${escapeHtml(customerLabel)}</div>
           <div class="li-sub muted">${escapeHtml(String(row.status || "scheduled").replace(/_/g, " "))} | ${escapeHtml(String(row.scheduled_date || "No date"))}</div>
           <div class="li-sub muted">${escapeHtml(row.service_address || "No service address")}</div>
         </div>
@@ -6528,6 +6630,11 @@ function renderDashboard() {
   const quotedRevenue = quotedRevenueCents();
   const activeOfferings = PRODUCTS_CACHE.filter((p) => !!p.is_active).length;
   const topCustomer = sortedCustomers(CUSTOMERS_CACHE)[0] || null;
+  const staleLeadRows = staleLeads();
+  const completedUnpaid = completedUnpaidOrders();
+  const completedUnpaidBalance = completedUnpaid.reduce((sum, row) => sum + orderAmountDueCents(row), 0);
+  const outstandingBalance = outstandingBalanceCents();
+  const overdueBalance = overdueBalanceCents();
   const orderLabel = workspaceOrderLabelLower(blueprint);
   const catalogLabel = workspaceCatalogLabelLower(blueprint);
   const alerts = [];
@@ -6600,15 +6707,50 @@ function renderDashboard() {
       <div class="card mini">
         <div class="card-bd">
           <div class="muted">Outstanding money</div>
-          <div class="money">${formatUsd(CRM_ORDERS_CACHE.reduce((sum, row) => sum + orderAmountDueCents(row), 0))}</div>
+          <div class="money">${formatUsd(outstandingBalance)}</div>
         </div>
       </div>
       <div class="card mini">
         <div class="card-bd">
-          <div class="muted">Overdue collections</div>
-          <div class="money">${pipeline.overdue}</div>
+          <div class="muted">Leads waiting 24h+</div>
+          <div class="money">${staleLeadRows.length}</div>
         </div>
       </div>
+      <div class="card mini">
+        <div class="card-bd">
+          <div class="muted">Completed work unpaid</div>
+          <div class="money">${formatUsd(completedUnpaidBalance)}</div>
+        </div>
+      </div>
+      <div class="card mini">
+        <div class="card-bd">
+          <div class="muted">Overdue money</div>
+          <div class="money">${formatUsd(overdueBalance)}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="dashboard-quick-actions">
+      <button type="button" class="dashboard-quick-action" data-dashboard-action="new-lead">
+        <div class="kicker">Quick start</div>
+        <strong>Capture a lead</strong>
+        <div class="detail-copy">Start the next customer conversation without digging through tabs.</div>
+      </button>
+      <button type="button" class="dashboard-quick-action" data-dashboard-action="new-bid">
+        <div class="kicker">Quick start</div>
+        <strong>Build a walkthrough bid</strong>
+        <div class="detail-copy">Move from scope to price with photos, notes, and line items attached.</div>
+      </button>
+      <button type="button" class="dashboard-quick-action" data-dashboard-action="new-customer">
+        <div class="kicker">Quick start</div>
+        <strong>Add a customer</strong>
+        <div class="detail-copy">Get a clean record into CRM before the business runs on memory again.</div>
+      </button>
+      <button type="button" class="dashboard-quick-action" data-dashboard-action="record-payment">
+        <div class="kicker">Quick start</div>
+        <strong>Record a payment</strong>
+        <div class="detail-copy">Log cash, check, ACH, or field collection without losing the work link.</div>
+      </button>
     </div>
 
     <div class="today-actions-grid">
@@ -6654,6 +6796,11 @@ function renderDashboard() {
         <p>${alerts.length ? alerts.map((x) => escapeHtml(x)).join("<br>") : "Core operator signals look stable right now."}</p>
       </div>
       <div class="insight">
+        <h3>Owner pressure points</h3>
+        <p>Stale leads: <strong>${staleLeadRows.length}</strong> | Completed but unpaid: <strong>${completedUnpaid.length}</strong></p>
+        <p>Quoted pipeline waiting on decision: <strong>${pipeline.quoted}</strong> | Overdue collections: <strong>${formatUsd(overdueBalance)}</strong></p>
+      </div>
+      <div class="insight">
         <h3>CRM value</h3>
         <p>Top customer today: <strong>${escapeHtml(topCustomer?.name || "None yet")}</strong>${topCustomer ? ` | ${formatUsd(customerLifetimeValueCents(topCustomer))}` : ""}</p>
         <p>Active ${escapeHtml(catalogLabel)}: <strong>${activeOfferings}</strong></p>
@@ -6676,15 +6823,42 @@ function renderDashboard() {
     </div>
   `;
 
-  dashboardWrap.querySelectorAll("[data-today-tab]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const tab = btn.getAttribute("data-today-tab");
-      const targetId = btn.getAttribute("data-today-id");
-      if (tab === "leads" && targetId) ACTIVE_LEAD_ID = targetId;
+    dashboardWrap.querySelectorAll("[data-today-tab]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const tab = btn.getAttribute("data-today-tab");
+        const targetId = btn.getAttribute("data-today-id");
+        if (tab === "leads" && targetId) ACTIVE_LEAD_ID = targetId;
       if (tab === "bids" && targetId) ACTIVE_BID_ID = targetId;
       if (tab === "orders" && targetId) ACTIVE_ORDER_ID = targetId;
       if (tab === "jobs" && targetId) ACTIVE_JOB_ID = targetId;
       switchTab(tab || "dashboard");
+      });
+    });
+  dashboardWrap.querySelectorAll("[data-dashboard-action]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const action = btn.getAttribute("data-dashboard-action");
+      if (action === "new-lead") {
+        ACTIVE_LEAD_ID = null;
+        clearLeadForm();
+        renderLeadDetail(null).catch(console.error);
+        switchTab("leads");
+        return;
+      }
+      if (action === "new-bid") {
+        startNewBid(preferredBidProfile());
+        switchTab("bids");
+        return;
+      }
+      if (action === "new-customer") {
+        startNewCustomer();
+        switchTab("customers");
+        return;
+      }
+      if (action === "record-payment") {
+        clearPaymentForm({ customerId: ACTIVE_CUSTOMER_ID || "" });
+        renderPayments();
+        switchTab("payments");
+      }
     });
   });
 }

@@ -122,6 +122,10 @@ jobs:
         if: ${{ steps.hosted_secrets.outputs.ready == 'true' }}
         run: npm run test:seed
 
-      - name: Run integration tests
+      - name: Fail fast when hosted service workflow schema is missing
+        if: ${{ steps.hosted_secrets.outputs.ready == 'true' }}
+        run: npm run test:preflight:service-workflow
+
+      - name: Run hosted integration tests after schema preflight
         if: ${{ steps.hosted_secrets.outputs.ready == 'true' }}
         run: npm run test:integration

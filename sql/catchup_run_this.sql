@@ -1320,21 +1320,21 @@ begin
   end if;
 
   select count(*)::integer into v_product_count
-  from public.products
-  where tenant_id = v_tenant.id::text;
+  from public.products p
+  where p.tenant_id = v_tenant.id::text;
 
   select count(*)::integer into v_customer_count
-  from public.customers
-  where tenant_id = v_tenant.id::text;
+  from public.customers c
+  where c.tenant_id = v_tenant.id::text;
 
   select count(*)::integer into v_operator_count
-  from public.operator_members
-  where tenant_id = v_tenant.id;
+  from public.operator_members om
+  where om.tenant_id = v_tenant.id;
 
   select count(*)::integer into v_order_count
-  from public.orders
-  where tenant_id = v_tenant.id::text
-    and created_at >= date_trunc('month', timezone('utc', now()));
+  from public.orders o
+  where o.tenant_id = v_tenant.id::text
+    and o.created_at >= date_trunc('month', timezone('utc', now()));
 
   update public.tenants
     set product_count = v_product_count,

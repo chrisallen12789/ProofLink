@@ -522,8 +522,83 @@ a {
   background: #7bc2d5;
 }
 
+.pricing-flat-fee,
+.pricing-website-note {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  padding: 0.85rem 0.95rem;
+  font-size: 0.88rem;
+}
+
+.pricing-flat-fee {
+  background: rgba(123, 194, 213, 0.12);
+  color: #d8eef3;
+}
+
+.pricing-website-note {
+  background: rgba(255, 255, 255, 0.03);
+  color: rgba(241, 244, 246, 0.74);
+}
+
+.pricing-replaces {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.pricing-replaces__label {
+  color: rgba(241, 244, 246, 0.64);
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.pricing-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.pricing-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0.38rem 0.75rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: rgba(241, 244, 246, 0.88);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
 .pricing-action {
   margin-top: auto;
+}
+
+.replace-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.replace-card {
+  background: linear-gradient(180deg, #fcfdfe 0%, #f0f4f6 100%);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 1.35rem;
+}
+
+.replace-card h3 {
+  margin: 0 0 0.55rem;
+  font: 800 1.02rem/1.2 var(--font-display);
+  letter-spacing: -0.03em;
+}
+
+.replace-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.92rem;
 }
 
 .flow-grid {
@@ -610,6 +685,7 @@ a {
   .pricing-grid,
   .ops-capability-grid,
   .value-grid,
+  .replace-grid,
   .trust-grid,
   .flow-grid {
     grid-template-columns: 1fr;

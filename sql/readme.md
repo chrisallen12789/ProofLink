@@ -50,8 +50,23 @@ Recently promoted into `CATCHUP_RUN_THIS.sql` from older migrations:
 ### `diagnostic.sql`
 Read-only diagnostic queries for inspecting the current database state.
 
+### `service_workflow_phase1.sql`
+Additive Phase 1 service-business workflow schema. Run this after `catchup_run_this.sql`.
+
+It adds:
+- `leads`
+- `bids`
+- `jobs`
+- order payment-state normalization
+- service intake and conversion RPCs
+- service-workflow RLS/policy extensions
+- payment-state recompute triggers and supporting indexes
+
 ### `get_tenant_plan_limits_compat.sql`
 Targeted repair script for older hosted environments that already have most governance schema, but need the final `get_tenant_plan_limits(...)` overloads reconciled without rerunning the full catch-up file.
+
+### `sync_tenant_usage_counters_compat.sql`
+Targeted repair script for hosted environments that already have the main schema, but still need the `sync_tenant_usage_counters(...)` ambiguity fix without rerunning the full catch-up file.
 
 ## Archive
 
@@ -61,16 +76,21 @@ The `/archive/` folder contains older migrations kept for reference. Some schema
 
 1. Create a new Supabase project.
 2. Open SQL Editor.
-3. Run `CATCHUP_RUN_THIS.sql`.
-4. Set the required environment variables from the root `.env.example`.
-5. Deploy or run the app against that project.
+3. Run `catchup_run_this.sql`.
+4. Run `service_workflow_phase1.sql`.
+5. Point `.env.test` or `TEST_*` secrets at that same project.
+6. Run `npm run test:preflight:service-workflow`.
+7. Set the required environment variables from the root `.env.example`.
+8. Deploy or run the app against that project.
 
 ## Change process
 
-1. Add schema changes to `CATCHUP_RUN_THIS.sql`.
-2. If the change is also needed as a safe live-environment repair, update `get_tenant_plan_limits_compat.sql` or add a similarly targeted helper.
-3. Apply the same change in Supabase SQL Editor for the target environment.
-4. Commit the SQL source-of-truth and any targeted live repair together.
+1. Add core schema changes to `catchup_run_this.sql` when they belong in the base platform schema.
+2. Add additive service-workflow changes to `service_workflow_phase1.sql` until they are intentionally promoted into catch-up.
+3. If the change is also needed as a safe live-environment repair, update `get_tenant_plan_limits_compat.sql`, `sync_tenant_usage_counters_compat.sql`, or add a similarly targeted helper.
+4. Apply the same change in Supabase SQL Editor for the target environment.
+5. Rerun `npm run test:preflight:service-workflow` against that environment when the change affects the service workflow.
+6. Commit the SQL source-of-truth and any targeted live repair together.
 
 This keeps `CATCHUP_RUN_THIS.sql` current as the repo source of truth for the versioned core schema.
 

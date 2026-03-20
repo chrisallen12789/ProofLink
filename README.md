@@ -38,7 +38,7 @@ ProofLink gives field service operators a unified storefront, order management s
 /operator           Tenant operator dashboard (HTML + JS)
 /public             Public storefront pages
 /netlify/functions  All serverless backend functions
-/sql                Database migrations (see sql/README.md)
+/sql                Database migrations (see sql/readme.md)
 /assets             Static assets
 ```
 
@@ -70,9 +70,18 @@ TURNSTILE_SECRET_KEY     (optional — enables Cloudflare Turnstile on forms)
 
 ## Database setup
 
-Run `sql/CATCHUP_RUN_THIS.sql` in your Supabase SQL editor. This is the single source of truth for the full schema. Safe to run on a fresh project — every statement uses `IF NOT EXISTS`.
+Run these files in your Supabase SQL editor, in order:
 
-See `sql/README.md` for full details.
+1. `sql/catchup_run_this.sql`
+2. `sql/service_workflow_phase1.sql`
+
+Then validate the same hosted project before running service-workflow integration or e2e tests:
+
+```bash
+npm run test:preflight:service-workflow
+```
+
+See `sql/readme.md` for full details.
 
 ---
 
@@ -111,9 +120,11 @@ One for platform events (subscriptions, checkout), one for Connect account event
 
 1. Fork or clone this repo
 2. Connect to Netlify and set all environment variables
-3. Run `sql/CATCHUP_RUN_THIS.sql` in Supabase
-4. Configure Stripe webhook endpoints
-5. Deploy
+3. Run `sql/catchup_run_this.sql` in Supabase SQL Editor
+4. Run `sql/service_workflow_phase1.sql` in the same Supabase project
+5. Run `npm run test:preflight:service-workflow`
+6. Configure Stripe webhook endpoints
+7. Deploy
 
 ---
 

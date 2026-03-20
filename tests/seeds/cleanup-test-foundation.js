@@ -69,6 +69,22 @@ async function deleteRows(table, column, values) {
   if (error) throw error;
 }
 
+function isMissingRelationError(error) {
+  const code = String(error?.code || "").trim().toUpperCase();
+  const message = String(error?.message || "").toLowerCase();
+  return code === "PGRST205"
+    || code === "42P01"
+    || message.includes("could not find the table")
+    || message.includes("does not exist");
+}
+
+async function deleteRowsMaybe(table, column, values) {
+  const filtered = values.filter(Boolean);
+  if (!filtered.length) return;
+  const { error } = await supabase.from(table).delete().in(column, filtered);
+  if (error && !isMissingRelationError(error)) throw error;
+}
+
 async function main() {
   assertCleanupFixturesSafe();
 
@@ -93,13 +109,16 @@ async function main() {
     .filter((row) => String(row.email || "").startsWith(PLTEST_EMAIL_PREFIX))
     .map((row) => row.id);
 
+  await deleteRows("payments", "tenant_id", tenantIds);
+  await deleteRowsMaybe("jobs", "tenant_id", tenantIds);
+  await deleteRows("orders", "tenant_id", tenantIds);
+  await deleteRowsMaybe("bids", "tenant_id", tenantIds);
+  await deleteRowsMaybe("leads", "tenant_id", tenantIds);
   await deleteRows("products", "tenant_id", tenantIds);
   await deleteRows("pricing", "tenant_id", tenantIds);
   await deleteRows("availability", "tenant_id", tenantIds);
   await deleteRows("expenses", "tenant_id", tenantIds);
   await deleteRows("customers", "tenant_id", tenantIds);
-  await deleteRows("orders", "tenant_id", tenantIds);
-  await deleteRows("payments", "tenant_id", tenantIds);
   await deleteRows("customer_interactions", "tenant_id", tenantIds);
   await deleteRows("tenant_config", "tenant_id", tenantIds);
   await deleteRows("operator_members", "tenant_id", tenantIds);

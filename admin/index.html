@@ -396,10 +396,10 @@
         <div class="panel-body">
           <p style="font-size:.82rem;color:var(--muted);line-height:1.65">Run in your Supabase SQL editor in order:</p>
           <ol style="font-size:.82rem;color:var(--muted);padding-left:1.25rem;margin-top:.75rem;line-height:2.2">
-            <li><code>sql/onboarding_setup.sql</code> — Creates tenant_onboarding_requests table</li>
-            <li><code>sql/phase2_migration.sql</code> — Adds rejection_reason column</li>
-            <li><code>sql/phase3_tenants_migration.sql</code> — Creates tenants, operators, operator_members, tenant_config, tenant_settings + adds needs_review status</li>
+            <li><code>sql/catchup_run_this.sql</code> - Core live schema for tenants, operators, storefront, customers, orders, payments, and RLS</li>
+            <li><code>sql/service_workflow_phase1.sql</code> - Adds leads, bids, jobs, payment-state normalization, and service workflow RPCs</li>
           </ol>
+          <p style="font-size:.82rem;color:var(--muted);line-height:1.65;margin-top:.75rem">Before hosted integration or e2e service-workflow tests, run <code>npm run test:preflight:service-workflow</code> against that same project.</p>
         </div>
       </div>
       <div class="panel">

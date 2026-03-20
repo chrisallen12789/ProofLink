@@ -29,10 +29,13 @@ alter table public.orders
 
 do $$ begin
   alter table public.orders
-    add constraint orders_payment_state_check
-    check (payment_state in ('unpaid','partial','paid','overdue','refunded','void'));
-exception when duplicate_object then null;
+    drop constraint if exists orders_payment_state_check;
+exception when others then null;
 end $$;
+
+alter table public.orders
+  add constraint orders_payment_state_check
+  check (payment_state in ('unpaid','partially_paid','paid','overdue','refunded','void'));
 
 alter table public.payments
   add column if not exists job_id uuid,
@@ -154,6 +157,8 @@ create index if not exists idx_bids_customer
   on public.bids (customer_id, updated_at desc);
 create index if not exists idx_bids_lead
   on public.bids (lead_id, updated_at desc);
+create index if not exists idx_bids_conversion
+  on public.bids (tenant_id, converted_order_id, status, updated_at desc);
 
 alter table public.bids enable row level security;
 
@@ -191,8 +196,18 @@ create table if not exists public.jobs (
   constraint jobs_status_check
     check (status in ('scheduled','dispatched','in_progress','blocked','completed','cancelled')),
   constraint jobs_payment_state_check
-    check (payment_state in ('unpaid','partial','paid','overdue','refunded','void'))
+    check (payment_state in ('unpaid','partially_paid','paid','overdue','refunded','void'))
 );
+
+do $$ begin
+  alter table public.jobs
+    drop constraint if exists jobs_payment_state_check;
+exception when others then null;
+end $$;
+
+alter table public.jobs
+  add constraint jobs_payment_state_check
+  check (payment_state in ('unpaid','partially_paid','paid','overdue','refunded','void'));
 
 create index if not exists idx_jobs_tenant_operator
   on public.jobs (tenant_id, operator_id, created_at desc);
@@ -202,6 +217,8 @@ create index if not exists idx_jobs_tenant_status
   on public.jobs (tenant_id, status, created_at desc);
 create index if not exists idx_jobs_customer
   on public.jobs (customer_id, created_at desc);
+create index if not exists idx_jobs_tenant_payment_state
+  on public.jobs (tenant_id, payment_state, status, scheduled_date desc);
 
 alter table public.jobs enable row level security;
 
@@ -239,6 +256,11 @@ do $$ begin
     foreign key (job_id) references public.jobs(id) on delete set null;
 exception when duplicate_object then null;
 end $$;
+
+create index if not exists idx_orders_tenant_payment_state
+  on public.orders (tenant_id, payment_state, payment_due_date, updated_at desc);
+create index if not exists idx_payments_order_status_received
+  on public.payments (tenant_id, order_id, status, (coalesce(received_at, paid_at, created_at)) desc);
 
 do $$ begin
   alter table public.expenses
@@ -555,9 +577,74 @@ create trigger expenses_relationship_guard_phase1
   on public.expenses
   for each row execute function public.enforce_expense_relationships_phase1();
 
+revoke all on public.leads from public, anon;
+revoke all on public.bids from public, anon;
+revoke all on public.jobs from public, anon;
+
 grant select, insert, update, delete on public.leads to authenticated;
 grant select, insert, update, delete on public.bids to authenticated;
 grant select, insert, update, delete on public.jobs to authenticated;
+
+create or replace function public.sync_tenant_usage_counters(p_tenant_id text)
+returns table (
+  tenant_id uuid,
+  product_count integer,
+  customer_count integer,
+  operator_seat_count integer,
+  current_month_order_count integer
+)
+language plpgsql
+set search_path = public
+as $$
+declare
+  v_tenant public.tenants;
+  v_product_count integer := 0;
+  v_customer_count integer := 0;
+  v_operator_count integer := 0;
+  v_order_count integer := 0;
+begin
+  select * into v_tenant
+  from public.resolve_tenant_row(p_tenant_id);
+
+  if v_tenant.id is null then
+    raise exception 'Tenant not found for usage sync: %', p_tenant_id
+      using errcode = 'P0002';
+  end if;
+
+  select count(*)::integer into v_product_count
+  from public.products p
+  where p.tenant_id = v_tenant.id::text;
+
+  select count(*)::integer into v_customer_count
+  from public.customers c
+  where c.tenant_id = v_tenant.id::text;
+
+  select count(*)::integer into v_operator_count
+  from public.operator_members om
+  where om.tenant_id = v_tenant.id;
+
+  select count(*)::integer into v_order_count
+  from public.orders o
+  where o.tenant_id = v_tenant.id::text
+    and o.created_at >= date_trunc('month', timezone('utc', now()));
+
+  update public.tenants
+    set product_count = v_product_count,
+        customer_count = v_customer_count,
+        operator_seat_count = v_operator_count,
+        current_month_order_count = v_order_count,
+        growth_score = round(((v_product_count * 1.0) + (v_customer_count * 0.25) + (v_order_count * 0.1) + (v_operator_count * 2.0))::numeric, 2)
+  where id = v_tenant.id;
+
+  return query
+  select
+    v_tenant.id,
+    v_product_count,
+    v_customer_count,
+    v_operator_count,
+    v_order_count;
+end;
+$$;
 
 do $$ begin
   drop policy if exists leads_operator_all on public.leads;
@@ -637,7 +724,7 @@ begin
   elsif v_due <= 0 and greatest(v_paid, 0) > 0 then
     v_state := 'paid';
   elsif greatest(v_paid, 0) > 0 and v_due > 0 then
-    v_state := 'partial';
+    v_state := 'partially_paid';
   elsif v_due > 0 and v_order.payment_due_date is not null and v_order.payment_due_date < current_date then
     v_state := 'overdue';
   else
@@ -748,7 +835,9 @@ stable
 security definer
 set search_path = public
 as $$
-  select public.operator_member_tenant_access(target_operator_id, target_tenant_id);
+  select
+    coalesce(auth.role(), '') = 'service_role'
+    or public.operator_member_tenant_access(target_operator_id, target_tenant_id);
 $$;
 
 revoke all on function public.current_user_can_access_operator_record(uuid, text) from public;
@@ -1044,9 +1133,9 @@ security definer
 set search_path = public
 as $$
 declare
-  v_order record;
-  v_customer record;
-  v_bid record;
+  v_order public.orders%rowtype;
+  v_customer public.customers%rowtype;
+  v_bid public.bids%rowtype;
   v_job_id uuid;
 begin
   select *
@@ -1136,3 +1225,11 @@ $$;
 
 revoke all on function public.create_job_from_order(uuid) from public;
 grant execute on function public.create_job_from_order(uuid) to authenticated, service_role;
+
+update public.orders
+   set payment_state = 'partially_paid'
+ where payment_state = 'partial';
+
+update public.jobs
+   set payment_state = 'partially_paid'
+ where payment_state = 'partial';

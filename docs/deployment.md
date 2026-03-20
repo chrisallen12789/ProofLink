@@ -1,97 +1,73 @@
-# ProofLink Onboarding — Deployment Instructions
+# ProofLink Hosted Deployment
 
-## 1. Run the SQL Migration
+This repo currently applies hosted Supabase schema changes through the Supabase SQL Editor.
+There is no linked Supabase CLI migration runner in this repo today, so the safe rollout path is:
 
-Open your Supabase project → SQL Editor → run the full contents of:
-  sql/onboarding-migration.sql
+1. Apply the repo SQL files in order.
+2. Run schema preflight against the same hosted project.
+3. Only then run hosted integration or e2e service-workflow validation.
 
-This creates:
-  - tenant_onboarding_requests table with status constraint
-  - Indexes on status, email, created_at, slug
-  - Auto-update trigger for updated_at
-  - Row Level Security: public INSERT, authenticated SELECT
+## 1. Apply hosted schema in order
 
-Verify in Supabase Table Editor that tenant_onboarding_requests appears.
+Open the target Supabase project, then open SQL Editor and run these files in this exact order:
 
----
+1. `sql/catchup_run_this.sql`
+2. `sql/service_workflow_phase1.sql`
 
-## 2. Configure Environment Variables in Netlify
+Do not skip the catch-up file and do not run archive migrations instead. `service_workflow_phase1.sql` assumes the core platform schema from `catchup_run_this.sql` already exists.
 
-Netlify → Site → Site Settings → Environment Variables
+## 2. Validate schema readiness before tests
 
-| Variable                   | Notes                                     |
-|----------------------------|-------------------------------------------|
-| SUPABASE_URL               | https://xxxx.supabase.co                  |
-| SUPABASE_SERVICE_ROLE_KEY  | SECRET — used by functions only           |
-| SUPABASE_ANON_KEY          | PUBLIC — used by browser login in op page |
+From the repo root, point `.env.test` or the `TEST_*` environment variables at the same hosted Supabase project, then run:
 
----
+```bash
+npm run test:preflight:service-workflow
+```
 
-## 3. Expose Supabase Config to Operator Browser Page
+If this fails, stop there. The hosted project is still behind the repo schema. Do not run integration or e2e service-workflow suites until preflight passes.
 
-In operator/provisioning.html, find:
+## 3. Run hosted service-workflow validation
 
-  const SUPABASE_URL      = window.__SUPABASE_URL__      || '';
-  const SUPABASE_ANON_KEY = window.__SUPABASE_ANON_KEY__ || '';
+Once preflight passes, run the hosted service-workflow validation in this order:
 
-For local testing, replace the empty strings with your values directly.
-For production, inject via a build step or Netlify environment plugin.
+```bash
+npm run test:cleanup
+npm run test:seed
+npm run test:integration:service-workflow
+```
 
----
+For browser validation, start Netlify dev against the same environment and then run:
 
-## 4. New Files Deployed
+```bash
+npm run test:e2e:service-workflow
+```
 
-netlify/functions/submit-onboarding-request.js  (PUBLIC: receive form submissions)
-netlify/functions/list-onboarding-requests.js   (OPERATOR: read queue)
-netlify/functions/approve-onboarding-request.js (OPERATOR: approve requests)
-netlify/functions/provision-tenant.js           (OPERATOR: create tenant)
-netlify/functions/utils/auth.js                 (shared: requireOperatorContext)
-netlify/functions/utils/slugify.js              (shared: slug generation)
-index.html                                       (public landing page)
-join.html                                        (public onboarding form)
-operator/provisioning.html                       (operator provisioning queue)
-operator/provisioning.js                         (config injector)
-netlify.toml                                     (updated redirects)
-sql/onboarding-migration.sql                     (run in Supabase)
+## 4. CI behavior
 
----
+GitHub Actions already treats service-workflow schema readiness as a prerequisite. The hosted job runs:
 
-## 5. Schema Extensions (run if columns are missing)
+1. cleanup
+2. seed
+3. `npm run test:preflight:service-workflow`
+4. hosted integration tests
 
-If your tenants table lacks these columns:
-  ALTER TABLE tenants ADD COLUMN IF NOT EXISTS onboarding_request_id UUID;
-  ALTER TABLE tenants ADD COLUMN IF NOT EXISTS setup_complete BOOLEAN DEFAULT false;
-  ALTER TABLE tenants ADD COLUMN IF NOT EXISTS active BOOLEAN DEFAULT true;
-  ALTER TABLE tenants ADD COLUMN IF NOT EXISTS business_type TEXT;
-  ALTER TABLE tenants ADD COLUMN IF NOT EXISTS city_state TEXT;
+If the hosted Supabase project is missing the Phase 1 schema, CI should fail at preflight instead of producing misleading downstream test failures.
 
-If your operators table lacks these columns:
-  ALTER TABLE operators ADD COLUMN IF NOT EXISTS tenant_id UUID;
-  ALTER TABLE operators ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'tenant_owner';
+## 5. Environment required for hosted validation
 
----
+Minimum test environment variables:
 
-## 6. Add Provisioning Link to Operator Dashboard Navigation
+- `TEST_SUPABASE_URL`
+- `TEST_SUPABASE_SERVICE_ROLE_KEY`
+- `TEST_SUPABASE_ANON_KEY`
+- `TEST_SITE_URL`
+- `TEST_PLATFORM_ADMIN_EMAIL`
+- `TEST_PLATFORM_ADMIN_PASSWORD`
+- `TEST_TENANT_A_ADMIN_EMAIL`
+- `TEST_TENANT_A_ADMIN_PASSWORD`
+- `TEST_TENANT_B_ADMIN_EMAIL`
+- `TEST_TENANT_B_ADMIN_PASSWORD`
 
-In your existing operator dashboard HTML, add this link to the nav:
-  <a href="/operator/provisioning.html">Provisioning Queue</a>
+## 6. Legacy note
 
----
-
-## 7. Local Dev
-
-  npm install -g netlify-cli
-  netlify dev
-
-  http://localhost:8888/                           Landing page
-  http://localhost:8888/join                       Join form
-  http://localhost:8888/operator/                  Operator dashboard
-  http://localhost:8888/operator/provisioning.html Provisioning queue
-
----
-
-## Unchanged (do not modify)
-
-  stripe-connect-link.js
-  stripe-webhook.js
-  tenant-payment-status.js
+Older onboarding-only migration instructions are no longer the rollout source of truth for a hosted ProofLink environment. Use the two SQL files above and the schema preflight instead.

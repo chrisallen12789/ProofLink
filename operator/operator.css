@@ -633,6 +633,31 @@ input:focus, textarea:focus, select:focus{
   gap:14px;
   margin: 0 0 14px;
 }
+.dashboard-quick-actions{
+  display:grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap:14px;
+  margin: 0 0 14px;
+}
+.dashboard-quick-action{
+  border:1px solid var(--border);
+  border-radius:18px;
+  background: linear-gradient(180deg, rgba(200,75,47,.09) 0%, rgba(255,255,255,.025) 100%);
+  color: var(--text);
+  text-align:left;
+  padding:14px;
+  cursor:pointer;
+  transition: border-color .15s ease, background .15s ease, transform .08s ease;
+}
+.dashboard-quick-action:hover{
+  border-color: rgba(200,75,47,.35);
+  background: linear-gradient(180deg, rgba(200,75,47,.15) 0%, rgba(255,255,255,.04) 100%);
+}
+.dashboard-quick-action strong{
+  display:block;
+  font-family: var(--font-display);
+  margin-bottom:6px;
+}
 .today-action-card{
   border:1px solid var(--border);
   border-radius:18px;

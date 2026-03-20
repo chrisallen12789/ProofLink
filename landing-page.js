@@ -22,6 +22,9 @@
       const highlights = plan.highlights
         .map((item) => `<li>${item}</li>`)
         .join('');
+      const replaces = (plan.replaces || [])
+        .map((item) => `<span class="pricing-chip">${item}</span>`)
+        .join('');
 
       return `
         <article class="pricing-card${plan.recommended ? ' recommended' : ''}">
@@ -33,8 +36,11 @@
             <strong>${plan.priceDisplay}</strong>
             <span>${plan.priceSuffix || ''}</span>
           </div>
+          <div class="pricing-flat-fee">${plan.feePromise || 'One flat monthly fee for the core operating system.'}</div>
           <ul class="pricing-list">${limits}</ul>
           <ul class="pricing-highlights">${highlights}</ul>
+          ${replaces ? `<div class="pricing-replaces"><div class="pricing-replaces__label">Replaces</div><div class="pricing-chip-row">${replaces}</div></div>` : ''}
+          <div class="pricing-website-note">${plan.websiteNote || 'Custom website work is optional and separate.'}</div>
           <div class="pricing-action">
             <a
               class="btn btn-primary"
