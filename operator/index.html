@@ -73,6 +73,7 @@
         <button class="tab" data-tab="jobs" data-tour-tab="jobs" type="button">Jobs</button>
         <button class="tab" data-tab="plans" data-tour-tab="plans" type="button">Recurring Plans</button>
         <button class="tab" data-tab="customers" data-tour-tab="customers" type="button">Customers</button>
+        <button class="tab" data-tab="import" data-tour-tab="import" type="button">Switch &amp; Import</button>
         <button class="tab" data-tab="payments" data-tour-tab="payments" type="button">Payments</button>
         <button class="tab" data-tab="domains" data-tour-tab="domains" type="button">Domains</button>
         <button class="tab" data-tab="setup" data-tour-tab="setup" type="button">Business Setup</button>
@@ -193,6 +194,23 @@
         </div>
 
         <section id="viewApp" class="hidden">
+          <section class="workspace-hub-shell">
+            <div class="workspace-hub-head">
+              <div>
+                <div class="workspace-kicker">Workspace launcher</div>
+                <h2>Open one focused work window at a time.</h2>
+                <p>
+                  Pick the part of the business you need, fill it out, and collapse it when you
+                  want to get back to the rest of the system.
+                </p>
+              </div>
+              <div class="workspace-hub-tip">
+                Desktop stays compact and collapsible. On mobile, work opens full-screen so it is
+                easier to use in the field.
+              </div>
+            </div>
+            <div id="workspaceHub" class="workspace-hub" aria-label="Workspace launcher"></div>
+          </section>
 
           <section class="panel" data-panel="dashboard">
             <div class="panel-head">
@@ -1037,6 +1055,100 @@
             </div>
           </section>
 
+          <section class="panel hidden" data-panel="import">
+            <div class="panel-head">
+              <div>
+                <h2>Switch &amp; Import</h2>
+                <div class="muted">Bring customers, open work, and payment history over without rebuilding the business by hand.</div>
+              </div>
+              <div class="panel-actions">
+                <button id="btnDownloadImportTemplate" class="btn btn-ghost" type="button">Download template</button>
+                <button id="btnClearImport" class="btn btn-ghost" type="button">Clear</button>
+              </div>
+            </div>
+
+            <div class="import-hero">
+              <div class="import-hero__card">
+                <div class="kicker">Why this matters</div>
+                <strong>No double entry</strong>
+                <div class="detail-copy">The switch should feel like opening the new office, not rebuilding the old one line by line.</div>
+              </div>
+              <div class="import-hero__card">
+                <div class="kicker">What ProofLink does</div>
+                <strong>Maps the business flow for you</strong>
+                <div class="detail-copy">Customers, live quotes, booked work, and money history land in the records the operator will already use every day.</div>
+              </div>
+              <div class="import-hero__card">
+                <div class="kicker">Safety</div>
+                <strong>Preview before writing</strong>
+                <div class="detail-copy">ProofLink shows what will be created, updated, or skipped first so the switch stays calm and teachable.</div>
+              </div>
+            </div>
+
+            <div class="grid two">
+              <div class="card">
+                <div class="card-hd">
+                  <strong>Guided switch flow</strong>
+                  <span class="muted">Pick what you are moving first</span>
+                </div>
+                <div class="card-bd">
+                  <div class="import-kind-grid">
+                    <button class="import-kind-card is-active" type="button" data-import-kind="customers">
+                      <div class="kicker">Step 1</div>
+                      <strong>Customers</strong>
+                      <div class="detail-copy">Names, phones, emails, addresses, tags, and notes.</div>
+                    </button>
+                    <button class="import-kind-card" type="button" data-import-kind="open_work">
+                      <div class="kicker">Step 2</div>
+                      <strong>Open work</strong>
+                      <div class="detail-copy">Leads, quotes, booked jobs, and unpaid work still in motion.</div>
+                    </button>
+                    <button class="import-kind-card" type="button" data-import-kind="payments">
+                      <div class="kicker">Step 3</div>
+                      <strong>Payments</strong>
+                      <div class="detail-copy">Collected money, deposits, and legacy payment history.</div>
+                    </button>
+                  </div>
+
+                  <div id="importKindSummary" class="import-kind-summary"></div>
+
+                  <div class="import-template-row">
+                    <button class="btn btn-ghost btn-sm" type="button" data-template-kind="customers">Customer template</button>
+                    <button class="btn btn-ghost btn-sm" type="button" data-template-kind="open_work">Open work template</button>
+                    <button class="btn btn-ghost btn-sm" type="button" data-template-kind="payments">Payments template</button>
+                  </div>
+
+                  <label class="import-dropzone" for="importFile">
+                    <input id="importFile" type="file" accept=".csv,text/csv" />
+                    <div class="kicker">CSV upload</div>
+                    <strong id="importFileLabel">Drop a CSV here or choose a file</strong>
+                    <div class="detail-copy">ProofLink auto-maps common spreadsheet headers and old-tool exports where it can.</div>
+                  </label>
+
+                  <div class="row">
+                    <button id="btnAnalyzeImport" class="btn btn-primary" type="button">Preview import</button>
+                    <button id="btnRunImport" class="btn" type="button" disabled>Import into ProofLink</button>
+                  </div>
+
+                  <div id="importMsg" class="msg"></div>
+                </div>
+              </div>
+
+              <div class="card">
+                <div class="card-hd">
+                  <strong>Import preview</strong>
+                  <span class="muted">Nothing is written until you confirm</span>
+                </div>
+                <div class="card-bd">
+                  <div id="importSummaryCards" class="import-summary-grid"></div>
+                  <div id="importPreviewWrap" class="import-preview-wrap">
+                    <div class="muted">Choose an import type and preview a CSV to see what ProofLink will create, update, link, or skip.</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
           <section class="panel hidden" data-panel="payments">
             <div class="panel-head">
               <div>
@@ -1344,6 +1456,19 @@
                       <input id="setupServiceArea" placeholder="Oakland County and surrounding areas" />
                     </label>
 
+                    <label>Review platform
+                      <input id="setupReviewPlatformLabel" placeholder="Google" />
+                    </label>
+
+                    <label>Review link
+                      <input id="setupReviewLinkUrl" placeholder="https://..." />
+                      <div class="muted" style="margin-top:6px;line-height:1.5;">Use the direct link customers should open after a paid job, like your Google review page.</div>
+                    </label>
+
+                    <label>Referral thank-you note
+                      <textarea id="setupReferralMessage" rows="3" placeholder="Example: If a neighbor or friend needs help too, we would be grateful if you shared our name."></textarea>
+                    </label>
+
                     <label>Instagram
                       <input id="setupInstagram" placeholder="username without @" />
                     </label>
@@ -1542,7 +1667,7 @@
             <div class="panel-head">
               <div>
                 <h2>Expenses</h2>
-                <div class="muted">Track expenses for bookkeeping and profitability.</div>
+                <div class="muted">Track overhead plus job-linked costs so profit stays visible instead of guessed.</div>
               </div>
               <div class="panel-actions">
                 <button id="btnNewExpense" class="btn" type="button">New expense</button>
@@ -1584,13 +1709,101 @@
                       <datalist id="vendorOptions"></datalist>
                     </label>
 
+                    <label>Expense type
+                      <select id="expenseType">
+                        <option value="overhead">Overhead</option>
+                        <option value="job_cost">Job cost</option>
+                        <option value="material">Material</option>
+                        <option value="labor">Labor</option>
+                        <option value="vendor_bill">Vendor bill</option>
+                        <option value="reimbursement">Reimbursement</option>
+                        <option value="other">Other</option>
+                      </select>
+                    </label>
+
                     <label>Description
                       <input id="expenseDescription" />
+                    </label>
+
+                    <label>Operator cost note
+                      <textarea id="expenseNotes" rows="3" placeholder="What this cost was for, where it was used, or why it mattered on the job."></textarea>
                     </label>
 
                     <label>Amount (USD)
                       <input id="expenseAmount" type="number" step="0.01" required />
                     </label>
+
+                    <div class="grid two form-grid">
+                      <label>Customer
+                        <select id="expenseCustomerId"></select>
+                      </label>
+
+                      <label>Related order
+                        <select id="expenseOrderId"></select>
+                      </label>
+                    </div>
+
+                    <label>Related job
+                      <select id="expenseJobId"></select>
+                    </label>
+
+                    <div class="row">
+                      <label class="check">
+                        <input id="expenseBillable" type="checkbox" />
+                        Customer-approved / billable cost
+                      </label>
+                      <label class="check">
+                        <input id="expenseReimbursable" type="checkbox" />
+                        Reimbursable
+                      </label>
+                      <label class="check">
+                        <input id="expenseChangeOrder" type="checkbox" />
+                        Change-order / extra scope
+                      </label>
+                    </div>
+
+                    <div id="expenseLaborFields" class="grid three form-grid hidden">
+                      <label>Labor role
+                        <input id="expenseLaborRole" placeholder="Lead tech" />
+                      </label>
+                      <label>Labor hours
+                        <input id="expenseLaborHours" type="number" min="0" step="0.25" placeholder="2.5" />
+                      </label>
+                      <label>Hourly rate (USD)
+                        <input id="expenseLaborRate" type="number" min="0" step="0.01" placeholder="65.00" />
+                      </label>
+                    </div>
+
+                    <div id="expenseMaterialFields" class="grid two form-grid hidden">
+                      <label>Material used
+                        <input id="expenseMaterialName" placeholder="Sodium hypochlorite" />
+                      </label>
+                      <label>Quantity / unit
+                        <input id="expenseMaterialQuantity" placeholder="4 gal" />
+                      </label>
+                    </div>
+
+                    <div id="expenseChangeOrderFields" class="grid two form-grid hidden">
+                      <label>Change-order label
+                        <input id="expenseChangeOrderLabel" placeholder="Extra fence wash" />
+                      </label>
+                      <label>Extra scope note
+                        <input id="expenseChangeOrderNote" placeholder="Added after walkthrough approval" />
+                      </label>
+                    </div>
+
+                    <div id="expenseMaterialNotesFields" class="grid two form-grid hidden">
+                      <label>Leftover / returned note
+                        <textarea id="expenseLeftoverNote" rows="3" placeholder="1 gallon returned to truck stock."></textarea>
+                      </label>
+                      <label>Waste / overage note
+                        <textarea id="expenseWasteNote" rows="3" placeholder="0.25 gallon wasted during setup rinse."></textarea>
+                      </label>
+                    </div>
+
+                    <div class="muted" style="line-height:1.55;">
+                      Link a job or order when this spend belongs to real work. That lets ProofLink show revenue, cost, gross profit, and margin without guessing.
+                    </div>
 
                     <div class="row">
                       <button class="btn btn-primary" type="submit">Save</button>
@@ -1608,7 +1821,7 @@
             <div class="panel-head">
               <div>
                 <h2>Money</h2>
-                <div class="muted">Catalog health, CRM value, and expense visibility.</div>
+                <div class="muted">Revenue, tracked job cost, gross profit, and average margin without accounting clutter.</div>
               </div>
               <div class="panel-actions">
                 <button id="btnRefreshMoney" class="btn btn-ghost" type="button">Refresh</button>
@@ -1656,10 +1869,12 @@
 <script src="./components/analytics-widgets.js" defer></script>
 <script src="./components/stripe-readiness.js" defer></script>
 <script src="./components/checklist-engine.js" defer></script>
+<script src="./components/import-tools.js" defer></script>
 <script src="./operator.config.js" defer></script>
 <script src="./operator.data.js" defer></script>
 <script src="/prooflink-workspace-architecture.js" defer></script>
 <script src="./operator.js" defer></script>
+<script src="./import-workspace.js" defer></script>
 <script src="./walkthrough.js" defer></script>
 <script src="./operator.launch.js" defer></script>
 

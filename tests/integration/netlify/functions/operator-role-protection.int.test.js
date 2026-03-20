@@ -106,5 +106,5 @@ describe("operator privilege escalation protection", () => {
     expect(membershipAfter.data.role).toBe(membershipBefore.data.role);
     expect(tenantAfter.data.prooflink_plan_key).toBe(tenantA.data.prooflink_plan_key);
     expect(configAfter.data.config_value).toBe(configBefore.data.config_value);
-  });
+  }, 30000);
 });

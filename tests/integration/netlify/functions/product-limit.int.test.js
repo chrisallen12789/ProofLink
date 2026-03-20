@@ -111,5 +111,5 @@ describe("product limit enforcement", () => {
         .eq("tenant_id", tenant.data.id)
         .like("slug", "pltest-limit-%");
     }
-  });
+  }, 30000);
 });

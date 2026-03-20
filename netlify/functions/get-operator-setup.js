@@ -70,6 +70,9 @@ exports.handler = async (event) => {
     allow_custom_requests: rawConfig.allow_custom_requests !== false,
     public_contact_email: rawConfig.public_contact_email || rawConfig.contact_email || '',
     public_business_phone: rawConfig.public_business_phone || rawConfig.business_phone || '',
+    review_platform_label: rawConfig.review_platform_label || '',
+    review_link_url: rawConfig.review_link_url || '',
+    referral_message: rawConfig.referral_message || '',
     workspace_business_type: rawConfig.workspace_business_type || tenant.business_type || '',
   };
 
@@ -79,7 +82,8 @@ exports.handler = async (event) => {
     editable_fields: [
       'tagline', 'hero_heading', 'hero_subheading', 'about', 'accent_color',
       'logo_url', 'hero_image_url', 'public_contact_email', 'public_business_phone',
-      'service_area', 'instagram', 'facebook', 'hours_notes', 'fulfillment_notes',
+      'service_area', 'review_platform_label', 'review_link_url', 'referral_message',
+      'instagram', 'facebook', 'hours_notes', 'fulfillment_notes',
       'workspace_business_type',
       'show_prices', 'allow_custom_requests', 'onboarding_complete',
     ],

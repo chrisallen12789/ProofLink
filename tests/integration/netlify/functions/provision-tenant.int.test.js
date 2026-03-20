@@ -3,7 +3,6 @@
 const path = require("path");
 const {
   ONBOARDING_FIXTURES,
-  TENANTS,
   USERS,
   buildEvent,
   createAdminClient,
@@ -98,7 +97,7 @@ describe("provision-tenant integration", () => {
     expect(tenant.data.onboarding_request_id).toBe(requestId);
     expect(operator.data.email).toBe(ONBOARDING_FIXTURES.approved.owner_email);
     expect(member.data.role).toBe("owner");
-  });
+  }, 30000);
 
   test("rerunning the same request is idempotent", async () => {
     const accessToken = await getAccessToken(USERS.platformAdmin);

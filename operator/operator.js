@@ -73,6 +73,7 @@ const FOLLOW_UP_SNOOZE_KEY = "prooflink_follow_up_snoozes_v1";
 const FOLLOW_UP_KIND_META = {
   lead_nudge: { label: "Missed lead", cooldownHours: 24 },
   quote_follow_up: { label: "Quote follow-up", cooldownHours: 72 },
+  deposit_reminder: { label: "Deposit reminder", cooldownHours: 24 },
   payment_reminder: { label: "Payment reminder", cooldownHours: 24 },
   review_request: { label: "Review request", cooldownHours: 168 },
 };
@@ -137,6 +138,7 @@ async function fetchDashboardLaunchChecklist() {
 
 const $ = (id) => document.getElementById(id);
 const sectionNav = document.querySelector('.nav[aria-label="Sections"]');
+const workspaceHub = $("workspaceHub");
 
 const viewLogin = $("viewLogin");
 const viewApp = $("viewApp");
@@ -359,6 +361,9 @@ const setupHeroImageUrl = $("setupHeroImageUrl");
 const setupPublicContactEmail = $("setupPublicContactEmail");
 const setupPublicBusinessPhone = $("setupPublicBusinessPhone");
 const setupServiceArea = $("setupServiceArea");
+const setupReviewPlatformLabel = $("setupReviewPlatformLabel");
+const setupReviewLinkUrl = $("setupReviewLinkUrl");
+const setupReferralMessage = $("setupReferralMessage");
 const setupInstagram = $("setupInstagram");
 const setupFacebook = $("setupFacebook");
 const setupHoursNotes = $("setupHoursNotes");
@@ -414,8 +419,33 @@ const expenseId = $("expenseId");
 const expenseDate = $("expenseDate");
 const expenseCategory = $("expenseCategory");
 const expenseVendor = $("expenseVendor");
+const expenseType = $("expenseType");
 const expenseDescription = $("expenseDescription");
+const expenseNotes = $("expenseNotes");
 const expenseAmount = $("expenseAmount");
+const expenseCustomerId = $("expenseCustomerId");
+const expenseOrderId = $("expenseOrderId");
+const expenseJobId = $("expenseJobId");
+const expenseBillable = $("expenseBillable");
+const expenseReimbursable = $("expenseReimbursable");
+const expenseChangeOrder = $("expenseChangeOrder");
+const expenseLaborFields = $("expenseLaborFields");
+const expenseLaborRole = $("expenseLaborRole");
+
+const WORKSPACE_DIRTY_TABS = new Set();
+const WORKSPACE_SNAPSHOT_BY_TAB = new Map();
+const WORKSPACE_SNAPSHOT_TIMERS = new Map();
+const expenseLaborHours = $("expenseLaborHours");
+const expenseLaborRate = $("expenseLaborRate");
+const expenseMaterialFields = $("expenseMaterialFields");
+const expenseMaterialName = $("expenseMaterialName");
+const expenseMaterialQuantity = $("expenseMaterialQuantity");
+const expenseChangeOrderFields = $("expenseChangeOrderFields");
+const expenseChangeOrderLabel = $("expenseChangeOrderLabel");
+const expenseChangeOrderNote = $("expenseChangeOrderNote");
+const expenseMaterialNotesFields = $("expenseMaterialNotesFields");
+const expenseLeftoverNote = $("expenseLeftoverNote");
+const expenseWasteNote = $("expenseWasteNote");
 
 const moneyWrap = $("moneyWrap");
 const btnRefreshMoney = $("btnRefreshMoney");
@@ -652,6 +682,17 @@ function escapeHtml(str) {
 }
 function escapeAttr(value) { return escapeHtml(String(value ?? "")).replace(/"/g, "&quot;"); }
 function normalizePick(str) { return String(str ?? "").trim().replace(/\s+/g, " "); }
+function cleanUrl(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  try {
+    const next = new URL(raw);
+    if (!["http:", "https:"].includes(next.protocol)) return "";
+    return next.toString();
+  } catch (_) {
+    return "";
+  }
+}
 function money(cents) { return (Number(cents || 0) / 100).toFixed(2); }
 function formatUsd(cents) { return `$${money(cents)}`; }
 function toCents(numStr) { return Math.round(Number(numStr || 0) * 100); }
@@ -808,6 +849,67 @@ function orderDepositPaidCents(row) {
 function orderDepositGapCents(row) {
   return Math.max(orderDepositRequiredCents(row) - orderDepositPaidCents(row), 0);
 }
+function normalizeDepositPolicy(value) {
+  const raw = String(value || "").trim().toLowerCase();
+  if (["required_before_booking", "required_before_job", "optional"].includes(raw)) return raw;
+  return "optional";
+}
+function orderDepositPolicy(row) {
+  if (Number(row?.deposit_required_cents || 0) <= 0) return "optional";
+  return normalizeDepositPolicy(row?.deposit_policy);
+}
+function orderDepositDueDate(row) {
+  return row?.deposit_due_date || row?.scheduled_date || row?.payment_due_date || null;
+}
+function orderDepositOverrideReason(row) {
+  return String(row?.deposit_override_reason || "").trim();
+}
+function orderDepositStatus(row) {
+  const required = orderDepositRequiredCents(row);
+  const paid = orderDepositPaidCents(row);
+  const gap = orderDepositGapCents(row);
+  if (required <= 0) return "not_required";
+  if (orderDepositOverrideReason(row)) return "waived";
+  if (gap <= 0 && required > 0) return "paid";
+  const dueDate = orderDepositDueDate(row) ? new Date(orderDepositDueDate(row)) : null;
+  const isPastDue = dueDate && !Number.isNaN(dueDate.getTime()) && dueDate < new Date();
+  if (paid > 0 && gap > 0) return isPastDue ? "overdue" : "partially_paid";
+  if (orderDepositPolicy(row) === "optional") return "requested";
+  return isPastDue ? "overdue" : "due";
+}
+function formatDepositStatus(value) {
+  const labels = {
+    not_required: "No deposit",
+    requested: "Deposit requested",
+    due: "Deposit due",
+    partially_paid: "Deposit part paid",
+    paid: "Deposit paid",
+    overdue: "Deposit overdue",
+    waived: "Deposit waived",
+  };
+  return labels[String(value || "").trim().toLowerCase()] || "Deposit";
+}
+function depositStatusClass(value) {
+  const status = String(value || "").trim().toLowerCase();
+  if (status === "paid") return "pill-on";
+  if (status === "overdue") return "pill-bad";
+  if (status === "due" || status === "partially_paid") return "pill-warn";
+  return "pill-muted";
+}
+function orderDepositBlocksBooking(row) {
+  return orderDepositPolicy(row) === "required_before_booking" && orderDepositGapCents(row) > 0 && !orderDepositOverrideReason(row);
+}
+function orderDepositBlocksJob(row) {
+  return ["required_before_booking", "required_before_job"].includes(orderDepositPolicy(row)) && orderDepositGapCents(row) > 0 && !orderDepositOverrideReason(row);
+}
+function depositPolicyLabel(value) {
+  const labels = {
+    optional: "Optional deposit",
+    required_before_booking: "Required before booking",
+    required_before_job: "Required before job",
+  };
+  return labels[normalizeDepositPolicy(value)] || "Optional deposit";
+}
 function orderPaymentState(row) {
   const explicit = normalizeWorkflowPaymentState(row?.payment_state);
   if (explicit !== "unpaid" || Number(row?.amount_paid_cents || 0) > 0 || Number(row?.amount_due_cents || 0) > 0) {
@@ -839,6 +941,48 @@ function paymentStateClass(value) {
   if (state === "overdue") return "pill-bad";
   if (state === "refunded" || state === "void") return "pill-muted";
   return "";
+}
+function orderStatusAdvancesBooking(value) {
+  return ["confirmed", "fulfilled", "completed", "paid"].includes(String(value || "").trim().toLowerCase());
+}
+function assertOrderAllowsStatusChange(row, nextStatus) {
+  if (orderDepositBlocksBooking(row) && orderStatusAdvancesBooking(nextStatus)) {
+    throw new Error("This order requires a deposit before it can be booked. Collect the deposit or add an override reason first.");
+  }
+}
+function assertOrderAllowsJobCreation(row) {
+  if (orderDepositBlocksJob(row)) {
+    throw new Error("This order requires its deposit before a job can be created. Collect the deposit or record an override reason first.");
+  }
+}
+async function seedOrderDepositDefaults(order, options = {}) {
+  if (!order?.id) return order;
+  const required = Math.max(0, Number(options.depositRequiredCents ?? order.deposit_required_cents ?? 0));
+  if (required <= 0) return order;
+  const policy = normalizeDepositPolicy(options.depositPolicy || order.deposit_policy || "required_before_job");
+  const dueDate = options.depositDueDate || order.deposit_due_date || order.scheduled_date || order.payment_due_date || new Date().toISOString().slice(0, 10);
+  try {
+    const { data, error } = await sb.from("orders")
+      .update({
+        deposit_policy: policy,
+        deposit_due_date: dueDate,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", order.id)
+      .eq(OPERATOR_COLUMN, opId())
+      .eq(TENANT_COLUMN, TENANT_ID)
+      .select("*")
+      .single();
+    if (error) {
+      if (isMissingDatabaseFeatureError(error, ["deposit_policy", "deposit_due_date"])) return order;
+      throw error;
+    }
+    CRM_ORDERS_CACHE = CRM_ORDERS_CACHE.map((row) => row.id === order.id ? data : row);
+    return data;
+  } catch (error) {
+    if (isMissingDatabaseFeatureError(error, ["deposit_policy", "deposit_due_date"])) return order;
+    throw error;
+  }
 }
 function planCadenceLabel(value, intervalDays = 0) {
   const raw = String(value || "").trim().toLowerCase();
@@ -884,7 +1028,7 @@ function ordersMissingDeposits() {
   return CRM_ORDERS_CACHE.filter((row) => {
     const status = String(row?.status || "").trim().toLowerCase();
     if (["cancelled", "paid"].includes(status)) return false;
-    return orderDepositGapCents(row) > 0;
+    return orderDepositGapCents(row) > 0 && orderDepositPolicy(row) !== "optional" && !orderDepositOverrideReason(row);
   });
 }
 function linkedOrderForJob(job) {
@@ -895,6 +1039,247 @@ function currentLead() {
 }
 function currentJob() {
   return JOBS_CACHE.find((row) => row.id === ACTIVE_JOB_ID) || null;
+}
+function normalizeExpenseType(value) {
+  const raw = String(value || "").trim().toLowerCase();
+  if (["job_cost", "material", "labor", "vendor_bill", "overhead", "reimbursement", "other"].includes(raw)) return raw;
+  return "overhead";
+}
+function formatExpenseType(value) {
+  const labels = {
+    job_cost: "Job cost",
+    material: "Material",
+    labor: "Labor",
+    vendor_bill: "Vendor bill",
+    overhead: "Overhead",
+    reimbursement: "Reimbursement",
+    other: "Other",
+  };
+  return labels[normalizeExpenseType(value)] || "Expense";
+}
+function normalizeSupplementalCostItems(value) {
+  return (Array.isArray(value) ? value : [])
+    .filter((item) => item && typeof item === "object")
+    .map((item) => ({ ...item, kind: String(item.kind || "").trim().toLowerCase() }))
+    .filter((item) => item.kind);
+}
+function expenseSupplementalItems(expense) {
+  return normalizeSupplementalCostItems(expense?.used_materials);
+}
+function expenseLaborItem(expense) {
+  return expenseSupplementalItems(expense).find((item) => item.kind === "labor") || null;
+}
+function expenseMaterialItems(expense) {
+  return expenseSupplementalItems(expense).filter((item) => item.kind === "material");
+}
+function expenseChangeOrderItem(expense) {
+  return expenseSupplementalItems(expense).find((item) => item.kind === "change_order") || null;
+}
+function expenseLeftoverNotes(expense) {
+  return expenseMaterialItems(expense)
+    .map((item) => String(item.leftover_note || "").trim())
+    .filter(Boolean);
+}
+function expenseWasteNotes(expense) {
+  return expenseMaterialItems(expense)
+    .map((item) => String(item.waste_note || "").trim())
+    .filter(Boolean);
+}
+function expenseLaborHoursValue(expense) {
+  return Number(expenseLaborItem(expense)?.hours || 0);
+}
+function expenseLaborRateCents(expense) {
+  return Number(expenseLaborItem(expense)?.rate_cents || 0);
+}
+function expenseHasLaborDetail(expense) {
+  return !!expenseLaborItem(expense);
+}
+function expenseHasMaterialDetail(expense) {
+  return expenseMaterialItems(expense).length > 0;
+}
+function expenseIsChangeOrder(expense) {
+  return !!expense?.billable && !!expenseChangeOrderItem(expense);
+}
+function costItemSummary(expense) {
+  const parts = [formatExpenseType(expense?.expense_type)];
+  const labor = expenseLaborItem(expense);
+  const material = expenseMaterialItems(expense)[0] || null;
+  const changeOrder = expenseChangeOrderItem(expense);
+  if (labor?.hours) parts.push(`${Number(labor.hours)}h labor`);
+  if (material?.name) parts.push(material.name);
+  if (changeOrder?.label) parts.push(`CO: ${changeOrder.label}`);
+  return parts.join(" | ");
+}
+function updateExpenseTypeVisibility() {
+  const type = normalizeExpenseType(expenseType?.value || "overhead");
+  if (expenseLaborFields) expenseLaborFields.classList.toggle("hidden", type !== "labor");
+  const showMaterial = ["material", "job_cost", "vendor_bill"].includes(type);
+  if (expenseMaterialFields) expenseMaterialFields.classList.toggle("hidden", !showMaterial);
+  if (expenseMaterialNotesFields) expenseMaterialNotesFields.classList.toggle("hidden", !showMaterial);
+  const showChangeOrder = !!expenseChangeOrder?.checked;
+  if (expenseChangeOrderFields) expenseChangeOrderFields.classList.toggle("hidden", !showChangeOrder);
+}
+function syncExpenseLaborAmount() {
+  if (!expenseAmount || normalizeExpenseType(expenseType?.value || "") !== "labor") return;
+  const hours = Number(expenseLaborHours?.value || 0);
+  const rate = Number(expenseLaborRate?.value || 0);
+  if (hours > 0 && rate > 0) {
+    expenseAmount.value = String((hours * rate).toFixed(2));
+  }
+}
+function buildExpenseSupplementalItems() {
+  const items = [];
+  const type = normalizeExpenseType(expenseType?.value || "overhead");
+  const laborHours = Number(expenseLaborHours?.value || 0);
+  const laborRateCents = toCents(expenseLaborRate?.value || 0);
+  if (type === "labor" && laborHours > 0) {
+    items.push({
+      kind: "labor",
+      role: expenseLaborRole?.value?.trim() || "",
+      hours: laborHours,
+      rate_cents: laborRateCents,
+    });
+  }
+  const materialName = expenseMaterialName?.value?.trim() || "";
+  const materialQuantity = expenseMaterialQuantity?.value?.trim() || "";
+  const leftoverNote = expenseLeftoverNote?.value?.trim() || "";
+  const wasteNote = expenseWasteNote?.value?.trim() || "";
+  if (materialName || materialQuantity || leftoverNote || wasteNote) {
+    items.push({
+      kind: "material",
+      name: materialName,
+      quantity: materialQuantity,
+      leftover_note: leftoverNote,
+      waste_note: wasteNote,
+    });
+  }
+  if (expenseChangeOrder?.checked) {
+    items.push({
+      kind: "change_order",
+      label: expenseChangeOrderLabel?.value?.trim() || "Extra scope",
+      note: expenseChangeOrderNote?.value?.trim() || "",
+    });
+  }
+  return items;
+}
+function costBreakdownForJobs(rows = jobsWithTrackedEconomics()) {
+  const breakdown = {
+    laborCostCents: 0,
+    materialCostCents: 0,
+    changeOrderCostCents: 0,
+    laborHours: 0,
+    leftoverNotes: [],
+    wasteNotes: [],
+  };
+  rows.forEach(({ job, order }) => {
+    trackedJobExpenses(job, order).forEach((expense) => {
+      const amount = expenseAmountCents(expense);
+      const type = normalizeExpenseType(expense.expense_type);
+      if (type === "labor" || expenseHasLaborDetail(expense)) {
+        breakdown.laborCostCents += amount;
+        breakdown.laborHours += expenseLaborHoursValue(expense);
+      } else if (type === "material" || expenseHasMaterialDetail(expense)) {
+        breakdown.materialCostCents += amount;
+      }
+      if (expenseIsChangeOrder(expense)) breakdown.changeOrderCostCents += amount;
+      breakdown.leftoverNotes.push(...expenseLeftoverNotes(expense));
+      breakdown.wasteNotes.push(...expenseWasteNotes(expense));
+    });
+  });
+  breakdown.leftoverNotes = uniqList(breakdown.leftoverNotes).slice(0, 6);
+  breakdown.wasteNotes = uniqList(breakdown.wasteNotes).slice(0, 6);
+  return breakdown;
+}
+function expenseCountsTowardJobCost(expense) {
+  if (!expense) return false;
+  if (normalizeExpenseType(expense.expense_type) === "overhead") return false;
+  return Boolean(expense.job_id || expense.order_id);
+}
+function expensesForOrder(orderIdValue) {
+  const orderId = String(orderIdValue || "").trim();
+  if (!orderId) return [];
+  return EXPENSES_CACHE.filter((expense) => expense.order_id === orderId);
+}
+function expensesForJob(jobIdValue) {
+  const jobId = String(jobIdValue || "").trim();
+  if (!jobId) return [];
+  return EXPENSES_CACHE.filter((expense) => expense.job_id === jobId);
+}
+function expenseAmountCents(expense) {
+  return Math.max(0, Number(expense?.amount_cents || 0));
+}
+function expenseLinkedCustomerId(expense) {
+  return expense?.customer_id || linkedOrderForJob(JOBS_CACHE.find((row) => row.id === expense?.job_id))?.customer_id || "";
+}
+function trackedJobExpenses(job, order = linkedOrderForJob(job)) {
+  if (!job) return [];
+  const jobRows = expensesForJob(job.id);
+  const orderRows = order?.id
+    ? expensesForOrder(order.id).filter((expense) => !expense.job_id || expense.job_id === job.id)
+    : [];
+  const seen = new Set();
+  return [...jobRows, ...orderRows]
+    .filter((expense) => {
+      if (!expenseCountsTowardJobCost(expense)) return false;
+      if (seen.has(expense.id)) return false;
+      seen.add(expense.id);
+      return true;
+    });
+}
+function jobRevenueCents(job, order = linkedOrderForJob(job)) {
+  return Math.max(0, orderTotalCents(order));
+}
+function jobTrackedCostCents(job, order = linkedOrderForJob(job)) {
+  return trackedJobExpenses(job, order)
+    .reduce((sum, expense) => sum + expenseAmountCents(expense), 0);
+}
+function jobGrossProfitCents(job, order = linkedOrderForJob(job)) {
+  return jobRevenueCents(job, order) - jobTrackedCostCents(job, order);
+}
+function jobMarginRatio(job, order = linkedOrderForJob(job)) {
+  const revenue = jobRevenueCents(job, order);
+  if (revenue <= 0) return null;
+  return jobGrossProfitCents(job, order) / revenue;
+}
+function formatPercent(value, digits = 1) {
+  if (value === null || value === undefined || !Number.isFinite(Number(value))) return "-";
+  return `${(Number(value) * 100).toFixed(digits)}%`;
+}
+function grossProfitToneClass(valueCents = 0) {
+  if (valueCents > 0) return "pill-on";
+  if (valueCents < 0) return "pill-bad";
+  return "pill-muted";
+}
+function marginToneClass(value) {
+  if (value === null || value === undefined || !Number.isFinite(Number(value))) return "pill-muted";
+  if (Number(value) >= 0.45) return "pill-on";
+  if (Number(value) >= 0.2) return "pill-warn";
+  return "pill-bad";
+}
+function jobsWithTrackedEconomics() {
+  return (JOBS_CACHE || [])
+    .map((job) => {
+      const order = linkedOrderForJob(job);
+      return {
+        job,
+        order,
+        revenueCents: jobRevenueCents(job, order),
+        costCents: jobTrackedCostCents(job, order),
+        grossProfitCents: jobGrossProfitCents(job, order),
+        marginRatio: jobMarginRatio(job, order),
+      };
+    })
+    .filter((row) => row.revenueCents > 0);
+}
+function weightedAverageJobMarginRatio() {
+  const rows = jobsWithTrackedEconomics();
+  const totals = rows.reduce((sum, row) => {
+    sum.revenue += row.revenueCents;
+    sum.profit += row.grossProfitCents;
+    return sum;
+  }, { revenue: 0, profit: 0 });
+  if (totals.revenue <= 0) return null;
+  return totals.profit / totals.revenue;
 }
 
 function isPasswordSetupVisible() {
@@ -931,6 +1316,9 @@ async function refreshPicklists() {
 
   PICK_VENDORS = Array.from(new Set((await fetchDistinct("expenses", "vendor")).map(normalizePick).filter(Boolean)));
   setDatalistOptions($("vendorOptions"), PICK_VENDORS);
+  renderExpenseCustomerOptions(expenseCustomerId?.value || "");
+  renderExpenseOrderOptions(expenseOrderId?.value || "");
+  renderExpenseJobOptions(expenseJobId?.value || "");
 }
 
 function initBranding() {
@@ -962,6 +1350,7 @@ const WORKSPACE_BASE_TAB_ORDER = [
   "jobs",
   "plans",
   "customers",
+  "import",
   "payments",
   "domains",
   "setup",
@@ -1172,6 +1561,8 @@ function workspaceTabLabel(tab, blueprint = currentWorkspaceBlueprint()) {
       return "Jobs";
     case "plans":
       return "Recurring Plans";
+    case "import":
+      return "Switch & Import";
     case "products":
       return workspaceCatalogLabel(blueprint);
     case "pricing":
@@ -1226,6 +1617,11 @@ function workspacePanelCopy(tab, blueprint = currentWorkspaceBlueprint()) {
       return {
         title: "Recurring Plans",
         subtitle: "Turn repeat service into scheduled orders and jobs without rebuilding the same work from scratch every month.",
+      };
+    case "import":
+      return {
+        title: "Switch & Import",
+        subtitle: "Move customers, live work, and payment history into ProofLink without rebuilding the office by hand.",
       };
     case "products":
       return {
@@ -1433,9 +1829,10 @@ function applyWorkspaceBlueprint() {
       : "Track the sale from first contact to payment, keep customer history in one place, and make business decisions with less guesswork.";
   }
 
+  renderWorkspaceHub();
   const activeTab = currentPanel();
   if (!isTabVisibleInWorkspace(activeTab, blueprint)) {
-    switchTab("dashboard");
+    switchTab("dashboard", { force: true });
   }
   return blueprint;
 }
@@ -1465,6 +1862,13 @@ function renderStartupChecklist() {
     { done: brandingReady, label: "Add branding, media, and public profile details", tab: "setup", action: "Open Setup" },
     { done: PAYMENTS_CACHE.length > 0, label: "Log your first payment, deposit, or offline collection", tab: "payments", action: "Open Payments" },
   ];
+
+  items.splice(4, 0, {
+    done: CUSTOMERS_CACHE.length > 0 || CRM_ORDERS_CACHE.length > 0 || PAYMENTS_CACHE.length > 0,
+    label: "Bring over customers, open work, or payment history from your old spreadsheet or app",
+    tab: "import",
+    action: "Open Switch & Import",
+  });
 
   if (isTabVisibleInWorkspace("bids", blueprint)) {
     items.splice(4, 0,
@@ -1496,6 +1900,9 @@ function setSetupMessage(message = "", tone = "") {
 function setupPreviewHtml(payload = {}, record = null) {
   const logoUrl = String(payload.logo_url || "").trim();
   const heroUrl = String(payload.hero_image_url || "").trim();
+  const reviewUrl = cleanUrl(payload.review_link_url || "");
+  const reviewPlatform = String(payload.review_platform_label || "").trim() || (reviewUrl ? "Google" : "-");
+  const referralMessage = String(payload.referral_message || "").trim();
   return `
     <div class="stack" style="display:grid;gap:14px;">
       <div style="display:flex;align-items:center;gap:14px;">
@@ -1517,7 +1924,10 @@ function setupPreviewHtml(payload = {}, record = null) {
         <div class="tr"><div>Public phone</div><div>${escapeHtml(payload.public_business_phone || payload.business_phone || "-")}</div></div>
         <div class="tr"><div>Location</div><div>${escapeHtml(record?.city_state || payload.city_state || "-")}</div></div>
         <div class="tr"><div>Service area</div><div>${escapeHtml(payload.service_area || "-")}</div></div>
+        <div class="tr"><div>Review platform</div><div>${escapeHtml(reviewPlatform)}</div></div>
+        <div class="tr"><div>Review link</div><div>${reviewUrl ? `<a href="${escapeAttr(reviewUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(reviewUrl)}</a>` : "-"}</div></div>
       </div>
+      ${referralMessage ? `<div class="detail-card"><div class="kicker">Referral thank-you note</div><div class="detail-copy">${escapeHtml(referralMessage)}</div></div>` : ``}
     </div>
   `;
 }
@@ -1535,6 +1945,9 @@ function fillSetupForm(payload = {}, record = null) {
   if (setupPublicContactEmail) setupPublicContactEmail.value = payload.public_contact_email || payload.contact_email || "";
   if (setupPublicBusinessPhone) setupPublicBusinessPhone.value = payload.public_business_phone || payload.business_phone || "";
   if (setupServiceArea) setupServiceArea.value = payload.service_area || "";
+  if (setupReviewPlatformLabel) setupReviewPlatformLabel.value = payload.review_platform_label || "";
+  if (setupReviewLinkUrl) setupReviewLinkUrl.value = payload.review_link_url || "";
+  if (setupReferralMessage) setupReferralMessage.value = payload.referral_message || "";
   if (setupInstagram) setupInstagram.value = payload.instagram || "";
   if (setupFacebook) setupFacebook.value = payload.facebook || "";
   if (setupHoursNotes) setupHoursNotes.value = payload.hours_notes || "";
@@ -1558,6 +1971,9 @@ function collectSetupPayload(extra = {}) {
     public_contact_email: setupPublicContactEmail?.value?.trim() || "",
     public_business_phone: setupPublicBusinessPhone?.value?.trim() || "",
     service_area: setupServiceArea?.value?.trim() || "",
+    review_platform_label: setupReviewPlatformLabel?.value?.trim() || "",
+    review_link_url: setupReviewLinkUrl?.value?.trim() || "",
+    referral_message: setupReferralMessage?.value?.trim() || "",
     instagram: setupInstagram?.value?.trim().replace(/^@/, "") || "",
     facebook: setupFacebook?.value?.trim() || "",
     hours_notes: setupHoursNotes?.value?.trim() || "",
@@ -1597,6 +2013,7 @@ async function fetchOperatorSetup() {
   SETUP_STATE = data;
   fillSetupForm(data.config || {}, data.locked_record || data.tenant || {});
   applyWorkspaceBlueprint();
+  scheduleWorkspaceSnapshot("setup", 260);
   return data;
 }
 
@@ -1618,6 +2035,7 @@ async function saveOperatorSetup(extra = {}) {
   fillSetupForm(data.config || payload, SETUP_STATE?.locked_record || null);
   applyWorkspaceBlueprint();
   initBranding();
+  markWorkspaceClean("setup");
   setSetupMessage('Setup saved.', 'good');
   return data;
 }
@@ -1633,6 +2051,203 @@ async function uploadSetupAsset(file, slot = 'asset') {
   const { data } = sb.storage.from('product-images').getPublicUrl(key);
   if (!data?.publicUrl) throw new Error('Upload succeeded but no public URL returned.');
   return data.publicUrl;
+}
+
+function workspacePanels() {
+  return Array.from(viewApp?.querySelectorAll(".panel") || []);
+}
+function workspacePanel(tab) {
+  return viewApp?.querySelector(`.panel[data-panel="${tab}"]`) || null;
+}
+function serializeWorkspaceField(field) {
+  const type = String(field?.type || "").trim().toLowerCase();
+  if (type === "checkbox") return field.checked ? "1" : "0";
+  if (type === "radio") return field.checked ? String(field.value || "") : "";
+  if (type === "file") return Array.from(field.files || []).map((file) => `${file.name}:${file.size}`).join("|");
+  if (field?.multiple && "selectedOptions" in field) {
+    return Array.from(field.selectedOptions || []).map((option) => option.value).join("|");
+  }
+  return String(field?.value ?? "");
+}
+function serializeWorkspaceForm(form) {
+  const entries = [];
+  Array.from(form?.elements || []).forEach((field) => {
+    if (!field || field.disabled) return;
+    const key = String(field.name || field.id || "").trim();
+    if (!key) return;
+    const type = String(field.type || "").trim().toLowerCase();
+    if (type === "radio" && !field.checked) return;
+    entries.push([key, serializeWorkspaceField(field)]);
+  });
+  entries.sort((a, b) => a[0].localeCompare(b[0]));
+  return JSON.stringify(entries);
+}
+function serializeWorkspacePanel(tab) {
+  const panel = workspacePanel(tab);
+  if (!panel) return "";
+  return Array.from(panel.querySelectorAll("form"))
+    .map((form) => `${form.id || "form"}:${serializeWorkspaceForm(form)}`)
+    .join("||");
+}
+function setWorkspaceDirty(tab, dirty) {
+  if (!tab) return;
+  if (dirty) {
+    WORKSPACE_DIRTY_TABS.add(tab);
+  } else {
+    WORKSPACE_DIRTY_TABS.delete(tab);
+  }
+  const panel = workspacePanel(tab);
+  if (panel) panel.dataset.dirty = dirty ? "true" : "false";
+  renderWorkspaceHub();
+  updateWorkspaceWindowControls(tab);
+}
+function markWorkspaceClean(tab) {
+  if (!tab) return;
+  WORKSPACE_SNAPSHOT_BY_TAB.set(tab, serializeWorkspacePanel(tab));
+  setWorkspaceDirty(tab, false);
+}
+function scheduleWorkspaceSnapshot(tab, delay = 120) {
+  if (!tab) return;
+  const existing = WORKSPACE_SNAPSHOT_TIMERS.get(tab);
+  if (existing) window.clearTimeout(existing);
+  const timer = window.setTimeout(() => {
+    WORKSPACE_SNAPSHOT_TIMERS.delete(tab);
+    markWorkspaceClean(tab);
+  }, delay);
+  WORKSPACE_SNAPSHOT_TIMERS.set(tab, timer);
+}
+function updateWorkspaceDirtyState(tab) {
+  if (!tab) return;
+  const snapshot = WORKSPACE_SNAPSHOT_BY_TAB.get(tab);
+  const current = serializeWorkspacePanel(tab);
+  if (snapshot == null) {
+    WORKSPACE_SNAPSHOT_BY_TAB.set(tab, current);
+    setWorkspaceDirty(tab, false);
+    return;
+  }
+  setWorkspaceDirty(tab, current !== snapshot);
+}
+function workspaceExitMessage(tab) {
+  return `You have unsaved changes in ${workspaceTabLabel(tab, currentWorkspaceBlueprint())}. If you leave this window now, those edits will be lost.`;
+}
+function confirmWorkspaceChange(currentTab, nextTab) {
+  if (!currentTab || currentTab === nextTab) return true;
+  if (!WORKSPACE_DIRTY_TABS.has(currentTab)) return true;
+  return window.confirm(workspaceExitMessage(currentTab));
+}
+function updateWorkspaceWindowControls(tab) {
+  const panel = workspacePanel(tab);
+  if (!panel) return;
+  const collapseBtn = panel.querySelector('[data-workspace-action="collapse"]');
+  const closeBtn = panel.querySelector('[data-workspace-action="close"]');
+  if (collapseBtn) {
+    collapseBtn.textContent = panel.classList.contains("is-collapsed") ? "Expand" : "Collapse";
+  }
+  if (closeBtn) {
+    closeBtn.hidden = tab === "dashboard";
+  }
+}
+function setWorkspaceCollapsed(tab, collapsed) {
+  const panel = workspacePanel(tab);
+  if (!panel) return;
+  panel.classList.toggle("is-collapsed", !!collapsed);
+  updateWorkspaceWindowControls(tab);
+  renderWorkspaceHub();
+}
+function ensureWorkspaceWindowShell() {
+  workspacePanels().forEach((panel) => {
+    panel.classList.add("workspace-window");
+    const head = panel.querySelector(".panel-head");
+    if (!head) return;
+    if (!panel.querySelector(".workspace-window-body")) {
+      const body = document.createElement("div");
+      body.className = "workspace-window-body";
+      Array.from(panel.children)
+        .filter((child) => child !== head)
+        .forEach((child) => body.appendChild(child));
+      panel.appendChild(body);
+    }
+    let actions = head.querySelector(".panel-actions");
+    if (!actions) {
+      actions = document.createElement("div");
+      actions.className = "panel-actions";
+      head.appendChild(actions);
+    }
+    if (!actions.querySelector(".workspace-window-controls")) {
+      const controls = document.createElement("div");
+      controls.className = "workspace-window-controls";
+      controls.innerHTML = `
+        <button class="workspace-window-btn" type="button" data-workspace-action="collapse">Collapse</button>
+        <button class="workspace-window-btn is-close" type="button" data-workspace-action="close">Close</button>
+      `;
+      actions.appendChild(controls);
+      controls.querySelector('[data-workspace-action="collapse"]')?.addEventListener("click", () => {
+        setWorkspaceCollapsed(panel.dataset.panel, !panel.classList.contains("is-collapsed"));
+      });
+      controls.querySelector('[data-workspace-action="close"]')?.addEventListener("click", () => {
+        switchTab("dashboard");
+      });
+    }
+    updateWorkspaceWindowControls(panel.dataset.panel);
+  });
+}
+function bindWorkspaceDirtyTracking() {
+  if (!viewApp || viewApp.dataset.workspaceDirtyBound === "1") return;
+  viewApp.dataset.workspaceDirtyBound = "1";
+  viewApp.querySelectorAll(".panel form").forEach((form) => {
+    const tab = form.closest(".panel")?.dataset.panel || "";
+    if (!tab) return;
+    const handleChange = () => window.requestAnimationFrame(() => updateWorkspaceDirtyState(tab));
+    form.addEventListener("input", handleChange);
+    form.addEventListener("change", handleChange);
+  });
+  window.addEventListener("beforeunload", (event) => {
+    const active = document.querySelector(".tab.active")?.dataset.tab || panelFromLocation();
+    if (!WORKSPACE_DIRTY_TABS.has(active)) return;
+    event.preventDefault();
+    event.returnValue = "";
+  });
+}
+function renderWorkspaceHub() {
+  if (!workspaceHub) return;
+  ensureWorkspaceWindowShell();
+  const blueprint = currentWorkspaceBlueprint();
+  const activeTab = document.querySelector(".tab.active")?.dataset.tab || "dashboard";
+  const visibleTabs = Array.from(document.querySelectorAll('.tab:not([hidden])'))
+    .map((button) => button.dataset.tab)
+    .filter(Boolean);
+  workspaceHub.innerHTML = visibleTabs.map((tab) => {
+    const copy = workspacePanelCopy(tab, blueprint);
+    const panel = workspacePanel(tab);
+    const locked = isTabLockedInWorkspace(tab, blueprint);
+    const dirty = WORKSPACE_DIRTY_TABS.has(tab);
+    const active = tab === activeTab;
+    const collapsed = !!panel?.classList.contains("is-collapsed");
+    const status = dirty
+      ? "Unsaved"
+      : active
+        ? (collapsed ? "Collapsed" : "Open")
+        : (locked ? "Locked" : "Ready");
+    const meta = active ? "Current window" : (workspacePriorityTabs(blueprint).includes(tab) ? "Core workflow" : "Open workspace");
+    return `
+      <button
+        class="workspace-launch-card ${active ? "is-active" : ""} ${dirty ? "is-dirty" : ""} ${locked ? "is-locked" : ""}"
+        type="button"
+        data-workspace-launch="${escapeAttr(tab)}"
+      >
+        <div class="workspace-launch-card__meta">${escapeHtml(meta)}</div>
+        <div class="workspace-launch-card__title">${escapeHtml(copy.title)}</div>
+        <div class="workspace-launch-card__copy">${escapeHtml(copy.subtitle || "Open this workspace.")}</div>
+        <div class="workspace-launch-card__footer">
+          <span class="workspace-launch-card__status">${escapeHtml(status)}</span>
+          <span class="workspace-launch-card__open">${active ? "Working now" : "Open window"}</span>
+        </div>
+      </button>
+    `;
+  }).join("");
+  workspaceHub.querySelectorAll("[data-workspace-launch]").forEach((button) => {
+    button.addEventListener("click", () => switchTab(button.getAttribute("data-workspace-launch") || "dashboard"));
+  });
 }
 
 function normalizePanel(panel) {
@@ -1657,8 +2272,16 @@ function currentPanel() {
 }
 function switchTab(tab, opts = {}) {
   const nextTab = normalizePanel(tab);
+  const activeTab = document.querySelector(".tab.active")?.dataset.tab || "dashboard";
+  ensureWorkspaceWindowShell();
+  bindWorkspaceDirtyTracking();
+  if (!opts.force && !confirmWorkspaceChange(activeTab, nextTab)) {
+    if (opts.updateHash !== false) syncPanelHash(activeTab);
+    return false;
+  }
   document.querySelectorAll(".tab").forEach((b) => b.classList.toggle("active", b.dataset.tab === nextTab));
   document.querySelectorAll(".panel").forEach((p) => p.classList.toggle("hidden", p.dataset.panel !== nextTab));
+  setWorkspaceCollapsed(nextTab, false);
 
   if (nextTab === "money") renderMoney().catch(console.error);
   if (nextTab === "dashboard") renderDashboard();
@@ -1668,11 +2291,15 @@ function switchTab(tab, opts = {}) {
   if (nextTab === "jobs") renderJobs(jobSearch?.value || "");
   if (nextTab === "plans") renderPlans(planSearch?.value || "");
   if (nextTab === "customers") renderCustomersList(customerSearch?.value || "");
+  if (nextTab === "import") window.PROOFLINK_IMPORT_WORKSPACE?.render?.();
   if (nextTab === "payments") renderPayments();
   if (nextTab === "domains") window.renderDomains?.();
   if (nextTab === "setup") fetchOperatorSetup().catch((err) => setSetupMessage(err.message || String(err), "bad"));
   if (nextTab === "guidance") renderGuidance();
   if (opts.updateHash !== false) syncPanelHash(nextTab);
+  renderWorkspaceHub();
+  scheduleWorkspaceSnapshot(nextTab);
+  return true;
 }
 document.querySelectorAll(".tab").forEach((btn) => {
   btn.addEventListener("click", () => switchTab(btn.dataset.tab));
@@ -2230,10 +2857,11 @@ productForm?.addEventListener("submit", async (e) => {
       if (savedId) productId.value = savedId;
     }
 
-    if (savedId) await ensurePricingRow(savedId);
+      if (savedId) await ensurePricingRow(savedId);
 
-    if (productMsg) productMsg.textContent = "Saved.";
-    await fetchProducts();
+      if (productMsg) productMsg.textContent = "Saved.";
+      markWorkspaceClean("products");
+      await fetchProducts();
     renderProductsList(productSearch.value);
     await refreshPicklists();
     renderStartupChecklist();
@@ -2537,10 +3165,10 @@ btnUploadSetupHero?.addEventListener('click', async () => {
     if (setupHeroStatus) setupHeroStatus.textContent = err.message || String(err);
   }
 });
-[setupTagline, setupHeroHeading, setupHeroSubheading, setupAbout, setupLogoUrl, setupHeroImageUrl, setupPublicContactEmail, setupPublicBusinessPhone, setupServiceArea, setupInstagram, setupFacebook, setupHoursNotes, setupFulfillmentNotes, setupAccentColor].forEach((el) => {
+[setupTagline, setupHeroHeading, setupHeroSubheading, setupAbout, setupLogoUrl, setupHeroImageUrl, setupPublicContactEmail, setupPublicBusinessPhone, setupServiceArea, setupReviewPlatformLabel, setupReviewLinkUrl, setupReferralMessage, setupInstagram, setupFacebook, setupHoursNotes, setupFulfillmentNotes, setupAccentColor].forEach((el) => {
   el?.addEventListener('input', () => { if (setupPreviewWrap) setupPreviewWrap.innerHTML = setupPreviewHtml(collectSetupPayload(), SETUP_STATE?.locked_record || null); });
 });
-[setupShowPrices, setupAllowCustomRequests].forEach((el) => {
+[setupShowPrices, setupAllowCustomRequests, setupWorkspaceBusinessType].forEach((el) => {
   el?.addEventListener('change', () => { if (setupPreviewWrap) setupPreviewWrap.innerHTML = setupPreviewHtml(collectSetupPayload(), SETUP_STATE?.locked_record || null); });
 });
 
@@ -2563,25 +3191,109 @@ async function fetchExpenses() {
   EXPENSES_CACHE = data || [];
   return EXPENSES_CACHE;
 }
-function clearExpenseForm() {
+function renderExpenseCustomerOptions(selectedCustomerId = "") {
+  if (!expenseCustomerId) return;
+  const options = [`<option value="">No customer link</option>`];
+  sortedCustomers(CUSTOMERS_CACHE).forEach((customer) => {
+    options.push(`<option value="${escapeAttr(customer.id)}">${escapeHtml(customer.name || customer.email || "Customer")}</option>`);
+  });
+  expenseCustomerId.innerHTML = options.join("");
+  expenseCustomerId.value = selectedCustomerId || "";
+}
+function renderExpenseOrderOptions(selectedOrderId = "") {
+  if (!expenseOrderId) return;
+  const options = [`<option value="">No order link</option>`];
+  [...CRM_ORDERS_CACHE]
+    .sort((a, b) => new Date(b.updated_at || b.created_at || 0).getTime() - new Date(a.updated_at || a.created_at || 0).getTime())
+    .forEach((order) => {
+      const label = order.customer_name || order.cart_summary || "Tracked order";
+      options.push(`<option value="${escapeAttr(order.id)}">${escapeHtml(label)} - ${escapeHtml(formatUsd(orderTotalCents(order)))}</option>`);
+    });
+  expenseOrderId.innerHTML = options.join("");
+  expenseOrderId.value = selectedOrderId || "";
+}
+function renderExpenseJobOptions(selectedJobId = "") {
+  if (!expenseJobId) return;
+  const options = [`<option value="">No job link</option>`];
+  [...JOBS_CACHE]
+    .sort((a, b) => new Date(b.updated_at || b.created_at || 0).getTime() - new Date(a.updated_at || a.created_at || 0).getTime())
+    .forEach((job) => {
+      const customerName = customerById(job.customer_id)?.name || linkedOrderForJob(job)?.customer_name || "Job";
+      options.push(`<option value="${escapeAttr(job.id)}">${escapeHtml(job.title || customerName)} - ${escapeHtml(String(job.status || "scheduled").replace(/_/g, " "))}</option>`);
+    });
+  expenseJobId.innerHTML = options.join("");
+  expenseJobId.value = selectedJobId || "";
+}
+function clearExpenseForm(defaults = {}) {
   expenseId.value = "";
-  expenseDate.value = "";
+  expenseDate.value = defaults.date || "";
   expenseCategory.value = "";
   expenseVendor.value = "";
+  if (expenseType) expenseType.value = normalizeExpenseType(defaults.expense_type || "overhead");
   expenseDescription.value = "";
+  if (expenseNotes) expenseNotes.value = "";
   expenseAmount.value = "";
+  renderExpenseCustomerOptions(defaults.customer_id || "");
+  renderExpenseOrderOptions(defaults.order_id || "");
+  renderExpenseJobOptions(defaults.job_id || "");
+  if (expenseBillable) expenseBillable.checked = !!defaults.billable;
+  if (expenseReimbursable) expenseReimbursable.checked = !!defaults.reimbursable;
+  if (expenseChangeOrder) expenseChangeOrder.checked = !!defaults.change_order;
+  if (expenseLaborRole) expenseLaborRole.value = "";
+  if (expenseLaborHours) expenseLaborHours.value = "";
+  if (expenseLaborRate) expenseLaborRate.value = "";
+  if (expenseMaterialName) expenseMaterialName.value = "";
+  if (expenseMaterialQuantity) expenseMaterialQuantity.value = "";
+  if (expenseChangeOrderLabel) expenseChangeOrderLabel.value = "";
+  if (expenseChangeOrderNote) expenseChangeOrderNote.value = "";
+  if (expenseLeftoverNote) expenseLeftoverNote.value = "";
+  if (expenseWasteNote) expenseWasteNote.value = "";
+  updateExpenseTypeVisibility();
   if (expenseMsg) expenseMsg.textContent = "";
-  if (expenseFormTitle) expenseFormTitle.textContent = "New expense";
+  if (expenseFormTitle) expenseFormTitle.textContent = defaults.job_id || defaults.order_id ? "Log job cost" : "New expense";
 }
 function loadExpenseIntoForm(r) {
+  const labor = expenseLaborItem(r);
+  const material = expenseMaterialItems(r)[0] || null;
+  const changeOrder = expenseChangeOrderItem(r);
   expenseId.value = r.id;
-  expenseDate.value = r.date || "";
+  expenseDate.value = r.date || r.expense_date || "";
   expenseCategory.value = r.category || "";
   expenseVendor.value = r.vendor || "";
+  if (expenseType) expenseType.value = normalizeExpenseType(r.expense_type || "overhead");
   expenseDescription.value = r.description || r.notes || "";
+  if (expenseNotes) expenseNotes.value = r.notes || "";
   expenseAmount.value = money(r.amount_cents);
+  renderExpenseCustomerOptions(r.customer_id || "");
+  renderExpenseOrderOptions(r.order_id || "");
+  renderExpenseJobOptions(r.job_id || "");
+  if (expenseBillable) expenseBillable.checked = !!r.billable;
+  if (expenseReimbursable) expenseReimbursable.checked = !!r.reimbursable;
+  if (expenseChangeOrder) expenseChangeOrder.checked = !!changeOrder;
+  if (expenseLaborRole) expenseLaborRole.value = labor?.role || "";
+  if (expenseLaborHours) expenseLaborHours.value = labor?.hours || "";
+  if (expenseLaborRate) expenseLaborRate.value = labor?.rate_cents ? money(labor.rate_cents) : "";
+  if (expenseMaterialName) expenseMaterialName.value = material?.name || "";
+  if (expenseMaterialQuantity) expenseMaterialQuantity.value = material?.quantity || "";
+  if (expenseChangeOrderLabel) expenseChangeOrderLabel.value = changeOrder?.label || "";
+  if (expenseChangeOrderNote) expenseChangeOrderNote.value = changeOrder?.note || "";
+  if (expenseLeftoverNote) expenseLeftoverNote.value = material?.leftover_note || "";
+  if (expenseWasteNote) expenseWasteNote.value = material?.waste_note || "";
+  updateExpenseTypeVisibility();
   if (expenseMsg) expenseMsg.textContent = "";
   if (expenseFormTitle) expenseFormTitle.textContent = "Edit expense";
+}
+function openExpenseForJob(job) {
+  const order = linkedOrderForJob(job);
+  const defaults = {
+    date: todayDateValue(0),
+    expense_type: "job_cost",
+    customer_id: job?.customer_id || order?.customer_id || "",
+    order_id: order?.id || job?.order_id || "",
+    job_id: job?.id || "",
+  };
+  clearExpenseForm(defaults);
+  switchTab("expenses");
 }
 function renderExpenses(rows) {
   if (!expensesList) return;
@@ -2592,16 +3304,19 @@ function renderExpenses(rows) {
   }
 
   rows.forEach((r) => {
+    const linkedJob = JOBS_CACHE.find((job) => job.id === r.job_id) || null;
+    const linkedOrder = CRM_ORDERS_CACHE.find((order) => order.id === r.order_id) || null;
     const el = document.createElement("button");
     el.type = "button";
     el.className = "list-item";
     el.innerHTML = `
       <div class="li-main">
         <div class="li-title">${escapeHtml(r.category || "Expense")} - $${money(r.amount_cents)}</div>
-        <div class="li-sub muted">${escapeHtml(r.date || "")}  |  ${escapeHtml(r.vendor || "")}</div>
+        <div class="li-sub muted">${escapeHtml(r.date || r.expense_date || "")}  |  ${escapeHtml(r.vendor || "")}</div>
+        <div class="li-sub muted">${escapeHtml(costItemSummary(r))}${linkedJob ? ` | ${escapeHtml(linkedJob.title || "Job cost")}` : (linkedOrder ? ` | ${escapeHtml(linkedOrder.customer_name || linkedOrder.cart_summary || "Order cost")}` : "")}</div>
       </div>
       <div class="li-meta">
-        <span class="pill">${escapeHtml(r.description || r.notes || "")}</span>
+        <span class="pill ${expenseIsChangeOrder(r) ? "pill-warn" : ""}">${escapeHtml(r.description || r.notes || "")}</span>
       </div>
     `;
     el.addEventListener("click", () => loadExpenseIntoForm(r));
@@ -2623,14 +3338,24 @@ expenseForm?.addEventListener("submit", async (e) => {
   if (expenseMsg) expenseMsg.textContent = "Saving...";
 
   const id = expenseId.value || null;
+  const selectedJob = JOBS_CACHE.find((row) => row.id === expenseJobId?.value) || null;
+  const selectedOrder = CRM_ORDERS_CACHE.find((row) => row.id === (expenseOrderId?.value || selectedJob?.order_id || "")) || null;
+  const selectedCustomerId = expenseCustomerId?.value || selectedJob?.customer_id || selectedOrder?.customer_id || "";
   const payload = withTenantScope({
     operator_id: opId(),
     date: expenseDate.value,
     expense_date: expenseDate.value,
     category: preferExisting(expenseCategory.value, PICK_EXPENSE_CATEGORIES),
     vendor: preferExisting(expenseVendor.value, PICK_VENDORS),
+    expense_type: normalizeExpenseType(expenseType?.value || "overhead"),
+    customer_id: selectedCustomerId || null,
+    order_id: selectedOrder?.id || null,
+    job_id: selectedJob?.id || null,
+    billable: !!expenseBillable?.checked,
+    reimbursable: !!expenseReimbursable?.checked,
+    used_materials: buildExpenseSupplementalItems(),
     description: expenseDescription.value.trim(),
-    notes: expenseDescription.value.trim(),
+    notes: expenseNotes?.value?.trim() || expenseDescription.value.trim(),
     amount_cents: toCents(expenseAmount.value),
     updated_at: new Date().toISOString(),
   });
@@ -2641,12 +3366,15 @@ expenseForm?.addEventListener("submit", async (e) => {
       : sb.from("expenses").insert({ ...payload, created_at: new Date().toISOString() });
 
     const { error } = await q;
-    if (error) throw error;
+      if (error) throw error;
 
-    if (expenseMsg) expenseMsg.textContent = "Saved.";
-    renderExpenses(await fetchExpenses());
+      if (expenseMsg) expenseMsg.textContent = "Saved.";
+      markWorkspaceClean("expenses");
+      renderExpenses(await fetchExpenses());
     await refreshPicklists();
     renderStartupChecklist();
+    renderJobs(jobSearch?.value || "");
+    renderMoney().catch(console.error);
   } catch (err) {
     if (expenseMsg) expenseMsg.textContent = err.message || String(err);
   }
@@ -2660,9 +3388,31 @@ btnDeleteExpense?.addEventListener("click", async () => {
     renderExpenses(await fetchExpenses());
     await refreshPicklists();
     renderStartupChecklist();
+    renderJobs(jobSearch?.value || "");
+    renderMoney().catch(console.error);
   } catch (err) {
     if (expenseMsg) expenseMsg.textContent = err.message || String(err);
   }
+});
+expenseOrderId?.addEventListener("change", () => {
+  const order = CRM_ORDERS_CACHE.find((row) => row.id === expenseOrderId.value) || null;
+  if (!order) return;
+  renderExpenseCustomerOptions(order.customer_id || "");
+});
+expenseJobId?.addEventListener("change", () => {
+  const job = JOBS_CACHE.find((row) => row.id === expenseJobId.value) || null;
+  const order = linkedOrderForJob(job);
+  if (!job) return;
+  renderExpenseOrderOptions(order?.id || job.order_id || "");
+  renderExpenseCustomerOptions(job.customer_id || order?.customer_id || "");
+});
+expenseType?.addEventListener("change", () => {
+  updateExpenseTypeVisibility();
+  syncExpenseLaborAmount();
+});
+expenseChangeOrder?.addEventListener("change", updateExpenseTypeVisibility);
+[expenseLaborHours, expenseLaborRate].forEach((el) => {
+  el?.addEventListener("input", syncExpenseLaborAmount);
 });
 
 const AVAILABILITY_TIMEZONES = [
@@ -3222,10 +3972,11 @@ btnSaveAvailability?.addEventListener("click", async () => {
     if (availabilityMsg) availabilityMsg.textContent = "Saving...";
     const payload = collectAvailabilityFromForm();
     const { error } = await sb.from("availability").upsert(payload, { onConflict: `${TENANT_COLUMN},${OPERATOR_COLUMN}` });
-    if (error) throw error;
-    AVAILABILITY = normalizeAvailability(payload);
-    renderAvailability();
-    if (availabilityMsg) availabilityMsg.textContent = "Availability saved.";
+      if (error) throw error;
+      AVAILABILITY = normalizeAvailability(payload);
+      renderAvailability();
+      markWorkspaceClean("availability");
+      if (availabilityMsg) availabilityMsg.textContent = "Availability saved.";
   } catch (err) {
     if (availabilityMsg) availabilityMsg.textContent = err.message || String(err);
   }
@@ -3966,7 +4717,7 @@ function clearPaymentForm(options = {}) {
   const defaultOrderId = options.orderId ?? (preferredOrder?.customer_id === defaultCustomerId ? preferredOrder?.id || "" : "");
 
   ACTIVE_PAYMENT_ID = null;
-  if (paymentFormTitle) paymentFormTitle.textContent = "Manual payment entry";
+  if (paymentFormTitle) paymentFormTitle.textContent = options.title || "Manual payment entry";
   if (paymentId) paymentId.value = "";
   if (paymentJobId) paymentJobId.value = options.jobId || "";
   renderPaymentCustomerOptions(defaultCustomerId);
@@ -4042,16 +4793,17 @@ customerForm?.addEventListener("submit", async (e) => {
   setInlineMessage(customerMsg, "Saving...");
 
   try {
-    await saveCustomerRecord({
-      id: customerId?.value || null,
-      name: customerName?.value,
-      email: customerEmail?.value,
-      phone: customerPhone?.value,
-      preferred_contact: customerPreferredContact?.value,
-      notes: customerNotes?.value,
-    });
-    setInlineMessage(customerMsg, "Customer saved.", "ok");
-  } catch (err) {
+      await saveCustomerRecord({
+        id: customerId?.value || null,
+        name: customerName?.value,
+        email: customerEmail?.value,
+        phone: customerPhone?.value,
+        preferred_contact: customerPreferredContact?.value,
+        notes: customerNotes?.value,
+      });
+      markWorkspaceClean("customers");
+      setInlineMessage(customerMsg, "Customer saved.", "ok");
+    } catch (err) {
     setInlineMessage(customerMsg, err.message || String(err), "error");
   }
 });
@@ -4174,11 +4926,12 @@ paymentForm?.addEventListener("submit", async (e) => {
     renderJobs(jobSearch?.value || "");
     renderCustomersList(customerSearch?.value || "");
     renderDashboard();
-    renderMoney().catch(console.error);
-    renderGuidance();
-    if (ACTIVE_CUSTOMER_ID) renderCustomerDetail(ACTIVE_CUSTOMER_ID).catch(console.error);
-    setInlineMessage(paymentMsg, "Payment saved.", "ok");
-  } catch (err) {
+      renderMoney().catch(console.error);
+      renderGuidance();
+      if (ACTIVE_CUSTOMER_ID) renderCustomerDetail(ACTIVE_CUSTOMER_ID).catch(console.error);
+      markWorkspaceClean("payments");
+      setInlineMessage(paymentMsg, "Payment saved.", "ok");
+    } catch (err) {
     setInlineMessage(paymentMsg, err.message || String(err), "error");
   }
 });
@@ -4193,6 +4946,7 @@ leadForm?.addEventListener("submit", async (e) => {
   setInlineMessage(leadMsg, "Saving...");
   try {
     await saveLeadRecord();
+    markWorkspaceClean("leads");
     setInlineMessage(leadMsg, "Lead saved.", "ok");
   } catch (err) {
     setInlineMessage(leadMsg, err.message || String(err), "error");
@@ -4245,6 +4999,7 @@ jobForm?.addEventListener("submit", async (e) => {
   setInlineMessage(jobMsg, "Saving...");
   try {
     await saveJobRecord();
+    markWorkspaceClean("jobs");
     setInlineMessage(jobMsg, "Job saved.", "ok");
   } catch (err) {
     setInlineMessage(jobMsg, err.message || String(err), "error");
@@ -4295,6 +5050,7 @@ planForm?.addEventListener("submit", async (e) => {
   setInlineMessage(planMsg, "Saving...");
   try {
     await saveServicePlanRecord();
+    markWorkspaceClean("plans");
     setInlineMessage(planMsg, "Recurring plan saved.", "ok");
   } catch (err) {
     setInlineMessage(planMsg, err.message || String(err), "error");
@@ -5891,8 +6647,13 @@ async function convertBidToTrackedOrder() {
     const { data, error } = await sb.rpc("create_order_from_bid", { p_bid_id: recordId });
     if (!error) {
       await Promise.all([fetchCrmOrders(), fetchCustomers(), fetchPayments(), fetchLeads(), fetchJobs(), loadPersistedBids()]);
-      const order = CRM_ORDERS_CACHE.find((row) => row.id === data?.order_id) || await existingOrderForBidId(recordId);
+      let order = CRM_ORDERS_CACHE.find((row) => row.id === data?.order_id) || await existingOrderForBidId(recordId);
       if (!order) throw new Error("The bid converted, but the tracked order could not be reloaded.");
+      order = await seedOrderDepositDefaults(order, {
+        depositRequiredCents: totals.deposit,
+        depositPolicy: totals.deposit > 0 ? "required_before_job" : "optional",
+        depositDueDate: baseDraft.valid_until || order.payment_due_date || null,
+      });
       ACTIVE_ORDER_ID = order.id;
       const refreshedDraft = findBidRecordById(recordId) || currentBid() || baseDraft;
       renderOrders();
@@ -5934,6 +6695,11 @@ async function convertBidToTrackedOrder() {
   });
   const { data, error } = await sb.from("orders").insert(payload).select("*").single();
   if (error) throw error;
+  const orderWithDepositDefaults = await seedOrderDepositDefaults(data, {
+    depositRequiredCents: totals.deposit,
+    depositPolicy: totals.deposit > 0 ? "required_before_job" : "optional",
+    depositDueDate: baseDraft.valid_until || null,
+  });
 
   await sb.from("customer_interactions").insert(withTenantScope({
     operator_id: opId(),
@@ -5942,19 +6708,19 @@ async function convertBidToTrackedOrder() {
     summary: `Converted walkthrough bid into tracked order for ${formatUsd(totals.total)}`,
     metadata: {
       bid_id: baseDraft.id,
-      order_id: data.id,
+      order_id: orderWithDepositDefaults.id,
       status,
       service_address: baseDraft.service_address || null,
     },
     created_at: nowIso,
   }));
 
-  ACTIVE_ORDER_ID = data.id;
+  ACTIVE_ORDER_ID = orderWithDepositDefaults.id;
   if (recordId) {
     await Promise.allSettled([
       sb.from("bids")
         .update({
-          converted_order_id: data.id,
+          converted_order_id: orderWithDepositDefaults.id,
           converted_at: nowIso,
           status: String(baseDraft.status || "").toLowerCase() === "approved" ? "converted" : (baseDraft.status || "draft"),
           updated_at: nowIso,
@@ -5965,7 +6731,7 @@ async function convertBidToTrackedOrder() {
       baseDraft.lead_id
         ? sb.from("leads")
           .update({
-            converted_order_id: data.id,
+            converted_order_id: orderWithDepositDefaults.id,
             status: "converted",
             last_activity_at: nowIso,
             updated_at: nowIso,
@@ -5978,7 +6744,7 @@ async function convertBidToTrackedOrder() {
   }
   const nextDraft = {
     ...baseDraft,
-    converted_order_id: data.id,
+    converted_order_id: orderWithDepositDefaults.id,
     converted_at: nowIso,
     updated_at: nowIso,
   };
@@ -5989,7 +6755,7 @@ async function convertBidToTrackedOrder() {
   renderDashboard();
   renderGuidance();
   renderMoney().catch(console.error);
-  return { order: data, draft: nextDraft, existed: false };
+  return { order: orderWithDepositDefaults, draft: nextDraft, existed: false };
 }
 function fileToDataUrl(file) {
   return new Promise((resolve, reject) => {
@@ -6100,14 +6866,15 @@ bidForm?.addEventListener("submit", async (e) => {
   }
   try {
     const syncedDraft = await flushBidDraftSync({ throwOnError: true });
-    if (syncedDraft) {
-      await loadPersistedBids();
-      const refreshed = currentBid() || syncedDraft;
-      renderBidWorkspace(refreshed, { preserveForm: true });
-      renderBidList(bidSearch?.value || "");
-    }
-    setInlineMessage(bidMsg, "Bid saved.", "ok");
-  } catch (err) {
+      if (syncedDraft) {
+        await loadPersistedBids();
+        const refreshed = currentBid() || syncedDraft;
+        renderBidWorkspace(refreshed, { preserveForm: true });
+        renderBidList(bidSearch?.value || "");
+      }
+      markWorkspaceClean("bids");
+      setInlineMessage(bidMsg, "Bid saved.", "ok");
+    } catch (err) {
     setInlineMessage(bidMsg, err.message || String(err), "error");
   }
 });
@@ -6382,6 +7149,18 @@ function queueBrandLines() {
   const brand = bidBrandContext();
   return [brand.tenantName, brand.contactEmail || null, brand.phone || null].filter(Boolean);
 }
+function reviewPlatformLabel() {
+  const configured = String(SETUP_STATE?.config?.review_platform_label || "").trim();
+  if (configured) return configured;
+  return reviewLinkUrl() ? "Google" : "Review";
+}
+function reviewLinkUrl() {
+  return cleanUrl(SETUP_STATE?.config?.review_link_url || "");
+}
+function reviewReferralMessage() {
+  const configured = String(SETUP_STATE?.config?.referral_message || "").trim();
+  return configured || "If someone else comes to mind who needs this kind of help, we would be grateful if you shared our name.";
+}
 function queueFollowUpItem(item) {
   const recordId = String(item.recordId || item.targetId || item.customerId || "").trim();
   if (!recordId) return null;
@@ -6397,6 +7176,7 @@ function queueFollowUpItem(item) {
     phone: queued.contactPhone,
     preferred: queued.preferredContact,
   });
+  queued.reviewLinkUrl = cleanUrl(queued.reviewLinkUrl || "");
   queued.canSend = Boolean(queued.channel === "email" && queued.contactEmail && queued.customerId);
   return queued;
 }
@@ -6501,6 +7281,7 @@ function paymentReminderQueueItems() {
   const brandLines = queueBrandLines();
   return [...CRM_ORDERS_CACHE]
     .filter((row) => !["new", "quoted", "cancelled"].includes(String(row.status || "").toLowerCase()))
+    .filter((row) => !orderDepositBlocksJob(row))
     .filter((row) => ["unpaid", "partially_paid", "overdue"].includes(orderPaymentState(row)) && orderAmountDueCents(row) > 0)
     .sort((a, b) => {
       const stateA = orderPaymentState(a) === "overdue" ? 0 : 1;
@@ -6550,8 +7331,59 @@ function paymentReminderQueueItems() {
     })
     .filter(Boolean);
 }
+function depositReminderQueueItems() {
+  const brandLines = queueBrandLines();
+  return [...CRM_ORDERS_CACHE]
+    .filter((row) => !["new", "quoted", "cancelled", "paid"].includes(String(row.status || "").toLowerCase()))
+    .filter((row) => orderDepositBlocksJob(row))
+    .sort((a, b) => new Date(orderDepositDueDate(a) || a.created_at || 0).getTime() - new Date(orderDepositDueDate(b) || b.created_at || 0).getTime())
+    .map((order) => {
+      const customer = customerById(order.customer_id);
+      if (!customer || customerTouchedRecently(customer, 24)) return null;
+      const contactEmail = customer.email || order.email || "";
+      const contactPhone = customer.phone || order.phone || "";
+      if (!contactEmail && !contactPhone) return null;
+      const preferredContact = customer.preferred_contact || order.preferred_contact || "email";
+      const channel = followUpChannel({ email: contactEmail, phone: contactPhone, preferred: preferredContact });
+      const depositGap = orderDepositGapCents(order);
+      return queueFollowUpItem({
+        kind: "deposit_reminder",
+        priority: orderDepositStatus(order) === "overdue" ? 5 : 15,
+        tab: "orders",
+        targetId: order.id,
+        recordId: order.id,
+        customerId: customer.id,
+        orderId: order.id,
+        customerName: customer.name || order.customer_name || "Customer",
+        contactName: customer.name || order.customer_name || "there",
+        contactEmail,
+        contactPhone,
+        preferredContact,
+        channel,
+        title: `Collect the deposit from ${customer.name || order.customer_name || "this customer"}`,
+        detail: `${formatDepositStatus(orderDepositStatus(order))} | ${formatUsd(depositGap)} still needed`,
+        reason: `This reminder only appears while the required deposit is still open. ${followUpCooldownLabel("deposit_reminder")}`,
+        subject: `${bidBrandContext().tenantName}: deposit needed before scheduling`,
+        message: [
+          channel === "phone" ? `Call script for ${customer.name || order.customer_name || "this customer"}:` : `Hi ${customer.name || order.customer_name || "there"},`,
+          channel === "phone" ? "" : ``,
+          `Before we lock in the work, we still need the deposit of ${formatUsd(depositGap)} for ${order.cart_summary || "your service visit"}.`,
+          orderDepositDueDate(order) ? `The deposit is currently due on ${formatDateOnly(orderDepositDueDate(order))}.` : null,
+          channel === "phone"
+            ? `Confirm when the deposit will be handled, or whether the customer needs anything clarified before paying it.`
+            : `If you need anything clarified before handling the deposit, just reply and we will help.`,
+          channel === "phone" ? "" : ``,
+          ...brandLines,
+        ].filter(Boolean).join("\n"),
+      });
+    })
+    .filter(Boolean);
+}
 function reviewRequestQueueItems() {
   const brandLines = queueBrandLines();
+  const reviewUrl = reviewLinkUrl();
+  const platformLabel = reviewPlatformLabel();
+  const referralMessage = reviewReferralMessage();
   return [...CRM_ORDERS_CACHE]
     .filter((row) => ["fulfilled", "completed", "paid"].includes(String(row.status || "").toLowerCase()))
     .filter((row) => orderPaymentState(row) === "paid")
@@ -6584,26 +7416,38 @@ function reviewRequestQueueItems() {
         contactPhone,
         preferredContact,
         channel,
-        title: `Ask ${customer.name || order.customer_name || "this customer"} for feedback`,
-        detail: `${order.cart_summary || "Completed work"} | Paid and closed`,
+        title: reviewUrl
+          ? `Ask ${customer.name || order.customer_name || "this customer"} for a ${platformLabel} review`
+          : `Ask ${customer.name || order.customer_name || "this customer"} for feedback`,
+        detail: `${order.cart_summary || "Completed work"} | Paid and closed${reviewUrl ? ` | ${platformLabel} link ready` : ""}`,
         reason: `Only queued after paid work and only once per week. ${followUpCooldownLabel("review_request")}`,
         subject: `${bidBrandContext().tenantName}: thank you for the opportunity`,
         message: [
           channel === "phone" ? `Call script for ${customer.name || order.customer_name || "this customer"}:` : `Hi ${customer.name || order.customer_name || "there"},`,
           channel === "phone" ? "" : ``,
           `Thank you again for trusting ${bidBrandContext().tenantName} with ${order.cart_summary || "your project"}.`,
-          channel === "phone"
-            ? `If everything looks good, ask for quick feedback or a review while the work is still fresh.`
-            : `If everything looks good, we would really appreciate a quick reply with feedback or a review.`,
+          reviewUrl
+            ? (channel === "phone"
+              ? `If everything looks good, ask whether they would be comfortable leaving a quick ${platformLabel} review here: ${reviewUrl}`
+              : `If everything looks good, we would really appreciate a quick ${platformLabel} review here: ${reviewUrl}`)
+            : (channel === "phone"
+              ? `If everything looks good, ask for quick feedback or a review while the work is still fresh.`
+              : `If everything looks good, we would really appreciate a quick reply with feedback or a review.`),
+          referralMessage,
           channel === "phone" ? "" : ``,
           ...brandLines,
         ].filter(Boolean).join("\n"),
+        reviewLinkUrl: reviewUrl,
+        reviewLinkLabel: `Leave a ${platformLabel} review`,
+        ctaLabel: reviewUrl ? `Leave a ${platformLabel} review` : "",
+        ctaUrl: reviewUrl,
       });
     })
     .filter(Boolean);
 }
 function buildFollowUpQueue() {
   return [
+    ...depositReminderQueueItems(),
     ...paymentReminderQueueItems(),
     ...leadFollowUpQueueItems(),
     ...quoteFollowUpQueueItems(),
@@ -6618,6 +7462,14 @@ function buildFollowUpQueue() {
 }
 function todayActionItems() {
   const actions = [];
+  if (!CUSTOMERS_CACHE.length && !CRM_ORDERS_CACHE.length && !PAYMENTS_CACHE.length) {
+    actions.push({
+      tab: "import",
+      title: "Bring your old system into ProofLink",
+      detail: "Upload customers, open work, and payment history from CSV in one guided switch flow.",
+      targetId: "",
+    });
+  }
   const staleLead = [...staleLeads()].sort((a, b) => leadLastTouchedAt(a) - leadLastTouchedAt(b))[0] || null;
   const duePlan = [...dueServicePlans()].sort((a, b) => servicePlanNextRunTime(a) - servicePlanNextRunTime(b))[0] || null;
   const depositRiskOrder = [...ordersMissingDeposits()].sort((a, b) => orderDepositGapCents(b) - orderDepositGapCents(a))[0] || null;
@@ -6698,6 +7550,8 @@ async function sendQueuedFollowUp(item) {
     message: item.message,
     contact_email: item.contactEmail,
     contact_name: item.contactName,
+    cta_label: item.ctaLabel || null,
+    cta_url: item.ctaUrl || null,
   });
   await fetchCustomers();
   setFollowUpQueueMessage(
@@ -6925,6 +7779,21 @@ async function renderJobDetail(jobIdValue) {
     return;
   }
   const order = linkedOrderForJob(job);
+  const depositStatus = orderDepositStatus(order);
+  const revenueCents = jobRevenueCents(job, order);
+  const costCents = jobTrackedCostCents(job, order);
+  const grossProfitCents = jobGrossProfitCents(job, order);
+  const marginRatio = jobMarginRatio(job, order);
+  const trackedExpenses = trackedJobExpenses(job, order);
+  const laborCostCents = trackedExpenses.filter((expense) => normalizeExpenseType(expense.expense_type) === "labor" || expenseHasLaborDetail(expense))
+    .reduce((sum, expense) => sum + expenseAmountCents(expense), 0);
+  const laborHours = trackedExpenses.reduce((sum, expense) => sum + expenseLaborHoursValue(expense), 0);
+  const materialCostCents = trackedExpenses.filter((expense) => normalizeExpenseType(expense.expense_type) === "material" || expenseHasMaterialDetail(expense))
+    .reduce((sum, expense) => sum + expenseAmountCents(expense), 0);
+  const changeOrderCostCents = trackedExpenses.filter((expense) => expenseIsChangeOrder(expense))
+    .reduce((sum, expense) => sum + expenseAmountCents(expense), 0);
+  const leftoverNotes = uniqList(trackedExpenses.flatMap((expense) => expenseLeftoverNotes(expense))).slice(0, 3);
+  const wasteNotes = uniqList(trackedExpenses.flatMap((expense) => expenseWasteNotes(expense))).slice(0, 3);
   jobDetailWrap.innerHTML = `
     <div class="detail-card">
       <div class="kicker">Execution summary</div>
@@ -6932,7 +7801,30 @@ async function renderJobDetail(jobIdValue) {
       <div class="detail-copy">Status: ${escapeHtml(String(job.status || "scheduled").replace(/_/g, " "))}</div>
       <div class="detail-copy">Scheduled: ${escapeHtml(String(job.scheduled_date || "No date"))} | ${escapeHtml(String(job.scheduled_time || "No time"))}</div>
       <div class="detail-copy">Payment: <span class="pill ${paymentStateClass(job.payment_state || orderPaymentState(order))}">${escapeHtml(formatWorkflowPaymentState(job.payment_state || orderPaymentState(order)))}</span></div>
+      ${order ? `<div class="detail-copy">Deposit: <span class="pill ${depositStatusClass(depositStatus)}">${escapeHtml(formatDepositStatus(depositStatus))}</span>${orderDepositGapCents(order) > 0 ? ` | ${formatUsd(orderDepositGapCents(order))} still open` : ""}</div>` : ""}
       <div class="detail-copy">Due: ${formatUsd(Number(job.amount_due_cents || orderAmountDueCents(order) || 0))}</div>
+    </div>
+    <div class="detail-card" style="margin-top:14px;">
+      <div class="kicker">Job economics</div>
+      <div class="workspace-chip-row">
+        <span class="pill">Revenue ${escapeHtml(formatUsd(revenueCents))}</span>
+        <span class="pill">Tracked cost ${escapeHtml(formatUsd(costCents))}</span>
+        <span class="pill ${grossProfitToneClass(grossProfitCents)}">Gross profit ${escapeHtml(formatUsd(grossProfitCents))}</span>
+        <span class="pill ${marginToneClass(marginRatio)}">Margin ${escapeHtml(formatPercent(marginRatio))}</span>
+      </div>
+      <div class="detail-copy">${trackedExpenses.length ? `${trackedExpenses.length} linked job cost${trackedExpenses.length === 1 ? "" : "s"} are shaping this margin right now.` : "No linked job costs yet. Log labor, materials, or vendor spend against this job to make the margin real."}</div>
+      ${trackedExpenses.length ? `
+        <div class="workspace-chip-row">
+          <span class="pill">Labor ${escapeHtml(formatUsd(laborCostCents))}${laborHours > 0 ? ` • ${escapeHtml(String(Number(laborHours.toFixed(2))))}h` : ""}</span>
+          <span class="pill">Materials ${escapeHtml(formatUsd(materialCostCents))}</span>
+          ${changeOrderCostCents > 0 ? `<span class="pill pill-warn">Change-order cost ${escapeHtml(formatUsd(changeOrderCostCents))}</span>` : ``}
+        </div>
+      ` : ``}
+      ${leftoverNotes.length ? `<div class="detail-copy">Leftovers: ${escapeHtml(leftoverNotes.join(" | "))}</div>` : ``}
+      ${wasteNotes.length ? `<div class="detail-copy">Waste / overage: ${escapeHtml(wasteNotes.join(" | "))}</div>` : ``}
+      <div class="row" style="margin-top:12px;">
+        <button type="button" class="btn btn-ghost" data-job-cost-action="log" data-job-id="${escapeAttr(job.id)}">Log job cost</button>
+      </div>
     </div>
     <div class="detail-card" style="margin-top:14px;">
       <div class="kicker">Linked work</div>
@@ -6941,6 +7833,7 @@ async function renderJobDetail(jobIdValue) {
       <div class="detail-copy">${escapeHtml(job.service_address || "No service address recorded")}</div>
     </div>
   `;
+  jobDetailWrap.querySelector('[data-job-cost-action="log"]')?.addEventListener("click", () => openExpenseForJob(job));
   if (btnJobOpenOrder) btnJobOpenOrder.disabled = !job.order_id;
   if (btnJobRecordPayment) btnJobRecordPayment.disabled = !job.order_id;
 }
@@ -6979,6 +7872,7 @@ function renderJobs(filter = "") {
     const customer = CUSTOMERS_CACHE.find((customerRow) => customerRow.id === row.customer_id) || null;
     const customerLabel = customer?.name || order?.customer_name || "Unlinked customer";
     const paymentState = row.payment_state || orderPaymentState(order);
+    const marginRatio = jobMarginRatio(row, order);
     return `
       <button type="button" class="list-item ${row.id === active.id ? "is-active" : ""}" data-job-id="${escapeAttr(row.id)}">
         <div class="li-main">
@@ -6986,6 +7880,7 @@ function renderJobs(filter = "") {
           <div class="li-sub muted">${escapeHtml(customerLabel)}</div>
           <div class="li-sub muted">${escapeHtml(String(row.status || "scheduled").replace(/_/g, " "))} | ${escapeHtml(String(row.scheduled_date || "No date"))}</div>
           <div class="li-sub muted">${escapeHtml(row.service_address || "No service address")}</div>
+          <div class="li-sub muted">Revenue ${escapeHtml(formatUsd(jobRevenueCents(row, order)))} | Cost ${escapeHtml(formatUsd(jobTrackedCostCents(row, order)))} | Margin ${escapeHtml(formatPercent(marginRatio))}</div>
         </div>
         <div class="li-meta">
           <span class="pill ${paymentStateClass(paymentState)}">${escapeHtml(formatWorkflowPaymentState(paymentState))}</span>
@@ -7311,8 +8206,15 @@ async function runServicePlanRecord(plan, options = {}) {
     throw error;
   }
   await Promise.all([fetchServicePlans(), fetchCrmOrders(), fetchJobs(), fetchPayments()]);
-  const order = CRM_ORDERS_CACHE.find((row) => row.id === data?.order_id) || null;
-  if (order) ACTIVE_ORDER_ID = order.id;
+  let order = CRM_ORDERS_CACHE.find((row) => row.id === data?.order_id) || null;
+  if (order) {
+    order = await seedOrderDepositDefaults(order, {
+      depositRequiredCents: Number(order.deposit_required_cents || plan.deposit_required_cents || 0),
+      depositPolicy: Number(order.deposit_required_cents || plan.deposit_required_cents || 0) > 0 ? "required_before_job" : "optional",
+      depositDueDate: order.scheduled_date || order.payment_due_date || plan.next_run_on || null,
+    });
+    ACTIVE_ORDER_ID = order.id;
+  }
   if (data?.job_id) ACTIVE_JOB_ID = data.job_id;
   ACTIVE_PLAN_ID = plan.id;
   renderPlans(planSearch?.value || "");
@@ -7331,6 +8233,21 @@ async function runDueServicePlans() {
   });
   if (!error) {
     await Promise.all([fetchServicePlans(), fetchCrmOrders(), fetchJobs(), fetchPayments()]);
+    const duePlanIds = new Set(due.map((plan) => plan.id));
+    await Promise.allSettled(
+      SERVICE_PLANS_CACHE
+        .filter((plan) => duePlanIds.has(plan.id) && plan.last_generated_order_id)
+        .map((plan) => {
+          const order = CRM_ORDERS_CACHE.find((row) => row.id === plan.last_generated_order_id) || null;
+          if (!order) return null;
+          return seedOrderDepositDefaults(order, {
+            depositRequiredCents: Number(order.deposit_required_cents || plan.deposit_required_cents || 0),
+            depositPolicy: Number(order.deposit_required_cents || plan.deposit_required_cents || 0) > 0 ? "required_before_job" : "optional",
+            depositDueDate: order.scheduled_date || order.payment_due_date || plan.next_run_on || null,
+          });
+        })
+        .filter(Boolean)
+    );
     renderPlans(planSearch?.value || "");
     renderOrders();
     renderJobs(jobSearch?.value || "");
@@ -7475,6 +8392,7 @@ async function createBidFromLeadRecord(lead, options = {}) {
 async function saveJobRecord(fields = {}) {
   const nowIso = new Date().toISOString();
   const linkedOrder = CRM_ORDERS_CACHE.find((row) => row.id === (fields.order_id || jobOrderId?.value || ""));
+  if (linkedOrder) assertOrderAllowsJobCreation(linkedOrder);
   const payload = withTenantScope({
     operator_id: opId(),
     order_id: fields.order_id || jobOrderId?.value || null,
@@ -7506,6 +8424,7 @@ async function saveJobRecord(fields = {}) {
 }
 async function createJobFromOrderRecord(order) {
   if (!order?.id) throw new Error("Select an order before creating a job.");
+  assertOrderAllowsJobCreation(order);
   const existingJob = JOBS_CACHE.find((row) => row.order_id === order.id || row.id === order.primary_job_id) || null;
   if (existingJob) return { job: existingJob, existing: true };
 
@@ -7710,6 +8629,13 @@ function renderDashboard() {
     </div>
 
     <div class="dashboard-quick-actions">
+      ${(!CUSTOMERS_CACHE.length && !CRM_ORDERS_CACHE.length && !PAYMENTS_CACHE.length) ? `
+        <button type="button" class="dashboard-quick-action" data-dashboard-action="import">
+          <div class="kicker">Quick start</div>
+          <strong>Switch from the old system</strong>
+          <div class="detail-copy">Upload customers, live work, and payment history without retyping the office.</div>
+        </button>
+      ` : ""}
       <button type="button" class="dashboard-quick-action" data-dashboard-action="new-lead">
         <div class="kicker">Quick start</div>
         <strong>Capture a lead</strong>
@@ -7771,14 +8697,17 @@ function renderDashboard() {
                 <div class="kicker">${escapeHtml(item.kindLabel)}</div>
                 <strong>${escapeHtml(item.title)}</strong>
               </div>
-              <span class="pill ${item.kind === "payment_reminder" ? "pill-bad" : (item.kind === "review_request" ? "pill-on" : "")}">${escapeHtml(item.channel === "email" ? "Email ready" : "Call script ready")}</span>
+              <span class="pill ${["payment_reminder", "deposit_reminder"].includes(item.kind) ? "pill-bad" : (item.kind === "review_request" ? "pill-on" : "")}">${escapeHtml(item.channel === "email" ? "Email ready" : "Call script ready")}</span>
             </div>
             <div class="detail-copy">${escapeHtml(item.detail)}</div>
             <div class="follow-up-card__reason">${escapeHtml(item.reason)}</div>
             <div class="follow-up-card__contact">${escapeHtml(item.customerName || item.contactName || "Customer")}${item.contactEmail ? ` &middot; ${escapeHtml(item.contactEmail)}` : ""}${item.contactPhone ? ` &middot; ${escapeHtml(item.contactPhone)}` : ""}</div>
+            ${item.reviewLinkUrl ? `<div class="workspace-chip-row"><span class="pill pill-on">${escapeHtml(item.reviewLinkLabel || "Review link ready")}</span></div>` : ""}
             <div class="follow-up-card__actions">
               <button type="button" class="btn btn-primary btn-sm" data-follow-up-action="copy" data-follow-up-index="${escapeAttr(index)}">${escapeHtml(item.channel === "email" ? "Copy email" : "Copy call script")}</button>
               ${item.canSend ? `<button type="button" class="btn btn-ghost btn-sm" data-follow-up-action="send" data-follow-up-index="${escapeAttr(index)}">Send email</button>` : ""}
+              ${item.reviewLinkUrl ? `<button type="button" class="btn btn-ghost btn-sm" data-follow-up-action="copy-link" data-follow-up-index="${escapeAttr(index)}">Copy review link</button>` : ""}
+              ${item.reviewLinkUrl ? `<button type="button" class="btn btn-ghost btn-sm" data-follow-up-action="open-link" data-follow-up-index="${escapeAttr(index)}">Open review link</button>` : ""}
               ${item.customerId ? `<button type="button" class="btn btn-ghost btn-sm" data-follow-up-action="handled" data-follow-up-index="${escapeAttr(index)}">Mark contacted</button>` : ""}
               <button type="button" class="btn btn-ghost btn-sm" data-follow-up-action="open" data-follow-up-index="${escapeAttr(index)}">Open record</button>
               <button type="button" class="btn btn-ghost btn-sm" data-follow-up-action="snooze" data-follow-up-index="${escapeAttr(index)}">Snooze 24h</button>
@@ -7863,6 +8792,10 @@ function renderDashboard() {
   dashboardWrap.querySelectorAll("[data-dashboard-action]").forEach((btn) => {
     btn.addEventListener("click", () => {
       const action = btn.getAttribute("data-dashboard-action");
+      if (action === "import") {
+        switchTab("import");
+        return;
+      }
       if (action === "new-lead") {
         ACTIVE_LEAD_ID = null;
         clearLeadForm();
@@ -7913,6 +8846,20 @@ function renderDashboard() {
           await sendQueuedFollowUp(item);
           return;
         }
+        if (action === "copy-link") {
+          if (!item.reviewLinkUrl) throw new Error("This follow-up does not have a review link yet.");
+          await copyTextValue(item.reviewLinkUrl);
+          setFollowUpQueueMessage("Review link copied to the clipboard.", "ok");
+          renderDashboard();
+          return;
+        }
+        if (action === "open-link") {
+          if (!item.reviewLinkUrl) throw new Error("This follow-up does not have a review link yet.");
+          window.open(item.reviewLinkUrl, "_blank", "noopener,noreferrer");
+          setFollowUpQueueMessage("Review link opened in a new tab.", "ok");
+          renderDashboard();
+          return;
+        }
         if (action === "handled") {
           await markQueuedFollowUpContacted(item);
           return;
@@ -7957,6 +8904,7 @@ function renderOrders() {
     const scheduledTime = row.scheduled_time || row.pickupWindow || "No time";
     const totalCents = Number(row.total_cents || row.subtotal_cents || row.estimatedTotalCents || 0);
     const paymentState = orderPaymentState(row);
+    const depositStatus = orderDepositStatus(row);
 
     return `
       <button type="button" class="list-item ${row.id === active.id ? "is-active" : ""}" data-order-id="${escapeAttr(row.id)}">
@@ -7967,6 +8915,7 @@ function renderOrders() {
         </div>
         <div class="li-meta">
           <span class="pill ${["fulfilled", "completed", "paid"].includes(String(row.status || "new").toLowerCase()) ? "pill-on" : ""}">${escapeHtml(String(row.status || "new"))}</span>
+          ${depositStatus !== "not_required" ? `<span class="pill ${depositStatusClass(depositStatus)}">${escapeHtml(formatDepositStatus(depositStatus))}</span>` : ""}
           <span class="pill ${paymentStateClass(paymentState)}">${escapeHtml(formatWorkflowPaymentState(paymentState))}</span>
           <span class="pill">${formatUsd(totalCents)}</span>
         </div>
@@ -7992,9 +8941,13 @@ function renderOrders() {
   const paymentState = orderPaymentState(active);
   const amountDue = orderAmountDueCents(active);
   const amountPaid = orderAmountPaidCents(active);
+  const depositPolicy = orderDepositPolicy(active);
+  const depositStatus = orderDepositStatus(active);
   const depositRequired = orderDepositRequiredCents(active);
   const depositPaid = orderDepositPaidCents(active);
   const depositGap = orderDepositGapCents(active);
+  const depositOverrideReason = orderDepositOverrideReason(active);
+  const depositDueDate = orderDepositDueDate(active);
 
   orderDetailWrap.innerHTML = `
     <div class="detail-card">
@@ -8019,6 +8972,7 @@ function renderOrders() {
       <div class="detail-copy">Order value: ${formatUsd(totalCents)}</div>
       <div class="detail-copy">Paid: ${formatUsd(amountPaid)} | Due: ${formatUsd(amountDue)}</div>
       <div class="detail-copy">Deposit: ${formatUsd(depositPaid)} paid of ${formatUsd(depositRequired)} required${depositGap > 0 ? ` | ${formatUsd(depositGap)} still open` : ""}</div>
+      <div class="detail-copy">Deposit status: <span class="pill ${depositStatusClass(depositStatus)}">${escapeHtml(formatDepositStatus(depositStatus))}</span></div>
       <div class="detail-copy">Payment state: ${escapeHtml(formatWorkflowPaymentState(paymentState))}</div>
       <div class="detail-copy">Tenant: ${escapeHtml(active.tenant_id || TENANT_ID)}</div>
       <div class="detail-copy">${escapeHtml(notesText)}</div>
@@ -8032,8 +8986,38 @@ function renderOrders() {
       <div class="row" style="margin-top:10px;">
         <button id="btnCreateJobFromOrder" class="btn btn-primary" type="button">${linkedJob ? "Open linked job" : "Create job"}</button>
         <button id="btnCreateRecurringPlanFromOrder" class="btn" type="button">${linkedPlan ? "Open recurring plan" : "Make recurring"}</button>
+        <button id="btnCollectOrderDeposit" class="btn btn-ghost" type="button">${depositGap > 0 ? "Collect deposit" : "Record payment"}</button>
         <button id="btnRecordOrderPayment" class="btn btn-ghost" type="button">Record payment</button>
       </div>
+    </div>
+
+    <div class="detail-card" style="margin-top:14px;">
+      <div class="kicker">Deposit control</div>
+      <div class="detail-copy">${escapeHtml(depositPolicyLabel(depositPolicy))}${depositDueDate ? ` | Due ${escapeHtml(formatDateOnly(depositDueDate))}` : ""}</div>
+      <div class="detail-copy">${depositOverrideReason ? `Override reason: ${escapeHtml(depositOverrideReason)}` : "Use this when the business needs a deposit rule that is teachable, enforceable, and still flexible in real life."}</div>
+      <div class="grid three form-grid" style="margin-top:10px;">
+        <label>Deposit policy
+          <select id="orderDepositPolicySelect">
+            <option value="optional" ${depositPolicy === "optional" ? "selected" : ""}>Optional</option>
+            <option value="required_before_booking" ${depositPolicy === "required_before_booking" ? "selected" : ""}>Required before booking</option>
+            <option value="required_before_job" ${depositPolicy === "required_before_job" ? "selected" : ""}>Required before job</option>
+          </select>
+        </label>
+        <label>Required amount (USD)
+          <input id="orderDepositRequiredAmount" type="number" min="0" step="0.01" value="${escapeAttr(money(depositRequired))}" />
+        </label>
+        <label>Deposit due date
+          <input id="orderDepositDueDate" type="date" value="${escapeAttr(depositDueDate || "")}" />
+        </label>
+      </div>
+      <label style="margin-top:10px;">Override reason
+        <textarea id="orderDepositOverrideReason" rows="3" placeholder="Why this order can move ahead before the deposit is collected.">${escapeHtml(depositOverrideReason)}</textarea>
+      </label>
+      <div class="row" style="margin-top:10px;">
+        <button id="btnSaveOrderDepositSettings" class="btn btn-primary" type="button">Save deposit settings</button>
+        <button id="btnClearOrderDepositOverride" class="btn btn-ghost" type="button" ${depositOverrideReason ? "" : "disabled"}>Clear override</button>
+      </div>
+      <div id="orderDepositMsg" class="msg"></div>
     </div>
 
     <div class="detail-card" style="margin-top:14px;">
@@ -8052,6 +9036,12 @@ function renderOrders() {
 
   $("btnSaveOrderStatus")?.addEventListener("click", async () => {
     const nextStatus = $("orderStatusSelect")?.value || "new";
+    try {
+      assertOrderAllowsStatusChange(active, nextStatus);
+    } catch (err) {
+      alert(err.message || String(err));
+      return;
+    }
     const { data, error } = await sb.from("orders")
       .update({ status: nextStatus, updated_at: new Date().toISOString() })
       .eq("id", active.id)
@@ -8077,6 +9067,7 @@ function renderOrders() {
       return;
     }
     try {
+      assertOrderAllowsJobCreation(active);
       await createJobFromOrderRecord(active);
       renderJobs(jobSearch?.value || "");
       renderOrders();
@@ -8084,7 +9075,13 @@ function renderOrders() {
       renderGuidance();
       switchTab("jobs");
     } catch (err) {
-      alert(err.message || String(err));
+      const message = err.message || String(err);
+      if (message.toLowerCase().includes("deposit")) {
+        setInlineMessage($("orderDepositMsg"), "This order still has a required deposit open. Record the deposit or add an override reason below, then create the job.", "error");
+        $("orderDepositOverrideReason")?.focus();
+        return;
+      }
+      alert(message);
     }
   });
   $("btnCreateRecurringPlanFromOrder")?.addEventListener("click", async () => {
@@ -8112,6 +9109,102 @@ function renderOrders() {
       orderId: active.id,
     });
     switchTab("payments");
+  });
+  $("btnCollectOrderDeposit")?.addEventListener("click", () => {
+    ACTIVE_ORDER_ID = active.id;
+    clearPaymentForm({
+      customerId: active.customer_id || "",
+      orderId: active.id,
+      amount: depositGap > 0 ? money(depositGap) : "",
+      note: depositGap > 0 ? `Deposit for ${active.cart_summary || active.customer_name || "order"}` : "",
+      title: depositGap > 0 ? "Record deposit" : "Manual payment entry",
+    });
+    switchTab("payments");
+  });
+  $("btnSaveOrderDepositSettings")?.addEventListener("click", async () => {
+    const msgEl = $("orderDepositMsg");
+    setInlineMessage(msgEl, "Saving...");
+    const nextPolicy = normalizeDepositPolicy($("orderDepositPolicySelect")?.value || "optional");
+    const nextRequired = toCents($("orderDepositRequiredAmount")?.value || 0);
+    const nextDueDate = $("orderDepositDueDate")?.value || null;
+    const nextOverride = $("orderDepositOverrideReason")?.value?.trim() || null;
+    if (nextPolicy !== "optional" && nextRequired <= 0) {
+      setInlineMessage(msgEl, "A required deposit policy needs an amount greater than zero.", "error");
+      return;
+    }
+    try {
+      const payload = {
+        deposit_policy: nextRequired > 0 ? nextPolicy : "optional",
+        deposit_required_cents: nextRequired,
+        deposit_due_date: nextRequired > 0 && nextPolicy !== "optional" ? (nextDueDate || active.scheduled_date || active.payment_due_date || new Date().toISOString().slice(0, 10)) : null,
+        deposit_override_reason: nextOverride,
+        deposit_override_at: nextOverride ? new Date().toISOString() : null,
+        deposit_override_by: nextOverride ? opId() : null,
+        updated_at: new Date().toISOString(),
+      };
+      const { data, error } = await sb.from("orders")
+        .update(payload)
+        .eq("id", active.id)
+        .eq(OPERATOR_COLUMN, opId())
+        .eq(TENANT_COLUMN, TENANT_ID)
+        .select("*")
+        .single();
+      if (error) {
+        if (isMissingDatabaseFeatureError(error, ["deposit_policy", "deposit_due_date", "deposit_override_reason"])) {
+          throw new Error("Deposit control needs the service_deposit_control.sql migration before these settings can be saved.");
+        }
+        throw error;
+      }
+      CRM_ORDERS_CACHE = CRM_ORDERS_CACHE.map((row) => row.id === active.id ? data : row);
+      if (nextOverride && active.customer_id) {
+        await logCustomerInteraction(active.customer_id, "payment", `Deposit override recorded for ${active.cart_summary || "order"}`, {
+          order_id: active.id,
+          deposit_override_reason: nextOverride,
+          deposit_required_cents: nextRequired,
+        }).catch(() => null);
+      }
+      renderOrders();
+      renderJobs(jobSearch?.value || "");
+      renderDashboard();
+      renderGuidance();
+      renderMoney().catch(console.error);
+      setInlineMessage($("orderDepositMsg"), "Deposit settings saved.", "ok");
+    } catch (err) {
+      setInlineMessage(msgEl, err.message || String(err), "error");
+    }
+  });
+  $("btnClearOrderDepositOverride")?.addEventListener("click", async () => {
+    const msgEl = $("orderDepositMsg");
+    setInlineMessage(msgEl, "Clearing override...");
+    try {
+      const { data, error } = await sb.from("orders")
+        .update({
+          deposit_override_reason: null,
+          deposit_override_at: null,
+          deposit_override_by: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", active.id)
+        .eq(OPERATOR_COLUMN, opId())
+        .eq(TENANT_COLUMN, TENANT_ID)
+        .select("*")
+        .single();
+      if (error) {
+        if (isMissingDatabaseFeatureError(error, ["deposit_override_reason"])) {
+          throw new Error("Deposit override clearing needs the service_deposit_control.sql migration.");
+        }
+        throw error;
+      }
+      CRM_ORDERS_CACHE = CRM_ORDERS_CACHE.map((row) => row.id === active.id ? data : row);
+      renderOrders();
+      renderJobs(jobSearch?.value || "");
+      renderDashboard();
+      renderGuidance();
+      renderMoney().catch(console.error);
+      setInlineMessage($("orderDepositMsg"), "Deposit override cleared.", "ok");
+    } catch (err) {
+      setInlineMessage(msgEl, err.message || String(err), "error");
+    }
   });
 }
 function renderGuidance() {
@@ -8195,9 +9288,20 @@ async function renderMoney() {
   const topCustomer = sortedCustomers(CUSTOMERS_CACHE)[0] || null;
   const expByMonth = new Map();
   EXPENSES_CACHE.forEach((e) => {
-    const mk = monthKeyFromDate(e.date);
+    const mk = monthKeyFromDate(e.date || e.expense_date);
     if (mk) expByMonth.set(mk, (expByMonth.get(mk) || 0) + Number(e.amount_cents || 0));
   });
+  const jobEconomics = jobsWithTrackedEconomics()
+    .sort((a, b) => b.grossProfitCents - a.grossProfitCents);
+  const weightedMargin = weightedAverageJobMarginRatio();
+  const totalTrackedJobCost = jobEconomics.reduce((sum, row) => sum + row.costCents, 0);
+  const totalGrossProfit = jobEconomics.reduce((sum, row) => sum + row.grossProfitCents, 0);
+  const profitableJobs = jobEconomics.filter((row) => row.grossProfitCents > 0).length;
+  const weakestJobs = [...jobEconomics]
+    .sort((a, b) => a.grossProfitCents - b.grossProfitCents)
+    .slice(0, 5);
+  const strongestJobs = jobEconomics.slice(0, 5);
+  const costBreakdown = costBreakdownForJobs(jobEconomics);
 
   const productsMissingPrice = PRODUCTS_CACHE.filter((p) => {
     const mode = String(p.pricing_mode || "").trim().toLowerCase();
@@ -8247,6 +9351,30 @@ async function renderMoney() {
           <div class="money">${duePlans.length}</div>
         </div>
       </div>
+      <div class="card mini">
+        <div class="card-bd">
+          <div class="muted">Tracked job cost</div>
+          <div class="money">${formatUsd(totalTrackedJobCost)}</div>
+        </div>
+      </div>
+      <div class="card mini">
+        <div class="card-bd">
+          <div class="muted">Gross profit</div>
+          <div class="money">${formatUsd(totalGrossProfit)}</div>
+        </div>
+      </div>
+      <div class="card mini">
+        <div class="card-bd">
+          <div class="muted">Average job margin</div>
+          <div class="money">${formatPercent(weightedMargin)}</div>
+        </div>
+      </div>
+      <div class="card mini">
+        <div class="card-bd">
+          <div class="muted">Tracked labor</div>
+          <div class="money">${costBreakdown.laborHours ? `${Number(costBreakdown.laborHours.toFixed(2))}h` : "-"}</div>
+        </div>
+      </div>
     </div>
 
     <div class="insight-grid">
@@ -8261,7 +9389,15 @@ async function renderMoney() {
       </div>
       <div class="insight">
         <h3>${escapeHtml(titleCaseWords(workspaceOrderLabelLower(blueprint)))} economics</h3>
-        <p>Expenses by month show where money is leaving the business. As job costing gets deeper, this turns into real margin visibility.</p>
+        <p>${jobEconomics.length ? `ProofLink is now measuring ${jobEconomics.length} tracked job${jobEconomics.length === 1 ? "" : "s"} with real revenue and linked cost.` : "Link expenses to jobs or orders so this page can show real gross profit instead of just expense totals."}</p>
+      </div>
+      <div class="insight">
+        <h3>Profit signal</h3>
+        <p>${jobEconomics.length ? `${profitableJobs} of ${jobEconomics.length} tracked jobs are currently above zero gross profit. Weighted average margin is ${formatPercent(weightedMargin)}.` : "Once jobs have linked costs, this screen will show which work is healthy and which work is leaking margin."}</p>
+      </div>
+      <div class="insight">
+        <h3>Cost mix</h3>
+        <p>${jobEconomics.length ? `Labor: ${formatUsd(costBreakdown.laborCostCents)}. Materials: ${formatUsd(costBreakdown.materialCostCents)}.${costBreakdown.changeOrderCostCents > 0 ? ` Change-order cost: ${formatUsd(costBreakdown.changeOrderCostCents)}.` : ""}` : "As you log labor and material usage, this view will show what is actually eating margin."}</p>
       </div>
     </div>
 
@@ -8279,6 +9415,76 @@ async function renderMoney() {
         `).join("")}
       </div>
     ` : `<div class="muted" style="margin-top:14px;">No expenses logged yet.</div>`}
+
+    <div class="grid two" style="margin-top:14px;">
+      <div class="card">
+        <div class="card-hd">
+          <strong>Strongest tracked jobs</strong>
+          <span class="muted">Highest gross profit right now</span>
+        </div>
+        <div class="card-bd">
+          ${strongestJobs.length ? `
+            <div class="table">
+              ${strongestJobs.map((row) => `
+                <div class="tr">
+                  <div>
+                    <div><strong>${escapeHtml(row.job.title || row.order?.customer_name || "Job")}</strong></div>
+                    <div class="muted" style="margin-top:4px;">Revenue ${escapeHtml(formatUsd(row.revenueCents))} | Cost ${escapeHtml(formatUsd(row.costCents))}</div>
+                  </div>
+                  <div class="right"><span class="pill ${grossProfitToneClass(row.grossProfitCents)}">${escapeHtml(formatUsd(row.grossProfitCents))} • ${escapeHtml(formatPercent(row.marginRatio))}</span></div>
+                </div>
+              `).join("")}
+            </div>
+          ` : `<div class="muted">No tracked job economics yet.</div>`}
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <strong>Weakest tracked jobs</strong>
+          <span class="muted">Where margin needs attention</span>
+        </div>
+        <div class="card-bd">
+          ${weakestJobs.length ? `
+            <div class="table">
+              ${weakestJobs.map((row) => `
+                <div class="tr">
+                  <div>
+                    <div><strong>${escapeHtml(row.job.title || row.order?.customer_name || "Job")}</strong></div>
+                    <div class="muted" style="margin-top:4px;">Revenue ${escapeHtml(formatUsd(row.revenueCents))} | Cost ${escapeHtml(formatUsd(row.costCents))}</div>
+                  </div>
+                  <div class="right"><span class="pill ${grossProfitToneClass(row.grossProfitCents)}">${escapeHtml(formatUsd(row.grossProfitCents))} • ${escapeHtml(formatPercent(row.marginRatio))}</span></div>
+                </div>
+              `).join("")}
+            </div>
+          ` : `<div class="muted">No tracked job economics yet.</div>`}
+        </div>
+      </div>
+    </div>
+
+    ${(costBreakdown.leftoverNotes.length || costBreakdown.wasteNotes.length) ? `
+      <div class="grid two" style="margin-top:14px;">
+        <div class="card">
+          <div class="card-hd">
+            <strong>Leftover materials</strong>
+            <span class="muted">What can be returned to stock or reused</span>
+          </div>
+          <div class="card-bd">
+            ${costBreakdown.leftoverNotes.length ? `<div class="note-list">${costBreakdown.leftoverNotes.map((note) => `<div class="note-item">${escapeHtml(note)}</div>`).join("")}</div>` : `<div class="muted">No leftover notes logged yet.</div>`}
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-hd">
+            <strong>Waste and overage</strong>
+            <span class="muted">What is getting used up or lost</span>
+          </div>
+          <div class="card-bd">
+            ${costBreakdown.wasteNotes.length ? `<div class="note-list">${costBreakdown.wasteNotes.map((note) => `<div class="note-item">${escapeHtml(note)}</div>`).join("")}</div>` : `<div class="muted">No waste or overage notes logged yet.</div>`}
+          </div>
+        </div>
+      </div>
+    ` : ``}
   `;
 }
 

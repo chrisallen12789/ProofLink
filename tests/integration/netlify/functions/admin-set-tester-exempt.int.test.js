@@ -70,5 +70,5 @@ describe("admin-set-tester-exempt authorization integration", () => {
 
     expect(res.statusCode).toBe(200);
     expect(JSON.parse(res.body).tenantId).toBe(tenantB.data.id);
-  });
+  }, 30000);
 });

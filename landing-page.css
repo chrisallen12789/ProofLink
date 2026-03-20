@@ -274,6 +274,64 @@ a {
   font-weight: 700;
 }
 
+.screenshot-panel {
+  padding: 1rem;
+}
+
+.screenshot-stack {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.screenshot-stack__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.screenshot-card {
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  overflow: hidden;
+  background: var(--panel);
+  box-shadow: 0 18px 38px rgba(16, 21, 24, 0.08);
+}
+
+.screenshot-card img,
+.tour-card img {
+  display: block;
+  width: 100%;
+  object-fit: cover;
+  object-position: top center;
+}
+
+.screenshot-card--wide img {
+  height: 20rem;
+}
+
+.screenshot-stack__grid .screenshot-card img {
+  height: 15rem;
+}
+
+.screenshot-card figcaption {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.95rem 1rem 1rem;
+}
+
+.screenshot-card figcaption strong,
+.tour-card__body h3 {
+  font: 800 1rem/1.2 var(--font-display);
+  letter-spacing: -0.03em;
+}
+
+.screenshot-card figcaption span,
+.tour-card__body p {
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
 .ops-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -394,6 +452,39 @@ a {
 
 .value-grid .value-card {
   background: linear-gradient(180deg, #f9fbfc 0%, #eef2f4 100%);
+}
+
+.product-tour-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.tour-card {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.tour-card img {
+  height: 16rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.tour-card__body {
+  padding: 1.1rem 1.15rem 1.2rem;
+}
+
+.tour-card__body h3 {
+  margin: 0 0 0.45rem;
+}
+
+.tour-card__body p {
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.6;
 }
 
 .pricing-shell {
@@ -685,6 +776,7 @@ a {
   .pricing-grid,
   .ops-capability-grid,
   .value-grid,
+  .product-tour-grid,
   .replace-grid,
   .trust-grid,
   .flow-grid {
@@ -693,6 +785,10 @@ a {
 
   .hero {
     padding-top: 3.5rem;
+  }
+
+  .screenshot-stack__grid {
+    grid-template-columns: 1fr;
   }
 }
 

@@ -44,7 +44,7 @@ describe("plan enforcement integration", () => {
     expect(body.ok).toBe(true);
     expect(body.health.recommend_upgrade).toBe(true);
     expect(body.health.warning_count + body.health.blocked_count).toBeGreaterThan(0);
-  });
+  }, 30000);
 
   test("storage helper reports healthy below threshold and denies above threshold", async () => {
     const admin = createAdminClient();

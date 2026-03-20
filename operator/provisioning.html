@@ -292,10 +292,12 @@
 <!-- ── Toast ── -->
 <div id="toast"></div>
 
+<script src="../cottagelink.config.js"></script>
+<script src="./provisioning.js"></script>
 <script>
   // ── Supabase config (set these to your project values)
-  const SUPABASE_URL     = window.__SUPABASE_URL__ || '';
-  const SUPABASE_ANON_KEY = window.__SUPABASE_ANON_KEY__ || '';
+  const SUPABASE_URL     = window.__SUPABASE_URL__ || window.COTTAGELINK_CONFIG?.supabase?.url || '';
+  const SUPABASE_ANON_KEY = window.__SUPABASE_ANON_KEY__ || window.COTTAGELINK_CONFIG?.supabase?.anonKey || '';
 
   let accessToken = null;
   let allRequests = [];

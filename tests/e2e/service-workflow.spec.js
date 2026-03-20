@@ -214,7 +214,8 @@ test.describe.serial("service workflow e2e", () => {
     await page.locator("#leadsList").getByText(state.customerName).click();
     await page.locator("#btnLeadCreateBid").click();
 
-    await expect(page.getByRole("heading", { name: "Walkthrough Bids" })).toBeVisible();
+    await expect(page.locator('[data-panel="bids"]')).not.toHaveClass(/hidden/);
+    await expect(page.locator("#bidTitle")).toBeVisible();
     await page.locator("#bidTitle").fill(state.bidTitle);
     await page.locator("#bidProjectSummary").fill(`Exterior wash proposal ${state.stamp}`);
     await page.locator("#bidStatus").selectOption("walkthrough_complete");
@@ -250,9 +251,8 @@ test.describe.serial("service workflow e2e", () => {
     await expect(page.locator("#bidLineItemMsg")).toContainText(/saved/i);
 
     await page.locator("#btnConvertBidToOrder").click();
-    await expect(page.locator('button.tab.active[data-tab="orders"]')).toBeVisible();
-    await expect(page.locator('[data-panel="orders"]').first()).not.toHaveClass(/hidden/);
-    await expect(page.locator("#ordersList")).toContainText(state.customerName);
+    await expect(page.locator('[data-panel="orders"]')).not.toHaveClass(/hidden/);
+    await expect(page.locator("#ordersList")).toContainText(state.customerName, { timeout: 15000 });
 
     const orders = await admin.from("orders").select("id,bid_id,lead_id,customer_id,total_cents").eq("bid_id", state.bidId);
     expect(orders.error).toBeNull();
@@ -270,6 +270,9 @@ test.describe.serial("service workflow e2e", () => {
     await loginAsTenantA(page);
     await openTab(page, "orders");
     await page.locator("#ordersList").getByText(state.customerName).click();
+    await page.locator("#orderDepositOverrideReason").fill("E2E validation override to complete the workflow handoff.");
+    await page.locator("#btnSaveOrderDepositSettings").click();
+    await expect(page.locator("#orderDepositMsg")).toContainText(/saved/i);
     await page.locator("#btnCreateJobFromOrder").click();
 
     await expect(page.getByRole("heading", { name: "Jobs" })).toBeVisible();

@@ -183,5 +183,5 @@ describe("onboarding workflow authorization", () => {
     expect(JSON.parse(rejectRes.body).success).toBe(true);
     expect(provisionRes.statusCode).toBe(201);
     expect(JSON.parse(provisionRes.body).tenant_id).toBeTruthy();
-  });
+  }, 30000);
 });

@@ -31,6 +31,14 @@ function isMissingServiceWorkflowSchemaError(error) {
     || message.includes("relation \"public.leads\" does not exist");
 }
 
+function isRecoverableSubmitServiceLeadRpcError(error) {
+  if (isMissingServiceWorkflowSchemaError(error)) return true;
+
+  const code = errorCode(error);
+  const message = errorMessage(error).toLowerCase();
+  return code === "57014" || message.includes("statement timeout");
+}
+
 function classifySubmitServiceLeadError(error) {
   const message = errorMessage(error);
   const normalized = message.toLowerCase();
@@ -283,7 +291,7 @@ exports.handler = async (event) => {
   let data;
   const rpcResult = await supabase.rpc('submit_service_lead', { payload });
   if (rpcResult.error) {
-    if (isMissingServiceWorkflowSchemaError(rpcResult.error)) {
+    if (isRecoverableSubmitServiceLeadRpcError(rpcResult.error)) {
       try {
         data = await submitServiceLeadFallback(supabase, payload);
       } catch (fallbackError) {

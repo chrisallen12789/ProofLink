@@ -22,19 +22,21 @@ test("public onboarding request can be approved and provisioned", async ({ page 
   await page.locator("#owner_name").fill("PL Test E2E");
   await page.locator("#phone").fill("555-111-2222");
   await page.locator("#owner_email").fill(email);
-  await page.getByRole("button", { name: /Review application/i }).click();
+  await page.getByRole("button", { name: /^Review$/i }).click();
 
   await expect(page.locator("#review-table")).toContainText(businessName);
-  await page.getByRole("button", { name: /Submit application/i }).click();
+  await page.locator("#submit-btn").click();
 
-  await expect(page.getByRole("heading", { name: "Application received!" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Application received" })).toBeVisible();
   await expect(page.locator("#success-email")).toHaveText(email);
   await expect(page.locator("#success-ref")).toContainText("Reference ID:");
 
   await page.goto("/operator/provisioning.html");
-  await page.getByLabel("Email").fill(process.env.TEST_PLATFORM_ADMIN_EMAIL);
-  await page.getByLabel("Password").fill(process.env.TEST_PLATFORM_ADMIN_PASSWORD);
+  await page.locator("#login-email").fill(process.env.TEST_PLATFORM_ADMIN_EMAIL);
+  await page.locator("#login-password").fill(process.env.TEST_PLATFORM_ADMIN_PASSWORD);
   await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page.getByRole("heading", { name: "Onboarding Queue" })).toBeVisible({ timeout: 15000 });
+  await expect(page.locator("#requests-tbody .spinner")).toHaveCount(0, { timeout: 15000 });
 
   const row = page.locator("#requests-tbody tr", { hasText: businessName });
   await expect(row).toBeVisible({ timeout: 15000 });

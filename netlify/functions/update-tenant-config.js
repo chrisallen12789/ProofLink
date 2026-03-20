@@ -6,7 +6,8 @@ const { requireAdminContext, respond } = require('./utils/auth');
 const ALLOWED_KEYS = new Set([
   'tagline', 'hero_heading', 'hero_subheading',
   'logo_url', 'hero_image_url', 'public_contact_email', 'public_business_phone',
-  'service_area', 'instagram', 'facebook', 'hours_notes', 'fulfillment_notes',
+  'service_area', 'review_platform_label', 'review_link_url', 'referral_message',
+  'instagram', 'facebook', 'hours_notes', 'fulfillment_notes',
   'accent_color', 'show_prices', 'allow_custom_requests', 'about', 'onboarding_complete',
   'workspace_business_type',
 ]);

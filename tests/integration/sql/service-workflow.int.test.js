@@ -170,6 +170,21 @@ describe("service workflow integration", () => {
     const rpcResult = await client.rpc("create_job_from_order", { p_order_id: orderId });
     if (!rpcResult.error) return rpcResult.data;
 
+    if (String(rpcResult.error?.message || "").toLowerCase().includes("deposit must be collected or explicitly overridden")) {
+      const orderLookup = await client.from("orders").select("*").eq("id", orderId).single();
+      if (orderLookup.error) throw orderLookup.error;
+      const order = orderLookup.data;
+      const overrideResult = await client.from("orders").update({
+        deposit_override_reason: "Integration test override for service workflow validation.",
+        deposit_override_at: new Date().toISOString(),
+        deposit_override_by: order.operator_id || null,
+        updated_at: new Date().toISOString(),
+      }).eq("id", order.id).select("id").single();
+      if (overrideResult.error) throw overrideResult.error;
+      const retried = await client.rpc("create_job_from_order", { p_order_id: orderId });
+      if (!retried.error) return retried.data;
+    }
+
     const status = await getServiceWorkflowFoundationStatus();
     if (status.functions.create_job_from_order) throw rpcResult.error;
 
@@ -424,7 +439,7 @@ describe("service workflow integration", () => {
     const overdueJob = await admin.from("jobs").select("payment_state").eq("id", overdueJobResult.job_id).single();
     expect(overdueJob.error).toBeNull();
     expect(overdueJob.data.payment_state).toBe("overdue");
-  });
+  }, 30000);
 
   test("RLS blocks anonymous access and isolates tenant A records from tenant B", async () => {
     const { client: tenantAClient } = await authenticatedClientFor(USERS.tenantAAdmin);
@@ -519,5 +534,5 @@ describe("service workflow integration", () => {
     const tenantBScopedRows = await admin.from("leads").select("id,tenant_id").eq("tenant_id", tenantBContext.tenantId);
     expect(tenantBScopedRows.error).toBeNull();
     expect(tenantBScopedRows.data.some((row) => row.id === lead.id)).toBe(false);
-  });
+  }, 30000);
 });

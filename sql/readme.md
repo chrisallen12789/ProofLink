@@ -73,6 +73,21 @@ It adds:
 - service-plan order/job generation RPCs
 - recurring-order uniqueness guards and supporting indexes
 
+### `service_deposit_control.sql`
+Additive deposit-control schema. Run this after `catchup_run_this.sql` and `service_workflow_phase1.sql`.
+
+If recurring plans are enabled in the same project, run this after `service_recurring_plans.sql` so the recurring-plan order generator is upgraded too.
+
+It adds:
+- `orders.deposit_policy`
+- `orders.deposit_due_date`
+- `orders.deposit_override_reason`
+- `orders.deposit_override_at`
+- `orders.deposit_override_by`
+- deposit-policy enforcement triggers for orders and jobs
+- bid-to-order deposit defaults
+- recurring-plan deposit defaults when the recurring schema is present
+
 ### `get_tenant_plan_limits_compat.sql`
 Targeted repair script for older hosted environments that already have most governance schema, but need the final `get_tenant_plan_limits(...)` overloads reconciled without rerunning the full catch-up file.
 
@@ -90,10 +105,11 @@ The `/archive/` folder contains older migrations kept for reference. Some schema
 3. Run `catchup_run_this.sql`.
 4. Run `service_workflow_phase1.sql`.
 5. Run `service_recurring_plans.sql` if you want recurring service plans enabled.
-6. Point `.env.test` or `TEST_*` secrets at that same project.
-7. Run `npm run test:preflight:service-workflow`.
-8. Set the required environment variables from the root `.env.example`.
-9. Deploy or run the app against that project.
+6. Run `service_deposit_control.sql` if you want deposit requirements, overrides, and booking/job enforcement enabled.
+7. Point `.env.test` or `TEST_*` secrets at that same project.
+8. Run `npm run test:preflight:service-workflow`.
+9. Set the required environment variables from the root `.env.example`.
+10. Deploy or run the app against that project.
 
 ## Change process
 

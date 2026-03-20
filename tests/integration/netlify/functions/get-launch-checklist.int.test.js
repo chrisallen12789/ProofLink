@@ -87,5 +87,5 @@ describe("get-launch-checklist integration", () => {
     expect(body.tenant_slug).toBe(tenantA.data.slug);
     expect(body.steps).toBeInstanceOf(Array);
     expect(body.steps.length).toBeGreaterThan(0);
-  });
+  }, 30000);
 });

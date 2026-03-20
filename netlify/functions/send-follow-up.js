@@ -3,16 +3,29 @@
 const { requireOperatorContext, respond } = require('./utils/auth');
 const { sendEmail } = require('./utils/email');
 
-const ALLOWED_KINDS = new Set(['lead_nudge', 'quote_follow_up', 'payment_reminder', 'review_request']);
+const ALLOWED_KINDS = new Set(['lead_nudge', 'quote_follow_up', 'deposit_reminder', 'payment_reminder', 'review_request']);
 const COOLDOWN_HOURS = {
   lead_nudge: 24,
   quote_follow_up: 72,
+  deposit_reminder: 24,
   payment_reminder: 24,
   review_request: 168,
 };
 
 function clean(value) {
   return String(value || '').trim();
+}
+
+function cleanUrl(value) {
+  const raw = clean(value);
+  if (!raw) return '';
+  try {
+    const next = new URL(raw);
+    if (!['http:', 'https:'].includes(next.protocol)) return '';
+    return next.toString();
+  } catch {
+    return '';
+  }
 }
 
 function parseJsonBody(body) {
@@ -31,14 +44,24 @@ function escapeHtml(value) {
   }[token]));
 }
 
-function textToHtml(text, businessName) {
+function textToHtml(text, businessName, options = {}) {
   const lines = String(text || '')
     .split(/\r?\n/)
     .map((line) => line.trimEnd());
+  const ctaUrl = cleanUrl(options.ctaUrl);
+  const ctaLabel = clean(options.ctaLabel) || 'Open link';
   const body = lines.map((line) => {
     if (!line) return '<div style="height:12px;"></div>';
     return `<p style="margin:0 0 12px;font-size:14px;line-height:1.7;color:#48535a;">${escapeHtml(line)}</p>`;
   }).join('');
+  const ctaHtml = ctaUrl
+    ? `<div style="margin:22px 0 12px;">
+        <a href="${escapeHtml(ctaUrl)}" style="display:inline-block;padding:12px 18px;border-radius:999px;background:#164f63;color:#ffffff;text-decoration:none;font-size:14px;font-weight:700;">
+          ${escapeHtml(ctaLabel)}
+        </a>
+      </div>
+      <p style="margin:0 0 12px;font-size:12px;line-height:1.6;color:#6c7882;">If the button does not open, use this link: <a href="${escapeHtml(ctaUrl)}" style="color:#164f63;">${escapeHtml(ctaUrl)}</a></p>`
+    : '';
 
   return `<!doctype html>
   <html lang="en">
@@ -47,6 +70,7 @@ function textToHtml(text, businessName) {
         <div style="padding:18px 24px;background:#164f63;color:#ffffff;font-size:18px;font-weight:700;">${escapeHtml(businessName || 'ProofLink')}</div>
         <div style="padding:24px;">
           ${body}
+          ${ctaHtml}
         </div>
       </div>
     </body>
@@ -140,11 +164,11 @@ async function validateWorkflowState(supabase, tenantId, customerId, kind, refs)
     return;
   }
 
-  if (kind === 'payment_reminder' || kind === 'review_request') {
+  if (kind === 'deposit_reminder' || kind === 'payment_reminder' || kind === 'review_request') {
     if (!refs.order_id) throw Object.assign(new Error('order_id is required for this follow-up'), { statusCode: 400 });
     const { data, error } = await supabase
       .from('orders')
-      .select('id, tenant_id, customer_id, status, amount_due_cents, payment_state')
+      .select('id, tenant_id, customer_id, status, amount_due_cents, payment_state, deposit_required_cents, deposit_paid_cents, deposit_policy, deposit_override_reason')
       .eq('id', refs.order_id)
       .eq('tenant_id', tenantId)
       .maybeSingle();
@@ -154,6 +178,18 @@ async function validateWorkflowState(supabase, tenantId, customerId, kind, refs)
     const status = String(data.status || '').toLowerCase();
     const due = Number(data.amount_due_cents || 0);
     const paymentState = String(data.payment_state || '').toLowerCase();
+    const depositRequired = Number(data.deposit_required_cents || 0);
+    const depositPaid = Number(data.deposit_paid_cents || 0);
+    const depositGap = Math.max(depositRequired - depositPaid, 0);
+    const depositPolicy = String(data.deposit_policy || 'optional').toLowerCase();
+    const depositOverrideReason = clean(data.deposit_override_reason);
+
+    if (kind === 'deposit_reminder') {
+      if (['new', 'quoted', 'cancelled', 'paid'].includes(status) || depositGap <= 0 || depositPolicy === 'optional' || depositOverrideReason) {
+        throw Object.assign(new Error('This order no longer needs a deposit reminder'), { statusCode: 409 });
+      }
+      return;
+    }
 
     if (kind === 'payment_reminder') {
       if (['new', 'quoted', 'cancelled'].includes(status) || due <= 0 || !['unpaid', 'partially_paid', 'overdue'].includes(paymentState)) {
@@ -186,6 +222,8 @@ exports.handler = async (event) => {
   const message = clean(body.message);
   const contactEmail = clean(body.contact_email).toLowerCase();
   const contactName = clean(body.contact_name);
+  const ctaLabel = clean(body.cta_label);
+  const ctaUrl = cleanUrl(body.cta_url);
 
   if (!tenantId) return respond(400, { error: 'tenant_id is required' });
   if (!customerId) return respond(400, { error: 'customer_id is required' });
@@ -193,6 +231,7 @@ exports.handler = async (event) => {
   if (!subject) return respond(400, { error: 'subject is required' });
   if (!message) return respond(400, { error: 'message is required' });
   if (!contactEmail) return respond(400, { error: 'contact_email is required for email delivery' });
+  if (body.cta_url && !ctaUrl) return respond(400, { error: 'cta_url must be a valid http or https URL' });
 
   let ctx;
   try {
@@ -227,7 +266,7 @@ exports.handler = async (event) => {
     const delivery = await sendEmail({
       to: contactEmail,
       subject,
-      html: textToHtml(message, brand.tenantName),
+      html: textToHtml(message, brand.tenantName, { ctaLabel, ctaUrl }),
       replyTo: brand.replyTo || undefined,
     });
 
@@ -244,6 +283,8 @@ exports.handler = async (event) => {
       source: 'operator_follow_up_queue',
       delivery: delivery?.skipped ? 'skipped_local' : 'email',
       email_subject: subject,
+      cta_label: ctaLabel || null,
+      cta_url: ctaUrl || null,
       lead_id: refs.lead_id || null,
       bid_id: refs.bid_id || null,
       order_id: refs.order_id || null,
@@ -281,4 +322,9 @@ exports.handler = async (event) => {
   } catch (error) {
     return respond(error.statusCode || 500, { error: error.message || 'Unable to send follow-up' });
   }
+};
+
+exports.__test = {
+  cleanUrl,
+  textToHtml,
 };

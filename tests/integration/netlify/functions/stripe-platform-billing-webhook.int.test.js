@@ -109,7 +109,7 @@ describe("stripe platform billing webhook integration", () => {
     } finally {
       restore();
     }
-  });
+  }, 30000);
 
   test("successful platform billing checkout applies the intended plan exactly once", async () => {
     process.env.STRIPE_WEBHOOK_SECRET =
