@@ -39,6 +39,8 @@ let PAYMENTS_CACHE = [];
 let LEADS_CACHE = [];
 let BIDS_CACHE = [];
 let JOBS_CACHE = [];
+let SERVICE_PLANS_CACHE = [];
+let SERVICE_PLANS_FEATURE_READY = true;
 let PICK_PRODUCT_CATEGORIES = [];
 let PICK_EXPENSE_CATEGORIES = [];
 let PICK_VENDORS = [];
@@ -55,6 +57,7 @@ let ACTIVE_LEAD_ID = null;
 let CUSTOMER_CREATING = false;
 let ACTIVE_PAYMENT_ID = null;
 let ACTIVE_JOB_ID = null;
+let ACTIVE_PLAN_ID = null;
 let ACTIVE_BID_LINE_ITEM_ID = null;
 let BID_QUICK_CUSTOMER_OPEN = false;
 let DASHBOARD_PAYMENT_STATE = null;
@@ -63,6 +66,16 @@ let WORKSPACE_BLUEPRINT = null;
 let BID_SYNC_TIMER = null;
 let BID_SYNC_IN_FLIGHT = false;
 let BID_SYNC_PROMISE = null;
+let CURRENT_FOLLOW_UP_QUEUE = [];
+let FOLLOW_UP_QUEUE_MESSAGE = null;
+
+const FOLLOW_UP_SNOOZE_KEY = "prooflink_follow_up_snoozes_v1";
+const FOLLOW_UP_KIND_META = {
+  lead_nudge: { label: "Missed lead", cooldownHours: 24 },
+  quote_follow_up: { label: "Quote follow-up", cooldownHours: 72 },
+  payment_reminder: { label: "Payment reminder", cooldownHours: 24 },
+  review_request: { label: "Review request", cooldownHours: 168 },
+};
 
 function currentMonthRevenueCents() {
   const mk = yyyymm(new Date());
@@ -269,6 +282,30 @@ const jobNotes = $("jobNotes");
 const jobMsg = $("jobMsg");
 const btnJobOpenOrder = $("btnJobOpenOrder");
 const btnJobRecordPayment = $("btnJobRecordPayment");
+const plansList = $("plansList");
+const planDetailWrap = $("planDetailWrap");
+const btnNewPlan = $("btnNewPlan");
+const btnRunDuePlans = $("btnRunDuePlans");
+const planSearch = $("planSearch");
+const planForm = $("planForm");
+const planId = $("planId");
+const planStatus = $("planStatus");
+const planCustomerId = $("planCustomerId");
+const planSourceOrderId = $("planSourceOrderId");
+const planTitle = $("planTitle");
+const planServiceAddress = $("planServiceAddress");
+const planCadence = $("planCadence");
+const planIntervalDays = $("planIntervalDays");
+const planNextRunOn = $("planNextRunOn");
+const planAmount = $("planAmount");
+const planDepositAmount = $("planDepositAmount");
+const planAutoCreateJob = $("planAutoCreateJob");
+const planScheduleWindow = $("planScheduleWindow");
+const planSummary = $("planSummary");
+const planNotes = $("planNotes");
+const planMsg = $("planMsg");
+const btnGeneratePlanOrder = $("btnGeneratePlanOrder");
+const btnOpenPlanOrder = $("btnOpenPlanOrder");
 
 const customersList = $("customersList");
 const customerDetailWrap = $("customerDetailWrap");
@@ -642,6 +679,23 @@ function setInlineMessage(el, message = "", tone = "") {
   el.textContent = message || "";
   el.className = tone ? `msg ${tone}` : "msg";
 }
+function getOperatorAccessToken() {
+  return window.PROOFLINK_OPERATOR_RUNTIME?.getAccessToken?.() || Promise.resolve("");
+}
+async function postOperatorFunction(functionName, payload = {}) {
+  const token = await getOperatorAccessToken();
+  const res = await fetch(`/.netlify/functions/${functionName}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || "Request failed.");
+  return data;
+}
 function errorText(error) {
   return String(error?.message || error?.details || error?.hint || "").toLowerCase();
 }
@@ -743,6 +797,17 @@ function orderAmountDueCents(row) {
   if (explicit > 0 || normalizeWorkflowPaymentState(row?.payment_state) === "paid") return explicit;
   return Math.max(orderTotalCents(row) - orderAmountPaidCents(row), 0);
 }
+function orderDepositRequiredCents(row) {
+  return Math.max(0, Number(row?.deposit_required_cents || 0));
+}
+function orderDepositPaidCents(row) {
+  const explicit = Math.max(0, Number(row?.deposit_paid_cents || 0));
+  if (explicit > 0) return explicit;
+  return Math.min(orderAmountPaidCents(row), orderDepositRequiredCents(row));
+}
+function orderDepositGapCents(row) {
+  return Math.max(orderDepositRequiredCents(row) - orderDepositPaidCents(row), 0);
+}
 function orderPaymentState(row) {
   const explicit = normalizeWorkflowPaymentState(row?.payment_state);
   if (explicit !== "unpaid" || Number(row?.amount_paid_cents || 0) > 0 || Number(row?.amount_due_cents || 0) > 0) {
@@ -774,6 +839,53 @@ function paymentStateClass(value) {
   if (state === "overdue") return "pill-bad";
   if (state === "refunded" || state === "void") return "pill-muted";
   return "";
+}
+function planCadenceLabel(value, intervalDays = 0) {
+  const raw = String(value || "").trim().toLowerCase();
+  if (raw === "custom_days") {
+    const days = Math.max(1, Number(intervalDays || 0));
+    return `${days || 30}-day cycle`;
+  }
+  const labels = {
+    weekly: "Weekly",
+    biweekly: "Every 2 weeks",
+    monthly: "Monthly",
+    quarterly: "Quarterly",
+  };
+  return labels[raw] || titleCaseWords(raw || "monthly");
+}
+function servicePlanAmountCents(plan) {
+  const explicit = Math.max(0, Number(plan?.amount_cents || 0));
+  if (explicit > 0) return explicit;
+  return (Array.isArray(plan?.line_items) ? plan.line_items : [])
+    .reduce((sum, item) => sum + Math.max(0, Number(item?.totalCents || item?.total_cents || 0)), 0);
+}
+function servicePlanNextRunTime(plan) {
+  return new Date(plan?.next_run_on || 0).getTime() || 0;
+}
+function servicePlanNextRunLabel(plan) {
+  return plan?.next_run_on ? formatDateOnly(plan.next_run_on) : "No date";
+}
+function currentServicePlan() {
+  return SERVICE_PLANS_CACHE.find((row) => row.id === ACTIVE_PLAN_ID) || null;
+}
+function dueServicePlans() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return SERVICE_PLANS_CACHE.filter((plan) => {
+    if (String(plan?.status || "").toLowerCase() !== "active") return false;
+    const nextRun = new Date(plan?.next_run_on || 0);
+    if (Number.isNaN(nextRun.getTime())) return false;
+    nextRun.setHours(0, 0, 0, 0);
+    return nextRun.getTime() <= today.getTime();
+  });
+}
+function ordersMissingDeposits() {
+  return CRM_ORDERS_CACHE.filter((row) => {
+    const status = String(row?.status || "").trim().toLowerCase();
+    if (["cancelled", "paid"].includes(status)) return false;
+    return orderDepositGapCents(row) > 0;
+  });
 }
 function linkedOrderForJob(job) {
   return CRM_ORDERS_CACHE.find((row) => row.id === job?.order_id) || null;
@@ -848,6 +960,7 @@ const WORKSPACE_BASE_TAB_ORDER = [
   "orders",
   "bids",
   "jobs",
+  "plans",
   "customers",
   "payments",
   "domains",
@@ -1057,6 +1170,8 @@ function workspaceTabLabel(tab, blueprint = currentWorkspaceBlueprint()) {
       return workspaceBidLabel(blueprint);
     case "jobs":
       return "Jobs";
+    case "plans":
+      return "Recurring Plans";
     case "products":
       return workspaceCatalogLabel(blueprint);
     case "pricing":
@@ -1106,6 +1221,11 @@ function workspacePanelCopy(tab, blueprint = currentWorkspaceBlueprint()) {
       return {
         title: "Jobs",
         subtitle: "Track scheduled work, field progress, proof, and payment state without splitting execution from the customer record.",
+      };
+    case "plans":
+      return {
+        title: "Recurring Plans",
+        subtitle: "Turn repeat service into scheduled orders and jobs without rebuilding the same work from scratch every month.",
       };
     case "products":
       return {
@@ -1165,6 +1285,9 @@ function isTabVisibleInWorkspace(tab, blueprint = currentWorkspaceBlueprint()) {
     const priorityTabs = workspacePriorityTabs(blueprint);
     if (!priorityTabs.includes("bids") && !blueprint?.business?.bidProfile) return false;
   }
+  if (tab === "plans") {
+    return isServiceWorkspace(blueprint) || isBookingWorkspace(blueprint);
+  }
   return true;
 }
 function isTabLockedInWorkspace(tab, blueprint = currentWorkspaceBlueprint()) {
@@ -1201,6 +1324,14 @@ function panelNoticeHtml(tab, blueprint = currentWorkspaceBlueprint()) {
       <div class="workspace-panel-notice is-soft">
         <div class="workspace-panel-notice__title">Basic pricing is active now</div>
         <div class="workspace-panel-notice__copy">Use simple price anchors today. Advanced rate sheets unlock when the business is ready for more structured service pricing.</div>
+      </div>
+    `;
+  }
+  if (tab === "plans") {
+    return `
+      <div class="workspace-panel-notice is-soft">
+        <div class="workspace-panel-notice__title">Repeat work should not depend on memory</div>
+        <div class="workspace-panel-notice__copy">Create a recurring plan from a real order when a customer is likely to need the same service again. ProofLink will keep the next run visible and generate the work record when it is due.</div>
       </div>
     `;
   }
@@ -1339,6 +1470,11 @@ function renderStartupChecklist() {
     items.splice(4, 0,
       { done: BIDS_CACHE.length > 0, label: "Create your first professional bid draft", tab: "bids", action: `Open ${workspaceBidLabel(blueprint)}` },
       { done: hasPricedBidDraft(), label: "Price at least one real bid scope", tab: "bids", action: "Finish pricing" }
+    );
+  }
+  if (isTabVisibleInWorkspace("plans", blueprint)) {
+    items.splice(Math.min(items.length, 7), 0,
+      { done: SERVICE_PLANS_CACHE.length > 0, label: "Turn one repeat customer into a recurring plan", tab: "plans", action: "Open Recurring Plans" }
     );
   }
 
@@ -1530,6 +1666,7 @@ function switchTab(tab, opts = {}) {
   if (nextTab === "orders") renderOrders();
   if (nextTab === "bids") renderBids(bidSearch?.value || "");
   if (nextTab === "jobs") renderJobs(jobSearch?.value || "");
+  if (nextTab === "plans") renderPlans(planSearch?.value || "");
   if (nextTab === "customers") renderCustomersList(customerSearch?.value || "");
   if (nextTab === "payments") renderPayments();
   if (nextTab === "domains") window.renderDomains?.();
@@ -3116,6 +3253,27 @@ async function fetchCustomerInteractions(customerId) {
   if (error) throw error;
   return data || [];
 }
+async function logCustomerInteraction(customerId, type, summary, metadata = {}) {
+  if (!customerId) throw new Error("Customer id is required.");
+  const nowIso = new Date().toISOString();
+  const { error } = await sb.from("customer_interactions").insert(withTenantScope({
+    operator_id: opId(),
+    customer_id: customerId,
+    type,
+    summary,
+    metadata,
+    created_at: nowIso,
+  }));
+  if (error) throw error;
+
+  const { error: customerError } = await sb.from("customers")
+    .update({ last_contact_at: nowIso, updated_at: nowIso })
+    .eq("id", customerId)
+    .eq(OPERATOR_COLUMN, opId())
+    .eq(TENANT_COLUMN, TENANT_ID);
+  if (customerError) throw customerError;
+  return nowIso;
+}
 async function fetchLeads() {
   const { data, error } = await scopeQuery(sb
     .from("leads")
@@ -3187,6 +3345,26 @@ async function fetchJobs() {
   }
   JOBS_CACHE = data || [];
   return JOBS_CACHE;
+}
+async function fetchServicePlans() {
+  const { data, error } = await scopeQuery(sb
+    .from("service_plans")
+    .select("*"))
+    .order("updated_at", { ascending: false })
+    .order("created_at", { ascending: false })
+    .limit(250);
+
+  if (error) {
+    if (isMissingDatabaseFeatureError(error, ["service_plans"])) {
+      SERVICE_PLANS_CACHE = [];
+      SERVICE_PLANS_FEATURE_READY = false;
+      return SERVICE_PLANS_CACHE;
+    }
+    throw error;
+  }
+  SERVICE_PLANS_FEATURE_READY = true;
+  SERVICE_PLANS_CACHE = data || [];
+  return SERVICE_PLANS_CACHE;
 }
 function findExistingCustomerRecord(row) {
   const email = String(row?.email || "").trim().toLowerCase();
@@ -4091,6 +4269,67 @@ btnJobRecordPayment?.addEventListener("click", () => {
     jobId: job.id,
   });
   switchTab("payments");
+});
+planSearch?.addEventListener("input", () => renderPlans(planSearch.value));
+btnNewPlan?.addEventListener("click", () => {
+  ACTIVE_PLAN_ID = null;
+  clearPlanForm();
+  renderPlanDetail(null).catch(console.error);
+});
+planSourceOrderId?.addEventListener("change", () => {
+  const linkedOrder = CRM_ORDERS_CACHE.find((row) => row.id === (planSourceOrderId.value || ""));
+  const linkedCustomer = CUSTOMERS_CACHE.find((row) => row.id === linkedOrder?.customer_id) || null;
+  if (!linkedOrder) return;
+  renderPlanCustomerOptions(linkedOrder.customer_id || "");
+  if (planTitle && !planTitle.value.trim()) planTitle.value = linkedOrder.cart_summary || linkedOrder.customer_name || "Recurring service";
+  if (planServiceAddress && !planServiceAddress.value.trim()) planServiceAddress.value = linkedOrder.service_address || linkedCustomer?.service_address || linkedCustomer?.billing_address || "";
+  if (planNextRunOn && !planNextRunOn.value) planNextRunOn.value = linkedOrder.scheduled_date || todayDateValue(30);
+  if (planAmount && !planAmount.value.trim()) planAmount.value = money(orderTotalCents(linkedOrder));
+  if (planDepositAmount && !planDepositAmount.value.trim()) planDepositAmount.value = money(orderDepositRequiredCents(linkedOrder));
+  if (planScheduleWindow && !planScheduleWindow.value.trim()) planScheduleWindow.value = linkedOrder.schedule_window || linkedOrder.scheduled_time || "";
+  if (planSummary && !planSummary.value.trim()) planSummary.value = linkedOrder.cart_summary || "";
+  if (planNotes && !planNotes.value.trim()) planNotes.value = linkedOrder.notes || "";
+});
+planForm?.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  setInlineMessage(planMsg, "Saving...");
+  try {
+    await saveServicePlanRecord();
+    setInlineMessage(planMsg, "Recurring plan saved.", "ok");
+  } catch (err) {
+    setInlineMessage(planMsg, err.message || String(err), "error");
+  }
+});
+btnGeneratePlanOrder?.addEventListener("click", async () => {
+  const plan = currentServicePlan();
+  if (!plan) return;
+  setInlineMessage(planMsg, "Generating next order...");
+  try {
+    const result = await runServicePlanRecord(plan);
+    setInlineMessage(planMsg, result?.existing ? "The next order already existed, so it was reopened." : "Recurring work generated.", "ok");
+    if (result?.order?.id) {
+      ACTIVE_ORDER_ID = result.order.id;
+      switchTab("orders");
+    }
+  } catch (err) {
+    setInlineMessage(planMsg, err.message || String(err), "error");
+  }
+});
+btnOpenPlanOrder?.addEventListener("click", () => {
+  const plan = currentServicePlan();
+  if (!plan?.last_generated_order_id) return;
+  ACTIVE_ORDER_ID = plan.last_generated_order_id;
+  renderOrders();
+  switchTab("orders");
+});
+btnRunDuePlans?.addEventListener("click", async () => {
+  setInlineMessage(planMsg, "Generating due recurring work...");
+  try {
+    const result = await runDueServicePlans();
+    setInlineMessage(planMsg, result.created ? `Generated ${result.created} due recurring order${result.created === 1 ? "" : "s"}.` : "No new due recurring orders were needed.", "ok");
+  } catch (err) {
+    setInlineMessage(planMsg, err.message || String(err), "error");
+  }
 });
 
 function normalizeBidProfile(value) {
@@ -6078,9 +6317,310 @@ function overdueBalanceCents() {
     .filter((row) => orderPaymentState(row) === "overdue")
     .reduce((sum, row) => sum + orderAmountDueCents(row), 0);
 }
+function readFollowUpSnoozes() {
+  try {
+    const raw = window.localStorage.getItem(FOLLOW_UP_SNOOZE_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch (_) {
+    return {};
+  }
+}
+function writeFollowUpSnoozes(next) {
+  try {
+    window.localStorage.setItem(FOLLOW_UP_SNOOZE_KEY, JSON.stringify(next || {}));
+  } catch (_) {
+    // Ignore locked-down browser storage failures.
+  }
+}
+function followUpSnoozeActive(itemId) {
+  const value = readFollowUpSnoozes()[itemId];
+  const until = new Date(value || 0).getTime();
+  return Number.isFinite(until) && until > Date.now();
+}
+function snoozeFollowUpItem(itemId, hours = 24) {
+  const next = readFollowUpSnoozes();
+  next[itemId] = new Date(Date.now() + Math.max(1, Number(hours || 24)) * 60 * 60 * 1000).toISOString();
+  writeFollowUpSnoozes(next);
+}
+function setFollowUpQueueMessage(message = "", tone = "") {
+  FOLLOW_UP_QUEUE_MESSAGE = message ? { text: message, tone } : null;
+}
+function customerById(customerIdValue) {
+  return CUSTOMERS_CACHE.find((row) => row.id === customerIdValue) || null;
+}
+function customerTouchedAt(customer) {
+  return new Date(customer?.last_contact_at || 0).getTime();
+}
+function customerTouchedRecently(customer, hours = 24) {
+  const touchedAt = customerTouchedAt(customer);
+  if (!Number.isFinite(touchedAt) || touchedAt <= 0) return false;
+  return (Date.now() - touchedAt) < Math.max(1, Number(hours || 24)) * 60 * 60 * 1000;
+}
+function newestPaymentForOrder(orderIdValue) {
+  return [...PAYMENTS_CACHE]
+    .filter((row) => row.order_id === orderIdValue)
+    .sort((a, b) => new Date(b.paid_at || b.created_at || b.updated_at || 0).getTime() - new Date(a.paid_at || a.created_at || a.updated_at || 0).getTime())[0] || null;
+}
+function followUpChannel({ email = "", phone = "", preferred = "" } = {}) {
+  const preferredValue = String(preferred || "").trim().toLowerCase();
+  if (preferredValue === "phone" && phone) return "phone";
+  if (email) return "email";
+  if (phone) return "phone";
+  return "";
+}
+function followUpKindLabel(kind) {
+  return FOLLOW_UP_KIND_META[kind]?.label || "Follow-up";
+}
+function followUpCooldownHours(kind) {
+  return Number(FOLLOW_UP_KIND_META[kind]?.cooldownHours || 24);
+}
+function followUpCooldownLabel(kind) {
+  return `Max one ${followUpKindLabel(kind).toLowerCase()} every ${followUpCooldownHours(kind)}h.`;
+}
+function queueBrandLines() {
+  const brand = bidBrandContext();
+  return [brand.tenantName, brand.contactEmail || null, brand.phone || null].filter(Boolean);
+}
+function queueFollowUpItem(item) {
+  const recordId = String(item.recordId || item.targetId || item.customerId || "").trim();
+  if (!recordId) return null;
+  const queued = {
+    ...item,
+    id: `${item.kind}:${recordId}`,
+    kindLabel: followUpKindLabel(item.kind),
+    cooldownHours: followUpCooldownHours(item.kind),
+    cooldownLabel: followUpCooldownLabel(item.kind),
+  };
+  if (!queued.channel) queued.channel = followUpChannel({
+    email: queued.contactEmail,
+    phone: queued.contactPhone,
+    preferred: queued.preferredContact,
+  });
+  queued.canSend = Boolean(queued.channel === "email" && queued.contactEmail && queued.customerId);
+  return queued;
+}
+function leadFollowUpQueueItems() {
+  const brandLines = queueBrandLines();
+  return staleLeads()
+    .sort((a, b) => leadLastTouchedAt(a) - leadLastTouchedAt(b))
+    .map((lead) => {
+      const customer = customerById(lead.customer_id);
+      if (customerTouchedRecently(customer, 24)) return null;
+      const contactName = lead.contact_name || customer?.name || "there";
+      const contactEmail = lead.contact_email || customer?.email || "";
+      const contactPhone = lead.contact_phone || customer?.phone || "";
+      if (!contactEmail && !contactPhone) return null;
+      const requestedService = lead.requested_service_type || "service work";
+      const preferredContact = lead.preferred_contact || customer?.preferred_contact || "email";
+      const channel = followUpChannel({ email: contactEmail, phone: contactPhone, preferred: preferredContact });
+      return queueFollowUpItem({
+        kind: "lead_nudge",
+        priority: 10,
+        tab: "leads",
+        targetId: lead.id,
+        recordId: lead.id,
+        customerId: lead.customer_id || "",
+        leadId: lead.id,
+        customerName: customer?.name || lead.contact_name || lead.title || "Lead",
+        contactName,
+        contactEmail,
+        contactPhone,
+        preferredContact,
+        channel,
+        title: `Check in on ${contactName}`,
+        detail: `${requestedService} | Last touch ${ageLabelFromTime(leadLastTouchedAt(lead))}`,
+        reason: `This lead has been quiet for at least 24 hours. ${followUpCooldownLabel("lead_nudge")}`,
+        subject: `${bidBrandContext().tenantName}: checking in on your request`,
+        message: [
+          channel === "phone" ? `Call script for ${contactName}:` : `Hi ${contactName},`,
+          channel === "phone" ? "" : ``,
+          `Just checking in on your request for ${requestedService}.`,
+          lead.service_address ? `We have ${lead.service_address} noted for the project.` : null,
+          channel === "phone"
+            ? `If they still want help, confirm the next step and update the lead in ProofLink right after the call.`
+            : `If you still want help, reply to this email and we can get the next step moving.`,
+          channel === "phone" ? "" : ``,
+          ...brandLines,
+        ].filter(Boolean).join("\n"),
+      });
+    })
+    .filter(Boolean);
+}
+function quoteFollowUpQueueItems() {
+  const brandLines = queueBrandLines();
+  return [...BIDS_CACHE]
+    .filter((row) => !row.converted_order_id && String(row.status || "").toLowerCase() === "sent")
+    .filter((row) => (Date.now() - new Date(row.updated_at || row.created_at || 0).getTime()) >= 72 * 60 * 60 * 1000)
+    .sort((a, b) => new Date(a.updated_at || a.created_at || 0).getTime() - new Date(b.updated_at || b.created_at || 0).getTime())
+    .map((bid) => {
+      const customer = findBidCustomer(bid.customer_id);
+      if (!customer || customerTouchedRecently(customer, 72)) return null;
+      const totals = calculateBidTotals(bid);
+      const contactName = customer.name || "there";
+      const contactEmail = customer.email || "";
+      const contactPhone = customer.phone || "";
+      if (!contactEmail && !contactPhone) return null;
+      const preferredContact = customer.preferred_contact || "email";
+      const channel = followUpChannel({ email: contactEmail, phone: contactPhone, preferred: preferredContact });
+      return queueFollowUpItem({
+        kind: "quote_follow_up",
+        priority: 20,
+        tab: "bids",
+        targetId: bid.id,
+        recordId: bidRecordId(bid) || bid.id,
+        customerId: customer.id,
+        bidId: bid.id,
+        customerName: customer.name || bid.title || "Customer",
+        contactName,
+        contactEmail,
+        contactPhone,
+        preferredContact,
+        channel,
+        title: `Follow up on ${bid.title || "the proposal"}`,
+        detail: `${contactName} | Sent ${ageLabelFromTime(new Date(bid.updated_at || bid.created_at || 0).getTime())} | ${formatUsd(totals.total)}`,
+        reason: `This proposal is still open and has not converted into booked work. ${followUpCooldownLabel("quote_follow_up")}`,
+        subject: `${bidBrandContext().tenantName}: following up on your proposal`,
+        message: [
+          channel === "phone" ? `Call script for ${contactName}:` : `Hi ${contactName},`,
+          channel === "phone" ? "" : ``,
+          `Following up on the proposal we sent over for ${bid.service_address || "your project"}.`,
+          channel === "phone"
+            ? `Ask whether they want to move forward, need revisions, or have questions before booking.`
+            : `If you want to move forward, want revisions, or have questions, just reply and we will handle the next step.`,
+          `Current base investment: ${formatUsd(totals.total)}.`,
+          bid.valid_until ? `The proposal is currently dated through ${formatDateOnly(bid.valid_until)}.` : null,
+          channel === "phone" ? "" : ``,
+          ...brandLines,
+        ].filter(Boolean).join("\n"),
+      });
+    })
+    .filter(Boolean);
+}
+function paymentReminderQueueItems() {
+  const brandLines = queueBrandLines();
+  return [...CRM_ORDERS_CACHE]
+    .filter((row) => !["new", "quoted", "cancelled"].includes(String(row.status || "").toLowerCase()))
+    .filter((row) => ["unpaid", "partially_paid", "overdue"].includes(orderPaymentState(row)) && orderAmountDueCents(row) > 0)
+    .sort((a, b) => {
+      const stateA = orderPaymentState(a) === "overdue" ? 0 : 1;
+      const stateB = orderPaymentState(b) === "overdue" ? 0 : 1;
+      if (stateA !== stateB) return stateA - stateB;
+      return new Date(a.payment_due_date || a.created_at || 0).getTime() - new Date(b.payment_due_date || b.created_at || 0).getTime();
+    })
+    .map((order) => {
+      const customer = customerById(order.customer_id);
+      if (!customer || customerTouchedRecently(customer, 24)) return null;
+      const contactEmail = customer.email || order.email || "";
+      const contactPhone = customer.phone || order.phone || "";
+      if (!contactEmail && !contactPhone) return null;
+      const paymentState = orderPaymentState(order);
+      const preferredContact = customer.preferred_contact || order.preferred_contact || "email";
+      const channel = followUpChannel({ email: contactEmail, phone: contactPhone, preferred: preferredContact });
+      return queueFollowUpItem({
+        kind: "payment_reminder",
+        priority: paymentState === "overdue" ? 0 : 30,
+        tab: "orders",
+        targetId: order.id,
+        recordId: order.id,
+        customerId: customer.id,
+        orderId: order.id,
+        customerName: customer.name || order.customer_name || "Customer",
+        contactName: customer.name || order.customer_name || "there",
+        contactEmail,
+        contactPhone,
+        preferredContact,
+        channel,
+        title: paymentState === "overdue" ? `Collect overdue money from ${customer.name || order.customer_name || "this customer"}` : `Remind ${customer.name || order.customer_name || "this customer"} about payment`,
+        detail: `${formatWorkflowPaymentState(paymentState)} | ${formatUsd(orderAmountDueCents(order))} due`,
+        reason: `This reminder only appears while the order still carries an open balance. ${followUpCooldownLabel("payment_reminder")}`,
+        subject: `${bidBrandContext().tenantName}: payment reminder`,
+        message: [
+          channel === "phone" ? `Call script for ${customer.name || order.customer_name || "this customer"}:` : `Hi ${customer.name || order.customer_name || "there"},`,
+          channel === "phone" ? "" : ``,
+          `This is a quick reminder that ${formatUsd(orderAmountDueCents(order))} is still open for ${order.cart_summary || "the completed work"}.`,
+          order.payment_due_date ? `The balance was due on ${formatDateOnly(order.payment_due_date)}.` : null,
+          channel === "phone"
+            ? `Offer to answer questions, take payment, or confirm when the balance will be handled.`
+            : `If you need anything clarified before payment, just reply and we will help.`,
+          channel === "phone" ? "" : ``,
+          ...brandLines,
+        ].filter(Boolean).join("\n"),
+      });
+    })
+    .filter(Boolean);
+}
+function reviewRequestQueueItems() {
+  const brandLines = queueBrandLines();
+  return [...CRM_ORDERS_CACHE]
+    .filter((row) => ["fulfilled", "completed", "paid"].includes(String(row.status || "").toLowerCase()))
+    .filter((row) => orderPaymentState(row) === "paid")
+    .filter((row) => {
+      const anchor = newestPaymentForOrder(row.id);
+      const sentAt = new Date(anchor?.paid_at || anchor?.created_at || row.updated_at || row.created_at || 0).getTime();
+      const elapsed = Date.now() - sentAt;
+      return Number.isFinite(sentAt) && elapsed >= 24 * 60 * 60 * 1000 && elapsed <= 7 * 24 * 60 * 60 * 1000;
+    })
+    .sort((a, b) => new Date(b.updated_at || b.created_at || 0).getTime() - new Date(a.updated_at || a.created_at || 0).getTime())
+    .map((order) => {
+      const customer = customerById(order.customer_id);
+      if (!customer || customerTouchedRecently(customer, 72)) return null;
+      const contactEmail = customer.email || order.email || "";
+      const contactPhone = customer.phone || order.phone || "";
+      if (!contactEmail && !contactPhone) return null;
+      const preferredContact = customer.preferred_contact || order.preferred_contact || "email";
+      const channel = followUpChannel({ email: contactEmail, phone: contactPhone, preferred: preferredContact });
+      return queueFollowUpItem({
+        kind: "review_request",
+        priority: 40,
+        tab: "orders",
+        targetId: order.id,
+        recordId: order.id,
+        customerId: customer.id,
+        orderId: order.id,
+        customerName: customer.name || order.customer_name || "Customer",
+        contactName: customer.name || order.customer_name || "there",
+        contactEmail,
+        contactPhone,
+        preferredContact,
+        channel,
+        title: `Ask ${customer.name || order.customer_name || "this customer"} for feedback`,
+        detail: `${order.cart_summary || "Completed work"} | Paid and closed`,
+        reason: `Only queued after paid work and only once per week. ${followUpCooldownLabel("review_request")}`,
+        subject: `${bidBrandContext().tenantName}: thank you for the opportunity`,
+        message: [
+          channel === "phone" ? `Call script for ${customer.name || order.customer_name || "this customer"}:` : `Hi ${customer.name || order.customer_name || "there"},`,
+          channel === "phone" ? "" : ``,
+          `Thank you again for trusting ${bidBrandContext().tenantName} with ${order.cart_summary || "your project"}.`,
+          channel === "phone"
+            ? `If everything looks good, ask for quick feedback or a review while the work is still fresh.`
+            : `If everything looks good, we would really appreciate a quick reply with feedback or a review.`,
+          channel === "phone" ? "" : ``,
+          ...brandLines,
+        ].filter(Boolean).join("\n"),
+      });
+    })
+    .filter(Boolean);
+}
+function buildFollowUpQueue() {
+  return [
+    ...paymentReminderQueueItems(),
+    ...leadFollowUpQueueItems(),
+    ...quoteFollowUpQueueItems(),
+    ...reviewRequestQueueItems(),
+  ]
+    .filter((item) => item && !followUpSnoozeActive(item.id))
+    .sort((a, b) => {
+      if (a.priority !== b.priority) return a.priority - b.priority;
+      return String(a.customerName || "").localeCompare(String(b.customerName || ""));
+    })
+    .slice(0, 8);
+}
 function todayActionItems() {
   const actions = [];
   const staleLead = [...staleLeads()].sort((a, b) => leadLastTouchedAt(a) - leadLastTouchedAt(b))[0] || null;
+  const duePlan = [...dueServicePlans()].sort((a, b) => servicePlanNextRunTime(a) - servicePlanNextRunTime(b))[0] || null;
+  const depositRiskOrder = [...ordersMissingDeposits()].sort((a, b) => orderDepositGapCents(b) - orderDepositGapCents(a))[0] || null;
   const urgentLead = staleLead || [...LEADS_CACHE].sort((a, b) => new Date(b.updated_at || 0) - new Date(a.updated_at || 0))
     .find((row) => !["converted", "lost", "archived"].includes(String(row.status || "").toLowerCase()));
   if (urgentLead) {
@@ -6102,6 +6642,14 @@ function todayActionItems() {
       targetId: quoteReady.id,
     });
   }
+  if (duePlan) {
+    actions.push({
+      tab: "plans",
+      title: "Generate recurring work",
+      detail: `${duePlan.title || "Recurring plan"} | ${planCadenceLabel(duePlan.cadence, duePlan.custom_interval_days)} | Due ${servicePlanNextRunLabel(duePlan)}`,
+      targetId: duePlan.id,
+    });
+  }
   const collectionRiskOrder = [...CRM_ORDERS_CACHE].sort((a, b) => new Date(a.payment_due_date || a.created_at || 0) - new Date(b.payment_due_date || b.created_at || 0))
     .find((row) => ["overdue", "partially_paid", "unpaid"].includes(orderPaymentState(row)));
   if (collectionRiskOrder) {
@@ -6116,6 +6664,14 @@ function todayActionItems() {
       targetId: collectionRiskOrder.id,
     });
   }
+  if (depositRiskOrder) {
+    actions.push({
+      tab: "orders",
+      title: "Collect or confirm the deposit",
+      detail: `${depositRiskOrder.customer_name || "Customer"} | ${formatUsd(orderDepositGapCents(depositRiskOrder))} deposit still open`,
+      targetId: depositRiskOrder.id,
+    });
+  }
   const activeJob = [...JOBS_CACHE].sort((a, b) => new Date(a.scheduled_date || a.created_at || 0) - new Date(b.scheduled_date || b.created_at || 0))
     .find((row) => ["scheduled", "dispatched", "in_progress", "blocked"].includes(String(row.status || "").toLowerCase()));
   if (activeJob) {
@@ -6127,6 +6683,59 @@ function todayActionItems() {
     });
   }
   return actions.slice(0, 4);
+}
+async function sendQueuedFollowUp(item) {
+  if (!item?.canSend) throw new Error("This follow-up does not have an email delivery path.");
+  const response = await postOperatorFunction("send-follow-up", {
+    tenant_id: TENANT_ID,
+    customer_id: item.customerId,
+    kind: item.kind,
+    lead_id: item.leadId || null,
+    bid_id: item.bidId || null,
+    order_id: item.orderId || null,
+    job_id: item.jobId || null,
+    subject: item.subject,
+    message: item.message,
+    contact_email: item.contactEmail,
+    contact_name: item.contactName,
+  });
+  await fetchCustomers();
+  setFollowUpQueueMessage(
+    response?.skipped
+      ? "Follow-up was prepared and logged, but email delivery is not configured in this environment."
+      : "Follow-up sent and logged.",
+    "ok"
+  );
+  renderDashboard();
+  return response;
+}
+async function markQueuedFollowUpContacted(item) {
+  if (!item?.customerId) throw new Error("This follow-up does not have a linked customer yet.");
+  await logCustomerInteraction(
+    item.customerId,
+    item.channel === "phone" ? "call" : "email",
+    `${item.kindLabel} handled from ProofLink queue.`,
+    {
+      follow_up_kind: item.kind,
+      source: "dashboard_queue",
+      lead_id: item.leadId || null,
+      bid_id: item.bidId || null,
+      order_id: item.orderId || null,
+      job_id: item.jobId || null,
+    }
+  );
+  await fetchCustomers();
+  setFollowUpQueueMessage("Follow-up marked as handled.", "ok");
+  renderDashboard();
+}
+function openQueuedFollowUp(item) {
+  if (!item?.tab) return;
+  if (item.tab === "leads" && item.targetId) ACTIVE_LEAD_ID = item.targetId;
+  if (item.tab === "bids" && item.targetId) ACTIVE_BID_ID = item.targetId;
+  if (item.tab === "orders" && item.targetId) ACTIVE_ORDER_ID = item.targetId;
+  if (item.tab === "jobs" && item.targetId) ACTIVE_JOB_ID = item.targetId;
+  if (item.tab === "customers" && item.customerId) ACTIVE_CUSTOMER_ID = item.customerId;
+  switchTab(item.tab);
 }
 function renderLeadCustomerOptions(selectedCustomerId = "") {
   if (!leadCustomerId) return;
@@ -6392,6 +7001,357 @@ function renderJobs(filter = "") {
   });
   renderJobDetail(ACTIVE_JOB_ID).catch(console.error);
 }
+function renderPlanCustomerOptions(selectedCustomerId = "") {
+  if (!planCustomerId) return;
+  const options = [`<option value="">Select customer</option>`];
+  sortedCustomers(CUSTOMERS_CACHE).forEach((customer) => {
+    options.push(`<option value="${escapeAttr(customer.id)}">${escapeHtml(customer.name || customer.email || "Customer")}</option>`);
+  });
+  planCustomerId.innerHTML = options.join("");
+  planCustomerId.value = selectedCustomerId || "";
+}
+function renderPlanOrderOptions(selectedOrderId = "") {
+  if (!planSourceOrderId) return;
+  const rows = [...CRM_ORDERS_CACHE].sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+  const options = [`<option value="">Start without a source order</option>`];
+  rows.forEach((order) => {
+    const label = order.customer_name || order.cart_summary || "Tracked order";
+    options.push(`<option value="${escapeAttr(order.id)}">${escapeHtml(label)} - ${escapeHtml(formatUsd(orderTotalCents(order)))}</option>`);
+  });
+  planSourceOrderId.innerHTML = options.join("");
+  planSourceOrderId.value = selectedOrderId || "";
+}
+function todayDateValue(offsetDays = 0) {
+  const next = new Date();
+  next.setDate(next.getDate() + Number(offsetDays || 0));
+  next.setHours(0, 0, 0, 0);
+  return next.toISOString().slice(0, 10);
+}
+function normalizeServicePlanItems(items = []) {
+  return (Array.isArray(items) ? items : [])
+    .map((item) => ({
+      name: String(item?.name || item?.title || "Recurring service").trim(),
+      description: String(item?.description || "").trim(),
+      quantity: Math.max(1, Number(item?.quantity || 1)),
+      unit: String(item?.unit || "visit").trim() || "visit",
+      kind: String(item?.kind || "base").trim() || "base",
+      unitPriceCents: Math.max(0, Number(item?.unitPriceCents ?? item?.unit_price_cents ?? 0)),
+      totalCents: Math.max(0, Number(item?.totalCents ?? item?.total_cents ?? 0)),
+    }))
+    .filter((item) => item.name);
+}
+function buildPlanLineItems(sourceOrder, existingItems, titleValue, amountCents) {
+  const sourceItems = normalizeServicePlanItems(sourceOrder?.items || []);
+  if (sourceItems.length) return sourceItems;
+  const preserved = normalizeServicePlanItems(existingItems || []);
+  if (preserved.length) return preserved;
+  const price = Math.max(0, Number(amountCents || 0));
+  return [{
+    name: String(titleValue || sourceOrder?.cart_summary || sourceOrder?.customer_name || "Recurring service").trim() || "Recurring service",
+    description: "",
+    quantity: 1,
+    unit: "visit",
+    kind: "base",
+    unitPriceCents: price,
+    totalCents: price,
+  }];
+}
+function clearPlanForm() {
+  ACTIVE_PLAN_ID = null;
+  if (planId) planId.value = "";
+  if (planStatus) planStatus.value = "draft";
+  renderPlanCustomerOptions("");
+  renderPlanOrderOptions(ACTIVE_ORDER_ID || "");
+  if (planTitle) planTitle.value = "";
+  if (planServiceAddress) planServiceAddress.value = "";
+  if (planCadence) planCadence.value = "monthly";
+  if (planIntervalDays) planIntervalDays.value = "";
+  if (planNextRunOn) planNextRunOn.value = todayDateValue(30);
+  if (planAmount) planAmount.value = "";
+  if (planDepositAmount) planDepositAmount.value = "";
+  if (planAutoCreateJob) planAutoCreateJob.checked = true;
+  if (planScheduleWindow) planScheduleWindow.value = "";
+  if (planSummary) planSummary.value = "";
+  if (planNotes) planNotes.value = "";
+  if (btnGeneratePlanOrder) btnGeneratePlanOrder.disabled = true;
+  if (btnOpenPlanOrder) btnOpenPlanOrder.disabled = true;
+  setInlineMessage(planMsg, "");
+}
+function populatePlanForm(plan) {
+  if (!plan) {
+    clearPlanForm();
+    return;
+  }
+  if (planId) planId.value = plan.id || "";
+  if (planStatus) planStatus.value = String(plan.status || "draft");
+  renderPlanCustomerOptions(plan.customer_id || "");
+  renderPlanOrderOptions(plan.source_order_id || "");
+  if (planTitle) planTitle.value = plan.title || "";
+  if (planServiceAddress) planServiceAddress.value = plan.service_address || "";
+  if (planCadence) planCadence.value = String(plan.cadence || "monthly");
+  if (planIntervalDays) planIntervalDays.value = plan.custom_interval_days || "";
+  if (planNextRunOn) planNextRunOn.value = plan.next_run_on || "";
+  if (planAmount) planAmount.value = money(servicePlanAmountCents(plan));
+  if (planDepositAmount) planDepositAmount.value = money(Number(plan.deposit_required_cents || 0));
+  if (planAutoCreateJob) planAutoCreateJob.checked = plan.auto_create_job !== false;
+  if (planScheduleWindow) planScheduleWindow.value = plan.schedule_window || "";
+  if (planSummary) planSummary.value = plan.summary || "";
+  if (planNotes) planNotes.value = plan.notes || "";
+  if (btnGeneratePlanOrder) btnGeneratePlanOrder.disabled = String(plan.status || "").toLowerCase() !== "active";
+  if (btnOpenPlanOrder) btnOpenPlanOrder.disabled = !plan.last_generated_order_id;
+}
+async function renderPlanDetail(planIdValue) {
+  if (!planDetailWrap) return;
+  if (!SERVICE_PLANS_FEATURE_READY) {
+    if (btnGeneratePlanOrder) btnGeneratePlanOrder.disabled = true;
+    if (btnOpenPlanOrder) btnOpenPlanOrder.disabled = true;
+    planDetailWrap.innerHTML = `<div class="detail-card"><div class="kicker">Recurring plans</div><div><strong>Database upgrade required.</strong></div><div class="detail-copy">Run sql/service_recurring_plans.sql in Supabase before using recurring service plans in this workspace.</div></div>`;
+    return;
+  }
+  const plan = SERVICE_PLANS_CACHE.find((row) => row.id === planIdValue) || null;
+  populatePlanForm(plan);
+  if (!plan) {
+    planDetailWrap.innerHTML = `<div class="detail-card"><div class="kicker">Recurring rhythm</div><div><strong>Create or select a plan.</strong></div><div class="detail-copy">Recurring plans keep repeat work from turning back into manual follow-up and forgotten next steps.</div></div>`;
+    return;
+  }
+  const customer = CUSTOMERS_CACHE.find((row) => row.id === plan.customer_id) || null;
+  const sourceOrder = CRM_ORDERS_CACHE.find((row) => row.id === plan.source_order_id) || null;
+  const lastOrder = CRM_ORDERS_CACHE.find((row) => row.id === plan.last_generated_order_id) || null;
+  const dueNow = dueServicePlans().some((row) => row.id === plan.id);
+  planDetailWrap.innerHTML = `
+    <div class="detail-card">
+      <div class="kicker">Recurring summary</div>
+      <div><strong>${escapeHtml(plan.title || "Recurring plan")}</strong></div>
+      <div class="detail-copy">${escapeHtml(customer?.name || "No linked customer")} | ${escapeHtml(planCadenceLabel(plan.cadence, plan.custom_interval_days))}</div>
+      <div class="detail-copy">Next run: ${escapeHtml(servicePlanNextRunLabel(plan))}${dueNow ? " | Due now" : ""}</div>
+      <div class="detail-copy">Amount: ${formatUsd(servicePlanAmountCents(plan))} | Deposit: ${formatUsd(Number(plan.deposit_required_cents || 0))}</div>
+    </div>
+    <div class="detail-card" style="margin-top:14px;">
+      <div class="kicker">Source and automation</div>
+      <div class="detail-copy">Source order: ${escapeHtml(sourceOrder?.customer_name || sourceOrder?.cart_summary || "No source order")}</div>
+      <div class="detail-copy">Auto-create job: ${plan.auto_create_job !== false ? "On" : "Off"}</div>
+      <div class="detail-copy">${escapeHtml(plan.service_address || customer?.service_address || "No service address recorded")}</div>
+    </div>
+    <div class="detail-card" style="margin-top:14px;">
+      <div class="kicker">Last generated work</div>
+      <div class="detail-copy">Last order: ${escapeHtml(lastOrder?.customer_name || lastOrder?.cart_summary || "None yet")}</div>
+      <div class="detail-copy">${lastOrder ? `${escapeHtml(formatWorkflowPaymentState(orderPaymentState(lastOrder)))} | ${formatUsd(orderAmountDueCents(lastOrder))} due` : "Generate the next order when this plan is ready to create work."}</div>
+      <div class="detail-copy">${escapeHtml(plan.notes || "Use notes for site access, seasonal adjustments, and handoff reminders.")}</div>
+    </div>
+  `;
+}
+function sortedServicePlans(filter = "") {
+  const needle = String(filter || "").trim().toLowerCase();
+  const rows = [...(SERVICE_PLANS_CACHE || [])].sort((a, b) => {
+    const dueDiff = servicePlanNextRunTime(a) - servicePlanNextRunTime(b);
+    if (dueDiff) return dueDiff;
+    return new Date(b.updated_at || 0).getTime() - new Date(a.updated_at || 0).getTime();
+  });
+  if (!needle) return rows;
+  return rows.filter((plan) => {
+    const customer = CUSTOMERS_CACHE.find((row) => row.id === plan.customer_id) || null;
+    const haystack = [
+      plan.title,
+      plan.service_address,
+      plan.summary,
+      plan.notes,
+      plan.status,
+      customer?.name,
+      customer?.email,
+    ].join(" ").toLowerCase();
+    return haystack.includes(needle);
+  });
+}
+function renderPlans(filter = "") {
+  if (!plansList) return;
+  if (!SERVICE_PLANS_FEATURE_READY) {
+    plansList.innerHTML = `<div class="muted">Recurring plans are not enabled in this environment yet. Run sql/service_recurring_plans.sql.</div>`;
+    ACTIVE_PLAN_ID = null;
+    renderPlanDetail(null).catch(console.error);
+    return;
+  }
+  const rows = sortedServicePlans(filter);
+  if (!rows.length) {
+    plansList.innerHTML = `<div class="muted">No recurring plans yet.</div>`;
+    ACTIVE_PLAN_ID = null;
+    renderPlanDetail(null).catch(console.error);
+    return;
+  }
+  if (!ACTIVE_PLAN_ID || !rows.some((row) => row.id === ACTIVE_PLAN_ID)) ACTIVE_PLAN_ID = rows[0].id;
+  const active = rows.find((row) => row.id === ACTIVE_PLAN_ID) || rows[0];
+  ACTIVE_PLAN_ID = active.id;
+  plansList.innerHTML = rows.map((plan) => {
+    const customer = CUSTOMERS_CACHE.find((row) => row.id === plan.customer_id) || null;
+    const dueNow = dueServicePlans().some((row) => row.id === plan.id);
+    return `
+      <button type="button" class="list-item ${plan.id === active.id ? "is-active" : ""}" data-plan-id="${escapeAttr(plan.id)}">
+        <div class="li-main">
+          <div class="li-title">${escapeHtml(plan.title || "Recurring plan")}</div>
+          <div class="li-sub muted">${escapeHtml(customer?.name || "No linked customer")}</div>
+          <div class="li-sub muted">${escapeHtml(planCadenceLabel(plan.cadence, plan.custom_interval_days))} | Next run ${escapeHtml(servicePlanNextRunLabel(plan))}</div>
+          <div class="li-sub muted">${escapeHtml(plan.service_address || "No service address")}</div>
+        </div>
+        <div class="li-meta">
+          <span class="pill ${dueNow ? "pill-bad" : (String(plan.status || "").toLowerCase() === "active" ? "pill-on" : "")}">${escapeHtml(dueNow ? "Due now" : titleCaseWords(plan.status || "draft"))}</span>
+          <span class="pill">${formatUsd(servicePlanAmountCents(plan))}</span>
+        </div>
+      </button>
+    `;
+  }).join("");
+  plansList.querySelectorAll("[data-plan-id]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      ACTIVE_PLAN_ID = btn.getAttribute("data-plan-id");
+      renderPlans(filter);
+    });
+  });
+  renderPlanDetail(ACTIVE_PLAN_ID).catch(console.error);
+}
+async function saveServicePlanRecord(fields = {}) {
+  const nowIso = new Date().toISOString();
+  const existing = currentServicePlan();
+  const sourceOrder = CRM_ORDERS_CACHE.find((row) => row.id === (fields.source_order_id || planSourceOrderId?.value || existing?.source_order_id || "")) || null;
+  const customerIdValue = fields.customer_id || planCustomerId?.value || sourceOrder?.customer_id || existing?.customer_id || "";
+  if (!customerIdValue) throw new Error("Link the recurring plan to a customer before saving it.");
+  const cadenceValue = String(fields.cadence || planCadence?.value || existing?.cadence || "monthly").trim().toLowerCase();
+  const intervalDays = cadenceValue === "custom_days"
+    ? Math.max(1, Number(fields.custom_interval_days || planIntervalDays?.value || existing?.custom_interval_days || 0))
+    : null;
+  if (cadenceValue === "custom_days" && intervalDays < 7) {
+    throw new Error("Custom day cadence must be at least 7 days.");
+  }
+  const statusValue = String(fields.status || planStatus?.value || existing?.status || "draft").trim().toLowerCase();
+  const nextRunValue = String(fields.next_run_on || planNextRunOn?.value || existing?.next_run_on || "").trim();
+  if (statusValue === "active" && !nextRunValue) {
+    throw new Error("Active recurring plans need a next run date.");
+  }
+  const titleValue = String(fields.title || planTitle?.value || existing?.title || sourceOrder?.cart_summary || "").trim();
+  const amountCents = toCents(fields.amount_dollars ?? planAmount?.value ?? money(servicePlanAmountCents(existing)));
+  const depositCents = toCents(fields.deposit_dollars ?? planDepositAmount?.value ?? money(Number(existing?.deposit_required_cents || 0)));
+  const lineItems = buildPlanLineItems(
+    sourceOrder,
+    fields.line_items || existing?.line_items,
+    titleValue,
+    amountCents
+  );
+  const payload = withTenantScope({
+    operator_id: opId(),
+    customer_id: customerIdValue,
+    source_order_id: sourceOrder?.id || null,
+    status: statusValue,
+    title: titleValue || "Recurring service",
+    cadence: cadenceValue,
+    custom_interval_days: intervalDays,
+    next_run_on: nextRunValue || null,
+    auto_create_job: fields.auto_create_job ?? planAutoCreateJob?.checked ?? (existing?.auto_create_job !== false),
+    service_address: String(fields.service_address || planServiceAddress?.value || existing?.service_address || sourceOrder?.service_address || "").trim(),
+    schedule_window: String(fields.schedule_window || planScheduleWindow?.value || existing?.schedule_window || sourceOrder?.schedule_window || sourceOrder?.scheduled_time || "").trim(),
+    summary: String(fields.summary || planSummary?.value || existing?.summary || sourceOrder?.cart_summary || "").trim(),
+    notes: String(fields.notes || planNotes?.value || existing?.notes || sourceOrder?.notes || "").trim(),
+    line_items: lineItems,
+    amount_cents: amountCents,
+    deposit_required_cents: depositCents,
+    updated_at: nowIso,
+  });
+  const idValue = fields.id || planId?.value || existing?.id || "";
+  const query = idValue
+    ? sb.from("service_plans").update(payload).eq("id", idValue).eq(OPERATOR_COLUMN, opId()).eq(TENANT_COLUMN, TENANT_ID)
+    : sb.from("service_plans").insert({ ...payload, created_at: nowIso });
+  const { data, error } = await query.select("*").single();
+  if (error) {
+    if (isMissingDatabaseFeatureError(error, ["service_plans"])) {
+      throw new Error("Recurring plans need the service_recurring_plans.sql migration before they can be saved.");
+    }
+    throw error;
+  }
+  ACTIVE_PLAN_ID = data.id;
+  await fetchServicePlans();
+  renderPlans(planSearch?.value || "");
+  renderDashboard();
+  renderGuidance();
+  renderMoney().catch(console.error);
+  return SERVICE_PLANS_CACHE.find((row) => row.id === data.id) || data;
+}
+async function createServicePlanFromOrderRecord(order) {
+  if (!order?.id) throw new Error("Select an order before creating a recurring plan.");
+  const existing = SERVICE_PLANS_CACHE.find((plan) => plan.source_order_id === order.id && String(plan.status || "").toLowerCase() !== "cancelled") || null;
+  if (existing) {
+    ACTIVE_PLAN_ID = existing.id;
+    renderPlans(planSearch?.value || "");
+    return { plan: existing, existing: true };
+  }
+  const customer = CUSTOMERS_CACHE.find((row) => row.id === order.customer_id) || null;
+  const plan = await saveServicePlanRecord({
+    status: "active",
+    customer_id: order.customer_id || customer?.id || "",
+    source_order_id: order.id,
+    title: order.cart_summary || `${order.customer_name || "Customer"} recurring service`,
+    cadence: "monthly",
+    next_run_on: order.scheduled_date || todayDateValue(30),
+    amount_dollars: money(orderTotalCents(order)),
+    deposit_dollars: money(orderDepositRequiredCents(order)),
+    auto_create_job: true,
+    service_address: order.service_address || customer?.service_address || customer?.billing_address || "",
+    schedule_window: order.schedule_window || order.scheduled_time || "",
+    summary: order.cart_summary || "",
+    notes: order.notes || "",
+    line_items: normalizeServicePlanItems(order.items || []),
+  });
+  return { plan, existing: false };
+}
+async function runServicePlanRecord(plan, options = {}) {
+  if (!plan?.id) throw new Error("Select a recurring plan before generating work.");
+  const { data, error } = await sb.rpc("create_order_from_service_plan", {
+    p_plan_id: plan.id,
+    p_force: options.force === true,
+  });
+  if (error) {
+    if (isMissingDatabaseFeatureError(error, ["create_order_from_service_plan"])) {
+      throw new Error("Recurring plan generation needs the service_recurring_plans.sql migration.");
+    }
+    throw error;
+  }
+  await Promise.all([fetchServicePlans(), fetchCrmOrders(), fetchJobs(), fetchPayments()]);
+  const order = CRM_ORDERS_CACHE.find((row) => row.id === data?.order_id) || null;
+  if (order) ACTIVE_ORDER_ID = order.id;
+  if (data?.job_id) ACTIVE_JOB_ID = data.job_id;
+  ACTIVE_PLAN_ID = plan.id;
+  renderPlans(planSearch?.value || "");
+  renderOrders();
+  renderJobs(jobSearch?.value || "");
+  renderDashboard();
+  renderGuidance();
+  renderMoney().catch(console.error);
+  return { order, jobId: data?.job_id || null, existing: !!data?.existing };
+}
+async function runDueServicePlans() {
+  const due = dueServicePlans();
+  if (!due.length) return { created: 0, existing: 0 };
+  const { data, error } = await sb.rpc("generate_due_service_plans", {
+    p_tenant_id: TENANT_ID,
+  });
+  if (!error) {
+    await Promise.all([fetchServicePlans(), fetchCrmOrders(), fetchJobs(), fetchPayments()]);
+    renderPlans(planSearch?.value || "");
+    renderOrders();
+    renderJobs(jobSearch?.value || "");
+    renderDashboard();
+    renderGuidance();
+    renderMoney().catch(console.error);
+    return {
+      created: Number(data?.created_count || 0),
+      existing: Number(data?.existing_count || 0),
+    };
+  }
+  if (!isMissingDatabaseFeatureError(error, ["generate_due_service_plans"])) throw error;
+  let created = 0;
+  let existing = 0;
+  for (const plan of due) {
+    const result = await runServicePlanRecord(plan);
+    if (result?.existing) existing += 1;
+    else created += 1;
+  }
+  return { created, existing };
+}
 async function saveLeadRecord(fields = {}) {
   const nowIso = new Date().toISOString();
   const rawCustomerId = fields.customer_id || leadCustomerId?.value || "";
@@ -6626,15 +7586,20 @@ function renderDashboard() {
   const summary = workspaceSummaryData(blueprint);
   const pipeline = servicePipelineSnapshot();
   const todayActions = todayActionItems();
+  const followUps = buildFollowUpQueue();
+  CURRENT_FOLLOW_UP_QUEUE = followUps;
   const currentExpenses = currentMonthExpenseCents();
   const quotedRevenue = quotedRevenueCents();
   const activeOfferings = PRODUCTS_CACHE.filter((p) => !!p.is_active).length;
   const topCustomer = sortedCustomers(CUSTOMERS_CACHE)[0] || null;
   const staleLeadRows = staleLeads();
   const completedUnpaid = completedUnpaidOrders();
+  const duePlans = dueServicePlans();
+  const depositRiskOrders = ordersMissingDeposits();
   const completedUnpaidBalance = completedUnpaid.reduce((sum, row) => sum + orderAmountDueCents(row), 0);
   const outstandingBalance = outstandingBalanceCents();
   const overdueBalance = overdueBalanceCents();
+  const missingDepositBalance = depositRiskOrders.reduce((sum, row) => sum + orderDepositGapCents(row), 0);
   const orderLabel = workspaceOrderLabelLower(blueprint);
   const catalogLabel = workspaceCatalogLabelLower(blueprint);
   const alerts = [];
@@ -6642,6 +7607,8 @@ function renderDashboard() {
   if (!CUSTOMERS_CACHE.length) alerts.push("No customers are in CRM yet. As real work lands here, relationship memory and follow-up get stronger.");
   if (!CRM_ORDERS_CACHE.length) alerts.push(`No tracked ${orderLabel} exist yet. That means customer value and operational visibility are still shallow.`);
   if (!EXPENSES_CACHE.length) alerts.push("No expenses are logged yet, so profit visibility is still weak.");
+  if (duePlans.length) alerts.push(`${duePlans.length} recurring plan${duePlans.length === 1 ? "" : "s"} are due right now. Generate the next work record before repeat revenue slips.`);
+  if (missingDepositBalance > 0) alerts.push(`${formatUsd(missingDepositBalance)} in deposits is still open on booked work. Make the deposit expectation visible before the schedule gets ahead of the cash.`);
 
   const metricsHtml = window.ProofLinkAnalyticsWidgets?.renderCards
     ? window.ProofLinkAnalyticsWidgets.renderCards({
@@ -6724,6 +7691,18 @@ function renderDashboard() {
       </div>
       <div class="card mini">
         <div class="card-bd">
+          <div class="muted">Recurring work due</div>
+          <div class="money">${duePlans.length}</div>
+        </div>
+      </div>
+      <div class="card mini">
+        <div class="card-bd">
+          <div class="muted">Booked without deposit</div>
+          <div class="money">${formatUsd(missingDepositBalance)}</div>
+        </div>
+      </div>
+      <div class="card mini">
+        <div class="card-bd">
           <div class="muted">Overdue money</div>
           <div class="money">${formatUsd(overdueBalance)}</div>
         </div>
@@ -6751,6 +7730,13 @@ function renderDashboard() {
         <strong>Record a payment</strong>
         <div class="detail-copy">Log cash, check, ACH, or field collection without losing the work link.</div>
       </button>
+      ${isTabVisibleInWorkspace("plans", blueprint) ? `
+        <button type="button" class="dashboard-quick-action" data-dashboard-action="new-plan">
+          <div class="kicker">Quick start</div>
+          <strong>Start a recurring plan</strong>
+          <div class="detail-copy">Turn repeat service into scheduled orders and jobs before it slips back into memory.</div>
+        </button>
+      ` : ""}
     </div>
 
     <div class="today-actions-grid">
@@ -6761,6 +7747,45 @@ function renderDashboard() {
           <div class="detail-copy">${escapeHtml(item.detail)}</div>
         </button>
       `).join("") : `<div class="detail-card"><div class="kicker">Today</div><div><strong>No urgent workflow blocks right now.</strong></div><div class="detail-copy">Use this screen to stay ahead of leads, active jobs, and unpaid work before the business gets noisy.</div></div>`}
+    </div>
+
+    <div class="follow-up-queue">
+      <div class="follow-up-queue__head">
+        <div>
+          <div class="kicker">Guarded follow-up queue</div>
+          <h3>Helpful follow-up without spam</h3>
+          <p>These follow-ups are generated from real workflow events, capped by cooldowns, and stop mattering as soon as the work state changes.</p>
+        </div>
+        <div class="follow-up-queue__meta">
+          <span class="pill">${escapeHtml(String(followUps.length))} queued</span>
+          <span class="pill">No bulk blasts</span>
+          <span class="pill">Operator visible</span>
+        </div>
+      </div>
+      ${FOLLOW_UP_QUEUE_MESSAGE ? `<div class="msg ${escapeAttr(FOLLOW_UP_QUEUE_MESSAGE.tone || "")}">${escapeHtml(FOLLOW_UP_QUEUE_MESSAGE.text || "")}</div>` : ""}
+      <div class="follow-up-grid">
+        ${followUps.length ? followUps.map((item, index) => `
+          <article class="follow-up-card">
+            <div class="follow-up-card__top">
+              <div>
+                <div class="kicker">${escapeHtml(item.kindLabel)}</div>
+                <strong>${escapeHtml(item.title)}</strong>
+              </div>
+              <span class="pill ${item.kind === "payment_reminder" ? "pill-bad" : (item.kind === "review_request" ? "pill-on" : "")}">${escapeHtml(item.channel === "email" ? "Email ready" : "Call script ready")}</span>
+            </div>
+            <div class="detail-copy">${escapeHtml(item.detail)}</div>
+            <div class="follow-up-card__reason">${escapeHtml(item.reason)}</div>
+            <div class="follow-up-card__contact">${escapeHtml(item.customerName || item.contactName || "Customer")}${item.contactEmail ? ` &middot; ${escapeHtml(item.contactEmail)}` : ""}${item.contactPhone ? ` &middot; ${escapeHtml(item.contactPhone)}` : ""}</div>
+            <div class="follow-up-card__actions">
+              <button type="button" class="btn btn-primary btn-sm" data-follow-up-action="copy" data-follow-up-index="${escapeAttr(index)}">${escapeHtml(item.channel === "email" ? "Copy email" : "Copy call script")}</button>
+              ${item.canSend ? `<button type="button" class="btn btn-ghost btn-sm" data-follow-up-action="send" data-follow-up-index="${escapeAttr(index)}">Send email</button>` : ""}
+              ${item.customerId ? `<button type="button" class="btn btn-ghost btn-sm" data-follow-up-action="handled" data-follow-up-index="${escapeAttr(index)}">Mark contacted</button>` : ""}
+              <button type="button" class="btn btn-ghost btn-sm" data-follow-up-action="open" data-follow-up-index="${escapeAttr(index)}">Open record</button>
+              <button type="button" class="btn btn-ghost btn-sm" data-follow-up-action="snooze" data-follow-up-index="${escapeAttr(index)}">Snooze 24h</button>
+            </div>
+          </article>
+        `).join("") : `<div class="detail-card"><div class="kicker">Queue</div><div><strong>No safe follow-up is queued right now.</strong></div><div class="detail-copy">That means leads are being worked, money is caught up, or recent contact already happened.</div></div>`}
+      </div>
     </div>
 
     <div class="workspace-summary-grid">
@@ -6798,7 +7823,7 @@ function renderDashboard() {
       <div class="insight">
         <h3>Owner pressure points</h3>
         <p>Stale leads: <strong>${staleLeadRows.length}</strong> | Completed but unpaid: <strong>${completedUnpaid.length}</strong></p>
-        <p>Quoted pipeline waiting on decision: <strong>${pipeline.quoted}</strong> | Overdue collections: <strong>${formatUsd(overdueBalance)}</strong></p>
+        <p>Quoted pipeline waiting on decision: <strong>${pipeline.quoted}</strong> | Due recurring work: <strong>${duePlans.length}</strong> | Missing deposits: <strong>${formatUsd(missingDepositBalance)}</strong></p>
       </div>
       <div class="insight">
         <h3>CRM value</h3>
@@ -6823,17 +7848,18 @@ function renderDashboard() {
     </div>
   `;
 
-    dashboardWrap.querySelectorAll("[data-today-tab]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const tab = btn.getAttribute("data-today-tab");
-        const targetId = btn.getAttribute("data-today-id");
-        if (tab === "leads" && targetId) ACTIVE_LEAD_ID = targetId;
+  dashboardWrap.querySelectorAll("[data-today-tab]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const tab = btn.getAttribute("data-today-tab");
+      const targetId = btn.getAttribute("data-today-id");
+      if (tab === "leads" && targetId) ACTIVE_LEAD_ID = targetId;
       if (tab === "bids" && targetId) ACTIVE_BID_ID = targetId;
       if (tab === "orders" && targetId) ACTIVE_ORDER_ID = targetId;
       if (tab === "jobs" && targetId) ACTIVE_JOB_ID = targetId;
+      if (tab === "plans" && targetId) ACTIVE_PLAN_ID = targetId;
       switchTab(tab || "dashboard");
-      });
     });
+  });
   dashboardWrap.querySelectorAll("[data-dashboard-action]").forEach((btn) => {
     btn.addEventListener("click", () => {
       const action = btn.getAttribute("data-dashboard-action");
@@ -6858,6 +7884,51 @@ function renderDashboard() {
         clearPaymentForm({ customerId: ACTIVE_CUSTOMER_ID || "" });
         renderPayments();
         switchTab("payments");
+        return;
+      }
+      if (action === "new-plan") {
+        ACTIVE_PLAN_ID = null;
+        clearPlanForm();
+        renderPlanDetail(null).catch(console.error);
+        switchTab("plans");
+      }
+    });
+  });
+  dashboardWrap.querySelectorAll("[data-follow-up-action]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const action = btn.getAttribute("data-follow-up-action");
+      const index = Number(btn.getAttribute("data-follow-up-index"));
+      const item = CURRENT_FOLLOW_UP_QUEUE[index];
+      if (!item) return;
+      try {
+        if (action === "copy") {
+          await copyTextValue(item.message || "");
+          setFollowUpQueueMessage(item.channel === "email" ? "Follow-up email copied to the clipboard." : "Call script copied to the clipboard.", "ok");
+          renderDashboard();
+          return;
+        }
+        if (action === "send") {
+          setFollowUpQueueMessage("Sending follow-up...", "");
+          renderDashboard();
+          await sendQueuedFollowUp(item);
+          return;
+        }
+        if (action === "handled") {
+          await markQueuedFollowUpContacted(item);
+          return;
+        }
+        if (action === "open") {
+          openQueuedFollowUp(item);
+          return;
+        }
+        if (action === "snooze") {
+          snoozeFollowUpItem(item.id, 24);
+          setFollowUpQueueMessage("Follow-up snoozed for 24 hours.", "ok");
+          renderDashboard();
+        }
+      } catch (err) {
+        setFollowUpQueueMessage(err.message || String(err), "error");
+        renderDashboard();
       }
     });
   });
@@ -6917,9 +7988,13 @@ function renderOrders() {
   const notesText = active.notes || active.cartSummary || "No extra notes provided.";
   const sourceLabel = String(active.source_type || "storefront").replace(/_/g, " ");
   const linkedJob = JOBS_CACHE.find((row) => row.order_id === active.id || row.id === active.primary_job_id) || null;
+  const linkedPlan = SERVICE_PLANS_CACHE.find((row) => row.source_order_id === active.id) || null;
   const paymentState = orderPaymentState(active);
   const amountDue = orderAmountDueCents(active);
   const amountPaid = orderAmountPaidCents(active);
+  const depositRequired = orderDepositRequiredCents(active);
+  const depositPaid = orderDepositPaidCents(active);
+  const depositGap = orderDepositGapCents(active);
 
   orderDetailWrap.innerHTML = `
     <div class="detail-card">
@@ -6943,6 +8018,7 @@ function renderOrders() {
       <div class="kicker">Commercial read</div>
       <div class="detail-copy">Order value: ${formatUsd(totalCents)}</div>
       <div class="detail-copy">Paid: ${formatUsd(amountPaid)} | Due: ${formatUsd(amountDue)}</div>
+      <div class="detail-copy">Deposit: ${formatUsd(depositPaid)} paid of ${formatUsd(depositRequired)} required${depositGap > 0 ? ` | ${formatUsd(depositGap)} still open` : ""}</div>
       <div class="detail-copy">Payment state: ${escapeHtml(formatWorkflowPaymentState(paymentState))}</div>
       <div class="detail-copy">Tenant: ${escapeHtml(active.tenant_id || TENANT_ID)}</div>
       <div class="detail-copy">${escapeHtml(notesText)}</div>
@@ -6951,9 +8027,11 @@ function renderOrders() {
     <div class="detail-card" style="margin-top:14px;">
       <div class="kicker">Workflow next step</div>
       <div class="detail-copy">Tracked job: ${escapeHtml(linkedJob?.title || (linkedJob ? "Linked job" : "No job yet"))}</div>
+      <div class="detail-copy">Recurring plan: ${escapeHtml(linkedPlan?.title || "Not set up")}</div>
       <div class="detail-copy">${linkedJob ? `Execution status: ${escapeHtml(String(linkedJob.status || "scheduled").replace(/_/g, " "))}` : "Create a job when this work is ready to be scheduled or performed."}</div>
       <div class="row" style="margin-top:10px;">
         <button id="btnCreateJobFromOrder" class="btn btn-primary" type="button">${linkedJob ? "Open linked job" : "Create job"}</button>
+        <button id="btnCreateRecurringPlanFromOrder" class="btn" type="button">${linkedPlan ? "Open recurring plan" : "Make recurring"}</button>
         <button id="btnRecordOrderPayment" class="btn btn-ghost" type="button">Record payment</button>
       </div>
     </div>
@@ -7009,6 +8087,24 @@ function renderOrders() {
       alert(err.message || String(err));
     }
   });
+  $("btnCreateRecurringPlanFromOrder")?.addEventListener("click", async () => {
+    if (linkedPlan) {
+      ACTIVE_PLAN_ID = linkedPlan.id;
+      renderPlans(planSearch?.value || "");
+      switchTab("plans");
+      return;
+    }
+    try {
+      const result = await createServicePlanFromOrderRecord(active);
+      if (result?.plan?.id) ACTIVE_PLAN_ID = result.plan.id;
+      renderPlans(planSearch?.value || "");
+      renderDashboard();
+      renderGuidance();
+      switchTab("plans");
+    } catch (err) {
+      alert(err.message || String(err));
+    }
+  });
   $("btnRecordOrderPayment")?.addEventListener("click", () => {
     ACTIVE_ORDER_ID = active.id;
     clearPaymentForm({
@@ -7028,6 +8124,9 @@ function renderGuidance() {
   notes.push(["Lead pipeline", LEADS_CACHE.length ? `You have ${LEADS_CACHE.length} lead record(s). Work them forward instead of letting website requests or phone notes die in memory.` : "No leads exist yet. As service intake starts landing here, the pipeline becomes much easier to trust."]);
   notes.push(["CRM foundation", CUSTOMERS_CACHE.length ? `You now have ${CUSTOMERS_CACHE.length} customer record(s). Start ranking by lifetime value and following up based on real history.` : "No customers are in CRM yet. The next win is building customer memory that does not live in texts or somebody's head."]);
   notes.push(["Execution", JOBS_CACHE.length ? `You have ${JOBS_CACHE.length} tracked job record(s). That means work no longer has to live only inside the order list.` : "No jobs are tracked yet. Convert booked work into jobs so schedule, proof, and collection all stay visible."]);
+  if (isTabVisibleInWorkspace("plans", blueprint)) {
+    notes.push(["Recurring work", SERVICE_PLANS_CACHE.length ? `You have ${SERVICE_PLANS_CACHE.length} recurring plan(s). That keeps repeat revenue from depending on manual memory and calendar juggling.` : "No recurring plans exist yet. Build one from a real order when the same customer is likely to need the work again."]);
+  }
   notes.push(["Payments", PAYMENTS_CACHE.length ? "Payments are flowing into the operator record. Online and offline collection can now sit on the same customer and work history." : "Payments table is empty. Start by logging real deposits and collections so the business history becomes trustworthy."]);
   if (isTabVisibleInWorkspace("bids", blueprint)) {
     notes.push(["Bids and sales flow", BIDS_CACHE.length ? `You have ${BIDS_CACHE.length} saved bid draft(s). Keep using the walkthrough record so scope, photos, and pricing stay together.` : "No professional bid drafts exist yet. The fastest upgrade is turning site visits into structured proposals instead of memory-based follow-up."]);
@@ -7049,16 +8148,18 @@ function renderGuidance() {
   `;
 }
 btnRefreshDashboard?.addEventListener("click", async () => {
-  await Promise.allSettled([fetchLeads(), fetchCrmOrders(), fetchPayments(), fetchJobs(), fetchDashboardLaunchChecklist(), fetchDashboardPaymentState(), loadPersistedBids()]);
+  await Promise.allSettled([fetchLeads(), fetchCrmOrders(), fetchPayments(), fetchJobs(), fetchServicePlans(), fetchDashboardLaunchChecklist(), fetchDashboardPaymentState(), loadPersistedBids()]);
   renderDashboard();
   renderLeads(leadSearch?.value || "");
+  renderPlans(planSearch?.value || "");
   renderGuidance();
 });
 btnRefreshOrders?.addEventListener("click", async () => {
   try {
-    await Promise.all([fetchCrmOrders(), fetchJobs()]);
+    await Promise.all([fetchCrmOrders(), fetchJobs(), fetchServicePlans()]);
     renderOrders();
     renderJobs(jobSearch?.value || "");
+    renderPlans(planSearch?.value || "");
     renderDashboard();
     renderGuidance();
   } catch (err) {
@@ -7111,6 +8212,8 @@ async function renderMoney() {
   }).length;
 
   const months = Array.from(expByMonth.keys()).sort().reverse();
+  const duePlans = dueServicePlans();
+  const activePlans = SERVICE_PLANS_CACHE.filter((row) => String(row.status || "").toLowerCase() === "active");
 
   moneyWrap.innerHTML = `
     <div class="cards">
@@ -7130,6 +8233,18 @@ async function renderMoney() {
         <div class="card-bd">
           <div class="muted">Top customer value</div>
           <div class="money">${formatUsd(topCustomer ? customerLifetimeValueCents(topCustomer) : 0)}</div>
+        </div>
+      </div>
+      <div class="card mini">
+        <div class="card-bd">
+          <div class="muted">Active recurring plans</div>
+          <div class="money">${activePlans.length}</div>
+        </div>
+      </div>
+      <div class="card mini">
+        <div class="card-bd">
+          <div class="muted">Recurring work due</div>
+          <div class="money">${duePlans.length}</div>
         </div>
       </div>
     </div>
@@ -7187,6 +8302,7 @@ async function boot() {
       fetchCrmOrders(),
       fetchPayments(),
       fetchJobs(),
+      fetchServicePlans(),
       fetchAvailability(),
       fetchOperatorSetup().catch(() => null),
     ]);
@@ -7209,6 +8325,7 @@ async function boot() {
     renderOrders();
     renderBids("");
     renderJobs("");
+    renderPlans("");
     renderCustomersList("");
     renderPayments();
     renderGuidance();
@@ -7239,6 +8356,7 @@ window.PROOFLINK_OPERATOR_RUNTIME = {
   refreshOrders: async () => { await fetchCrmOrders(); renderOrders(); },
   refreshLeads: async () => { await fetchLeads(); renderLeads(leadSearch?.value || ""); },
   refreshJobs: async () => { await fetchJobs(); renderJobs(jobSearch?.value || ""); },
+  refreshPlans: async () => { await fetchServicePlans(); renderPlans(planSearch?.value || ""); },
 };
 
 initBranding();

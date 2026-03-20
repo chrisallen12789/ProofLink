@@ -84,8 +84,9 @@ test.describe.serial("service workflow e2e", () => {
     await page.locator("#loginEmail").fill(process.env.TEST_TENANT_A_ADMIN_EMAIL);
     await page.locator("#loginPassword").fill(process.env.TEST_TENANT_A_ADMIN_PASSWORD);
     await page.locator("#loginForm button[type='submit']").click();
-    await expect(page.getByRole("heading", { name: "Today" })).toBeVisible();
+    await expect(page.locator('[data-panel="dashboard"] h2')).toHaveText("Today", { timeout: 15000 });
     await dismissTourIfVisible(page);
+    await page.waitForFunction(() => window.PROOFLINK_BOOT_READY === true, null, { timeout: 15000 });
   }
 
   async function loginAsTenantB(page) {
@@ -95,7 +96,7 @@ test.describe.serial("service workflow e2e", () => {
     await page.locator("#loginEmail").fill(process.env.TEST_TENANT_B_ADMIN_EMAIL);
     await page.locator("#loginPassword").fill(process.env.TEST_TENANT_B_ADMIN_PASSWORD);
     await page.locator("#loginForm button[type='submit']").click();
-    await expect(page.getByRole("heading", { name: "Today" })).toBeVisible();
+    await expect(page.locator('[data-panel="dashboard"] h2')).toHaveText("Today", { timeout: 15000 });
     await dismissTourIfVisible(page);
   }
 

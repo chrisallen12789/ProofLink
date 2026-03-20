@@ -71,6 +71,7 @@
         <button class="tab" data-tab="orders" data-tour-tab="orders" type="button">Orders</button>
         <button class="tab" data-tab="bids" data-tour-tab="bids" type="button">Walkthrough Bids</button>
         <button class="tab" data-tab="jobs" data-tour-tab="jobs" type="button">Jobs</button>
+        <button class="tab" data-tab="plans" data-tour-tab="plans" type="button">Recurring Plans</button>
         <button class="tab" data-tab="customers" data-tour-tab="customers" type="button">Customers</button>
         <button class="tab" data-tab="payments" data-tour-tab="payments" type="button">Payments</button>
         <button class="tab" data-tab="domains" data-tour-tab="domains" type="button">Domains</button>
@@ -466,6 +467,129 @@
                   </form>
 
                   <div id="jobDetailWrap" class="muted" style="margin-top:16px;">Select or create a job to see the execution context.</div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel hidden" data-panel="plans">
+            <div class="panel-head">
+              <div>
+                <h2>Recurring Plans</h2>
+                <div class="muted">Turn repeat service into scheduled work without rebuilding the order by hand each time.</div>
+              </div>
+              <div class="panel-actions">
+                <input id="planSearch" class="input" placeholder="Search recurring plans..." />
+                <button id="btnRunDuePlans" class="btn btn-primary" type="button">Run due plans</button>
+                <button id="btnNewPlan" class="btn" type="button">New plan</button>
+              </div>
+            </div>
+
+            <div class="grid two">
+              <div class="card">
+                <div class="card-hd">
+                  <strong>Recurring pipeline</strong>
+                  <span class="muted">What is active, what is due next, and what is at risk of being forgotten.</span>
+                </div>
+                <div class="card-bd">
+                  <div id="plansList" class="list"></div>
+                </div>
+              </div>
+
+              <div class="card">
+                <div class="card-hd">
+                  <strong>Plan detail</strong>
+                  <span class="muted">Keep cadence, deposit rules, and the source work record together.</span>
+                </div>
+                <div class="card-bd">
+                  <form id="planForm" class="form">
+                    <input id="planId" type="hidden" />
+
+                    <div class="grid three form-grid">
+                      <label>Status
+                        <select id="planStatus">
+                          <option value="draft">Draft</option>
+                          <option value="active">Active</option>
+                          <option value="paused">Paused</option>
+                          <option value="cancelled">Cancelled</option>
+                        </select>
+                      </label>
+
+                      <label>Linked customer
+                        <select id="planCustomerId"></select>
+                      </label>
+
+                      <label>Source order
+                        <select id="planSourceOrderId"></select>
+                      </label>
+                    </div>
+
+                    <div class="grid two form-grid">
+                      <label>Plan title
+                        <input id="planTitle" placeholder="Monthly storefront wash" />
+                      </label>
+
+                      <label>Service address
+                        <input id="planServiceAddress" placeholder="123 Main Street, City, State" />
+                      </label>
+                    </div>
+
+                    <div class="grid three form-grid">
+                      <label>Cadence
+                        <select id="planCadence">
+                          <option value="weekly">Weekly</option>
+                          <option value="biweekly">Biweekly</option>
+                          <option value="monthly">Monthly</option>
+                          <option value="quarterly">Quarterly</option>
+                          <option value="custom_days">Custom days</option>
+                        </select>
+                      </label>
+
+                      <label>Custom interval days
+                        <input id="planIntervalDays" type="number" min="7" step="1" placeholder="30" />
+                      </label>
+
+                      <label>Next run
+                        <input id="planNextRunOn" type="date" />
+                      </label>
+                    </div>
+
+                    <div class="grid three form-grid">
+                      <label>Plan amount
+                        <input id="planAmount" type="number" min="0" step="0.01" placeholder="250.00" />
+                      </label>
+
+                      <label>Deposit required
+                        <input id="planDepositAmount" type="number" min="0" step="0.01" placeholder="75.00" />
+                      </label>
+
+                      <label class="checkbox-field">Auto-create job
+                        <input id="planAutoCreateJob" type="checkbox" checked />
+                      </label>
+                    </div>
+
+                    <label>Schedule window
+                      <input id="planScheduleWindow" placeholder="First Tuesday, 8am-12pm" />
+                    </label>
+
+                    <label>Work summary
+                      <textarea id="planSummary" rows="3" placeholder="What repeats each visit and what the customer expects every time."></textarea>
+                    </label>
+
+                    <label>Operator notes
+                      <textarea id="planNotes" rows="3" placeholder="Gate code, call-ahead rule, seasonal adjustment, or billing notes."></textarea>
+                    </label>
+
+                    <div class="row">
+                      <button class="btn btn-primary" type="submit">Save plan</button>
+                      <button id="btnGeneratePlanOrder" class="btn" type="button">Generate next order</button>
+                      <button id="btnOpenPlanOrder" class="btn btn-ghost" type="button">Open last order</button>
+                    </div>
+
+                    <div id="planMsg" class="msg"></div>
+                  </form>
+
+                  <div id="planDetailWrap" class="muted" style="margin-top:16px;">Select or create a plan to see the recurring workflow context.</div>
                 </div>
               </div>
             </div>

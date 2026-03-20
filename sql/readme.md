@@ -62,6 +62,17 @@ It adds:
 - service-workflow RLS/policy extensions
 - payment-state recompute triggers and supporting indexes
 
+### `service_recurring_plans.sql`
+Additive recurring-service schema. Run this after `catchup_run_this.sql` and `service_workflow_phase1.sql`.
+
+It adds:
+- `service_plans`
+- recurring plan RLS/policy coverage
+- `orders.service_plan_id`
+- `jobs.service_plan_id`
+- service-plan order/job generation RPCs
+- recurring-order uniqueness guards and supporting indexes
+
 ### `get_tenant_plan_limits_compat.sql`
 Targeted repair script for older hosted environments that already have most governance schema, but need the final `get_tenant_plan_limits(...)` overloads reconciled without rerunning the full catch-up file.
 
@@ -78,10 +89,11 @@ The `/archive/` folder contains older migrations kept for reference. Some schema
 2. Open SQL Editor.
 3. Run `catchup_run_this.sql`.
 4. Run `service_workflow_phase1.sql`.
-5. Point `.env.test` or `TEST_*` secrets at that same project.
-6. Run `npm run test:preflight:service-workflow`.
-7. Set the required environment variables from the root `.env.example`.
-8. Deploy or run the app against that project.
+5. Run `service_recurring_plans.sql` if you want recurring service plans enabled.
+6. Point `.env.test` or `TEST_*` secrets at that same project.
+7. Run `npm run test:preflight:service-workflow`.
+8. Set the required environment variables from the root `.env.example`.
+9. Deploy or run the app against that project.
 
 ## Change process
 
