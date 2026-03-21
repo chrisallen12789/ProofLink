@@ -16,7 +16,7 @@
 
 'use strict';
 
-const { createClient } = require('@supabase/supabase-js');
+const { requireAdminContext, respond } = require('./utils/auth');
 
 const VALID_ACTIONS = ['flag', 'suspend', 'reinstate', 'terminate'];
 
@@ -28,50 +28,40 @@ const STATUS_MAP = {
 };
 
 exports.handler = async function (event) {
+  if (event.httpMethod === 'OPTIONS') {
+    return respond(204, {});
+  }
   if (event.httpMethod !== 'POST') {
-    return { statusCode: 405, body: JSON.stringify({ error: 'Method not allowed' }) };
+    return respond(405, { error: 'Method not allowed' });
   }
 
-  const authHeader  = (event.headers['authorization'] || '').replace('Bearer ', '').trim();
-  if (!authHeader) {
-    return { statusCode: 401, body: JSON.stringify({ error: 'Unauthorized' }) };
+  let ctx;
+  try {
+    ctx = await requireAdminContext(event);
+  } catch (err) {
+    return respond(err.statusCode || 401, { error: err.message });
   }
 
-  const supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY,
-  );
-
-  // Verify admin session
-  const { data: { user }, error: authErr } = await supabase.auth.getUser(authHeader);
-  if (authErr || !user) {
-    return { statusCode: 401, body: JSON.stringify({ error: 'Invalid or expired session' }) };
-  }
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single();
-  if (!profile || profile.role !== 'admin') {
-    return { statusCode: 403, body: JSON.stringify({ error: 'Platform admin access required' }) };
-  }
+  const { supabase, user, operatorId } = ctx;
 
   // Parse body
   let body;
   try { body = JSON.parse(event.body || '{}'); }
-  catch (_) { return { statusCode: 400, body: JSON.stringify({ error: 'Invalid JSON' }) }; }
+  catch (_) { return respond(400, { error: 'Invalid JSON' }); }
 
   const { tenant_id, action, reason_code, admin_notes } = body;
 
   if (!tenant_id) {
-    return { statusCode: 400, body: JSON.stringify({ error: 'tenant_id is required' }) };
+    return respond(400, { error: 'tenant_id is required' });
   }
   if (!VALID_ACTIONS.includes(action)) {
-    return {
-      statusCode: 400,
-      body: JSON.stringify({ error: 'Invalid action. Must be one of: ' + VALID_ACTIONS.join(', ') }),
-    };
+    return respond(400, { error: 'Invalid action. Must be one of: ' + VALID_ACTIONS.join(', ') });
+  }
+  if (reason_code && reason_code.length > 100) {
+    return respond(400, { error: 'reason_code must be 100 characters or fewer' });
+  }
+  if (admin_notes && admin_notes.length > 2000) {
+    return respond(400, { error: 'admin_notes must be 2000 characters or fewer' });
   }
 
   const now       = new Date().toISOString();
@@ -84,7 +74,7 @@ exports.handler = async function (event) {
     conduct_reason     : reason_code || null,
     conduct_notes      : admin_notes || null,
     conduct_updated_at : now,
-    conduct_updated_by : user.id,
+    conduct_updated_by : operatorId || user.id,
   };
 
   if (action === 'suspend') {
@@ -109,10 +99,7 @@ exports.handler = async function (event) {
     .eq('id', tenant_id);
 
   if (updateErr) {
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ error: 'Failed to update tenant: ' + updateErr.message }),
-    };
+    return respond(500, { error: 'Failed to update tenant: ' + updateErr.message });
   }
 
   // Write to conduct log (best-effort — don't fail the request if the table isn't ready)
@@ -122,13 +109,10 @@ exports.handler = async function (event) {
       action,
       reason_code  : reason_code || null,
       admin_notes  : admin_notes || null,
-      performed_by : user.id,
+      performed_by : operatorId || user.id,
       performed_at : now,
     });
   } catch (_) {}
 
-  return {
-    statusCode: 200,
-    body: JSON.stringify({ ok: true, status: newStatus }),
-  };
+  return respond(200, { ok: true, status: newStatus });
 };

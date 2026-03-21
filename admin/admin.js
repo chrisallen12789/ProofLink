@@ -163,10 +163,13 @@ function authFetch(url, opts) {
   var headers = Object.assign({}, opts.headers || {}, { 'Authorization': 'Bearer ' + token });
   return fetch(url, Object.assign({}, opts, { headers: headers }))
     .then(function (r) {
-      if (r.status === 401 || r.status === 403) {
+      if (r.status === 401) {
         sessionStorage.removeItem('pl_op_token');
         setAuth(true);
         throw new Error('Session expired. Please sign in again.');
+      }
+      if (r.status === 403) {
+        throw new Error('Access denied. You do not have permission to perform this action.');
       }
       return r;
     });
@@ -773,9 +776,14 @@ function bootAdmin() {
   if (saved) {
     // Verify saved token is still valid and belongs to a platform admin
     verifyAdmin(saved).then(function (vRes) {
-      if (!vRes.ok) {
-        // Token expired or user is not an admin — clear and show login
+      if (vRes.status === 401 || vRes.status === 403) {
+        // Token invalid or user is not an admin — clear and show login
         sessionStorage.removeItem('pl_op_token');
+        setAuth(true);
+        return;
+      }
+      if (!vRes.ok) {
+        // Network or server error — keep session, show login to let user retry
         setAuth(true);
         return;
       }
@@ -784,7 +792,7 @@ function bootAdmin() {
       setAuth(false);
       bootAdmin();
     }).catch(function () {
-      sessionStorage.removeItem('pl_op_token');
+      // Network failure — don't clear a potentially valid token
       setAuth(true);
     });
   }
