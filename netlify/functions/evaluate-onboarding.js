@@ -202,7 +202,7 @@ async function runEvaluation(req, supabase) {
   // ── 3. Duplicate application (same email, non-rejected) ────────────────────
   try {
     const { data: dupApp } = await supabase
-      .from('onboarding_requests')
+      .from('tenant_onboarding_requests')
       .select('id, status')
       .eq('owner_email', req.owner_email)
       .neq('id', req.id)
@@ -387,20 +387,21 @@ exports.handler = async function (event) {
     if (authErr || !user) {
       return { statusCode: 401, body: JSON.stringify({ error: 'Invalid session' }) };
     }
-    // Verify admin role
-    const { data: profile } = await supabase
-      .from('profiles')
+    // Verify admin role via operators table (platform_admin or admin)
+    const { data: operator } = await supabase
+      .from('operators')
       .select('role')
-      .eq('id', user.id)
-      .single();
-    if (!profile || profile.role !== 'admin') {
+      .ilike('email', user.email || '')
+      .maybeSingle();
+    const adminRoles = new Set(['admin', 'platform_admin']);
+    if (!operator || !adminRoles.has(operator.role)) {
       return { statusCode: 403, body: JSON.stringify({ error: 'Admin access required' }) };
     }
   }
 
   // Fetch the onboarding request
   const { data: req, error: fetchErr } = await supabase
-    .from('onboarding_requests')
+    .from('tenant_onboarding_requests')
     .select('*')
     .eq('id', request_id)
     .single();
@@ -419,7 +420,7 @@ exports.handler = async function (event) {
 
   // Persist the decision
   const { error: updateErr } = await supabase
-    .from('onboarding_requests')
+    .from('tenant_onboarding_requests')
     .update({
       status           : result.status,
       risk_level       : result.risk_level,

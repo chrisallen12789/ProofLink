@@ -31,7 +31,7 @@ exports.handler = async (event) => {
   }
 
   const { error, count } = await supabase
-    .from('onboarding_requests')
+    .from('tenant_onboarding_requests')
     .delete({ count: 'exact' })
     .in('id', ids);
 

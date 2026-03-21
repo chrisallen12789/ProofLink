@@ -47,9 +47,9 @@ exports.handler = async (event) => {
     return respond(400, { error: 'Request is already provisioned' });
   }
 
-  if (!['submitted','failed'].includes(existing.status)) {
+  if (!['submitted', 'failed', 'needs_review'].includes(existing.status)) {
     return respond(400, {
-      error          : 'Can only approve requests with status submitted or failed',
+      error          : 'Can only approve requests with status submitted, needs_review, or failed',
       current_status : existing.status,
     });
   }
