@@ -73,6 +73,21 @@
   status = 200
 
 [[redirects]]
+  from   = "/api/admin/delete-tenants"
+  to     = "/.netlify/functions/admin-delete-tenants"
+  status = 200
+
+[[redirects]]
+  from   = "/api/admin/delete-onboarding-requests"
+  to     = "/.netlify/functions/admin-delete-onboarding-requests"
+  status = 200
+
+[[redirects]]
+  from   = "/api/admin/send-password-reset"
+  to     = "/.netlify/functions/admin-send-password-reset"
+  status = 200
+
+[[redirects]]
   from   = "/blog"
   to     = "/blog/index.html"
   status = 200

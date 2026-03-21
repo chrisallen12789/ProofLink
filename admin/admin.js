@@ -36,6 +36,9 @@ var tenantCache  = {};
 // Bulk selection for tenant conduct actions
 var selectedTenants = {};
 
+// Bulk selection for onboarding requests
+var selectedOb = {};
+
 // In-flight guard — prevents double-submitting async operations
 var _inFlight = {};
 
@@ -294,7 +297,11 @@ function loadOnboarding() {
   if (search.trim()) params.push('q=' + encodeURIComponent(search.trim()));
   var url     = '/.netlify/functions/admin-get-onboarding-requests' + (params.length ? '?' + params.join('&') : '');
   var tbody   = document.getElementById('ob-tbody');
-  tbody.innerHTML = '<tr class="loading-row"><td colspan="7"><span class="spinner"></span></td></tr>';
+  selectedOb = {};
+  updateObBulkBar();
+  var saOb = document.getElementById('select-all-ob');
+  if (saOb) saOb.checked = false;
+  tbody.innerHTML = '<tr class="loading-row"><td colspan="8"><span class="spinner"></span></td></tr>';
 
   authFetch(url)
     .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
@@ -306,7 +313,7 @@ function loadOnboarding() {
       rows.forEach(function (row) { requestCache[row.id] = row; });
 
       if (!rows.length) {
-        tbody.innerHTML = '<tr><td colspan="7" class="empty">No applications found.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" class="empty">No applications found.</td></tr>';
         return;
       }
 
@@ -331,9 +338,11 @@ function loadOnboarding() {
           actions += '<button class="btn btn-sm btn-warn" onclick="openProvisionModal(\'' + esc(row.id) + '\')">↻ Retry</button>';
         }
         actions += '<button class="btn btn-sm" onclick="viewDetail(\'' + esc(row.id) + '\')">Details</button>';
+        actions += '<button class="btn btn-sm btn-danger" onclick="deleteOnboardingRequest(\'' + esc(row.id) + '\')" title="Hard-delete this request">🗑</button>';
         actions += '</div>';
 
         return '<tr>'
+          + '<td><input type="checkbox" onchange="toggleObSelect(\'' + esc(row.id) + '\',this.checked)" data-ob-cb="' + esc(row.id) + '"/></td>'
           + '<td><div class="td-name">' + esc(row.business_name) + '</div>'
           +     '<div class="td-email">' + esc(row.business_type || '') + '</div></td>'
           + '<td><div class="td-name">' + esc(row.owner_name) + '</div>'
@@ -347,7 +356,7 @@ function loadOnboarding() {
       }).join('');
     })
     .catch(function (e) {
-      tbody.innerHTML = '<tr><td colspan="7" style="padding:1.5rem;color:var(--error);font-size:.82rem">' + esc(e.message) + '</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="8" style="padding:1.5rem;color:var(--error);font-size:.82rem">' + esc(e.message) + '</td></tr>';
       toast('Onboarding: ' + e.message, true);
     });
 }
@@ -355,6 +364,89 @@ function loadOnboarding() {
 function debounceObSearch() {
   clearTimeout(window._obTimer);
   window._obTimer = setTimeout(loadOnboarding, 400);
+}
+
+// ── Onboarding bulk selection ─────────────────────────────────────────────────
+
+function toggleObSelect(id, checked) {
+  if (checked) selectedOb[id] = true;
+  else         delete selectedOb[id];
+  updateObBulkBar();
+}
+
+function selectAllOb(checked) {
+  document.querySelectorAll('[data-ob-cb]').forEach(function (cb) {
+    cb.checked = checked;
+    if (checked) selectedOb[cb.dataset.obCb] = true;
+    else         delete selectedOb[cb.dataset.obCb];
+  });
+  updateObBulkBar();
+}
+
+function clearObSelection() {
+  selectedOb = {};
+  document.querySelectorAll('[data-ob-cb]').forEach(function (cb) { cb.checked = false; });
+  var sa = document.getElementById('select-all-ob');
+  if (sa) sa.checked = false;
+  updateObBulkBar();
+}
+
+function updateObBulkBar() {
+  var bar = document.getElementById('ob-bulk-bar');
+  if (!bar) return;
+  var count = Object.keys(selectedOb).length;
+  if (count === 0) { bar.style.display = 'none'; return; }
+  bar.style.display = 'flex';
+  var el = document.getElementById('ob-bulk-count');
+  if (el) el.textContent = count + ' request' + (count === 1 ? '' : 's') + ' selected';
+}
+
+// ── Onboarding delete ─────────────────────────────────────────────────────────
+
+function deleteOnboardingRequest(id) {
+  var row = requestCache[id] || {};
+  var name = row.business_name || id;
+  if (!confirm('Permanently delete the application from "' + name + '"?\n\nThis removes the submission from the database. It cannot be undone.')) return;
+  if (_inFlight['ob-delete:' + id]) return;
+  _inFlight['ob-delete:' + id] = true;
+
+  authFetch('/.netlify/functions/admin-delete-onboarding-requests', {
+    method : 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body   : JSON.stringify({ ids: [id] }),
+  })
+  .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+  .then(function (res) {
+    if (!res.ok) throw new Error(res.d.error || 'Delete failed');
+    toast('Application deleted.');
+    loadOnboarding();
+  })
+  .catch(function (e) { toast(e.message, true); })
+  .finally(function () { delete _inFlight['ob-delete:' + id]; });
+}
+
+function bulkDeleteOnboardingRequests() {
+  var ids = Object.keys(selectedOb);
+  if (!ids.length) return;
+  if (!confirm('Permanently delete ' + ids.length + ' selected application' + (ids.length === 1 ? '' : 's') + '?\n\nThis cannot be undone.')) return;
+  if (_inFlight['ob-bulk-delete']) return;
+  _inFlight['ob-bulk-delete'] = true;
+  toast('Deleting ' + ids.length + ' application' + (ids.length === 1 ? '' : 's') + '…');
+
+  authFetch('/.netlify/functions/admin-delete-onboarding-requests', {
+    method : 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body   : JSON.stringify({ ids: ids }),
+  })
+  .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+  .then(function (res) {
+    if (!res.ok) throw new Error(res.d.error || 'Delete failed');
+    toast('✓ Deleted ' + (res.d.deleted || ids.length) + ' application' + (ids.length === 1 ? '' : 's'));
+    clearObSelection();
+    loadOnboarding();
+  })
+  .catch(function (e) { toast(e.message, true); })
+  .finally(function () { delete _inFlight['ob-bulk-delete']; });
 }
 
 // ── Onboarding actions ────────────────────────────────────────────────────────
@@ -573,9 +665,11 @@ function loadTenants() {
         if (canSuspend)   conductActions += '<button class="btn btn-sm btn-danger"  onclick="conductAction(\'' + esc(t.id) + '\',\'suspend\')">Suspend</button>';
         if (canReinstate) conductActions += '<button class="btn btn-sm btn-success" onclick="conductAction(\'' + esc(t.id) + '\',\'reinstate\')">Reinstate</button>';
         if (canTerminate) conductActions += '<button class="btn btn-sm" style="color:var(--error)" onclick="conductAction(\'' + esc(t.id) + '\',\'terminate\')">Terminate</button>';
-        conductActions += '<button class="btn btn-sm" onclick="openConfigModal(\''  + esc(t.id) + '\')">Config</button>';
+        conductActions += '<button class="btn btn-sm" onclick="openConfigModal(\''   + esc(t.id) + '\')">Config</button>';
         conductActions += '<button class="btn btn-sm" onclick="openTenantDetail(\'' + esc(t.id) + '\')">View</button>';
         conductActions += '<button class="btn btn-sm" onclick="openNotifyModal(\''  + esc(t.id) + '\')">Notify</button>';
+        conductActions += '<button class="btn btn-sm" onclick="sendPasswordReset(\'' + esc(t.id) + '\')" title="Send password reset email to owner">Reset PW</button>';
+        conductActions += '<button class="btn btn-sm btn-danger" onclick="deleteTenant(\'' + esc(t.id) + '\')" title="Hard-delete this business">🗑</button>';
         conductActions += '</div>';
 
         return '<tr>'
@@ -834,6 +928,150 @@ function bulkConductAction(action) {
   }).finally(function () { delete _inFlight[key]; });
 }
 
+// ── Tenant delete ─────────────────────────────────────────────────────────────
+
+function deleteTenant(tenantId) {
+  var t    = tenantCache[tenantId] || {};
+  var name = t.name || t.slug || tenantId;
+  var hasOrders = t.order_count && t.order_count > 0;
+  var msg  = 'Permanently delete "' + name + '"?\n\nThis removes the business and all its records from the database. This CANNOT be undone.';
+  if (hasOrders) msg += '\n\n⚠ This tenant has ' + t.order_count + ' orders. Type CONFIRM to force-delete anyway.';
+
+  if (hasOrders) {
+    var confirmed = prompt(msg);
+    if (confirmed !== 'CONFIRM') { toast('Deletion cancelled.'); return; }
+  } else {
+    if (!confirm(msg)) return;
+  }
+
+  if (_inFlight['delete:' + tenantId]) return;
+  _inFlight['delete:' + tenantId] = true;
+  toast('Deleting "' + name + '"…');
+
+  authFetch('/.netlify/functions/admin-delete-tenants', {
+    method : 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body   : JSON.stringify({ tenant_ids: [tenantId], force: hasOrders }),
+  })
+  .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+  .then(function (res) {
+    if (!res.ok) throw new Error(res.d.error || 'Delete failed');
+    toast('✓ "' + name + '" deleted.');
+    loadTenants();
+  })
+  .catch(function (e) { toast(e.message, true); })
+  .finally(function () { delete _inFlight['delete:' + tenantId]; });
+}
+
+function bulkDeleteTenants() {
+  var ids = Object.keys(selectedTenants);
+  if (!ids.length) return;
+
+  // Check if any selected tenants have orders
+  var withOrders = ids.filter(function (id) { return tenantCache[id] && tenantCache[id].order_count > 0; });
+  var force = false;
+
+  var msg = 'Permanently delete ' + ids.length + ' selected business' + (ids.length === 1 ? '' : 'es') + '?\n\nThis removes all records from the database and CANNOT be undone.';
+  if (withOrders.length) {
+    var names = withOrders.map(function (id) { return tenantCache[id].name || id; }).join(', ');
+    var typed = prompt(msg + '\n\n⚠ ' + withOrders.length + ' of these have orders: ' + names + '\n\nType CONFIRM to force-delete all anyway:');
+    if (typed !== 'CONFIRM') { toast('Deletion cancelled.'); return; }
+    force = true;
+  } else {
+    if (!confirm(msg)) return;
+  }
+
+  if (_inFlight['bulk-delete-tenants']) return;
+  _inFlight['bulk-delete-tenants'] = true;
+  toast('Deleting ' + ids.length + ' business' + (ids.length === 1 ? '' : 'es') + '…');
+
+  authFetch('/.netlify/functions/admin-delete-tenants', {
+    method : 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body   : JSON.stringify({ tenant_ids: ids, force: force }),
+  })
+  .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+  .then(function (res) {
+    if (!res.ok) throw new Error(res.d.error || 'Delete failed');
+    var d = res.d;
+    if (d.failed > 0) {
+      toast(d.deleted + ' deleted, ' + d.failed + ' failed — check individual tenants', true);
+    } else {
+      toast('✓ Deleted ' + d.deleted + ' business' + (d.deleted === 1 ? '' : 'es'));
+    }
+    clearBulkSelection();
+    loadTenants();
+  })
+  .catch(function (e) { toast(e.message, true); })
+  .finally(function () { delete _inFlight['bulk-delete-tenants']; });
+}
+
+// ── Password reset ────────────────────────────────────────────────────────────
+
+function sendPasswordReset(tenantId) {
+  var t    = tenantCache[tenantId] || {};
+  var name = t.name || t.slug || tenantId;
+  var email = t.owner_email || '(unknown email)';
+  if (!confirm('Send a password reset email to ' + email + ' (' + name + ')?')) return;
+  if (_inFlight['reset:' + tenantId]) return;
+  _inFlight['reset:' + tenantId] = true;
+  toast('Sending reset email…');
+
+  authFetch('/.netlify/functions/admin-send-password-reset', {
+    method : 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body   : JSON.stringify({ tenant_id: tenantId }),
+  })
+  .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+  .then(function (res) {
+    if (!res.ok) throw new Error(res.d.error || 'Failed to send reset');
+    toast('✓ Password reset sent to ' + (res.d.to || email));
+  })
+  .catch(function (e) { toast(e.message, true); })
+  .finally(function () { delete _inFlight['reset:' + tenantId]; });
+}
+
+// ── CSV export ────────────────────────────────────────────────────────────────
+
+function exportTenantsCsv() {
+  var rows = Object.values(tenantCache);
+  if (!rows.length) { toast('No tenant data loaded — open the Tenants section first.', true); return; }
+
+  var headers = ['Name', 'Slug', 'Owner Email', 'Owner Name', 'Status', 'Stripe', 'Orders', 'GMV', 'Location', 'Onboarded'];
+  var csvRows = [headers.join(',')];
+
+  rows.forEach(function (t) {
+    var tenantStatus = t.status || (t.active !== false ? 'active' : 'inactive');
+    var row = [
+      t.name         || '',
+      t.slug         || '',
+      t.owner_email  || '',
+      t.owner_name   || '',
+      tenantStatus,
+      t.stripe_status || '',
+      t.order_count  != null ? t.order_count : '',
+      t.gmv          != null ? (t.gmv / 100).toFixed(2) : '',
+      t.city_state   || '',
+      t.created_at   ? new Date(t.created_at).toLocaleDateString() : '',
+    ].map(function (v) {
+      var s = String(v).replace(/"/g, '""');
+      return /[,"\n]/.test(s) ? '"' + s + '"' : s;
+    });
+    csvRows.push(row.join(','));
+  });
+
+  var blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
+  var url  = URL.createObjectURL(blob);
+  var a    = document.createElement('a');
+  a.href   = url;
+  a.download = 'prooflink-tenants-' + new Date().toISOString().slice(0, 10) + '.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast('CSV downloaded — ' + rows.length + ' businesses');
+}
+
 // ── Tenant detail drawer ──────────────────────────────────────────────────────
 
 function openTenantDetail(tenantId) {
@@ -870,8 +1108,10 @@ function openTenantDetail(tenantId) {
   document.getElementById('tenant-conduct-log').innerHTML = '<div class="empty">Loading conduct history…</div>';
 
   var actions = '<button class="btn" onclick="closeModal(\'tenant-detail-modal\')">Close</button>'
-    + '<button class="btn" onclick="openNotifyModal(\'' + esc(tenantId) + '\');closeModal(\'tenant-detail-modal\')">Notify tenant</button>'
-    + '<button class="btn" onclick="openConfigModal(\'' + esc(tenantId) + '\');closeModal(\'tenant-detail-modal\')">Edit config</button>';
+    + '<button class="btn" onclick="openNotifyModal(\'' + esc(tenantId) + '\');closeModal(\'tenant-detail-modal\')">Notify</button>'
+    + '<button class="btn" onclick="openConfigModal(\'' + esc(tenantId) + '\');closeModal(\'tenant-detail-modal\')">Edit config</button>'
+    + '<button class="btn" onclick="sendPasswordReset(\'' + esc(tenantId) + '\');closeModal(\'tenant-detail-modal\')">Reset password</button>'
+    + '<button class="btn btn-danger" onclick="closeModal(\'tenant-detail-modal\');deleteTenant(\'' + esc(tenantId) + '\')">Delete</button>';
   document.getElementById('tenant-detail-actions').innerHTML = actions;
 
   openModal('tenant-detail-modal');

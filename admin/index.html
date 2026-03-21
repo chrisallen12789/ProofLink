@@ -147,11 +147,19 @@
         </div>
       </div>
 
+      <!-- Onboarding bulk bar -->
+      <div id="ob-bulk-bar" style="display:none;background:var(--ink);color:#fff;border-radius:6px;padding:.6rem 1rem;margin-bottom:.75rem;display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
+        <span id="ob-bulk-count" style="font-size:.82rem;font-weight:600"></span>
+        <button class="btn btn-sm" style="background:#c84b2f;color:#fff;border:none" onclick="bulkDeleteOnboardingRequests()">🗑 Delete selected</button>
+        <button class="btn btn-sm" style="background:rgba(255,255,255,.15);color:#fff;border:none;margin-left:auto" onclick="clearObSelection()">✕ Clear</button>
+      </div>
+
       <div class="panel">
         <div class="panel-body" style="padding:0">
           <table class="data-table" id="ob-table">
             <thead>
               <tr>
+                <th style="width:32px"><input type="checkbox" id="select-all-ob" onchange="selectAllOb(this.checked)" title="Select all"/></th>
                 <th>Business</th>
                 <th>Owner</th>
                 <th>Slug</th>
@@ -162,7 +170,7 @@
               </tr>
             </thead>
             <tbody id="ob-tbody">
-              <tr class="loading-row"><td colspan="7"><span class="spinner"></span></td></tr>
+              <tr class="loading-row"><td colspan="8"><span class="spinner"></span></td></tr>
             </tbody>
           </table>
         </div>
@@ -178,6 +186,7 @@
         </div>
         <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
           <button class="btn btn-warn" onclick="runAbuseMonitor()">Run Abuse Monitor</button>
+          <button class="btn" onclick="exportTenantsCsv()">⬇ Export CSV</button>
           <button class="btn" onclick="loadTenants()">↻ Refresh</button>
         </div>
       </div>
@@ -207,6 +216,7 @@
         <button class="btn btn-sm" style="background:#fff;color:#c84b2f;border:none" onclick="bulkConductAction('flag')">Flag selected</button>
         <button class="btn btn-sm" style="background:#fff;color:#c84b2f;border:none" onclick="bulkConductAction('suspend')">Suspend selected</button>
         <button class="btn btn-sm" style="background:#fff;color:#2e7d32;border:none" onclick="bulkConductAction('reinstate')">Reinstate selected</button>
+        <button class="btn btn-sm" style="background:#c84b2f;color:#fff;border:none" onclick="bulkDeleteTenants()">🗑 Delete selected</button>
         <button class="btn btn-sm" style="background:rgba(255,255,255,.15);color:#fff;border:none;margin-left:auto" onclick="clearBulkSelection()">✕ Clear</button>
       </div>
 
