@@ -60,21 +60,12 @@ exports.handler = async (event) => {
     connectMsg = 'Could not query tenant connect status.';
   }
 
-  // ── 3. Check webhook secrets are present (can't verify Stripe registration from here)
-  const hasWebhookSecret         = !!process.env.STRIPE_WEBHOOK_SECRET;
-  const hasBillingWebhookSecret  = !!process.env.STRIPE_BILLING_WEBHOOK_SECRET;
-  const webhookOk                = hasWebhookSecret && hasBillingWebhookSecret;
-  let   webhookMsg;
-
-  if (webhookOk) {
-    webhookMsg = 'Both webhook secrets are configured.';
-  } else if (!hasWebhookSecret && !hasBillingWebhookSecret) {
-    webhookMsg = 'STRIPE_WEBHOOK_SECRET and STRIPE_BILLING_WEBHOOK_SECRET are not set.';
-  } else if (!hasWebhookSecret) {
-    webhookMsg = 'STRIPE_WEBHOOK_SECRET is not set.';
-  } else {
-    webhookMsg = 'STRIPE_BILLING_WEBHOOK_SECRET is not set.';
-  }
+  // ── 3. Check webhook secret is present (can't verify Stripe registration from here)
+  const hasWebhookSecret = !!process.env.STRIPE_WEBHOOK_SECRET;
+  const webhookOk        = hasWebhookSecret;
+  const webhookMsg       = hasWebhookSecret
+    ? 'Webhook secret is configured.'
+    : 'STRIPE_WEBHOOK_SECRET is not set.';
 
   return respond(200, {
     stripe_key: { ok: stripeKeyOk, message: stripeKeyMsg },
