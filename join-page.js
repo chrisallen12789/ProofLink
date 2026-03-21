@@ -7,6 +7,8 @@
     return;
   }
 
+  const VALID_COUPON = 'BUILDWITHME';
+
   const state = {
     step: 1,
     planIntent: Public.resolvePlanIntent({ defaultPlan: 'growth' }),
@@ -17,6 +19,7 @@
     ownerName: '',
     ownerEmail: '',
     phone: '',
+    couponCode: '',
   };
 
   const fallbackTypeLabels = {
@@ -235,9 +238,12 @@
 
     if (!valid) return false;
 
-    state.ownerName = ownerName;
+    state.ownerName  = ownerName;
     state.ownerEmail = ownerEmail;
-    state.phone = $('phone')?.value.trim() || '';
+    state.phone      = $('phone')?.value.trim() || '';
+    state.couponCode = ($('coupon_code')?.value || '').trim().toUpperCase() === VALID_COUPON
+      ? VALID_COUPON
+      : '';
     return true;
   }
 
@@ -251,19 +257,28 @@
     $('rev-owner_name').textContent = state.ownerName || '—';
     $('rev-owner_email').textContent = state.ownerEmail || '—';
     $('rev-phone').textContent = state.phone || '—';
+
+    const couponRow = $('rev-coupon-row');
+    if (state.couponCode) {
+      $('rev-coupon').textContent = '1 year free applied';
+      if (couponRow) couponRow.style.display = '';
+    } else {
+      if (couponRow) couponRow.style.display = 'none';
+    }
   }
 
   function buildPayload() {
     return {
-      business_name: state.businessName,
-      owner_name: state.ownerName,
-      owner_email: state.ownerEmail,
-      phone: state.phone || undefined,
-      business_type: state.businessType || undefined,
-      city_state: state.cityState || undefined,
+      business_name      : state.businessName,
+      owner_name         : state.ownerName,
+      owner_email        : state.ownerEmail,
+      phone              : state.phone || undefined,
+      business_type      : state.businessType || undefined,
+      city_state         : state.cityState || undefined,
       requested_subdomain: state.requestedSubdomain || undefined,
-      seed_template_key: state.businessType || 'default',
-      selected_plan: state.planIntent.planKey,
+      seed_template_key  : state.businessType || 'default',
+      selected_plan      : state.planIntent.planKey,
+      coupon_code        : state.couponCode || undefined,
     };
   }
 
@@ -416,6 +431,26 @@
     $('submit-btn')?.addEventListener('click', submitForm);
   }
 
+  function bindCouponField() {
+    const input = $('coupon_code');
+    const hint  = $('coupon-hint');
+    if (!input || !hint) return;
+
+    input.addEventListener('input', () => {
+      const val = input.value.trim().toUpperCase();
+      if (!val) {
+        hint.textContent = '';
+        hint.style.color = '';
+      } else if (val === VALID_COUPON) {
+        hint.textContent = 'Promo code applied — your first year is free.';
+        hint.style.color = 'var(--success, #22c55e)';
+      } else {
+        hint.textContent = 'Invalid promo code.';
+        hint.style.color = 'var(--danger, #ef4444)';
+      }
+    });
+  }
+
   function boot() {
     renderPlanContext();
     renderPlanChoices();
@@ -423,6 +458,7 @@
     bindBusinessTypes();
     bindSlugChecker();
     bindNavigation();
+    bindCouponField();
     updateProgress(1);
   }
 

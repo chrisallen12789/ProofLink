@@ -92,20 +92,28 @@ exports.handler = async (event) => {
     return failProvision(`Slug generation failed: ${err.message}`);
   }
 
+  const VALID_COUPON   = 'BUILDWITHME';
+  const couponApplied  = req.coupon_code === VALID_COUPON;
+  const exemptUntil    = couponApplied
+    ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()
+    : null;
+
   const { data: tenant, error: tenantErr } = await supabase
     .from('tenants')
     .insert([
       {
-        name: req.business_name,
-        slug: tenantSlug,
-        owner_email: req.owner_email,
-        owner_name: req.owner_name,
-        business_type: req.business_type || null,
-        city_state: req.city_state || null,
-        logo_url: req.logo_url || null,
+        name                 : req.business_name,
+        slug                 : tenantSlug,
+        owner_email          : req.owner_email,
+        owner_name           : req.owner_name,
+        business_type        : req.business_type || null,
+        city_state           : req.city_state || null,
+        logo_url             : req.logo_url || null,
         onboarding_request_id: id,
-        setup_complete: false,
-        active: true,
+        setup_complete       : false,
+        active               : true,
+        billing_exempt       : couponApplied,
+        billing_exempt_until : exemptUntil,
       },
     ])
     .select('id, slug, name')

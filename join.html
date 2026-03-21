@@ -177,6 +177,14 @@
           </div>
         </div>
 
+        <div class="field-row single">
+          <div class="field">
+            <label for="coupon_code">Promo code <span style="color:var(--muted);font-weight:400;">(optional)</span></label>
+            <input type="text" id="coupon_code" placeholder="Enter promo code" autocomplete="off" style="text-transform:uppercase;letter-spacing:.05em;" />
+            <p class="hint" id="coupon-hint" style="min-height:1.2rem;"></p>
+          </div>
+        </div>
+
         <div class="form-nav">
           <button class="btn btn-ghost" type="button" id="backFromStep3">Back</button>
           <button class="btn btn-solid" type="button" id="nextFromStep3">Review</button>
@@ -199,6 +207,7 @@
             <tr><td>Owner</td><td id="rev-owner_name">—</td></tr>
             <tr><td>Email</td><td id="rev-owner_email">—</td></tr>
             <tr><td>Phone</td><td id="rev-phone">—</td></tr>
+            <tr id="rev-coupon-row" style="display:none;"><td>Promo code</td><td id="rev-coupon">—</td></tr>
           </tbody>
         </table>
 

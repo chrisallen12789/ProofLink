@@ -43,6 +43,7 @@ exports.handler = async (event) => {
     logo_url,
     seed_template_key,
     selected_plan,
+    coupon_code,
   } = body;
 
   // ── Validate required fields
@@ -64,6 +65,10 @@ exports.handler = async (event) => {
   if (!['starter', 'growth', 'enterprise'].includes(normalizedPlan)) {
     return respond(400, { error: 'Invalid selected_plan' });
   }
+
+  const VALID_COUPON    = 'BUILDWITHME';
+  const normalizedCoupon = coupon_code ? String(coupon_code).trim().toUpperCase() : null;
+  const appliedCoupon    = normalizedCoupon === VALID_COUPON ? VALID_COUPON : null;
 
   // ── Build slug
   const business_slug = slugify(
@@ -96,6 +101,7 @@ exports.handler = async (event) => {
       logo_url            : logo_url            || null,
       seed_template_key   : seed_template_key   || 'default',
       selected_plan       : normalizedPlan,
+      coupon_code         : appliedCoupon,
     }])
     .select('id, business_name, status')
     .single();
