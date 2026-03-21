@@ -92,6 +92,10 @@
   to     = "/.netlify/functions/blog-subscribe"
   status = 200
 
+# ── Scheduled functions ───────────────────────────────────────────────────────
+[functions."platform-abuse-monitor"]
+  schedule = "0 * * * *"   # every hour on the hour
+
 # ── app.prooflink.co → prooflink.co canonical redirect ────────────────────────
 # If app.prooflink.co is added as a domain alias in Netlify, this redirects
 # all traffic to the canonical root domain so there's no duplicate content.

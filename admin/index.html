@@ -51,10 +51,11 @@
 
     <span class="sidebar-section-label">System</span>
     <ul class="sidebar-nav">
-      <li><a data-section="testers" onclick="showSection('testers',this)">🧪 Testers</a></li>
-      <li><a data-section="billing" onclick="showSection('billing',this)">💳 Billing</a></li>
-      <li><a data-section="health"  onclick="showSection('health',this)">🟢 System Health</a></li>
-      <li><a data-section="settings"onclick="showSection('settings',this)">⚙️ Settings</a></li>
+      <li><a data-section="testers"   onclick="showSection('testers',this)">🧪 Testers</a></li>
+      <li><a data-section="audit-log" onclick="showSection('audit-log',this)">📋 Audit Log</a></li>
+      <li><a data-section="billing"   onclick="showSection('billing',this)">💳 Billing</a></li>
+      <li><a data-section="health"    onclick="showSection('health',this)">🟢 System Health</a></li>
+      <li><a data-section="settings"  onclick="showSection('settings',this)">⚙️ Settings</a></li>
     </ul>
 
     <div class="sidebar-footer">
@@ -200,11 +201,21 @@
 
       <div id="tenant-control-tower-mount"></div>
 
+      <!-- Bulk action bar — shown when ≥1 row is checked -->
+      <div id="bulk-action-bar" style="display:none;background:var(--ink);color:#fff;border-radius:6px;padding:.6rem 1rem;margin-bottom:.75rem;display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
+        <span id="bulk-count" style="font-size:.82rem;font-weight:600"></span>
+        <button class="btn btn-sm" style="background:#fff;color:#c84b2f;border:none" onclick="bulkConductAction('flag')">Flag selected</button>
+        <button class="btn btn-sm" style="background:#fff;color:#c84b2f;border:none" onclick="bulkConductAction('suspend')">Suspend selected</button>
+        <button class="btn btn-sm" style="background:#fff;color:#2e7d32;border:none" onclick="bulkConductAction('reinstate')">Reinstate selected</button>
+        <button class="btn btn-sm" style="background:rgba(255,255,255,.15);color:#fff;border:none;margin-left:auto" onclick="clearBulkSelection()">✕ Clear</button>
+      </div>
+
       <div class="panel">
         <div class="panel-body" style="padding:0;overflow-x:auto">
           <table class="data-table">
             <thead>
               <tr>
+                <th style="width:32px"><input type="checkbox" id="select-all-tenants" onchange="selectAllTenants(this.checked)" title="Select all"/></th>
                 <th>Business</th>
                 <th>Slug</th>
                 <th>Status</th>
@@ -217,7 +228,7 @@
               </tr>
             </thead>
             <tbody id="tenants-tbody">
-              <tr class="loading-row"><td colspan="9"><span class="spinner"></span></td></tr>
+              <tr class="loading-row"><td colspan="10"><span class="spinner"></span></td></tr>
             </tbody>
           </table>
         </div>
@@ -263,7 +274,7 @@
       <div class="page-header">
         <div>
           <div class="page-title">Tester Accounts</div>
-          <div class="page-sub">Grant or revoke 12-month free access for up to 3 beta testers.</div>
+          <div class="page-sub">Grant free access for up to 3 beta testers. Choose duration per tenant.</div>
         </div>
         <button class="btn" onclick="loadTesters()">↻ Refresh</button>
       </div>
@@ -316,15 +327,50 @@
         </div>
         <div class="panel-body">
           <p style="font-size:.82rem;color:var(--muted);margin-bottom:1rem">
-            Find a provisioned tenant below and grant them free access for 12 months.
-            Their billing checkout will be skipped entirely — they can use ProofLink fully without a subscription.
+            Find a provisioned tenant and grant them free access. Choose duration and click Grant.
+            Billing checkout is skipped entirely for exempt tenants.
           </p>
           <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-bottom:1rem">
             <input class="search-input" id="tester-tenant-search" placeholder="Search tenant by name, email, or slug…" style="width:280px" oninput="searchTenantsForExempt()"/>
+            <select id="tester-duration" style="border:1px solid var(--border);border-radius:4px;padding:.45rem .7rem;font-size:.8rem;font-family:var(--font-body);color:var(--ink);background:#fff;outline:none">
+              <option value="3">3 months</option>
+              <option value="6">6 months</option>
+              <option value="12" selected>12 months</option>
+              <option value="24">24 months</option>
+            </select>
           </div>
           <div id="tester-tenant-results" style="margin-bottom:1rem"></div>
         </div>
       </div>
+    </div>
+
+    <!-- ── SECTION: Audit Log ────────────────────────────────────────── -->
+    <div class="section" id="section-audit-log">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Audit Log</div>
+          <div class="page-sub">All platform admin conduct actions — flag, suspend, reinstate, terminate.</div>
+        </div>
+        <button class="btn" onclick="loadAuditLog()">↻ Refresh</button>
+      </div>
+      <div class="panel">
+        <div class="panel-body" style="padding:0;overflow-x:auto">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Tenant</th>
+                <th>Action</th>
+                <th>Notes</th>
+                <th>Performed at</th>
+              </tr>
+            </thead>
+            <tbody id="audit-log-tbody">
+              <tr class="loading-row"><td colspan="4"><span class="spinner"></span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div id="audit-log-pagination" style="display:flex;gap:.5rem;align-items:center;padding:.75rem 0;font-size:.82rem;color:var(--muted)"></div>
     </div>
 
     <!-- ── SECTION: Billing ───────────────────────────────────────────── -->
@@ -463,6 +509,35 @@
     <div id="detail-modal-body" style="margin-bottom:1rem"></div>
     <div class="modal-actions" id="detail-modal-actions">
       <button class="btn" onclick="closeModal('detail-modal')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Tenant detail drawer -->
+<div class="modal-overlay" id="tenant-detail-modal">
+  <div class="modal modal-lg">
+    <div class="modal-title" id="tenant-detail-title">Tenant detail</div>
+    <div id="tenant-detail-body" style="margin-bottom:1rem"></div>
+    <div style="border-top:1px solid var(--border);padding-top:1rem;margin-top:.5rem">
+      <div style="font-weight:600;font-size:.82rem;margin-bottom:.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Conduct history</div>
+      <div id="tenant-conduct-log" style="font-size:.8rem;max-height:220px;overflow-y:auto"><div class="empty">Loading…</div></div>
+    </div>
+    <div class="modal-actions" id="tenant-detail-actions">
+      <button class="btn" onclick="closeModal('tenant-detail-modal')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Notify tenant modal -->
+<div class="modal-overlay" id="notify-modal">
+  <div class="modal">
+    <div class="modal-title">Send message to tenant</div>
+    <div class="modal-body" id="notify-modal-desc" style="margin-bottom:.75rem"></div>
+    <div class="config-field"><label>Subject</label><input id="notify-subject" maxlength="200" placeholder="e.g. Action required — account review"/></div>
+    <div class="config-field"><label>Message</label><textarea id="notify-message" rows="5" maxlength="4000" placeholder="Write your message here…" style="width:100%;border:1px solid var(--border);border-radius:4px;padding:.5rem .75rem;font-family:var(--font-body);font-size:.85rem;resize:vertical"></textarea></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('notify-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="sendTenantMessage()">Send email</button>
     </div>
   </div>
 </div>

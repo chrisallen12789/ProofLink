@@ -25,11 +25,19 @@ var token              = sessionStorage.getItem('pl_op_token') || '';
 var pendingRejectId    = null;
 var pendingProvisionId = null;
 var configTenantId     = null;
+var notifyTenantId     = null;
 var tenantSearchTimer  = null;
+var _auditLogOffset    = 0;
 
 // Row data caches — keyed by id so onclick handlers only pass safe UUIDs
 var requestCache = {};
 var tenantCache  = {};
+
+// Bulk selection for tenant conduct actions
+var selectedTenants = {};
+
+// In-flight guard — prevents double-submitting async operations
+var _inFlight = {};
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
 
@@ -185,6 +193,7 @@ function showSection(id, link) {
   if (id === 'tenants')      loadTenants();
   if (id === 'provisioning') loadProvisioning();
   if (id === 'testers')      loadTesters();
+  if (id === 'audit-log')    loadAuditLog();
 }
 
 // ── Overview ──────────────────────────────────────────────────────────────────
@@ -368,10 +377,12 @@ function approveOnly(id) {
 
 // Approve & Launch — one-shot: approve + provision via admin-approve-onboarding
 function approveAndProvision(id) {
+  if (_inFlight['approve:' + id]) return;
   var row  = requestCache[id] || {};
   var name = row.business_name || id;
   if (!confirm('Approve and fully provision "' + name + '"?\n\nThis will create the tenant record, set up their operator account, and send the welcome email.\nThis action is not easily reversible.')) return;
 
+  _inFlight['approve:' + id] = true;
   toast('Provisioning "' + name + '"…');
 
   authFetch('/.netlify/functions/admin-approve-onboarding', {
@@ -386,7 +397,8 @@ function approveAndProvision(id) {
     loadOnboarding();
     loadProvisioning();
   })
-  .catch(function (e) { toast(e.message, true); });
+  .catch(function (e) { toast(e.message, true); })
+  .finally(function () { delete _inFlight['approve:' + id]; });
 }
 
 function openRejectModal(id) {
@@ -397,10 +409,12 @@ function openRejectModal(id) {
 
 function confirmReject() {
   if (!pendingRejectId) return;
+  if (_inFlight['reject:' + pendingRejectId]) return;
   var reason = document.getElementById('reject-reason').value.trim();
   closeModal('reject-modal');
   var id = pendingRejectId;
   pendingRejectId = null;
+  _inFlight['reject:' + id] = true;
 
   authFetch('/.netlify/functions/admin-reject-onboarding', {
     method : 'POST',
@@ -413,7 +427,8 @@ function confirmReject() {
     toast('Application rejected.');
     loadOnboarding();
   })
-  .catch(function (e) { toast(e.message, true); });
+  .catch(function (e) { toast(e.message, true); })
+  .finally(function () { delete _inFlight['reject:' + id]; });
 }
 
 function openProvisionModal(id) {
@@ -427,10 +442,12 @@ function openProvisionModal(id) {
 
 function confirmProvision() {
   if (!pendingProvisionId) return;
+  if (_inFlight['provision:' + pendingProvisionId]) return;
   closeModal('provision-modal');
   var id  = pendingProvisionId;
   var row = requestCache[id] || {};
   pendingProvisionId = null;
+  _inFlight['provision:' + id] = true;
 
   toast('Provisioning…');
 
@@ -446,7 +463,8 @@ function confirmProvision() {
     loadOnboarding();
     loadProvisioning();
   })
-  .catch(function (e) { toast(e.message, true); });
+  .catch(function (e) { toast(e.message, true); })
+  .finally(function () { delete _inFlight['provision:' + id]; });
 }
 
 // ── Detail modal ──────────────────────────────────────────────────────────────
@@ -461,6 +479,14 @@ function viewDetail(id) {
     return '<span class="k">' + esc(label) + '</span><span>' + esc(String(value == null ? '—' : value)) + '</span>';
   };
 
+  var riskBadgeMap = { low: 'badge-provisioned', medium: 'badge-approved', high: 'badge-submitted', critical: 'badge-danger' };
+  var riskHtml = row.risk_level
+    ? '<span class="k">Risk level</span><span><span class="badge ' + (riskBadgeMap[row.risk_level] || 'badge-submitted') + '">' + esc(row.risk_level) + '</span></span>'
+    : '';
+  var reasonHtml = (row.reason_codes && row.reason_codes.length)
+    ? kv('Reason codes', row.reason_codes.join(', '))
+    : '';
+
   document.getElementById('detail-modal-body').innerHTML =
     '<div class="detail-kv">'
     + kv('Business name', row.business_name)
@@ -471,10 +497,12 @@ function viewDetail(id) {
     + kv('Location',      row.city_state || '—')
     + kv('Requested slug',row.business_slug || row.requested_subdomain || '—')
     + '<span class="k">Status</span><span>' + statusBadge(row.status) + '</span>'
+    + riskHtml
+    + reasonHtml
     + kv('Submitted',     fmtDt(row.created_at))
     + kv('Approved at',   row.approved_at ? fmtDt(row.approved_at) : '—')
     + (row.rejection_reason ? kv('Rejection reason', row.rejection_reason) : '')
-    + (row.provision_error  ? '<span class="k" style="color:var(--error)">Provision error</span><span style="color:var(--error)">' + esc(row.provision_error) + '</span>' : '')
+    + (row.provision_error  ? '<span class="k" style="color:var(--error)">Provision error</span><span style="color:var(--error);word-break:break-all">' + esc(row.provision_error) + '</span>' : '')
     + '</div>';
 
   // Dynamic action buttons based on current status
@@ -507,8 +535,12 @@ function loadTenants() {
   if (status)        params.push('status=' + encodeURIComponent(status));
   if (city.trim())   params.push('city=' + encodeURIComponent(city.trim()));
   var url   = '/.netlify/functions/get-tenants' + (params.length ? '?' + params.join('&') : '');
+  selectedTenants = {};
+  updateBulkBar();
+  var saEl = document.getElementById('select-all-tenants');
+  if (saEl) saEl.checked = false;
   var tbody = document.getElementById('tenants-tbody');
-  tbody.innerHTML = '<tr class="loading-row"><td colspan="9"><span class="spinner"></span></td></tr>';
+  tbody.innerHTML = '<tr class="loading-row"><td colspan="10"><span class="spinner"></span></td></tr>';
 
   authFetch(url)
     .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
@@ -524,7 +556,7 @@ function loadTenants() {
       }
 
       if (!rows.length) {
-        tbody.innerHTML = '<tr><td colspan="9" class="empty">No tenants found.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="10" class="empty">No tenants found.</td></tr>';
         return;
       }
 
@@ -537,20 +569,23 @@ function loadTenants() {
         var canTerminate = tenantStatus !== 'terminated';
 
         var conductActions = '<div style="display:flex;gap:.3rem;flex-wrap:wrap">';
-        if (canFlag) conductActions += '<button class="btn btn-sm btn-warn" onclick="conductAction(\'' + esc(t.id) + '\',\'flag\')">Flag</button>';
-        if (canSuspend) conductActions += '<button class="btn btn-sm btn-danger" onclick="conductAction(\'' + esc(t.id) + '\',\'suspend\')">Suspend</button>';
+        if (canFlag)      conductActions += '<button class="btn btn-sm btn-warn"    onclick="conductAction(\'' + esc(t.id) + '\',\'flag\')">Flag</button>';
+        if (canSuspend)   conductActions += '<button class="btn btn-sm btn-danger"  onclick="conductAction(\'' + esc(t.id) + '\',\'suspend\')">Suspend</button>';
         if (canReinstate) conductActions += '<button class="btn btn-sm btn-success" onclick="conductAction(\'' + esc(t.id) + '\',\'reinstate\')">Reinstate</button>';
         if (canTerminate) conductActions += '<button class="btn btn-sm" style="color:var(--error)" onclick="conductAction(\'' + esc(t.id) + '\',\'terminate\')">Terminate</button>';
-        conductActions += '<button class="btn btn-sm" onclick="openConfigModal(\'' + esc(t.id) + '\')">Config</button>';
+        conductActions += '<button class="btn btn-sm" onclick="openConfigModal(\''  + esc(t.id) + '\')">Config</button>';
+        conductActions += '<button class="btn btn-sm" onclick="openTenantDetail(\'' + esc(t.id) + '\')">View</button>';
+        conductActions += '<button class="btn btn-sm" onclick="openNotifyModal(\''  + esc(t.id) + '\')">Notify</button>';
         conductActions += '</div>';
 
         return '<tr>'
+          + '<td><input type="checkbox" onchange="toggleTenantSelect(\'' + esc(t.id) + '\',this.checked)" data-tenant-cb="' + esc(t.id) + '"/></td>'
           + '<td><div class="td-name">' + esc(t.name || t.slug) + '</div><div class="td-email">' + esc(t.owner_email || '') + '</div></td>'
           + '<td class="td-mono">' + esc(t.slug || '—') + '</td>'
           + '<td>' + statusBadge(tenantStatus) + '</td>'
           + '<td style="white-space:nowrap;font-size:.78rem">' + fmt(t.created_at) + '</td>'
           + '<td>' + statusBadge(t.stripe_status || 'not_connected') + '</td>'
-          + '<td>' + (t.order_count   != null ? t.order_count   : '—') + '</td>'
+          + '<td>' + (t.order_count != null ? t.order_count : '—') + '</td>'
           + '<td>' + gmvDisplay + '</td>'
           + '<td>' + esc(t.city_state || '—') + '</td>'
           + '<td>' + conductActions + '</td>'
@@ -560,7 +595,7 @@ function loadTenants() {
     .catch(function (e) {
       var mount = document.getElementById('tenant-control-tower-mount');
       if (mount) mount.innerHTML = '';
-      tbody.innerHTML = '<tr><td colspan="9" style="padding:1.5rem;color:var(--error);font-size:.82rem">' + esc(e.message) + '</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="10" style="padding:1.5rem;color:var(--error);font-size:.82rem">' + esc(e.message) + '</td></tr>';
       toast('Tenants: ' + e.message, true);
     });
 }
@@ -584,6 +619,7 @@ function openConfigModal(tenantId) {
 
 function saveConfig() {
   if (!configTenantId) { closeModal('config-modal'); return; }
+  if (_inFlight['config:' + configTenantId]) return;
   var config = {};
   var name    = (document.getElementById('cfg-name')    || {}).value || '';
   var accent  = (document.getElementById('cfg-accent')  || {}).value || '';
@@ -597,10 +633,13 @@ function saveConfig() {
 
   if (!Object.keys(config).length) { toast('No changes to save.'); return; }
 
+  var tid = configTenantId;
+  _inFlight['config:' + tid] = true;
+
   authFetch('/.netlify/functions/update-tenant-config', {
     method : 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body   : JSON.stringify({ tenant_id: configTenantId, config: config }),
+    body   : JSON.stringify({ tenant_id: tid, config: config }),
   })
   .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
   .then(function (res) {
@@ -608,7 +647,8 @@ function saveConfig() {
     toast('Config saved.');
     loadTenants();
   })
-  .catch(function (e) { toast(e.message, true); });
+  .catch(function (e) { toast(e.message, true); })
+  .finally(function () { delete _inFlight['config:' + tid]; });
 }
 
 // ── Provisioning section ──────────────────────────────────────────────────────
@@ -675,6 +715,7 @@ function loadProvisioning() {
 // ── Tenant conduct actions ───────────────────────────────────────────────────
 
 function conductAction(tenantId, action) {
+  if (_inFlight['conduct:' + tenantId + ':' + action]) return;
   var t = tenantCache[tenantId] || {};
   var name = t.name || t.slug || tenantId;
   var labels = { flag: 'Flag', suspend: 'Suspend', reinstate: 'Reinstate', terminate: 'Terminate' };
@@ -693,6 +734,7 @@ function conductAction(tenantId, action) {
     if (!confirm(label + ' "' + name + '"?')) return;
   }
 
+  _inFlight['conduct:' + tenantId + ':' + action] = true;
   toast(label + 'ing "' + name + '"…');
 
   authFetch('/.netlify/functions/admin-update-tenant-conduct', {
@@ -710,7 +752,248 @@ function conductAction(tenantId, action) {
     toast(name + ' status updated to: ' + (res.d.status || action));
     loadTenants();
   })
-  .catch(function (e) { toast(e.message, true); });
+  .catch(function (e) { toast(e.message, true); })
+  .finally(function () { delete _inFlight['conduct:' + tenantId + ':' + action]; });
+}
+
+// ── Bulk conduct actions ──────────────────────────────────────────────────────
+
+function toggleTenantSelect(tenantId, checked) {
+  if (checked) {
+    selectedTenants[tenantId] = true;
+  } else {
+    delete selectedTenants[tenantId];
+  }
+  updateBulkBar();
+}
+
+function selectAllTenants(checked) {
+  document.querySelectorAll('[data-tenant-cb]').forEach(function (cb) {
+    cb.checked = checked;
+    if (checked) selectedTenants[cb.dataset.tenantCb] = true;
+    else         delete selectedTenants[cb.dataset.tenantCb];
+  });
+  updateBulkBar();
+}
+
+function clearBulkSelection() {
+  selectedTenants = {};
+  document.querySelectorAll('[data-tenant-cb]').forEach(function (cb) { cb.checked = false; });
+  var sa = document.getElementById('select-all-tenants');
+  if (sa) sa.checked = false;
+  updateBulkBar();
+}
+
+function updateBulkBar() {
+  var bar = document.getElementById('bulk-action-bar');
+  if (!bar) return;
+  var count = Object.keys(selectedTenants).length;
+  if (count === 0) {
+    bar.style.display = 'none';
+    return;
+  }
+  bar.style.display = 'flex';
+  var countEl = document.getElementById('bulk-count');
+  if (countEl) countEl.textContent = count + ' tenant' + (count === 1 ? '' : 's') + ' selected';
+}
+
+function bulkConductAction(action) {
+  var ids = Object.keys(selectedTenants);
+  if (!ids.length) return;
+  var labels = { flag: 'Flag', suspend: 'Suspend', reinstate: 'Reinstate', terminate: 'Terminate' };
+  var label = labels[action] || action;
+  if (!confirm(label + ' ' + ids.length + ' selected tenant' + (ids.length === 1 ? '' : 's') + '?\n\nThis applies "' + action + '" to all selected tenants.')) return;
+
+  var notes = '';
+  if (action === 'suspend' || action === 'terminate' || action === 'flag') {
+    notes = prompt('Reason (optional — applies to all selected):') || '';
+  }
+
+  toast(label + 'ing ' + ids.length + ' tenants…');
+  var key = 'bulk:' + action;
+  if (_inFlight[key]) return;
+  _inFlight[key] = true;
+
+  var promises = ids.map(function (id) {
+    return authFetch('/.netlify/functions/admin-update-tenant-conduct', {
+      method : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body   : JSON.stringify({ tenant_id: id, action: action, admin_notes: notes || undefined }),
+    }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, id: id, d: d }; }); });
+  });
+
+  Promise.allSettled(promises).then(function (results) {
+    var failed = results.filter(function (r) { return r.status === 'rejected' || (r.value && !r.value.ok); });
+    if (failed.length === 0) {
+      toast('✓ ' + label + 'd ' + ids.length + ' tenant' + (ids.length === 1 ? '' : 's'));
+    } else {
+      toast(failed.length + ' of ' + ids.length + ' actions failed — check individual tenants', true);
+    }
+    clearBulkSelection();
+    loadTenants();
+  }).finally(function () { delete _inFlight[key]; });
+}
+
+// ── Tenant detail drawer ──────────────────────────────────────────────────────
+
+function openTenantDetail(tenantId) {
+  var t = tenantCache[tenantId] || {};
+  var name = t.name || t.slug || tenantId;
+  document.getElementById('tenant-detail-title').textContent = name;
+
+  var kv = function (label, value) {
+    return '<span class="k">' + esc(label) + '</span><span>' + esc(String(value == null ? '—' : value)) + '</span>';
+  };
+  var tenantStatus = t.status || (t.active !== false ? 'active' : 'inactive');
+
+  document.getElementById('tenant-detail-body').innerHTML =
+    '<div class="detail-kv">'
+    + kv('Business name',  t.name     || '—')
+    + kv('Slug',           t.slug     || '—')
+    + kv('Owner email',    t.owner_email || '—')
+    + kv('Owner name',     t.owner_name  || '—')
+    + kv('Location',       t.city_state  || '—')
+    + kv('Business type',  t.business_type || '—')
+    + '<span class="k">Status</span><span>' + statusBadge(tenantStatus) + '</span>'
+    + '<span class="k">Stripe</span><span>'  + statusBadge(t.stripe_status || 'not_connected') + '</span>'
+    + kv('Orders',         t.order_count   != null ? t.order_count   : '—')
+    + kv('GMV',            t.gmv           != null ? '$' + Number(t.gmv).toFixed(2) : '—')
+    + kv('Products',       t.product_count != null ? t.product_count : '—')
+    + kv('Storage used',   t.storage_used_mb ? t.storage_used_mb + ' MB' : '—')
+    + kv('Onboarded',      t.created_at ? fmt(t.created_at) : '—')
+    + (t.suspended_at  ? kv('Suspended at',  fmtDt(t.suspended_at))  : '')
+    + (t.terminated_at ? kv('Terminated at', fmtDt(t.terminated_at)) : '')
+    + (t.flagged_at    ? kv('Flagged at',    fmtDt(t.flagged_at))    : '')
+    + (t.conduct_notes ? kv('Last admin note', t.conduct_notes)      : '')
+    + '</div>';
+
+  document.getElementById('tenant-conduct-log').innerHTML = '<div class="empty">Loading conduct history…</div>';
+
+  var actions = '<button class="btn" onclick="closeModal(\'tenant-detail-modal\')">Close</button>'
+    + '<button class="btn" onclick="openNotifyModal(\'' + esc(tenantId) + '\');closeModal(\'tenant-detail-modal\')">Notify tenant</button>'
+    + '<button class="btn" onclick="openConfigModal(\'' + esc(tenantId) + '\');closeModal(\'tenant-detail-modal\')">Edit config</button>';
+  document.getElementById('tenant-detail-actions').innerHTML = actions;
+
+  openModal('tenant-detail-modal');
+  loadConductLog(tenantId);
+}
+
+function loadConductLog(tenantId) {
+  var el = document.getElementById('tenant-conduct-log');
+  authFetch('/.netlify/functions/admin-get-conduct-log?tenant_id=' + encodeURIComponent(tenantId))
+    .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+    .then(function (res) {
+      if (!res.ok) throw new Error(res.d.error || 'Failed');
+      var log = res.d.log || [];
+      if (!log.length) {
+        el.innerHTML = '<p style="color:var(--muted);font-size:.8rem;padding:.5rem 0">No conduct actions recorded yet.</p>';
+        return;
+      }
+      el.innerHTML = log.map(function (entry) {
+        var actionColors = { flag: '#b45309', suspend: '#c84b2f', terminate: '#7f1d1d', reinstate: '#2e7d32' };
+        var color = actionColors[entry.action] || 'var(--muted)';
+        return '<div style="display:flex;gap:.5rem;align-items:baseline;padding:.35rem 0;border-bottom:1px solid var(--border)">'
+          + '<span style="font-weight:700;color:' + color + ';min-width:70px;font-size:.78rem;text-transform:uppercase">' + esc(entry.action) + '</span>'
+          + '<span style="color:var(--muted);font-size:.75rem;white-space:nowrap">' + fmtDt(entry.performed_at) + '</span>'
+          + (entry.admin_notes ? '<span style="font-size:.78rem;color:var(--ink)">' + esc(entry.admin_notes) + '</span>' : '')
+          + '</div>';
+      }).join('');
+    })
+    .catch(function (e) {
+      el.innerHTML = '<p style="color:var(--error);font-size:.8rem">' + esc(e.message) + '</p>';
+    });
+}
+
+// ── Tenant notification ───────────────────────────────────────────────────────
+
+function openNotifyModal(tenantId) {
+  notifyTenantId = tenantId;
+  var t = tenantCache[tenantId] || {};
+  var desc = document.getElementById('notify-modal-desc');
+  if (desc) desc.textContent = 'Sending to: ' + (t.owner_email || tenantId);
+  var subj = document.getElementById('notify-subject');
+  var msg  = document.getElementById('notify-message');
+  if (subj) subj.value = '';
+  if (msg)  msg.value  = '';
+  openModal('notify-modal');
+}
+
+function sendTenantMessage() {
+  if (!notifyTenantId) return;
+  if (_inFlight['notify:' + notifyTenantId]) return;
+  var subject = (document.getElementById('notify-subject') || {}).value || '';
+  var message = (document.getElementById('notify-message') || {}).value || '';
+  if (!subject.trim()) { toast('Subject is required', true); return; }
+  if (!message.trim()) { toast('Message is required', true); return; }
+
+  _inFlight['notify:' + notifyTenantId] = true;
+  var tid = notifyTenantId;
+  closeModal('notify-modal');
+
+  authFetch('/.netlify/functions/admin-send-tenant-message', {
+    method : 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body   : JSON.stringify({ tenant_id: tid, subject: subject.trim(), message: message.trim() }),
+  })
+  .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+  .then(function (res) {
+    if (!res.ok) throw new Error(res.d.error || 'Failed to send');
+    toast('Message sent to ' + (res.d.to || 'tenant'));
+  })
+  .catch(function (e) { toast(e.message, true); })
+  .finally(function () { delete _inFlight['notify:' + tid]; });
+}
+
+// ── Audit log ─────────────────────────────────────────────────────────────────
+
+function loadAuditLog(offset) {
+  _auditLogOffset = offset || 0;
+  var tbody  = document.getElementById('audit-log-tbody');
+  var pagDiv = document.getElementById('audit-log-pagination');
+  if (tbody)  tbody.innerHTML  = '<tr class="loading-row"><td colspan="4"><span class="spinner"></span></td></tr>';
+  if (pagDiv) pagDiv.innerHTML = '';
+
+  var url = '/.netlify/functions/admin-get-audit-log?limit=50&offset=' + _auditLogOffset;
+  authFetch(url)
+    .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+    .then(function (res) {
+      if (!res.ok) throw new Error(res.d.error || 'Failed to load audit log');
+      var log   = res.d.log   || [];
+      var total = res.d.total || 0;
+
+      if (!tbody) return;
+      if (!log.length) {
+        tbody.innerHTML = '<tr><td colspan="4" class="empty">No audit entries yet.</td></tr>';
+        return;
+      }
+
+      var actionColors = { flag: '#b45309', suspend: '#c84b2f', terminate: '#7f1d1d', reinstate: '#2e7d32' };
+      tbody.innerHTML = log.map(function (entry) {
+        var tenantName = (entry.tenants && entry.tenants.name) ? entry.tenants.name : entry.tenant_id;
+        var tenantSlug = (entry.tenants && entry.tenants.slug) ? '/' + entry.tenants.slug : '';
+        var color = actionColors[entry.action] || 'var(--muted)';
+        return '<tr>'
+          + '<td><div class="td-name">' + esc(tenantName) + '</div><div class="td-email td-mono">' + esc(tenantSlug) + '</div></td>'
+          + '<td><span style="font-weight:700;color:' + color + ';text-transform:uppercase;font-size:.78rem">' + esc(entry.action) + '</span></td>'
+          + '<td style="font-size:.78rem;color:var(--muted);max-width:220px">' + esc(entry.admin_notes || entry.reason_code || '—') + '</td>'
+          + '<td style="white-space:nowrap;font-size:.78rem">' + fmtDt(entry.performed_at) + '</td>'
+          + '</tr>';
+      }).join('');
+
+      // Pagination
+      if (pagDiv && total > 50) {
+        var totalPages = Math.ceil(total / 50);
+        var curPage    = Math.floor(_auditLogOffset / 50);
+        var html = 'Showing ' + (_auditLogOffset + 1) + '–' + Math.min(_auditLogOffset + 50, total) + ' of ' + total + ' &nbsp;';
+        if (curPage > 0) html += '<button class="btn btn-sm" onclick="loadAuditLog(' + ((curPage - 1) * 50) + ')">← Prev</button> ';
+        if (curPage < totalPages - 1) html += '<button class="btn btn-sm" onclick="loadAuditLog(' + ((curPage + 1) * 50) + ')">Next →</button>';
+        pagDiv.innerHTML = html;
+      }
+    })
+    .catch(function (e) {
+      if (tbody) tbody.innerHTML = '<tr><td colspan="4" style="padding:1.5rem;color:var(--error);font-size:.82rem">' + esc(e.message) + '</td></tr>';
+      toast('Audit log: ' + e.message, true);
+    });
 }
 
 // ── Abuse monitor trigger ────────────────────────────────────────────────────
@@ -916,7 +1199,9 @@ function searchTenantsForExempt() {
             '<td>' + (isExempt ? '<span class="badge badge-provisioned">Yes</span>' : '<span class="badge">No</span>') + '</td>' +
             '<td>' + (isExempt
               ? '<button class="btn btn-sm btn-danger" onclick="revokeExemption(\'' + t.id + '\',\'' + esc(t.name) + '\')">Revoke</button>'
-              : '<button class="btn btn-sm btn-primary" onclick="grantExemption(\'' + t.id + '\',\'' + esc(t.name) + '\')">Grant 12 months free</button>'
+              : '<button class="btn btn-sm btn-primary" onclick="grantExemption(\'' + t.id + '\',\'' + esc(t.name) + '\')">'
+                + 'Grant ' + ((document.getElementById('tester-duration') || {}).value || '12') + ' months free'
+                + '</button>'
             ) + '</td>' +
             '</tr>';
         }).join('') +
@@ -929,12 +1214,16 @@ function searchTenantsForExempt() {
 }
 
 function grantExemption(tenantId, tenantName) {
-  if (!confirm('Grant 12 months of free access to ' + tenantName + '?\n\nThey will be able to use ProofLink fully without a subscription until the exemption expires.')) return;
+  if (_inFlight['exempt:' + tenantId]) return;
+  var monthsEl = document.getElementById('tester-duration');
+  var months = monthsEl ? parseInt(monthsEl.value, 10) || 12 : 12;
+  if (!confirm('Grant ' + months + ' months of free access to ' + tenantName + '?\n\nThey will be able to use ProofLink fully without a subscription until the exemption expires.')) return;
 
+  _inFlight['exempt:' + tenantId] = true;
   authFetch('/api/admin/set-tester-exempt', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ tenantId: tenantId, exempt: true, months: 12 })
+    body: JSON.stringify({ tenantId: tenantId, exempt: true, months: months })
   })
   .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, d: d }; }); })
   .then(function(res) {
@@ -952,12 +1241,15 @@ function grantExemption(tenantId, tenantName) {
     document.getElementById('tester-tenant-search').value = '';
     document.getElementById('tester-tenant-results').innerHTML = '';
   })
-  .catch(function(err) { alert('Error: ' + err.message); });
+  .catch(function(err) { alert('Error: ' + err.message); })
+  .finally(function() { delete _inFlight['exempt:' + tenantId]; });
 }
 
 function revokeExemption(tenantId, tenantName) {
+  if (_inFlight['revoke:' + tenantId]) return;
   if (!confirm('Revoke tester exemption for ' + tenantName + '?\n\nThey will be required to subscribe to continue using ProofLink.')) return;
 
+  _inFlight['revoke:' + tenantId] = true;
   authFetch('/api/admin/set-tester-exempt', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -969,6 +1261,7 @@ function revokeExemption(tenantId, tenantName) {
     toast('Exemption revoked for ' + tenantName);
     loadTesters();
   })
-  .catch(function(err) { alert('Error: ' + err.message); });
+  .catch(function(err) { alert('Error: ' + err.message); })
+  .finally(function() { delete _inFlight['revoke:' + tenantId]; });
 }
 
