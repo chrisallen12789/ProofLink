@@ -93,7 +93,7 @@ exports.handler = async (event) => {
   }
 
   const VALID_COUPON   = 'BUILDWITHME';
-  const couponApplied  = req.coupon_code === VALID_COUPON;
+  const couponApplied  = req.coupon_code === VALID_COUPON && req.selected_plan === 'growth';
   const exemptUntil    = couponApplied
     ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()
     : null;

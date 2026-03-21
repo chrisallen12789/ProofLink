@@ -242,6 +242,7 @@
     state.ownerEmail = ownerEmail;
     state.phone      = $('phone')?.value.trim() || '';
     state.couponCode = ($('coupon_code')?.value || '').trim().toUpperCase() === VALID_COUPON
+      && state.planIntent.planKey === 'growth'
       ? VALID_COUPON
       : '';
     return true;
@@ -437,13 +438,17 @@
     if (!input || !hint) return;
 
     input.addEventListener('input', () => {
-      const val = input.value.trim().toUpperCase();
+      const val  = input.value.trim().toUpperCase();
+      const plan = state.planIntent.planKey;
       if (!val) {
         hint.textContent = '';
         hint.style.color = '';
-      } else if (val === VALID_COUPON) {
+      } else if (val === VALID_COUPON && plan === 'growth') {
         hint.textContent = 'Promo code applied — your first year is free.';
         hint.style.color = 'var(--success, #22c55e)';
+      } else if (val === VALID_COUPON && plan !== 'growth') {
+        hint.textContent = 'This promo applies to the Growth ($149/mo) plan only.';
+        hint.style.color = 'var(--danger, #ef4444)';
       } else {
         hint.textContent = 'Invalid promo code.';
         hint.style.color = 'var(--danger, #ef4444)';

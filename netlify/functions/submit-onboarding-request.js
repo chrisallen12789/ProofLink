@@ -66,9 +66,11 @@ exports.handler = async (event) => {
     return respond(400, { error: 'Invalid selected_plan' });
   }
 
-  const VALID_COUPON    = 'BUILDWITHME';
+  const VALID_COUPON     = 'BUILDWITHME';
   const normalizedCoupon = coupon_code ? String(coupon_code).trim().toUpperCase() : null;
-  const appliedCoupon    = normalizedCoupon === VALID_COUPON ? VALID_COUPON : null;
+  const appliedCoupon    = normalizedCoupon === VALID_COUPON && normalizedPlan === 'growth'
+    ? VALID_COUPON
+    : null;
 
   // ── Build slug
   const business_slug = slugify(
