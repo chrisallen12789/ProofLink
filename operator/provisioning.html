@@ -221,11 +221,11 @@
 
 <!-- ── Auth Gate ── -->
 <div id="auth-gate">
-  <h2>Operator login required</h2>
-  <p>Enter your operator credentials to access the provisioning queue.</p>
+  <h2>Sign in to continue</h2>
+  <p>Enter your credentials to access the provisioning queue.</p>
   <div class="input-group" style="margin-bottom:0.75rem;">
     <label for="login-email">Email</label>
-    <input type="email" id="login-email" placeholder="operator@example.com" />
+    <input type="email" id="login-email" placeholder="you@example.com" />
   </div>
   <div class="input-group" style="margin-bottom:1rem;">
     <label for="login-password">Password</label>
@@ -302,6 +302,16 @@
   let accessToken = null;
   let allRequests = [];
   let currentFilter = 'all';
+
+  const STATUS_LABELS = {
+    submitted   : 'Awaiting Review',
+    approved    : 'Approved',
+    provisioning: 'Setting Up\u2026',
+    provisioned : 'Active',
+    failed      : 'Setup Failed',
+    rejected    : 'Rejected',
+  };
+  function statusLabel(s) { return STATUS_LABELS[s] || s; }
 
   // ── Login via Supabase
   async function handleLogin() {
@@ -401,21 +411,20 @@
     tbody.innerHTML = rows.map(r => {
       const actions = buildActions(r);
       const errorHtml = r.provision_error
-        ? `<div class="error-detail">⚠ ${escapeHtml(r.provision_error)}</div>`
+        ? `<div class="error-detail">⚠ Setup encountered an issue. Please retry or contact support.</div>`
         : '';
       return `
         <tr>
           <td data-label="Business">
             <div class="td-name">${escapeHtml(r.business_name)}</div>
             <div class="td-sub">${escapeHtml(r.owner_email)}</div>
-            <div class="td-sub">${escapeHtml(r.business_slug || '')}</div>
             ${errorHtml}
           </td>
           <td data-label="Type">${escapeHtml(r.business_type || '—')}</td>
           <td data-label="Location">${escapeHtml(r.city_state || '—')}</td>
           <td data-label="Submitted">${formatDate(r.created_at)}</td>
           <td data-label="Status">
-            <span class="badge badge-${r.status}">${r.status}</span>
+            <span class="badge badge-${r.status}">${statusLabel(r.status)}</span>
           </td>
           <td data-label="Actions">
             <div class="actions">${actions}</div>
@@ -465,7 +474,7 @@
       toast('Request approved', 'success');
       await loadRequests();
     } catch (err) {
-      toast('Approve error: ' + err.message, 'error');
+      toast('Something went wrong. Please try again.', 'error');
     }
   }
 
@@ -483,10 +492,10 @@
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Provision failed');
-      toast(json.message || 'Tenant provisioned!', 'success');
+      toast('Business is live and ready!', 'success');
       await loadRequests();
     } catch (err) {
-      toast('Provision error: ' + err.message, 'error');
+      toast('Something went wrong. Please try again.', 'error');
       if (btn) { btn.disabled = false; btn.textContent = '▶ Provision'; }
       await loadRequests();
     }
@@ -597,7 +606,7 @@ function openDetailModal(e, id) {
 
     document.getElementById('dm-body').innerHTML = `
       <div style="margin-bottom:0.5rem;display:inline-flex;align-items:center;gap:0.4rem;">
-        <span class="badge badge-${req.status}" style="display:inline-flex">${req.status}</span>
+        <span class="badge badge-${req.status}" style="display:inline-flex">${statusLabel(req.status)}</span>
       </div>
       ${row('Business name', req.business_name)}
       ${row('Owner name', req.owner_name)}
@@ -605,11 +614,9 @@ function openDetailModal(e, id) {
       ${row('Phone', req.phone)}
       ${row('Business type', req.business_type)}
       ${row('City / State', req.city_state)}
-      ${row('Store slug', req.business_slug)}
-      ${row('Template', req.seed_template_key)}
       ${row('Submitted', fmtDate(req.created_at))}
       ${req.approved_at ? row('Approved', fmtDate(req.approved_at)) : ''}
-      ${req.provision_error ? `<div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:4px;padding:0.75rem;margin-top:0.75rem;font-size:0.78rem;color:#c62828;font-family:monospace;">${escapeHtml(req.provision_error)}</div>` : ''}
+      ${req.provision_error ? `<div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:4px;padding:0.75rem;margin-top:0.75rem;font-size:0.78rem;color:#c62828;">Setup encountered an issue. Please retry or contact support.</div>` : ''}
     `;
 
     // Footer actions
@@ -626,7 +633,7 @@ function openDetailModal(e, id) {
     overlay.style.display = 'flex';
     document.body.style.overflow = 'hidden';
   })
-  .catch(err => toast('Could not load details: ' + err.message, 'error'));
+  .catch(() => toast('Could not load details. Please try again.', 'error'));
 }
 
 function closeDetailModal() {

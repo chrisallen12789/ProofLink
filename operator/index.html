@@ -1138,7 +1138,7 @@
                   <h2>Payments</h2>
                   <button class="help-btn" type="button" data-help-topic="payments" aria-label="Payment help">?</button>
                 </div>
-                <div class="muted">Separate ProofLink billing from tenant customer payments. Nothing here should imply Stripe is live unless it actually is.</div>
+                <div class="muted">Manage your ProofLink subscription and customer payment settings. Status shown reflects what is actually active.</div>
               </div>
               <div class="panel-actions">
                 <button id="btnRefreshPayments" class="btn btn-ghost" type="button">Refresh</button>
@@ -1151,7 +1151,7 @@
                 <div class="card-bd" id="billingSummaryCard"></div>
               </div>
               <div class="card stat-card">
-                <div class="card-hd"><strong>Stripe Connect</strong><span class="muted">Tenant payouts</span></div>
+                <div class="card-hd"><strong>Stripe Connect</strong><span class="muted">Business payouts</span></div>
                 <div class="card-bd" id="connectSummaryCard"></div>
               </div>
               <div class="card stat-card">
@@ -1291,7 +1291,7 @@
                   <h2>Domain Settings</h2>
                   <button class="help-btn" type="button" data-help-topic="domains" aria-label="Domain help">?</button>
                 </div>
-                <div class="muted">Subdomain is managed by ProofLink. Custom domains stay under the tenant's registrar account.</div>
+                <div class="muted">Your storefront URL is managed by ProofLink. Custom domains stay under your registrar account.</div>
               </div>
               <div class="panel-actions">
                 <button id="btnRefreshDomains" class="btn btn-ghost" type="button">Refresh</button>
@@ -1496,7 +1496,7 @@
                 </div>
                 <div class="card-bd">
                   <div class="muted" style="line-height:1.65;">
-                    This page is intentionally split. Verified business record fields stay protected to preserve application integrity, compliance, billing alignment, and tenant identity. Editable fields are limited to branding, public profile, and storefront presentation so operators can keep the business current without risking structural data drift.
+                    Some fields are locked because they're tied to your billing, compliance, and account identity. Editable fields cover branding, public profile, and storefront presentation — the things you should be able to update without affecting your core account record.
                   </div>
                 </div>
               </div>
@@ -1552,7 +1552,7 @@
                       <input id="productName" required />
                     </label>
 
-                    <label>Slug (unique)
+                    <label>URL handle (unique)
                       <input id="productSlug" required />
                     </label>
 
@@ -1840,7 +1840,7 @@
       </div>
 
       <footer class="muted footer">
-        <span id="operatorFooterText">Operator UI v3 — Tenant • Powered by ProofLink</span>
+        <span id="operatorFooterText">Powered by ProofLink</span>
       </footer>
     </main>
   </div>

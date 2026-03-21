@@ -82,7 +82,7 @@
         <h1 id="pageTitle">Finish your ProofLink setup</h1>
         <p class="sub" id="pageSub">This wizard takes the business from created to billable to payout-ready.</p>
       </div>
-      <a class="btn secondary" href="/operator/">Open operator dashboard</a>
+      <a class="btn secondary" href="/operator/">Open your dashboard</a>
     </div>
 
     <div class="grid">
@@ -95,7 +95,7 @@
               <div class="step-num">1</div>
               <h3>Business created</h3>
             </div>
-            <p>Tenant shell, operator shell, and subdomain are reserved.</p>
+            <p>Business profile, login, and storefront URL are ready.</p>
           </div>
 
           <div class="step-item" id="nav-step-2">
@@ -111,7 +111,7 @@
               <div class="step-num">3</div>
               <h3>Connect Stripe payouts</h3>
             </div>
-            <p>Link the tenant payout account.</p>
+            <p>Connect the business payout account.</p>
           </div>
 
           <div class="step-item" id="nav-step-4">
@@ -137,7 +137,7 @@
 
         <section class="panel active" id="step-1">
           <h2>Business workspace created</h2>
-          <p>The tenant bundle is in place. Now activate billing so the account becomes live on the platform.</p>
+          <p>The business workspace is ready. Now activate billing so the account becomes live on the platform.</p>
           <div class="kv" id="businessKv"></div>
           <div class="actions">
             <button class="btn" id="goToBillingBtn">Start platform billing</button>
@@ -149,7 +149,7 @@
 
         <section class="panel" id="step-2">
           <h2>Activate ProofLink billing</h2>
-          <p>The tenant pays ProofLink here. This is separate from tenant customer payments.</p>
+          <p>This is the platform subscription for using ProofLink. It's separate from payments your customers make to the business.</p>
           <div class="checks">
             <div class="check">
               <strong>Current billing status</strong>
@@ -170,7 +170,7 @@
 
         <section class="panel" id="step-3">
           <h2>Connect Stripe payouts</h2>
-          <p>This links the tenant’s Stripe account so customer payments go to the tenant, not to ProofLink.</p>
+          <p>This connects the business’s Stripe account so customer payments go directly to the business, not to ProofLink.</p>
           <div class="checks">
             <div class="check">
               <strong>Connect status</strong>
@@ -205,12 +205,12 @@
           <p>The account is ready to move into live use.</p>
           <div class="checks">
             <div class="check">
-              <strong>Subdomain</strong>
+              <strong>Storefront URL</strong>
               <span id="subdomainText">Unknown</span>
             </div>
             <div class="check">
               <strong>Next move</strong>
-              <span>Open the storefront, test one order, then hand the tenant their login.</span>
+              <span>Open the storefront, test one order, then hand the owner their login.</span>
             </div>
           </div>
           <div class="actions">

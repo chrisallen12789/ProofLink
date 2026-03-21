@@ -1,6 +1,23 @@
 (function () {
   function $(id) { return document.getElementById(id); }
 
+  const BILLING_LABELS = {
+    active          : 'Active',
+    past_due        : 'Past Due',
+    canceled        : 'Canceled',
+    trialing        : 'Trial',
+    incomplete      : 'Incomplete',
+    onboarding      : 'Not yet active',
+  };
+  const CONNECT_LABELS = {
+    connect_connected    : 'Connected',
+    connect_not_started  : 'Not connected',
+    connect_pending      : 'Pending',
+    connect_restricted   : 'Restricted',
+  };
+  function billingLabel(s) { return BILLING_LABELS[s] || titleCase(s || 'Unknown'); }
+  function connectLabel(s) { return CONNECT_LABELS[s] || titleCase(s || 'Unknown'); }
+
   const state = {
     startContext: null,
     paymentState: null,
@@ -90,25 +107,25 @@
     const planKey = state.planKey || ctx.planKey || 'starter';
 
     $('pageTitle').textContent = `Finish setup for ${businessName}`;
-    $('pageSub').textContent = `Complete billing, payouts, and launch for ${tenantSlug}.`;
+    $('pageSub').textContent = `Complete billing, payouts, and launch for ${businessName}.`;
 
     $('businessKv').innerHTML = `
       <div class="k">Business</div><div>${businessName}</div>
       <div class="k">Owner</div><div>${ownerName}</div>
       <div class="k">Email</div><div>${email}</div>
-      <div class="k">Tenant slug</div><div>${tenantSlug}</div>
+      <div class="k">Storefront URL</div><div>${tenantSlug}.prooflink.co</div>
       <div class="k">Plan</div><div>${titleCase(planKey)}</div>
     `;
 
-    $('subdomainText').textContent = `${tenantSlug}.prooflink.co`;
+    $('subdomainText').textContent = `https://${tenantSlug}.prooflink.co`;
     $('openStorefrontBtn').href = getStorefrontUrl();
   }
 
   function renderPills() {
     const ps = state.paymentState || {};
     const plan = titleCase(ps.prooflinkPlanKey || getPlanKey());
-    const billing = titleCase(ps.billingStatus || 'onboarding');
-    const connect = titleCase(ps.connectStatus || 'connect_not_started');
+    const billing = billingLabel(ps.billingStatus || 'onboarding');
+    const connect = connectLabel(ps.connectStatus || 'connect_not_started');
     const eligible = ps.onlinePaymentsEligible ? 'Eligible' : 'Blocked';
 
     $('summaryPills').innerHTML = `
