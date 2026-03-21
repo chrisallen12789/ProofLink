@@ -197,6 +197,7 @@ function showSection(id, link) {
   if (id === 'provisioning') loadProvisioning();
   if (id === 'testers')      loadTesters();
   if (id === 'audit-log')    loadAuditLog();
+  if (id === 'billing')      loadBilling();
 }
 
 // ── Overview ──────────────────────────────────────────────────────────────────
@@ -1252,6 +1253,35 @@ function runAbuseMonitor() {
     if (res.d.flagged > 0) loadTenants();
   })
   .catch(function (e) { toast(e.message, true); });
+}
+
+// ── Billing / Stripe Health ────────────────────────────────────────────────────
+
+var _billingLoaded = false;
+
+function loadBilling() {
+  if (_billingLoaded) return;
+  _billingLoaded = true;
+
+  ['hc-stripe-key', 'hc-stripe-connect', 'hc-stripe-webhook'].forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el) el.innerHTML = '<div class="health-dot unknown"></div>Checking\u2026';
+  });
+
+  authFetch('/.netlify/functions/admin-stripe-health')
+    .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+    .then(function (res) {
+      if (!res.ok) throw new Error(res.d.error || 'Health check failed');
+      var d = res.d;
+      setHealthStatus('hc-stripe-key',     'hc-stripe-key-note',     d.stripe_key.ok, d.stripe_key.ok ? 'Valid' : 'Invalid',            d.stripe_key.message);
+      setHealthStatus('hc-stripe-connect', 'hc-stripe-connect-note', d.connect.ok,    d.connect.count + ' connected',                    d.connect.message);
+      setHealthStatus('hc-stripe-webhook', 'hc-stripe-webhook-note', d.webhook.ok,    d.webhook.ok    ? 'Configured' : 'Not configured', d.webhook.message);
+    })
+    .catch(function (e) {
+      ['hc-stripe-key', 'hc-stripe-connect', 'hc-stripe-webhook'].forEach(function (id) {
+        setHealthStatus(id, id + '-note', false, 'Error', e.message);
+      });
+    });
 }
 
 // ── System Health ─────────────────────────────────────────────────────────────

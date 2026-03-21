@@ -399,9 +399,9 @@
             <a class="btn" href="https://dashboard.stripe.com/connect/accounts/overview" target="_blank" rel="noopener">Stripe Connect ↗</a>
           </div>
           <div class="health-grid" style="margin-top:1.5rem">
-            <div class="health-card"><div class="health-label">Platform subscription</div><div class="health-status"><div class="health-dot unknown"></div>Not connected</div><div class="health-note">Set STRIPE_SECRET_KEY in Netlify env to enable live data.</div></div>
-            <div class="health-card"><div class="health-label">Stripe Connect accounts</div><div class="health-status"><div class="health-dot unknown"></div>Unknown</div><div class="health-note">Connect overview available in Stripe dashboard.</div></div>
-            <div class="health-card"><div class="health-label">Webhook endpoint</div><div class="health-status"><div class="health-dot unknown"></div>Not verified</div><div class="health-note">Configure at /.netlify/functions/stripe-webhook in Stripe settings.</div></div>
+            <div class="health-card"><div class="health-label">Stripe API key</div><div class="health-status" id="hc-stripe-key"><div class="health-dot unknown"></div>Checking…</div><div class="health-note" id="hc-stripe-key-note">Verifying your Stripe secret key.</div></div>
+            <div class="health-card"><div class="health-label">Connected accounts</div><div class="health-status" id="hc-stripe-connect"><div class="health-dot unknown"></div>Checking…</div><div class="health-note" id="hc-stripe-connect-note">Counting active Stripe Connect accounts.</div></div>
+            <div class="health-card"><div class="health-label">Webhook endpoint</div><div class="health-status" id="hc-stripe-webhook"><div class="health-dot unknown"></div>Checking…</div><div class="health-note" id="hc-stripe-webhook-note">Verifying webhook secret is configured.</div></div>
           </div>
         </div>
       </div>
