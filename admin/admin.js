@@ -34,11 +34,9 @@ var tenantCache  = {};
 // ── Utilities ─────────────────────────────────────────────────────────────────
 
 function esc(s) {
-  return String(s == null ? '' : s)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[c];
+  });
 }
 
 function fmt(iso) {
@@ -744,8 +742,14 @@ function setHealthStatus(id, noteId, ok, label, note) {
 
 function runHealthCheck() {
   authFetch('/.netlify/functions/get-platform-stats')
-    .then(function (r) { setHealthStatus('hc-stats','hc-stats-note', r.ok, r.ok ? 'Connected' : 'Error', r.ok ? 'Function responding normally.' : 'HTTP ' + r.status); })
-    .catch(function (e) { setHealthStatus('hc-stats','hc-stats-note', false, 'Error', e.message); });
+    .then(function (r) {
+      setHealthStatus('hc-stats', 'hc-stats-note', r.ok, r.ok ? 'Connected' : 'Error', r.ok ? 'Function responding normally.' : 'HTTP ' + r.status);
+      setHealthStatus('hc-sb', 'hc-sb-note', r.ok, r.ok ? 'Connected' : 'Error', r.ok ? 'Supabase responding through function layer.' : 'Could not reach Supabase — check SUPABASE_URL and service role key.');
+    })
+    .catch(function (e) {
+      setHealthStatus('hc-stats', 'hc-stats-note', false, 'Error', e.message);
+      setHealthStatus('hc-sb', 'hc-sb-note', false, 'Error', 'Cannot confirm Supabase connection.');
+    });
 
   authFetch('/.netlify/functions/admin-get-onboarding-requests?limit=1')
     .then(function (r) { setHealthStatus('hc-ob','hc-ob-note', r.ok, r.ok ? 'Connected' : 'Error', r.ok ? 'Function responding normally.' : 'HTTP ' + r.status); })
@@ -759,7 +763,6 @@ function runHealthCheck() {
     .then(function (r) { setHealthStatus('hc-slug','hc-slug-note', r.ok, r.ok ? 'Connected' : 'Error', r.ok ? 'Public function responding normally.' : 'HTTP ' + r.status); })
     .catch(function (e) { setHealthStatus('hc-slug','hc-slug-note', false, 'Error', e.message); });
 
-  setHealthStatus('hc-sb', 'hc-sb-note',  true, 'Connected', 'Supabase responding through function layer.');
   setHealthStatus('hc-auth','hc-auth-note',true, 'Verified',  'Session token is valid — you are authenticated.');
 }
 
@@ -944,7 +947,7 @@ function grantExemption(tenantId, tenantName) {
       alert(msg);
       return;
     }
-    showToast('✅ Exemption granted to ' + tenantName + ' — free until ' + new Date(res.d.billingExemptUntil).toLocaleDateString() + ' (' + res.d.slotsUsed + '/3 slots used)');
+    toast('✅ Exemption granted to ' + tenantName + ' — free until ' + new Date(res.d.billingExemptUntil).toLocaleDateString() + ' (' + res.d.slotsUsed + '/3 slots used)');
     loadTesters();
     document.getElementById('tester-tenant-search').value = '';
     document.getElementById('tester-tenant-results').innerHTML = '';
@@ -963,14 +966,9 @@ function revokeExemption(tenantId, tenantName) {
   .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, d: d }; }); })
   .then(function(res) {
     if (!res.ok) { alert(res.d.error || 'Failed to revoke exemption'); return; }
-    showToast('Exemption revoked for ' + tenantName);
+    toast('Exemption revoked for ' + tenantName);
     loadTesters();
   })
   .catch(function(err) { alert('Error: ' + err.message); });
 }
 
-function esc(str) {
-  return String(str || '').replace(/[&<>"']/g, function(c) {
-    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c];
-  });
-}

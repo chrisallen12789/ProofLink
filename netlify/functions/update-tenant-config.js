@@ -27,10 +27,17 @@ function parseConfig(value) {
   }
 }
 
+const HEX_COLOR_RE = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
+
 function normalizeValue(key, value) {
   if (value === null || value === undefined) return '';
   if (key === 'show_prices' || key === 'allow_custom_requests' || key === 'onboarding_complete') {
     return !!value;
+  }
+  if (key === 'accent_color') {
+    const color = String(value).trim();
+    if (!HEX_COLOR_RE.test(color)) throw Object.assign(new Error('accent_color must be a valid hex color (e.g. #ff6600 or #f60)'), { statusCode: 400 });
+    return color;
   }
   return String(value).trim();
 }
@@ -69,9 +76,13 @@ exports.handler = async (event) => {
   }
 
   const sanitized = {};
-  Object.entries(config).forEach(([k, v]) => {
-    if (ALLOWED_KEYS.has(k)) sanitized[k] = normalizeValue(k, v);
-  });
+  try {
+    Object.entries(config).forEach(([k, v]) => {
+      if (ALLOWED_KEYS.has(k)) sanitized[k] = normalizeValue(k, v);
+    });
+  } catch (err) {
+    return respond(err.statusCode || 400, { error: err.message });
+  }
 
   if (Object.keys(sanitized).length === 0) {
     return respond(400, { error: 'No valid editable config keys provided' });
