@@ -1,5 +1,6 @@
 const Stripe = require("stripe");
 const { createClient } = require("@supabase/supabase-js");
+const { normalizeBillingStatus } = require("./_prooflink_payments");
 
 function json(statusCode, body) {
   return {
@@ -47,7 +48,7 @@ async function updateSubscriptionState(subscription) {
 
   const supabase = getSupabase();
 
-  const billingStatus = subscription.status === "active" ? "active" : "inactive";
+  const billingStatus = normalizeBillingStatus(subscription.status);
 
   const { error } = await supabase
     .from("tenants")
@@ -60,6 +61,7 @@ async function updateSubscriptionState(subscription) {
 }
 
 exports.handler = async function(event) {
+  if (event.httpMethod === "OPTIONS") return json(200, {});
   if (event.httpMethod !== "POST") {
     return json(405, { ok: false, error: "Method not allowed" });
   }
@@ -69,8 +71,12 @@ exports.handler = async function(event) {
     const webhookSecret = process.env.STRIPE_BILLING_WEBHOOK_SECRET;
     if (!webhookSecret) throw new Error("Missing STRIPE_BILLING_WEBHOOK_SECRET");
 
+    const rawBody = event.isBase64Encoded
+      ? Buffer.from(event.body || "", "base64").toString("utf8")
+      : (event.body || "");
+
     const signature = event.headers["stripe-signature"] || event.headers["Stripe-Signature"];
-    const stripeEvent = stripe.webhooks.constructEvent(event.body, signature, webhookSecret);
+    const stripeEvent = stripe.webhooks.constructEvent(rawBody, signature, webhookSecret);
 
     switch (stripeEvent.type) {
       case "checkout.session.completed":
