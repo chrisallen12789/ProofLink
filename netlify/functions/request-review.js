@@ -48,7 +48,7 @@ exports.handler = async (event) => {
     .from('tenants')
     .select('name')
     .eq('id', tenantId)
-    .single();
+    .maybeSingle();
 
   const businessName = tenant?.name || 'Your service provider';
   const siteUrl      = getConfiguredSiteUrl();

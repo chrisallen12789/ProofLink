@@ -34,10 +34,13 @@ exports.handler = async (event) => {
   const description   = clean(body.description);
   const amount        = Number(body.amount);
 
-  if (!customerName)  return respond(400, { error: 'customer_name is required' });
-  if (!customerEmail) return respond(400, { error: 'customer_email is required' });
-  if (!title)         return respond(400, { error: 'title is required' });
-  if (!amount || isNaN(amount) || amount <= 0) return respond(400, { error: 'amount must be a positive number' });
+  if (!customerName)                             return respond(400, { error: 'customer_name is required' });
+  if (!customerEmail)                            return respond(400, { error: 'customer_email is required' });
+  if (!title)                                    return respond(400, { error: 'title is required' });
+  if (title.length > 200)                        return respond(400, { error: 'title must be 200 characters or fewer' });
+  if (description.length > 5000)                 return respond(400, { error: 'description must be 5000 characters or fewer' });
+  if (!amount || isNaN(amount) || amount <= 0)   return respond(400, { error: 'amount must be a positive number' });
+  if (amount > 999999)                           return respond(400, { error: 'amount exceeds maximum allowed value' });
 
   let ctx;
   try {
@@ -55,7 +58,7 @@ exports.handler = async (event) => {
       .eq('id', tenantId)
       .maybeSingle();
 
-    if (tenantError) return respond(500, { error: tenantError.message });
+    if (tenantError) { console.error('[create-quote] tenant lookup:', tenantError); return respond(500, { error: 'Failed to create quote' }); }
 
     const businessName = clean(tenant?.name) || 'ProofLink';
     const siteUrl      = getConfiguredSiteUrl();
@@ -82,7 +85,7 @@ exports.handler = async (event) => {
       .select()
       .maybeSingle();
 
-    if (insertError) return respond(500, { error: insertError.message });
+    if (insertError) { console.error('[create-quote] insert:', insertError); return respond(500, { error: 'Failed to create quote' }); }
     if (!quote) return respond(500, { error: 'Quote was not created' });
 
     const quoteUrl = `${siteUrl}/quote.html?id=${quote.id}`;
