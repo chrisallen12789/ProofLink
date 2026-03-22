@@ -21,10 +21,10 @@ exports.handler = async (event) => {
   const normalizedEmail = String(email).trim().toLowerCase();
   const supabase = getAdminClient();
 
-  // Verify tenant exists (also returns business_name)
+  // Verify tenant exists
   const { data: tenant, error: tenantErr } = await supabase
     .from('tenants')
-    .select('id, business_name')
+    .select('id, name')
     .eq('id', tenant_id)
     .single();
 
@@ -33,7 +33,7 @@ exports.handler = async (event) => {
   // Fetch orders for this email+tenant (safe public fields only)
   const { data: orders } = await supabase
     .from('orders')
-    .select('id, title, status, total_amount, created_at, updated_at, description, line_items, customer_name')
+    .select('id, title, status, total_amount, created_at, customer_name')
     .eq('tenant_id', tenant_id)
     .ilike('customer_email', normalizedEmail)
     .order('created_at', { ascending: false })
@@ -49,7 +49,7 @@ exports.handler = async (event) => {
     .limit(20);
 
   return respond(200, {
-    business_name: tenant.business_name,
+    business_name: tenant.name,
     orders  : orders   || [],
     bookings: bookings || [],
   });

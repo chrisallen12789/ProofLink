@@ -2326,6 +2326,7 @@ function switchTab(tab, opts = {}) {
   if (nextTab === "domains") window.renderDomains?.();
   if (nextTab === "setup") fetchOperatorSetup().catch((err) => setSetupMessage(err.message || String(err), "bad"));
   if (nextTab === "guidance") renderGuidance();
+  if (nextTab === "bookings") renderBookings().catch(console.error);
   if (opts.updateHash !== false) syncPanelHash(nextTab);
   renderWorkspaceHub();
   scheduleWorkspaceSnapshot(nextTab);

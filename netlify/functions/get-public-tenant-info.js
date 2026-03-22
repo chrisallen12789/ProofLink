@@ -17,11 +17,11 @@ exports.handler = async (event) => {
 
   const { data, error } = await supabase
     .from('tenants')
-    .select('id, business_name')
+    .select('id, name')
     .eq('id', tenant_id)
     .single();
 
   if (error || !data) return respond(404, { error: 'Tenant not found' });
 
-  return respond(200, { business_name: data.business_name });
+  return respond(200, { business_name: data.name });
 };

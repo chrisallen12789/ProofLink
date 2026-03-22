@@ -390,6 +390,25 @@ const templates = {
     };
   },
 
+  bookingConfirmation({ customer_name, customer_email, business_name, title, date_str, time_str, portal_url }) {
+    return {
+      to     : customer_email,
+      subject: `Appointment confirmed — ${business_name}`,
+      html   : layout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.green)}${bodyWrap(`
+        ${h1(`You're booked, ${customer_name}!`)}
+        ${sub(`${business_name} has confirmed your appointment.`)}
+        <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px;">
+          <tr><td style="padding:6px 0;color:${T.muted};font-size:14px;width:100px;">Service</td><td style="padding:6px 0;font-weight:600;">${title}</td></tr>
+          <tr><td style="padding:6px 0;color:${T.muted};font-size:14px;">Date</td><td style="padding:6px 0;font-weight:600;">${date_str}</td></tr>
+          <tr><td style="padding:6px 0;color:${T.muted};font-size:14px;">Time</td><td style="padding:6px 0;font-weight:600;">${time_str}</td></tr>
+        </table>
+        ${portal_url ? cta('View my history →', portal_url, T.red) : ''}
+        ${divider()}
+        ${p(`<span style="color:${T.hint};">Need to reschedule? Reply to this email and we'll sort it out.</span>`)}
+      `)}</table>`, { preheader: `Your appointment with ${business_name} is confirmed.` }),
+    };
+  },
+
   operatorNewRequest({ operator_email, owner_name, business_name, business_type, city_state, owner_email, selected_plan }) {
     return {
       to: operator_email,

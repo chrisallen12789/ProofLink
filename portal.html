@@ -176,9 +176,9 @@
     if (!str) return '—';
     return new Date(str).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
   }
-  function fmtMoney(cents) {
-    if (!cents) return '';
-    return '$' + (cents / 100).toFixed(2);
+  function fmtMoney(amount) {
+    if (!amount) return '';
+    return '$' + Number(amount).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   }
   function statusBadge(s) {
     var label = (s || 'new').replace(/_/g, ' ');

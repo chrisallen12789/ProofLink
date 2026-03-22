@@ -6,6 +6,8 @@
 'use strict';
 
 const { getAdminClient, requireOperatorContext, respond } = require('./utils/auth');
+const { sendEmail, templates }  = require('./utils/email');
+const { getConfiguredSiteUrl }  = require('./utils/runtime-config');
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return respond(200, {});
@@ -69,6 +71,38 @@ exports.handler = async (event) => {
   if (error) {
     console.error('[create-booking]', error);
     return respond(500, { error: 'Failed to create booking' });
+  }
+
+  // Send confirmation email (non-fatal)
+  if (customer_email) {
+    try {
+      const startDate = new Date(starts_at);
+      const endDate   = new Date(ends_at);
+      const dateStr   = startDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+      const timeStr   = startDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) +
+                        ' – ' + endDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+      const siteUrl   = getConfiguredSiteUrl();
+
+      // Get business name
+      const { data: tenant } = await getAdminClient()
+        .from('tenants').select('name').eq('id', resolvedTenantId).single();
+
+      const portalUrl = customer_email
+        ? `${siteUrl}/portal.html?tenant=${encodeURIComponent(resolvedTenantId)}&email=${encodeURIComponent(customer_email)}`
+        : null;
+
+      sendEmail(templates.bookingConfirmation({
+        customer_name,
+        customer_email,
+        business_name: tenant?.name || 'Your service provider',
+        title,
+        date_str: dateStr,
+        time_str: timeStr,
+        portal_url: portalUrl,
+      })).catch((e) => console.warn('[create-booking] email failed:', e.message));
+    } catch (e) {
+      console.warn('[create-booking] email setup failed:', e.message);
+    }
   }
 
   return respond(201, { ok: true, booking: data });

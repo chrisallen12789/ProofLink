@@ -17,7 +17,7 @@ function validateTwilio(event) {
   const signature = event.headers?.['x-twilio-signature'] || event.headers?.['X-Twilio-Signature'];
   if (!signature) return false;
 
-  const url    = process.env.URL + '/.netlify/functions/twilio-webhook';
+  const url    = (process.env.SITE_URL || process.env.URL || 'https://prooflink.co') + '/.netlify/functions/twilio-webhook';
   const params = querystring.parse(event.body || '');
   return twilio.validateRequest(secret, signature, url, params);
 }

@@ -137,7 +137,14 @@
 
   const params    = new URLSearchParams(location.search);
   const tenantId  = params.get('tenant');
+  const prefillEmail = params.get('email');
   const bizNameEl = document.getElementById('bizName');
+
+  // Pre-fill email if coming from portal link
+  if (prefillEmail) {
+    var emailEl = document.getElementById('customerEmail');
+    if (emailEl) emailEl.value = prefillEmail;
+  }
 
   // Pre-fill date to tomorrow
   (function () {
