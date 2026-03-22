@@ -1,11 +1,13 @@
 {
   "name": "ProofLink",
   "short_name": "ProofLink",
-  "description": "Multi-tenant commerce and operations platform for small businesses.",
-  "start_url": "/",
+  "description": "Business workspace for service businesses — customers, orders, payments, and workflow in one place.",
+  "start_url": "/operator/index.html",
+  "scope": "/",
   "display": "standalone",
+  "orientation": "portrait-primary",
   "background_color": "#0b0b0b",
-  "theme_color": "#c9a227",
+  "theme_color": "#c84b2f",
   "icons": [
     {
       "src": "/assets/pwa-192.png",
