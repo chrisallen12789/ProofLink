@@ -40,6 +40,8 @@ exports.handler = async (event) => {
 
   // Validate Twilio signature in production
   if (process.env.NODE_ENV !== 'test' && !validateTwilio(event)) {
+    const from = querystring.parse(event.body || '').From || 'unknown';
+    console.error(`[twilio-webhook] signature validation failed — From: ${from}, URL: ${process.env.SITE_URL || process.env.URL || 'unknown'}`);
     return { statusCode: 403, body: 'Forbidden' };
   }
 
@@ -49,7 +51,10 @@ exports.handler = async (event) => {
   const body   = params.Body  || '';
   const sid    = params.MessageSid || '';
 
-  if (!from || !body) return twimlOk();
+  if (!from || !body) {
+    console.warn('[twilio-webhook] missing From or Body — params:', JSON.stringify({ from, sid, bodyLength: body.length }));
+    return twimlOk();
+  }
 
   const supabase = getAdminClient();
 

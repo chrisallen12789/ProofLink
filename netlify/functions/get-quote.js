@@ -19,20 +19,16 @@ exports.handler = async (event) => {
     .from('quotes')
     .select('id, customer_name, customer_email, title, description, amount_cents, valid_until, status, accepted_at, created_at, tenant_id')
     .eq('id', id)
-    .single();
+    .maybeSingle();
 
-  if (error || !quote) return respond(404, { error: 'Quote not found' });
+  if (error) { console.error('[get-quote]', error); return respond(500, { error: 'Failed to load quote' }); }
+  if (!quote) return respond(404, { error: 'Quote not found' });
 
-  const { data: tenant, error: tenantError } = await supabase
+  const { data: tenant } = await supabase
     .from('tenants')
     .select('name')
     .eq('id', quote.tenant_id)
-    .single();
-
-  if (tenantError || !tenant) {
-    console.error('[get-quote] tenant lookup failed', tenantError);
-    return respond(500, { error: 'Failed to load quote details' });
-  }
+    .maybeSingle();
 
   return respond(200, {
     ok: true,

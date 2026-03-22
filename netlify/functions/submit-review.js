@@ -40,6 +40,7 @@ exports.handler = async (event) => {
 
   if (existing) return respond(400, { error: 'Review already submitted for this order' });
 
+  const reviewContent = (review_text || '').trim() || null;
   const { error: insertErr } = await supabase
     .from('reviews')
     .insert({
@@ -48,7 +49,9 @@ exports.handler = async (event) => {
       customer_name : customer_name || order.customer_name || 'Anonymous',
       customer_email: order.customer_email || null,
       rating        : Number(rating),
-      review_text   : (review_text || '').trim() || null,
+      review_text   : reviewContent, // original column
+      comment       : reviewContent, // alias column added in migration
+      created_at    : new Date().toISOString(),
     });
 
   if (insertErr) {

@@ -17,7 +17,7 @@ exports.handler = async (event) => {
   try { body = JSON.parse(event.body || '{}'); }
   catch { return respond(400, { error: 'Invalid JSON' }); }
 
-  const { customer_name, customer_email, title, starts_at, ends_at, notes, order_id, tenant_id } = body;
+  const { customer_name, customer_email, title, starts_at, ends_at, notes, order_id, tenant_id, preferred_time, referral_source } = body;
 
   if (!customer_name || !title || !starts_at || !ends_at) {
     return respond(400, { error: 'Missing required fields: customer_name, title, starts_at, ends_at' });
@@ -59,7 +59,7 @@ exports.handler = async (event) => {
       title,
       starts_at,
       ends_at,
-      notes         : notes || null,
+      notes         : [notes, preferred_time ? `Preferred time: ${preferred_time}` : null, referral_source ? `Referral: ${referral_source}` : null].filter(Boolean).join('\n') || null,
       order_id      : order_id || null,
       status        : 'confirmed',
       created_at    : new Date().toISOString(),
@@ -83,9 +83,9 @@ exports.handler = async (event) => {
                         ' – ' + endDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
       const siteUrl   = getConfiguredSiteUrl();
 
-      // Get business name
-      const { data: tenant } = await getAdminClient()
-        .from('tenants').select('name').eq('id', resolvedTenantId).single();
+      // Get business name (reuse existing supabase client)
+      const { data: tenant } = await supabase
+        .from('tenants').select('name').eq('id', resolvedTenantId).maybeSingle();
 
       const portalUrl = customer_email
         ? `${siteUrl}/portal.html?tenant=${encodeURIComponent(resolvedTenantId)}&email=${encodeURIComponent(customer_email)}`

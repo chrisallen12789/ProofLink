@@ -26,16 +26,17 @@ exports.handler = async (event) => {
     .from('tenants')
     .select('id, name')
     .eq('id', tenant_id)
-    .single();
+    .maybeSingle();
 
   if (tenantErr || !tenant) return respond(404, { error: 'Business not found' });
 
-  // Fetch orders for this email+tenant (safe public fields only)
+  // Fetch orders for this email+tenant — try both email columns since orders can come from
+  // different sources (storefront uses `email`, operator-created use `customer_email`)
   const { data: orders } = await supabase
     .from('orders')
     .select('id, title, status, total_amount, created_at, customer_name')
     .eq('tenant_id', tenant_id)
-    .ilike('customer_email', normalizedEmail)
+    .or(`email.ilike.${normalizedEmail},customer_email.ilike.${normalizedEmail}`)
     .order('created_at', { ascending: false })
     .limit(50);
 
@@ -48,9 +49,19 @@ exports.handler = async (event) => {
     .order('starts_at', { ascending: false })
     .limit(20);
 
+  // Fetch pending/accepted quotes for this email+tenant
+  const { data: quotes } = await supabase
+    .from('quotes')
+    .select('id, title, description, amount_cents, status, valid_until, created_at')
+    .eq('tenant_id', tenant_id)
+    .ilike('customer_email', normalizedEmail)
+    .order('created_at', { ascending: false })
+    .limit(10);
+
   return respond(200, {
     business_name: tenant.name,
     orders  : orders   || [],
     bookings: bookings || [],
+    quotes  : quotes   || [],
   });
 };

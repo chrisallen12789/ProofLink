@@ -39,15 +39,17 @@ exports.handler = async (event) => {
   try { client = getTwilioClient(); }
   catch (e) { return respond(503, { error: e.message }); }
 
-  let twilioSid = null;
-  let sendError = null;
+  let twilioSid  = null;
+  let fromNumber = null;
+  let sendError  = null;
   try {
     const message = await client.messages.create({
       messagingServiceSid,
       to,
       body: msgBody,
     });
-    twilioSid = message.sid;
+    twilioSid  = message.sid;
+    fromNumber = message.from || null; // actual phone number used by Twilio
   } catch (e) {
     sendError = e.message || String(e);
   }
@@ -59,7 +61,7 @@ exports.handler = async (event) => {
       tenant_id  : tenantId,
       operator_id: operatorId,
       direction  : 'outbound',
-      from_number: messagingServiceSid,
+      from_number: fromNumber || messagingServiceSid, // prefer real number, fall back to SID
       to_number  : to,
       body       : msgBody,
       status     : sendError ? 'failed' : 'sent',

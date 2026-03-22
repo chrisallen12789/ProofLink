@@ -6,7 +6,7 @@
 
 const { requireOperatorContext, respond } = require('./utils/auth');
 
-const ALLOWED_FIELDS = ['title', 'customer_name', 'customer_email', 'starts_at', 'ends_at', 'notes', 'status'];
+const ALLOWED_FIELDS = ['title', 'customer_name', 'customer_email', 'starts_at', 'ends_at', 'notes', 'status', 'preferred_time'];
 const VALID_STATUSES = ['confirmed', 'cancelled', 'completed', 'no_show'];
 
 exports.handler = async (event) => {
@@ -42,13 +42,13 @@ exports.handler = async (event) => {
     .eq('id', id)
     .eq('tenant_id', tenantId)
     .select()
-    .single();
+    .maybeSingle();
 
   if (error) {
     console.error('[update-booking]', error);
     return respond(500, { error: 'Failed to update booking' });
   }
-  if (!data) return respond(404, { error: 'Booking not found' });
+  if (!data) return respond(404, { error: 'Booking not found or access denied' });
 
   return respond(200, { ok: true, booking: data });
 };

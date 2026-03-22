@@ -54,11 +54,17 @@ exports.handler = async (event) => {
   const siteUrl      = getConfiguredSiteUrl();
   const reviewUrl    = `${siteUrl}/review.html?order=${encodeURIComponent(order_id)}&tenant=${encodeURIComponent(tenantId)}`;
 
-  // Mark as requested
-  await supabase
+  // Mark as requested (must succeed before sending email to prevent duplicates)
+  const { error: updateErr } = await supabase
     .from('orders')
     .update({ review_requested_at: new Date().toISOString() })
-    .eq('id', order_id);
+    .eq('id', order_id)
+    .eq('tenant_id', tenantId);
+
+  if (updateErr) {
+    console.error('[request-review] update failed:', updateErr);
+    return respond(500, { error: 'Failed to mark review as requested' });
+  }
 
   // Send email (non-fatal)
   sendEmail(templates.reviewRequest({

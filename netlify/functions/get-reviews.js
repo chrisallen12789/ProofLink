@@ -20,7 +20,7 @@ exports.handler = async (event) => {
 
   const { data, error } = await supabase
     .from('reviews')
-    .select('id, order_id, customer_name, customer_email, rating, comment, created_at')
+    .select('id, order_id, customer_name, customer_email, rating, review_text, comment, created_at')
     .eq('tenant_id', tenantId)
     .order('created_at', { ascending: false })
     .limit(100);

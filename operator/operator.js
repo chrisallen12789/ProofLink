@@ -10313,7 +10313,7 @@ async function boot() {
     renderCustomersList("");
     renderPayments();
     renderGuidance();
-    fetchReviews().catch(console.warn);
+    fetchReviews().then(() => renderReviews()).catch(console.warn);
     await renderMoney();
     switchTab(panelFromLocation(), { updateHash: false });
 
@@ -10539,7 +10539,7 @@ function renderReviews(reviews) {
             <strong style="flex:1;">${escapeHtml(r.customer_name || "Anonymous")}</strong>
             <span class="muted" style="font-size:.75rem;">${formatDateOnly(r.created_at)}</span>
           </div>
-          ${r.comment ? `<div style="font-size:.85rem;color:var(--muted);padding-left:2px;">${escapeHtml(r.comment)}</div>` : ""}
+          ${(r.review_text || r.comment) ? `<div style="font-size:.85rem;color:var(--muted);padding-left:2px;">${escapeHtml(r.review_text || r.comment)}</div>` : ""}
           ${r.order_id ? `<div style="font-size:.75rem;color:var(--muted);">Order: ${escapeHtml(String(r.order_id).slice(0, 8))}</div>` : ""}
         </div>
       `).join("")}

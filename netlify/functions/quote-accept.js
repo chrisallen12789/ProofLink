@@ -64,12 +64,13 @@ exports.handler = async (event) => {
       .from('orders')
       .insert({
         tenant_id      : quote.tenant_id,
+        operator_id    : quote.operator_id || null,
         customer_name  : quote.customer_name,
         customer_email : quote.customer_email,
         title          : quote.title,
         notes          : quote.description || quote.notes || null,
         total_cents    : quote.amount_cents,
-        total_amount   : quote.amount_cents / 100,
+        total_amount   : quote.amount_cents != null ? quote.amount_cents / 100 : null,
         status         : 'confirmed',
         source_type    : 'quote',
         created_at     : nowIso,
