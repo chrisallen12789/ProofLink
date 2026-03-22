@@ -95,6 +95,10 @@
           <button class="tab" data-tab="domains" data-tour-tab="domains" type="button">Domains</button>
           <button class="tab" data-tab="import" data-tour-tab="import" type="button">Switch &amp; Import</button>
           <button class="tab" data-tab="vendors" type="button">Vendors <span style="font-size:.7rem;color:rgba(255,255,255,.35);display:block;font-weight:400;">Subs &amp; suppliers</span></button>
+          <button class="tab-btn" data-tab="team" onclick="switchTab('team')">
+            <span class="tab-icon">👥</span>
+            <span class="tab-label">Team</span>
+          </button>
           <button class="tab" data-tab="inventory" type="button">Inventory <span style="font-size:.7rem;color:rgba(255,255,255,.35);display:block;font-weight:400;">Parts &amp; materials</span></button>
           <button class="tab" data-tab="contracts" type="button">Contracts <span style="font-size:.7rem;color:rgba(255,255,255,.35);display:block;font-weight:400;">Warranties &amp; plans</span></button>
         </div>
@@ -421,6 +425,14 @@
                 </div>
                 <div class="card-bd">
                   <div id="orderDetailWrap" class="muted">Select an order to inspect it.</div>
+                  <div id="phasesSection">
+                    <div class="section-toggle" id="phasesToggle">
+                      <span>Project Phases</span>
+                      <button onclick="openAddPhaseModal(currentOrder?.id); event.stopPropagation();" class="btn-sm">+ Phase</button>
+                      <span class="toggle-arrow">▾</span>
+                    </div>
+                    <div id="phasesContent" style="display:none"></div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1776,6 +1788,19 @@
               </div>
             </div>
           </section>
+
+          <div id="teamPanel" class="panel" style="display:none">
+            <div class="panel-header">
+              <h2>Team Members</h2>
+              <div class="panel-actions">
+                <button id="btnInviteTeamMember" class="btn-primary">+ Invite Member</button>
+                <button id="btnRefreshTeam" class="btn-secondary">Refresh</button>
+              </div>
+            </div>
+            <div id="teamMembersList">
+              <p class="empty-state">Loading team members...</p>
+            </div>
+          </div>
 
           <section class="panel hidden" data-panel="availability">
             <div class="panel-head">

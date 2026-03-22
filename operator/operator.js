@@ -322,6 +322,10 @@ const customerEmail = $("customerEmail");
 const customerPhone = $("customerPhone");
 const customerPreferredContact = $("customerPreferredContact");
 const customerNotes = $("customerNotes");
+const customerAddress1 = $("customerAddress1");
+const customerCity = $("customerCity");
+const customerState = $("customerState");
+const customerZip = $("customerZip");
 
 const paymentsList = $("paymentsList");
 const btnRefreshPayments = $("btnRefreshPayments");
@@ -410,6 +414,7 @@ const btnRefreshAvailability = $("btnRefreshAvailability");
 let BOOKINGS_CACHE = [];
 let BK_VIEW_DATE   = new Date(); // month currently shown in calendar
 let OPERATOR_MEMBERS_CACHE = [];
+let TEAM_MEMBERS_CACHE = [];
 let TIME_ENTRIES_CACHE = [];
 let VENDORS_CACHE = [];
 let INVENTORY_CACHE = [];
@@ -2393,6 +2398,11 @@ function switchTab(tab, opts = {}) {
   if (nextTab === 'availability') {
     loadAvailabilityBlocks();
   }
+  if (nextTab === 'team' && !TEAM_PANEL_LOADED) {
+    TEAM_PANEL_LOADED = true;
+    fetchTeamMembers().catch(console.warn);
+    $('btnInviteTeamMember')?.addEventListener('click', () => openInviteTeamMemberModal());
+  }
   if (opts.updateHash !== false) syncPanelHash(nextTab);
   renderWorkspaceHub();
   scheduleWorkspaceSnapshot(nextTab);
@@ -4158,6 +4168,7 @@ function renderContracts() {
         <div style="font-size:.78rem;color:rgba(255,255,255,.4);">${escapeHtml(c.contract_type || 'warranty')}${c.starts_at ? ' · starts ' + new Date(c.starts_at).toLocaleDateString() : ''}${c.expires_at ? ' · expires ' + new Date(c.expires_at).toLocaleDateString() : ''}</div>
         ${c.terms ? `<div style="font-size:.75rem;color:rgba(255,255,255,.3);margin-top:2px;">${escapeHtml(c.terms.slice(0,80))}${c.terms.length>80?'…':''}</div>` : ''}
       </div>
+      <button class="btn btn-ghost btn-sm" style="font-size:.72rem;" onclick="openEditContractModal(CONTRACTS_CACHE.find(x=>x.id==='${escapeAttr(c.id)}'))">Edit</button>
       <button class="btn btn-ghost" style="font-size:.72rem;" onclick="deleteContract('${escapeAttr(c.id)}')">Remove</button>
     </div>`).join('');
 }
@@ -4170,6 +4181,79 @@ async function deleteContract(id) {
   });
   await fetchContracts();
   renderContracts();
+}
+
+function openEditContractModal(contract) {
+  if (!contract) return;
+  const existing = document.getElementById('editContractModal');
+  if (existing) { existing.remove(); return; }
+  const modal = document.createElement('div');
+  modal.id = 'editContractModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10000;display:flex;align-items:center;justify-content:center;';
+  const custOptions = (CUSTOMERS_CACHE || []).map(c => `<option value="${escapeAttr(c.id)}" ${c.id === contract.customer_id ? 'selected' : ''}>${escapeHtml(c.name || c.email || c.id)}</option>`).join('');
+  const startsVal = contract.starts_at ? contract.starts_at.slice(0, 10) : '';
+  const expiresVal = contract.expires_at ? contract.expires_at.slice(0, 10) : '';
+  modal.innerHTML = `
+    <div style="background:#1e2029;border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:28px 32px;max-width:460px;width:90%;box-shadow:0 8px 40px rgba(0,0,0,.5);">
+      <h3 style="margin:0 0 18px;font-size:1rem;color:#e8e9eb;">Edit service contract</h3>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px;">
+        <input id="ecTitle" class="input" placeholder="Contract title *" style="width:100%;" value="${escapeAttr(contract.title || '')}" />
+        <div style="display:flex;gap:8px;">
+          <select id="ecType" class="input" style="flex:1;">
+            <option value="warranty" ${contract.contract_type === 'warranty' ? 'selected' : ''}>Warranty</option>
+            <option value="maintenance" ${contract.contract_type === 'maintenance' ? 'selected' : ''}>Maintenance plan</option>
+            <option value="service_plan" ${contract.contract_type === 'service_plan' ? 'selected' : ''}>Service plan</option>
+          </select>
+          <select id="ecCustomer" class="input" style="flex:1;">
+            <option value="">No customer</option>${custOptions}
+          </select>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <div style="flex:1;"><label style="font-size:.72rem;color:rgba(255,255,255,.35);display:block;margin-bottom:2px;">Starts</label>
+            <input id="ecStarts" type="date" class="input" style="width:100%;" value="${escapeAttr(startsVal)}" /></div>
+          <div style="flex:1;"><label style="font-size:.72rem;color:rgba(255,255,255,.35);display:block;margin-bottom:2px;">Expires</label>
+            <input id="ecExpires" type="date" class="input" style="width:100%;" value="${escapeAttr(expiresVal)}" /></div>
+          <div style="flex:1;"><label style="font-size:.72rem;color:rgba(255,255,255,.35);display:block;margin-bottom:2px;">Remind (days before)</label>
+            <input id="ecRemind" type="number" class="input" value="${escapeAttr(String(contract.reminder_days ?? 30))}" min="0" style="width:100%;" /></div>
+        </div>
+        <textarea id="ecTerms" class="input" rows="2" placeholder="Terms / notes" style="width:100%;resize:vertical;">${escapeHtml(contract.terms || '')}</textarea>
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;">
+        <button onclick="document.getElementById('editContractModal').remove()" class="btn btn-ghost">Cancel</button>
+        <button id="ecSave" class="btn btn-primary">Save changes</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  document.getElementById('ecSave').onclick = async () => {
+    const title = (document.getElementById('ecTitle')?.value || '').trim();
+    if (!title) { alert('Title is required.'); return; }
+    const btn = document.getElementById('ecSave'); btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+      const tok = await getAccessToken();
+      const res = await fetch('/.netlify/functions/manage-service-contracts', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tok}` },
+        body: JSON.stringify({
+          id: contract.id,
+          title,
+          contract_type: document.getElementById('ecType')?.value,
+          customer_id: document.getElementById('ecCustomer')?.value || undefined,
+          starts_at: document.getElementById('ecStarts')?.value || undefined,
+          expires_at: document.getElementById('ecExpires')?.value || undefined,
+          reminder_days: parseInt(document.getElementById('ecRemind')?.value || 30),
+          terms: (document.getElementById('ecTerms')?.value || '').trim() || undefined,
+        }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || 'Failed');
+      showToast('Contract updated.');
+      modal.remove();
+      CONTRACTS_CACHE = await fetchContracts();
+      renderContracts();
+    } catch (err) {
+      showToast('Error: ' + err.message);
+      btn.disabled = false; btn.textContent = 'Save changes';
+    }
+  };
 }
 
 function openAddContractModal(customerId, orderId) {
@@ -4536,6 +4620,7 @@ function renderVendors() {
         <div style="font-size:.8rem;color:rgba(255,255,255,.4);">${escapeHtml(v.company || "")}${v.company && v.trade ? " · " : ""}${escapeHtml(v.trade || "")}</div>
         <div style="font-size:.78rem;color:rgba(255,255,255,.35);">${escapeHtml(v.email || "")}${v.email && v.phone ? " · " : ""}${escapeHtml(v.phone || "")}</div>
       </div>
+      <button class="btn btn-ghost btn-sm" style="font-size:.75rem;" onclick="openEditVendorModal(VENDORS_CACHE.find(x=>x.id==='${escapeAttr(v.id)}'))">Edit</button>
       <button class="btn btn-ghost" style="font-size:.75rem;" onclick="deleteVendor('${escapeAttr(v.id)}')">Remove</button>
     </div>`).join("");
 }
@@ -4551,7 +4636,162 @@ async function deleteVendor(id) {
   renderVendors();
 }
 
+function openEditVendorModal(vendor) {
+  if (!vendor) return;
+  const existing = document.getElementById('editVendorModal');
+  if (existing) { existing.remove(); return; }
+  const modal = document.createElement('div');
+  modal.id = 'editVendorModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10000;display:flex;align-items:center;justify-content:center;';
+  modal.innerHTML = `
+    <div style="background:#1e2029;border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:28px 32px;max-width:460px;width:90%;box-shadow:0 8px 40px rgba(0,0,0,.5);">
+      <h3 style="margin:0 0 18px;font-size:1rem;color:#e8e9eb;">Edit vendor</h3>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px;">
+        <input id="evName" class="input" placeholder="Name *" style="width:100%;" value="${escapeAttr(vendor.name || '')}" />
+        <input id="evCompany" class="input" placeholder="Company" style="width:100%;" value="${escapeAttr(vendor.company || '')}" />
+        <input id="evEmail" class="input" placeholder="Email" style="width:100%;" value="${escapeAttr(vendor.email || '')}" />
+        <input id="evPhone" class="input" placeholder="Phone" style="width:100%;" value="${escapeAttr(vendor.phone || '')}" />
+        <input id="evTrade" class="input" placeholder="Trade / specialty" style="width:100%;" value="${escapeAttr(vendor.trade || '')}" />
+        <textarea id="evNotes" class="input" rows="2" placeholder="Notes" style="width:100%;resize:vertical;">${escapeHtml(vendor.notes || '')}</textarea>
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;">
+        <button onclick="document.getElementById('editVendorModal').remove()" class="btn btn-ghost">Cancel</button>
+        <button id="evSave" class="btn btn-primary">Save changes</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  document.getElementById('evSave').onclick = async () => {
+    const name = (document.getElementById('evName')?.value || '').trim();
+    if (!name) { alert('Name is required.'); return; }
+    const btn = document.getElementById('evSave'); btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+      const tok = await getAccessToken();
+      const res = await fetch('/.netlify/functions/manage-vendors', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tok}` },
+        body: JSON.stringify({
+          id: vendor.id,
+          name,
+          company: document.getElementById('evCompany')?.value || undefined,
+          email: document.getElementById('evEmail')?.value || undefined,
+          phone: document.getElementById('evPhone')?.value || undefined,
+          trade: document.getElementById('evTrade')?.value || undefined,
+          notes: document.getElementById('evNotes')?.value || undefined,
+        }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || 'Failed');
+      showToast('Vendor updated.');
+      modal.remove();
+      await fetchVendors();
+      renderVendors();
+    } catch (err) {
+      showToast('Error: ' + err.message);
+      btn.disabled = false; btn.textContent = 'Save changes';
+    }
+  };
+}
+
 let VENDORS_PANEL_LOADED = false;
+let TEAM_PANEL_LOADED = false;
+
+async function fetchTeamMembers() {
+  const r = await fetch('/.netlify/functions/manage-operator-members', { headers: authHeaders() });
+  const d = await r.json().catch(() => ({}));
+  TEAM_MEMBERS_CACHE = d.members || [];
+  renderTeamPanel();
+}
+
+function renderTeamPanel() {
+  const el = $('teamMembersList');
+  if (!el) return;
+  if (!TEAM_MEMBERS_CACHE.length) {
+    el.innerHTML = '<div class="muted" style="font-size:.85rem;">No team members yet. Invite your first crew member.</div>';
+    return;
+  }
+  el.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:.85rem;">
+    <thead><tr>
+      <th style="text-align:left;padding:6px 8px;color:rgba(255,255,255,.4);font-weight:500;border-bottom:1px solid rgba(255,255,255,.08);">Name</th>
+      <th style="text-align:left;padding:6px 8px;color:rgba(255,255,255,.4);font-weight:500;border-bottom:1px solid rgba(255,255,255,.08);">Role</th>
+      <th style="text-align:left;padding:6px 8px;color:rgba(255,255,255,.4);font-weight:500;border-bottom:1px solid rgba(255,255,255,.08);">Hourly Rate</th>
+      <th style="padding:6px 8px;border-bottom:1px solid rgba(255,255,255,.08);"></th>
+    </tr></thead>
+    <tbody>
+      ${TEAM_MEMBERS_CACHE.map(m => `
+        <tr>
+          <td style="padding:8px;color:#e8e9eb;">${escapeHtml(m.display_name || m.name || m.email || m.id)}</td>
+          <td style="padding:8px;color:rgba(255,255,255,.55);">${escapeHtml(m.role || '—')}</td>
+          <td style="padding:8px;color:rgba(255,255,255,.55);">${m.hourly_rate_cents ? formatUsd(m.hourly_rate_cents) + '/hr' : '—'}</td>
+          <td style="padding:8px;text-align:right;"><button class="btn btn-ghost" style="font-size:.72rem;" onclick="removeTeamMember('${escapeAttr(m.id)}')">Remove</button></td>
+        </tr>`).join('')}
+    </tbody>
+  </table>`;
+}
+
+function openInviteTeamMemberModal() {
+  const existing = document.getElementById('inviteTeamModal');
+  if (existing) { existing.remove(); return; }
+  const modal = document.createElement('div');
+  modal.id = 'inviteTeamModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10000;display:flex;align-items:center;justify-content:center;';
+  modal.innerHTML = `
+    <div style="background:#1e2029;border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:28px 32px;max-width:420px;width:90%;box-shadow:0 8px 40px rgba(0,0,0,.5);">
+      <h3 style="margin:0 0 18px;font-size:1rem;color:#e8e9eb;">Invite team member</h3>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px;">
+        <input id="tmEmail" class="input" placeholder="Email *" type="email" style="width:100%;" />
+        <input id="tmName" class="input" placeholder="Display name" style="width:100%;" />
+        <select id="tmRole" class="input" style="width:100%;">
+          <option value="technician">Technician</option>
+          <option value="admin">Admin</option>
+          <option value="contractor">Contractor</option>
+          <option value="office">Office</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;">
+        <button onclick="document.getElementById('inviteTeamModal').remove()" class="btn btn-ghost">Cancel</button>
+        <button id="tmSave" class="btn btn-primary">Send invite</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  document.getElementById('tmSave').onclick = async () => {
+    const email = (document.getElementById('tmEmail')?.value || '').trim();
+    if (!email) { alert('Email is required.'); return; }
+    const btn = document.getElementById('tmSave'); btn.disabled = true; btn.textContent = 'Sending…';
+    try {
+      const res = await fetch('/.netlify/functions/manage-operator-members', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: JSON.stringify({
+          email,
+          display_name: document.getElementById('tmName')?.value || undefined,
+          role: document.getElementById('tmRole')?.value || 'technician',
+        }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || 'Failed');
+      showToast('Invite sent.');
+      modal.remove();
+      await fetchTeamMembers();
+    } catch (err) {
+      showToast('Error: ' + err.message);
+      btn.disabled = false; btn.textContent = 'Send invite';
+    }
+  };
+}
+
+async function removeTeamMember(id) {
+  if (!(await showConfirmModal('Remove this team member?', 'Remove', 'Cancel'))) return;
+  try {
+    const res = await fetch(`/.netlify/functions/manage-operator-members?id=${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      headers: authHeaders(),
+    });
+    if (!res.ok) throw new Error((await res.json()).error || 'Failed');
+    TEAM_MEMBERS_CACHE = TEAM_MEMBERS_CACHE.filter(m => m.id !== id);
+    renderTeamPanel();
+    showToast('Team member removed.');
+  } catch (err) {
+    showToast('Error: ' + err.message);
+  }
+}
 
 async function fetchTimeEntries(orderId) {
   try {
@@ -5782,6 +6022,10 @@ function populateCustomerForm(customer = null) {
   if (customerPhone) customerPhone.value = customer?.phone || "";
   if (customerPreferredContact) customerPreferredContact.value = customer?.preferred_contact || "email";
   if (customerNotes) customerNotes.value = customer?.notes || "";
+  if (customerAddress1) customerAddress1.value = customer?.address_line1 || "";
+  if (customerCity) customerCity.value = customer?.city || "";
+  if (customerState) customerState.value = customer?.state || "";
+  if (customerZip) customerZip.value = customer?.zip || "";
 }
 function startNewCustomer() {
   CUSTOMER_CREATING = true;
@@ -5789,6 +6033,26 @@ function startNewCustomer() {
   populateCustomerForm(null);
   setInlineMessage(customerMsg, "");
   renderCustomersList(customerSearch?.value || "");
+}
+
+async function archiveCustomer(customerId) {
+  if (!(await showConfirmModal("Archive this customer? They will be hidden from the active list.", "Archive", "Cancel"))) return;
+  try {
+    const tok = await getAccessToken();
+    const res = await fetch('/.netlify/functions/manage-customers', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tok}` },
+      body: JSON.stringify({ id: customerId, is_deleted: true }),
+    });
+    if (!res.ok) throw new Error((await res.json()).error || 'Failed to archive customer');
+    CUSTOMERS_CACHE = CUSTOMERS_CACHE.filter(c => c.id !== customerId);
+    ACTIVE_CUSTOMER_ID = null;
+    CUSTOMER_CREATING = false;
+    renderCustomersList(customerSearch?.value || "");
+    showToast("Customer archived.");
+  } catch (err) {
+    showToast("Error: " + err.message);
+  }
 }
 function renderCustomersList(filter = "") {
   if (!customersList) return;
@@ -5872,6 +6136,11 @@ async function renderCustomerDetail(customerIdValue) {
       <div class="detail-copy">Preferred contact: ${escapeHtml(customer.preferred_contact || "email")}</div>
       <div class="detail-copy">Lifetime value: ${formatUsd(customerLifetimeValueCents(customer))} &middot; Orders: ${escapeHtml(String(customer.order_count || 0))}</div>
       <div class="detail-copy">Last touch: ${escapeHtml(customer.last_contact_at ? formatDateTime(customer.last_contact_at) : "Not recorded")}</div>
+      ${(function() {
+        const hasActiveOrders = CRM_ORDERS_CACHE.some(o => o.customer_id === customerIdValue && !['completed','cancelled','archived'].includes(String(o.status || '').toLowerCase()));
+        if (hasActiveOrders) return '';
+        return `<div style="margin-top:10px;"><button class="btn btn-ghost" style="font-size:.75rem;color:#fbbf24;" onclick="archiveCustomer('${escapeAttr(customerIdValue)}')">Archive customer</button></div>`;
+      })()}
     </div>
 
     <div class="grid two" style="margin-top:14px;">
@@ -6159,6 +6428,10 @@ customerForm?.addEventListener("submit", async (e) => {
         phone: customerPhone?.value,
         preferred_contact: customerPreferredContact?.value,
         notes: customerNotes?.value,
+        address_line1: customerAddress1?.value || undefined,
+        city: customerCity?.value || undefined,
+        state: customerState?.value || undefined,
+        zip: customerZip?.value || undefined,
       });
       markWorkspaceClean("customers");
       setInlineMessage(customerMsg, "Customer saved.", "ok");
@@ -12284,10 +12557,14 @@ $("btnExportOrdersCsv")?.addEventListener("click", () => {
 });
 
 $("btnExportCustomersCsv")?.addEventListener("click", () => {
-  const rows = CUSTOMERS_CACHE;
-  if (!rows.length) { alert("No customers to export."); return; }
-  const headers = ["id", "name", "email", "phone", "preferred_contact", "notes", "order_count", "lifetime_value_cents", "created_at", "updated_at"];
-  downloadCsv("customers", headers, rows.map((r) => headers.map((h) => r[h] ?? "")));
+  const rows = [['Name','Email','Phone','City','State','Created']];
+  (CUSTOMERS_CACHE || []).forEach(c => {
+    rows.push([c.name||'', c.email||'', c.phone||'', c.city||'', c.state||'', (c.created_at||'').slice(0,10)]);
+  });
+  const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download = 'customers.csv'; a.click();
 });
 
 // ── Bulk Customer Import ──────────────────────────────────────────────────────

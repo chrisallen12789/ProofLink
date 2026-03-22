@@ -1,14 +1,15 @@
-// netlify/functions/manage-service-contracts.js
-// Operator-authenticated — CRUD for service_contracts (warranties, maintenance plans).
-// GET /?customer_id=<uuid>   → list contracts for a customer
-// GET /?order_id=<uuid>      → list contracts for an order
-// POST { ... }               → create contract
-// PATCH { id, ... }          → update contract
-// DELETE /?id=<uuid>         → delete contract
+// netlify/functions/manage-operator-members.js
+// Operator-authenticated — CRUD for operator_members (team management).
+// GET /                                          → list all members for tenant
+// POST { email, name, role }                     → invite user + create member row
+// PATCH { id, role, hourly_rate_cents, ... }     → update member fields
+// DELETE /?id=<uuid>                             → remove member row (does NOT delete auth user)
 
 'use strict';
 
 const { requireOperatorContext, getAdminClient, respond } = require('./utils/auth');
+
+const ALLOWED_ROLES = ['owner', 'admin', 'member', 'viewer'];
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return respond(200, {});
@@ -23,43 +24,46 @@ exports.handler = async (event) => {
 
   // ── GET ───────────────────────────────────────────────────────────────────
   if (event.httpMethod === 'GET') {
-    let q = adminSb
-      .from('service_contracts')
-      .select('*')
+    const { data, error } = await adminSb
+      .from('operator_members')
+      .select('id, user_id, role, name, hourly_rate_cents, weekly_capacity_hours, created_at')
       .eq('tenant_id', tenantId)
-      .order('expires_at', { ascending: true });
+      .order('created_at', { ascending: true });
 
-    if (params.customer_id) q = q.eq('customer_id', params.customer_id);
-    if (params.order_id)    q = q.eq('order_id', params.order_id);
-
-    const { data, error } = await q;
     if (error) return respond(500, { error: error.message });
-    return respond(200, { contracts: data || [] });
+    return respond(200, { members: data || [] });
   }
 
-  // ── POST ──────────────────────────────────────────────────────────────────
+  // ── POST (invite) ─────────────────────────────────────────────────────────
   if (event.httpMethod === 'POST') {
     let body;
     try { body = JSON.parse(event.body || '{}'); }
     catch { return respond(400, { error: 'Invalid JSON' }); }
 
-    const { customer_id, order_id, title, contract_type, starts_at, expires_at, terms, reminder_days } = body;
-    if (!title) return respond(400, { error: 'title is required' });
+    const { email, name, role } = body;
+    if (!email) return respond(400, { error: 'email is required' });
 
-    const { data, error } = await adminSb.from('service_contracts').insert({
-      tenant_id    : tenantId,
-      customer_id  : customer_id || null,
-      order_id     : order_id || null,
-      title        : String(title).slice(0, 200),
-      contract_type: contract_type || 'warranty',
-      starts_at    : starts_at || null,
-      expires_at   : expires_at || null,
-      terms        : terms || null,
-      reminder_days: reminder_days != null ? Number(reminder_days) : 30,
-    }).select().single();
+    const effectiveRole = role && ALLOWED_ROLES.includes(role) ? role : 'member';
+
+    const { data: inviteData, error: inviteError } = await adminSb.auth.admin.inviteUserByEmail(email);
+    if (inviteError) return respond(500, { error: inviteError.message });
+
+    const invitedUser = inviteData?.user;
+    if (!invitedUser?.id) return respond(500, { error: 'Failed to retrieve invited user id' });
+
+    const { data, error } = await adminSb
+      .from('operator_members')
+      .insert({
+        tenant_id: tenantId,
+        user_id  : invitedUser.id,
+        role     : effectiveRole,
+        name     : name || null,
+      })
+      .select()
+      .single();
 
     if (error) return respond(500, { error: error.message });
-    return respond(201, { contract: data });
+    return respond(201, { member: data });
   }
 
   // ── PATCH ─────────────────────────────────────────────────────────────────
@@ -71,21 +75,27 @@ exports.handler = async (event) => {
     const { id, ...fields } = body;
     if (!id) return respond(400, { error: 'id is required' });
 
-    const ALLOWED = ['title', 'contract_type', 'starts_at', 'expires_at', 'terms', 'reminder_days', 'notified_at', 'customer_id', 'order_id'];
+    const ALLOWED = ['role', 'hourly_rate_cents', 'weekly_capacity_hours', 'name'];
     const patch = Object.fromEntries(
       Object.entries(fields).filter(([k]) => ALLOWED.includes(k))
     );
+
+    if (patch.role !== undefined && !ALLOWED_ROLES.includes(patch.role)) {
+      return respond(400, { error: `role must be one of: ${ALLOWED_ROLES.join(', ')}` });
+    }
+
     if (!Object.keys(patch).length) return respond(400, { error: 'No valid fields to update' });
 
     const { data, error } = await adminSb
-      .from('service_contracts')
+      .from('operator_members')
       .update(patch)
       .eq('id', id)
       .eq('tenant_id', tenantId)
-      .select().single();
+      .select()
+      .single();
 
     if (error) return respond(500, { error: error.message });
-    return respond(200, { contract: data });
+    return respond(200, { member: data });
   }
 
   // ── DELETE ────────────────────────────────────────────────────────────────
@@ -94,7 +104,7 @@ exports.handler = async (event) => {
     if (!id) return respond(400, { error: 'id is required' });
 
     const { error } = await adminSb
-      .from('service_contracts')
+      .from('operator_members')
       .delete()
       .eq('id', id)
       .eq('tenant_id', tenantId);
