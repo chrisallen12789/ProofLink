@@ -121,6 +121,24 @@
     .btn-danger { background: rgba(239,68,68,.12); color: #f87171; border: 1px solid rgba(239,68,68,.2); }
     .btn-danger:hover { background: rgba(239,68,68,.22); }
     .cancel-booking-btn { font-size: .75rem; padding: 4px 10px; margin-left: auto; flex-shrink: 0; }
+    .order-financials {
+      display: flex; gap: 16px; flex-wrap: wrap; margin-top: 8px;
+      padding-top: 8px; border-top: 1px solid rgba(255,255,255,.06);
+    }
+    .fin-item { display: flex; flex-direction: column; gap: 2px; }
+    .fin-label { font-size: .72rem; color: rgba(255,255,255,.4); text-transform: uppercase; letter-spacing: .04em; }
+    .fin-value { font-size: .88rem; font-weight: 600; color: rgba(255,255,255,.85); }
+    .fin-value.due { color: #fbbf24; }
+    .fin-value.paid { color: #4ade80; }
+    .fin-value.overdue { color: #f87171; }
+    .pay-btn {
+      font-size: .78rem; padding: 5px 12px; margin-top: 2px;
+      background: rgba(200,75,47,.15); color: #c84b2f;
+      border: 1px solid rgba(200,75,47,.3); border-radius: 6px;
+      cursor: pointer; font-weight: 600; transition: background .2s;
+      text-decoration: none; display: inline-block;
+    }
+    .pay-btn:hover { background: rgba(200,75,47,.28); }
   </style>
 </head>
 <body>
@@ -240,6 +258,10 @@
     if (!amount) return '';
     return '$' + Number(amount).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   }
+  function fmtCents(cents) {
+    if (cents === null || cents === undefined || cents === '') return '';
+    return '$' + (Number(cents) / 100).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  }
   function statusBadge(s) {
     var key   = (s || 'new').replace(/[^a-z0-9_]/gi, '');
     var label = escHtml((s || 'new').replace(/_/g, ' '));
@@ -277,13 +299,61 @@
       return;
     }
     el.innerHTML = orders.map(function (o) {
-      return '<div class="order-row">' +
-        '<div style="flex:1;min-width:0;">' +
-          '<div class="order-title">' + escHtml(o.title || 'Order') + '</div>' +
-          '<div class="order-meta">' + fmtDate(o.created_at) + '</div>' +
+      // Prefer cents-based fields; fall back to total_amount (legacy float field)
+      var totalCents   = (o.total_cents != null)       ? Number(o.total_cents)       : null;
+      var paidCents    = (o.amount_paid_cents != null)  ? Number(o.amount_paid_cents) : null;
+      var dueCents     = (o.amount_due_cents != null)   ? Number(o.amount_due_cents)  : null;
+      var legacyTotal  = o.total_amount ? fmtMoney(o.total_amount) : '';
+
+      // Determine whether there are any financial figures worth showing
+      var hasFinancials = (totalCents != null && totalCents > 0) ||
+                          (paidCents  != null && paidCents  > 0) ||
+                          (dueCents   != null);
+
+      // Build the financial breakdown row
+      var financialsHtml = '';
+      if (hasFinancials) {
+        var pState = o.payment_state || '';
+        var dueClass = pState === 'overdue' ? 'overdue' : pState === 'paid' ? 'paid' : 'due';
+        var items = [];
+
+        if (totalCents != null && totalCents > 0) {
+          items.push('<div class="fin-item"><span class="fin-label">Total</span><span class="fin-value">' + fmtCents(totalCents) + '</span></div>');
+        }
+        if (paidCents != null && paidCents > 0) {
+          items.push('<div class="fin-item"><span class="fin-label">Paid</span><span class="fin-value paid">' + fmtCents(paidCents) + '</span></div>');
+        }
+        if (dueCents != null && dueCents > 0) {
+          var dueLabel = pState === 'overdue' ? 'Overdue' : 'Balance Due';
+          var dueDateNote = (o.payment_due_date && pState !== 'paid') ?
+            ' <span style="font-size:.72rem;font-weight:400;color:rgba(255,255,255,.4);">by ' + fmtDate(o.payment_due_date) + '</span>' : '';
+          items.push('<div class="fin-item"><span class="fin-label">' + dueLabel + '</span><span class="fin-value ' + dueClass + '">' + fmtCents(dueCents) + dueDateNote + '</span></div>');
+        } else if (dueCents === 0 || pState === 'paid') {
+          items.push('<div class="fin-item"><span class="fin-label">Balance Due</span><span class="fin-value paid">$0.00 — Paid in full</span></div>');
+        }
+
+        financialsHtml = '<div class="order-financials">' + items.join('') + '</div>';
+      }
+
+      // Show a "Pay Now" link only when there is an outstanding balance (and the order isn't void/cancelled)
+      var payNowHtml = '';
+      var canPay = dueCents > 0 && !['cancelled','void','completed'].includes(o.status);
+      if (canPay) {
+        payNowHtml = '<a class="pay-btn" href="mailto:?subject=Payment%20for%20' + encodeURIComponent(o.title || 'Order') + '" ' +
+          'title="Contact your provider to pay this balance" target="_blank">Pay Now</a>';
+      }
+
+      return '<div class="order-row" style="flex-direction:column;align-items:flex-start;gap:0;">' +
+        '<div style="display:flex;align-items:center;gap:10px;width:100%;">' +
+          '<div style="flex:1;min-width:0;">' +
+            '<div class="order-title">' + escHtml(o.title || 'Order') + '</div>' +
+            '<div class="order-meta">' + fmtDate(o.created_at) + '</div>' +
+          '</div>' +
+          statusBadge(o.status) +
+          (!hasFinancials && legacyTotal ? '<div class="amount">' + legacyTotal + '</div>' : '') +
         '</div>' +
-        statusBadge(o.status) +
-        (o.total_amount ? '<div class="amount">' + fmtMoney(o.total_amount) + '</div>' : '') +
+        financialsHtml +
+        (payNowHtml ? '<div style="margin-top:8px;">' + payNowHtml + '</div>' : '') +
       '</div>';
     }).join('');
   }

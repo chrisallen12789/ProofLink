@@ -85,6 +85,17 @@
       line-height: 1.5;
     }
     .hidden { display: none; }
+    .avail-block-error {
+      font-size: .825rem;
+      color: #f87171;
+      background: rgba(239,68,68,.08);
+      border: 1px solid rgba(239,68,68,.2);
+      border-radius: 6px;
+      padding: 10px 12px;
+      margin-bottom: 14px;
+      display: none;
+    }
+    .avail-block-error.visible { display: block; }
     #successView { text-align: center; padding: 16px 0; }
     #successView .check { font-size: 3rem; margin-bottom: 12px; }
     #successView h2 { margin-bottom: 8px; }
@@ -126,6 +137,8 @@
 
     <label>Service / reason *</label>
     <input type="text" id="bookingTitle" placeholder="e.g. Lawn mowing, Consultation, Deep clean" />
+
+    <div class="avail-block-error" id="availBlockError"></div>
 
     <div class="row">
       <div>
@@ -208,6 +221,48 @@
     document.getElementById('bookingDate').value = d.toISOString().slice(0, 10);
   })();
 
+  // ── Availability block check ────────────────────────────────────────────────
+  var availErrorEl = document.getElementById('availBlockError');
+  var bookBtn      = document.getElementById('btnBook');
+
+  function checkDateAvailability(dateStr) {
+    if (!tenantId || !dateStr) return;
+    fetch(
+      '/.netlify/functions/get-availability?tenant_id=' +
+      encodeURIComponent(tenantId) + '&date=' + encodeURIComponent(dateStr)
+    )
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (!data.available) {
+          availErrorEl.textContent = data.reason || 'This date is not available for booking.';
+          availErrorEl.classList.add('visible');
+          bookBtn.disabled = true;
+        } else {
+          availErrorEl.textContent = '';
+          availErrorEl.classList.remove('visible');
+          bookBtn.disabled = false;
+        }
+      })
+      .catch(function () {
+        // On network error, don't block the customer — fail open.
+        availErrorEl.textContent = '';
+        availErrorEl.classList.remove('visible');
+        bookBtn.disabled = false;
+      });
+  }
+
+  document.getElementById('bookingDate').addEventListener('change', function () {
+    checkDateAvailability(this.value);
+  });
+
+  // Check the pre-filled tomorrow date on page load once tenant is known.
+  // We defer until after tenantId is confirmed (it comes from URL params so it's
+  // available immediately).
+  (function () {
+    var initialDate = document.getElementById('bookingDate').value;
+    if (initialDate) checkDateAvailability(initialDate);
+  })();
+
   // Load business name
   if (tenantId) {
     fetch('/.netlify/functions/get-public-tenant-info?tenant_id=' + encodeURIComponent(tenantId))
@@ -265,6 +320,11 @@
     }
     if (!tenantId) {
       msg.textContent = 'Invalid booking link — missing tenant ID.';
+      msg.className   = 'msg error';
+      return;
+    }
+    if (availErrorEl && availErrorEl.classList.contains('visible')) {
+      msg.textContent = availErrorEl.textContent || 'The selected date is not available.';
       msg.className   = 'msg error';
       return;
     }

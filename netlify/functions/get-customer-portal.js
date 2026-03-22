@@ -34,7 +34,7 @@ exports.handler = async (event) => {
   // different sources (storefront uses `email`, operator-created use `customer_email`)
   const { data: orders } = await supabase
     .from('orders')
-    .select('id, title, status, total_amount, created_at, customer_name')
+    .select('id, title, status, total_amount, total_cents, amount_paid_cents, amount_due_cents, payment_state, payment_due_date, created_at, customer_name, order_type, package_sessions_total, package_sessions_used, package_valid_until')
     .eq('tenant_id', tenant_id)
     .or(`email.ilike.${normalizedEmail},customer_email.ilike.${normalizedEmail}`)
     .order('created_at', { ascending: false })
