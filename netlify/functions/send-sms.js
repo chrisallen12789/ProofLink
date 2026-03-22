@@ -1,7 +1,7 @@
 // netlify/functions/send-sms.js
 // Sends an outbound SMS to a customer via Twilio.
 // POST { to, body, customer_id?, order_id? }
-// Requires env: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER
+// Requires env: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_MESSAGING_SERVICE_SID
 
 'use strict';
 
@@ -32,8 +32,8 @@ exports.handler = async (event) => {
   const { to, body: msgBody, customer_id, order_id } = body;
   if (!to || !msgBody) return respond(400, { error: 'Missing to or body' });
 
-  const fromNumber = process.env.TWILIO_PHONE_NUMBER;
-  if (!fromNumber) return respond(503, { error: 'TWILIO_PHONE_NUMBER not configured' });
+  const messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID;
+  if (!messagingServiceSid) return respond(503, { error: 'TWILIO_MESSAGING_SERVICE_SID not configured' });
 
   let client;
   try { client = getTwilioClient(); }
@@ -43,7 +43,7 @@ exports.handler = async (event) => {
   let sendError = null;
   try {
     const message = await client.messages.create({
-      from: fromNumber,
+      messagingServiceSid,
       to,
       body: msgBody,
     });
@@ -59,7 +59,7 @@ exports.handler = async (event) => {
       tenant_id  : tenantId,
       operator_id: operatorId,
       direction  : 'outbound',
-      from_number: fromNumber,
+      from_number: messagingServiceSid,
       to_number  : to,
       body       : msgBody,
       status     : sendError ? 'failed' : 'sent',
