@@ -1392,6 +1392,7 @@ const WORKSPACE_BASE_TAB_ORDER = [
   "quotes",
   "reviews",
   "messages",
+  "ai",
 ];
 const WORKSPACE_PRIORITY_TAB_MAP = {
   crm: "customers",
@@ -2340,6 +2341,7 @@ function switchTab(tab, opts = {}) {
   if (nextTab === "quotes")   fetchAndRenderQuotes().catch(console.error);
   if (nextTab === "reviews")  fetchAndRenderReviews().catch(console.error);
   if (nextTab === "messages") fetchAndRenderMessages().catch(console.error);
+  if (nextTab === "ai")       initAIPanel();
   if (opts.updateHash !== false) syncPanelHash(nextTab);
   renderWorkspaceHub();
   scheduleWorkspaceSnapshot(nextTab);
@@ -7486,6 +7488,40 @@ btnPrintBidProposal?.addEventListener("click", () => {
   win.focus();
   setTimeout(() => win.print(), 350);
 });
+$("btnEmailBidToCustomer")?.addEventListener("click", async () => {
+  const active = updateCurrentBidFromForm({ allowCreate: true }) || currentBid();
+  if (!active) {
+    setInlineMessage(bidMsg, "Create a bid first.", "error");
+    return;
+  }
+  const customer = findBidCustomer(active.customer_id);
+  if (!customer?.email) {
+    setInlineMessage(bidMsg, "Add a customer with an email address before sending.", "error");
+    return;
+  }
+  const btn = $("btnEmailBidToCustomer");
+  if (btn) btn.disabled = true;
+  setInlineMessage(bidMsg, "Sending…", "ok");
+  try {
+    const tok = await getAccessToken();
+    const res = await fetch("/.netlify/functions/send-bid-email", {
+      method : "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${tok}` },
+      body   : JSON.stringify({ bid_id: active.id }),
+    });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(d.error || "Failed to send");
+    setInlineMessage(bidMsg, `✓ Proposal emailed to ${customer.email}`, "ok");
+    // Update local cache status
+    const idx = BIDS_CACHE.findIndex((r) => r.id === active.id);
+    if (idx >= 0) BIDS_CACHE[idx] = { ...BIDS_CACHE[idx], status: "sent" };
+    renderBids(bidSearch?.value || "");
+  } catch (err) {
+    setInlineMessage(bidMsg, err.message || "Error sending.", "error");
+  }
+  if (btn) btn.disabled = false;
+});
+
 btnCopyBidEmail?.addEventListener("click", async () => {
   const active = updateCurrentBidFromForm({ allowCreate: true }) || currentBid();
   if (!active) {
@@ -9660,6 +9696,7 @@ function renderOrders() {
           ${active.review_requested_at ? "✓ Review requested" : "⭐ Request review"}
         </button>` : ""}
         ${active.customer_email ? `<button id="btnNotifyCustomer" class="btn btn-ghost btn-sm" type="button">📧 Notify customer</button>` : ""}
+        ${active.customer_email ? `<button id="btnSendInvoiceEmail" class="btn btn-ghost btn-sm" type="button">🧾 Email invoice</button>` : ""}
         ${active.customer_email ? `<button id="btnSendPaymentReminder" class="btn btn-ghost btn-sm" type="button">💰 Payment reminder</button>` : ""}
         ${active.customer_email ? `<button id="btnSendQuote" class="btn btn-ghost btn-sm" type="button">📋 Send quote</button>` : ""}
       </div>
@@ -9786,6 +9823,28 @@ function renderOrders() {
       const d = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(d.error || "Failed to send");
       if (msg) { msg.textContent = "✓ Customer notified!"; msg.className = "msg success"; }
+    } catch (err) {
+      if (msg) { msg.textContent = err.message || "Error sending."; msg.className = "msg error"; }
+    }
+    btn.disabled = false;
+  });
+
+  $("btnSendInvoiceEmail")?.addEventListener("click", async () => {
+    const btn = $("btnSendInvoiceEmail");
+    const msg = $("orderNotifyMsg");
+    if (!btn) return;
+    btn.disabled = true;
+    if (msg) { msg.textContent = "Sending invoice…"; msg.className = "msg"; }
+    try {
+      const tok = await getAccessToken();
+      const res = await fetch("/.netlify/functions/send-invoice-email", {
+        method : "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${tok}` },
+        body   : JSON.stringify({ order_id: active.id }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(d.error || "Failed to send");
+      if (msg) { msg.textContent = "✓ Invoice emailed!"; msg.className = "msg success"; }
     } catch (err) {
       if (msg) { msg.textContent = err.message || "Error sending."; msg.className = "msg error"; }
     }
@@ -11057,6 +11116,145 @@ async function fetchAndRenderMessages() {
 }
 
 $("btnRefreshMessages")?.addEventListener("click", () => fetchAndRenderMessages().catch(console.error));
+
+// ── AI Copilot Panel ──────────────────────────────────────────────────────────
+
+let AI_PANEL_LOADED = false;
+
+async function initAIPanel() {
+  if (AI_PANEL_LOADED) return;
+  AI_PANEL_LOADED = true;
+  await loadAIBriefing();
+}
+
+async function loadAIBriefing() {
+  const briefEl   = $("aiBriefContent");
+  const statusEl  = $("aiBriefStatus");
+  const chipsEl   = $("aiContextChips");
+  if (!briefEl) return;
+  if (statusEl) { statusEl.textContent = "Loading…"; statusEl.style.display = "block"; }
+  briefEl.style.display = "none";
+  try {
+    const tok = await getAccessToken();
+    const res = await fetch("/.netlify/functions/ai-brief", {
+      method : "GET",
+      headers: { "Authorization": `Bearer ${tok}` },
+    });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(d.error || "Failed to load briefing");
+    if (statusEl) statusEl.style.display = "none";
+    briefEl.style.display = "block";
+    // Render briefing text (preserve newlines)
+    briefEl.innerHTML = d.briefing
+      ? d.briefing.split("\n").map((line) => `<p style="margin:0 0 6px;">${escapeHtml(line) || "&nbsp;"}</p>`).join("")
+      : "<p class='muted'>No briefing available.</p>";
+    // Render context chips
+    if (chipsEl && d.context_summary) {
+      const cs = d.context_summary;
+      const chips = [
+        cs.today_appointments > 0 && `${cs.today_appointments} appt${cs.today_appointments > 1 ? "s" : ""} today`,
+        cs.unpaid_orders > 0 && `${cs.unpaid_orders} unpaid`,
+        cs.pending_quotes > 0 && `${cs.pending_quotes} pending quote${cs.pending_quotes > 1 ? "s" : ""}`,
+        cs.unread_messages > 0 && `${cs.unread_messages} message${cs.unread_messages > 1 ? "s" : ""}`,
+        cs.overdue_orders > 0 && `${cs.overdue_orders} overdue`,
+      ].filter(Boolean);
+      chipsEl.innerHTML = chips.map((c) => `<span style="display:inline-block;background:rgba(200,75,47,.15);border:1px solid rgba(200,75,47,.3);border-radius:12px;padding:2px 10px;font-size:.75rem;color:rgba(255,255,255,.7);">${escapeHtml(c)}</span>`).join(" ");
+    }
+  } catch (err) {
+    console.error("[loadAIBriefing]", err);
+    if (statusEl) { statusEl.textContent = err.message || "Failed to load."; }
+    briefEl.style.display = "none";
+  }
+}
+
+$("btnRefreshBrief")?.addEventListener("click", async () => {
+  AI_PANEL_LOADED = false;
+  await loadAIBriefing();
+  AI_PANEL_LOADED = true;
+});
+
+async function aiAskQuestion(question) {
+  const answerEl = $("aiAnswer");
+  const errorEl  = $("aiError");
+  const btn      = $("btnAskAI");
+  if (!answerEl) return;
+  if (btn) btn.disabled = true;
+  if (errorEl) errorEl.style.display = "none";
+  answerEl.style.display = "block";
+  answerEl.textContent = "Thinking…";
+  try {
+    const tok = await getAccessToken();
+    const res = await fetch("/.netlify/functions/ai-copilot", {
+      method : "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${tok}` },
+      body   : JSON.stringify({ question, mode: "copilot" }),
+    });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(d.error || "Failed to get answer");
+    answerEl.textContent = d.answer || "(no response)";
+  } catch (err) {
+    answerEl.style.display = "none";
+    if (errorEl) { errorEl.textContent = err.message || "Error"; errorEl.style.display = "block"; }
+  }
+  if (btn) btn.disabled = false;
+}
+
+$("btnAskAI")?.addEventListener("click", () => {
+  const q = $("aiQuestion")?.value.trim();
+  if (q) aiAskQuestion(q);
+});
+
+$("aiQuestion")?.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("btnAskAI")?.click(); }
+});
+
+// Quick-action buttons
+document.querySelectorAll(".ai-quick[data-q]").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const input = $("aiQuestion");
+    if (input) input.value = btn.getAttribute("data-q");
+    aiAskQuestion(btn.getAttribute("data-q"));
+  });
+});
+
+async function requestAIDraft(draft_type) {
+  const areaEl   = $("aiDraftArea");
+  const outputEl = $("aiDraftText");
+  const copyBtn  = $("btnCopyDraft");
+  if (!outputEl) return;
+  if (areaEl) areaEl.style.display = "block";
+  if (copyBtn) copyBtn.style.display = "none";
+  outputEl.textContent = "Drafting…";
+  try {
+    const tok = await getAccessToken();
+    const res = await fetch("/.netlify/functions/ai-copilot", {
+      method : "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${tok}` },
+      body   : JSON.stringify({ question: draft_type, mode: "draft", draft_type }),
+    });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(d.error || "Failed to generate draft");
+    outputEl.textContent = d.answer || "(no draft generated)";
+    if (copyBtn) copyBtn.style.display = "inline-flex";
+  } catch (err) {
+    outputEl.textContent = `Error: ${err.message || "Unknown error"}`;
+  }
+}
+
+// Draft assistant buttons
+document.querySelectorAll(".ai-draft[data-type]").forEach((btn) => {
+  btn.addEventListener("click", () => requestAIDraft(btn.getAttribute("data-type")));
+});
+
+$("btnCopyDraft")?.addEventListener("click", () => {
+  const text = $("aiDraftText")?.textContent || "";
+  if (text) navigator.clipboard.writeText(text).catch(() => {});
+});
+
+$("btnCloseDraft")?.addEventListener("click", () => {
+  const area = $("aiDraftArea");
+  if (area) area.style.display = "none";
+});
 
 // ── Bulk Order Status Update ───────────────────────────────────────────────────
 

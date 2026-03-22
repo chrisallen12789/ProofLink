@@ -88,6 +88,7 @@
         <button class="tab" data-tab="quotes" data-tour-tab="quotes" type="button">Quotes</button>
         <button class="tab" data-tab="reviews" data-tour-tab="reviews" type="button">Reviews</button>
         <button class="tab" data-tab="messages" type="button">Messages</button>
+        <button class="tab" data-tab="ai" type="button">✦ AI</button>
       </div>
 
       <section class="side-card">
@@ -628,6 +629,7 @@
                 <input id="bidSearch" class="input" placeholder="Search bid..." />
                 <button id="btnNewBid" class="btn" type="button">New bid</button>
                 <button id="btnConvertBidToOrder" class="btn btn-primary" type="button">Create tracked order</button>
+                <button id="btnEmailBidToCustomer" class="btn btn-ghost" type="button">📧 Email to customer</button>
                 <button id="btnPrintBidProposal" class="btn btn-ghost" type="button">Print proposal</button>
               </div>
             </div>
@@ -1989,6 +1991,80 @@
             <div class="card">
               <div class="card-bd">
                 <div id="messagesList"></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel hidden" data-panel="ai">
+            <div class="panel-head">
+              <div>
+                <h2>AI Copilot</h2>
+                <div class="muted">Your business assistant — grounded in real data, not guesswork.</div>
+              </div>
+              <div class="panel-actions">
+                <button id="btnRefreshBrief" class="btn btn-ghost" type="button">Refresh briefing</button>
+              </div>
+            </div>
+
+            <!-- Daily briefing card -->
+            <div class="card" style="margin-bottom:14px;">
+              <div class="card-hd" style="display:flex;align-items:center;gap:8px;">
+                <strong>Today's briefing</strong>
+                <span id="aiBriefStatus" style="font-size:.75rem;color:rgba(255,255,255,.35);margin-left:auto;"></span>
+              </div>
+              <div class="card-bd">
+                <div id="aiBriefContent" style="font-size:.88rem;line-height:1.7;color:rgba(255,255,255,.8);white-space:pre-wrap;">Loading briefing…</div>
+              </div>
+            </div>
+
+            <!-- Context chips -->
+            <div id="aiContextChips" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;"></div>
+
+            <!-- Copilot Q&A -->
+            <div class="card">
+              <div class="card-hd"><strong>Ask a question</strong></div>
+              <div class="card-bd">
+                <div style="display:flex;gap:8px;margin-bottom:10px;">
+                  <input id="aiQuestion" class="input" placeholder="e.g. Which customers owe me money? Who needs a follow-up?" style="flex:1;" />
+                  <button id="btnAskAI" class="btn btn-primary" type="button">Ask</button>
+                </div>
+                <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;" id="aiQuickActions">
+                  <button class="btn btn-ghost btn-sm ai-quick" data-q="Which customers owe me money?" type="button">💰 Who owes me?</button>
+                  <button class="btn btn-ghost btn-sm ai-quick" data-q="Who needs a follow-up right now?" type="button">📋 Follow-ups needed</button>
+                  <button class="btn btn-ghost btn-sm ai-quick" data-q="What should I focus on today?" type="button">🎯 Today's priorities</button>
+                  <button class="btn btn-ghost btn-sm ai-quick" data-q="Are there any expired or expiring quotes?" type="button">📄 Quote status</button>
+                  <button class="btn btn-ghost btn-sm ai-quick" data-q="Which customers haven't been seen recently?" type="button">👥 Stale customers</button>
+                </div>
+                <div id="aiAnswer" style="font-size:.88rem;line-height:1.7;color:rgba(255,255,255,.8);white-space:pre-wrap;display:none;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:14px;margin-bottom:10px;"></div>
+                <div id="aiError" style="display:none;font-size:.85rem;color:#f87171;"></div>
+              </div>
+            </div>
+
+            <!-- Draft assistant -->
+            <div class="card" style="margin-top:14px;">
+              <div class="card-hd"><strong>Draft assistant</strong></div>
+              <div class="card-bd">
+                <div style="font-size:.82rem;color:rgba(255,255,255,.45);margin-bottom:10px;">
+                  Generate message drafts. All drafts require your review before sending.
+                </div>
+                <div style="display:flex;flex-wrap:wrap;gap:6px;">
+                  <button class="btn btn-ghost btn-sm ai-draft" data-type="invoice_followup" type="button">💸 Invoice follow-up</button>
+                  <button class="btn btn-ghost btn-sm ai-draft" data-type="booking_reminder" type="button">📅 Booking reminder</button>
+                  <button class="btn btn-ghost btn-sm ai-draft" data-type="customer_followup" type="button">👋 Customer re-engagement</button>
+                </div>
+                <div id="aiDraftArea" style="margin-top:10px;display:none;">
+                  <div style="font-size:.75rem;color:#c84b2f;font-weight:600;margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em;">Draft — review before sending</div>
+                  <div id="aiDraftText" style="font-size:.88rem;line-height:1.7;white-space:pre-wrap;background:rgba(200,75,47,.06);border:1px solid rgba(200,75,47,.2);border-radius:8px;padding:14px;color:rgba(255,255,255,.85);"></div>
+                  <div style="margin-top:8px;display:flex;gap:8px;">
+                    <button id="btnCopyDraft" class="btn btn-ghost btn-sm" type="button">Copy</button>
+                    <button id="btnCloseDraft" class="btn btn-ghost btn-sm" type="button">Close</button>
+                  </div>
+                </div>
+                <!-- Draft context inputs (shown contextually) -->
+                <div id="aiDraftContext" style="display:none;margin-top:10px;">
+                  <div id="aiDraftContextFields"></div>
+                  <button id="btnSubmitDraft" class="btn btn-primary btn-sm" style="margin-top:8px;" type="button">Generate draft</button>
+                </div>
               </div>
             </div>
           </section>

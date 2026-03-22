@@ -535,6 +535,60 @@ const templates = {
     };
   },
 
+  bidProposal({ customer_name, customer_email, business_name, title, project_summary, scope_of_work, total_cents, valid_until, cover_note, proposal_url }) {
+    const fmt = total_cents != null ? '$' + (total_cents / 100).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',') : null;
+    const validStr = valid_until
+      ? new Date(valid_until).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+      : null;
+    return {
+      to     : customer_email,
+      subject: `Proposal from ${business_name} — ${title}`,
+      html   : layout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.red)}${bodyWrap(`
+        ${badge('Proposal ready', T.redLight, T.red, T.redBorder)}<br/><br/>
+        ${h1(`Hi ${customer_name},`)}
+        ${sub(`${business_name} has prepared a proposal for you.`)}
+        ${cover_note ? callout(cover_note, T.bg, T.border, T.ink) : ''}
+        ${infoBox([
+          ['Service', title],
+          ...(project_summary ? [['Project', project_summary.slice(0, 200)]] : []),
+          ...(fmt ? [['Estimate', fmt]] : []),
+          ...(validStr ? [['Valid until', validStr]] : []),
+        ])}
+        ${scope_of_work ? `${divider()}${p(`<strong style="color:${T.ink};">Scope of work:</strong><br/>${scope_of_work.replace(/\n/g, '<br/>')}`)}` : ''}
+        ${divider()}
+        ${p(`<span style="color:${T.hint};">Questions about this proposal? Just reply to this email and we\u2019ll go through it together.</span>`)}
+      `)}</table>`, { preheader: `${business_name} sent you a proposal for ${title}.` }),
+    };
+  },
+
+  invoiceEmail({ customer_name, customer_email, business_name, order_id, title, description, total_amount, total_cents, status, created_at, portal_url }) {
+    const n = total_cents != null ? total_cents / 100 : Number(total_amount || 0);
+    const fmt = isNaN(n) || !n ? null : '$' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    const dateStr = created_at
+      ? new Date(created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+      : new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+    const statusLabel = String(status || 'new').replace(/_/g, ' ').replace(/\b\w/g, (m) => m.toUpperCase());
+    return {
+      to     : customer_email,
+      subject: `Invoice from ${business_name}${fmt ? ' — ' + fmt + ' due' : ''}`,
+      html   : layout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.red)}${bodyWrap(`
+        ${badge('Invoice', T.redLight, T.red, T.redBorder)}<br/><br/>
+        ${h1(`Invoice from ${business_name}`)}
+        ${infoBox([
+          ['Invoice #', String(order_id || '').slice(0, 8).toUpperCase() || '—'],
+          ['Date', dateStr],
+          ['Service', title || '—'],
+          ['Status', statusLabel],
+          ...(fmt ? [['Amount due', fmt]] : []),
+        ])}
+        ${description ? p(`<em>${description}</em>`) : ''}
+        ${portal_url ? `<div style="text-align:center;margin:0 0 28px;">${cta('View in portal →', portal_url, T.red)}</div>` : ''}
+        ${divider()}
+        ${p(`<span style="color:${T.hint};">Questions? Just reply and we\u2019ll sort it out.</span>`)}
+      `)}</table>`, { preheader: `Invoice from ${business_name}${fmt ? ' — ' + fmt + ' due' : ''}.` }),
+    };
+  },
+
   customerMessageReply({ customer_name, customer_email, business_name, original_message, reply_text, portal_url }) {
     return {
       to     : customer_email,
@@ -554,3 +608,35 @@ const templates = {
 };
 
 module.exports = { sendEmail, templates, getChecklist, CHECKLIST_BY_TYPE };
+
+// ── Standalone helpers for server-side use ────────────────────────────────────
+// These are exported separately so agent/orchestrator layers can use them without
+// going through the templates object.
+module.exports.buildInvoiceHtml = function buildInvoiceHtml({
+  business_name, customer_name, customer_email, order_id, title, description,
+  total_amount, total_cents, status, created_at, portal_url,
+}) {
+  const fmt = (v) => {
+    const n = total_cents != null ? total_cents / 100 : Number(total_amount || 0);
+    return isNaN(n) ? '—' : '$' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  };
+  const dateStr = created_at
+    ? new Date(created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+    : new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+  const statusLabel = String(status || 'new').replace(/_/g, ' ').replace(/\b\w/g, (m) => m.toUpperCase());
+  return layout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.red)}${bodyWrap(`
+    ${badge('Invoice', T.redLight, T.red, T.redBorder)}<br/><br/>
+    ${h1(`Invoice from ${business_name}`)}
+    ${infoBox([
+      ['Invoice #', String(order_id || '').slice(0, 8).toUpperCase() || '—'],
+      ['Date', dateStr],
+      ['Service', title || '—'],
+      ['Status', statusLabel],
+      ['Amount due', fmt()],
+    ])}
+    ${description ? `${p(`<em>${description}</em>`)}` : ''}
+    ${portal_url ? `<div style="text-align:center;margin:0 0 28px;">${cta('View in portal →', portal_url, T.red)}</div>` : ''}
+    ${divider()}
+    ${p(`<span style="color:${T.hint};">Questions about this invoice? Just reply to this email.</span>`)}
+  `)}</table>`, { preheader: `Invoice from ${business_name} — ${fmt()} due.` });
+};
