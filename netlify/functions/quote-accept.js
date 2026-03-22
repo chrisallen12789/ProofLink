@@ -43,7 +43,7 @@ exports.handler = async (event) => {
       .eq('id', quoteId)
       .maybeSingle();
 
-    if (quoteError) return respond(500, { error: quoteError.message });
+    if (quoteError) { console.error('[quote-accept] quote lookup:', quoteError); return respond(500, { error: 'Failed to load quote' }); }
     if (!quote)     return respond(404, { error: 'Quote not found' });
     if (quote.status !== 'pending') {
       return respond(409, { error: `Quote cannot be accepted — current status: ${quote.status}` });
@@ -57,7 +57,7 @@ exports.handler = async (event) => {
       .update({ status: 'accepted', accepted_at: nowIso, updated_at: nowIso })
       .eq('id', quoteId);
 
-    if (updateError) return respond(500, { error: updateError.message });
+    if (updateError) { console.error('[quote-accept] update:', updateError); return respond(500, { error: 'Failed to accept quote' }); }
 
     // Create an order from the quote
     const { data: order, error: orderError } = await supabase
@@ -79,7 +79,7 @@ exports.handler = async (event) => {
       .select('id')
       .maybeSingle();
 
-    if (orderError) return respond(500, { error: orderError.message });
+    if (orderError) { console.error('[quote-accept] order insert:', orderError); return respond(500, { error: 'Failed to create order from quote' }); }
 
     // Fetch tenant name for confirmation email
     const { data: tenant } = await supabase

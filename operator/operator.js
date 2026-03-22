@@ -9568,6 +9568,27 @@ function renderOrders() {
         ${active.customer_email ? `<button id="btnSendPaymentReminder" class="btn btn-ghost btn-sm" type="button">💰 Payment reminder</button>` : ""}
         ${active.customer_email ? `<button id="btnSendQuote" class="btn btn-ghost btn-sm" type="button">📋 Send quote</button>` : ""}
       </div>
+      <div id="quoteFormPanel" style="display:none;margin-top:12px;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:8px;padding:14px;">
+        <div style="font-size:.82rem;font-weight:600;margin-bottom:10px;color:var(--muted);">New quote</div>
+        <div class="row" style="gap:8px;flex-wrap:wrap;align-items:end;">
+          <label class="field" style="flex:2;min-width:160px;">Title
+            <input type="text" id="quoteTitle" placeholder="Quote title" value="${escapeAttr(active.title || '')}" />
+          </label>
+          <label class="field" style="flex:1;min-width:100px;">Amount (USD)
+            <input type="number" id="quoteAmount" placeholder="0.00" min="0" step="0.01" />
+          </label>
+          <label class="field" style="flex:1;min-width:110px;">Valid until
+            <input type="date" id="quoteValidUntil" />
+          </label>
+        </div>
+        <label class="field" style="margin-top:8px;">Description (optional)
+          <textarea id="quoteDescription" rows="2" placeholder="Scope of work, inclusions, terms…" style="width:100%;resize:vertical;">${escapeHtml(active.notes || '')}</textarea>
+        </label>
+        <div class="row" style="gap:8px;margin-top:10px;">
+          <button id="btnSubmitQuote" class="btn btn-primary btn-sm" type="button">Send quote</button>
+          <button id="btnCancelQuote" class="btn btn-ghost btn-sm" type="button">Cancel</button>
+        </div>
+      </div>
       <div id="orderNotifyMsg" class="msg" style="margin-top:8px;"></div>
     </div>
   `;
@@ -9698,27 +9719,58 @@ function renderOrders() {
     btn.disabled = false;
   });
 
-  $("btnSendQuote")?.addEventListener("click", async () => {
-    const customerName = active.customer_name || active.name || "";
+  $("btnSendQuote")?.addEventListener("click", () => {
+    const panel = $("quoteFormPanel");
+    if (!panel) return;
+    const isHidden = panel.style.display === "none";
+    panel.style.display = isHidden ? "block" : "none";
+    if (isHidden) {
+      // Default valid-until to 14 days from now
+      const validUntil = $("quoteValidUntil");
+      if (validUntil && !validUntil.value) {
+        const d = new Date();
+        d.setDate(d.getDate() + 14);
+        validUntil.value = d.toISOString().slice(0, 10);
+      }
+      $("quoteAmount")?.focus();
+    }
+  });
+
+  $("btnCancelQuote")?.addEventListener("click", () => {
+    const panel = $("quoteFormPanel");
+    if (panel) panel.style.display = "none";
+  });
+
+  $("btnSubmitQuote")?.addEventListener("click", async () => {
+    const customerName  = active.customer_name || active.name || "";
     const customerEmail = active.email || active.customer_email || "";
-    if (!customerEmail) { alert("No customer email on this order."); return; }
-    const amount = prompt(`Enter quote amount (USD) for ${customerName}:`);
-    if (!amount || isNaN(Number(amount))) return;
-    const title = prompt("Quote title:", active.title || `Quote for ${customerName}`) || `Quote for ${customerName}`;
-    const btn = $("btnSendQuote");
-    const msg = $("orderNotifyMsg");
+    const title         = $("quoteTitle")?.value.trim() || `Quote for ${customerName}`;
+    const amountRaw     = $("quoteAmount")?.value.trim();
+    const description   = $("quoteDescription")?.value.trim() || "";
+    const validUntil    = $("quoteValidUntil")?.value || null;
+    const msg           = $("orderNotifyMsg");
+    const btn           = $("btnSubmitQuote");
+
+    if (!amountRaw || isNaN(Number(amountRaw)) || Number(amountRaw) <= 0) {
+      if (msg) { msg.textContent = "Please enter a valid amount."; msg.className = "msg error"; }
+      return;
+    }
+
     if (btn) btn.disabled = true;
     if (msg) { msg.textContent = "Sending quote…"; msg.className = "msg"; }
+
     try {
       const tok = await getAccessToken();
       const res = await fetch("/.netlify/functions/create-quote", {
         method : "POST",
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${tok}` },
-        body   : JSON.stringify({ customer_name: customerName, customer_email: customerEmail, title, amount: Number(amount), description: active.notes || "" }),
+        body   : JSON.stringify({ customer_name: customerName, customer_email: customerEmail, title, amount: Number(amountRaw), description, valid_until: validUntil }),
       });
       const d = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(d.error || "Failed to send quote");
       if (msg) { msg.textContent = `✓ Quote sent to ${customerEmail}!`; msg.className = "msg success"; }
+      const panel = $("quoteFormPanel");
+      if (panel) panel.style.display = "none";
     } catch (err) {
       if (msg) { msg.textContent = err.message || "Error sending quote."; msg.className = "msg error"; }
     }
