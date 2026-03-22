@@ -412,6 +412,8 @@ let BK_VIEW_DATE   = new Date(); // month currently shown in calendar
 let OPERATOR_MEMBERS_CACHE = [];
 let TIME_ENTRIES_CACHE = [];
 let VENDORS_CACHE = [];
+let INVENTORY_CACHE = [];
+let INVENTORY_PANEL_LOADED = false;
 
 // Reviews
 let REVIEWS_CACHE = [];
@@ -2356,7 +2358,7 @@ function switchTab(tab, opts = {}) {
   if (nextTab === "money") renderMoney().catch(console.error);
   if (nextTab === "dashboard") renderDashboard();
   if (nextTab === "leads") renderLeads(leadSearch?.value || "");
-  if (nextTab === "orders") renderOrders();
+  if (nextTab === "orders") { renderOrders(); renderPackagesSummary(); }
   if (nextTab === "bids") renderBids(bidSearch?.value || "");
   if (nextTab === "jobs") renderJobs(jobSearch?.value || "");
   if (nextTab === "plans") renderPlans(planSearch?.value || "");
@@ -2374,6 +2376,22 @@ function switchTab(tab, opts = {}) {
   if (nextTab === "vendors" && !VENDORS_PANEL_LOADED) {
     VENDORS_PANEL_LOADED = true;
     fetchVendors().then(renderVendors);
+  }
+  if (nextTab === 'inventory' && !INVENTORY_PANEL_LOADED) {
+    INVENTORY_PANEL_LOADED = true;
+    fetchInventory().then(() => renderInventory());
+    $('inventorySearch')?.addEventListener('input', (e) => renderInventory(e.target.value));
+    $('btnAddInventoryItem')?.addEventListener('click', openAddInventoryModal);
+    $('btnRefreshInventory')?.addEventListener('click', async () => { await fetchInventory(); renderInventory($('inventorySearch')?.value || ''); });
+  }
+  if (nextTab === 'contracts' && !CONTRACTS_PANEL_LOADED) {
+    CONTRACTS_PANEL_LOADED = true;
+    fetchContracts().then(contracts => { CONTRACTS_CACHE = contracts; renderContracts(); });
+    $('btnAddContract')?.addEventListener('click', () => openAddContractModal());
+    $('btnRefreshContracts')?.addEventListener('click', async () => { CONTRACTS_CACHE = await fetchContracts(); renderContracts(); });
+  }
+  if (nextTab === 'availability') {
+    loadAvailabilityBlocks();
   }
   if (opts.updateHash !== false) syncPanelHash(nextTab);
   renderWorkspaceHub();
@@ -4092,6 +4110,404 @@ async function fetchOperatorMembers() {
     }
   } catch (_) {}
   return OPERATOR_MEMBERS_CACHE;
+}
+
+let CONTRACTS_CACHE = [];
+let CONTRACTS_PANEL_LOADED = false;
+
+async function fetchContracts(customerId) {
+  try {
+    const tok = await getAccessToken();
+    const url = customerId
+      ? `/.netlify/functions/manage-service-contracts?customer_id=${encodeURIComponent(customerId)}`
+      : '/.netlify/functions/manage-service-contracts';
+    const res = await fetch(url, { headers: { 'Authorization': `Bearer ${tok}` } });
+    const d = await res.json().catch(() => ({}));
+    if (d.contracts && !customerId) CONTRACTS_CACHE = d.contracts;
+    return d.contracts || [];
+  } catch { return []; }
+}
+
+function renderContracts() {
+  const listEl = $('contractsList');
+  const expiringEl = $('contractsExpiringSoon');
+  if (!listEl) return;
+
+  const now = new Date();
+  const soon = new Date(now); soon.setDate(soon.getDate() + 60);
+  const expiring = CONTRACTS_CACHE.filter(c => c.expires_at && new Date(c.expires_at) <= soon && new Date(c.expires_at) >= now);
+
+  if (expiringEl) {
+    expiringEl.innerHTML = expiring.length
+      ? expiring.map(c => `<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.06);">
+          <div><div style="font-weight:500;color:#e8e9eb;">${escapeHtml(c.title)}</div>
+          <div style="font-size:.78rem;color:rgba(255,255,255,.4);">${escapeHtml(c.contract_type || 'warranty')} · expires ${new Date(c.expires_at).toLocaleDateString()}</div></div>
+          <span style="color:#fbbf24;font-size:.78rem;font-weight:600;">${Math.ceil((new Date(c.expires_at)-now)/86400000)} days</span>
+        </div>`).join('')
+      : '<div class="muted" style="font-size:.82rem;">No contracts expiring in next 60 days.</div>';
+  }
+
+  if (!CONTRACTS_CACHE.length) {
+    listEl.innerHTML = '<div class="muted" style="font-size:.85rem;">No service contracts yet.</div>';
+    return;
+  }
+  listEl.innerHTML = CONTRACTS_CACHE.map(c => `
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.06);">
+      <div>
+        <div style="font-weight:500;color:#e8e9eb;">${escapeHtml(c.title)}</div>
+        <div style="font-size:.78rem;color:rgba(255,255,255,.4);">${escapeHtml(c.contract_type || 'warranty')}${c.starts_at ? ' · starts ' + new Date(c.starts_at).toLocaleDateString() : ''}${c.expires_at ? ' · expires ' + new Date(c.expires_at).toLocaleDateString() : ''}</div>
+        ${c.terms ? `<div style="font-size:.75rem;color:rgba(255,255,255,.3);margin-top:2px;">${escapeHtml(c.terms.slice(0,80))}${c.terms.length>80?'…':''}</div>` : ''}
+      </div>
+      <button class="btn btn-ghost" style="font-size:.72rem;" onclick="deleteContract('${escapeAttr(c.id)}')">Remove</button>
+    </div>`).join('');
+}
+
+async function deleteContract(id) {
+  if (!(await showConfirmModal('Remove this contract?', 'Remove', 'Cancel'))) return;
+  const tok = await getAccessToken();
+  await fetch(`/.netlify/functions/manage-service-contracts?id=${encodeURIComponent(id)}`, {
+    method: 'DELETE', headers: { 'Authorization': `Bearer ${tok}` },
+  });
+  await fetchContracts();
+  renderContracts();
+}
+
+function openAddContractModal(customerId, orderId) {
+  const existing = document.getElementById('addContractModal');
+  if (existing) { existing.remove(); return; }
+  const modal = document.createElement('div');
+  modal.id = 'addContractModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10000;display:flex;align-items:center;justify-content:center;';
+  const custOptions = (CUSTOMERS_CACHE||[]).map(c => `<option value="${escapeAttr(c.id)}" ${c.id===customerId?'selected':''}>${escapeHtml(c.name||c.email||c.id)}</option>`).join('');
+  modal.innerHTML = `
+    <div style="background:#1e2029;border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:28px 32px;max-width:460px;width:90%;box-shadow:0 8px 40px rgba(0,0,0,.5);">
+      <h3 style="margin:0 0 18px;font-size:1rem;color:#e8e9eb;">Add service contract</h3>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px;">
+        <input id="ctTitle" class="input" placeholder="Contract title *" style="width:100%;" />
+        <div style="display:flex;gap:8px;">
+          <select id="ctType" class="input" style="flex:1;">
+            <option value="warranty">Warranty</option>
+            <option value="maintenance">Maintenance plan</option>
+            <option value="service_plan">Service plan</option>
+          </select>
+          <select id="ctCustomer" class="input" style="flex:1;">
+            <option value="">No customer</option>${custOptions}
+          </select>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <div style="flex:1;"><label style="font-size:.72rem;color:rgba(255,255,255,.35);display:block;margin-bottom:2px;">Starts</label>
+            <input id="ctStarts" type="date" class="input" style="width:100%;" /></div>
+          <div style="flex:1;"><label style="font-size:.72rem;color:rgba(255,255,255,.35);display:block;margin-bottom:2px;">Expires</label>
+            <input id="ctExpires" type="date" class="input" style="width:100%;" /></div>
+          <div style="flex:1;"><label style="font-size:.72rem;color:rgba(255,255,255,.35);display:block;margin-bottom:2px;">Remind (days before)</label>
+            <input id="ctRemind" type="number" class="input" value="30" min="0" style="width:100%;" /></div>
+        </div>
+        <textarea id="ctTerms" class="input" rows="2" placeholder="Terms / notes" style="width:100%;resize:vertical;"></textarea>
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;">
+        <button onclick="document.getElementById('addContractModal').remove()" class="btn btn-ghost">Cancel</button>
+        <button id="ctSave" class="btn btn-primary">Save contract</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  document.getElementById('ctSave').onclick = async () => {
+    const title = ($('ctTitle')?.value || '').trim();
+    if (!title) { alert('Title is required.'); return; }
+    const btn = $('ctSave'); btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+      const tok = await getAccessToken();
+      const res = await fetch('/.netlify/functions/manage-service-contracts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tok}` },
+        body: JSON.stringify({
+          title,
+          contract_type: $('ctType')?.value,
+          customer_id  : $('ctCustomer')?.value || undefined,
+          order_id     : orderId || undefined,
+          starts_at    : $('ctStarts')?.value || undefined,
+          expires_at   : $('ctExpires')?.value || undefined,
+          reminder_days: parseInt($('ctRemind')?.value || 30),
+          terms        : ($('ctTerms')?.value || '').trim() || undefined,
+        }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || 'Failed');
+      showToast('Contract saved.');
+      modal.remove();
+      CONTRACTS_CACHE = await fetchContracts();
+      renderContracts();
+    } catch (err) {
+      showToast('Error: ' + err.message);
+      btn.disabled = false; btn.textContent = 'Save contract';
+    }
+  };
+}
+
+async function fetchInventory() {
+  try {
+    const tok = await getAccessToken();
+    const res = await fetch('/.netlify/functions/manage-inventory', {
+      headers: { 'Authorization': `Bearer ${tok}` },
+    });
+    const d = await res.json().catch(() => ({}));
+    if (d.items) INVENTORY_CACHE = d.items;
+  } catch (e) { /* silent */ }
+  return INVENTORY_CACHE;
+}
+
+function renderInventory(filter = '') {
+  const listEl = $('inventoryList');
+  if (!listEl) return;
+
+  // Update summary stats
+  const totalItems = INVENTORY_CACHE.length;
+  const lowStock = INVENTORY_CACHE.filter(i => i.reorder_point > 0 && Number(i.quantity_on_hand) <= Number(i.reorder_point)).length;
+  const totalValue = INVENTORY_CACHE.reduce((s, i) => s + (Number(i.quantity_on_hand) * Number(i.cost_cents || 0)), 0);
+  const totalItemsEl = $('inventoryTotalItems');
+  const lowStockEl = $('inventoryLowStock');
+  const totalValueEl = $('inventoryTotalValue');
+  if (totalItemsEl) totalItemsEl.textContent = totalItems;
+  if (lowStockEl) lowStockEl.textContent = lowStock || '—';
+  if (totalValueEl) totalValueEl.textContent = formatUsd(totalValue);
+
+  const items = filter
+    ? INVENTORY_CACHE.filter(i => (i.name || '').toLowerCase().includes(filter.toLowerCase()) || (i.category || '').toLowerCase().includes(filter.toLowerCase()))
+    : INVENTORY_CACHE;
+
+  if (!items.length) {
+    listEl.innerHTML = `<div class="muted" style="font-size:.85rem;">${filter ? 'No items match your search.' : 'No inventory items yet. Add parts, materials, or supplies.'}</div>`;
+    return;
+  }
+
+  listEl.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:.82rem;">
+    <thead><tr style="color:rgba(255,255,255,.35);border-bottom:1px solid rgba(255,255,255,.08);">
+      <th style="text-align:left;padding:6px 8px;">Item</th>
+      <th style="text-align:left;padding:6px 8px;">Category</th>
+      <th style="text-align:right;padding:6px 8px;">On hand</th>
+      <th style="text-align:right;padding:6px 8px;">Cost</th>
+      <th style="text-align:right;padding:6px 8px;">Price</th>
+      <th style="padding:6px 8px;"></th>
+    </tr></thead>
+    <tbody>${items.map(i => {
+      const isLow = i.reorder_point > 0 && Number(i.quantity_on_hand) <= Number(i.reorder_point);
+      return `<tr style="border-bottom:1px solid rgba(255,255,255,.05);">
+        <td style="padding:7px 8px;font-weight:500;color:#e8e9eb;">${escapeHtml(i.name)}${isLow ? ' <span style="color:#fbbf24;font-size:.72rem;">⚠ Low</span>' : ''}</td>
+        <td style="padding:7px 8px;color:rgba(255,255,255,.45);">${escapeHtml(i.category || '—')}</td>
+        <td style="text-align:right;padding:7px 8px;">${Number(i.quantity_on_hand)} ${escapeHtml(i.unit || '')}</td>
+        <td style="text-align:right;padding:7px 8px;color:rgba(255,255,255,.45);">${formatUsd(i.cost_cents)}</td>
+        <td style="text-align:right;padding:7px 8px;">${formatUsd(i.price_cents)}</td>
+        <td style="padding:7px 8px;text-align:right;white-space:nowrap;">
+          <button class="btn btn-ghost" style="font-size:.72rem;padding:3px 8px;margin-right:4px;" onclick="openLogUsageModal('${escapeAttr(i.id)}','${escapeAttr(i.name)}')">Log use</button>
+          <button class="btn btn-ghost" style="font-size:.72rem;padding:3px 8px;" onclick="openEditInventoryModal('${escapeAttr(i.id)}')">Edit</button>
+        </td>
+      </tr>`;
+    }).join('')}
+    </tbody></table>`;
+}
+
+function openAddInventoryModal() {
+  const existing = document.getElementById('addInventoryModal');
+  if (existing) { existing.remove(); return; }
+  const modal = document.createElement('div');
+  modal.id = 'addInventoryModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10000;display:flex;align-items:center;justify-content:center;';
+  modal.innerHTML = `
+    <div style="background:#1e2029;border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:28px 32px;max-width:480px;width:90%;box-shadow:0 8px 40px rgba(0,0,0,.5);">
+      <h3 style="margin:0 0 18px;font-size:1rem;color:#e8e9eb;">Add inventory item</h3>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px;">
+        <input id="invName" class="input" placeholder="Item name *" style="width:100%;" />
+        <div style="display:flex;gap:8px;">
+          <input id="invSku" class="input" placeholder="SKU / part #" style="flex:1;" />
+          <input id="invCategory" class="input" placeholder="Category" style="flex:1;" />
+        </div>
+        <div style="display:flex;gap:8px;">
+          <div style="flex:1;">
+            <label style="font-size:.75rem;color:rgba(255,255,255,.35);display:block;margin-bottom:2px;">Unit</label>
+            <select id="invUnit" class="input" style="width:100%;">
+              <option value="each">Each</option>
+              <option value="lb">lb</option>
+              <option value="ft">ft</option>
+              <option value="sq ft">sq ft</option>
+              <option value="gal">gallon</option>
+              <option value="box">box</option>
+              <option value="hr">hr</option>
+            </select>
+          </div>
+          <div style="flex:1;">
+            <label style="font-size:.75rem;color:rgba(255,255,255,.35);display:block;margin-bottom:2px;">Qty on hand</label>
+            <input id="invQty" type="number" min="0" step="0.01" class="input" value="0" style="width:100%;" />
+          </div>
+          <div style="flex:1;">
+            <label style="font-size:.75rem;color:rgba(255,255,255,.35);display:block;margin-bottom:2px;">Reorder at</label>
+            <input id="invReorder" type="number" min="0" step="0.01" class="input" value="0" style="width:100%;" />
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <div style="flex:1;">
+            <label style="font-size:.75rem;color:rgba(255,255,255,.35);display:block;margin-bottom:2px;">Your cost ($)</label>
+            <input id="invCost" type="number" min="0" step="0.01" class="input" placeholder="0.00" style="width:100%;" />
+          </div>
+          <div style="flex:1;">
+            <label style="font-size:.75rem;color:rgba(255,255,255,.35);display:block;margin-bottom:2px;">Charge price ($)</label>
+            <input id="invPrice" type="number" min="0" step="0.01" class="input" placeholder="0.00" style="width:100%;" />
+          </div>
+        </div>
+        <textarea id="invDesc" class="input" rows="2" placeholder="Description (optional)" style="width:100%;resize:vertical;"></textarea>
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;">
+        <button onclick="document.getElementById('addInventoryModal').remove()" class="btn btn-ghost">Cancel</button>
+        <button id="invSaveBtn" class="btn btn-primary">Save item</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  document.getElementById('invSaveBtn').onclick = async () => {
+    const name = ($('invName')?.value || '').trim();
+    if (!name) { alert('Item name is required.'); return; }
+    const btn = $('invSaveBtn');
+    btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+      const tok = await getAccessToken();
+      const res = await fetch('/.netlify/functions/manage-inventory', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tok}` },
+        body: JSON.stringify({
+          name,
+          sku             : ($('invSku')?.value || '').trim() || undefined,
+          category        : ($('invCategory')?.value || '').trim() || undefined,
+          unit            : $('invUnit')?.value || 'each',
+          quantity_on_hand: parseFloat($('invQty')?.value || 0),
+          reorder_point   : parseFloat($('invReorder')?.value || 0),
+          cost_cents      : Math.round(parseFloat($('invCost')?.value || 0) * 100),
+          price_cents     : Math.round(parseFloat($('invPrice')?.value || 0) * 100),
+          description     : ($('invDesc')?.value || '').trim() || undefined,
+        }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || 'Failed');
+      showToast('Item saved.');
+      modal.remove();
+      await fetchInventory();
+      renderInventory($('inventorySearch')?.value || '');
+    } catch (err) {
+      showToast('Error: ' + err.message);
+      btn.disabled = false; btn.textContent = 'Save item';
+    }
+  };
+}
+
+function openLogUsageModal(itemId, itemName) {
+  const existing = document.getElementById('logUsageModal');
+  if (existing) existing.remove();
+  const orderOptions = (CRM_ORDERS_CACHE || []).filter(o => !['paid','cancelled'].includes(String(o.status||'').toLowerCase()))
+    .slice(0, 30)
+    .map(o => `<option value="${escapeAttr(o.id)}">${escapeHtml(o.customer_name || o.title || o.id)}</option>`).join('');
+  const modal = document.createElement('div');
+  modal.id = 'logUsageModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10000;display:flex;align-items:center;justify-content:center;';
+  modal.innerHTML = `
+    <div style="background:#1e2029;border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:24px 28px;max-width:400px;width:90%;box-shadow:0 8px 40px rgba(0,0,0,.5);">
+      <h3 style="margin:0 0 16px;font-size:1rem;color:#e8e9eb;">Log usage — ${escapeHtml(itemName)}</h3>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:18px;">
+        <div style="display:flex;gap:8px;">
+          <div style="flex:1;">
+            <label style="font-size:.75rem;color:rgba(255,255,255,.35);display:block;margin-bottom:2px;">Qty used</label>
+            <input id="usageQty" type="number" min="0.01" step="0.01" value="1" class="input" style="width:100%;" />
+          </div>
+        </div>
+        <div>
+          <label style="font-size:.75rem;color:rgba(255,255,255,.35);display:block;margin-bottom:2px;">Link to order (optional)</label>
+          <select id="usageOrder" class="input" style="width:100%;">
+            <option value="">No order</option>
+            ${orderOptions}
+          </select>
+        </div>
+        <input id="usageNotes" class="input" placeholder="Notes (optional)" style="width:100%;" />
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;">
+        <button onclick="document.getElementById('logUsageModal').remove()" class="btn btn-ghost">Cancel</button>
+        <button id="logUsageSave" class="btn btn-primary">Log usage</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  document.getElementById('logUsageSave').onclick = async () => {
+    const qty = parseFloat($('usageQty')?.value || 1);
+    const btn = $('logUsageSave');
+    btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+      const tok = await getAccessToken();
+      const res = await fetch('/.netlify/functions/manage-inventory', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tok}` },
+        body: JSON.stringify({
+          action           : 'log_usage',
+          inventory_item_id: itemId,
+          quantity_used    : qty,
+          order_id         : $('usageOrder')?.value || undefined,
+          notes            : ($('usageNotes')?.value || '').trim() || undefined,
+        }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || 'Failed');
+      showToast(`Usage logged: ${qty} ${itemName}`);
+      modal.remove();
+      await fetchInventory();
+      renderInventory($('inventorySearch')?.value || '');
+    } catch (err) {
+      showToast('Error: ' + err.message);
+      btn.disabled = false; btn.textContent = 'Log usage';
+    }
+  };
+}
+
+function openEditInventoryModal(itemId) {
+  const item = INVENTORY_CACHE.find(i => i.id === itemId);
+  if (!item) return;
+  const existing = document.getElementById('editInventoryModal');
+  if (existing) existing.remove();
+  const modal = document.createElement('div');
+  modal.id = 'editInventoryModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10000;display:flex;align-items:center;justify-content:center;';
+  modal.innerHTML = `
+    <div style="background:#1e2029;border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:24px 28px;max-width:420px;width:90%;box-shadow:0 8px 40px rgba(0,0,0,.5);">
+      <h3 style="margin:0 0 16px;font-size:1rem;color:#e8e9eb;">Edit — ${escapeHtml(item.name)}</h3>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:18px;">
+        <div style="display:flex;gap:8px;">
+          <div style="flex:1;"><label style="font-size:.75rem;color:rgba(255,255,255,.35);display:block;margin-bottom:2px;">Qty on hand</label>
+            <input id="eiQty" type="number" step="0.01" class="input" value="${Number(item.quantity_on_hand)}" style="width:100%;" /></div>
+          <div style="flex:1;"><label style="font-size:.75rem;color:rgba(255,255,255,.35);display:block;margin-bottom:2px;">Cost ($)</label>
+            <input id="eiCost" type="number" step="0.01" class="input" value="${(item.cost_cents/100).toFixed(2)}" style="width:100%;" /></div>
+          <div style="flex:1;"><label style="font-size:.75rem;color:rgba(255,255,255,.35);display:block;margin-bottom:2px;">Price ($)</label>
+            <input id="eiPrice" type="number" step="0.01" class="input" value="${(item.price_cents/100).toFixed(2)}" style="width:100%;" /></div>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;">
+        <button onclick="document.getElementById('editInventoryModal').remove()" class="btn btn-ghost">Cancel</button>
+        <button id="eiSave" class="btn btn-primary">Save changes</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  document.getElementById('eiSave').onclick = async () => {
+    const btn = $('eiSave');
+    btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+      const tok = await getAccessToken();
+      const res = await fetch('/.netlify/functions/manage-inventory', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tok}` },
+        body: JSON.stringify({
+          id              : itemId,
+          quantity_on_hand: parseFloat($('eiQty')?.value || 0),
+          cost_cents      : Math.round(parseFloat($('eiCost')?.value || 0) * 100),
+          price_cents     : Math.round(parseFloat($('eiPrice')?.value || 0) * 100),
+        }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || 'Failed');
+      showToast('Item updated.');
+      modal.remove();
+      await fetchInventory();
+      renderInventory($('inventorySearch')?.value || '');
+    } catch (err) {
+      showToast('Error: ' + err.message);
+      btn.disabled = false; btn.textContent = 'Save changes';
+    }
+  };
 }
 
 async function fetchVendors() {
@@ -10343,11 +10759,32 @@ function renderOrders() {
       <div id="orderNotifyMsg" class="msg" style="margin-top:8px;"></div>
     </div>
 
+    <div class="detail-card" style="margin-top:14px;" id="phasesSection">
+      <div class="kicker" style="cursor:pointer;user-select:none;display:flex;align-items:center;justify-content:space-between;" id="phasesToggle">
+        <span>Project phases ▸</span>
+        <button class="btn btn-ghost" style="font-size:.72rem;padding:2px 8px;" onclick="event.stopPropagation();openAddPhaseModal('${escapeAttr(active.id)}')">+ Phase</button>
+      </div>
+      <div id="phasesBody" style="display:none;margin-top:10px;"></div>
+    </div>
+
     <div class="detail-card" style="margin-top:14px;" id="timeLoggedSection">
       <div class="kicker" style="cursor:pointer;user-select:none;" id="timeLoggedToggle">Time logged ▸</div>
       <div id="timeLoggedBody" style="display:none;margin-top:10px;"></div>
     </div>
   `;
+
+  // Project phases collapsible section
+  document.getElementById('phasesToggle')?.addEventListener('click', async (ev) => {
+    if (ev.target.tagName === 'BUTTON') return;
+    const body   = document.getElementById('phasesBody');
+    const toggle = document.getElementById('phasesToggle')?.querySelector('span');
+    if (!body) return;
+    if (body.style.display !== 'none') { body.style.display = 'none'; if (toggle) toggle.textContent = 'Project phases ▸'; return; }
+    body.style.display = 'block';
+    if (toggle) toggle.textContent = 'Project phases ▾';
+    body.innerHTML = '<div class="muted" style="font-size:.82rem;">Loading…</div>';
+    await loadPhasesIntoEl(active.id, body);
+  });
 
   // Time entries collapsible section
   document.getElementById("timeLoggedToggle")?.addEventListener("click", async () => {
@@ -12387,6 +12824,239 @@ boot().catch((err) => {
   console.error(err);
   showLogin(err?.message || String(err));
 });
+
+// ── Availability blocks ────────────────────────────────────────────────────────
+let AVAILABILITY_BLOCKS_CACHE = [];
+
+async function loadAvailabilityBlocks() {
+  try {
+    const tok = await getAccessToken();
+    const res = await fetch('/.netlify/functions/manage-availability-blocks', {
+      headers: { 'Authorization': `Bearer ${tok}` },
+    });
+    const d = await res.json().catch(() => ({}));
+    AVAILABILITY_BLOCKS_CACHE = d.blocks || [];
+  } catch { AVAILABILITY_BLOCKS_CACHE = []; }
+  renderAvailabilityBlocks();
+}
+
+function renderAvailabilityBlocks() {
+  const el = $('availabilityBlocksList');
+  if (!el) return;
+  if (!AVAILABILITY_BLOCKS_CACHE.length) {
+    el.innerHTML = '<div class="muted" style="font-size:.82rem;">No date blocks. Add one to pause bookings during vacations or off-season.</div>';
+    return;
+  }
+  el.innerHTML = AVAILABILITY_BLOCKS_CACHE.map(b => `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.06);">
+      <div>
+        <div style="font-weight:500;color:#e8e9eb;">${escapeHtml(b.title || 'Unavailable')}</div>
+        <div style="font-size:.78rem;color:rgba(255,255,255,.4);">
+          ${new Date(b.starts_at).toLocaleDateString()} – ${new Date(b.ends_at).toLocaleDateString()}
+          ${b.block_bookings ? ' · <span style="color:#fbbf24;">Blocks new bookings</span>' : ''}
+        </div>
+      </div>
+      <button class="btn btn-ghost" style="font-size:.72rem;" onclick="deleteAvailBlock('${escapeAttr(b.id)}')">Delete</button>
+    </div>`).join('');
+}
+
+async function deleteAvailBlock(id) {
+  if (!(await showConfirmModal('Delete this date block?', 'Delete', 'Cancel'))) return;
+  const tok = await getAccessToken();
+  await fetch(`/.netlify/functions/manage-availability-blocks?id=${encodeURIComponent(id)}`, {
+    method: 'DELETE', headers: { 'Authorization': `Bearer ${tok}` },
+  });
+  await loadAvailabilityBlocks();
+}
+
+$('btnAddAvailBlock')?.addEventListener('click', () => {
+  const existing = document.getElementById('addAvailBlockModal');
+  if (existing) { existing.remove(); return; }
+  const modal = document.createElement('div');
+  modal.id = 'addAvailBlockModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10000;display:flex;align-items:center;justify-content:center;';
+  modal.innerHTML = `
+    <div style="background:#1e2029;border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:24px 28px;max-width:400px;width:90%;box-shadow:0 8px 40px rgba(0,0,0,.5);">
+      <h3 style="margin:0 0 16px;font-size:1rem;color:#e8e9eb;">Block dates</h3>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:18px;">
+        <input id="abTitle" class="input" placeholder="Label (e.g. Winter break, Vacation)" style="width:100%;" />
+        <div style="display:flex;gap:8px;">
+          <div style="flex:1;"><label style="font-size:.72rem;color:rgba(255,255,255,.35);display:block;margin-bottom:2px;">From</label>
+            <input id="abStart" type="date" class="input" style="width:100%;" /></div>
+          <div style="flex:1;"><label style="font-size:.72rem;color:rgba(255,255,255,.35);display:block;margin-bottom:2px;">To</label>
+            <input id="abEnd" type="date" class="input" style="width:100%;" /></div>
+        </div>
+        <label style="display:flex;align-items:center;gap:8px;font-size:.82rem;cursor:pointer;">
+          <input id="abBlockBookings" type="checkbox" checked /> Block new customer bookings during this period
+        </label>
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;">
+        <button onclick="document.getElementById('addAvailBlockModal').remove()" class="btn btn-ghost">Cancel</button>
+        <button id="abSave" class="btn btn-primary">Save block</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  document.getElementById('abSave').onclick = async () => {
+    const starts = $('abStart')?.value;
+    const ends = $('abEnd')?.value;
+    if (!starts || !ends) { alert('Start and end dates are required.'); return; }
+    if (starts > ends) { alert('Start must be before end.'); return; }
+    const btn = $('abSave'); btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+      const tok = await getAccessToken();
+      const res = await fetch('/.netlify/functions/manage-availability-blocks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tok}` },
+        body: JSON.stringify({
+          title         : ($('abTitle')?.value || '').trim() || 'Unavailable',
+          starts_at     : starts,
+          ends_at       : ends,
+          block_bookings: $('abBlockBookings')?.checked !== false,
+        }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || 'Failed');
+      showToast('Date block saved.');
+      modal.remove();
+      await loadAvailabilityBlocks();
+    } catch (err) {
+      showToast('Error: ' + err.message);
+      btn.disabled = false; btn.textContent = 'Save block';
+    }
+  };
+});
+
+// ── Package sessions summary ──────────────────────────────────────────────────
+function renderPackagesSummary() {
+  const card = $('packagesSummaryCard');
+  const list = $('packagesSummaryList');
+  if (!card || !list) return;
+  const packages = (CRM_ORDERS_CACHE || []).filter(o => o.order_type === 'package' && !o.is_deleted);
+  if (!packages.length) { card.style.display = 'none'; return; }
+  card.style.display = '';
+  list.innerHTML = packages.map(p => {
+    const used = Number(p.package_sessions_used || 0);
+    const total = Number(p.package_sessions_total || 0);
+    const remaining = Math.max(0, total - used);
+    const pct = total > 0 ? Math.round(remaining / total * 100) : 0;
+    const expiry = p.package_valid_until ? ` · expires ${new Date(p.package_valid_until).toLocaleDateString()}` : '';
+    const custName = p.customer_name || p.email || 'Unknown';
+    return `<div style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,.06);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+        <div><span style="font-weight:500;color:#e8e9eb;">${escapeHtml(custName)}</span> <span style="color:rgba(255,255,255,.4);font-size:.8rem;">${escapeHtml(p.title || '')}</span></div>
+        <span style="font-size:.8rem;font-weight:600;color:${remaining===0?'#ef4444':remaining<=2?'#fbbf24':'#34d399'};">${remaining} / ${total} remaining</span>
+      </div>
+      <div style="height:4px;background:rgba(255,255,255,.1);border-radius:2px;">
+        <div style="height:100%;width:${pct}%;background:${remaining===0?'#ef4444':remaining<=2?'#fbbf24':'#34d399'};border-radius:2px;transition:width .3s;"></div>
+      </div>
+      <div style="font-size:.72rem;color:rgba(255,255,255,.3);margin-top:3px;">${expiry}</div>
+    </div>`;
+  }).join('');
+}
+
+// ── Project phases ────────────────────────────────────────────────────────────
+async function loadPhasesIntoEl(orderId, bodyEl) {
+  try {
+    const tok = await getAccessToken();
+    const res = await fetch(`/.netlify/functions/manage-project-phases?order_id=${encodeURIComponent(orderId)}`, {
+      headers: { 'Authorization': `Bearer ${tok}` },
+    });
+    const d = await res.json().catch(() => ({}));
+    const phases = d.phases || [];
+    if (!phases.length) {
+      bodyEl.innerHTML = '<div class="muted" style="font-size:.82rem;">No phases yet. Click "+ Phase" to add milestones.</div>';
+      return;
+    }
+    const totalPhased = phases.reduce((s, p) => s + Number(p.amount_cents || 0), 0);
+    bodyEl.innerHTML = `
+      <div style="margin-bottom:8px;font-size:.78rem;color:rgba(255,255,255,.4);">Total phased: ${formatUsd(totalPhased)}</div>
+      ${phases.sort((a,b) => a.phase_number - b.phase_number).map(p => {
+        const statusColor = p.status === 'completed' ? '#34d399' : p.status === 'invoiced' ? '#60a5fa' : p.status === 'in_progress' ? '#fbbf24' : 'rgba(255,255,255,.3)';
+        return `<div style="display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.06);">
+          <div style="background:${statusColor};color:#12141c;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;flex-shrink:0;">${p.phase_number}</div>
+          <div style="flex:1;">
+            <div style="font-weight:500;color:#e8e9eb;">${escapeHtml(p.title)}</div>
+            ${p.description ? `<div style="font-size:.75rem;color:rgba(255,255,255,.4);">${escapeHtml(p.description)}</div>` : ''}
+            <div style="font-size:.75rem;color:rgba(255,255,255,.35);">${formatUsd(p.amount_cents)}${p.due_date ? ' · due ' + new Date(p.due_date).toLocaleDateString() : ''}</div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;">
+            <span style="font-size:.7rem;font-weight:600;color:${statusColor};text-transform:uppercase;">${p.status}</span>
+            ${p.status !== 'completed' && p.status !== 'invoiced' ? `<button class="btn btn-ghost" style="font-size:.7rem;padding:2px 6px;" onclick="markPhaseComplete('${escapeAttr(p.id)}','${escapeAttr(orderId)}')">Mark done</button>` : ''}
+          </div>
+        </div>`;
+      }).join('')}`;
+  } catch (err) {
+    bodyEl.innerHTML = `<div class="muted" style="font-size:.82rem;">Error loading phases: ${escapeHtml(err.message)}</div>`;
+  }
+}
+
+async function markPhaseComplete(phaseId, orderId) {
+  const tok = await getAccessToken();
+  await fetch('/.netlify/functions/manage-project-phases', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tok}` },
+    body: JSON.stringify({ id: phaseId, status: 'completed', completed_at: new Date().toISOString() }),
+  });
+  showToast('Phase marked complete.');
+  const body = document.getElementById('phasesBody');
+  if (body && body.style.display !== 'none') await loadPhasesIntoEl(orderId, body);
+}
+
+function openAddPhaseModal(orderId) {
+  const existing = document.getElementById('addPhaseModal');
+  if (existing) { existing.remove(); return; }
+  const modal = document.createElement('div');
+  modal.id = 'addPhaseModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10000;display:flex;align-items:center;justify-content:center;';
+  modal.innerHTML = `
+    <div style="background:#1e2029;border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:24px 28px;max-width:420px;width:90%;box-shadow:0 8px 40px rgba(0,0,0,.5);">
+      <h3 style="margin:0 0 16px;font-size:1rem;color:#e8e9eb;">Add project phase</h3>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:18px;">
+        <input id="phTitle" class="input" placeholder="Phase name *" style="width:100%;" />
+        <textarea id="phDesc" class="input" rows="2" placeholder="Description (optional)" style="width:100%;resize:vertical;"></textarea>
+        <div style="display:flex;gap:8px;">
+          <div style="flex:1;"><label style="font-size:.72rem;color:rgba(255,255,255,.35);display:block;margin-bottom:2px;">Phase #</label>
+            <input id="phNum" type="number" min="1" value="1" class="input" style="width:100%;" /></div>
+          <div style="flex:1;"><label style="font-size:.72rem;color:rgba(255,255,255,.35);display:block;margin-bottom:2px;">Billing amount ($)</label>
+            <input id="phAmount" type="number" min="0" step="0.01" placeholder="0.00" class="input" style="width:100%;" /></div>
+          <div style="flex:1;"><label style="font-size:.72rem;color:rgba(255,255,255,.35);display:block;margin-bottom:2px;">Due date</label>
+            <input id="phDue" type="date" class="input" style="width:100%;" /></div>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;">
+        <button onclick="document.getElementById('addPhaseModal').remove()" class="btn btn-ghost">Cancel</button>
+        <button id="phSave" class="btn btn-primary">Add phase</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  document.getElementById('phSave').onclick = async () => {
+    const title = ($('phTitle')?.value || '').trim();
+    if (!title) { alert('Phase name required.'); return; }
+    const btn = $('phSave'); btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+      const tok = await getAccessToken();
+      const res = await fetch('/.netlify/functions/manage-project-phases', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tok}` },
+        body: JSON.stringify({
+          order_id    : orderId,
+          title,
+          description : ($('phDesc')?.value || '').trim() || undefined,
+          phase_number: parseInt($('phNum')?.value || 1),
+          amount_cents: Math.round(parseFloat($('phAmount')?.value || 0) * 100),
+          due_date    : $('phDue')?.value || undefined,
+        }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || 'Failed');
+      showToast('Phase added.');
+      modal.remove();
+      const body = document.getElementById('phasesBody');
+      if (body) await loadPhasesIntoEl(orderId, body);
+    } catch (err) {
+      showToast('Error: ' + err.message);
+      btn.disabled = false; btn.textContent = 'Add phase';
+    }
+  };
+}
 
 // ── Session idle timeout ───────────────────────────────────────────────────────
 (function initIdleTimer() {

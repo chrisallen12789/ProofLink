@@ -38,8 +38,12 @@ exports.handler = async (event) => {
   if (!started_at) return respond(400, { error: 'started_at is required' });
   if (isNaN(Date.parse(started_at))) return respond(400, { error: 'started_at must be a valid ISO datetime' });
 
+  // Require duration — either computed from ended_at or provided explicitly
+  if (!body.ended_at && (body.duration_minutes == null || body.duration_minutes <= 0)) {
+    return respond(400, { error: 'Either ended_at or duration_minutes (> 0) is required to calculate billable time.' });
+  }
+
   let resolvedEndedAt      = ended_at || null;
-  let resolvedDurationMins = durationInput != null ? parseInt(durationInput, 10) : null;
 
   // If ended_at provided, compute duration_minutes (overrides manual input)
   if (ended_at) {
@@ -47,8 +51,11 @@ exports.handler = async (event) => {
     const startMs = new Date(started_at).getTime();
     const endMs   = new Date(ended_at).getTime();
     if (endMs <= startMs) return respond(400, { error: 'ended_at must be after started_at' });
-    resolvedDurationMins = Math.round((endMs - startMs) / 60000);
   }
+
+  const durationMinutes = body.ended_at
+    ? Math.round((new Date(body.ended_at) - new Date(body.started_at)) / 60000)
+    : Math.round(Number(body.duration_minutes));
 
   const record = {
     tenant_id        : tenantId,
@@ -59,7 +66,7 @@ exports.handler = async (event) => {
     description      : description ? String(description).trim() : null,
     started_at,
     ended_at         : resolvedEndedAt,
-    duration_minutes : resolvedDurationMins,
+    duration_minutes : durationMinutes,
     billable         : billable !== false,
     hourly_rate_cents: Math.max(0, parseInt(hourly_rate_cents, 10) || 0),
     invoiced         : false,

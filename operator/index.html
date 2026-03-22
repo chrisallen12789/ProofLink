@@ -95,6 +95,8 @@
           <button class="tab" data-tab="domains" data-tour-tab="domains" type="button">Domains</button>
           <button class="tab" data-tab="import" data-tour-tab="import" type="button">Switch &amp; Import</button>
           <button class="tab" data-tab="vendors" type="button">Vendors <span style="font-size:.7rem;color:rgba(255,255,255,.35);display:block;font-weight:400;">Subs &amp; suppliers</span></button>
+          <button class="tab" data-tab="inventory" type="button">Inventory <span style="font-size:.7rem;color:rgba(255,255,255,.35);display:block;font-weight:400;">Parts &amp; materials</span></button>
+          <button class="tab" data-tab="contracts" type="button">Contracts <span style="font-size:.7rem;color:rgba(255,255,255,.35);display:block;font-weight:400;">Warranties &amp; plans</span></button>
         </div>
       </div>
 
@@ -375,6 +377,14 @@
                 <button id="btnImportBridgeOrders" class="btn" type="button" hidden aria-hidden="true">Legacy bridge disabled</button>
                 <button id="btnExportOrders" class="btn" type="button">Export JSON</button>
                 <button id="btnExportOrdersCsv" class="btn btn-ghost" type="button">Export CSV</button>
+              </div>
+            </div>
+
+            <!-- Package orders summary — shown when packages exist -->
+            <div class="card" id="packagesSummaryCard" style="display:none;margin-bottom:14px;">
+              <div class="card-hd"><strong>Active packages</strong> <span class="muted" style="font-size:.78rem;">Session-based orders</span></div>
+              <div class="card-bd" id="packagesSummaryList">
+                <div class="muted" style="font-size:.85rem;">Loading…</div>
               </div>
             </div>
 
@@ -1672,6 +1682,83 @@
             </div>
           </section>
 
+          <section class="panel hidden" data-panel="inventory">
+  <div class="panel-head">
+    <div>
+      <h2>Inventory</h2>
+      <div class="muted">Track parts, materials, and supplies used on jobs.</div>
+    </div>
+    <div class="panel-actions">
+      <button id="btnAddInventoryItem" class="btn" type="button">+ Add item</button>
+      <button id="btnRefreshInventory" class="btn btn-ghost" type="button">Refresh</button>
+    </div>
+  </div>
+
+  <!-- Summary row -->
+  <div class="grid three" style="margin-bottom:14px;" id="inventorySummary">
+    <div class="stat-card">
+      <div class="stat-label">Total items</div>
+      <div class="stat-value" id="inventoryTotalItems">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Low stock</div>
+      <div class="stat-value" id="inventoryLowStock" style="color:#fbbf24;">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Inventory value</div>
+      <div class="stat-value" id="inventoryTotalValue">—</div>
+    </div>
+  </div>
+
+  <!-- Items list -->
+  <div class="card">
+    <div class="card-hd" style="display:flex;align-items:center;justify-content:space-between;">
+      <strong>Items</strong>
+      <input id="inventorySearch" class="input" placeholder="Search items…" style="width:200px;font-size:.82rem;" />
+    </div>
+    <div class="card-bd" id="inventoryList">
+      <div class="muted" style="font-size:.85rem;">Loading inventory…</div>
+    </div>
+  </div>
+
+  <!-- Recent usage -->
+  <div class="card" style="margin-top:14px;">
+    <div class="card-hd"><strong>Recent usage</strong></div>
+    <div class="card-bd" id="inventoryUsageList">
+      <div class="muted" style="font-size:.85rem;">No usage logged yet.</div>
+    </div>
+  </div>
+</section>
+
+<section class="panel hidden" data-panel="contracts">
+  <div class="panel-head">
+    <div>
+      <h2>Service Contracts</h2>
+      <div class="muted">Warranties, maintenance agreements, and service plans.</div>
+    </div>
+    <div class="panel-actions">
+      <button id="btnAddContract" class="btn" type="button">+ Add contract</button>
+      <button id="btnRefreshContracts" class="btn btn-ghost" type="button">Refresh</button>
+    </div>
+  </div>
+
+  <!-- Expiring soon -->
+  <div class="card" style="margin-bottom:14px;" id="contractsExpiringCard">
+    <div class="card-hd"><strong>Expiring soon</strong> <span class="muted" style="font-size:.78rem;">(next 60 days)</span></div>
+    <div class="card-bd" id="contractsExpiringSoon">
+      <div class="muted" style="font-size:.85rem;">Loading…</div>
+    </div>
+  </div>
+
+  <!-- All contracts -->
+  <div class="card">
+    <div class="card-hd"><strong>All contracts</strong></div>
+    <div class="card-bd" id="contractsList">
+      <div class="muted" style="font-size:.85rem;">Loading contracts…</div>
+    </div>
+  </div>
+</section>
+
           <section class="panel hidden" data-panel="vendors">
             <div class="panel-head">
               <div>
@@ -1706,6 +1793,20 @@
               <div class="card-bd">
                 <div id="availabilityWrap"></div>
                 <div id="availabilityMsg" class="msg"></div>
+
+                <!-- Availability blocks (date range blocking) -->
+                <div style="margin-top:20px;border-top:1px solid rgba(255,255,255,.08);padding-top:16px;">
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+                    <div>
+                      <div style="font-weight:600;font-size:.9rem;color:#e8e9eb;">Date blocks</div>
+                      <div class="muted" style="font-size:.78rem;">Block dates when you're unavailable (seasonal pause, vacations, etc.)</div>
+                    </div>
+                    <button id="btnAddAvailBlock" class="btn btn-ghost" type="button" style="font-size:.8rem;">+ Block dates</button>
+                  </div>
+                  <div id="availabilityBlocksList">
+                    <div class="muted" style="font-size:.82rem;">No date blocks set.</div>
+                  </div>
+                </div>
               </div>
             </div>
           </section>

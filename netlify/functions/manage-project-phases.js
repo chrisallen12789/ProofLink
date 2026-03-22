@@ -25,17 +25,34 @@ exports.handler = async (event) => {
   // ── GET ──────────────────────────────────────────────────────────────────
   if (event.httpMethod === 'GET') {
     const { order_id } = params;
-    if (!order_id) return respond(400, { error: 'order_id query param is required' });
 
+    if (order_id) {
+      // Filtered by order — existing behaviour
+      const { data: phases, error } = await supabase
+        .from('project_phases')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .eq('order_id', order_id)
+        .order('phase_number');
+
+      if (error) {
+        console.error('[manage-project-phases] GET by order', error);
+        return respond(500, { error: 'Failed to fetch phases' });
+      }
+
+      return respond(200, { phases: phases || [] });
+    }
+
+    // No order_id — return all phases for the tenant, joined with order title
     const { data: phases, error } = await supabase
       .from('project_phases')
-      .select('*')
+      .select('*, orders(title)')
       .eq('tenant_id', tenantId)
-      .eq('order_id', order_id)
-      .order('phase_number');
+      .order('created_at', { ascending: false })
+      .limit(100);
 
     if (error) {
-      console.error('[manage-project-phases] GET', error);
+      console.error('[manage-project-phases] GET all', error);
       return respond(500, { error: 'Failed to fetch phases' });
     }
 

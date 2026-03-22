@@ -144,7 +144,7 @@ exports.handler = async (event) => {
   }
 
   if (!toInsert.length) {
-    return respond(200, { created: 0, bookings: [], message: 'No new instances to generate' });
+    return respond(200, { ok: true, created: 0, bookings: [], message: 'No new instances to generate' });
   }
 
   const { data: inserted, error: insertErr } = await supabase
@@ -157,5 +157,5 @@ exports.handler = async (event) => {
     return respond(500, { error: 'Failed to create recurring booking instances' });
   }
 
-  return respond(201, { created: inserted.length, bookings: inserted });
+  return respond(201, { ok: true, created: inserted.length, bookings: inserted });
 };
