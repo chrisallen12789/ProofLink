@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Leave a Review | ProofLink</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      background: #F4F1EC;
+      color: #1A1A1A;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem 1rem;
+    }
+    .card {
+      background: #fff;
+      border: 1px solid #E2DDD6;
+      border-radius: 12px;
+      padding: 2.5rem 2rem;
+      width: 100%;
+      max-width: 480px;
+      box-shadow: 0 4px 24px rgba(0,0,0,.08);
+    }
+    .brand {
+      font-size: 1.2rem;
+      font-weight: 800;
+      letter-spacing: -0.04em;
+      margin-bottom: 1.75rem;
+      display: block;
+      text-decoration: none;
+      color: #1A1A1A;
+    }
+    .brand span { color: #C84B2F; }
+    h1 { font-size: 1.5rem; font-weight: 800; margin-bottom: .4rem; letter-spacing: -0.02em; }
+    .sub { font-size: .9rem; color: #6B6560; margin-bottom: 1.75rem; line-height: 1.55; }
+    .stars {
+      display: flex;
+      gap: .35rem;
+      margin-bottom: 1.5rem;
+      font-size: 2.2rem;
+      cursor: pointer;
+    }
+    .star { color: #E2DDD6; transition: color .1s; line-height: 1; user-select: none; }
+    .star.lit { color: #F59E0B; }
+    label { display: block; font-size: .8rem; font-weight: 600; color: #6B6560; margin-bottom: .35rem; }
+    textarea {
+      width: 100%;
+      border: 1px solid #E2DDD6;
+      border-radius: 6px;
+      padding: .65rem .75rem;
+      font-size: .9rem;
+      font-family: inherit;
+      resize: vertical;
+      min-height: 100px;
+      background: #FAFAF8;
+      color: #1A1A1A;
+      margin-bottom: 1.25rem;
+    }
+    textarea:focus { outline: 2px solid #C84B2F; border-color: transparent; }
+    input[type="text"] {
+      width: 100%;
+      border: 1px solid #E2DDD6;
+      border-radius: 6px;
+      padding: .65rem .75rem;
+      font-size: .9rem;
+      font-family: inherit;
+      background: #FAFAF8;
+      color: #1A1A1A;
+      margin-bottom: 1.25rem;
+    }
+    input[type="text"]:focus { outline: 2px solid #C84B2F; border-color: transparent; }
+    button[type="submit"] {
+      width: 100%;
+      background: #C84B2F;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: .8rem 1rem;
+      font-size: .95rem;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    button[type="submit"]:disabled { opacity: .6; cursor: default; }
+    .msg { margin-top: 1rem; font-size: .85rem; line-height: 1.5; text-align: center; }
+    .msg.ok  { color: #2E7D32; }
+    .msg.err { color: #C84B2F; }
+    .err-note { font-size: .75rem; color: #C84B2F; margin-top: -.75rem; margin-bottom: .75rem; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <a class="brand" href="/">Proof<span>Link</span></a>
+    <h1 id="heading">How did we do?</h1>
+    <p class="sub" id="sub">Your honest feedback helps the business improve and helps others make great choices.</p>
+
+    <form id="reviewForm">
+      <div class="stars" id="stars" role="group" aria-label="Star rating">
+        <span class="star" data-value="1">★</span>
+        <span class="star" data-value="2">★</span>
+        <span class="star" data-value="3">★</span>
+        <span class="star" data-value="4">★</span>
+        <span class="star" data-value="5">★</span>
+      </div>
+      <p class="err-note" id="err-rating" style="display:none;">Please select a rating.</p>
+
+      <label for="customer_name">Your name</label>
+      <input type="text" id="customer_name" placeholder="First name is fine" />
+
+      <label for="review_text">Your review <span style="font-weight:400;color:#9C9490;">(optional)</span></label>
+      <textarea id="review_text" placeholder="What went well? Anything we can improve?"></textarea>
+
+      <button type="submit" id="submitBtn">Submit review</button>
+      <div class="msg" id="msg"></div>
+    </form>
+  </div>
+
+  <script>
+  (function () {
+    var params   = new URLSearchParams(window.location.search);
+    var orderId  = params.get('order')  || '';
+    var tenantId = params.get('tenant') || '';
+    var rating   = 0;
+
+    if (!orderId || !tenantId) {
+      document.getElementById('heading').textContent = 'Invalid review link';
+      document.getElementById('sub').textContent     = 'This link is not valid or has expired.';
+      document.getElementById('reviewForm').style.display = 'none';
+      return;
+    }
+
+    // Star interaction
+    var stars = document.querySelectorAll('.star');
+    function paintStars(n) {
+      stars.forEach(function (s) {
+        s.classList.toggle('lit', Number(s.dataset.value) <= n);
+      });
+    }
+    stars.forEach(function (s) {
+      s.addEventListener('mouseover', function () { paintStars(Number(s.dataset.value)); });
+      s.addEventListener('mouseout',  function () { paintStars(rating); });
+      s.addEventListener('click',     function () {
+        rating = Number(s.dataset.value);
+        paintStars(rating);
+        document.getElementById('err-rating').style.display = 'none';
+      });
+    });
+
+    document.getElementById('reviewForm').addEventListener('submit', async function (e) {
+      e.preventDefault();
+
+      if (!rating) {
+        document.getElementById('err-rating').style.display = 'block';
+        return;
+      }
+
+      var btn = document.getElementById('submitBtn');
+      var msg = document.getElementById('msg');
+      btn.disabled   = true;
+      msg.textContent = '';
+      msg.className   = 'msg';
+
+      try {
+        var res = await fetch('/.netlify/functions/submit-review', {
+          method : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body   : JSON.stringify({
+            order_id     : orderId,
+            tenant_id    : tenantId,
+            rating       : rating,
+            review_text  : document.getElementById('review_text').value.trim(),
+            customer_name: document.getElementById('customer_name').value.trim(),
+          }),
+        });
+        var data = await res.json().catch(function () { return {}; });
+        if (!res.ok) throw new Error(data.error || 'Something went wrong.');
+
+        document.getElementById('reviewForm').innerHTML =
+          '<div style="text-align:center;padding:1rem 0;">' +
+          '<div style="font-size:3rem;margin-bottom:.75rem;">⭐</div>' +
+          '<h2 style="font-size:1.3rem;font-weight:800;margin-bottom:.5rem;">Thank you!</h2>' +
+          '<p style="color:#6B6560;font-size:.9rem;line-height:1.55;">Your review has been submitted.<br>We appreciate you taking the time.</p>' +
+          '</div>';
+      } catch (err) {
+        msg.textContent = err.message;
+        msg.className   = 'msg err';
+        btn.disabled    = false;
+      }
+    });
+  })();
+  </script>
+</body>
+</html>

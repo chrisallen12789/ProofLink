@@ -373,6 +373,23 @@ const templates = {
     };
   },
 
+  reviewRequest({ customer_name, customer_email, business_name, review_url }) {
+    return {
+      to: customer_email,
+      subject: `How did we do? — ${business_name}`,
+      html: layout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.amber)}${bodyWrap(`
+        ${h1(`How did we do, ${customer_name}?`)}
+        ${sub(`Thanks for choosing ${business_name}. Your feedback helps us improve and helps other customers find great local services.`)}
+        <div style="text-align:center;margin:0 0 28px;">
+          <p style="margin:0 0 16px;font-size:15px;color:${T.muted};">It only takes 30 seconds.</p>
+          ${cta('Leave a quick review →', review_url, T.red)}
+        </div>
+        ${divider()}
+        ${p(`<span style="color:${T.hint};">If you have any questions or concerns, just reply to this email.</span>`)}
+      `)}</table>`, { preheader: `${business_name} would love to hear how your experience went.` }),
+    };
+  },
+
   operatorNewRequest({ operator_email, owner_name, business_name, business_type, city_state, owner_email, selected_plan }) {
     return {
       to: operator_email,

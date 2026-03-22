@@ -2066,3 +2066,98 @@ input:focus, textarea:focus, select:focus{
 .pl-analytics-card h3{margin:0;font-size:1.45rem;}
 @media (max-width: 1000px){.pl-analytics-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}
 @media (max-width: 680px){.pl-analytics-grid{grid-template-columns:1fr;}.pl-launch-checklist-card__list li{grid-template-columns:auto 1fr;}.pl-launch-checklist-card__cta{grid-column:2;}}
+
+/* ── Mobile bottom navigation ─────────────────────────────────────────────── */
+.mobile-bottom-nav {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  /* Hide desktop sidebar, show bottom nav */
+  .mobile-bottom-nav {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 1000;
+    background: var(--bg1, #121212);
+    border-top: 1px solid var(--border, rgba(255,255,255,.08));
+    padding: 0 0 env(safe-area-inset-bottom, 0);
+  }
+
+  .mbn-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    padding: 10px 4px;
+    background: none;
+    border: none;
+    color: var(--muted, #b8b1a5);
+    font-size: 10px;
+    font-family: inherit;
+    cursor: pointer;
+    transition: color .15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .mbn-item.active,
+  .mbn-item:active {
+    color: var(--accent, #c84b2f);
+  }
+
+  /* Sidebar becomes a slide-over on mobile */
+  .app-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 280px;
+    z-index: 999;
+    transform: translateX(-100%);
+    transition: transform .25s ease;
+    height: 100dvh;
+    overflow-y: auto;
+    box-shadow: 4px 0 24px rgba(0,0,0,.5);
+  }
+
+  .sidebar.mobile-open {
+    transform: translateX(0);
+  }
+
+  /* Dim overlay when sidebar is open */
+  body.sidebar-overlay-open::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.55);
+    z-index: 998;
+  }
+
+  /* Push content above bottom nav */
+  .main {
+    padding-bottom: calc(72px + env(safe-area-inset-bottom, 0));
+  }
+
+  /* Larger touch targets on lists */
+  .list-item {
+    padding: 14px 12px;
+  }
+
+  /* Stack order detail grid */
+  .order-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Full-width inputs */
+  .field-row {
+    flex-direction: column;
+  }
+}

@@ -2569,6 +2569,7 @@ btnSendReset?.addEventListener("click", async () => {
   }
 });
 btnSignOut?.addEventListener("click", async () => {
+  stopRealtime();
   await sb.auth.signOut();
   CURRENT_OPERATOR = null;
   showLogin("");
@@ -9047,6 +9048,7 @@ function renderOrders() {
         <button id="btnCreateRecurringPlanFromOrder" class="btn" type="button">${linkedPlan ? "Open recurring plan" : "Make recurring"}</button>
         <button id="btnCollectOrderDeposit" class="btn btn-ghost" type="button">${depositGap > 0 ? "Collect deposit" : "Record payment"}</button>
         <button id="btnRecordOrderPayment" class="btn btn-ghost" type="button">Record payment</button>
+        <button id="btnDownloadInvoice" class="btn btn-ghost" type="button">⬇ Invoice PDF</button>
       </div>
     </div>
 
@@ -9090,6 +9092,12 @@ function renderOrders() {
         </label>
         <button id="btnSaveOrderStatus" class="btn btn-primary" type="button">Save status</button>
       </div>
+      ${["completed","fulfilled"].includes(String(active.status||"").toLowerCase()) && active.customer_email ? `
+      <div style="margin-top:.75rem;">
+        <button id="btnRequestReview" class="btn btn-ghost btn-sm" type="button">
+          ${active.review_requested_at ? "✓ Review requested" : "⭐ Request review"}
+        </button>
+      </div>` : ""}
     </div>
   `;
 
@@ -9118,7 +9126,48 @@ function renderOrders() {
     renderOrders();
     renderDashboard();
     renderGuidance();
+
+    // Auto-send review request when order is marked complete/fulfilled
+    if (["completed", "fulfilled"].includes(nextStatus) && data.customer_email && !data.review_requested_at) {
+      try {
+        const tok = await getAccessToken();
+        await fetch("/.netlify/functions/request-review", {
+          method : "POST",
+          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${tok}` },
+          body   : JSON.stringify({ order_id: data.id }),
+        });
+      } catch (e) {
+        console.warn("[review] auto-request failed:", e.message);
+      }
+    }
   });
+  $("btnDownloadInvoice")?.addEventListener("click", () => {
+    generateInvoicePDF(active);
+  });
+
+  $("btnRequestReview")?.addEventListener("click", async () => {
+    const btn = $("btnRequestReview");
+    if (!btn || active.review_requested_at) return;
+    btn.disabled = true;
+    try {
+      const tok = await getAccessToken();
+      const res = await fetch("/.netlify/functions/request-review", {
+        method : "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${tok}` },
+        body   : JSON.stringify({ order_id: active.id }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(d.error || "Failed to send review request");
+      btn.textContent = "✓ Review requested";
+      CRM_ORDERS_CACHE = CRM_ORDERS_CACHE.map((row) =>
+        row.id === active.id ? { ...row, review_requested_at: new Date().toISOString() } : row
+      );
+    } catch (err) {
+      alert(err.message || String(err));
+      btn.disabled = false;
+    }
+  });
+
   $("btnCreateJobFromOrder")?.addEventListener("click", async () => {
     if (linkedJob) {
       ACTIVE_JOB_ID = linkedJob.id;
@@ -9598,6 +9647,7 @@ async function boot() {
     switchTab(panelFromLocation(), { updateHash: false });
 
     window.PROOFLINK_BOOT_READY = true;
+    startRealtime();
   } catch (err) {
     console.error(err);
     CURRENT_OPERATOR = null;
@@ -9606,6 +9656,190 @@ async function boot() {
   } finally {
     BOOTING = false;
   }
+}
+
+// ── Invoice PDF ───────────────────────────────────────────────────────────────
+
+function generateInvoicePDF(order) {
+  const jsPDF = window.jspdf?.jsPDF;
+  if (!jsPDF) { alert("PDF library not loaded. Please refresh and try again."); return; }
+
+  const doc  = new jsPDF({ unit: "pt", format: "letter" });
+  const W    = doc.internal.pageSize.getWidth();
+  const red  = [200, 75, 47];
+  const dark = [26, 26, 26];
+  const grey = [100, 100, 100];
+
+  const fmt  = (v) => isNaN(Number(v)) ? "—" : "$" + Number(v).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  const now  = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+
+  // Header bar
+  doc.setFillColor(...red);
+  doc.rect(0, 0, W, 48, "F");
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(20);
+  doc.setTextColor(255, 255, 255);
+  doc.text("INVOICE", 40, 31);
+
+  // Business name
+  const bizName = (CURRENT_OPERATOR?.business_name || CURRENT_OPERATOR?.name || "ProofLink Business").slice(0, 50);
+  doc.setFontSize(10);
+  doc.setFont("helvetica", "normal");
+  doc.text(bizName, W - 40, 28, { align: "right" });
+
+  // Invoice meta
+  doc.setTextColor(...dark);
+  doc.setFontSize(10);
+  doc.setFont("helvetica", "bold");
+  doc.text("Invoice #", 40, 80);
+  doc.text("Date", 40, 96);
+  doc.text("Status", 40, 112);
+
+  doc.setFont("helvetica", "normal");
+  doc.text(String(order.id || "").slice(0, 8).toUpperCase(), 140, 80);
+  doc.text(now, 140, 96);
+  doc.text(String(order.status || "new").toUpperCase(), 140, 112);
+
+  // Bill To
+  doc.setFont("helvetica", "bold");
+  doc.text("Bill To", W - 200, 80);
+  doc.setFont("helvetica", "normal");
+  doc.text(String(order.customer_name || "—"), W - 200, 96);
+  if (order.customer_email) doc.text(order.customer_email, W - 200, 112);
+
+  // Divider
+  doc.setDrawColor(220, 220, 210);
+  doc.line(40, 130, W - 40, 130);
+
+  // Order title / description
+  let y = 152;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(12);
+  doc.setTextColor(...dark);
+  doc.text(String(order.title || "Service"), 40, y);
+  y += 18;
+
+  if (order.description) {
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(...grey);
+    const lines = doc.splitTextToSize(String(order.description), W - 80);
+    lines.slice(0, 6).forEach((line) => { doc.text(line, 40, y); y += 13; });
+    y += 6;
+  }
+
+  // Line items table header
+  y += 10;
+  doc.setFillColor(244, 241, 236);
+  doc.rect(40, y - 13, W - 80, 18, "F");
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(9);
+  doc.setTextColor(...dark);
+  doc.text("Description", 48, y);
+  doc.text("Qty", W - 200, y, { align: "right" });
+  doc.text("Unit Price", W - 130, y, { align: "right" });
+  doc.text("Amount", W - 40, y, { align: "right" });
+  y += 18;
+
+  // Line items
+  doc.setFont("helvetica", "normal");
+  const lineItems = Array.isArray(order.line_items) ? order.line_items : [];
+  if (lineItems.length === 0) {
+    doc.text(String(order.title || "Service"), 48, y);
+    doc.text("1", W - 200, y, { align: "right" });
+    doc.text(fmt(order.total_amount || 0), W - 130, y, { align: "right" });
+    doc.text(fmt(order.total_amount || 0), W - 40, y, { align: "right" });
+    y += 16;
+  } else {
+    lineItems.forEach((item) => {
+      const qty   = Number(item.quantity || 1);
+      const price = Number(item.unit_price || item.price || 0);
+      doc.text(String(item.name || item.description || "Item").slice(0, 48), 48, y);
+      doc.text(String(qty), W - 200, y, { align: "right" });
+      doc.text(fmt(price), W - 130, y, { align: "right" });
+      doc.text(fmt(qty * price), W - 40, y, { align: "right" });
+      y += 16;
+    });
+  }
+
+  // Totals
+  y += 8;
+  doc.setDrawColor(220, 220, 210);
+  doc.line(W - 220, y, W - 40, y);
+  y += 16;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  doc.text("Total Due", W - 220, y);
+  doc.setTextColor(...red);
+  doc.text(fmt(order.total_amount || 0), W - 40, y, { align: "right" });
+
+  // Footer
+  doc.setTextColor(...grey);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8);
+  doc.text("Generated by ProofLink · prooflink.co", W / 2, doc.internal.pageSize.getHeight() - 24, { align: "center" });
+
+  const filename = `invoice-${String(order.id || "order").slice(0, 8)}-${now.replace(/\s/g, "-")}.pdf`;
+  doc.save(filename);
+}
+
+// ── Realtime ──────────────────────────────────────────────────────────────────
+
+let _realtimeChannel = null;
+
+function stopRealtime() {
+  if (_realtimeChannel) {
+    sb.removeChannel(_realtimeChannel);
+    _realtimeChannel = null;
+  }
+}
+
+function startRealtime() {
+  stopRealtime();
+
+  if (!TENANT_ID || !CURRENT_OPERATOR?.operator_id) return;
+
+  function realtimeToast(msg) {
+    const el = document.createElement('div');
+    el.textContent = msg;
+    el.style.cssText = 'position:fixed;bottom:1.25rem;left:50%;transform:translateX(-50%);background:var(--bg2,#1e1e1e);color:var(--text,#fff);padding:.55rem 1.1rem;border-radius:8px;font-size:.82rem;box-shadow:0 4px 18px rgba(0,0,0,.45);z-index:9999;pointer-events:none;opacity:0;transition:opacity .25s';
+    document.body.appendChild(el);
+    requestAnimationFrame(() => { el.style.opacity = '1'; });
+    setTimeout(() => {
+      el.style.opacity = '0';
+      setTimeout(() => el.remove(), 300);
+    }, 3500);
+  }
+
+  _realtimeChannel = sb.channel('prooflink-operator-realtime')
+    .on('postgres_changes', {
+      event: '*', schema: 'public', table: 'orders',
+      filter: `tenant_id=eq.${TENANT_ID}`,
+    }, async (payload) => {
+      await fetchCrmOrders();
+      renderOrders();
+      renderDashboard();
+      if (payload.eventType === 'INSERT') realtimeToast('New order received');
+      if (payload.eventType === 'UPDATE') realtimeToast('Order updated');
+    })
+    .on('postgres_changes', {
+      event: '*', schema: 'public', table: 'customers',
+      filter: `tenant_id=eq.${TENANT_ID}`,
+    }, async (payload) => {
+      await fetchCustomers();
+      renderCustomersList(customerSearch?.value || '');
+      if (payload.eventType === 'INSERT') realtimeToast('New customer added');
+    })
+    .on('postgres_changes', {
+      event: '*', schema: 'public', table: 'payments',
+      filter: `tenant_id=eq.${TENANT_ID}`,
+    }, async () => {
+      await fetchPayments();
+      renderPayments();
+      await renderMoney();
+      realtimeToast('Payment record updated');
+    })
+    .subscribe();
 }
 
 window.PROOFLINK_OPERATOR_RUNTIME = {
