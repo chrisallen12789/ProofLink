@@ -67,6 +67,22 @@
     .divider { border: none; border-top: 1px solid rgba(255,255,255,.08); margin: 20px 0; }
     .powered { text-align: center; font-size: .75rem; color: rgba(255,255,255,.3); margin-top: 20px; }
     .powered a { color: rgba(255,255,255,.4); text-decoration: none; }
+    .repeat-note {
+      font-size: .78rem;
+      color: rgba(255,255,255,.4);
+      margin-bottom: 14px;
+      margin-top: -8px;
+    }
+    .avail-notice {
+      font-size: .825rem;
+      color: rgba(255,255,255,.45);
+      background: rgba(255,255,255,.04);
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 6px;
+      padding: 10px 12px;
+      margin-bottom: 16px;
+      line-height: 1.5;
+    }
     .hidden { display: none; }
     #successView { text-align: center; padding: 16px 0; }
     #successView .check { font-size: 3rem; margin-bottom: 12px; }
@@ -88,8 +104,14 @@
     <label>Email address</label>
     <input type="email" id="customerEmail" placeholder="jane@example.com" autocomplete="email" />
 
+    <p class="repeat-note">Already a customer? Your history will be pre-loaded.</p>
+
     <hr class="divider" />
     <h2>Appointment details</h2>
+
+    <div class="avail-notice">
+      Select your preferred date and time. We'll confirm availability within 24 hours.
+    </div>
 
     <label>Service / reason *</label>
     <input type="text" id="bookingTitle" placeholder="e.g. Lawn mowing, Consultation, Deep clean" />
@@ -115,8 +137,27 @@
       <option value="240">4 hours</option>
     </select>
 
+    <label>Preferred time of day</label>
+    <select id="preferredTime">
+      <option value="">No preference</option>
+      <option value="Morning (8am–12pm)">Morning (8am–12pm)</option>
+      <option value="Afternoon (12pm–5pm)">Afternoon (12pm–5pm)</option>
+      <option value="Evening (5pm–8pm)">Evening (5pm–8pm)</option>
+    </select>
+
     <label>Notes (optional)</label>
     <textarea id="bookingNotes" placeholder="Any details, access instructions, or special requests…"></textarea>
+
+    <label>How did you hear about us?</label>
+    <select id="referralSource">
+      <option value="">— Select an option —</option>
+      <option value="Google Search">Google Search</option>
+      <option value="Social Media">Social Media</option>
+      <option value="Word of Mouth / Referral">Word of Mouth / Referral</option>
+      <option value="Returning Customer">Returning Customer</option>
+      <option value="Flyer / Advertisement">Flyer / Advertisement</option>
+      <option value="Other">Other</option>
+    </select>
 
     <button class="btn" id="btnBook" type="button">Request Appointment</button>
     <div class="msg" id="bookMsg"></div>
@@ -167,15 +208,18 @@
   }
 
   document.getElementById('btnBook').addEventListener('click', function () {
-    const btn   = document.getElementById('btnBook');
-    const msg   = document.getElementById('bookMsg');
-    const name  = document.getElementById('customerName').value.trim();
-    const email = document.getElementById('customerEmail').value.trim();
-    const title = document.getElementById('bookingTitle').value.trim();
-    const date  = document.getElementById('bookingDate').value;
-    const time  = document.getElementById('bookingStart').value;
-    const dur   = parseInt(document.getElementById('bookingDuration').value, 10);
-    const notes = document.getElementById('bookingNotes').value.trim();
+    const btn            = document.getElementById('btnBook');
+    const msg            = document.getElementById('bookMsg');
+    const name           = document.getElementById('customerName').value.trim();
+    const email          = document.getElementById('customerEmail').value.trim();
+    const title          = document.getElementById('bookingTitle').value.trim();
+    const date           = document.getElementById('bookingDate').value;
+    const time           = document.getElementById('bookingStart').value;
+    const dur            = parseInt(document.getElementById('bookingDuration').value, 10);
+    const preferredTime  = document.getElementById('preferredTime').value;
+    const referralSource = document.getElementById('referralSource').value;
+    const rawNotes       = document.getElementById('bookingNotes').value.trim();
+    const notes          = rawNotes + (referralSource ? '\n\nHow they heard about us: ' + referralSource : '');
 
     msg.className = 'msg';
     msg.textContent = '';
@@ -201,13 +245,14 @@
       method : 'POST',
       headers: { 'Content-Type': 'application/json' },
       body   : JSON.stringify({
-        tenant_id     : tenantId,
-        customer_name : name,
-        customer_email: email || undefined,
+        tenant_id      : tenantId,
+        customer_name  : name,
+        customer_email : email || undefined,
         title,
-        starts_at     : startsAt,
-        ends_at       : endsAt,
-        notes         : notes || undefined,
+        starts_at      : startsAt,
+        ends_at        : endsAt,
+        preferred_time : preferredTime || undefined,
+        notes          : notes || undefined,
       }),
     })
       .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })

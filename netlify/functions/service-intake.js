@@ -161,6 +161,7 @@ async function submitServiceLeadFallback(supabase, payload) {
   const requestedServiceType = clean(payload.requested_service_type || payload.service_type) || null;
   const serviceAddress = clean(payload.service_address) || null;
   const sourceType = clean(payload.source_type) || "website_service_intake";
+  const referralSource = clean(payload.referral_source || payload.referralSource) || null;
 
   let customer = await findExistingCustomer(supabase, tenant.id, operator.id, email, phone);
   if (!customer) {
@@ -209,6 +210,7 @@ async function submitServiceLeadFallback(supabase, payload) {
       status: "new",
       source_type: sourceType,
       source_ref: tenant.slug || payload.tenant_slug || null,
+      referral_source: referralSource,
       title: requestedServiceType || "Service request",
       summary,
       requested_service_type: requestedServiceType,

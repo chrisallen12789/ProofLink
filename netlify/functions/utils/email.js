@@ -423,6 +423,86 @@ const templates = {
     };
   },
 
+  orderStatusUpdate({ customer_name, customer_email, business_name, order_title, status, portal_url }) {
+    const statusLabel = String(status || 'updated').replace(/_/g, ' ').replace(/\b\w/g, (m) => m.toUpperCase());
+    return {
+      to     : customer_email,
+      subject: `Order update from ${business_name}`,
+      html   : layout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.amber)}${bodyWrap(`
+        ${badge('Order update', T.amberLt, T.amber, T.amberBd)}<br/><br/>
+        ${h1(`Hi ${customer_name},`)}
+        ${sub(`Your order with ${business_name} has been updated.`)}
+        ${infoBox([['Order', order_title || 'Your order'], ['Status', statusLabel]])}
+        ${portal_url ? `<div style="text-align:center;margin:0 0 28px;">${cta('View your order →', portal_url, T.red)}</div>` : ''}
+        ${divider()}
+        ${p(`<span style="color:${T.hint};">Questions? Reply to this email and we'll be happy to help.</span>`)}
+      `)}</table>`, { preheader: `Your order with ${business_name} is now: ${statusLabel}.` }),
+    };
+  },
+
+  paymentReminder({ customer_name, customer_email, business_name, total_amount, total_cents, status, created_at, portal_url }) {
+    const formattedAmount = typeof total_amount === 'number'
+      ? `$${total_amount.toFixed(2)}`
+      : (total_cents ? `$${(Number(total_cents) / 100).toFixed(2)}` : 'See invoice');
+    const dateStr = created_at ? new Date(created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '—';
+    return {
+      to     : customer_email,
+      subject: `Payment reminder from ${business_name}`,
+      html   : layout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.red)}${bodyWrap(`
+        ${badge('Payment due', T.redLight, T.red, T.redBorder)}<br/><br/>
+        ${h1(`Hi ${customer_name},`)}
+        ${sub(`This is a friendly reminder that a payment is due to ${business_name}.`)}
+        ${infoBox([['Amount due', formattedAmount], ['Order date', dateStr], ['Status', String(status || 'pending').replace(/_/g, ' ').replace(/\b\w/g, (m) => m.toUpperCase())]])}
+        ${portal_url ? `<div style="text-align:center;margin:0 0 28px;">${cta('View & pay →', portal_url, T.red)}</div>` : ''}
+        ${divider()}
+        ${p(`<span style="color:${T.hint};">If you have already paid, please disregard this email. Questions? Just reply and we'll sort it out.</span>`)}
+      `)}</table>`, { preheader: `Friendly reminder: payment of ${formattedAmount} is due to ${business_name}.` }),
+    };
+  },
+
+  quoteReady({ customer_name, customer_email, business_name, title, description, amount, amount_cents, valid_until, quote_url }) {
+    const formattedAmount = typeof amount === 'number'
+      ? `$${amount.toFixed(2)}`
+      : (amount_cents ? `$${(Number(amount_cents) / 100).toFixed(2)}` : 'See quote');
+    const validStr = valid_until
+      ? new Date(valid_until).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+      : null;
+    return {
+      to     : customer_email,
+      subject: `Your quote from ${business_name}`,
+      html   : layout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.green)}${bodyWrap(`
+        ${badge('Quote ready', T.greenLt, T.green, T.greenBd)}<br/><br/>
+        ${h1(`Hi ${customer_name},`)}
+        ${sub(`${business_name} has prepared a quote for you. Review the details below and click the button to accept.`)}
+        ${infoBox([['Service', title], ...(description ? [['Details', description]] : []), ['Quote total', formattedAmount], ...(validStr ? [['Valid until', validStr]] : [])])}
+        <div style="text-align:center;margin:0 0 28px;">${cta('Review & accept quote →', quote_url, T.red)}</div>
+        ${divider()}
+        ${p(`<span style="color:${T.hint};">Questions about this quote? Just reply to this email.</span>`)}
+      `)}</table>`, { preheader: `${business_name} has sent you a quote for ${title}.` }),
+    };
+  },
+
+  quoteAccepted({ customer_name, customer_email, business_name, title, amount, amount_cents, order_id, portal_url, signature }) {
+    const formattedAmount = typeof amount === 'number'
+      ? `$${amount.toFixed(2)}`
+      : (amount_cents ? `$${(Number(amount_cents) / 100).toFixed(2)}` : 'See order');
+    const infoRows = [['Service', title], ['Total', formattedAmount], ['Status', 'Confirmed']];
+    if (signature) infoRows.push(['Accepted by', signature]);
+    return {
+      to     : customer_email,
+      subject: `Quote accepted — ${business_name}`,
+      html   : layout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.green)}${bodyWrap(`
+        ${badge('Quote accepted ✓', T.greenLt, T.green, T.greenBd)}<br/><br/>
+        ${h1(`You're all set, ${customer_name}!`)}
+        ${sub(`Thanks for accepting the quote from ${business_name}. Your order has been confirmed and the team will be in touch.`)}
+        ${infoBox(infoRows)}
+        ${portal_url ? `<div style="text-align:center;margin:0 0 28px;">${cta('View your order →', portal_url, T.red)}</div>` : ''}
+        ${divider()}
+        ${p(`<span style="color:${T.hint};">Questions? Just reply to this email and we'll take care of you.</span>`)}
+      `)}</table>`, { preheader: `Your quote from ${business_name} has been accepted. Order confirmed.` }),
+    };
+  },
+
 };
 
 module.exports = { sendEmail, templates, getChecklist, CHECKLIST_BY_TYPE };

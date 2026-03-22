@@ -410,6 +410,12 @@ const btnRefreshAvailability = $("btnRefreshAvailability");
 let BOOKINGS_CACHE = [];
 let BK_VIEW_DATE   = new Date(); // month currently shown in calendar
 
+// Reviews
+let REVIEWS_CACHE = [];
+
+// Bulk order selection
+let BULK_SELECTED_ORDER_IDS = new Set();
+
 const expensesList = $("expensesList");
 const btnNewExpense = $("btnNewExpense");
 const btnRefreshExpenses = $("btnRefreshExpenses");
@@ -1382,6 +1388,7 @@ const WORKSPACE_BASE_TAB_ORDER = [
   "expenses",
   "money",
   "guidance",
+  "reviews",
 ];
 const WORKSPACE_PRIORITY_TAB_MAP = {
   crm: "customers",
@@ -2327,6 +2334,7 @@ function switchTab(tab, opts = {}) {
   if (nextTab === "setup") fetchOperatorSetup().catch((err) => setSetupMessage(err.message || String(err), "bad"));
   if (nextTab === "guidance") renderGuidance();
   if (nextTab === "bookings") renderBookings().catch(console.error);
+  if (nextTab === "reviews") fetchAndRenderReviews().catch(console.error);
   if (opts.updateHash !== false) syncPanelHash(nextTab);
   renderWorkspaceHub();
   scheduleWorkspaceSnapshot(nextTab);
@@ -9074,6 +9082,41 @@ function renderDashboard() {
       </div>
     </div>
 
+    ${(function() {
+      const today = new Date();
+      const todayStr = today.toISOString().slice(0, 10);
+      const todayBookings = BOOKINGS_CACHE.filter((b) => b.starts_at && b.starts_at.slice(0, 10) === todayStr && b.status !== 'cancelled');
+      const overdueOrders = CRM_ORDERS_CACHE.filter((o) => {
+        if (["paid", "cancelled"].includes(String(o.status || "").toLowerCase())) return false;
+        const due = o.due_date || o.scheduled_date;
+        return due && new Date(due) < today;
+      });
+      const unpaidCompleted = CRM_ORDERS_CACHE.filter((o) => ["completed", "fulfilled"].includes(String(o.status || "").toLowerCase()));
+      const fmtTime = (iso) => { try { return new Date(iso).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }); } catch { return ''; } };
+      return `
+        <div style="margin-bottom:20px;">
+          <div class="kicker" style="margin-bottom:10px;">Today at a glance</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;">
+            <div style="background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px;">
+              <div class="muted" style="font-size:.78rem;margin-bottom:4px;">Today's appointments</div>
+              <div style="font-size:1.4rem;font-weight:700;">${todayBookings.length}</div>
+              ${todayBookings.length ? `<div style="margin-top:8px;font-size:.78rem;">${todayBookings.slice(0,3).map((b) => `<div style="color:var(--muted);">${fmtTime(b.starts_at)} · ${escapeHtml(b.customer_name || "Customer")}</div>`).join("")}${todayBookings.length > 3 ? `<div class="muted">+${todayBookings.length - 3} more</div>` : ""}</div>` : `<div class="muted" style="font-size:.78rem;margin-top:4px;">No appointments today</div>`}
+            </div>
+            <div style="background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px;">
+              <div class="muted" style="font-size:.78rem;margin-bottom:4px;">Overdue orders</div>
+              <div style="font-size:1.4rem;font-weight:700;${overdueOrders.length ? 'color:#f87171;' : ''}">${overdueOrders.length}</div>
+              ${overdueOrders.length ? `<div class="muted" style="font-size:.78rem;margin-top:4px;">${overdueOrders.slice(0,2).map((o) => escapeHtml(o.customer_name || o.name || "Order")).join(", ")}${overdueOrders.length > 2 ? ` +${overdueOrders.length - 2} more` : ""}</div>` : `<div class="muted" style="font-size:.78rem;margin-top:4px;">None overdue</div>`}
+            </div>
+            <div style="background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px;">
+              <div class="muted" style="font-size:.78rem;margin-bottom:4px;">Completed, unpaid</div>
+              <div style="font-size:1.4rem;font-weight:700;${unpaidCompleted.length ? 'color:#fbbf24;' : ''}">${unpaidCompleted.length}</div>
+              ${unpaidCompleted.length ? `<div class="muted" style="font-size:.78rem;margin-top:4px;">${formatUsd(unpaidCompleted.reduce((s, o) => s + Number(o.total_cents || 0), 0))} outstanding</div>` : `<div class="muted" style="font-size:.78rem;margin-top:4px;">All paid up</div>`}
+            </div>
+          </div>
+        </div>
+      `;
+    })()}
+
     <div class="dashboard-tracker">
       <div class="dashboard-tracker__head">
         <div>
@@ -9309,28 +9352,41 @@ function renderOrders() {
     const totalCents = Number(row.total_cents || row.subtotal_cents || row.estimatedTotalCents || 0);
     const paymentState = orderPaymentState(row);
     const depositStatus = orderDepositStatus(row);
+    const isChecked = BULK_SELECTED_ORDER_IDS.has(row.id);
 
     return `
-      <button type="button" class="list-item ${row.id === active.id ? "is-active" : ""}" data-order-id="${escapeAttr(row.id)}">
-        <div class="li-main">
-          <div class="li-title">${escapeHtml(customerName)}</div>
-          <div class="li-sub muted">${escapeHtml(customerEmail)}  |  ${escapeHtml(formatDateTime(submittedAt))}</div>
-          <div class="li-sub muted">${escapeHtml(fulfillment)}  |  ${escapeHtml(String(scheduledDate))}  |  ${escapeHtml(String(scheduledTime))}</div>
-        </div>
-        <div class="li-meta">
-          <span class="pill ${["fulfilled", "completed", "paid"].includes(String(row.status || "new").toLowerCase()) ? "pill-on" : ""}">${escapeHtml(String(row.status || "new"))}</span>
-          ${depositStatus !== "not_required" ? `<span class="pill ${depositStatusClass(depositStatus)}">${escapeHtml(formatDepositStatus(depositStatus))}</span>` : ""}
-          <span class="pill ${paymentStateClass(paymentState)}">${escapeHtml(formatWorkflowPaymentState(paymentState))}</span>
-          <span class="pill">${formatUsd(totalCents)}</span>
-        </div>
-      </button>
+      <div class="list-item ${row.id === active.id ? "is-active" : ""}" style="gap:8px;">
+        <input type="checkbox" class="order-bulk-check" data-order-id="${escapeAttr(row.id)}" ${isChecked ? "checked" : ""} style="flex-shrink:0;margin:0;cursor:pointer;" onclick="event.stopPropagation();" />
+        <button type="button" class="li-btn" data-order-id="${escapeAttr(row.id)}" style="flex:1;text-align:left;background:none;border:none;color:inherit;cursor:pointer;padding:0;">
+          <div class="li-main">
+            <div class="li-title">${escapeHtml(customerName)}</div>
+            <div class="li-sub muted">${escapeHtml(customerEmail)}  |  ${escapeHtml(formatDateTime(submittedAt))}</div>
+            <div class="li-sub muted">${escapeHtml(fulfillment)}  |  ${escapeHtml(String(scheduledDate))}  |  ${escapeHtml(String(scheduledTime))}</div>
+          </div>
+          <div class="li-meta">
+            <span class="pill ${["fulfilled", "completed", "paid"].includes(String(row.status || "new").toLowerCase()) ? "pill-on" : ""}">${escapeHtml(String(row.status || "new"))}</span>
+            ${depositStatus !== "not_required" ? `<span class="pill ${depositStatusClass(depositStatus)}">${escapeHtml(formatDepositStatus(depositStatus))}</span>` : ""}
+            <span class="pill ${paymentStateClass(paymentState)}">${escapeHtml(formatWorkflowPaymentState(paymentState))}</span>
+            <span class="pill">${formatUsd(totalCents)}</span>
+          </div>
+        </button>
+      </div>
     `;
   }).join("");
 
-  ordersList.querySelectorAll("[data-order-id]").forEach((btn) => {
+  ordersList.querySelectorAll(".li-btn[data-order-id]").forEach((btn) => {
     btn.addEventListener("click", () => {
       ACTIVE_ORDER_ID = btn.getAttribute("data-order-id");
       renderOrders();
+    });
+  });
+
+  ordersList.querySelectorAll(".order-bulk-check").forEach((chk) => {
+    chk.addEventListener("change", () => {
+      const id = chk.dataset.orderId;
+      if (chk.checked) BULK_SELECTED_ORDER_IDS.add(id);
+      else BULK_SELECTED_ORDER_IDS.delete(id);
+      updateBulkBar();
     });
   });
 
@@ -9353,13 +9409,22 @@ function renderOrders() {
   const depositOverrideReason = orderDepositOverrideReason(active);
   const depositDueDate = orderDepositDueDate(active);
 
+  const orderEmail = active.email || active.customer_email || "";
+  const existingCustomer = orderEmail ? CUSTOMERS_CACHE.find((c) => c.email?.toLowerCase() === orderEmail.toLowerCase()) : null;
+  const priorOrders = existingCustomer
+    ? CRM_ORDERS_CACHE.filter((o) => o.id !== active.id && (o.customer_id === existingCustomer.id || (o.email || o.customer_email || "").toLowerCase() === orderEmail.toLowerCase()))
+    : CRM_ORDERS_CACHE.filter((o) => o.id !== active.id && orderEmail && (o.email || o.customer_email || "").toLowerCase() === orderEmail.toLowerCase());
+  const isReturnCustomer = priorOrders.length > 0;
+
   orderDetailWrap.innerHTML = `
     <div class="detail-card">
-      <div class="kicker">Customer</div>
+      <div class="kicker">Customer ${isReturnCustomer ? '<span class="pill pill-on" style="font-size:.7rem;margin-left:6px;">↩ Returning customer</span>' : ""}</div>
       <div><strong>${escapeHtml(active.customer_name || active.name || "Unnamed customer")}</strong></div>
       <div class="detail-copy">${escapeHtml(active.email || "No email")}  |  ${escapeHtml(active.phone || "No phone")}</div>
       <div class="detail-copy">Submitted: ${escapeHtml(formatDateTime(active.created_at || active.createdAt))}</div>
       <div class="detail-copy">Status: ${escapeHtml(String(active.status || "new"))}</div>
+      ${existingCustomer ? `<div class="detail-copy" style="color:var(--accent);font-size:.8rem;">✓ In CRM as ${escapeHtml(existingCustomer.name || "customer")} · ${existingCustomer.order_count || priorOrders.length} prior order(s)</div>` : `<button id="btnAddOrderToCrm" class="btn btn-ghost btn-sm" type="button" style="margin-top:8px;">+ Add customer to CRM</button>`}
+      ${isReturnCustomer && !existingCustomer ? `<div class="detail-copy" style="font-size:.8rem;color:#fbbf24;">⚠ ${priorOrders.length} prior order(s) found for this email — consider adding them to CRM</div>` : ""}
     </div>
 
     <div class="detail-card" style="margin-top:14px;">
@@ -9369,6 +9434,7 @@ function renderOrders() {
       <div class="detail-copy">Scheduled time: ${escapeHtml(String(scheduledTime))}</div>
       <div class="detail-copy">Items: ${escapeHtml(String(itemCount))}</div>
       <div class="detail-copy">Source: ${escapeHtml(sourceLabel)}</div>
+      ${active.referral_source ? `<div class="detail-copy">How they heard: ${escapeHtml(String(active.referral_source))}</div>` : ""}
     </div>
 
     <div class="detail-card" style="margin-top:14px;">
@@ -9456,21 +9522,26 @@ function renderOrders() {
 
     <div class="detail-card" style="margin-top:14px;">
       <div class="kicker">Order status</div>
-      <div class="row" style="margin-top:10px; align-items:end;">
-        <label class="field" style="flex:1;">
+      <div class="row" style="margin-top:10px; align-items:end;flex-wrap:wrap;gap:8px;">
+        <label class="field" style="flex:1;min-width:120px;">
           <span>Status</span>
           <select id="orderStatusSelect">
             ${statusOptions.map((status) => `<option value="${status}" ${String(active.status || "new").toLowerCase() === status ? "selected" : ""}>${status}</option>`).join("")}
           </select>
         </label>
+        ${active.customer_email ? `<label style="display:flex;align-items:center;gap:6px;font-size:.8rem;cursor:pointer;white-space:nowrap;"><input type="checkbox" id="chkNotifyOnStatusChange" checked /> Notify customer</label>` : ""}
         <button id="btnSaveOrderStatus" class="btn btn-primary" type="button">Save status</button>
       </div>
-      ${["completed","fulfilled"].includes(String(active.status||"").toLowerCase()) && active.customer_email ? `
-      <div style="margin-top:.75rem;">
+      <div style="margin-top:.75rem;display:flex;gap:8px;flex-wrap:wrap;">
+        ${["completed","fulfilled"].includes(String(active.status||"").toLowerCase()) && active.customer_email ? `
         <button id="btnRequestReview" class="btn btn-ghost btn-sm" type="button">
           ${active.review_requested_at ? "✓ Review requested" : "⭐ Request review"}
-        </button>
-      </div>` : ""}
+        </button>` : ""}
+        ${active.customer_email ? `<button id="btnNotifyCustomer" class="btn btn-ghost btn-sm" type="button">📧 Notify customer</button>` : ""}
+        ${active.customer_email ? `<button id="btnSendPaymentReminder" class="btn btn-ghost btn-sm" type="button">💰 Payment reminder</button>` : ""}
+        ${active.customer_email ? `<button id="btnSendQuote" class="btn btn-ghost btn-sm" type="button">📋 Send quote</button>` : ""}
+      </div>
+      <div id="orderNotifyMsg" class="msg" style="margin-top:8px;"></div>
     </div>
   `;
 
@@ -9513,6 +9584,21 @@ function renderOrders() {
         console.warn("[review] auto-request failed:", e.message);
       }
     }
+
+    // Notify customer of status change if checkbox is checked
+    const shouldNotify = $("chkNotifyOnStatusChange")?.checked;
+    if (shouldNotify && data.customer_email) {
+      try {
+        const tok = await getAccessToken();
+        fetch("/.netlify/functions/send-order-notification", {
+          method : "POST",
+          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${tok}` },
+          body   : JSON.stringify({ order_id: data.id }),
+        }).catch(() => {});
+      } catch (e) {
+        console.warn("[notify] status notification failed:", e.message);
+      }
+    }
   });
   $("btnDownloadInvoice")?.addEventListener("click", () => {
     generateInvoicePDF(active);
@@ -9539,6 +9625,77 @@ function renderOrders() {
       alert(err.message || String(err));
       btn.disabled = false;
     }
+  });
+
+  $("btnNotifyCustomer")?.addEventListener("click", async () => {
+    const btn = $("btnNotifyCustomer");
+    const msg = $("orderNotifyMsg");
+    if (!btn) return;
+    btn.disabled = true;
+    if (msg) { msg.textContent = "Sending…"; msg.className = "msg"; }
+    try {
+      const tok = await getAccessToken();
+      const res = await fetch("/.netlify/functions/send-order-notification", {
+        method : "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${tok}` },
+        body   : JSON.stringify({ order_id: active.id }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(d.error || "Failed to send");
+      if (msg) { msg.textContent = "✓ Customer notified!"; msg.className = "msg success"; }
+    } catch (err) {
+      if (msg) { msg.textContent = err.message || "Error sending."; msg.className = "msg error"; }
+    }
+    btn.disabled = false;
+  });
+
+  $("btnSendPaymentReminder")?.addEventListener("click", async () => {
+    const btn = $("btnSendPaymentReminder");
+    const msg = $("orderNotifyMsg");
+    if (!btn) return;
+    btn.disabled = true;
+    if (msg) { msg.textContent = "Sending reminder…"; msg.className = "msg"; }
+    try {
+      const tok = await getAccessToken();
+      const res = await fetch("/.netlify/functions/send-payment-reminder", {
+        method : "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${tok}` },
+        body   : JSON.stringify({ order_id: active.id }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(d.error || "Failed to send");
+      if (msg) { msg.textContent = "✓ Payment reminder sent!"; msg.className = "msg success"; }
+    } catch (err) {
+      if (msg) { msg.textContent = err.message || "Error sending."; msg.className = "msg error"; }
+    }
+    btn.disabled = false;
+  });
+
+  $("btnSendQuote")?.addEventListener("click", async () => {
+    const customerName = active.customer_name || active.name || "";
+    const customerEmail = active.email || active.customer_email || "";
+    if (!customerEmail) { alert("No customer email on this order."); return; }
+    const amount = prompt(`Enter quote amount (USD) for ${customerName}:`);
+    if (!amount || isNaN(Number(amount))) return;
+    const title = prompt("Quote title:", active.title || `Quote for ${customerName}`) || `Quote for ${customerName}`;
+    const btn = $("btnSendQuote");
+    const msg = $("orderNotifyMsg");
+    if (btn) btn.disabled = true;
+    if (msg) { msg.textContent = "Sending quote…"; msg.className = "msg"; }
+    try {
+      const tok = await getAccessToken();
+      const res = await fetch("/.netlify/functions/create-quote", {
+        method : "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${tok}` },
+        body   : JSON.stringify({ customer_name: customerName, customer_email: customerEmail, title, amount: Number(amount), description: active.notes || "" }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(d.error || "Failed to send quote");
+      if (msg) { msg.textContent = `✓ Quote sent to ${customerEmail}!`; msg.className = "msg success"; }
+    } catch (err) {
+      if (msg) { msg.textContent = err.message || "Error sending quote."; msg.className = "msg error"; }
+    }
+    if (btn) btn.disabled = false;
   });
 
   $("btnSetupRecurring")?.addEventListener("click", () => {
@@ -9698,6 +9855,38 @@ function renderOrders() {
     });
     switchTab("payments");
   });
+  $("btnAddOrderToCrm")?.addEventListener("click", async () => {
+    const btn = $("btnAddOrderToCrm");
+    if (!btn) return;
+    const name = active.customer_name || active.name || "Unnamed";
+    const email = active.email || active.customer_email || "";
+    const phone = active.phone || active.customer_phone || "";
+    if (!confirm(`Add "${name}" (${email}) to your CRM?`)) return;
+    btn.disabled = true;
+    btn.textContent = "Adding…";
+    try {
+      const { data, error } = await sb.from("customers").insert({
+        tenant_id: TENANT_ID,
+        operator_id: opId(),
+        name,
+        email: email || null,
+        phone: phone || null,
+        order_count: 1,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }).select().single();
+      if (error) throw error;
+      await fetchCustomers();
+      renderCustomersList(customerSearch?.value || "");
+      btn.textContent = "✓ Added to CRM";
+      btn.style.color = "#4ade80";
+    } catch (err) {
+      btn.disabled = false;
+      btn.textContent = "+ Add customer to CRM";
+      alert("Failed to add customer: " + (err.message || String(err)));
+    }
+  });
+
   $("btnCollectOrderDeposit")?.addEventListener("click", () => {
     ACTIVE_ORDER_ID = active.id;
     clearPaymentForm({
@@ -10124,6 +10313,7 @@ async function boot() {
     renderCustomersList("");
     renderPayments();
     renderGuidance();
+    fetchReviews().catch(console.warn);
     await renderMoney();
     switchTab(panelFromLocation(), { updateHash: false });
 
@@ -10305,6 +10495,244 @@ function generateInvoicePDF(order) {
   const filename = `invoice-${String(order.id || "order").slice(0, 8)}-${now.replace(/\s/g, "-")}.pdf`;
   doc.save(filename);
 }
+
+// ── Reviews ───────────────────────────────────────────────────────────────────
+
+async function fetchReviews() {
+  try {
+    const tok = await getAccessToken();
+    const res = await fetch("/.netlify/functions/get-reviews", {
+      headers: { "Authorization": `Bearer ${tok}` },
+    });
+    const d = await res.json().catch(() => ({}));
+    REVIEWS_CACHE = d.reviews || [];
+    return REVIEWS_CACHE;
+  } catch (e) {
+    console.warn("[reviews] fetch failed:", e.message);
+    return [];
+  }
+}
+
+function renderReviews(reviews) {
+  const el = $("reviewsList");
+  if (!el) return;
+  const rows = reviews || REVIEWS_CACHE;
+  if (!rows.length) {
+    el.innerHTML = `<div class="muted">No reviews yet. Reviews are collected when customers click the review link in their completion email.</div>`;
+    return;
+  }
+  const avgRating = rows.reduce((s, r) => s + Number(r.rating || 0), 0) / rows.length;
+  const stars = (n) => "★".repeat(Math.round(n)) + "☆".repeat(5 - Math.round(n));
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--border);">
+      <div style="font-size:2rem;color:#fbbf24;">${stars(avgRating)}</div>
+      <div>
+        <div style="font-size:1.1rem;font-weight:700;">${avgRating.toFixed(1)} average</div>
+        <div class="muted" style="font-size:.82rem;">${rows.length} review${rows.length === 1 ? "" : "s"}</div>
+      </div>
+    </div>
+    <div class="list">
+      ${rows.map((r) => `
+        <div class="list-item" style="flex-direction:column;align-items:flex-start;gap:4px;">
+          <div style="display:flex;align-items:center;gap:10px;width:100%;">
+            <span style="color:#fbbf24;font-size:1rem;">${stars(Number(r.rating || 0))}</span>
+            <strong style="flex:1;">${escapeHtml(r.customer_name || "Anonymous")}</strong>
+            <span class="muted" style="font-size:.75rem;">${formatDateOnly(r.created_at)}</span>
+          </div>
+          ${r.comment ? `<div style="font-size:.85rem;color:var(--muted);padding-left:2px;">${escapeHtml(r.comment)}</div>` : ""}
+          ${r.order_id ? `<div style="font-size:.75rem;color:var(--muted);">Order: ${escapeHtml(String(r.order_id).slice(0, 8))}</div>` : ""}
+        </div>
+      `).join("")}
+    </div>
+  `;
+}
+
+async function fetchAndRenderReviews() {
+  await fetchReviews();
+  renderReviews();
+}
+
+$("btnRefreshReviews")?.addEventListener("click", () => fetchAndRenderReviews().catch(console.error));
+
+$("btnExportReviewsCsv")?.addEventListener("click", () => {
+  const rows = REVIEWS_CACHE;
+  if (!rows.length) { alert("No reviews to export."); return; }
+  const headers = ["id", "customer_name", "customer_email", "rating", "comment", "order_id", "created_at"];
+  downloadCsv("reviews", headers, rows.map((r) => headers.map((h) => r[h] ?? "")));
+});
+
+// ── Global Search ─────────────────────────────────────────────────────────────
+
+const globalSearch = $("globalSearch");
+const globalSearchOverlay = $("globalSearchOverlay");
+const globalSearchResults = $("globalSearchResults");
+
+function runGlobalSearch(q) {
+  if (!q || q.length < 2) { if (globalSearchOverlay) globalSearchOverlay.style.display = "none"; return; }
+  const lq = q.toLowerCase();
+
+  const matchedOrders = (CRM_ORDERS_CACHE || []).filter((o) =>
+    [o.customer_name, o.email, o.title, o.status, o.id].some((v) => String(v || "").toLowerCase().includes(lq))
+  ).slice(0, 5);
+
+  const matchedCustomers = (CUSTOMERS_CACHE || []).filter((c) =>
+    [c.name, c.email, c.phone].some((v) => String(v || "").toLowerCase().includes(lq))
+  ).slice(0, 5);
+
+  const matchedBookings = (BOOKINGS_CACHE || []).filter((b) =>
+    [b.customer_name, b.customer_email, b.title].some((v) => String(v || "").toLowerCase().includes(lq))
+  ).slice(0, 4);
+
+  const total = matchedOrders.length + matchedCustomers.length + matchedBookings.length;
+  if (!total) {
+    if (globalSearchResults) globalSearchResults.innerHTML = `<div style="padding:16px;color:var(--muted);font-size:.85rem;">No results for "${escapeHtml(q)}"</div>`;
+    if (globalSearchOverlay) globalSearchOverlay.style.display = "block";
+    return;
+  }
+
+  let html = "";
+  const sectionStyle = "padding:6px 16px 4px;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);";
+  const itemStyle = "display:flex;gap:10px;align-items:center;padding:9px 16px;cursor:pointer;border-radius:6px;";
+  const itemHover = "onmouseover=\"this.style.background='rgba(255,255,255,.04)'\" onmouseout=\"this.style.background=''\"";
+
+  if (matchedOrders.length) {
+    html += `<div style="${sectionStyle}">Orders</div>`;
+    html += matchedOrders.map((o) => `
+      <div style="${itemStyle}" ${itemHover} data-search-tab="orders" data-search-id="${escapeAttr(o.id)}">
+        <span style="font-size:.9rem;">${escapeHtml(o.customer_name || "Unnamed")}</span>
+        <span class="pill" style="font-size:.72rem;">${escapeHtml(o.status || "new")}</span>
+        <span class="muted" style="font-size:.78rem;margin-left:auto;">${escapeHtml(o.email || "")}</span>
+      </div>
+    `).join("");
+  }
+  if (matchedCustomers.length) {
+    html += `<div style="${sectionStyle}">Customers</div>`;
+    html += matchedCustomers.map((c) => `
+      <div style="${itemStyle}" ${itemHover} data-search-tab="customers" data-search-id="${escapeAttr(c.id)}">
+        <span style="font-size:.9rem;">${escapeHtml(c.name || "Unnamed")}</span>
+        <span class="muted" style="font-size:.78rem;margin-left:auto;">${escapeHtml(c.email || "")}</span>
+      </div>
+    `).join("");
+  }
+  if (matchedBookings.length) {
+    html += `<div style="${sectionStyle}">Bookings</div>`;
+    html += matchedBookings.map((b) => `
+      <div style="${itemStyle}" ${itemHover} data-search-tab="bookings" data-search-id="${escapeAttr(b.id)}">
+        <span style="font-size:.9rem;">${escapeHtml(b.title || "Booking")}</span>
+        <span class="muted" style="font-size:.78rem;margin-left:auto;">${escapeHtml(b.customer_name || "")}</span>
+      </div>
+    `).join("");
+  }
+
+  if (globalSearchResults) globalSearchResults.innerHTML = html;
+  if (globalSearchOverlay) globalSearchOverlay.style.display = "block";
+
+  globalSearchOverlay?.querySelectorAll("[data-search-tab]").forEach((el) => {
+    el.addEventListener("click", () => {
+      const tab = el.dataset.searchTab;
+      const id = el.dataset.searchId;
+      if (tab === "orders") { ACTIVE_ORDER_ID = id; switchTab("orders"); }
+      else if (tab === "customers") { ACTIVE_CUSTOMER_ID = id; CUSTOMER_CREATING = false; switchTab("customers"); }
+      else if (tab === "bookings") switchTab("bookings");
+      if (globalSearch) globalSearch.value = "";
+      if (globalSearchOverlay) globalSearchOverlay.style.display = "none";
+    });
+  });
+}
+
+globalSearch?.addEventListener("input", () => runGlobalSearch(globalSearch.value.trim()));
+globalSearch?.addEventListener("keydown", (e) => { if (e.key === "Escape") { globalSearchOverlay.style.display = "none"; globalSearch.value = ""; } });
+document.addEventListener("click", (e) => {
+  if (globalSearchOverlay && !globalSearch?.contains(e.target) && !globalSearchOverlay.contains(e.target)) {
+    globalSearchOverlay.style.display = "none";
+  }
+});
+
+// ── Dark / Light mode toggle ───────────────────────────────────────────────────
+
+(function () {
+  const saved = localStorage.getItem("pl_theme");
+  if (saved) document.documentElement.setAttribute("data-theme", saved);
+})();
+
+$("btnDarkMode")?.addEventListener("click", () => {
+  const current = document.documentElement.getAttribute("data-theme") || "dark";
+  const next = current === "light" ? "dark" : "light";
+  document.documentElement.setAttribute("data-theme", next);
+  localStorage.setItem("pl_theme", next);
+  const btn = $("btnDarkMode");
+  if (btn) btn.textContent = next === "light" ? "☾" : "☀";
+});
+
+// ── CSV Export ────────────────────────────────────────────────────────────────
+
+function downloadCsv(filename, headers, rows) {
+  const escape = (v) => {
+    const s = String(v ?? "").replace(/"/g, '""');
+    return /[,"\n\r]/.test(s) ? `"${s}"` : s;
+  };
+  const lines = [headers.map(escape).join(","), ...rows.map((r) => r.map(escape).join(","))];
+  const blob = new Blob([lines.join("\n")], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${filename}-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+$("btnExportOrdersCsv")?.addEventListener("click", () => {
+  const rows = CRM_ORDERS_CACHE;
+  if (!rows.length) { alert("No orders to export."); return; }
+  const headers = ["id", "customer_name", "email", "phone", "status", "fulfillment", "scheduled_date", "total_cents", "total_amount", "source_type", "created_at", "updated_at"];
+  downloadCsv("orders", headers, rows.map((r) => headers.map((h) => r[h] ?? "")));
+});
+
+$("btnExportCustomersCsv")?.addEventListener("click", () => {
+  const rows = CUSTOMERS_CACHE;
+  if (!rows.length) { alert("No customers to export."); return; }
+  const headers = ["id", "name", "email", "phone", "preferred_contact", "notes", "order_count", "lifetime_value_cents", "created_at", "updated_at"];
+  downloadCsv("customers", headers, rows.map((r) => headers.map((h) => r[h] ?? "")));
+});
+
+// ── Bulk Order Status Update ───────────────────────────────────────────────────
+
+function updateBulkBar() {
+  const bar = $("bulkStatusBar");
+  const countEl = $("bulkSelectedCount");
+  if (!bar) return;
+  const count = BULK_SELECTED_ORDER_IDS.size;
+  bar.style.display = count > 0 ? "flex" : "none";
+  if (countEl) countEl.textContent = `${count} selected`;
+}
+
+$("btnBulkStatusApply")?.addEventListener("click", async () => {
+  const status = $("bulkStatusSelect")?.value;
+  if (!status) { alert("Choose a status first."); return; }
+  if (!BULK_SELECTED_ORDER_IDS.size) { alert("No orders selected."); return; }
+  if (!confirm(`Change ${BULK_SELECTED_ORDER_IDS.size} order(s) to "${status}"?`)) return;
+
+  const ids = Array.from(BULK_SELECTED_ORDER_IDS);
+  const now = new Date().toISOString();
+  const { error } = await sb.from("orders")
+    .update({ status, updated_at: now })
+    .in("id", ids)
+    .eq(OPERATOR_COLUMN, opId())
+    .eq(TENANT_COLUMN, TENANT_ID);
+
+  if (error) { alert("Bulk update failed: " + error.message); return; }
+  CRM_ORDERS_CACHE = CRM_ORDERS_CACHE.map((o) => ids.includes(o.id) ? { ...o, status, updated_at: now } : o);
+  BULK_SELECTED_ORDER_IDS.clear();
+  updateBulkBar();
+  renderOrders();
+  renderDashboard();
+});
+
+$("btnBulkClear")?.addEventListener("click", () => {
+  BULK_SELECTED_ORDER_IDS.clear();
+  updateBulkBar();
+  renderOrders();
+});
 
 // ── Realtime ──────────────────────────────────────────────────────────────────
 

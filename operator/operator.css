@@ -18,6 +18,26 @@
   --font: 'Google Sans Text', ui-sans-serif, system-ui, sans-serif;
 }
 
+/* Light mode override */
+html[data-theme="light"] {
+  --bg0: #f0f0f0;
+  --bg1: #e8e8e8;
+  --panel: #ffffff;
+  --text: #1a1a1a;
+  --muted: #666666;
+  --border: rgba(0,0,0,.10);
+  --shadow: 0 10px 30px rgba(0,0,0,.12);
+}
+html[data-theme="light"] body {
+  background: linear-gradient(180deg, var(--bg0), var(--bg1));
+}
+html[data-theme="light"] .list-item:hover { background: rgba(0,0,0,.04); }
+html[data-theme="light"] input, html[data-theme="light"] select, html[data-theme="light"] textarea {
+  background: #f8f8f8;
+  color: #1a1a1a;
+  border-color: rgba(0,0,0,.18);
+}
+
 *{box-sizing:border-box}
 html,body{height:100%}
 

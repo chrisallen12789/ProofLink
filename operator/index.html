@@ -85,6 +85,7 @@
         <button class="tab" data-tab="expenses" data-tour-tab="expenses" type="button">Expenses</button>
         <button class="tab" data-tab="money" data-tour-tab="money" type="button">Money</button>
         <button class="tab" data-tab="guidance" data-tour-tab="guidance" type="button">Guidance</button>
+        <button class="tab" data-tab="reviews" data-tour-tab="reviews" type="button">Reviews</button>
       </div>
 
       <section class="side-card">
@@ -119,6 +120,8 @@
           <div class="sub">CRM, orders, scheduling, products, expenses, and operator guidance in one place.</div>
         </div>
         <div class="top-actions">
+          <input id="globalSearch" type="search" class="input" placeholder="Search orders, customers, bookings…" style="width:240px;" />
+          <button id="btnDarkMode" class="btn btn-ghost" type="button" title="Toggle light/dark mode">☀</button>
           <button id="btnStartTour" class="btn btn-ghost hidden" type="button">Start tour</button>
           <button id="btnSignOut" class="btn btn-ghost hidden" type="button">Sign out</button>
         </div>
@@ -348,6 +351,7 @@
                 <button id="btnRefreshOrders" class="btn btn-ghost" type="button">Refresh</button>
                 <button id="btnImportBridgeOrders" class="btn" type="button" hidden aria-hidden="true">Legacy bridge disabled</button>
                 <button id="btnExportOrders" class="btn" type="button">Export JSON</button>
+                <button id="btnExportOrdersCsv" class="btn btn-ghost" type="button">Export CSV</button>
               </div>
             </div>
 
@@ -358,6 +362,21 @@
                   <span class="muted">Newest requests first</span>
                 </div>
                 <div class="card-bd">
+                  <div id="bulkStatusBar" style="display:none;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 0 12px;border-bottom:1px solid var(--border);margin-bottom:8px;">
+                    <span id="bulkSelectedCount" class="muted" style="font-size:.8rem;">0 selected</span>
+                    <select id="bulkStatusSelect" style="flex:1;min-width:120px;">
+                      <option value="">Change status to…</option>
+                      <option value="new">New</option>
+                      <option value="quoted">Quoted</option>
+                      <option value="confirmed">Confirmed</option>
+                      <option value="fulfilled">Fulfilled</option>
+                      <option value="completed">Completed</option>
+                      <option value="paid">Paid</option>
+                      <option value="cancelled">Cancelled</option>
+                    </select>
+                    <button id="btnBulkStatusApply" class="btn btn-primary" type="button" style="font-size:.8rem;padding:6px 12px;">Apply</button>
+                    <button id="btnBulkClear" class="btn btn-ghost" type="button" style="font-size:.8rem;padding:6px 12px;">Clear selection</button>
+                  </div>
                   <div id="ordersList" class="list" data-tour="orders-list"></div>
                 </div>
               </div>
@@ -974,6 +993,7 @@
                 <input id="customerSearch" class="input" placeholder="Search customer…" />
                 <button id="btnNewCustomer" class="btn" type="button">New customer</button>
                 <button id="btnRefreshCustomers" class="btn btn-ghost" type="button">Refresh</button>
+                <button id="btnExportCustomersCsv" class="btn btn-ghost" type="button">Export CSV</button>
               </div>
             </div>
 
@@ -1911,6 +1931,24 @@
             </div>
           </section>
 
+          <section class="panel hidden" data-panel="reviews">
+            <div class="panel-head">
+              <div>
+                <h2>Reviews</h2>
+                <div class="muted">Customer feedback collected after completed orders.</div>
+              </div>
+              <div class="panel-actions">
+                <button id="btnRefreshReviews" class="btn btn-ghost" type="button">Refresh</button>
+                <button id="btnExportReviewsCsv" class="btn btn-ghost" type="button">Export CSV</button>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-bd">
+                <div id="reviewsList"></div>
+              </div>
+            </div>
+          </section>
+
           <section class="panel hidden" data-panel="guidance">
             <div class="panel-head">
               <div>
@@ -1937,6 +1975,11 @@
         <span id="operatorFooterText">Powered by ProofLink</span>
       </footer>
     </main>
+
+    <!-- Global search overlay -->
+    <div id="globalSearchOverlay" style="display:none;position:fixed;top:60px;left:50%;transform:translateX(-50%);width:min(600px,90vw);background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 8px 32px rgba(0,0,0,.5);z-index:9000;max-height:70vh;overflow-y:auto;">
+      <div id="globalSearchResults" style="padding:8px 0;"></div>
+    </div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>

@@ -9,6 +9,8 @@
 const twilio      = require('twilio');
 const querystring = require('querystring');
 const { getAdminClient, respond } = require('./utils/auth');
+const { sendEmail, templates }    = require('./utils/email');
+const { getConfiguredSiteUrl }    = require('./utils/runtime-config');
 
 function validateTwilio(event) {
   const secret = process.env.TWILIO_AUTH_TOKEN;
@@ -86,6 +88,51 @@ exports.handler = async (event) => {
     });
 
   if (error) console.error('[twilio-webhook] db error:', error);
+
+  // Send push notification + email to operator(s) about inbound SMS
+  if (tenantId) {
+    try {
+      // Push notification to all operator subscriptions for this tenant
+      const webpush = require('web-push');
+      const vapidPublic  = process.env.VAPID_PUBLIC_KEY;
+      const vapidPrivate = process.env.VAPID_PRIVATE_KEY;
+      const vapidEmail   = process.env.VAPID_EMAIL || 'mailto:support@prooflink.co';
+      if (vapidPublic && vapidPrivate) {
+        webpush.setVapidDetails(vapidEmail, vapidPublic, vapidPrivate);
+        const { data: subs } = await supabase
+          .from('push_subscriptions')
+          .select('subscription')
+          .eq('tenant_id', tenantId);
+        if (subs?.length) {
+          const payload = JSON.stringify({ title: 'New SMS reply', body: `From ${from}: ${body.slice(0, 80)}`, url: '/operator/#orders' });
+          await Promise.allSettled(subs.map((s) => {
+            try { return webpush.sendNotification(JSON.parse(s.subscription), payload); }
+            catch { return Promise.resolve(); }
+          }));
+        }
+      }
+
+      // Email the operator(s) about the reply
+      const { data: operators } = await supabase
+        .from('operators')
+        .select('email')
+        .eq('tenant_id', tenantId)
+        .limit(5);
+      if (operators?.length) {
+        const siteUrl = getConfiguredSiteUrl();
+        for (const op of operators) {
+          if (!op.email) continue;
+          sendEmail({
+            to     : op.email,
+            subject: `New SMS reply from ${from}`,
+            html   : `<p>A customer replied via SMS:</p><p><strong>${from}</strong>: ${body}</p><p><a href="${siteUrl}/operator/">View in dashboard →</a></p>`,
+          }).catch(() => {});
+        }
+      }
+    } catch (e) {
+      console.warn('[twilio-webhook] notification failed:', e.message);
+    }
+  }
 
   // No auto-reply — operator handles it from the dashboard
   return twimlOk();

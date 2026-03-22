@@ -79,12 +79,38 @@ CREATE TABLE IF NOT EXISTS sms_messages (
   created_at  timestamptz DEFAULT now()
 );
 
+-- Quotes table (for quote acceptance flow)
+CREATE TABLE IF NOT EXISTS quotes (
+  id             uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  tenant_id      uuid,
+  operator_id    uuid,
+  customer_name  text,
+  customer_email text,
+  title          text,
+  description    text,
+  amount_cents   integer,
+  valid_until    date,
+  notes          text,
+  status         text DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'declined', 'expired')),
+  accepted_at    timestamptz,
+  signature      text,
+  created_at     timestamptz DEFAULT now(),
+  updated_at     timestamptz DEFAULT now()
+);
+
+-- Orders: referral source column
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS referral_source text;
+
+-- Reviews: add comment column alias (some versions use review_text, others use comment)
+ALTER TABLE reviews ADD COLUMN IF NOT EXISTS comment text;
+
 -- Enable RLS on all new tables
 ALTER TABLE reviews            ENABLE ROW LEVEL SECURITY;
 ALTER TABLE push_subscriptions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE recurring_orders   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE bookings           ENABLE ROW LEVEL SECURITY;
 ALTER TABLE sms_messages       ENABLE ROW LEVEL SECURITY;
+ALTER TABLE quotes             ENABLE ROW LEVEL SECURITY;
 
 -- RLS policies: service role bypasses RLS; anon/authenticated get no access by default
 -- (app layer uses service role key for all writes, so these are correct)
