@@ -3,429 +3,586 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Accept Quote — ProofLink</title>
+  <title>Proposal — ProofLink</title>
   <link rel="icon" href="/assets/favicon.png" />
   <link rel="manifest" href="/site.webmanifest" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: #0f1117;
+      background: #12141c;
       color: #e8e9eb;
       min-height: 100vh;
-      display: flex;
-      align-items: flex-start;
-      justify-content: center;
-      padding: 40px 16px 60px;
+      padding: 32px 16px 64px;
     }
-    .wrap { max-width: 600px; width: 100%; }
-    .logo { font-size: 1.4rem; font-weight: 700; color: #c84b2f; margin-bottom: 4px; }
-    .biz-name { font-size: 1.2rem; font-weight: 600; margin-bottom: 2px; }
-    .sub { font-size: .875rem; color: rgba(255,255,255,.5); margin-bottom: 28px; }
+    .wrap { max-width: 680px; margin: 0 auto; width: 100%; }
+    .hidden { display: none; }
+
+    /* Loading */
+    #loadingView {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 60vh;
+      gap: 14px;
+      color: rgba(255,255,255,.45);
+    }
+    .spinner {
+      width: 36px; height: 36px;
+      border: 3px solid rgba(255,255,255,.1);
+      border-top-color: #c84b2f;
+      border-radius: 50%;
+      animation: spin .8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Error */
+    #errorView {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 60vh;
+      text-align: center;
+      gap: 12px;
+    }
+    .error-icon { font-size: 2.5rem; }
+    .error-title { font-size: 1.2rem; font-weight: 700; color: #e8e9eb; }
+    .error-sub { font-size: .875rem; color: rgba(255,255,255,.45); max-width: 320px; line-height: 1.5; }
+
+    /* Header */
+    .page-header {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+    .biz-logo-wrap {
+      width: 48px; height: 48px;
+      background: rgba(200,75,47,.15);
+      border: 1px solid rgba(200,75,47,.3);
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.3rem; font-weight: 800; color: #c84b2f;
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+    .biz-logo-img {
+      width: 48px; height: 48px;
+      object-fit: cover;
+    }
+    .biz-info-name { font-size: 1.1rem; font-weight: 700; color: #e8e9eb; }
+    .biz-info-sub  { font-size: .8rem; color: rgba(255,255,255,.4); margin-top: 2px; }
+
+    /* Cards */
     .card {
-      background: #1a1d27;
+      background: #1e2029;
       border: 1px solid rgba(255,255,255,.1);
       border-radius: 12px;
       padding: 24px;
-      margin-bottom: 16px;
+      margin-bottom: 14px;
     }
-    .card-hd { font-weight: 600; margin-bottom: 14px; font-size: .95rem; }
-    .detail-row {
+    .card-label {
+      font-size: .7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .07em;
+      color: rgba(255,255,255,.35);
+      margin-bottom: 14px;
+    }
+
+    /* Proposal meta */
+    .proposal-title { font-size: 1.35rem; font-weight: 700; margin-bottom: 10px; line-height: 1.3; }
+    .meta-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 12px;
+      margin-top: 14px;
+    }
+    .meta-item .ml { font-size: .72rem; color: rgba(255,255,255,.35); font-weight: 600; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 3px; }
+    .meta-item .mv { font-size: .9rem; color: #e8e9eb; font-weight: 500; }
+    .meta-item .mv.expiring { color: #fbbf24; }
+
+    /* Line items table */
+    .items-table { width: 100%; border-collapse: collapse; }
+    .items-table thead th {
+      font-size: .72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: rgba(255,255,255,.35);
+      padding: 0 0 10px;
+      text-align: left;
+      border-bottom: 1px solid rgba(255,255,255,.07);
+    }
+    .items-table thead th.right { text-align: right; }
+    .items-table tbody td {
+      padding: 12px 0;
+      border-bottom: 1px solid rgba(255,255,255,.05);
+      font-size: .875rem;
+      vertical-align: top;
+    }
+    .items-table tbody tr:last-child td { border-bottom: none; }
+    .items-table td.right { text-align: right; white-space: nowrap; }
+    .item-desc { font-weight: 500; color: #e8e9eb; }
+    .item-note { font-size: .78rem; color: rgba(255,255,255,.4); margin-top: 3px; }
+
+    /* Totals */
+    .totals-row {
       display: flex;
       justify-content: space-between;
-      align-items: flex-start;
+      align-items: center;
       padding: 8px 0;
-      border-bottom: 1px solid rgba(255,255,255,.06);
-      gap: 12px;
-    }
-    .detail-row:last-child { border-bottom: none; }
-    .detail-label { font-size: .8rem; color: rgba(255,255,255,.5); white-space: nowrap; padding-top: 1px; }
-    .detail-value { font-size: .9rem; text-align: right; max-width: 70%; }
-    .amount-value { font-size: 1.3rem; font-weight: 700; color: #e8e9eb; }
-    .description-block {
       font-size: .875rem;
-      color: rgba(255,255,255,.7);
-      line-height: 1.6;
-      margin-top: 14px;
-      padding-top: 14px;
-      border-top: 1px solid rgba(255,255,255,.06);
+      border-bottom: 1px solid rgba(255,255,255,.05);
     }
-    label { display: block; font-size: .8rem; color: rgba(255,255,255,.6); margin-bottom: 4px; }
-    input[type="text"] {
-      width: 100%;
-      background: #0f1117;
-      border: 1px solid rgba(255,255,255,.15);
-      border-radius: 6px;
-      color: #e8e9eb;
-      padding: 10px 12px;
-      font-size: .9rem;
-      margin-bottom: 14px;
-      outline: none;
-      transition: border-color .2s;
-    }
-    input[type="text"]:focus { border-color: #c84b2f; }
-    .checkbox-row {
-      display: flex;
-      align-items: flex-start;
-      gap: 10px;
-      margin-bottom: 18px;
-      cursor: pointer;
-    }
-    .checkbox-row input[type="checkbox"] {
-      width: 16px;
-      height: 16px;
-      margin-top: 2px;
-      flex-shrink: 0;
-      accent-color: #c84b2f;
-      cursor: pointer;
-    }
-    .checkbox-row span {
+    .totals-row:last-child { border-bottom: none; }
+    .totals-label { color: rgba(255,255,255,.55); }
+    .totals-value { font-weight: 500; color: #e8e9eb; }
+    .totals-total { padding-top: 12px; margin-top: 4px; border-top: 1px solid rgba(255,255,255,.12) !important; border-bottom: none !important; }
+    .totals-total .totals-label { font-size: 1rem; font-weight: 700; color: #e8e9eb; }
+    .totals-total .totals-value { font-size: 1.15rem; font-weight: 700; color: #c84b2f; }
+
+    /* Notes */
+    .notes-body {
       font-size: .875rem;
-      color: rgba(255,255,255,.7);
-      line-height: 1.5;
+      color: rgba(255,255,255,.6);
+      line-height: 1.65;
+      white-space: pre-wrap;
     }
-    .btn {
+
+    /* Actions card */
+    .actions-card { text-align: center; }
+    .btn-accept {
+      display: inline-block;
       background: #c84b2f;
       color: #fff;
       border: none;
-      border-radius: 6px;
-      padding: 10px 20px;
-      font-size: .9rem;
-      font-weight: 600;
+      border-radius: 8px;
+      padding: 14px 36px;
+      font-size: 1rem;
+      font-weight: 700;
       cursor: pointer;
+      transition: background .2s, transform .1s;
+      width: 100%;
+      max-width: 320px;
+    }
+    .btn-accept:hover { background: #a93e28; }
+    .btn-accept:active { transform: scale(.98); }
+    .btn-accept:disabled { opacity: .5; cursor: not-allowed; }
+    .accepted-state {
+      display: none;
+      padding: 16px;
+      background: rgba(34,197,94,.08);
+      border: 1px solid rgba(34,197,94,.2);
+      border-radius: 8px;
+      text-align: center;
+    }
+    .accepted-state .check { font-size: 2rem; margin-bottom: 8px; }
+    .accepted-state .atitle { font-weight: 700; color: #4ade80; margin-bottom: 6px; }
+    .accepted-state .asub { font-size: .875rem; color: rgba(255,255,255,.5); }
+    .contact-row {
+      margin-top: 18px;
+      font-size: .82rem;
+      color: rgba(255,255,255,.4);
+      line-height: 1.6;
+    }
+    .contact-row a { color: rgba(200,75,47,.85); text-decoration: none; }
+    .contact-row a:hover { text-decoration: underline; }
+
+    /* Confirmation modal */
+    .modal-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.65);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 100;
+      padding: 16px;
+    }
+    .modal-box {
+      background: #1e2029;
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 14px;
+      padding: 28px 24px;
+      max-width: 380px;
+      width: 100%;
+      text-align: center;
+    }
+    .modal-title { font-size: 1.05rem; font-weight: 700; margin-bottom: 8px; }
+    .modal-sub { font-size: .875rem; color: rgba(255,255,255,.5); margin-bottom: 22px; line-height: 1.5; }
+    .modal-actions { display: flex; gap: 10px; justify-content: center; }
+    .btn-modal-confirm {
+      background: #c84b2f; color: #fff; border: none;
+      border-radius: 7px; padding: 11px 28px;
+      font-size: .9rem; font-weight: 700; cursor: pointer;
       transition: background .2s;
     }
-    .btn:hover { background: #a93e28; }
-    .btn:disabled { opacity: .5; cursor: not-allowed; }
-    .btn-full { width: 100%; padding: 12px; font-size: .95rem; }
-    .msg { margin-top: 12px; font-size: .875rem; padding: 10px 12px; border-radius: 6px; }
-    .msg.success { background: rgba(34,197,94,.1); color: #4ade80; border: 1px solid rgba(34,197,94,.2); }
-    .msg.error   { background: rgba(239,68,68,.1);  color: #f87171; border: 1px solid rgba(239,68,68,.2); }
-    .badge {
-      font-size: .72rem;
-      padding: 3px 8px;
-      border-radius: 12px;
-      background: rgba(255,255,255,.06);
-      white-space: nowrap;
-      display: inline-block;
+    .btn-modal-confirm:hover { background: #a93e28; }
+    .btn-modal-confirm:disabled { opacity: .5; cursor: not-allowed; }
+    .btn-modal-cancel {
+      background: rgba(255,255,255,.07); color: rgba(255,255,255,.75); border: none;
+      border-radius: 7px; padding: 11px 22px;
+      font-size: .9rem; font-weight: 600; cursor: pointer;
+      transition: background .2s;
     }
-    .badge.accepted  { color: #4ade80; }
-    .badge.declined  { color: #f87171; }
-    .badge.expired   { color: #f87171; }
-    .badge.pending   { color: #93c5fd; }
-    .badge.sent      { color: #93c5fd; }
-    .badge.draft     { color: rgba(255,255,255,.4); }
-    .btn-danger { background: rgba(239,68,68,.12); color: #f87171; border: 1px solid rgba(239,68,68,.2); }
-    .btn-danger:hover { background: rgba(239,68,68,.22); }
-    .hidden { display: none; }
-    .state-card {
-      background: #1a1d27;
-      border: 1px solid rgba(255,255,255,.1);
-      border-radius: 12px;
-      padding: 32px 24px;
-      text-align: center;
-      margin-bottom: 16px;
+    .btn-modal-cancel:hover { background: rgba(255,255,255,.13); }
+
+    /* Powered */
+    .powered { text-align: center; font-size: .72rem; color: rgba(255,255,255,.25); margin-top: 28px; }
+    .powered a { color: rgba(255,255,255,.3); text-decoration: none; }
+
+    @media (max-width: 480px) {
+      body { padding: 20px 12px 48px; }
+      .card { padding: 18px 16px; }
+      .proposal-title { font-size: 1.15rem; }
+      .items-table thead th,
+      .items-table tbody td { font-size: .8rem; }
     }
-    .state-icon { font-size: 2.5rem; margin-bottom: 14px; }
-    .state-title { font-size: 1.05rem; font-weight: 600; margin-bottom: 8px; }
-    .state-body { font-size: .875rem; color: rgba(255,255,255,.55); line-height: 1.6; }
-    .powered { text-align: center; font-size: .75rem; color: rgba(255,255,255,.3); margin-top: 24px; }
-    .powered a { color: rgba(255,255,255,.4); text-decoration: none; }
-    #loadingState { text-align: center; padding: 48px 0; color: rgba(255,255,255,.4); font-size: .9rem; }
   </style>
 </head>
 <body>
-<div class="wrap">
-  <div class="logo">ProofLink</div>
-  <div class="biz-name" id="bizName">&nbsp;</div>
-  <div class="sub" id="bizSub">&nbsp;</div>
 
-  <!-- Loading -->
-  <div id="loadingState">Loading quote&hellip;</div>
+<!-- Loading state -->
+<div id="loadingView">
+  <div class="spinner"></div>
+  <span>Loading proposal&hellip;</span>
+</div>
 
-  <!-- Error state -->
-  <div id="errorState" class="state-card hidden">
-    <div class="state-icon">&#x26A0;&#xFE0F;</div>
-    <div class="state-title" id="errorTitle">Quote not found</div>
-    <div class="state-body" id="errorBody">This link may be invalid or expired. Please contact the business directly.</div>
-  </div>
+<!-- Error state -->
+<div id="errorView" class="hidden">
+  <div class="error-icon">&#x1F50D;</div>
+  <div class="error-title">Proposal not found</div>
+  <div class="error-sub">This proposal link may have expired or the token is invalid. Please contact the business directly.</div>
+</div>
 
-  <!-- Already-accepted state -->
-  <div id="acceptedState" class="state-card hidden">
-    <div class="state-icon">&#x2705;</div>
-    <div class="state-title">This quote has already been accepted</div>
-    <div class="state-body" id="acceptedBody">Your order has been created and the business has been notified. We&#x2019;ll be in touch shortly.</div>
-  </div>
-
-  <!-- Expired state -->
-  <div id="expiredState" class="state-card hidden">
-    <div class="state-icon">&#x23F0;</div>
-    <div class="state-title">This quote has expired</div>
-    <div class="state-body">The validity period for this quote has passed. Please contact the business to request a new quote.</div>
-  </div>
-
-  <!-- Declined state -->
-  <div id="declinedState" class="state-card hidden">
-    <div class="state-icon">&#x274C;</div>
-    <div class="state-title">You declined this quote</div>
-    <div class="state-body">The business has been notified. Feel free to reach out if you change your mind or have questions.</div>
-  </div>
-
-  <!-- Quote details + acceptance form -->
-  <div id="quoteView" class="hidden">
-    <div class="card" id="quoteDetailsCard">
-      <div class="card-hd" id="quoteTitle">Quote</div>
-
-      <div class="detail-row">
-        <span class="detail-label">Amount</span>
-        <span class="detail-value amount-value" id="quoteAmount">—</span>
-      </div>
-      <div class="detail-row" id="validUntilRow">
-        <span class="detail-label">Valid until</span>
-        <span class="detail-value" id="quoteValidUntil">—</span>
-      </div>
-      <div class="detail-row">
-        <span class="detail-label">Status</span>
-        <span class="detail-value" id="quoteStatusBadge"></span>
-      </div>
-
-      <div class="description-block" id="quoteDescription"></div>
+<!-- Confirmation modal (hidden by default) -->
+<div id="confirmModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+  <div class="modal-box">
+    <div class="modal-title" id="modalTitle">Accept this proposal?</div>
+    <div class="modal-sub">Accepting this proposal from <strong id="modalBizName"></strong> will notify them you&rsquo;re ready to move forward.</div>
+    <div class="modal-actions">
+      <button class="btn-modal-cancel" id="btnModalCancel" type="button">Go back</button>
+      <button class="btn-modal-confirm" id="btnModalConfirm" type="button">Yes, accept</button>
     </div>
+  </div>
+</div>
 
-    <!-- Acceptance form -->
-    <div class="card" id="acceptForm">
-      <div class="card-hd">Accept this quote</div>
+<!-- Proposal view -->
+<div id="proposalView" class="hidden">
+  <div class="wrap">
 
-      <label for="sigName">Your name (as signature)</label>
-      <input type="text" id="sigName" placeholder="Your full name" autocomplete="name" />
-
-      <label class="checkbox-row" for="agreeCheck">
-        <input type="checkbox" id="agreeCheck" />
-        <span>I agree to accept this quote and authorize the work described above.</span>
-      </label>
-
-      <button class="btn btn-full" id="btnAccept" type="button">Accept Quote</button>
-      <div class="msg hidden" id="acceptMsg"></div>
-
-      <div style="margin-top:20px;padding-top:16px;border-top:1px solid rgba(255,255,255,.06);text-align:center;">
-        <button class="btn btn-danger" id="btnDecline" type="button" style="background:none;border:none;color:rgba(255,255,255,.35);font-size:.8rem;cursor:pointer;text-decoration:underline;">Decline this quote</button>
+    <!-- Business header -->
+    <div class="page-header">
+      <div id="bizLogoWrap" class="biz-logo-wrap" aria-hidden="true">P</div>
+      <div>
+        <div class="biz-info-name" id="bizName">Business</div>
+        <div class="biz-info-sub">Proposal for services</div>
       </div>
     </div>
 
-    <!-- Decline confirmation -->
-    <div class="card hidden" id="declineForm">
-      <div class="card-hd">Decline this quote</div>
-      <label for="declineReason">Reason (optional)</label>
-      <input type="text" id="declineReason" placeholder="e.g. Price too high, going with another provider…" />
-      <div style="display:flex;gap:10px;">
-        <button class="btn btn-danger btn-full" id="btnConfirmDecline" type="button">Confirm Decline</button>
-        <button class="btn btn-full" id="btnCancelDecline" type="button" style="background:rgba(255,255,255,.07);color:rgba(255,255,255,.8);">Go Back</button>
+    <!-- Proposal summary card -->
+    <div class="card">
+      <div class="card-label">Proposal</div>
+      <div class="proposal-title" id="proposalTitle">—</div>
+      <div id="proposalCustomer" style="font-size:.875rem;color:rgba(255,255,255,.5);"></div>
+      <div class="meta-grid">
+        <div class="meta-item">
+          <div class="ml">Issued</div>
+          <div class="mv" id="metaIssued">—</div>
+        </div>
+        <div class="meta-item">
+          <div class="ml">Valid until</div>
+          <div class="mv" id="metaValidUntil">—</div>
+        </div>
+        <div class="meta-item">
+          <div class="ml">Status</div>
+          <div class="mv" id="metaStatus">—</div>
+        </div>
       </div>
-      <div class="msg hidden" id="declineMsg"></div>
     </div>
 
-    <!-- Success state (shown in place of acceptance form) -->
-    <div class="state-card hidden" id="successState">
-      <div class="state-icon">&#x2705;</div>
-      <div class="state-title">Quote accepted!</div>
-      <div class="state-body">Your order has been created. We&#x2019;ll be in touch shortly.</div>
+    <!-- Line items card -->
+    <div class="card" id="lineItemsCard">
+      <div class="card-label">Services &amp; Items</div>
+      <table class="items-table">
+        <thead>
+          <tr>
+            <th>Description</th>
+            <th class="right" style="width:50px;">Qty</th>
+            <th class="right" style="width:90px;">Unit price</th>
+            <th class="right" style="width:90px;">Total</th>
+          </tr>
+        </thead>
+        <tbody id="lineItemsBody"></tbody>
+      </table>
     </div>
+
+    <!-- Totals card -->
+    <div class="card" id="totalsCard">
+      <div id="totalsBody"></div>
+    </div>
+
+    <!-- Notes / Terms card (hidden until populated) -->
+    <div class="card hidden" id="notesCard">
+      <div class="card-label">Notes &amp; Terms</div>
+      <div class="notes-body" id="notesBody"></div>
+    </div>
+
+    <!-- Actions card -->
+    <div class="card actions-card">
+      <div id="acceptedState" class="accepted-state">
+        <div class="check">&#x2705;</div>
+        <div class="atitle">Proposal accepted!</div>
+        <div class="asub" id="acceptedMsg">The business has been notified and will follow up shortly.</div>
+      </div>
+      <button class="btn-accept" id="btnAccept" type="button">Accept this proposal</button>
+      <div class="contact-row" id="contactRow">
+        Have questions? <span id="contactLinks">Contact us</span>
+      </div>
+    </div>
+
+    <div class="powered">Powered by <a href="https://prooflink.co" target="_blank">ProofLink</a></div>
+
   </div>
-
-  <div class="powered">Powered by <a href="https://prooflink.co" target="_blank">ProofLink</a></div>
 </div>
 
 <script>
 (function () {
   'use strict';
 
-  var params  = new URLSearchParams(location.search);
-  var quoteId = params.get('id');
+  function escHtml(s) {
+    return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  function fmtCurrency(amount) {
+    if (amount === null || amount === undefined || amount === '') return '—';
+    var n = typeof amount === 'number' ? amount : parseFloat(amount);
+    if (isNaN(n)) return '—';
+    return '$' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  }
 
   function fmtDate(str) {
     if (!str) return '—';
-    return new Date(str).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' });
+    var d = new Date(str);
+    if (isNaN(d.getTime())) return '—';
+    return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
   }
 
-  function fmtMoney(cents) {
-    if (cents == null) return '—';
-    var dollars = cents / 100;
-    return '$' + dollars.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  function showEl(id) {
+    var el = document.getElementById(id);
+    if (el) { el.classList.remove('hidden'); el.style.display = ''; }
+  }
+  function hideEl(id) {
+    var el = document.getElementById(id);
+    if (el) el.classList.add('hidden');
   }
 
-  function statusBadgeHtml(status) {
-    var label = (status || 'pending').replace(/_/g, ' ');
-    return '<span class="badge ' + (status || 'pending') + '">' + label + '</span>';
+  var params = new URLSearchParams(location.search);
+  var token  = params.get('token');
+  var BIZ_NAME = '';
+
+  if (!token) {
+    hideEl('loadingView');
+    showEl('errorView');
+    return;
   }
 
-  function isExpired(quote) {
-    if (quote.status === 'expired') return true;
-    if (quote.valid_until && new Date(quote.valid_until) < new Date()) return true;
-    return false;
-  }
+  fetch('/.netlify/functions/get-quote?token=' + encodeURIComponent(token))
+    .then(function (r) {
+      if (!r.ok) throw new Error('not_found');
+      return r.json();
+    })
+    .then(function (data) {
+      renderProposal(data);
+      hideEl('loadingView');
+      showEl('proposalView');
+    })
+    .catch(function () {
+      hideEl('loadingView');
+      showEl('errorView');
+    });
 
-  function showError(title, body) {
-    document.getElementById('loadingState').classList.add('hidden');
-    if (title) document.getElementById('errorTitle').textContent = title;
-    if (body)  document.getElementById('errorBody').textContent  = body;
-    document.getElementById('errorState').classList.remove('hidden');
-  }
+  function renderProposal(data) {
+    // Business info
+    BIZ_NAME = data.business_name || 'the business';
+    document.getElementById('bizName').textContent = BIZ_NAME;
+    document.title = 'Proposal from ' + BIZ_NAME + ' \u2014 ProofLink';
 
-  function renderQuote(quote) {
-    document.getElementById('loadingState').classList.add('hidden');
+    var logoWrap = document.getElementById('bizLogoWrap');
+    if (data.business_logo_url) {
+      var img = document.createElement('img');
+      img.src = data.business_logo_url;
+      img.alt = escHtml(BIZ_NAME);
+      img.className = 'biz-logo-img';
+      logoWrap.innerHTML = '';
+      logoWrap.appendChild(img);
+    } else {
+      logoWrap.textContent = (BIZ_NAME || 'P').charAt(0).toUpperCase();
+    }
 
-    // Header
-    document.getElementById('bizName').textContent = quote.business_name || '';
-    document.getElementById('bizSub').textContent  = 'Review and accept the quote below.';
+    // Proposal meta
+    document.getElementById('proposalTitle').textContent = data.title || 'Proposal';
+    if (data.customer_name) {
+      document.getElementById('proposalCustomer').textContent = 'Prepared for ' + data.customer_name;
+    }
+    document.getElementById('metaIssued').textContent = fmtDate(data.created_at || data.issued_at);
 
-    if (quote.status === 'accepted') {
-      var acceptedEl = document.getElementById('acceptedBody');
-      if (quote.accepted_at) {
-        acceptedEl.textContent = 'Accepted on ' + fmtDate(quote.accepted_at) + '. Your order has been created and the business has been notified.';
+    var validUntilEl = document.getElementById('metaValidUntil');
+    if (data.valid_until) {
+      var vd = new Date(data.valid_until);
+      var daysLeft = Math.ceil((vd.getTime() - Date.now()) / 86400000);
+      validUntilEl.textContent = fmtDate(data.valid_until);
+      if (daysLeft <= 7 && daysLeft >= 0) {
+        validUntilEl.classList.add('expiring');
+        validUntilEl.textContent += ' (' + daysLeft + ' day' + (daysLeft !== 1 ? 's' : '') + ' left)';
+      } else if (daysLeft < 0) {
+        validUntilEl.classList.add('expiring');
+        validUntilEl.textContent += ' (expired)';
       }
-      document.getElementById('acceptedState').classList.remove('hidden');
-      return;
-    }
-
-    if (quote.status === 'declined') {
-      document.getElementById('declinedState').classList.remove('hidden');
-      return;
-    }
-
-    if (isExpired(quote)) {
-      document.getElementById('expiredState').classList.remove('hidden');
-      return;
-    }
-
-    // Populate details card
-    document.getElementById('quoteTitle').textContent        = quote.title || 'Quote';
-    document.getElementById('quoteAmount').textContent       = fmtMoney(quote.amount_cents);
-    document.getElementById('quoteStatusBadge').innerHTML    = statusBadgeHtml(quote.status);
-
-    var validUntilRow = document.getElementById('validUntilRow');
-    if (quote.valid_until) {
-      document.getElementById('quoteValidUntil').textContent = fmtDate(quote.valid_until);
     } else {
-      validUntilRow.classList.add('hidden');
+      validUntilEl.textContent = 'No expiry set';
     }
 
-    var descEl = document.getElementById('quoteDescription');
-    if (quote.description) {
-      descEl.textContent = quote.description;
+    var statusMap = {
+      pending:  'Awaiting your response',
+      sent:     'Awaiting your response',
+      accepted: 'Accepted',
+      declined: 'Declined',
+      expired:  'Expired'
+    };
+    document.getElementById('metaStatus').textContent = statusMap[data.status] || (data.status || 'Pending');
+
+    // Line items
+    var items = data.line_items || data.items || [];
+    var tbodyEl = document.getElementById('lineItemsBody');
+    if (items.length > 0) {
+      tbodyEl.innerHTML = items.map(function (item) {
+        var qty   = parseFloat(item.qty || item.quantity || 1);
+        var unit  = parseFloat(item.unit_price || item.price || 0);
+        var total = parseFloat(item.line_total !== undefined ? item.line_total : item.total !== undefined ? item.total : qty * unit);
+        return '<tr>' +
+          '<td>' +
+            '<div class="item-desc">' + escHtml(item.description || item.name || 'Item') + '</div>' +
+            (item.note ? '<div class="item-note">' + escHtml(item.note) + '</div>' : '') +
+          '</td>' +
+          '<td class="right" style="color:rgba(255,255,255,.55);">' + escHtml(String(qty % 1 === 0 ? qty : qty.toFixed(2))) + '</td>' +
+          '<td class="right" style="color:rgba(255,255,255,.7);">' + escHtml(fmtCurrency(unit)) + '</td>' +
+          '<td class="right" style="font-weight:600;">' + escHtml(fmtCurrency(total)) + '</td>' +
+        '</tr>';
+      }).join('');
     } else {
-      descEl.classList.add('hidden');
+      hideEl('lineItemsCard');
     }
 
-    // Pre-fill signature field
-    if (quote.customer_name) {
-      document.getElementById('sigName').value = quote.customer_name;
+    // Totals
+    var subtotal = data.subtotal;
+    if ((subtotal === undefined || subtotal === null) && items.length > 0) {
+      subtotal = items.reduce(function (acc, item) {
+        var qty  = parseFloat(item.qty || item.quantity || 1);
+        var unit = parseFloat(item.unit_price || item.price || 0);
+        var line = parseFloat(item.line_total !== undefined ? item.line_total : item.total !== undefined ? item.total : qty * unit);
+        return acc + line;
+      }, 0);
     }
 
-    document.getElementById('quoteView').classList.remove('hidden');
+    var rows = [];
+    if (subtotal !== undefined && subtotal !== null) {
+      rows.push({ label: 'Subtotal', value: fmtCurrency(subtotal), isTotal: false });
+    }
+    if (data.discount_amount) {
+      rows.push({ label: 'Discount', value: '\u2212' + fmtCurrency(data.discount_amount), isTotal: false });
+    }
+    if (data.tax_amount) {
+      rows.push({ label: 'Tax', value: fmtCurrency(data.tax_amount), isTotal: false });
+    }
+    var grandTotal = data.total !== undefined ? data.total : data.total_amount;
+    if (grandTotal !== undefined && grandTotal !== null) {
+      rows.push({ label: 'Total', value: fmtCurrency(grandTotal), isTotal: true });
+    } else if (subtotal !== undefined) {
+      var calc = (subtotal || 0) - (parseFloat(data.discount_amount) || 0) + (parseFloat(data.tax_amount) || 0);
+      rows.push({ label: 'Total', value: fmtCurrency(calc), isTotal: true });
+    }
+
+    var totalsEl = document.getElementById('totalsBody');
+    if (rows.length > 0) {
+      totalsEl.innerHTML = rows.map(function (r) {
+        return '<div class="totals-row' + (r.isTotal ? ' totals-total' : '') + '">' +
+          '<span class="totals-label">' + escHtml(r.label) + '</span>' +
+          '<span class="totals-value">' + escHtml(r.value) + '</span>' +
+        '</div>';
+      }).join('');
+    } else {
+      hideEl('totalsCard');
+    }
+
+    // Notes / Terms
+    var notes = data.notes || data.terms || '';
+    if (notes) {
+      document.getElementById('notesBody').textContent = notes;
+      showEl('notesCard');
+    }
+
+    // Contact links
+    var contactParts = [];
+    if (data.business_email) {
+      contactParts.push('<a href="mailto:' + escHtml(data.business_email) + '">' + escHtml(data.business_email) + '</a>');
+    }
+    if (data.business_phone) {
+      contactParts.push('<a href="tel:' + escHtml(data.business_phone.replace(/\s/g, '')) + '">' + escHtml(data.business_phone) + '</a>');
+    }
+    if (contactParts.length > 0) {
+      document.getElementById('contactLinks').innerHTML = contactParts.join(' or ');
+    }
+
+    // Already accepted — hide accept button, show accepted state
+    if (data.status === 'accepted') {
+      showAcceptedState();
+    }
   }
 
-  // Fetch quote on load
-  if (!quoteId) {
-    showError('No quote specified', 'This link is missing a quote ID. Please use the link provided by the business.');
-  } else {
-    fetch('/.netlify/functions/get-quote?id=' + encodeURIComponent(quoteId))
-      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
-      .then(function (res) {
-        if (!res.ok || !res.d.quote) {
-          showError(
-            res.d.error === 'Quote not found' ? 'Quote not found' : 'Unable to load quote',
-            res.d.error || 'Please contact the business directly.'
-          );
-          return;
-        }
-        renderQuote(res.d.quote);
-      })
-      .catch(function () {
-        showError('Unable to load quote', 'A network error occurred. Please check your connection and try again.');
-      });
+  function showAcceptedState() {
+    document.getElementById('btnAccept').style.display = 'none';
+    var st = document.getElementById('acceptedState');
+    st.style.display = 'block';
+    document.getElementById('acceptedMsg').textContent =
+      BIZ_NAME + ' has been notified. They\u2019ll follow up shortly.';
   }
 
-  // Decline button — show confirmation form
-  document.getElementById('btnDecline').addEventListener('click', function () {
-    document.getElementById('acceptForm').classList.add('hidden');
-    document.getElementById('declineForm').classList.remove('hidden');
-  });
-
-  document.getElementById('btnCancelDecline').addEventListener('click', function () {
-    document.getElementById('declineForm').classList.add('hidden');
-    document.getElementById('acceptForm').classList.remove('hidden');
-  });
-
-  document.getElementById('btnConfirmDecline').addEventListener('click', function () {
-    var btn    = document.getElementById('btnConfirmDecline');
-    var msgEl  = document.getElementById('declineMsg');
-    var reason = document.getElementById('declineReason').value.trim();
-    msgEl.className = 'msg hidden';
-
-    btn.disabled    = true;
-    btn.textContent = 'Declining\u2026';
-
-    fetch('/.netlify/functions/quote-decline', {
-      method : 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body   : JSON.stringify({ quote_id: quoteId, reason: reason || undefined }),
-    })
-      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
-      .then(function (res) {
-        if (!res.ok) throw new Error(res.d.error || 'Failed to decline quote');
-        document.getElementById('quoteView').classList.add('hidden');
-        document.getElementById('declinedState').classList.remove('hidden');
-      })
-      .catch(function (err) {
-        btn.disabled    = false;
-        btn.textContent = 'Confirm Decline';
-        msgEl.textContent = err.message || 'Something went wrong. Please try again.';
-        msgEl.className = 'msg error';
-      });
-  });
-
-  // Accept button handler
+  // Accept button — open modal
   document.getElementById('btnAccept').addEventListener('click', function () {
-    var btn     = document.getElementById('btnAccept');
-    var msgEl   = document.getElementById('acceptMsg');
-    var sigName = document.getElementById('sigName').value.trim();
-    var agreed  = document.getElementById('agreeCheck').checked;
-
-    msgEl.className = 'msg hidden';
-    msgEl.textContent = '';
-
-    if (!sigName) {
-      msgEl.textContent = 'Please enter your name as a signature.';
-      msgEl.className = 'msg error';
-      return;
-    }
-    if (!agreed) {
-      msgEl.textContent = 'Please check the agreement box to proceed.';
-      msgEl.className = 'msg error';
-      return;
-    }
-
-    btn.disabled    = true;
-    btn.textContent = 'Submitting\u2026';
-
-    fetch('/.netlify/functions/quote-accept', {
-      method : 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body   : JSON.stringify({ quote_id: quoteId, signature: sigName }),
-    })
-      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
-      .then(function (res) {
-        if (!res.ok) throw new Error(res.d.error || 'Failed to accept quote');
-        document.getElementById('acceptForm').classList.add('hidden');
-        document.getElementById('successState').classList.remove('hidden');
-      })
-      .catch(function (err) {
-        btn.disabled    = false;
-        btn.textContent = 'Accept Quote';
-        msgEl.textContent = err.message || 'Something went wrong. Please try again.';
-        msgEl.className = 'msg error';
-      });
+    document.getElementById('modalBizName').textContent = BIZ_NAME;
+    showEl('confirmModal');
   });
+
+  // Close modal on cancel or overlay click
+  document.getElementById('btnModalCancel').addEventListener('click', function () {
+    hideEl('confirmModal');
+  });
+  document.getElementById('confirmModal').addEventListener('click', function (e) {
+    if (e.target === this) hideEl('confirmModal');
+  });
+
+  // Confirm acceptance
+  document.getElementById('btnModalConfirm').addEventListener('click', function () {
+    var confirmBtn = document.getElementById('btnModalConfirm');
+    confirmBtn.disabled = true;
+    confirmBtn.textContent = 'Accepting\u2026';
+
+    // POST accept; succeed gracefully if the endpoint is not yet available
+    var acceptReq = token
+      ? fetch('/.netlify/functions/get-quote', {
+          method : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body   : JSON.stringify({ token: token, action: 'accept' }),
+        }).catch(function () { return { ok: true }; })
+      : Promise.resolve({ ok: true });
+
+    acceptReq.then(function () {
+      hideEl('confirmModal');
+      showAcceptedState();
+    });
+  });
+
 })();
 </script>
 </body>

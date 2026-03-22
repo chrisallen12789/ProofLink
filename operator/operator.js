@@ -409,6 +409,8 @@ const btnRefreshAvailability = $("btnRefreshAvailability");
 // Bookings
 let BOOKINGS_CACHE = [];
 let BK_VIEW_DATE   = new Date(); // month currently shown in calendar
+let OPERATOR_MEMBERS_CACHE = [];
+let TIME_ENTRIES_CACHE = [];
 
 // Reviews
 let REVIEWS_CACHE = [];
@@ -698,6 +700,14 @@ const BID_PROFILE_LIBRARY = {
     deliveryNote: "Attached is the remodeling proposal built from our walkthrough, with the visible conditions, recommended scope, and commercial structure laid out clearly.",
   },
 };
+
+function showToast(msg, duration = 3500) {
+  const el = document.createElement("div");
+  el.style.cssText = "position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1e2029;border:1px solid rgba(255,255,255,.15);border-radius:8px;padding:10px 20px;color:#e8e9eb;font-size:.85rem;z-index:99999;box-shadow:0 4px 20px rgba(0,0,0,.5);pointer-events:none;";
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), duration);
+}
 
 function escapeHtml(str) {
   return String(str ?? "").replace(/[&<>"']/g, (s) => ({
@@ -4064,6 +4074,36 @@ async function fetchBookings() {
   return BOOKINGS_CACHE;
 }
 
+async function fetchOperatorMembers() {
+  if (OPERATOR_MEMBERS_CACHE.length) return OPERATOR_MEMBERS_CACHE;
+  try {
+    const tok = await getAccessToken();
+    const res = await fetch("/.netlify/functions/get-operator-members", {
+      headers: { "Authorization": `Bearer ${tok}` },
+    });
+    const d = await res.json().catch(() => ({}));
+    if (res.ok && Array.isArray(d.members)) {
+      OPERATOR_MEMBERS_CACHE = d.members;
+    }
+  } catch (_) {}
+  return OPERATOR_MEMBERS_CACHE;
+}
+
+async function fetchTimeEntries(orderId) {
+  try {
+    const tok = await getAccessToken();
+    const res = await fetch(`/.netlify/functions/log-time-entry?order_id=${encodeURIComponent(orderId)}`, {
+      headers: { "Authorization": `Bearer ${tok}` },
+    });
+    const d = await res.json().catch(() => ({}));
+    if (res.ok && Array.isArray(d.entries)) {
+      TIME_ENTRIES_CACHE = d.entries;
+      return d.entries;
+    }
+  } catch (_) {}
+  return [];
+}
+
 function renderBookingsCalendar(bookings) {
   const cal   = $("bookingsCalendar");
   const label = $("bkMonthLabel");
@@ -4150,6 +4190,12 @@ function showBookingDetail(bk) {
         <tr><td style="color:rgba(255,255,255,.5);padding:5px 0;">Status</td><td>${escapeHtml(bk.status || "confirmed")}</td></tr>
       </table>
       ${bk.notes ? `<div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:6px;padding:10px 12px;font-size:.82rem;color:rgba(255,255,255,.6);margin-bottom:16px;white-space:pre-wrap;">${escapeHtml(bk.notes)}</div>` : ""}
+      <div style="margin-top:10px;margin-bottom:10px;">
+        <label style="font-size:.78rem;color:rgba(255,255,255,.45);display:block;margin-bottom:4px;">Assigned to</label>
+        <select id="bkAssignedOperator" class="input" style="width:100%;">
+          <option value="">Unassigned</option>
+        </select>
+      </div>
       <div style="margin-top:10px;margin-bottom:16px;">
         <label style="font-size:.78rem;color:rgba(255,255,255,.45);display:block;margin-bottom:4px;">Vehicle / equipment (optional)</label>
         <input id="bkVehicleNotes" class="input" value="${escapeAttr(bk.notes_vehicle || '')}" placeholder="e.g. 2019 Honda Civic — silver, plate ABC123" style="width:100%;" />
@@ -4177,12 +4223,27 @@ function showBookingDetail(bk) {
   overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
   document.getElementById("bkDetailClose").addEventListener("click", () => overlay.remove());
 
+  // Populate assigned operator dropdown
+  fetchOperatorMembers().then((members) => {
+    const sel = document.getElementById("bkAssignedOperator");
+    if (!sel) return;
+    members.forEach((m) => {
+      const opt = document.createElement("option");
+      opt.value = m.id || m.operator_id || "";
+      opt.textContent = m.name || m.email || m.operator_id || "Member";
+      if ((m.id || m.operator_id) === (bk.assigned_operator_id || "")) opt.selected = true;
+      sel.appendChild(opt);
+    });
+    if (bk.assigned_operator_id) sel.value = bk.assigned_operator_id;
+  });
+
   document.getElementById("bkDetailSave").addEventListener("click", async () => {
     const saveBtn = document.getElementById("bkDetailSave");
     const msgEl   = document.getElementById("bkDetailMsg");
     const date    = document.getElementById("bkDetailDate").value;
     const startT  = document.getElementById("bkDetailStart").value;
     const endT    = document.getElementById("bkDetailEnd").value;
+    const assignedOpId = (document.getElementById("bkAssignedOperator")?.value || "").trim();
     if (!date || !startT) { msgEl.textContent = "Date and start time are required."; msgEl.style.color = "#f87171"; return; }
     saveBtn.disabled = true;
     saveBtn.textContent = "Saving…";
@@ -4190,7 +4251,7 @@ function showBookingDetail(bk) {
       const startsAt     = new Date(`${date}T${startT}:00`).toISOString();
       const endsAt       = endT ? new Date(`${date}T${endT}:00`).toISOString() : null;
       const vehicleNotes = (document.getElementById("bkVehicleNotes")?.value || "").trim();
-      const patch        = { id: bk.id, starts_at: startsAt, ...(endsAt ? { ends_at: endsAt } : {}), ...(vehicleNotes !== (bk.notes_vehicle || "") ? { notes_vehicle: vehicleNotes } : {}) };
+      const patch        = { id: bk.id, starts_at: startsAt, ...(endsAt ? { ends_at: endsAt } : {}), ...(vehicleNotes !== (bk.notes_vehicle || "") ? { notes_vehicle: vehicleNotes } : {}), ...(assignedOpId ? { assigned_operator_id: assignedOpId } : { assigned_operator_id: null }) };
       const tok = await getAccessToken();
       const res = await fetch("/.netlify/functions/update-booking", {
         method : "PATCH",
@@ -4199,9 +4260,9 @@ function showBookingDetail(bk) {
       });
       const d = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(d.error || "Failed to update");
-      msgEl.textContent = "Rescheduled ✓";
+      msgEl.textContent = "Saved ✓";
       msgEl.style.color = "#4ade80";
-      BOOKINGS_CACHE = BOOKINGS_CACHE.map((b) => b.id === bk.id ? { ...b, starts_at: startsAt, ends_at: endsAt || b.ends_at } : b);
+      BOOKINGS_CACHE = BOOKINGS_CACHE.map((b) => b.id === bk.id ? { ...b, starts_at: startsAt, ends_at: endsAt || b.ends_at, assigned_operator_id: assignedOpId || null } : b);
       renderBookingsCalendar(BOOKINGS_CACHE);
       renderBookingsList(BOOKINGS_CACHE);
       setTimeout(() => overlay.remove(), 1500);
@@ -4305,12 +4366,25 @@ async function renderBookings() {
     console.error("[renderBookings]", err);
   }
   renderBookingsCalendar(BOOKINGS_CACHE);
+  // Apply "My bookings" filter if active
+  const myBookingsActive = localStorage.getItem("pl_my_bookings_filter") === "true";
+  const btnMy = $("btnMyBookings");
+  if (btnMy) {
+    btnMy.style.background = myBookingsActive ? "rgba(200,75,47,.2)" : "";
+    btnMy.style.color = myBookingsActive ? "var(--accent)" : "";
+  }
+  let filteredBookings = BOOKINGS_CACHE;
+  if (myBookingsActive) {
+    let myOpId = "";
+    try { myOpId = opId(); } catch (_) {}
+    if (myOpId) filteredBookings = BOOKINGS_CACHE.filter((bk) => bk.assigned_operator_id === myOpId);
+  }
   // Show upcoming (next 30 days)
   const todayStr = new Date().toISOString().slice(0, 10);
-  const upcoming = BOOKINGS_CACHE.filter((bk) =>
+  const upcoming = filteredBookings.filter((bk) =>
     bk.starts_at && bk.starts_at.slice(0,10) >= todayStr && bk.status !== 'cancelled'
   );
-  renderBookingsList(upcoming.length ? upcoming : BOOKINGS_CACHE);
+  renderBookingsList(upcoming.length ? upcoming : filteredBookings);
   // No-show rate stat
   const noShowEl = $("bookingsNoShowStat");
   if (noShowEl) {
@@ -4327,6 +4401,12 @@ async function renderBookings() {
 }
 
 // Bookings event handlers
+$("btnMyBookings")?.addEventListener("click", () => {
+  const current = localStorage.getItem("pl_my_bookings_filter") === "true";
+  localStorage.setItem("pl_my_bookings_filter", current ? "false" : "true");
+  renderBookings();
+});
+
 $("btnNewBooking")?.addEventListener("click", () => {
   const form = $("newBookingForm");
   if (form) {
@@ -4351,17 +4431,32 @@ $("btnLogTime")?.addEventListener("click", () => {
   const modal = document.createElement("div");
   modal.id = "timeLogModal";
   modal.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10000;display:flex;align-items:center;justify-content:center;";
+
+  // Build open-orders list for the dropdown
+  const openOrders = CRM_ORDERS_CACHE.filter((o) => !["paid","cancelled"].includes(String(o.status || "").toLowerCase()));
+  const orderOptions = openOrders.map((o) => `<option value="${escapeAttr(o.id)}">${escapeHtml(o.customer_name || o.name || "Order")} — ${escapeHtml(o.title || o.id)}</option>`).join("");
+
   modal.innerHTML = `
-    <div style="background:#1e2029;border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:28px 32px;max-width:400px;width:90%;box-shadow:0 8px 40px rgba(0,0,0,.5);">
+    <div style="background:#1e2029;border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:28px 32px;max-width:440px;width:90%;box-shadow:0 8px 40px rgba(0,0,0,.5);">
       <h3 style="margin:0 0 20px;font-size:1rem;color:#e8e9eb;">Log time</h3>
       <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px;">
         <input id="tlCustomer" class="input" placeholder="Customer name" />
         <input id="tlDescription" class="input" placeholder="Work description" />
-        <div style="display:flex;gap:8px;">
-          <input id="tlHours" class="input" type="number" min="0" step="0.25" placeholder="Hours" style="width:80px;" />
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input id="tlHours" class="input" type="number" min="0" step="0.25" placeholder="Hours" style="width:90px;" />
           <input id="tlRate" class="input" type="number" min="0" step="1" placeholder="Rate ($/hr)" style="flex:1;" />
+          <label style="display:flex;align-items:center;gap:5px;font-size:.8rem;cursor:pointer;white-space:nowrap;">
+            <input type="checkbox" id="tlBillable" checked /> Billable
+          </label>
         </div>
         <input id="tlDate" class="input" type="date" />
+        <div>
+          <label style="font-size:.78rem;color:rgba(255,255,255,.45);display:block;margin-bottom:4px;">Link to order (optional)</label>
+          <select id="tlOrderLink" class="input" style="width:100%;">
+            <option value="">No order linked</option>
+            ${orderOptions}
+          </select>
+        </div>
       </div>
       <div id="tlMsg" style="font-size:.8rem;margin-bottom:10px;"></div>
       <div style="display:flex;gap:8px;justify-content:flex-end;">
@@ -4372,30 +4467,40 @@ $("btnLogTime")?.addEventListener("click", () => {
   modal.querySelector("#tlDate").value = new Date().toISOString().slice(0, 10);
   modal.querySelector("#tlCancel").onclick = () => modal.remove();
   modal.querySelector("#tlSave").onclick = async () => {
-    const customer = modal.querySelector("#tlCustomer").value.trim();
-    const desc     = modal.querySelector("#tlDescription").value.trim();
-    const hours    = parseFloat(modal.querySelector("#tlHours").value) || 0;
-    const rate     = parseFloat(modal.querySelector("#tlRate").value) || 0;
-    const date     = modal.querySelector("#tlDate").value;
-    const msgEl    = modal.querySelector("#tlMsg");
+    const customer  = modal.querySelector("#tlCustomer").value.trim();
+    const desc      = modal.querySelector("#tlDescription").value.trim();
+    const hours     = parseFloat(modal.querySelector("#tlHours").value) || 0;
+    const rate      = parseFloat(modal.querySelector("#tlRate").value) || 0;
+    const date      = modal.querySelector("#tlDate").value;
+    const billable  = modal.querySelector("#tlBillable").checked;
+    const orderId   = modal.querySelector("#tlOrderLink").value;
+    const msgEl     = modal.querySelector("#tlMsg");
     if (!hours || !desc) { msgEl.textContent = "Enter hours and description."; msgEl.style.color = "#f87171"; return; }
-    const amountCents = Math.round(hours * rate * 100);
+    const amountCents = billable ? Math.round(hours * rate * 100) : 0;
     const payload = {
-      tenant_id    : TENANT_ID,
-      operator_id  : opId(),
-      expense_type : "labor",
-      vendor       : customer || "Time entry",
-      description  : desc,
+      tenant_id   : TENANT_ID,
+      operator_id : opId(),
+      customer    : customer || "Time entry",
+      description : desc,
+      hours,
+      rate_per_hour: rate,
+      billable,
       amount_cents : amountCents,
-      date         : date,
-      notes        : `${hours} hrs @ $${rate}/hr`,
+      date,
+      order_id    : orderId || undefined,
     };
     try {
-      const { error } = await sb.from("expenses").insert(payload);
-      if (error) throw error;
-      msgEl.textContent = `✓ Logged ${hours}h${rate ? ` = $${(amountCents / 100).toFixed(2)}` : ''}`;
+      const tok = await getAccessToken();
+      const res = await fetch("/.netlify/functions/log-time-entry", {
+        method : "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${tok}` },
+        body   : JSON.stringify(payload),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(d.error || "Failed to save time entry");
+      if (d.entry) TIME_ENTRIES_CACHE = [...TIME_ENTRIES_CACHE, d.entry];
+      msgEl.textContent = `✓ Logged ${hours}h${billable && rate ? ` = $${(amountCents / 100).toFixed(2)} billable` : ''}`;
       msgEl.style.color = "#4ade80";
-      await fetchExpenses();
       setTimeout(() => modal.remove(), 1500);
     } catch (err) {
       msgEl.textContent = err.message || "Failed to save.";
@@ -4425,6 +4530,38 @@ $("btnBkNext")?.addEventListener("click", async () => {
   await renderBookings();
 });
 
+// Recurrence UI: show/hide options and compute count
+(function initRecurrenceUI() {
+  const ruleEl = $("bkRecurrenceRule");
+  const optEl  = $("bkRecurrenceOptions");
+  const endEl  = $("bkRecurrenceEnd");
+  const cntEl  = $("bkRecurrenceCount");
+  if (!ruleEl) return;
+
+  function computeRecurrenceCount() {
+    const rule = ruleEl.value;
+    const endDate = endEl?.value;
+    if (!rule || !endDate) { if (cntEl) cntEl.textContent = "—"; return; }
+    const baseDate = $("bkDate")?.value;
+    if (!baseDate) { if (cntEl) cntEl.textContent = "—"; return; }
+    const start = new Date(baseDate + "T00:00:00");
+    const end   = new Date(endDate + "T00:00:00");
+    if (end <= start) { if (cntEl) cntEl.textContent = "End date must be after start date."; return; }
+    const intervalDays = rule === "DAILY" ? 1 : rule === "WEEKLY" ? 7 : rule === "BIWEEKLY" ? 14 : 30;
+    let count = 0;
+    let cur = new Date(start.getTime() + intervalDays * 86400000);
+    while (cur <= end) { count++; cur = new Date(cur.getTime() + intervalDays * 86400000); }
+    if (cntEl) cntEl.textContent = `${count} recurring instance${count === 1 ? "" : "s"} will be created`;
+  }
+
+  ruleEl.addEventListener("change", () => {
+    if (optEl) optEl.style.display = ruleEl.value ? "block" : "none";
+    computeRecurrenceCount();
+  });
+  endEl?.addEventListener("change", computeRecurrenceCount);
+  $("bkDate")?.addEventListener("change", computeRecurrenceCount);
+})();
+
 $("btnSaveBooking")?.addEventListener("click", async () => {
   const btn  = $("btnSaveBooking");
   const msg  = $("newBookingMsg");
@@ -4435,6 +4572,8 @@ $("btnSaveBooking")?.addEventListener("click", async () => {
   const time  = $("bkStart")?.value;
   const dur   = parseInt($("bkDuration")?.value || "60", 10);
   const notes = $("bkNotes")?.value.trim();
+  const recurrenceRule = $("bkRecurrenceRule")?.value || "";
+  const recurrenceEnd  = $("bkRecurrenceEnd")?.value  || "";
 
   if (msg) { msg.textContent = ""; msg.className = "msg"; }
   if (!name || !title || !date || !time) {
@@ -4449,16 +4588,40 @@ $("btnSaveBooking")?.addEventListener("click", async () => {
   if (msg) { msg.textContent = "Saving…"; msg.className = "msg"; }
   try {
     const tok = await getAccessToken();
+    const payload = { customer_name: name, customer_email: email || undefined, title, starts_at: startsAt, ends_at: endsAt, notes: notes || undefined };
+    if (recurrenceRule) { payload.recurrence_rule = recurrenceRule; if (recurrenceEnd) payload.recurrence_end_date = recurrenceEnd; }
     const res = await fetch("/.netlify/functions/create-booking", {
       method : "POST",
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${tok}` },
-      body   : JSON.stringify({ customer_name: name, customer_email: email || undefined, title, starts_at: startsAt, ends_at: endsAt, notes: notes || undefined }),
+      body   : JSON.stringify(payload),
     });
     const d = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(d.error || "Failed to save booking");
-    if (msg) { msg.textContent = "✓ Booking saved!"; msg.className = "msg success"; }
+
+    // Handle recurrence
+    if (recurrenceRule && recurrenceEnd && d.booking?.id) {
+      try {
+        const rRes = await fetch("/.netlify/functions/create-recurring-bookings", {
+          method : "POST",
+          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${tok}` },
+          body   : JSON.stringify({ booking_id: d.booking.id, recurrence_rule: recurrenceRule, recurrence_end_date: recurrenceEnd }),
+        });
+        const rData = await rRes.json().catch(() => ({}));
+        const n = rData.count || 0;
+        if (msg) { msg.textContent = `✓ Booked + ${n} recurring instance${n === 1 ? "" : "s"} created.`; msg.className = "msg success"; }
+        showToast(`Booked + ${n} recurring instance${n === 1 ? "" : "s"} created.`);
+      } catch (_) {
+        if (msg) { msg.textContent = "✓ Booking saved! (Recurring instances may have failed.)"; msg.className = "msg success"; }
+      }
+    } else {
+      if (msg) { msg.textContent = "✓ Booking saved!"; msg.className = "msg success"; }
+    }
+
     // Reset form
-    ["bkCustomerName","bkCustomerEmail","bkTitle","bkNotes"].forEach((id) => { const el = $( id); if (el) el.value = ""; });
+    ["bkCustomerName","bkCustomerEmail","bkTitle","bkNotes"].forEach((id) => { const el = $(id); if (el) el.value = ""; });
+    const ruleEl = $("bkRecurrenceRule"); if (ruleEl) ruleEl.value = "";
+    const optEl  = $("bkRecurrenceOptions"); if (optEl) optEl.style.display = "none";
+    const endEl  = $("bkRecurrenceEnd"); if (endEl) endEl.value = "";
     btn.disabled = false;
     await renderBookings();
     setTimeout(() => { const form = $("newBookingForm"); if (form) form.classList.add("hidden"); }, 1200);
@@ -9308,7 +9471,53 @@ function renderDashboard() {
       })
     : '';
 
+  // ── Onboarding checklist ──────────────────────────────────────────────────
+  const onboardingDismissed = localStorage.getItem("pl_onboarding_dismissed") === "true";
+  const step1Done = CUSTOMERS_CACHE.length > 0;
+  const step2Done = CRM_ORDERS_CACHE.length > 0;
+  const step3Done = localStorage.getItem("pl_invoice_sent") === "true" || PAYMENTS_CACHE.some((p) => p.invoice_sent_at || p.invoice_url);
+  const step4Done = BOOKINGS_CACHE.length > 0;
+  const stepsComplete = [step1Done, step2Done, step3Done, step4Done].filter(Boolean).length;
+  const showOnboarding = !onboardingDismissed && stepsComplete < 3;
+
+  const onboardingHtml = showOnboarding ? `
+    <div class="card" id="onboardingCard" style="margin-bottom:16px;border:1px solid rgba(200,75,47,.3);background:rgba(200,75,47,.04);">
+      <div class="card-hd">
+        <strong>Get started with ProofLink</strong>
+        <button id="btnDismissOnboarding" style="font-size:.75rem;color:rgba(255,255,255,.3);background:none;border:none;cursor:pointer;">Dismiss</button>
+      </div>
+      <div class="card-bd">
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span style="font-size:1.1rem;color:${step1Done ? "#4ade80" : "rgba(255,255,255,.3)"};">${step1Done ? "✓" : "○"}</span>
+            <span style="color:${step1Done ? "rgba(255,255,255,.5)" : "inherit"};text-decoration:${step1Done ? "line-through" : "none"};">Add your first customer</span>
+            ${!step1Done ? `<button data-tab="customers" class="btn btn-ghost" style="margin-left:auto;font-size:.75rem;padding:3px 10px;">Go →</button>` : ""}
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span style="font-size:1.1rem;color:${step2Done ? "#4ade80" : "rgba(255,255,255,.3)"};">${step2Done ? "✓" : "○"}</span>
+            <span style="color:${step2Done ? "rgba(255,255,255,.5)" : "inherit"};text-decoration:${step2Done ? "line-through" : "none"};">Create your first order</span>
+            ${!step2Done ? `<button data-tab="orders" class="btn btn-ghost" style="margin-left:auto;font-size:.75rem;padding:3px 10px;">Go →</button>` : ""}
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span style="font-size:1.1rem;color:${step3Done ? "#4ade80" : "rgba(255,255,255,.3)"};">${step3Done ? "✓" : "○"}</span>
+            <span style="color:${step3Done ? "rgba(255,255,255,.5)" : "inherit"};text-decoration:${step3Done ? "line-through" : "none"};">Send your first invoice</span>
+            ${!step3Done ? `<button data-tab="payments" class="btn btn-ghost" style="margin-left:auto;font-size:.75rem;padding:3px 10px;">Go →</button>` : ""}
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span style="font-size:1.1rem;color:${step4Done ? "#4ade80" : "rgba(255,255,255,.3)"};">${step4Done ? "✓" : "○"}</span>
+            <span style="color:${step4Done ? "rgba(255,255,255,.5)" : "inherit"};text-decoration:${step4Done ? "line-through" : "none"};">Schedule a booking</span>
+            ${!step4Done ? `<button data-tab="bookings" class="btn btn-ghost" style="margin-left:auto;font-size:.75rem;padding:3px 10px;">Go →</button>` : ""}
+          </div>
+        </div>
+        <div style="margin-top:12px;background:rgba(255,255,255,.06);border-radius:4px;height:4px;overflow:hidden;">
+          <div style="width:${Math.round(stepsComplete / 4 * 100)}%;height:100%;background:var(--accent);border-radius:4px;"></div>
+        </div>
+        <div style="font-size:.75rem;color:rgba(255,255,255,.3);margin-top:4px;">${stepsComplete} of 4 steps complete</div>
+      </div>
+    </div>` : "";
+
   dashboardWrap.innerHTML = `
+    ${onboardingHtml}
     ${metricsHtml}
 
     <div class="workflow-strip">
@@ -9642,6 +9851,19 @@ function renderDashboard() {
     if (btn) { const orig = btn.textContent; btn.textContent = "✓ Copied!"; setTimeout(() => { btn.textContent = orig; }, 2000); }
   });
 
+  // Onboarding card wiring
+  dashboardWrap.querySelector("#btnDismissOnboarding")?.addEventListener("click", () => {
+    localStorage.setItem("pl_onboarding_dismissed", "true");
+    const card = dashboardWrap.querySelector("#onboardingCard");
+    if (card) card.remove();
+  });
+  dashboardWrap.querySelectorAll("#onboardingCard [data-tab]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const tab = btn.getAttribute("data-tab");
+      if (tab) switchTab(tab);
+    });
+  });
+
   dashboardWrap.querySelectorAll("[data-dashboard-action]").forEach((btn) => {
     btn.addEventListener("click", () => {
       const action = btn.getAttribute("data-dashboard-action");
@@ -9854,6 +10076,20 @@ function renderOrders() {
       <div class="detail-copy">${escapeHtml(notesText)}</div>
     </div>
 
+    ${(active.order_type === 'package' || active.order_type === 'retainer') ? `
+    <div class="detail-card" style="margin-top:14px;">
+      <div class="kicker">Order type: ${escapeHtml(active.order_type === 'package' ? 'Session Package' : 'Monthly Retainer')}</div>
+      ${active.order_type === 'package' ? (() => {
+        const total = Number(active.package_sessions_total || 0);
+        const used  = Number(active.package_sessions_used || 0);
+        const remaining = Math.max(0, total - used);
+        const pct = total > 0 ? Math.round(remaining / total * 10) : 0;
+        const bar = '█'.repeat(pct) + '░'.repeat(10 - pct);
+        return `<div class="detail-copy">Sessions: ${remaining} remaining of ${total} &nbsp;[${bar}]&nbsp; (used ${used})</div>
+        ${active.package_valid_until ? `<div class="detail-copy">Valid until ${new Date(active.package_valid_until).toLocaleDateString()}</div>` : ''}`;
+      })() : `<div class="detail-copy">Bills every ${escapeHtml(String(active.recurrence_interval_days || 30))} days</div>`}
+    </div>` : ''}
+
     <div class="detail-card" style="margin-top:14px;">
       <div class="kicker">Workflow next step</div>
       <div class="detail-copy">Tracked job: ${escapeHtml(linkedJob?.title || (linkedJob ? "Linked job" : "No job yet"))}</div>
@@ -9971,7 +10207,49 @@ function renderOrders() {
       </div>
       <div id="orderNotifyMsg" class="msg" style="margin-top:8px;"></div>
     </div>
+
+    <div class="detail-card" style="margin-top:14px;" id="timeLoggedSection">
+      <div class="kicker" style="cursor:pointer;user-select:none;" id="timeLoggedToggle">Time logged ▸</div>
+      <div id="timeLoggedBody" style="display:none;margin-top:10px;"></div>
+    </div>
   `;
+
+  // Time entries collapsible section
+  document.getElementById("timeLoggedToggle")?.addEventListener("click", async () => {
+    const body   = document.getElementById("timeLoggedBody");
+    const toggle = document.getElementById("timeLoggedToggle");
+    if (!body) return;
+    if (body.style.display !== "none") { body.style.display = "none"; toggle.textContent = "Time logged ▸"; return; }
+    toggle.textContent = "Time logged ▾";
+    body.style.display = "block";
+    body.innerHTML = `<div class="muted" style="font-size:.82rem;">Loading…</div>`;
+    const entries = await fetchTimeEntries(active.id);
+    if (!entries.length) { body.innerHTML = `<div class="muted" style="font-size:.82rem;">No time entries for this order.</div>`; return; }
+    const totalHours = entries.reduce((s, e) => s + Number(e.hours || 0), 0);
+    const totalBillable = entries.reduce((s, e) => s + Number(e.amount_cents || 0), 0);
+    body.innerHTML = `
+      <table style="width:100%;font-size:.8rem;border-collapse:collapse;">
+        <thead><tr style="color:rgba(255,255,255,.35);">
+          <th style="text-align:left;padding:4px 6px;border-bottom:1px solid rgba(255,255,255,.08);">Date</th>
+          <th style="text-align:left;padding:4px 6px;border-bottom:1px solid rgba(255,255,255,.08);">Description</th>
+          <th style="text-align:right;padding:4px 6px;border-bottom:1px solid rgba(255,255,255,.08);">Hours</th>
+          <th style="text-align:right;padding:4px 6px;border-bottom:1px solid rgba(255,255,255,.08);">Billable</th>
+        </tr></thead>
+        <tbody>${entries.map((e) => `
+          <tr>
+            <td style="padding:3px 6px;border-bottom:1px solid rgba(255,255,255,.05);">${escapeHtml(e.date || "")}</td>
+            <td style="padding:3px 6px;border-bottom:1px solid rgba(255,255,255,.05);">${escapeHtml(e.description || "")}</td>
+            <td style="text-align:right;padding:3px 6px;border-bottom:1px solid rgba(255,255,255,.05);">${Number(e.hours||0).toFixed(2)}</td>
+            <td style="text-align:right;padding:3px 6px;border-bottom:1px solid rgba(255,255,255,.05);">${e.billable && e.amount_cents ? formatUsd(e.amount_cents) : "—"}</td>
+          </tr>`).join("")}
+        </tbody>
+        <tfoot><tr style="font-weight:600;">
+          <td colspan="2" style="padding:6px 6px 2px;">Total</td>
+          <td style="text-align:right;padding:6px 6px 2px;">${totalHours.toFixed(2)} hrs</td>
+          <td style="text-align:right;padding:6px 6px 2px;">${totalBillable ? formatUsd(totalBillable) : "—"}</td>
+        </tr></tfoot>
+      </table>`;
+  });
 
   $("btnSaveOrderStatus")?.addEventListener("click", async () => {
     const nextStatus = $("orderStatusSelect")?.value || "new";
@@ -10505,6 +10783,122 @@ btnRefreshDashboard?.addEventListener("click", async () => {
   renderPlans(planSearch?.value || "");
   renderGuidance();
 });
+// ── Create Order Modal (with session package support) ────────────────────────
+function openCreateOrderModal() {
+  const existing = document.getElementById("createOrderModal");
+  if (existing) { existing.remove(); return; }
+  const modal = document.createElement("div");
+  modal.id = "createOrderModal";
+  modal.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:10000;display:flex;align-items:center;justify-content:center;padding:16px;";
+  modal.innerHTML = `
+    <div style="background:#1a1d27;border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:28px;max-width:500px;width:100%;max-height:90vh;overflow-y:auto;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+        <strong style="font-size:1rem;">New order</strong>
+        <button id="createOrderClose" type="button" style="background:none;border:none;color:rgba(255,255,255,.5);font-size:1.2rem;cursor:pointer;">✕</button>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <input id="coCustomerName" class="input" placeholder="Customer name *" />
+        <input id="coCustomerEmail" class="input" type="email" placeholder="Customer email" />
+        <input id="coTitle" class="input" placeholder="Order title *" />
+        <input id="coAmount" class="input" type="number" min="0" step="0.01" placeholder="Amount (USD)" />
+        <div style="margin-top:10px;">
+          <label style="font-size:.78rem;color:rgba(255,255,255,.45);display:block;margin-bottom:4px;">Order type</label>
+          <select id="orderType" class="input" style="width:100%;margin-bottom:8px;">
+            <option value="standard">Standard (one-time)</option>
+            <option value="package">Session package</option>
+            <option value="retainer">Monthly retainer</option>
+          </select>
+          <div id="packageFields" style="display:none;">
+            <div style="display:flex;gap:8px;margin-bottom:8px;">
+              <div style="flex:1;">
+                <label style="font-size:.75rem;color:rgba(255,255,255,.35);display:block;margin-bottom:2px;">Sessions included</label>
+                <input type="number" id="packageSessions" class="input" min="1" value="10" style="width:100%;" />
+              </div>
+              <div style="flex:1;">
+                <label style="font-size:.75rem;color:rgba(255,255,255,.35);display:block;margin-bottom:2px;">Valid until</label>
+                <input type="date" id="packageValidUntil" class="input" style="width:100%;" />
+              </div>
+            </div>
+          </div>
+          <div id="retainerFields" style="display:none;">
+            <label style="font-size:.75rem;color:rgba(255,255,255,.35);display:block;margin-bottom:2px;">Bill every (days)</label>
+            <select id="retainerInterval" class="input" style="width:100%;">
+              <option value="30">Monthly (30 days)</option>
+              <option value="14">Bi-weekly (14 days)</option>
+              <option value="7">Weekly (7 days)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div id="coMsg" style="font-size:.8rem;margin:10px 0;"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px;">
+        <button id="coCancel" class="btn btn-ghost btn-sm" type="button">Cancel</button>
+        <button id="coSave" class="btn btn-primary btn-sm" type="button">Create order</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  modal.querySelector("#createOrderClose").onclick = () => modal.remove();
+  modal.querySelector("#coCancel").onclick = () => modal.remove();
+  modal.addEventListener("click", (e) => { if (e.target === modal) modal.remove(); });
+
+  const orderTypeEl = modal.querySelector("#orderType");
+  const pkgFields   = modal.querySelector("#packageFields");
+  const retFields   = modal.querySelector("#retainerFields");
+  orderTypeEl.addEventListener("change", () => {
+    pkgFields.style.display  = orderTypeEl.value === "package"  ? "block" : "none";
+    retFields.style.display  = orderTypeEl.value === "retainer" ? "block" : "none";
+  });
+
+  modal.querySelector("#coSave").onclick = async () => {
+    const saveBtn = modal.querySelector("#coSave");
+    const msgEl   = modal.querySelector("#coMsg");
+    const name    = modal.querySelector("#coCustomerName").value.trim();
+    const email   = modal.querySelector("#coCustomerEmail").value.trim();
+    const title   = modal.querySelector("#coTitle").value.trim();
+    const amount  = parseFloat(modal.querySelector("#coAmount").value) || 0;
+    const orderType = orderTypeEl.value;
+    if (!name || !title) { msgEl.textContent = "Name and title are required."; msgEl.style.color = "#f87171"; return; }
+    saveBtn.disabled = true;
+    saveBtn.textContent = "Saving…";
+    const payload = {
+      tenant_id     : TENANT_ID,
+      operator_id   : opId(),
+      customer_name : name,
+      customer_email: email || undefined,
+      title,
+      total_cents   : Math.round(amount * 100),
+      status        : "new",
+      order_type    : orderType,
+    };
+    if (orderType === "package") {
+      payload.package_sessions_total = parseInt(modal.querySelector("#packageSessions").value) || 10;
+      const vu = modal.querySelector("#packageValidUntil").value;
+      if (vu) payload.package_valid_until = vu;
+    }
+    if (orderType === "retainer") {
+      payload.recurrence_interval_days = parseInt(modal.querySelector("#retainerInterval").value) || 30;
+    }
+    try {
+      const { data, error } = await sb.from("orders").insert(withTenantScope(payload)).select("*").single();
+      if (error) throw error;
+      CRM_ORDERS_CACHE = [data, ...CRM_ORDERS_CACHE];
+      ACTIVE_ORDER_ID = data.id;
+      renderOrders();
+      renderDashboard();
+      showToast("Order created.");
+      modal.remove();
+    } catch (err) {
+      msgEl.textContent = err.message || "Failed to create order.";
+      msgEl.style.color = "#f87171";
+      saveBtn.disabled = false;
+      saveBtn.textContent = "Create order";
+    }
+  };
+}
+
+// Wire up any "New order" button in the panel-actions
+$("btnNewOrderManual")?.addEventListener("click", openCreateOrderModal);
+
 btnRefreshOrders?.addEventListener("click", async () => {
   try {
     await Promise.all([fetchCrmOrders(), fetchJobs(), fetchServicePlans()]);
@@ -11314,6 +11708,96 @@ $("btnExportCustomersCsv")?.addEventListener("click", () => {
   if (!rows.length) { alert("No customers to export."); return; }
   const headers = ["id", "name", "email", "phone", "preferred_contact", "notes", "order_count", "lifetime_value_cents", "created_at", "updated_at"];
   downloadCsv("customers", headers, rows.map((r) => headers.map((h) => r[h] ?? "")));
+});
+
+// ── Bulk Customer Import ──────────────────────────────────────────────────────
+$("btnImportCustomers")?.addEventListener("click", () => {
+  const existing = document.getElementById("importCustomersModal");
+  if (existing) { existing.remove(); return; }
+  const modal = document.createElement("div");
+  modal.id = "importCustomersModal";
+  modal.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:10000;display:flex;align-items:center;justify-content:center;padding:16px;";
+  modal.innerHTML = `
+    <div style="background:#1a1d27;border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:28px;max-width:560px;width:100%;max-height:90vh;overflow-y:auto;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <strong style="font-size:1rem;">Import customers from CSV</strong>
+        <button id="importCustClose" type="button" style="background:none;border:none;color:rgba(255,255,255,.5);font-size:1.2rem;cursor:pointer;">✕</button>
+      </div>
+      <div style="font-size:.78rem;color:rgba(255,255,255,.4);margin-bottom:10px;">Expected format (one per line):<br /><code style="font-size:.75rem;">Name, Email, Phone, Address, City, State, Zip</code></div>
+      <textarea id="importCsvData" class="input" rows="8" style="width:100%;font-family:monospace;font-size:.8rem;resize:vertical;" placeholder="Jane Smith, jane@example.com, 555-1234, 123 Main St, Springfield, IL, 62701&#10;John Doe, john@example.com, 555-9999"></textarea>
+      <div style="margin-top:10px;display:flex;gap:8px;">
+        <button id="btnImportCsvPreview" class="btn btn-ghost btn-sm" type="button">Preview</button>
+        <button id="btnImportCsvSubmit" class="btn btn-primary btn-sm" type="button" disabled>Import 0 customers</button>
+        <button id="importCustCancel" class="btn btn-ghost btn-sm" type="button">Cancel</button>
+      </div>
+      <div id="importCsvPreviewWrap" style="margin-top:12px;"></div>
+      <div id="importCsvMsg" style="font-size:.8rem;margin-top:8px;"></div>
+    </div>`;
+  document.body.appendChild(modal);
+  modal.querySelector("#importCustClose").onclick = () => modal.remove();
+  modal.querySelector("#importCustCancel").onclick = () => modal.remove();
+  modal.addEventListener("click", (e) => { if (e.target === modal) modal.remove(); });
+
+  let parsedRows = [];
+
+  function parseCsv(raw) {
+    return raw.split("\n")
+      .map((line) => line.split(",").map((c) => c.trim()))
+      .filter((cols) => cols.length >= 1 && cols[0]);
+  }
+
+  modal.querySelector("#btnImportCsvPreview").onclick = () => {
+    const raw = modal.querySelector("#importCsvData").value.trim();
+    if (!raw) { modal.querySelector("#importCsvMsg").textContent = "Paste CSV data first."; return; }
+    parsedRows = parseCsv(raw);
+    const preview = parsedRows.slice(0, 5);
+    const previewWrap = modal.querySelector("#importCsvPreviewWrap");
+    previewWrap.innerHTML = `
+      <div style="font-size:.78rem;color:rgba(255,255,255,.4);margin-bottom:6px;">Preview (first ${preview.length} of ${parsedRows.length} rows):</div>
+      <table style="width:100%;font-size:.78rem;border-collapse:collapse;">
+        <thead><tr style="color:rgba(255,255,255,.35);">${["Name","Email","Phone","Address","City","State","Zip"].map((h) => `<th style="text-align:left;padding:4px 6px;border-bottom:1px solid rgba(255,255,255,.08);">${h}</th>`).join("")}</tr></thead>
+        <tbody>${preview.map((r) => `<tr>${r.slice(0,7).map((c) => `<td style="padding:3px 6px;border-bottom:1px solid rgba(255,255,255,.05);">${escapeHtml(c)}</td>`).join("")}</tr>`).join("")}</tbody>
+      </table>`;
+    const submitBtn = modal.querySelector("#btnImportCsvSubmit");
+    submitBtn.textContent = `Import ${parsedRows.length} customer${parsedRows.length === 1 ? "" : "s"}`;
+    submitBtn.disabled = false;
+    modal.querySelector("#importCsvMsg").textContent = "";
+  };
+
+  modal.querySelector("#btnImportCsvSubmit").onclick = async () => {
+    const submitBtn = modal.querySelector("#btnImportCsvSubmit");
+    const msgEl     = modal.querySelector("#importCsvMsg");
+    if (!parsedRows.length) { msgEl.textContent = "No rows to import."; return; }
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Importing…";
+    try {
+      const tok = await getAccessToken();
+      const customers = parsedRows.map(([name, email, phone, address, city, state, zip]) => ({
+        name: name || "", email: email || undefined, phone: phone || undefined,
+        address: address || undefined, city: city || undefined, state: state || undefined, zip: zip || undefined,
+      }));
+      const res = await fetch("/.netlify/functions/bulk-import-customers", {
+        method : "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${tok}` },
+        body   : JSON.stringify({ customers }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(d.error || "Import failed");
+      const imported = d.imported || 0;
+      const skipped  = d.skipped  || 0;
+      msgEl.textContent = `Imported ${imported}, Skipped ${skipped} duplicate${skipped === 1 ? "" : "s"}`;
+      msgEl.style.color = "#4ade80";
+      await fetchCustomers();
+      renderCustomersList(customerSearch?.value || "");
+      submitBtn.textContent = "Done";
+      setTimeout(() => modal.remove(), 2500);
+    } catch (err) {
+      msgEl.textContent = err.message || "Import failed.";
+      msgEl.style.color = "#f87171";
+      submitBtn.disabled = false;
+      submitBtn.textContent = `Import ${parsedRows.length} customers`;
+    }
+  };
 });
 
 // ── Customer Messages ─────────────────────────────────────────────────────────

@@ -154,11 +154,18 @@
 
     <div class="tab-panel" id="tab-bookings">
       <div class="search-row"><input type="text" id="bookingSearch" placeholder="Search appointments…" /></div>
-      <div id="bookingsList"></div>
-      <div id="packageBalance" style="display:none;margin-top:16px;padding:14px 16px;background:rgba(200,75,47,.06);border:1px solid rgba(200,75,47,.2);border-radius:8px;">
-        <div style="font-size:.8rem;font-weight:700;color:#c84b2f;margin-bottom:4px;">SESSION PACKAGE</div>
-        <div id="packageBalanceText" style="font-size:.9rem;color:#1a1a1a;"></div>
+      <div id="packageBalanceSection" style="display:none;margin-bottom:16px;">
+        <div style="padding:14px 16px;background:rgba(200,75,47,.06);border:1px solid rgba(200,75,47,.2);border-radius:8px;">
+          <div style="font-size:.75rem;font-weight:700;color:#c84b2f;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">Active Package</div>
+          <div id="packageBalanceName" style="font-weight:600;color:#e8e9eb;margin-bottom:4px;">—</div>
+          <div id="packageBalanceDetail" style="font-size:.85rem;color:rgba(255,255,255,.6);">—</div>
+          <div id="packageBalanceBar" style="margin-top:10px;height:6px;background:rgba(255,255,255,.1);border-radius:3px;">
+            <div id="packageBalanceFill" style="height:100%;background:#c84b2f;border-radius:3px;width:0%;transition:width .4s;"></div>
+          </div>
+          <div id="packageBalanceExpiry" style="font-size:.75rem;color:rgba(255,255,255,.35);margin-top:6px;"></div>
+        </div>
       </div>
+      <div id="bookingsList"></div>
       <a class="book-link" id="newBookingLink" href="#" target="_blank">+ Schedule a new appointment →</a>
     </div>
 
@@ -237,6 +244,30 @@
     var key   = (s || 'new').replace(/[^a-z0-9_]/gi, '');
     var label = escHtml((s || 'new').replace(/_/g, ' '));
     return '<span class="badge ' + key + '">' + label + '</span>';
+  }
+
+  function renderPackageBalance(orders) {
+    var section = document.getElementById('packageBalanceSection');
+    if (!section) return;
+    var pkg = (orders || []).find(function (o) {
+      return o.order_type === 'package' && o.package_sessions_total > 0;
+    });
+    if (!pkg) { section.style.display = 'none'; return; }
+    var total = pkg.package_sessions_total || 0;
+    var used  = pkg.package_sessions_used  || 0;
+    var remaining = Math.max(0, total - used);
+    var pct = total > 0 ? Math.min(100, Math.round((used / total) * 100)) : 0;
+    document.getElementById('packageBalanceName').textContent   = pkg.title || 'Package';
+    document.getElementById('packageBalanceDetail').textContent = remaining + ' session' + (remaining !== 1 ? 's' : '') + ' remaining of ' + total;
+    document.getElementById('packageBalanceFill').style.width   = pct + '%';
+    if (pkg.package_valid_until) {
+      var exp = new Date(pkg.package_valid_until);
+      document.getElementById('packageBalanceExpiry').textContent =
+        'Expires ' + (exp.getMonth() + 1) + '/' + exp.getDate() + '/' + exp.getFullYear();
+    } else {
+      document.getElementById('packageBalanceExpiry').textContent = '';
+    }
+    section.style.display = 'block';
   }
 
   function renderOrders(orders) {
@@ -375,6 +406,7 @@
         portalEmail  = email;
         renderOrders(ALL_ORDERS);
         renderBookings(ALL_BOOKINGS);
+        renderPackageBalance(ALL_ORDERS);
         renderQuotes(d.quotes || []);
         // Pre-fill contact form name from first known record
         var knownName = (d.orders && d.orders[0] && d.orders[0].customer_name) ||

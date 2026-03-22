@@ -582,12 +582,35 @@ const templates = {
     };
   },
 
-  invoiceEmail({ customer_name, customer_email, business_name, order_id, title, description, total_amount, total_cents, status, created_at, portal_url, invoice_number, due_date, payment_url }) {
-    const n = total_cents != null ? total_cents / 100 : Number(total_amount || 0);
+  invoiceEmail({ customer_name, customer_email, business_name, order_id, order_title, title, description, total_amount, total_cents, amount_cents, status, created_at, portal_url, invoice_number, due_date, payment_url, logo_url, line_items = [] }) {
+    const resolvedCents = amount_cents != null ? amount_cents : total_cents;
+    const n = resolvedCents != null ? resolvedCents / 100 : Number(total_amount || 0);
     const fmt = isNaN(n) || !n ? null : '$' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    const fmtMoney = (cents) => cents != null ? '$' + (Number(cents) / 100).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',') : '—';
     const dateStr = created_at
       ? new Date(created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
       : new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+    const resolvedTitle = order_title || title || '—';
+    const lineItemsHtml = line_items.length > 0 ? `
+<table style="width:100%;border-collapse:collapse;margin-bottom:16px;">
+  <thead>
+    <tr style="border-bottom:1px solid rgba(255,255,255,.1);">
+      <th style="text-align:left;padding:6px 0;font-size:.78rem;color:#9ca3af;font-weight:400;">Description</th>
+      <th style="text-align:right;padding:6px 0;font-size:.78rem;color:#9ca3af;font-weight:400;">Qty</th>
+      <th style="text-align:right;padding:6px 0;font-size:.78rem;color:#9ca3af;font-weight:400;">Unit</th>
+      <th style="text-align:right;padding:6px 0;font-size:.78rem;color:#9ca3af;font-weight:400;">Total</th>
+    </tr>
+  </thead>
+  <tbody>
+    ${line_items.map(item => `
+    <tr style="border-bottom:1px solid rgba(255,255,255,.06);">
+      <td style="padding:8px 0;font-size:.88rem;">${item.description || ''}</td>
+      <td style="text-align:right;padding:8px 0;font-size:.88rem;color:#9ca3af;">${item.quantity || 1}</td>
+      <td style="text-align:right;padding:8px 0;font-size:.88rem;color:#9ca3af;">${fmtMoney(item.unit_price_cents)}</td>
+      <td style="text-align:right;padding:8px 0;font-size:.88rem;font-weight:600;">${fmtMoney(item.line_total_cents || Math.round((item.quantity || 1) * (item.unit_price_cents || 0)))}</td>
+    </tr>`).join('')}
+  </tbody>
+</table>` : '';
     return {
       to     : customer_email,
       subject: `Invoice from ${business_name}${fmt ? ' — ' + fmt + ' due' : ''}`,
@@ -598,14 +621,76 @@ const templates = {
           ['Invoice #', invoice_number || String(order_id || '').slice(0, 8).toUpperCase() || '—'],
           ['Date', dateStr],
           ...(due_date ? [['Due date', new Date(due_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })]] : []),
-          ['Service', title || '—'],
-          ...(fmt ? [['Amount due', fmt]] : []),
+          ['Service', resolvedTitle],
+          ...(fmt && !line_items.length ? [['Amount due', fmt]] : []),
         ])}
         ${description ? p(`<em>${description}</em>`) : ''}
+        ${lineItemsHtml}
+        ${fmt ? `<div style="text-align:right;margin:0 0 24px;font-size:15px;font-weight:700;color:${T.ink};">Total due: ${fmt}</div>` : ''}
         <div style="text-align:center;margin:0 0 28px;">${cta(payment_url ? 'Pay now →' : 'View invoice →', payment_url || portal_url, T.red)}</div>
         ${divider()}
         ${p(`<span style="color:${T.hint};">Questions? Just reply and we\u2019ll sort it out.</span>`)}
-      `)}</table>`, { preheader: `Invoice from ${business_name}${fmt ? ' — ' + fmt + ' due' : ''}.` }),
+      `)}</table>`, { preheader: `Invoice from ${business_name}${fmt ? ' — ' + fmt + ' due' : ''}.`, logo_url }),
+    };
+  },
+
+  packageConfirmationEmail({ business_name, customer_name, customer_email, package_title, sessions_total, valid_until, amount_cents, logo_url, booking_url }) {
+    const fmtMoney = (cents) => cents != null ? '$' + (Number(cents) / 100).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',') : null;
+    const amountStr = fmtMoney(amount_cents);
+    const validStr = valid_until
+      ? new Date(valid_until).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' })
+      : null;
+    const sessionsNum = Number(sessions_total) || 0;
+    const progressPct = 0; // new purchase — 0 sessions used
+    const barWidth = 100 - progressPct;
+    const ctaHref = booking_url || `${SITE_URL}/book/`;
+    return {
+      to     : customer_email,
+      subject: `Your ${package_title} package is confirmed`,
+      html   : layout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.green)}${bodyWrap(`
+        ${badge('Package confirmed ✓', T.greenLt, T.green, T.greenBd)}<br/><br/>
+        ${h1(`You're all set, ${customer_name}!`)}
+        ${sub(`Hi ${customer_name}, your session package is active and ready to use.`)}
+        ${infoBox([
+          ['Package', package_title],
+          ['Sessions included', String(sessionsNum)],
+          ...(validStr ? [['Valid until', validStr]] : []),
+          ...(amountStr ? [['Amount paid', amountStr]] : []),
+        ])}
+        <div style="margin:0 0 24px;">
+          <p style="margin:0 0 8px;font-size:13px;color:${T.hint};">Sessions used: <strong style="color:${T.ink};">0 / ${sessionsNum}</strong></p>
+          <div style="background:${T.border};border-radius:4px;height:8px;overflow:hidden;">
+            <div style="background:${T.green};width:${barWidth}%;height:8px;border-radius:4px;"></div>
+          </div>
+        </div>
+        <div style="text-align:center;margin:0 0 28px;">${cta('Book your first session →', ctaHref, T.green)}</div>
+        ${divider()}
+        ${p(`Your remaining sessions will be tracked automatically. You'll see your balance when you log in.`)}
+        ${p(`<span style="color:${T.hint};">Questions? Just reply to this email.</span>`)}
+      `)}</table>`, { preheader: `Your ${package_title} package is confirmed — ${sessionsNum} sessions ready to use.`, logo_url }),
+    };
+  },
+
+  retainerInvoiceEmail({ business_name, customer_name, customer_email, retainer_title, amount_cents, period_label, invoice_number, payment_url, logo_url }) {
+    const fmtMoney = (cents) => cents != null ? '$' + (Number(cents) / 100).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',') : null;
+    const amountStr = fmtMoney(amount_cents);
+    return {
+      to     : customer_email,
+      subject: `${retainer_title} — ${period_label} Invoice`,
+      html   : layout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.red)}${bodyWrap(`
+        ${badge('Retainer invoice', T.redLight, T.red, T.redBorder)}<br/><br/>
+        ${h1(`${retainer_title} — ${period_label}`)}
+        ${sub(`Hi ${customer_name}, your ${retainer_title} invoice for ${period_label} is ready.`)}
+        ${infoBox([
+          ...(invoice_number ? [['Invoice #', invoice_number]] : []),
+          ...(amountStr ? [['Amount due', amountStr]] : []),
+          ['Period', period_label],
+        ])}
+        ${payment_url ? `<div style="text-align:center;margin:0 0 28px;">${cta('Pay now →', payment_url, T.red)}</div>` : ''}
+        ${divider()}
+        ${p('This invoice is automatically generated as part of your retainer agreement.')}
+        ${p(`<span style="color:${T.hint};">Questions? Just reply to this email and we\u2019ll sort it out.</span>`)}
+      `)}</table>`, { preheader: `${retainer_title} — ${period_label} invoice${amountStr ? ': ' + amountStr + ' due' : ''}.`, logo_url }),
     };
   },
 
@@ -627,7 +712,10 @@ const templates = {
 
 };
 
-module.exports = { sendEmail, loggedSendEmail, templates, getChecklist, CHECKLIST_BY_TYPE };
+module.exports = { sendEmail, loggedSendEmail, templates, getChecklist, CHECKLIST_BY_TYPE, packageConfirmationEmail, retainerInvoiceEmail };
+
+function packageConfirmationEmail(opts) { return templates.packageConfirmationEmail(opts); }
+function retainerInvoiceEmail(opts)     { return templates.retainerInvoiceEmail(opts); }
 
 // ── Standalone helpers for server-side use ────────────────────────────────────
 // These are exported separately so agent/orchestrator layers can use them without

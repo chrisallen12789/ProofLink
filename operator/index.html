@@ -1017,6 +1017,7 @@
                 <button id="btnNewCustomer" class="btn" type="button">New customer</button>
                 <button id="btnRefreshCustomers" class="btn btn-ghost" type="button">Refresh</button>
                 <button id="btnExportCustomersCsv" class="btn btn-ghost" type="button">Export CSV</button>
+                <button id="btnImportCustomers" class="btn btn-ghost" type="button">&#11014; Import CSV</button>
               </div>
             </div>
 
@@ -1698,6 +1699,7 @@
               </div>
               <div class="panel-actions">
                 <button id="btnNewBooking" class="btn" type="button">+ New booking</button>
+                <button id="btnMyBookings" class="btn btn-ghost" type="button" style="font-size:.8rem;">&#128100; My bookings</button>
                 <button id="btnRefreshBookings" class="btn btn-ghost" type="button">Refresh</button>
               </div>
             </div>
@@ -1752,6 +1754,21 @@
                   </div>
                   <label>Notes</label>
                   <textarea id="bkNotes" rows="2" placeholder="Any details…"></textarea>
+                  <div style="margin-top:14px;border-top:1px solid rgba(255,255,255,.08);padding-top:14px;">
+                    <label style="font-size:.78rem;color:rgba(255,255,255,.45);display:block;margin-bottom:8px;">Repeat</label>
+                    <select id="bkRecurrenceRule" class="input" style="width:100%;margin-bottom:8px;">
+                      <option value="">Does not repeat</option>
+                      <option value="DAILY">Daily</option>
+                      <option value="WEEKLY">Weekly</option>
+                      <option value="BIWEEKLY">Every 2 weeks</option>
+                      <option value="MONTHLY">Monthly</option>
+                    </select>
+                    <div id="bkRecurrenceOptions" style="display:none;">
+                      <label style="font-size:.78rem;color:rgba(255,255,255,.45);display:block;margin-bottom:4px;">Generate instances through</label>
+                      <input type="date" id="bkRecurrenceEnd" class="input" style="width:100%;" />
+                      <div style="font-size:.75rem;color:rgba(255,255,255,.35);margin-top:4px;" id="bkRecurrenceCount">—</div>
+                    </div>
+                  </div>
                   <div style="display:flex;gap:8px;margin-top:4px;">
                     <button id="btnSaveBooking" class="btn btn-primary" type="button">Save booking</button>
                     <button id="btnCancelBooking" class="btn btn-ghost" type="button">Cancel</button>

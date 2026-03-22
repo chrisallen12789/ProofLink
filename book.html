@@ -105,6 +105,16 @@
     <label>Email address</label>
     <input type="email" id="customerEmail" placeholder="jane@example.com" autocomplete="email" />
 
+    <div style="margin-top:14px;">
+      <label style="font-size:.78rem;color:rgba(255,255,255,.55);display:block;margin-bottom:6px;">Service address <span style="color:rgba(255,255,255,.3);">(where should we come?)</span></label>
+      <input type="text" id="serviceAddress" class="input" placeholder="Street address" style="width:100%;margin-bottom:6px;" />
+      <div style="display:flex;gap:6px;">
+        <input type="text" id="serviceCity" class="input" placeholder="City" style="flex:2;" />
+        <input type="text" id="serviceState" class="input" placeholder="State" style="flex:1;max-width:80px;" />
+        <input type="text" id="serviceZip" class="input" placeholder="Zip" style="flex:1;max-width:90px;" />
+      </div>
+    </div>
+
     <p class="repeat-note">Already a customer? Your history will be pre-loaded.</p>
 
     <hr class="divider" />
@@ -238,6 +248,12 @@
     const referralSource = document.getElementById('referralSource').value;
     const rawNotes       = document.getElementById('bookingNotes').value.trim();
     const notes          = rawNotes + (referralSource ? '\n\nHow they heard about us: ' + referralSource : '');
+    const serviceAddress = [
+      document.getElementById('serviceAddress')?.value?.trim(),
+      document.getElementById('serviceCity')?.value?.trim(),
+      document.getElementById('serviceState')?.value?.trim(),
+      document.getElementById('serviceZip')?.value?.trim(),
+    ].filter(Boolean).join(', ');
 
     msg.className = 'msg';
     msg.textContent = '';
@@ -272,6 +288,7 @@
         preferred_time   : preferredTime || undefined,
         referral_source  : referralSource || undefined,
         notes            : notes || undefined,
+        service_address  : serviceAddress || undefined,
       }),
     })
       .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
