@@ -94,6 +94,7 @@
           <button class="tab" data-tab="setup" data-tour-tab="setup" type="button">Business Setup</button>
           <button class="tab" data-tab="domains" data-tour-tab="domains" type="button">Domains</button>
           <button class="tab" data-tab="import" data-tour-tab="import" type="button">Switch &amp; Import</button>
+          <button class="tab" data-tab="vendors" type="button">Vendors <span style="font-size:.7rem;color:rgba(255,255,255,.35);display:block;font-weight:400;">Subs &amp; suppliers</span></button>
         </div>
       </div>
 
@@ -1671,6 +1672,24 @@
             </div>
           </section>
 
+          <section class="panel hidden" data-panel="vendors">
+            <div class="panel-head">
+              <div>
+                <h2>Vendors &amp; Subcontractors</h2>
+                <div class="muted">Track subs, suppliers, and partners.</div>
+              </div>
+              <div class="panel-actions">
+                <button id="btnAddVendor" class="btn" type="button">+ Add vendor</button>
+                <button id="btnRefreshVendors" class="btn btn-ghost" type="button">Refresh</button>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-bd" id="vendorsList">
+                <div class="muted" style="font-size:.85rem;">Loading vendors…</div>
+              </div>
+            </div>
+          </section>
+
           <section class="panel hidden" data-panel="availability">
             <div class="panel-head">
               <div>
@@ -1699,6 +1718,7 @@
               </div>
               <div class="panel-actions">
                 <button id="btnNewBooking" class="btn" type="button">+ New booking</button>
+                <button id="btnWalkIn" class="btn btn-ghost" type="button">⚡ Walk-in</button>
                 <button id="btnMyBookings" class="btn btn-ghost" type="button" style="font-size:.8rem;">&#128100; My bookings</button>
                 <button id="btnRefreshBookings" class="btn btn-ghost" type="button">Refresh</button>
               </div>

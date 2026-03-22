@@ -411,6 +411,7 @@ let BOOKINGS_CACHE = [];
 let BK_VIEW_DATE   = new Date(); // month currently shown in calendar
 let OPERATOR_MEMBERS_CACHE = [];
 let TIME_ENTRIES_CACHE = [];
+let VENDORS_CACHE = [];
 
 // Reviews
 let REVIEWS_CACHE = [];
@@ -2370,6 +2371,10 @@ function switchTab(tab, opts = {}) {
   if (nextTab === "reviews")  fetchAndRenderReviews().catch(console.error);
   if (nextTab === "messages") fetchAndRenderMessages().catch(console.error);
   if (nextTab === "ai")       initAIPanel();
+  if (nextTab === "vendors" && !VENDORS_PANEL_LOADED) {
+    VENDORS_PANEL_LOADED = true;
+    fetchVendors().then(renderVendors);
+  }
   if (opts.updateHash !== false) syncPanelHash(nextTab);
   renderWorkspaceHub();
   scheduleWorkspaceSnapshot(nextTab);
@@ -4089,6 +4094,49 @@ async function fetchOperatorMembers() {
   return OPERATOR_MEMBERS_CACHE;
 }
 
+async function fetchVendors() {
+  try {
+    const tok = await getAccessToken();
+    const res = await fetch("/.netlify/functions/manage-vendors", {
+      headers: { "Authorization": `Bearer ${tok}` },
+    });
+    const d = await res.json().catch(() => ({}));
+    if (d.vendors) VENDORS_CACHE = d.vendors;
+  } catch (e) { /* silent */ }
+  return VENDORS_CACHE;
+}
+
+function renderVendors() {
+  const el = $("vendorsList");
+  if (!el) return;
+  if (!VENDORS_CACHE.length) {
+    el.innerHTML = `<div class="muted" style="font-size:.85rem;">No vendors yet. Add your first subcontractor or supplier.</div>`;
+    return;
+  }
+  el.innerHTML = VENDORS_CACHE.map((v) => `
+    <div class="li" style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.06);">
+      <div style="flex:1;">
+        <div style="font-weight:600;color:#e8e9eb;">${escapeHtml(v.name)}</div>
+        <div style="font-size:.8rem;color:rgba(255,255,255,.4);">${escapeHtml(v.company || "")}${v.company && v.trade ? " · " : ""}${escapeHtml(v.trade || "")}</div>
+        <div style="font-size:.78rem;color:rgba(255,255,255,.35);">${escapeHtml(v.email || "")}${v.email && v.phone ? " · " : ""}${escapeHtml(v.phone || "")}</div>
+      </div>
+      <button class="btn btn-ghost" style="font-size:.75rem;" onclick="deleteVendor('${escapeAttr(v.id)}')">Remove</button>
+    </div>`).join("");
+}
+
+async function deleteVendor(id) {
+  if (!(await showConfirmModal("Remove this vendor?", "Remove", "Cancel"))) return;
+  const tok = await getAccessToken();
+  await fetch(`/.netlify/functions/manage-vendors?id=${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    headers: { "Authorization": `Bearer ${tok}` },
+  });
+  await fetchVendors();
+  renderVendors();
+}
+
+let VENDORS_PANEL_LOADED = false;
+
 async function fetchTimeEntries(orderId) {
   try {
     const tok = await getAccessToken();
@@ -4405,6 +4453,93 @@ $("btnMyBookings")?.addEventListener("click", () => {
   const current = localStorage.getItem("pl_my_bookings_filter") === "true";
   localStorage.setItem("pl_my_bookings_filter", current ? "false" : "true");
   renderBookings();
+});
+
+// ── Walk-in booking ─────────────────────────────────────────────────────────
+$("btnWalkIn")?.addEventListener("click", () => {
+  const existing = document.getElementById("walkInModal");
+  if (existing) { existing.remove(); return; }
+  const modal = document.createElement("div");
+  modal.id = "walkInModal";
+  modal.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10000;display:flex;align-items:center;justify-content:center;";
+  const customerOptions = CUSTOMERS_CACHE.map((c) =>
+    `<option value="${escapeAttr(c.id)}">${escapeHtml(c.name || c.email || "Unknown")}</option>`
+  ).join("");
+  modal.innerHTML = `
+    <div style="background:#1e2029;border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:28px 32px;max-width:420px;width:90%;box-shadow:0 8px 40px rgba(0,0,0,.5);">
+      <h3 style="margin:0 0 18px;font-size:1rem;color:#e8e9eb;">⚡ Walk-in booking</h3>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px;">
+        <div>
+          <label style="font-size:.78rem;color:rgba(255,255,255,.45);display:block;margin-bottom:3px;">Customer</label>
+          <select id="wiCustomer" class="input" style="width:100%;">
+            <option value="">-- Select or type name --</option>
+            ${customerOptions}
+          </select>
+        </div>
+        <div>
+          <label style="font-size:.78rem;color:rgba(255,255,255,.45);display:block;margin-bottom:3px;">Service</label>
+          <input id="wiService" class="input" placeholder="e.g. Haircut, Oil change, Dog grooming" style="width:100%;" />
+        </div>
+        <div style="display:flex;gap:8px;">
+          <div style="flex:1;">
+            <label style="font-size:.78rem;color:rgba(255,255,255,.45);display:block;margin-bottom:3px;">Price ($)</label>
+            <input id="wiPrice" type="number" min="0" step="0.01" class="input" placeholder="0.00" style="width:100%;" />
+          </div>
+          <div style="flex:1;">
+            <label style="font-size:.78rem;color:rgba(255,255,255,.45);display:block;margin-bottom:3px;">Assigned to</label>
+            <select id="wiOperator" class="input" style="width:100%;">
+              <option value="">Unassigned</option>
+              ${(OPERATOR_MEMBERS_CACHE || []).map((m) => `<option value="${escapeAttr(m.id)}">${escapeHtml(m.display_name || m.email || m.id)}</option>`).join("")}
+            </select>
+          </div>
+        </div>
+        <div>
+          <label style="font-size:.78rem;color:rgba(255,255,255,.45);display:block;margin-bottom:3px;">Notes</label>
+          <input id="wiNotes" class="input" placeholder="Optional" style="width:100%;" />
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;">
+        <button id="wiCancel" class="btn btn-ghost">Cancel</button>
+        <button id="wiSave" class="btn btn-primary">Create walk-in</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  document.getElementById("wiCancel").onclick = () => modal.remove();
+  document.getElementById("wiSave").onclick = async () => {
+    const customerId = document.getElementById("wiCustomer").value;
+    const service = (document.getElementById("wiService").value || "").trim();
+    const price = parseFloat(document.getElementById("wiPrice").value || 0);
+    const operatorId = document.getElementById("wiOperator").value;
+    const notes = (document.getElementById("wiNotes").value || "").trim();
+    if (!service) { alert("Service name is required."); return; }
+    const btn = document.getElementById("wiSave");
+    btn.disabled = true; btn.textContent = "Creating…";
+    try {
+      const tok = await getAccessToken();
+      const now = new Date().toISOString();
+      const res = await fetch("/.netlify/functions/create-booking", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${tok}` },
+        body: JSON.stringify({
+          customer_id         : customerId || undefined,
+          title               : service,
+          starts_at           : now,
+          is_walk_in          : true,
+          assigned_operator_id: operatorId || undefined,
+          notes,
+          skip_confirmation_email: true,
+        }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || "Failed");
+      showToast("Walk-in created.");
+      modal.remove();
+      await fetchBookings();
+      renderBookings();
+    } catch (err) {
+      showToast("Error: " + err.message);
+      btn.disabled = false; btn.textContent = "Create walk-in";
+    }
+  };
 });
 
 $("btnNewBooking")?.addEventListener("click", () => {
@@ -10248,7 +10383,38 @@ function renderOrders() {
           <td style="text-align:right;padding:6px 6px 2px;">${totalHours.toFixed(2)} hrs</td>
           <td style="text-align:right;padding:6px 6px 2px;">${totalBillable ? formatUsd(totalBillable) : "—"}</td>
         </tr></tfoot>
-      </table>`;
+      </table>
+      <button id="btnTimeToInvoice" class="btn btn-ghost" style="margin-top:8px;font-size:.78rem;">⚡ Add uninvoiced hours to invoice</button>`;
+  });
+
+  // Time → Invoice button
+  document.addEventListener("click", async (ev) => {
+    if (ev.target?.id !== "btnTimeToInvoice") return;
+    const orderId = ACTIVE_ORDER_ID;
+    if (!orderId) return;
+    ev.target.disabled = true;
+    ev.target.textContent = "Working…";
+    try {
+      const tok = await getAccessToken();
+      const res = await fetch("/.netlify/functions/time-to-invoice", {
+        method : "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${tok}` },
+        body   : JSON.stringify({ order_id: orderId }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "Failed");
+      if (d.lines_created === 0) {
+        showToast("No uninvoiced billable hours found.");
+      } else {
+        showToast(`Added ${d.lines_created} line item${d.lines_created === 1 ? "" : "s"} (${formatUsd(d.total_cents)}) to invoice.`);
+        await fetchCrmOrders();
+        renderOrders();
+      }
+    } catch (err) {
+      showToast("Error: " + err.message);
+    } finally {
+      if (ev.target) { ev.target.disabled = false; ev.target.textContent = "⚡ Add uninvoiced hours to invoice"; }
+    }
   });
 
   $("btnSaveOrderStatus")?.addEventListener("click", async () => {
@@ -12254,3 +12420,66 @@ boot().catch((err) => {
   );
   reset();
 })();
+
+// ── Vendor handlers ────────────────────────────────────────────────────────────
+$("btnRefreshVendors")?.addEventListener("click", async () => {
+  await fetchVendors();
+  renderVendors();
+});
+
+$("btnAddVendor")?.addEventListener("click", () => {
+  const existing = document.getElementById("addVendorModal");
+  if (existing) { existing.remove(); return; }
+  const modal = document.createElement("div");
+  modal.id = "addVendorModal";
+  modal.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10000;display:flex;align-items:center;justify-content:center;";
+  modal.innerHTML = `
+    <div style="background:#1e2029;border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:28px 32px;max-width:440px;width:90%;box-shadow:0 8px 40px rgba(0,0,0,.5);">
+      <h3 style="margin:0 0 18px;font-size:1rem;color:#e8e9eb;">Add vendor / subcontractor</h3>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px;">
+        <input id="vName"    class="input" placeholder="Name *" style="width:100%;" />
+        <input id="vCompany" class="input" placeholder="Company" style="width:100%;" />
+        <div style="display:flex;gap:8px;">
+          <input id="vEmail" class="input" placeholder="Email" style="flex:1;" />
+          <input id="vPhone" class="input" placeholder="Phone" style="flex:1;" />
+        </div>
+        <input id="vTrade" class="input" placeholder="Trade / specialty (e.g. Electrical, Plumbing)" style="width:100%;" />
+        <textarea id="vNotes" class="input" rows="2" placeholder="Notes" style="width:100%;resize:vertical;"></textarea>
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;">
+        <button id="avCancel" class="btn btn-ghost">Cancel</button>
+        <button id="avSave" class="btn btn-primary">Save vendor</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  document.getElementById("avCancel").onclick = () => modal.remove();
+  document.getElementById("avSave").onclick = async () => {
+    const name = (document.getElementById("vName").value || "").trim();
+    if (!name) { alert("Name is required."); return; }
+    const btn = document.getElementById("avSave");
+    btn.disabled = true; btn.textContent = "Saving…";
+    try {
+      const tok = await getAccessToken();
+      const res = await fetch("/.netlify/functions/manage-vendors", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${tok}` },
+        body: JSON.stringify({
+          name,
+          company: document.getElementById("vCompany").value.trim() || undefined,
+          email  : document.getElementById("vEmail").value.trim() || undefined,
+          phone  : document.getElementById("vPhone").value.trim() || undefined,
+          trade  : document.getElementById("vTrade").value.trim() || undefined,
+          notes  : document.getElementById("vNotes").value.trim() || undefined,
+        }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || "Failed");
+      showToast("Vendor saved.");
+      modal.remove();
+      await fetchVendors();
+      renderVendors();
+    } catch (err) {
+      showToast("Error: " + err.message);
+      btn.disabled = false; btn.textContent = "Save vendor";
+    }
+  };
+});
