@@ -1391,6 +1391,7 @@ const WORKSPACE_BASE_TAB_ORDER = [
   "guidance",
   "quotes",
   "reviews",
+  "messages",
 ];
 const WORKSPACE_PRIORITY_TAB_MAP = {
   crm: "customers",
@@ -2336,8 +2337,9 @@ function switchTab(tab, opts = {}) {
   if (nextTab === "setup") fetchOperatorSetup().catch((err) => setSetupMessage(err.message || String(err), "bad"));
   if (nextTab === "guidance") renderGuidance();
   if (nextTab === "bookings") renderBookings().catch(console.error);
-  if (nextTab === "quotes")  fetchAndRenderQuotes().catch(console.error);
-  if (nextTab === "reviews") fetchAndRenderReviews().catch(console.error);
+  if (nextTab === "quotes")   fetchAndRenderQuotes().catch(console.error);
+  if (nextTab === "reviews")  fetchAndRenderReviews().catch(console.error);
+  if (nextTab === "messages") fetchAndRenderMessages().catch(console.error);
   if (opts.updateHash !== false) syncPanelHash(nextTab);
   renderWorkspaceHub();
   scheduleWorkspaceSnapshot(nextTab);
@@ -4103,6 +4105,90 @@ function renderBookingsCalendar(bookings) {
   });
 }
 
+function showBookingDetail(bk) {
+  const existing = document.getElementById("bkDetailModal");
+  if (existing) existing.remove();
+
+  const start    = bk.starts_at ? new Date(bk.starts_at) : null;
+  const end      = bk.ends_at   ? new Date(bk.ends_at)   : null;
+  const localDate = start ? start.toISOString().slice(0, 10) : "";
+  const localStart = start ? start.toTimeString().slice(0, 5) : "09:00";
+  const localEnd   = end   ? end.toTimeString().slice(0, 5)   : "";
+
+  const overlay = document.createElement("div");
+  overlay.id = "bkDetailModal";
+  overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;";
+  overlay.innerHTML = `
+    <div style="background:#1a1d27;border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:28px;max-width:480px;width:100%;max-height:90vh;overflow-y:auto;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+        <strong style="font-size:1rem;">${escapeHtml(bk.title || "Appointment")}</strong>
+        <button id="bkDetailClose" type="button" style="background:none;border:none;color:rgba(255,255,255,.5);font-size:1.2rem;cursor:pointer;padding:0 4px;">✕</button>
+      </div>
+      <table style="width:100%;font-size:.85rem;margin-bottom:16px;">
+        <tr><td style="color:rgba(255,255,255,.5);padding:5px 0;width:110px;">Customer</td><td>${escapeHtml(bk.customer_name || "—")}</td></tr>
+        <tr><td style="color:rgba(255,255,255,.5);padding:5px 0;">Email</td><td>${escapeHtml(bk.customer_email || "—")}</td></tr>
+        <tr><td style="color:rgba(255,255,255,.5);padding:5px 0;">Status</td><td>${escapeHtml(bk.status || "confirmed")}</td></tr>
+      </table>
+      ${bk.notes ? `<div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:6px;padding:10px 12px;font-size:.82rem;color:rgba(255,255,255,.6);margin-bottom:16px;white-space:pre-wrap;">${escapeHtml(bk.notes)}</div>` : ""}
+      <div style="border-top:1px solid rgba(255,255,255,.08);padding-top:16px;margin-bottom:4px;">
+        <div style="font-size:.82rem;font-weight:600;color:rgba(255,255,255,.5);margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em;">Reschedule</div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
+          <label style="flex:1;min-width:130px;font-size:.8rem;color:rgba(255,255,255,.6);">Date<br/>
+            <input id="bkDetailDate" type="date" value="${escapeAttr(localDate)}" style="width:100%;margin-top:4px;background:#0f1117;border:1px solid rgba(255,255,255,.15);border-radius:6px;color:#e8e9eb;padding:8px 10px;font-size:.85rem;outline:none;" />
+          </label>
+          <label style="flex:1;min-width:100px;font-size:.8rem;color:rgba(255,255,255,.6);">Start time<br/>
+            <input id="bkDetailStart" type="time" value="${escapeAttr(localStart)}" style="width:100%;margin-top:4px;background:#0f1117;border:1px solid rgba(255,255,255,.15);border-radius:6px;color:#e8e9eb;padding:8px 10px;font-size:.85rem;outline:none;" />
+          </label>
+          <label style="flex:1;min-width:100px;font-size:.8rem;color:rgba(255,255,255,.6);">End time<br/>
+            <input id="bkDetailEnd" type="time" value="${escapeAttr(localEnd)}" style="width:100%;margin-top:4px;background:#0f1117;border:1px solid rgba(255,255,255,.15);border-radius:6px;color:#e8e9eb;padding:8px 10px;font-size:.85rem;outline:none;" />
+          </label>
+        </div>
+        <button id="bkDetailSave" class="btn btn-primary btn-sm" type="button">Save reschedule</button>
+        <span id="bkDetailMsg" style="font-size:.8rem;margin-left:10px;"></span>
+      </div>
+    </div>`;
+
+  document.body.appendChild(overlay);
+
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
+  document.getElementById("bkDetailClose").addEventListener("click", () => overlay.remove());
+
+  document.getElementById("bkDetailSave").addEventListener("click", async () => {
+    const saveBtn = document.getElementById("bkDetailSave");
+    const msgEl   = document.getElementById("bkDetailMsg");
+    const date    = document.getElementById("bkDetailDate").value;
+    const startT  = document.getElementById("bkDetailStart").value;
+    const endT    = document.getElementById("bkDetailEnd").value;
+    if (!date || !startT) { msgEl.textContent = "Date and start time are required."; msgEl.style.color = "#f87171"; return; }
+    saveBtn.disabled = true;
+    saveBtn.textContent = "Saving…";
+    try {
+      const startsAt = new Date(`${date}T${startT}:00`).toISOString();
+      const endsAt   = endT ? new Date(`${date}T${endT}:00`).toISOString() : null;
+      const patch    = { id: bk.id, starts_at: startsAt, ...(endsAt ? { ends_at: endsAt } : {}) };
+      const tok = await getAccessToken();
+      const res = await fetch("/.netlify/functions/update-booking", {
+        method : "PATCH",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${tok}` },
+        body   : JSON.stringify(patch),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(d.error || "Failed to update");
+      msgEl.textContent = "Rescheduled ✓";
+      msgEl.style.color = "#4ade80";
+      BOOKINGS_CACHE = BOOKINGS_CACHE.map((b) => b.id === bk.id ? { ...b, starts_at: startsAt, ends_at: endsAt || b.ends_at } : b);
+      renderBookingsCalendar(BOOKINGS_CACHE);
+      renderBookingsList(BOOKINGS_CACHE);
+      setTimeout(() => overlay.remove(), 1500);
+    } catch (err) {
+      msgEl.textContent = err.message || "Error";
+      msgEl.style.color = "#f87171";
+      saveBtn.disabled = false;
+      saveBtn.textContent = "Save reschedule";
+    }
+  });
+}
+
 function renderBookingsList(bookings) {
   const list = $("bookingsList");
   if (!list) return;
@@ -4128,6 +4214,7 @@ function renderBookingsList(bookings) {
       <span style="font-size:.75rem;padding:3px 8px;background:rgba(255,255,255,.06);border-radius:12px;color:${statusColor};white-space:nowrap;">${bk.status || "confirmed"}</span>
       ${bk.customer_email && !['cancelled','completed','no_show'].includes(bk.status) && bk.starts_at && new Date(bk.starts_at) > new Date() ? `<button class="btn btn-ghost btn-sm bk-remind-btn" data-id="${bk.id}" type="button" title="Send reminder email" style="white-space:nowrap;">Remind</button>` : ''}
       <button class="btn btn-ghost btn-sm bk-cancel-btn" data-id="${bk.id}" type="button" ${bk.status === 'cancelled' ? 'disabled' : ''} style="white-space:nowrap;">Cancel</button>
+      <button class="btn btn-ghost btn-sm bk-detail-btn" data-id="${bk.id}" type="button" style="white-space:nowrap;">Details</button>
     </div>`;
   }).join('');
 
@@ -4152,6 +4239,13 @@ function renderBookingsList(bookings) {
         alert(err.message || "Error cancelling booking");
         btn.disabled = false;
       }
+    });
+  });
+
+  list.querySelectorAll(".bk-detail-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const bk = bookings.find((b) => b.id === btn.dataset.id);
+      if (bk) showBookingDetail(bk);
     });
   });
 
@@ -10868,6 +10962,101 @@ $("btnExportCustomersCsv")?.addEventListener("click", () => {
   const headers = ["id", "name", "email", "phone", "preferred_contact", "notes", "order_count", "lifetime_value_cents", "created_at", "updated_at"];
   downloadCsv("customers", headers, rows.map((r) => headers.map((h) => r[h] ?? "")));
 });
+
+// ── Customer Messages ─────────────────────────────────────────────────────────
+
+async function fetchAndRenderMessages() {
+  const list = $("messagesList");
+  if (!list) return;
+  list.innerHTML = `<p class="muted" style="padding:12px 0;">Loading…</p>`;
+  try {
+    const { data, error } = await sb
+      .from("customer_messages")
+      .select("id, customer_name, customer_email, message, reply_text, replied_at, created_at, status")
+      .eq(TENANT_COLUMN, TENANT_ID)
+      .order("created_at", { ascending: false })
+      .limit(100);
+
+    if (error) throw error;
+    if (!data || !data.length) {
+      list.innerHTML = `<p class="muted" style="padding:12px 0;">No messages yet.</p>`;
+      return;
+    }
+
+    list.innerHTML = data.map((msg) => {
+      const date = msg.created_at ? new Date(msg.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "—";
+      return `<div style="padding:14px 0;border-bottom:1px solid rgba(255,255,255,.06);">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+          <div style="font-weight:600;font-size:.88rem;">${escapeHtml(msg.customer_name || "Customer")}</div>
+          <div style="font-size:.78rem;color:rgba(255,255,255,.4);">${escapeHtml(msg.customer_email || "")}</div>
+          <div style="font-size:.75rem;color:rgba(255,255,255,.3);margin-left:auto;">${date}</div>
+        </div>
+        <div style="font-size:.85rem;color:rgba(255,255,255,.7);margin-bottom:${msg.reply_text ? '8px' : '10px'};">${escapeHtml(msg.message || "")}</div>
+        ${msg.reply_text ? `<div style="background:rgba(200,75,47,.08);border-left:3px solid #c84b2f;padding:8px 12px;font-size:.82rem;color:rgba(255,255,255,.6);margin-bottom:8px;"><span style="font-size:.75rem;color:#c84b2f;font-weight:600;display:block;margin-bottom:4px;">Your reply</span>${escapeHtml(msg.reply_text)}</div>` : ""}
+        ${!msg.reply_text ? `<div style="margin-top:6px;">
+          <div class="msg-reply-form" data-id="${escapeAttr(msg.id)}" data-name="${escapeAttr(msg.customer_name || "")}" style="display:none;">
+            <textarea class="msg-reply-input" rows="3" placeholder="Type your reply…" style="width:100%;background:#0f1117;border:1px solid rgba(255,255,255,.15);border-radius:6px;color:#e8e9eb;padding:8px 10px;font-size:.85rem;resize:vertical;margin-bottom:6px;font-family:inherit;outline:none;"></textarea>
+            <div style="display:flex;gap:8px;">
+              <button class="btn btn-primary btn-sm msg-send-reply" type="button">Send reply</button>
+              <button class="btn btn-ghost btn-sm msg-cancel-reply" type="button">Cancel</button>
+            </div>
+            <div class="msg-reply-result" style="font-size:.8rem;margin-top:6px;"></div>
+          </div>
+          <button class="btn btn-ghost btn-sm msg-show-reply" data-id="${escapeAttr(msg.id)}" type="button">Reply</button>
+        </div>` : ""}
+      </div>`;
+    }).join("");
+
+    // Wire up reply buttons
+    list.querySelectorAll(".msg-show-reply").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const form = list.querySelector(`.msg-reply-form[data-id="${btn.dataset.id}"]`);
+        if (form) { form.style.display = "block"; btn.style.display = "none"; }
+      });
+    });
+    list.querySelectorAll(".msg-cancel-reply").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const form = btn.closest(".msg-reply-form");
+        const showBtn = list.querySelector(`.msg-show-reply[data-id="${form.dataset.id}"]`);
+        if (form) form.style.display = "none";
+        if (showBtn) showBtn.style.display = "";
+      });
+    });
+    list.querySelectorAll(".msg-send-reply").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const form      = btn.closest(".msg-reply-form");
+        const textarea  = form.querySelector(".msg-reply-input");
+        const resultEl  = form.querySelector(".msg-reply-result");
+        const reply     = textarea.value.trim();
+        if (!reply) { resultEl.textContent = "Please enter a reply."; resultEl.style.color = "#f87171"; return; }
+        btn.disabled = true; btn.textContent = "Sending…";
+        try {
+          const tok = await getAccessToken();
+          const res = await fetch("/.netlify/functions/reply-customer-message", {
+            method : "POST",
+            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${tok}` },
+            body   : JSON.stringify({ message_id: form.dataset.id, reply_text: reply }),
+          });
+          const d = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(d.error || "Failed to send reply");
+          resultEl.textContent = "Reply sent ✓";
+          resultEl.style.color = "#4ade80";
+          setTimeout(() => fetchAndRenderMessages().catch(console.error), 1500);
+        } catch (err) {
+          resultEl.textContent = err.message || "Error";
+          resultEl.style.color = "#f87171";
+          btn.disabled = false;
+          btn.textContent = "Send reply";
+        }
+      });
+    });
+  } catch (err) {
+    console.error("[fetchAndRenderMessages]", err);
+    list.innerHTML = `<p class="muted" style="padding:12px 0;">Failed to load messages.</p>`;
+  }
+}
+
+$("btnRefreshMessages")?.addEventListener("click", () => fetchAndRenderMessages().catch(console.error));
 
 // ── Bulk Order Status Update ───────────────────────────────────────────────────
 

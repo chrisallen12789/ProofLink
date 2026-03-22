@@ -5,6 +5,10 @@
   publish   = "."
   functions = "netlify/functions"
 
+# ── Scheduled functions ───────────────────────────────────────────────────────
+[functions."booking-reminders"]
+  schedule = "0 * * * *"
+
 # ── Public routes ─────────────────────────────────────────────────────────────
 [[redirects]]
   from   = "/join"

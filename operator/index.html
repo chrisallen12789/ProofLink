@@ -87,6 +87,7 @@
         <button class="tab" data-tab="guidance" data-tour-tab="guidance" type="button">Guidance</button>
         <button class="tab" data-tab="quotes" data-tour-tab="quotes" type="button">Quotes</button>
         <button class="tab" data-tab="reviews" data-tour-tab="reviews" type="button">Reviews</button>
+        <button class="tab" data-tab="messages" type="button">Messages</button>
       </div>
 
       <section class="side-card">
@@ -1971,6 +1972,23 @@
             <div class="card">
               <div class="card-bd">
                 <div id="reviewsList"></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel hidden" data-panel="messages">
+            <div class="panel-head">
+              <div>
+                <h2>Messages</h2>
+                <div class="muted">Customer messages sent through the portal.</div>
+              </div>
+              <div class="panel-actions">
+                <button id="btnRefreshMessages" class="btn btn-ghost" type="button">Refresh</button>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-bd">
+                <div id="messagesList"></div>
               </div>
             </div>
           </section>

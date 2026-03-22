@@ -5,6 +5,8 @@
 'use strict';
 
 const { requireOperatorContext, respond } = require('./utils/auth');
+const { sendEmail, templates }            = require('./utils/email');
+const { getConfiguredSiteUrl }            = require('./utils/runtime-config');
 
 const ALLOWED_FIELDS = ['title', 'customer_name', 'customer_email', 'starts_at', 'ends_at', 'notes', 'status', 'preferred_time'];
 const VALID_STATUSES = ['confirmed', 'cancelled', 'completed', 'no_show'];
@@ -49,6 +51,52 @@ exports.handler = async (event) => {
     return respond(500, { error: 'Failed to update booking' });
   }
   if (!data) return respond(404, { error: 'Booking not found or access denied' });
+
+  // Email customer when booking is cancelled or rescheduled
+  const isCancellation = patch.status === 'cancelled';
+  const timeChanged    = !!(patch.starts_at || patch.ends_at);
+  if (data.customer_email && (isCancellation || timeChanged)) {
+    try {
+      const siteUrl  = getConfiguredSiteUrl();
+      const portalUrl = `${siteUrl}/portal.html?tenant=${encodeURIComponent(data.tenant_id)}&email=${encodeURIComponent(data.customer_email)}`;
+      const start    = data.starts_at ? new Date(data.starts_at) : null;
+      const end      = data.ends_at   ? new Date(data.ends_at)   : null;
+      const dateStr  = start ? start.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : '—';
+      const timeStr  = start ? start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) + (end ? ' – ' + end.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '') : '—';
+
+      const { data: tenant } = await supabase.from('tenants').select('name').eq('id', data.tenant_id).maybeSingle();
+      const businessName = tenant?.name || 'Your service provider';
+
+      if (isCancellation) {
+        sendEmail(templates.bookingCancelled({
+          customer_name : data.customer_name || 'Customer',
+          customer_email: data.customer_email,
+          business_name : businessName,
+          title         : data.title,
+          date_str      : dateStr,
+          time_str      : timeStr,
+          portal_url    : portalUrl,
+        })).catch((e) => console.warn('[update-booking] cancel email failed:', e.message));
+      } else if (timeChanged) {
+        // Rescheduled — send updated booking confirmation
+        const newStart = new Date(data.starts_at);
+        const newEnd   = data.ends_at ? new Date(data.ends_at) : null;
+        const newDateStr = newStart.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+        const newTimeStr = newStart.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) + (newEnd ? ' – ' + newEnd.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '');
+        sendEmail(templates.bookingConfirmation({
+          customer_name : data.customer_name || 'Customer',
+          customer_email: data.customer_email,
+          business_name : businessName,
+          title         : data.title,
+          date_str      : newDateStr,
+          time_str      : newTimeStr,
+          portal_url    : portalUrl,
+        })).catch((e) => console.warn('[update-booking] reschedule email failed:', e.message));
+      }
+    } catch (e) {
+      console.warn('[update-booking] email setup failed:', e.message);
+    }
+  }
 
   return respond(200, { ok: true, booking: data });
 };

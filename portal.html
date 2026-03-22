@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Customer Portal</title>
   <link rel="icon" href="/assets/favicon.png" />
+  <link rel="manifest" href="/site.webmanifest" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -115,6 +116,11 @@
     .tab-panel.active { display: block; }
     .book-link { display: inline-block; margin-top: 12px; color: #c84b2f; text-decoration: none; font-size: .875rem; }
     .book-link:hover { text-decoration: underline; }
+    .search-row { display: flex; gap: 8px; margin-bottom: 12px; }
+    .search-row input { margin-bottom: 0; flex: 1; }
+    .btn-danger { background: rgba(239,68,68,.12); color: #f87171; border: 1px solid rgba(239,68,68,.2); }
+    .btn-danger:hover { background: rgba(239,68,68,.22); }
+    .cancel-booking-btn { font-size: .75rem; padding: 4px 10px; margin-left: auto; flex-shrink: 0; }
   </style>
 </head>
 <body>
@@ -142,10 +148,12 @@
     </div>
 
     <div class="tab-panel active" id="tab-orders">
+      <div class="search-row"><input type="text" id="orderSearch" placeholder="Search orders…" /></div>
       <div id="ordersList"></div>
     </div>
 
     <div class="tab-panel" id="tab-bookings">
+      <div class="search-row"><input type="text" id="bookingSearch" placeholder="Search appointments…" /></div>
       <div id="bookingsList"></div>
       <a class="book-link" id="newBookingLink" href="#" target="_blank">+ Schedule a new appointment →</a>
     </div>
@@ -183,6 +191,9 @@
   const params   = new URLSearchParams(location.search);
   const tenantId = params.get('tenant');
   const prefill  = params.get('email');
+  var portalEmail = '';
+  var ALL_ORDERS   = [];
+  var ALL_BOOKINGS = [];
 
   if (prefill) document.getElementById('portalEmail').value = prefill;
 
@@ -252,15 +263,43 @@
       var start = b.starts_at ? new Date(b.starts_at) : null;
       var timeStr = start ? start.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }) + ' at ' +
         start.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) : '—';
-      return '<div class="order-row" style="flex-wrap:wrap;">' +
+      var isFuture = start && start > new Date();
+      var canCancel = isFuture && !['cancelled','completed','no_show'].includes(b.status);
+      return '<div class="order-row" style="flex-wrap:wrap;align-items:flex-start;">' +
         '<div style="flex:1;min-width:0;">' +
           '<div class="order-title">' + escHtml(b.title || 'Appointment') + '</div>' +
           '<div class="order-meta">' + timeStr + '</div>' +
           (b.notes ? '<div style="font-size:.78rem;color:rgba(255,255,255,.4);margin-top:4px;">' + escHtml(b.notes) + '</div>' : '') +
         '</div>' +
         statusBadge(b.status) +
+        (canCancel ? '<button class="btn btn-danger cancel-booking-btn" data-id="' + escHtml(b.id) + '" type="button">Cancel</button>' : '') +
       '</div>';
     }).join('');
+    // Wire up cancel buttons
+    el.querySelectorAll('.cancel-booking-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        if (!confirm('Cancel this appointment?')) return;
+        btn.disabled = true;
+        btn.textContent = 'Cancelling…';
+        fetch('/.netlify/functions/cancel-booking', {
+          method : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body   : JSON.stringify({ booking_id: btn.dataset.id, email: portalEmail }),
+        })
+          .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+          .then(function (res) {
+            if (!res.ok) throw new Error(res.d.error || 'Failed to cancel');
+            var idx = ALL_BOOKINGS.findIndex(function (bk) { return bk.id === btn.dataset.id; });
+            if (idx >= 0) ALL_BOOKINGS[idx] = Object.assign({}, ALL_BOOKINGS[idx], { status: 'cancelled' });
+            renderBookings(ALL_BOOKINGS);
+          })
+          .catch(function (err) {
+            btn.disabled = false;
+            btn.textContent = 'Cancel';
+            alert(err.message || 'Failed to cancel appointment');
+          });
+      });
+    });
   }
 
   function renderQuotes(quotes) {
@@ -327,8 +366,11 @@
           document.getElementById('bizName').textContent = d.business_name;
           document.getElementById('bizSub').textContent = 'Welcome back! Here\'s your history with ' + d.business_name + '.';
         }
-        renderOrders(d.orders);
-        renderBookings(d.bookings);
+        ALL_ORDERS   = d.orders   || [];
+        ALL_BOOKINGS = d.bookings || [];
+        portalEmail  = email;
+        renderOrders(ALL_ORDERS);
+        renderBookings(ALL_BOOKINGS);
         renderQuotes(d.quotes || []);
         // Pre-fill contact form name from first known record
         var knownName = (d.orders && d.orders[0] && d.orders[0].customer_name) ||
@@ -345,6 +387,23 @@
         msg.textContent = err.message || 'Something went wrong. Please try again.';
         msg.className = 'msg error';
       });
+  });
+
+  document.getElementById('orderSearch').addEventListener('input', function () {
+    var q = this.value.toLowerCase();
+    var filtered = q ? ALL_ORDERS.filter(function (o) {
+      return (o.title || '').toLowerCase().includes(q) || (o.status || '').toLowerCase().includes(q);
+    }) : ALL_ORDERS;
+    renderOrders(filtered);
+  });
+
+  document.getElementById('bookingSearch').addEventListener('input', function () {
+    var q = this.value.toLowerCase();
+    var filtered = q ? ALL_BOOKINGS.filter(function (b) {
+      return (b.title || '').toLowerCase().includes(q) || (b.status || '').toLowerCase().includes(q) ||
+             (b.notes || '').toLowerCase().includes(q);
+    }) : ALL_BOOKINGS;
+    renderBookings(filtered);
   });
 
   document.getElementById('btnPortalBack').addEventListener('click', function () {

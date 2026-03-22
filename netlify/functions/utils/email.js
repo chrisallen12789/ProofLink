@@ -503,6 +503,54 @@ const templates = {
     };
   },
 
+  bookingCancelled({ customer_name, customer_email, business_name, title, date_str, time_str, portal_url }) {
+    return {
+      to     : customer_email,
+      subject: `Appointment cancelled — ${business_name}`,
+      html   : layout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.red)}${bodyWrap(`
+        ${badge('Cancelled', T.redLight, T.red, T.redBorder)}<br/><br/>
+        ${h1(`Hi ${customer_name},`)}
+        ${sub(`Your appointment with ${business_name} has been cancelled.`)}
+        ${infoBox([['Service', title || 'Appointment'], ['Date', date_str || '—'], ['Time', time_str || '—']])}
+        ${portal_url ? `<div style="text-align:center;margin:0 0 28px;">${cta('Book again →', portal_url, T.red)}</div>` : ''}
+        ${divider()}
+        ${p(`<span style="color:${T.hint};">Need to reschedule? Reply to this email and we\u2019ll find a time that works.</span>`)}
+      `)}</table>`, { preheader: `Your appointment with ${business_name} has been cancelled.` }),
+    };
+  },
+
+  bookingReminder({ customer_name, customer_email, business_name, title, date_str, time_str, portal_url }) {
+    return {
+      to     : customer_email,
+      subject: `Reminder: appointment tomorrow — ${business_name}`,
+      html   : layout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.amber)}${bodyWrap(`
+        ${badge('Reminder', T.amberLt, T.amber, T.amberBd)}<br/><br/>
+        ${h1(`See you tomorrow, ${customer_name}!`)}
+        ${sub(`This is a reminder of your upcoming appointment with ${business_name}.`)}
+        ${infoBox([['Service', title || 'Appointment'], ['Date', date_str || '—'], ['Time', time_str || '—']])}
+        ${portal_url ? `<div style="text-align:center;margin:0 0 28px;">${cta('View details →', portal_url, T.red)}</div>` : ''}
+        ${divider()}
+        ${p(`<span style="color:${T.hint};">Need to reschedule? Reply to this email and we\u2019ll sort it out.</span>`)}
+      `)}</table>`, { preheader: `Reminder: your appointment with ${business_name} is tomorrow.` }),
+    };
+  },
+
+  customerMessageReply({ customer_name, customer_email, business_name, original_message, reply_text, portal_url }) {
+    return {
+      to     : customer_email,
+      subject: `Reply from ${business_name}`,
+      html   : layout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.green)}${bodyWrap(`
+        ${h1(`Hi ${customer_name},`)}
+        ${sub(`${business_name} replied to your message.`)}
+        ${callout(reply_text, T.bg, T.border, T.ink)}
+        ${original_message ? `${divider()}${p(`<strong style="color:${T.hint};">Your original message:</strong><br/>${original_message}`)}` : ''}
+        ${portal_url ? `<div style="text-align:center;margin:0 0 8px;">${cta('Open customer portal →', portal_url, T.red)}</div>` : ''}
+        ${divider()}
+        ${p(`<span style="color:${T.hint};">Reply to this email to continue the conversation.</span>`)}
+      `)}</table>`, { preheader: `${business_name} replied to your message.` }),
+    };
+  },
+
 };
 
 module.exports = { sendEmail, templates, getChecklist, CHECKLIST_BY_TYPE };

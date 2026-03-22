@@ -1,0 +1,13 @@
+{
+  "name": "ProofLink",
+  "short_name": "ProofLink",
+  "description": "Business management for small service businesses",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f1117",
+  "theme_color": "#c84b2f",
+  "icons": [
+    { "src": "/assets/favicon.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/assets/favicon.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
