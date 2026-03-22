@@ -251,8 +251,9 @@
         title,
         starts_at      : startsAt,
         ends_at        : endsAt,
-        preferred_time : preferredTime || undefined,
-        notes          : notes || undefined,
+        preferred_time   : preferredTime || undefined,
+        referral_source  : referralSource || undefined,
+        notes            : notes || undefined,
       }),
     })
       .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })

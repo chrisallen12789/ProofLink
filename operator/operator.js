@@ -4123,9 +4123,10 @@ function renderBookingsList(bookings) {
       <div style="flex:1;min-width:0;">
         <div style="font-weight:600;font-size:.9rem;">${bk.title || "Appointment"}</div>
         <div style="font-size:.8rem;color:rgba(255,255,255,.5);">${bk.customer_name || "—"} · ${dateStr} · ${timeStr}</div>
+        ${bk.notes ? `<div style="font-size:.78rem;color:rgba(255,255,255,.35);margin-top:2px;white-space:pre-wrap;">${escapeHtml(bk.notes.slice(0, 120))}${bk.notes.length > 120 ? '…' : ''}</div>` : ''}
       </div>
       <span style="font-size:.75rem;padding:3px 8px;background:rgba(255,255,255,.06);border-radius:12px;color:${statusColor};white-space:nowrap;">${bk.status || "confirmed"}</span>
-      ${bk.customer_email && !['cancelled','completed','no_show'].includes(bk.status) ? `<button class="btn btn-ghost btn-sm bk-remind-btn" data-id="${bk.id}" type="button" title="Send reminder email" style="white-space:nowrap;">Remind</button>` : ''}
+      ${bk.customer_email && !['cancelled','completed','no_show'].includes(bk.status) && bk.starts_at && new Date(bk.starts_at) > new Date() ? `<button class="btn btn-ghost btn-sm bk-remind-btn" data-id="${bk.id}" type="button" title="Send reminder email" style="white-space:nowrap;">Remind</button>` : ''}
       <button class="btn btn-ghost btn-sm bk-cancel-btn" data-id="${bk.id}" type="button" ${bk.status === 'cancelled' ? 'disabled' : ''} style="white-space:nowrap;">Cancel</button>
     </div>`;
   }).join('');
@@ -10690,7 +10691,7 @@ function renderQuotesList() {
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;">
             <a href="${escapeHtml(quoteUrl)}" target="_blank" style="font-size:.78rem;color:var(--accent);text-decoration:none;">View quote page →</a>
-            ${isPending ? `<button class="btn btn-ghost btn-sm qt-resend-btn" data-email="${escapeHtml(q.customer_email || "")}" data-url="${escapeHtml(quoteUrl)}" data-name="${escapeHtml(q.customer_name || "")}" type="button" style="font-size:.75rem;padding:2px 8px;">Resend link</button>` : ""}
+            ${isPending ? `<button class="btn btn-ghost btn-sm qt-resend-btn" data-email="${escapeHtml(q.customer_email || "")}" data-url="${escapeHtml(quoteUrl)}" data-name="${escapeHtml(q.customer_name || "")}" type="button" style="font-size:.75rem;padding:2px 8px;">Copy link</button>` : ""}
             ${q.accepted_at ? `<span class="muted" style="font-size:.75rem;">Accepted ${formatDateOnly(q.accepted_at)}</span>` : ""}
             ${q.declined_at ? `<span class="muted" style="font-size:.75rem;">Declined ${formatDateOnly(q.declined_at)}</span>` : ""}
             ${q.valid_until ? `<span class="muted" style="font-size:.75rem;">Valid until ${formatDateOnly(q.valid_until)}</span>` : ""}
@@ -10709,7 +10710,7 @@ function renderQuotesList() {
       if (navigator.clipboard) {
         navigator.clipboard.writeText(url).then(() => {
           btn.textContent = "Copied!";
-          setTimeout(() => { btn.textContent = "Resend link"; }, 2000);
+          setTimeout(() => { btn.textContent = "Copy link"; }, 2000);
         });
       } else {
         prompt(`Copy this link and send it to ${name || "the customer"}:`, url);
