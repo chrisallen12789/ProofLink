@@ -85,6 +85,7 @@
         <button class="tab" data-tab="expenses" data-tour-tab="expenses" type="button">Expenses</button>
         <button class="tab" data-tab="money" data-tour-tab="money" type="button">Money</button>
         <button class="tab" data-tab="guidance" data-tour-tab="guidance" type="button">Guidance</button>
+        <button class="tab" data-tab="quotes" data-tour-tab="quotes" type="button">Quotes</button>
         <button class="tab" data-tab="reviews" data-tour-tab="reviews" type="button">Reviews</button>
       </div>
 
@@ -1927,6 +1928,31 @@
             <div class="card">
               <div class="card-bd">
                 <div id="moneyWrap"></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel hidden" data-panel="quotes">
+            <div class="panel-head">
+              <div>
+                <h2>Quotes</h2>
+                <div class="muted">Quotes sent to customers — track status and follow up.</div>
+              </div>
+              <div class="panel-actions">
+                <select id="quotesStatusFilter" class="input" style="min-width:130px;padding:6px 10px;font-size:.82rem;">
+                  <option value="">All statuses</option>
+                  <option value="pending">Pending</option>
+                  <option value="accepted">Accepted</option>
+                  <option value="declined">Declined</option>
+                  <option value="expired">Expired</option>
+                </select>
+                <button id="btnRefreshQuotes" class="btn btn-ghost" type="button">Refresh</button>
+                <button id="btnExportQuotesCsv" class="btn btn-ghost" type="button">Export CSV</button>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-bd">
+                <div id="quotesList"></div>
               </div>
             </div>
           </section>

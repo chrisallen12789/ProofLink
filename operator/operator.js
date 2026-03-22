@@ -412,6 +412,7 @@ let BK_VIEW_DATE   = new Date(); // month currently shown in calendar
 
 // Reviews
 let REVIEWS_CACHE = [];
+let QUOTES_CACHE  = [];
 
 // Bulk order selection
 let BULK_SELECTED_ORDER_IDS = new Set();
@@ -1388,6 +1389,7 @@ const WORKSPACE_BASE_TAB_ORDER = [
   "expenses",
   "money",
   "guidance",
+  "quotes",
   "reviews",
 ];
 const WORKSPACE_PRIORITY_TAB_MAP = {
@@ -2334,6 +2336,7 @@ function switchTab(tab, opts = {}) {
   if (nextTab === "setup") fetchOperatorSetup().catch((err) => setSetupMessage(err.message || String(err), "bad"));
   if (nextTab === "guidance") renderGuidance();
   if (nextTab === "bookings") renderBookings().catch(console.error);
+  if (nextTab === "quotes")  fetchAndRenderQuotes().catch(console.error);
   if (nextTab === "reviews") fetchAndRenderReviews().catch(console.error);
   if (opts.updateHash !== false) syncPanelHash(nextTab);
   renderWorkspaceHub();
@@ -4122,6 +4125,7 @@ function renderBookingsList(bookings) {
         <div style="font-size:.8rem;color:rgba(255,255,255,.5);">${bk.customer_name || "—"} · ${dateStr} · ${timeStr}</div>
       </div>
       <span style="font-size:.75rem;padding:3px 8px;background:rgba(255,255,255,.06);border-radius:12px;color:${statusColor};white-space:nowrap;">${bk.status || "confirmed"}</span>
+      ${bk.customer_email && !['cancelled','completed','no_show'].includes(bk.status) ? `<button class="btn btn-ghost btn-sm bk-remind-btn" data-id="${bk.id}" type="button" title="Send reminder email" style="white-space:nowrap;">Remind</button>` : ''}
       <button class="btn btn-ghost btn-sm bk-cancel-btn" data-id="${bk.id}" type="button" ${bk.status === 'cancelled' ? 'disabled' : ''} style="white-space:nowrap;">Cancel</button>
     </div>`;
   }).join('');
@@ -4145,6 +4149,29 @@ function renderBookingsList(bookings) {
         if (lbl) lbl.textContent = "Upcoming appointments";
       } catch (err) {
         alert(err.message || "Error cancelling booking");
+        btn.disabled = false;
+      }
+    });
+  });
+
+  list.querySelectorAll(".bk-remind-btn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      btn.disabled = true;
+      btn.textContent = "Sending…";
+      try {
+        const tok = await getAccessToken();
+        const res = await fetch("/.netlify/functions/send-booking-reminder", {
+          method : "POST",
+          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${tok}` },
+          body   : JSON.stringify({ booking_id: btn.dataset.id }),
+        });
+        const d = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(d.error || "Failed to send reminder");
+        btn.textContent = "Sent ✓";
+        setTimeout(() => { btn.textContent = "Remind"; btn.disabled = false; }, 3000);
+      } catch (err) {
+        alert(err.message || "Error sending reminder");
+        btn.textContent = "Remind";
         btn.disabled = false;
       }
     });
@@ -10559,6 +10586,100 @@ $("btnExportReviewsCsv")?.addEventListener("click", () => {
   if (!rows.length) { alert("No reviews to export."); return; }
   const headers = ["id", "customer_name", "customer_email", "rating", "comment", "order_id", "created_at"];
   downloadCsv("reviews", headers, rows.map((r) => headers.map((h) => r[h] ?? "")));
+});
+
+// ── Quotes Panel ──────────────────────────────────────────────────────────────
+
+async function fetchQuotes(status) {
+  try {
+    const tok = await getAccessToken();
+    const url = status
+      ? `/.netlify/functions/get-quotes?status=${encodeURIComponent(status)}`
+      : "/.netlify/functions/get-quotes";
+    const res = await fetch(url, { headers: { "Authorization": `Bearer ${tok}` } });
+    const d   = await res.json().catch(() => ({}));
+    QUOTES_CACHE = d.quotes || [];
+    return QUOTES_CACHE;
+  } catch (e) {
+    console.warn("[quotes] fetch failed:", e.message);
+    return [];
+  }
+}
+
+function renderQuotesList() {
+  const el = $("quotesList");
+  if (!el) return;
+  const statusFilter = $("quotesStatusFilter")?.value || "";
+  const rows = statusFilter ? QUOTES_CACHE.filter((q) => q.status === statusFilter) : QUOTES_CACHE;
+
+  if (!rows.length) {
+    el.innerHTML = `<div class="muted">No quotes found. Send quotes to customers from the Orders panel.</div>`;
+    return;
+  }
+
+  const statusColor = { pending: "#93c5fd", accepted: "#4ade80", declined: "#f87171", expired: "rgba(255,255,255,.35)" };
+  const fmtMoney = (cents) => cents != null ? "$" + (cents / 100).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",") : "—";
+
+  el.innerHTML = `
+    <div class="list">
+      ${rows.map((q) => {
+        const color = statusColor[q.status] || "rgba(255,255,255,.5)";
+        const quoteUrl = `${location.origin}/quote.html?id=${encodeURIComponent(q.id)}`;
+        const isPending = q.status === "pending";
+        return `
+        <div class="list-item" style="flex-direction:column;align-items:flex-start;gap:6px;">
+          <div style="display:flex;align-items:center;gap:10px;width:100%;">
+            <div style="flex:1;min-width:0;">
+              <div style="font-weight:600;font-size:.9rem;">${escapeHtml(q.title || "Quote")}</div>
+              <div class="muted" style="font-size:.78rem;">${escapeHtml(q.customer_name || "")}${q.customer_email ? ` · ${escapeHtml(q.customer_email)}` : ""} · ${formatDateOnly(q.created_at)}</div>
+            </div>
+            <span style="font-size:.75rem;padding:3px 9px;background:rgba(255,255,255,.06);border-radius:12px;color:${color};white-space:nowrap;">${escapeHtml(q.status || "pending")}</span>
+            <span style="font-size:.85rem;font-weight:700;color:var(--text);white-space:nowrap;">${fmtMoney(q.amount_cents)}</span>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <a href="${escapeHtml(quoteUrl)}" target="_blank" style="font-size:.78rem;color:var(--accent);text-decoration:none;">View quote page →</a>
+            ${isPending ? `<button class="btn btn-ghost btn-sm qt-resend-btn" data-email="${escapeHtml(q.customer_email || "")}" data-url="${escapeHtml(quoteUrl)}" data-name="${escapeHtml(q.customer_name || "")}" type="button" style="font-size:.75rem;padding:2px 8px;">Resend link</button>` : ""}
+            ${q.accepted_at ? `<span class="muted" style="font-size:.75rem;">Accepted ${formatDateOnly(q.accepted_at)}</span>` : ""}
+            ${q.declined_at ? `<span class="muted" style="font-size:.75rem;">Declined ${formatDateOnly(q.declined_at)}</span>` : ""}
+            ${q.valid_until ? `<span class="muted" style="font-size:.75rem;">Valid until ${formatDateOnly(q.valid_until)}</span>` : ""}
+          </div>
+        </div>`;
+      }).join("")}
+    </div>
+  `;
+
+  // Resend link: copy to clipboard
+  el.querySelectorAll(".qt-resend-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const url  = btn.dataset.url;
+      const name = btn.dataset.name;
+      const email = btn.dataset.email;
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(url).then(() => {
+          btn.textContent = "Copied!";
+          setTimeout(() => { btn.textContent = "Resend link"; }, 2000);
+        });
+      } else {
+        prompt(`Copy this link and send it to ${name || "the customer"}:`, url);
+      }
+    });
+  });
+}
+
+async function fetchAndRenderQuotes() {
+  const statusFilter = $("quotesStatusFilter")?.value || "";
+  await fetchQuotes();
+  renderQuotesList();
+}
+
+$("btnRefreshQuotes")?.addEventListener("click", () => fetchAndRenderQuotes().catch(console.error));
+
+$("quotesStatusFilter")?.addEventListener("change", () => renderQuotesList());
+
+$("btnExportQuotesCsv")?.addEventListener("click", () => {
+  if (!QUOTES_CACHE.length) { alert("No quotes to export."); return; }
+  const headers = ["id", "title", "customer_name", "customer_email", "amount_cents", "status", "valid_until", "created_at", "accepted_at", "declined_at"];
+  downloadCsv("quotes", headers, QUOTES_CACHE.map((q) => headers.map((h) => q[h] ?? "")));
 });
 
 // ── Global Search ─────────────────────────────────────────────────────────────

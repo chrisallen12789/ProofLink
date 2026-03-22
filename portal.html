@@ -89,6 +89,22 @@
     .empty { font-size: .875rem; color: rgba(255,255,255,.35); padding: 8px 0; }
     .powered { text-align: center; font-size: .75rem; color: rgba(255,255,255,.3); margin-top: 24px; }
     .powered a { color: rgba(255,255,255,.4); text-decoration: none; }
+    textarea {
+      width: 100%;
+      background: #0f1117;
+      border: 1px solid rgba(255,255,255,.15);
+      border-radius: 6px;
+      color: #e8e9eb;
+      padding: 10px 12px;
+      font-size: .9rem;
+      margin-bottom: 14px;
+      outline: none;
+      resize: vertical;
+      min-height: 100px;
+      font-family: inherit;
+    }
+    textarea:focus { border-color: #c84b2f; }
+    .msg.success { background: rgba(34,197,94,.1); color: #4ade80; border: 1px solid rgba(34,197,94,.2); display: block; }
     .tabs { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,.08); }
     .tab-btn {
       background: none; border: none; color: rgba(255,255,255,.5); font-size: .875rem; padding: 8px 14px;
@@ -122,6 +138,7 @@
       <button class="tab-btn active" data-tab="orders" type="button">Orders</button>
       <button class="tab-btn" data-tab="bookings" type="button">Appointments</button>
       <button class="tab-btn" data-tab="quotes" type="button">Quotes</button>
+      <button class="tab-btn" data-tab="contact" type="button">Contact</button>
     </div>
 
     <div class="tab-panel active" id="tab-orders">
@@ -135,6 +152,18 @@
 
     <div class="tab-panel" id="tab-quotes">
       <div id="quotesList"></div>
+    </div>
+
+    <div class="tab-panel" id="tab-contact">
+      <div class="card">
+        <div class="card-hd">Send a message</div>
+        <label>Your name</label>
+        <input type="text" id="contactName" placeholder="Your full name" autocomplete="name" />
+        <label>Message</label>
+        <textarea id="contactMessage" placeholder="How can we help you?"></textarea>
+        <button class="btn" id="btnSendContact" type="button">Send Message</button>
+        <div class="msg" id="contactMsg"></div>
+      </div>
     </div>
 
     <button class="btn btn-ghost" id="btnPortalBack" type="button" style="margin-top:12px;">← Use a different email</button>
@@ -311,6 +340,56 @@
   document.getElementById('btnPortalBack').addEventListener('click', function () {
     document.getElementById('portalContent').classList.add('hidden');
     document.getElementById('loginCard').classList.remove('hidden');
+  });
+
+  document.getElementById('btnSendContact').addEventListener('click', function () {
+    var btn     = document.getElementById('btnSendContact');
+    var msgEl   = document.getElementById('contactMsg');
+    var name    = document.getElementById('contactName').value.trim();
+    var message = document.getElementById('contactMessage').value.trim();
+    var email   = document.getElementById('portalEmail').value.trim();
+    msgEl.className = 'msg';
+    msgEl.style.display = 'none';
+
+    if (!name) {
+      msgEl.textContent = 'Please enter your name.';
+      msgEl.className = 'msg error';
+      return;
+    }
+    if (!message) {
+      msgEl.textContent = 'Please enter a message.';
+      msgEl.className = 'msg error';
+      return;
+    }
+    if (message.length > 2000) {
+      msgEl.textContent = 'Message is too long (max 2000 characters).';
+      msgEl.className = 'msg error';
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Sending\u2026';
+
+    fetch('/.netlify/functions/portal-message', {
+      method : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body   : JSON.stringify({ tenant_id: tenantId, email: email, name: name, message: message }),
+    })
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+      .then(function (res) {
+        btn.disabled = false;
+        btn.textContent = 'Send Message';
+        if (!res.ok) throw new Error(res.d.error || 'Failed to send message');
+        msgEl.textContent = 'Your message has been sent. We\u2019ll be in touch shortly.';
+        msgEl.className = 'msg success';
+        document.getElementById('contactMessage').value = '';
+      })
+      .catch(function (err) {
+        btn.disabled = false;
+        btn.textContent = 'Send Message';
+        msgEl.textContent = err.message || 'Something went wrong. Please try again.';
+        msgEl.className = 'msg error';
+      });
   });
 })();
 </script>

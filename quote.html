@@ -109,10 +109,13 @@
       display: inline-block;
     }
     .badge.accepted  { color: #4ade80; }
+    .badge.declined  { color: #f87171; }
     .badge.expired   { color: #f87171; }
     .badge.pending   { color: #93c5fd; }
     .badge.sent      { color: #93c5fd; }
     .badge.draft     { color: rgba(255,255,255,.4); }
+    .btn-danger { background: rgba(239,68,68,.12); color: #f87171; border: 1px solid rgba(239,68,68,.2); }
+    .btn-danger:hover { background: rgba(239,68,68,.22); }
     .hidden { display: none; }
     .state-card {
       background: #1a1d27;
@@ -160,6 +163,13 @@
     <div class="state-body">The validity period for this quote has passed. Please contact the business to request a new quote.</div>
   </div>
 
+  <!-- Declined state -->
+  <div id="declinedState" class="state-card hidden">
+    <div class="state-icon">&#x274C;</div>
+    <div class="state-title">You declined this quote</div>
+    <div class="state-body">The business has been notified. Feel free to reach out if you change your mind or have questions.</div>
+  </div>
+
   <!-- Quote details + acceptance form -->
   <div id="quoteView" class="hidden">
     <div class="card" id="quoteDetailsCard">
@@ -195,6 +205,22 @@
 
       <button class="btn btn-full" id="btnAccept" type="button">Accept Quote</button>
       <div class="msg hidden" id="acceptMsg"></div>
+
+      <div style="margin-top:20px;padding-top:16px;border-top:1px solid rgba(255,255,255,.06);text-align:center;">
+        <button class="btn btn-danger" id="btnDecline" type="button" style="background:none;border:none;color:rgba(255,255,255,.35);font-size:.8rem;cursor:pointer;text-decoration:underline;">Decline this quote</button>
+      </div>
+    </div>
+
+    <!-- Decline confirmation -->
+    <div class="card hidden" id="declineForm">
+      <div class="card-hd">Decline this quote</div>
+      <label for="declineReason">Reason (optional)</label>
+      <input type="text" id="declineReason" placeholder="e.g. Price too high, going with another provider…" />
+      <div style="display:flex;gap:10px;">
+        <button class="btn btn-danger btn-full" id="btnConfirmDecline" type="button">Confirm Decline</button>
+        <button class="btn btn-full" id="btnCancelDecline" type="button" style="background:rgba(255,255,255,.07);color:rgba(255,255,255,.8);">Go Back</button>
+      </div>
+      <div class="msg hidden" id="declineMsg"></div>
     </div>
 
     <!-- Success state (shown in place of acceptance form) -->
@@ -260,6 +286,11 @@
       return;
     }
 
+    if (quote.status === 'declined') {
+      document.getElementById('declinedState').classList.remove('hidden');
+      return;
+    }
+
     if (isExpired(quote)) {
       document.getElementById('expiredState').classList.remove('hidden');
       return;
@@ -312,6 +343,45 @@
         showError('Unable to load quote', 'A network error occurred. Please check your connection and try again.');
       });
   }
+
+  // Decline button — show confirmation form
+  document.getElementById('btnDecline').addEventListener('click', function () {
+    document.getElementById('acceptForm').classList.add('hidden');
+    document.getElementById('declineForm').classList.remove('hidden');
+  });
+
+  document.getElementById('btnCancelDecline').addEventListener('click', function () {
+    document.getElementById('declineForm').classList.add('hidden');
+    document.getElementById('acceptForm').classList.remove('hidden');
+  });
+
+  document.getElementById('btnConfirmDecline').addEventListener('click', function () {
+    var btn    = document.getElementById('btnConfirmDecline');
+    var msgEl  = document.getElementById('declineMsg');
+    var reason = document.getElementById('declineReason').value.trim();
+    msgEl.className = 'msg hidden';
+
+    btn.disabled    = true;
+    btn.textContent = 'Declining\u2026';
+
+    fetch('/.netlify/functions/quote-decline', {
+      method : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body   : JSON.stringify({ quote_id: quoteId, reason: reason || undefined }),
+    })
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+      .then(function (res) {
+        if (!res.ok) throw new Error(res.d.error || 'Failed to decline quote');
+        document.getElementById('quoteView').classList.add('hidden');
+        document.getElementById('declinedState').classList.remove('hidden');
+      })
+      .catch(function (err) {
+        btn.disabled    = false;
+        btn.textContent = 'Confirm Decline';
+        msgEl.textContent = err.message || 'Something went wrong. Please try again.';
+        msgEl.className = 'msg error';
+      });
+  });
 
   // Accept button handler
   document.getElementById('btnAccept').addEventListener('click', function () {
