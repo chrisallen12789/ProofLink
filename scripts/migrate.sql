@@ -112,5 +112,24 @@ ALTER TABLE bookings           ENABLE ROW LEVEL SECURITY;
 ALTER TABLE sms_messages       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE quotes             ENABLE ROW LEVEL SECURITY;
 
+-- Quotes: decline tracking columns
+ALTER TABLE quotes ADD COLUMN IF NOT EXISTS declined_at    timestamptz;
+ALTER TABLE quotes ADD COLUMN IF NOT EXISTS decline_reason text;
+
+-- Bookings: reminder tracking
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS reminder_sent_at timestamptz;
+
+-- Customer messages: portal contact form submissions
+CREATE TABLE IF NOT EXISTS customer_messages (
+  id             uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  tenant_id      uuid,
+  customer_email text,
+  customer_name  text,
+  message        text,
+  status         text DEFAULT 'unread',
+  created_at     timestamptz DEFAULT now()
+);
+ALTER TABLE customer_messages ENABLE ROW LEVEL SECURITY;
+
 -- RLS policies: service role bypasses RLS; anon/authenticated get no access by default
 -- (app layer uses service role key for all writes, so these are correct)

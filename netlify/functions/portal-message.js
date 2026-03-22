@@ -83,11 +83,12 @@ exports.handler = async function handler(event) {
     : [];
 
   if (recipientEmails.length > 0) {
+    const esc = (s) => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     const html = [
       '<p>A customer sent a message from the customer portal:</p>',
-      `<p><strong>From:</strong> ${name.trim()} (${email.trim()})</p>`,
+      `<p><strong>From:</strong> ${esc(name.trim())} (${esc(email.trim())})</p>`,
       '<p><strong>Message:</strong></p>',
-      `<blockquote>${message.trim()}</blockquote>`,
+      `<blockquote>${esc(message.trim())}</blockquote>`,
     ].join('');
 
     for (const to of recipientEmails) {

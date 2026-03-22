@@ -84,11 +84,12 @@ exports.handler = async function handler(event) {
   }
 
   if (recipientEmails.length > 0) {
+    const esc = (s) => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     const reasonHtml = reason
-      ? `<p><strong>Reason:</strong> ${reason}</p>`
+      ? `<p><strong>Reason:</strong> ${esc(reason)}</p>`
       : '';
 
-    const html = `<p>A customer has declined the quote <strong>${quote.title}</strong>.</p>${reasonHtml}`;
+    const html = `<p>A customer has declined the quote <strong>${esc(quote.title)}</strong>.</p>${reasonHtml}`;
 
     for (const to of recipientEmails) {
       await sendEmail({

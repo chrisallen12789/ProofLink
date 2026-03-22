@@ -176,6 +176,10 @@
 (function () {
   'use strict';
 
+  function escHtml(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  }
+
   const params   = new URLSearchParams(location.search);
   const tenantId = params.get('tenant');
   const prefill  = params.get('email');
@@ -215,8 +219,9 @@
     return '$' + Number(amount).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   }
   function statusBadge(s) {
-    var label = (s || 'new').replace(/_/g, ' ');
-    return '<span class="badge ' + (s || 'new') + '">' + label + '</span>';
+    var key   = (s || 'new').replace(/[^a-z0-9_]/gi, '');
+    var label = escHtml((s || 'new').replace(/_/g, ' '));
+    return '<span class="badge ' + key + '">' + label + '</span>';
   }
 
   function renderOrders(orders) {
@@ -228,7 +233,7 @@
     el.innerHTML = orders.map(function (o) {
       return '<div class="order-row">' +
         '<div style="flex:1;min-width:0;">' +
-          '<div class="order-title">' + (o.title || 'Order') + '</div>' +
+          '<div class="order-title">' + escHtml(o.title || 'Order') + '</div>' +
           '<div class="order-meta">' + fmtDate(o.created_at) + '</div>' +
         '</div>' +
         statusBadge(o.status) +
@@ -249,7 +254,7 @@
         start.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) : '—';
       return '<div class="order-row">' +
         '<div style="flex:1;min-width:0;">' +
-          '<div class="order-title">' + (b.title || 'Appointment') + '</div>' +
+          '<div class="order-title">' + escHtml(b.title || 'Appointment') + '</div>' +
           '<div class="order-meta">' + timeStr + '</div>' +
         '</div>' +
         statusBadge(b.status) +
@@ -270,13 +275,13 @@
       return '<div class="order-row" style="flex-direction:column;align-items:flex-start;gap:6px;">' +
         '<div style="display:flex;align-items:center;gap:10px;width:100%;">' +
           '<div style="flex:1;min-width:0;">' +
-            '<div class="order-title">' + (q.title || 'Quote') + '</div>' +
+            '<div class="order-title">' + escHtml(q.title || 'Quote') + '</div>' +
             '<div class="order-meta">' + fmtDate(q.created_at) + (q.valid_until ? ' · Valid until ' + fmtDate(q.valid_until) : '') + '</div>' +
           '</div>' +
           statusBadge(q.status) +
           (q.amount_cents ? '<div class="amount">' + fmt(q.amount_cents) + '</div>' : '') +
         '</div>' +
-        (isPending ? '<a href="/quote.html?id=' + q.id + '" style="font-size:.82rem;color:#c84b2f;text-decoration:none;font-weight:600;">Review &amp; accept quote →</a>' : '') +
+        (isPending ? '<a href="/quote.html?id=' + encodeURIComponent(q.id) + '" style="font-size:.82rem;color:#c84b2f;text-decoration:none;font-weight:600;">Review &amp; accept quote →</a>' : '') +
       '</div>';
     }).join('');
   }
@@ -324,6 +329,10 @@
         renderOrders(d.orders);
         renderBookings(d.bookings);
         renderQuotes(d.quotes || []);
+        // Pre-fill contact form name from first known record
+        var knownName = (d.orders && d.orders[0] && d.orders[0].customer_name) ||
+                        (d.bookings && d.bookings[0] && d.bookings[0].customer_name) || '';
+        if (knownName) document.getElementById('contactName').value = knownName;
         var bookLink = document.getElementById('newBookingLink');
         if (bookLink) bookLink.href = '/book.html?tenant=' + encodeURIComponent(tenantId) + '&email=' + encodeURIComponent(email);
         document.getElementById('loginCard').classList.add('hidden');
