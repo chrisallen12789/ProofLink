@@ -95,10 +95,7 @@
           <button class="tab" data-tab="domains" data-tour-tab="domains" type="button">Domains</button>
           <button class="tab" data-tab="import" data-tour-tab="import" type="button">Switch &amp; Import</button>
           <button class="tab" data-tab="vendors" type="button">Vendors <span style="font-size:.7rem;color:rgba(255,255,255,.35);display:block;font-weight:400;">Subs &amp; suppliers</span></button>
-          <button class="tab-btn" data-tab="team" onclick="switchTab('team')">
-            <span class="tab-icon">👥</span>
-            <span class="tab-label">Team</span>
-          </button>
+          <button class="tab" data-tab="team" type="button">Team <span style="font-size:.7rem;color:rgba(255,255,255,.35);display:block;font-weight:400;">Members &amp; crew</span></button>
           <button class="tab" data-tab="inventory" type="button">Inventory <span style="font-size:.7rem;color:rgba(255,255,255,.35);display:block;font-weight:400;">Parts &amp; materials</span></button>
           <button class="tab" data-tab="contracts" type="button">Contracts <span style="font-size:.7rem;color:rgba(255,255,255,.35);display:block;font-weight:400;">Warranties &amp; plans</span></button>
         </div>
@@ -1789,7 +1786,7 @@
             </div>
           </section>
 
-          <div id="teamPanel" class="panel" style="display:none">
+          <div class="panel hidden" data-panel="team">
             <div class="panel-header">
               <h2>Team Members</h2>
               <div class="panel-actions">
@@ -2107,6 +2104,7 @@
                 <div class="muted">Revenue, tracked job cost, gross profit, and average margin without accounting clutter.</div>
               </div>
               <div class="panel-actions">
+                <button id="btnExportPaymentsCsv" class="btn btn-ghost" type="button">Export CSV</button>
                 <button id="btnRefreshMoney" class="btn btn-ghost" type="button">Refresh</button>
               </div>
             </div>

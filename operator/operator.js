@@ -2402,6 +2402,7 @@ function switchTab(tab, opts = {}) {
     TEAM_PANEL_LOADED = true;
     fetchTeamMembers().catch(console.warn);
     $('btnInviteTeamMember')?.addEventListener('click', () => openInviteTeamMemberModal());
+    $('btnRefreshTeam')?.addEventListener('click', () => fetchTeamMembers().catch(console.warn));
   }
   if (opts.updateHash !== false) syncPanelHash(nextTab);
   renderWorkspaceHub();
@@ -4721,7 +4722,10 @@ function renderTeamPanel() {
           <td style="padding:8px;color:#e8e9eb;">${escapeHtml(m.display_name || m.name || m.email || m.id)}</td>
           <td style="padding:8px;color:rgba(255,255,255,.55);">${escapeHtml(m.role || '—')}</td>
           <td style="padding:8px;color:rgba(255,255,255,.55);">${m.hourly_rate_cents ? formatUsd(m.hourly_rate_cents) + '/hr' : '—'}</td>
-          <td style="padding:8px;text-align:right;"><button class="btn btn-ghost" style="font-size:.72rem;" onclick="removeTeamMember('${escapeAttr(m.id)}')">Remove</button></td>
+          <td style="padding:8px;text-align:right;display:flex;gap:6px;justify-content:flex-end;">
+            <button class="btn btn-ghost" style="font-size:.72rem;" onclick="openEditTeamMemberModal('${escapeAttr(m.id)}','${escapeAttr(m.role||'')}','${m.hourly_rate_cents||0}')">Edit</button>
+            <button class="btn btn-ghost" style="font-size:.72rem;" onclick="removeTeamMember('${escapeAttr(m.id)}')">Remove</button>
+          </td>
         </tr>`).join('')}
     </tbody>
   </table>`;
@@ -4762,7 +4766,7 @@ function openInviteTeamMemberModal() {
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({
           email,
-          display_name: document.getElementById('tmName')?.value || undefined,
+          name: document.getElementById('tmName')?.value || undefined,
           role: document.getElementById('tmRole')?.value || 'technician',
         }),
       });
@@ -4775,6 +4779,47 @@ function openInviteTeamMemberModal() {
       btn.disabled = false; btn.textContent = 'Send invite';
     }
   };
+}
+
+function openEditTeamMemberModal(id, currentRole, currentRateCents) {
+  const existing = document.getElementById('editTeamModal');
+  if (existing) existing.remove();
+  const modal = document.createElement('div');
+  modal.id = 'editTeamModal';
+  modal.className = 'modal-overlay';
+  const roles = ['owner','admin','member','viewer'];
+  modal.innerHTML = `<div class="modal-box" style="max-width:340px;">
+    <h3 style="margin:0 0 16px;font-size:1rem;">Edit Team Member</h3>
+    <label style="font-size:.8rem;color:rgba(255,255,255,.55);">Role</label>
+    <select id="tmEditRole" class="input" style="margin-bottom:12px;width:100%;">
+      ${roles.map(r => `<option value="${r}"${r===currentRole?' selected':''}>${r}</option>`).join('')}
+    </select>
+    <label style="font-size:.8rem;color:rgba(255,255,255,.55);">Hourly Rate ($/hr)</label>
+    <input id="tmEditRate" class="input" type="number" min="0" step="0.01" style="margin-bottom:16px;width:100%;" value="${currentRateCents ? (currentRateCents/100).toFixed(2) : ''}">
+    <div style="display:flex;gap:8px;justify-content:flex-end;">
+      <button class="btn btn-ghost" onclick="document.getElementById('editTeamModal')?.remove()">Cancel</button>
+      <button class="btn btn-primary" id="tmEditSave">Save</button>
+    </div>
+  </div>`;
+  document.body.appendChild(modal);
+  modal.querySelector('#tmEditSave').onclick = async () => {
+    const role = document.getElementById('tmEditRole')?.value;
+    const rate = parseFloat(document.getElementById('tmEditRate')?.value || '0');
+    try {
+      const res = await fetch('/.netlify/functions/manage-operator-members', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: JSON.stringify({ id, role, hourly_rate_cents: Math.round(rate * 100) }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || 'Failed');
+      modal.remove();
+      await fetchTeamMembers();
+      showToast('Member updated.');
+    } catch (err) {
+      showToast('Error: ' + err.message);
+    }
+  };
+  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
 }
 
 async function removeTeamMember(id) {
@@ -11785,6 +11830,26 @@ if (btnImportBridgeOrders) {
 }
 
 btnRefreshMoney?.addEventListener("click", () => renderMoney().catch(console.error));
+$('btnExportPaymentsCsv')?.addEventListener('click', () => {
+  const rows = [['Order ID','Customer','Date Paid','Amount','Method','Status']];
+  (ORDERS_CACHE || []).forEach(o => {
+    if (o.amount_paid_cents > 0 || o.payment_state === 'paid') {
+      rows.push([
+        o.id || '',
+        o.customer_name || '',
+        (o.paid_at || o.updated_at || '').slice(0, 10),
+        o.amount_paid_cents ? (o.amount_paid_cents / 100).toFixed(2) : (o.total_amount || ''),
+        o.payment_method || '',
+        o.payment_state || o.status || '',
+      ]);
+    }
+  });
+  const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download = 'payments.csv';
+  a.click();
+});
 async function renderMoney() {
   if (!moneyWrap) return;
 
@@ -12765,7 +12830,7 @@ $("btnCopyBookingLink")?.addEventListener("click", async () => {
 });
 
 // ── Sidebar More toggle ────────────────────────────────────────────────────────
-const SECONDARY_TABS = new Set(['bids','jobs','quotes','plans','reviews','expenses','money','guidance','products','pricing','availability','setup','domains','import']);
+const SECONDARY_TABS = new Set(['bids','jobs','quotes','plans','reviews','expenses','money','guidance','products','pricing','availability','setup','domains','import','team','vendors','inventory','contracts']);
 
 $("btnSidebarMore")?.addEventListener("click", () => {
   const more = $("sidebarMore");
