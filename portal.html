@@ -238,7 +238,7 @@
   function renderOrders(orders) {
     var el = document.getElementById('ordersList');
     if (!orders || !orders.length) {
-      el.innerHTML = '<p class="empty">No orders found for this email.</p>';
+      el.innerHTML = '<p class="empty">No orders yet. When your provider creates an order for you, it will appear here.</p>';
       return;
     }
     el.innerHTML = orders.map(function (o) {
@@ -256,7 +256,7 @@
   function renderBookings(bookings) {
     var el = document.getElementById('bookingsList');
     if (!bookings || !bookings.length) {
-      el.innerHTML = '<p class="empty">No appointments on record for this email.</p>';
+      el.innerHTML = '<p class="empty">No appointments yet. Booked appointments will appear here.</p>';
       return;
     }
     el.innerHTML = bookings.map(function (b) {
@@ -306,7 +306,7 @@
     var el = document.getElementById('quotesList');
     if (!el) return;
     if (!quotes || !quotes.length) {
-      el.innerHTML = '<p class="empty">No quotes on record for this email.</p>';
+      el.innerHTML = '<p class="empty">No quotes yet. Estimates sent to you will appear here.</p>';
       return;
     }
     var fmt = function(cents) { return cents ? '$' + (cents / 100).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',') : ''; };

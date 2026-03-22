@@ -743,6 +743,23 @@ function formatTime12(value) {
   return `${hour12}:${String(mStr || "00").padStart(2, "0")} ${suffix}`;
 }
 
+function showConfirmModal(message, confirmText = 'Confirm', cancelText = 'Cancel') {
+  return new Promise((resolve) => {
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10000;display:flex;align-items:center;justify-content:center;';
+    overlay.innerHTML = `
+      <div style="background:#1e2029;border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:28px 32px;max-width:420px;width:90%;box-shadow:0 8px 40px rgba(0,0,0,.5);">
+        <p style="margin:0 0 24px;font-size:.95rem;color:#e8e9eb;line-height:1.6;">${message}</p>
+        <div style="display:flex;gap:10px;justify-content:flex-end;">
+          <button id="confirmModalCancel" style="background:transparent;border:1px solid rgba(255,255,255,.2);color:rgba(255,255,255,.7);border-radius:5px;padding:9px 20px;font-size:.85rem;cursor:pointer;">${cancelText}</button>
+          <button id="confirmModalOk" style="background:#c84b2f;color:#fff;border:none;border-radius:5px;padding:9px 20px;font-size:.85rem;font-weight:700;cursor:pointer;">${confirmText}</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    overlay.querySelector('#confirmModalOk').onclick    = () => { overlay.remove(); resolve(true); };
+    overlay.querySelector('#confirmModalCancel').onclick = () => { overlay.remove(); resolve(false); };
+  });
+}
 function setInlineMessage(el, message = "", tone = "") {
   if (!el) return;
   el.textContent = message || "";
@@ -2313,6 +2330,7 @@ function currentPanel() {
 }
 function switchTab(tab, opts = {}) {
   const nextTab = normalizePanel(tab);
+  ensureSecondaryTabVisible?.(nextTab);
   const activeTab = document.querySelector(".tab.active")?.dataset.tab || "dashboard";
   ensureWorkspaceWindowShell();
   bindWorkspaceDirtyTracking();
@@ -4042,7 +4060,7 @@ async function fetchBookings() {
   });
   const d = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(d.error || "Failed to fetch bookings");
-  BOOKINGS_CACHE = d.bookings || [];
+  BOOKINGS_CACHE = (d.bookings || []).filter((b) => !b.is_deleted);
   return BOOKINGS_CACHE;
 }
 
@@ -4383,6 +4401,7 @@ async function fetchCustomers() {
   const { data, error } = await scopeQuery(sb
     .from("customers")
     .select("*"))
+    .eq('is_deleted', false)
     .order("lifetime_value_cents", { ascending: false })
     .order("updated_at", { ascending: false });
 
@@ -4444,6 +4463,7 @@ async function fetchCrmOrders() {
   let query = scopeQuery(sb
     .from("orders")
     .select("*"))
+    .eq('is_deleted', false)
     .order("created_at", { ascending: false })
     .limit(250);
 
@@ -5293,6 +5313,16 @@ async function saveCustomerRecord(fields = {}) {
 customerForm?.addEventListener("submit", async (e) => {
   e.preventDefault();
   setInlineMessage(customerMsg, "Saving...");
+
+  const emailVal = (customerEmail?.value || '').trim().toLowerCase();
+  const custId   = customerId?.value || null;
+  if (emailVal) {
+    const dup = CUSTOMERS_CACHE.find((c) => c.email?.toLowerCase() === emailVal && c.id !== custId);
+    if (dup) {
+      setInlineMessage(customerMsg, `A customer with email ${emailVal} already exists: ${dup.name || 'unnamed'}. Open their record instead.`, 'error');
+      return;
+    }
+  }
 
   try {
       await saveCustomerRecord({
@@ -9381,6 +9411,24 @@ function renderDashboard() {
     </div>
   `;
 
+  // Make pipeline stages clickable
+  dashboardWrap.querySelectorAll('.workflow-stage').forEach((el) => {
+    el.style.cursor = 'pointer';
+    el.style.transition = 'opacity .15s';
+    el.addEventListener('mouseenter', () => { el.style.opacity = '.8'; });
+    el.addEventListener('mouseleave', () => { el.style.opacity = '1'; });
+    el.addEventListener('click', () => {
+      const label = (el.querySelector('.workflow-stage__label, .stage-label, [class*="label"]')?.textContent || '').toLowerCase();
+      if      (label.includes('lead'))                     switchTab('leads');
+      else if (label.includes('quote'))                    switchTab('quotes');
+      else if (label.includes('book') || label.includes('scheduled')) switchTab('bookings');
+      else if (label.includes('progress') || label.includes('active')) { switchTab('orders'); }
+      else if (label.includes('complet'))                  { switchTab('orders'); }
+      else if (label.includes('paid'))                     switchTab('payments');
+      else                                                 switchTab('orders');
+    });
+  });
+
   dashboardWrap.querySelectorAll("[data-today-tab]").forEach((btn) => {
     btn.addEventListener("click", () => {
       const tab = btn.getAttribute("data-today-tab");
@@ -10895,6 +10943,11 @@ const globalSearchOverlay = $("globalSearchOverlay");
 const globalSearchResults = $("globalSearchResults");
 
 function runGlobalSearch(q) {
+  if (!CRM_ORDERS_CACHE?.length && !CUSTOMERS_CACHE?.length && !BOOKINGS_CACHE?.length) {
+    const overlay = $("globalSearchOverlay");
+    if (overlay) overlay.innerHTML = '<div style="padding:20px;text-align:center;color:rgba(255,255,255,.4);font-size:.85rem;">Loading data… try again in a moment.</div>';
+    return;
+  }
   if (!q || q.length < 2) { if (globalSearchOverlay) globalSearchOverlay.style.display = "none"; return; }
   const lq = q.toLowerCase();
 
@@ -11117,6 +11170,29 @@ async function fetchAndRenderMessages() {
 
 $("btnRefreshMessages")?.addEventListener("click", () => fetchAndRenderMessages().catch(console.error));
 
+// ── Sidebar More toggle ────────────────────────────────────────────────────────
+const SECONDARY_TABS = new Set(['bids','jobs','quotes','plans','reviews','expenses','money','guidance','products','pricing','availability','setup','domains','import']);
+
+$("btnSidebarMore")?.addEventListener("click", () => {
+  const more = $("sidebarMore");
+  if (!more) return;
+  const isOpen = more.style.display !== 'none';
+  more.style.display = isOpen ? 'none' : 'block';
+  const btn = $("btnSidebarMore");
+  if (btn) btn.textContent = isOpen ? 'More ▾' : 'Less ▴';
+});
+
+// Auto-expand More panel when a secondary tab is navigated to directly (hash, back button, etc.)
+function ensureSecondaryTabVisible(tab) {
+  if (!SECONDARY_TABS.has(tab)) return;
+  const more = $("sidebarMore");
+  const btn  = $("btnSidebarMore");
+  if (more && more.style.display === 'none') {
+    more.style.display = 'block';
+    if (btn) btn.textContent = 'Less ▴';
+  }
+}
+
 // ── AI Copilot Panel ──────────────────────────────────────────────────────────
 
 let AI_PANEL_LOADED = false;
@@ -11217,6 +11293,28 @@ document.querySelectorAll(".ai-quick[data-q]").forEach((btn) => {
   });
 });
 
+function buildDraftExtras(draft_type) {
+  const extras = {};
+  if (ACTIVE_ORDER_ID) {
+    const order = CRM_ORDERS_CACHE?.find((o) => o.id === ACTIVE_ORDER_ID);
+    if (order) {
+      extras.customer_name = order.customer_name || order.email || '';
+      extras.order_title   = order.title || order.cart_summary || '';
+      extras.amount        = order.total_cents ? `$${(order.total_cents / 100).toFixed(2)}` : (order.total_amount || '');
+      extras.status        = order.status || '';
+      extras.days_overdue  = order.payment_due_date
+        ? Math.max(0, Math.floor((Date.now() - new Date(order.payment_due_date).getTime()) / 86400000))
+        : null;
+    }
+  }
+  if (ACTIVE_BID_ID) {
+    const bid = BIDS_CACHE?.find((b) => b.id === ACTIVE_BID_ID);
+    if (bid && !extras.customer_name) {
+      extras.bid_title = bid.title || '';
+    }
+  }
+  return extras;
+}
 async function requestAIDraft(draft_type) {
   const areaEl   = $("aiDraftArea");
   const outputEl = $("aiDraftText");
@@ -11230,7 +11328,7 @@ async function requestAIDraft(draft_type) {
     const res = await fetch("/.netlify/functions/ai-copilot", {
       method : "POST",
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${tok}` },
-      body   : JSON.stringify({ question: draft_type, mode: "draft", draft_type }),
+      body   : JSON.stringify({ question: draft_type, mode: "draft", draft_type, draft_extras: buildDraftExtras(draft_type) }),
     });
     const d = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(d.error || "Failed to generate draft");
@@ -11269,9 +11367,10 @@ function updateBulkBar() {
 
 $("btnBulkStatusApply")?.addEventListener("click", async () => {
   const status = $("bulkStatusSelect")?.value;
-  if (!status) { alert("Choose a status first."); return; }
-  if (!BULK_SELECTED_ORDER_IDS.size) { alert("No orders selected."); return; }
-  if (!confirm(`Change ${BULK_SELECTED_ORDER_IDS.size} order(s) to "${status}"?`)) return;
+  if (!status) { setInlineMessage($("bulkMsg"), "Choose a status first.", "error"); return; }
+  if (!BULK_SELECTED_ORDER_IDS.size) { setInlineMessage($("bulkMsg"), "No orders selected.", "error"); return; }
+  const confirmed = await showConfirmModal(`Change ${BULK_SELECTED_ORDER_IDS.size} order(s) to "${status}"?`, "Yes, update all", "Cancel");
+  if (!confirmed) return;
 
   const ids = Array.from(BULK_SELECTED_ORDER_IDS);
   const now = new Date().toISOString();
@@ -11375,3 +11474,36 @@ boot().catch((err) => {
   console.error(err);
   showLogin(err?.message || String(err));
 });
+
+// ── Session idle timeout ───────────────────────────────────────────────────────
+(function initIdleTimer() {
+  const WARN_MS   = 25 * 60 * 1000; // warn after 25 min idle
+  const LOGOUT_MS = 30 * 60 * 1000; // logout after 30 min idle
+  let warnTimer, logoutTimer, banner;
+
+  function showIdleBanner() {
+    if (banner) return;
+    banner = document.createElement('div');
+    banner.id = 'idleBanner';
+    banner.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1e2029;border:1px solid rgba(200,75,47,.5);border-radius:8px;padding:14px 20px;color:#e8e9eb;font-size:.85rem;z-index:9999;display:flex;align-items:center;gap:12px;box-shadow:0 4px 24px rgba(0,0,0,.4);';
+    banner.innerHTML = '<span>You\'ll be signed out in 5 minutes due to inactivity.</span><button onclick="document.getElementById(\'idleBanner\').remove();window._idleReset&&window._idleReset();" style="background:#c84b2f;color:#fff;border:none;border-radius:4px;padding:6px 14px;font-size:.8rem;cursor:pointer;font-weight:600;">Stay signed in</button>';
+    document.body.appendChild(banner);
+  }
+
+  function reset() {
+    clearTimeout(warnTimer);
+    clearTimeout(logoutTimer);
+    if (banner) { banner.remove(); banner = null; }
+    warnTimer   = setTimeout(showIdleBanner, WARN_MS);
+    logoutTimer = setTimeout(async () => {
+      const { error } = await sb.auth.signOut();
+      if (!error) window.location.reload();
+    }, LOGOUT_MS);
+  }
+
+  window._idleReset = reset;
+  ['mousemove','keydown','click','touchstart'].forEach((ev) =>
+    document.addEventListener(ev, reset, { passive: true })
+  );
+  reset();
+})();

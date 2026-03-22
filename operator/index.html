@@ -67,28 +67,34 @@
       </section>
 
       <div class="nav" aria-label="Sections" data-tour="sidebar-nav">
+        <!-- Primary tabs — always visible -->
         <button class="tab active" data-tab="dashboard" data-tour-tab="dashboard" type="button">Today</button>
         <button class="tab" data-tab="leads" data-tour-tab="leads" type="button">Leads</button>
         <button class="tab" data-tab="orders" data-tour-tab="orders" type="button">Orders</button>
-        <button class="tab" data-tab="bids" data-tour-tab="bids" type="button">Walkthrough Bids</button>
-        <button class="tab" data-tab="jobs" data-tour-tab="jobs" type="button">Jobs</button>
-        <button class="tab" data-tab="plans" data-tour-tab="plans" type="button">Recurring Plans</button>
         <button class="tab" data-tab="customers" data-tour-tab="customers" type="button">Customers</button>
-        <button class="tab" data-tab="import" data-tour-tab="import" type="button">Switch &amp; Import</button>
-        <button class="tab" data-tab="payments" data-tour-tab="payments" type="button">Payments</button>
-        <button class="tab" data-tab="domains" data-tour-tab="domains" type="button">Domains</button>
-        <button class="tab" data-tab="setup" data-tour-tab="setup" type="button">Business Setup</button>
-        <button class="tab" data-tab="products" data-tour-tab="products" type="button">Products</button>
-        <button class="tab" data-tab="pricing" data-tour-tab="pricing" type="button">Pricing</button>
-        <button class="tab" data-tab="availability" data-tour-tab="availability" type="button">Availability</button>
         <button class="tab" data-tab="bookings" data-tour-tab="bookings" type="button">Bookings</button>
-        <button class="tab" data-tab="expenses" data-tour-tab="expenses" type="button">Expenses</button>
-        <button class="tab" data-tab="money" data-tour-tab="money" type="button">Money</button>
-        <button class="tab" data-tab="guidance" data-tour-tab="guidance" type="button">Guidance</button>
-        <button class="tab" data-tab="quotes" data-tour-tab="quotes" type="button">Quotes</button>
-        <button class="tab" data-tab="reviews" data-tour-tab="reviews" type="button">Reviews</button>
+        <button class="tab" data-tab="payments" data-tour-tab="payments" type="button">Payments</button>
         <button class="tab" data-tab="messages" type="button">Messages</button>
         <button class="tab" data-tab="ai" type="button">✦ AI</button>
+        <!-- More toggle -->
+        <button class="tab tab--more" id="btnSidebarMore" type="button" style="color:rgba(255,255,255,.4);font-size:.8rem;letter-spacing:.04em;">More ▾</button>
+        <!-- Secondary tabs — hidden until "More" is clicked -->
+        <div id="sidebarMore" style="display:none;">
+          <button class="tab" data-tab="bids" data-tour-tab="bids" type="button">Walkthrough Bids <span style="font-size:.7rem;color:rgba(255,255,255,.35);display:block;font-weight:400;">On-site estimates</span></button>
+          <button class="tab" data-tab="jobs" data-tour-tab="jobs" type="button">Jobs</button>
+          <button class="tab" data-tab="quotes" data-tour-tab="quotes" type="button">Quotes</button>
+          <button class="tab" data-tab="plans" data-tour-tab="plans" type="button">Recurring Plans</button>
+          <button class="tab" data-tab="reviews" data-tour-tab="reviews" type="button">Reviews</button>
+          <button class="tab" data-tab="expenses" data-tour-tab="expenses" type="button">Expenses</button>
+          <button class="tab" data-tab="money" data-tour-tab="money" type="button">Money</button>
+          <button class="tab" data-tab="guidance" data-tour-tab="guidance" type="button">Guidance</button>
+          <button class="tab" data-tab="products" data-tour-tab="products" type="button">Products</button>
+          <button class="tab" data-tab="pricing" data-tour-tab="pricing" type="button">Pricing</button>
+          <button class="tab" data-tab="availability" data-tour-tab="availability" type="button">Availability</button>
+          <button class="tab" data-tab="setup" data-tour-tab="setup" type="button">Business Setup</button>
+          <button class="tab" data-tab="domains" data-tour-tab="domains" type="button">Domains</button>
+          <button class="tab" data-tab="import" data-tour-tab="import" type="button">Switch &amp; Import</button>
+        </div>
       </div>
 
       <section class="side-card">

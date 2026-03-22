@@ -45,6 +45,22 @@ async function sendEmail({ to, subject, html, replyTo }) {
   }
 }
 
+async function loggedSendEmail(emailPayload, { supabase, tenantId, template } = {}) {
+  const result = await sendEmail(emailPayload);
+  if (supabase && tenantId) {
+    supabase.from('email_log').insert({
+      tenant_id: tenantId,
+      recipient : Array.isArray(emailPayload.to) ? emailPayload.to[0] : emailPayload.to,
+      subject   : emailPayload.subject,
+      template  : template || null,
+      resend_id : result?.id || null,
+      status    : result?.error ? 'error' : (result?.skipped ? 'skipped' : 'sent'),
+      error     : result?.error ? JSON.stringify(result.error).slice(0, 500) : null,
+    }).then(() => {}).catch(() => {});
+  }
+  return result;
+}
+
 const T = {
   bg:'#F4F1EC',card:'#FFFFFF',border:'#E2DDD6',ink:'#1A1A1A',muted:'#6B6560',hint:'#9C9490',
   red:'#C84B2F',redLight:'#FAF0ED',redBorder:'#F0C4B8',
@@ -52,8 +68,11 @@ const T = {
   amber:'#B45309',amberLt:'#FFFBF0',amberBd:'#F0D9A0',
 };
 
-function layout(content, { preheader='' }={}) {
-  return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/><title>ProofLink</title>${preheader?`<div style="display:none;max-height:0;overflow:hidden;">${preheader}&nbsp;</div>`:''}</head><body style="margin:0;padding:0;background:${T.bg};font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;"><table width="100%" cellpadding="0" cellspacing="0" style="background:${T.bg};padding:48px 20px;"><tr><td align="center"><table width="100%" cellpadding="0" cellspacing="0" style="max-width:580px;"><tr><td style="padding-bottom:32px;"><a href="${SITE_URL}" style="text-decoration:none;"><span style="font-size:20px;font-weight:800;color:${T.ink};letter-spacing:-0.04em;">Proof<span style="color:${T.red};">Link</span></span></a></td></tr><tr><td style="background:${T.card};border:1px solid ${T.border};border-radius:10px;overflow:hidden;">${content}</td></tr><tr><td style="padding-top:28px;text-align:center;"><p style="margin:0 0 6px;font-size:12px;color:${T.hint};">ProofLink &nbsp;·&nbsp; <a href="${SITE_URL}" style="color:${T.hint};text-decoration:none;">${SITE_URL.replace('https://','')}</a></p><p style="margin:0;font-size:11px;color:${T.hint};">You received this because you applied to join ProofLink.</p></td></tr></table></td></tr></table></body></html>`;
+function layout(content, { preheader='', logo_url='' }={}) {
+  const logoHtml = logo_url
+    ? `<img src="${logo_url}" alt="Business logo" style="height:40px;max-width:180px;object-fit:contain;" />`
+    : `<span style="font-size:20px;font-weight:800;color:${T.ink};letter-spacing:-0.04em;">Proof<span style="color:${T.red};">Link</span></span>`;
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/><title>ProofLink</title>${preheader?`<div style="display:none;max-height:0;overflow:hidden;">${preheader}&nbsp;</div>`:''}</head><body style="margin:0;padding:0;background:${T.bg};font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;"><table width="100%" cellpadding="0" cellspacing="0" style="background:${T.bg};padding:48px 20px;"><tr><td align="center"><table width="100%" cellpadding="0" cellspacing="0" style="max-width:580px;"><tr><td style="padding-bottom:32px;"><a href="${SITE_URL}" style="text-decoration:none;">${logoHtml}</a></td></tr><tr><td style="background:${T.card};border:1px solid ${T.border};border-radius:10px;overflow:hidden;">${content}</td></tr><tr><td style="padding-top:28px;text-align:center;"><p style="margin:0 0 6px;font-size:12px;color:${T.hint};">ProofLink &nbsp;·&nbsp; <a href="${SITE_URL}" style="color:${T.hint};text-decoration:none;">${SITE_URL.replace('https://','')}</a></p><p style="margin:0;font-size:11px;color:${T.hint};">You received this because you applied to join ProofLink.</p></td></tr></table></td></tr></table></body></html>`;
 }
 
 function accentBar(color=T.red){return `<tr><td style="background:${color};height:4px;font-size:0;line-height:0;">&nbsp;</td></tr>`;}
@@ -390,21 +409,23 @@ const templates = {
     };
   },
 
-  bookingConfirmation({ customer_name, customer_email, business_name, title, date_str, time_str, portal_url }) {
+  bookingConfirmation({ customer_name, customer_email, business_name, title, date_str, time_str, location, notes, portal_url }) {
     return {
       to     : customer_email,
       subject: `Appointment confirmed — ${business_name}`,
       html   : layout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.green)}${bodyWrap(`
         ${h1(`You're booked, ${customer_name}!`)}
         ${sub(`${business_name} has confirmed your appointment.`)}
-        <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px;">
-          <tr><td style="padding:6px 0;color:${T.muted};font-size:14px;width:100px;">Service</td><td style="padding:6px 0;font-weight:600;">${title}</td></tr>
-          <tr><td style="padding:6px 0;color:${T.muted};font-size:14px;">Date</td><td style="padding:6px 0;font-weight:600;">${date_str}</td></tr>
-          <tr><td style="padding:6px 0;color:${T.muted};font-size:14px;">Time</td><td style="padding:6px 0;font-weight:600;">${time_str}</td></tr>
-        </table>
-        ${portal_url ? cta('View my history →', portal_url, T.red) : ''}
+        ${infoBox([
+          ['Service', title],
+          ['Date', date_str],
+          ['Time', time_str],
+          ...(location ? [['Location', location]] : []),
+          ...(notes ? [['Notes', notes]] : []),
+        ])}
+        ${portal_url ? `<div style="text-align:center;margin:0 0 28px;">${cta('View my history →', portal_url, T.red)}</div>` : ''}
         ${divider()}
-        ${p(`<span style="color:${T.hint};">Need to reschedule? Reply to this email and we'll sort it out.</span>`)}
+        ${p(`<span style="color:${T.hint};">Need to reschedule? Reply to this email and we'll find a new time.</span>`)}
       `)}</table>`, { preheader: `Your appointment with ${business_name} is confirmed.` }),
     };
   },
@@ -503,7 +524,7 @@ const templates = {
     };
   },
 
-  bookingCancelled({ customer_name, customer_email, business_name, title, date_str, time_str, portal_url }) {
+  bookingCancelled({ customer_name, customer_email, business_name, title, date_str, time_str, portal_url, rebook_url }) {
     return {
       to     : customer_email,
       subject: `Appointment cancelled — ${business_name}`,
@@ -512,14 +533,14 @@ const templates = {
         ${h1(`Hi ${customer_name},`)}
         ${sub(`Your appointment with ${business_name} has been cancelled.`)}
         ${infoBox([['Service', title || 'Appointment'], ['Date', date_str || '—'], ['Time', time_str || '—']])}
-        ${portal_url ? `<div style="text-align:center;margin:0 0 28px;">${cta('Book again →', portal_url, T.red)}</div>` : ''}
+        ${(rebook_url || portal_url) ? `<div style="text-align:center;margin:0 0 28px;">${cta('Book another appointment →', rebook_url || portal_url, T.red)}</div>` : ''}
         ${divider()}
         ${p(`<span style="color:${T.hint};">Need to reschedule? Reply to this email and we\u2019ll find a time that works.</span>`)}
       `)}</table>`, { preheader: `Your appointment with ${business_name} has been cancelled.` }),
     };
   },
 
-  bookingReminder({ customer_name, customer_email, business_name, title, date_str, time_str, portal_url }) {
+  bookingReminder({ customer_name, customer_email, business_name, title, date_str, time_str, location, portal_url }) {
     return {
       to     : customer_email,
       subject: `Reminder: appointment tomorrow — ${business_name}`,
@@ -527,7 +548,7 @@ const templates = {
         ${badge('Reminder', T.amberLt, T.amber, T.amberBd)}<br/><br/>
         ${h1(`See you tomorrow, ${customer_name}!`)}
         ${sub(`This is a reminder of your upcoming appointment with ${business_name}.`)}
-        ${infoBox([['Service', title || 'Appointment'], ['Date', date_str || '—'], ['Time', time_str || '—']])}
+        ${infoBox([['Service', title || 'Appointment'], ['Date', date_str || '—'], ['Time', time_str || '—'], ...(location ? [['Location', location]] : [])])}
         ${portal_url ? `<div style="text-align:center;margin:0 0 28px;">${cta('View details →', portal_url, T.red)}</div>` : ''}
         ${divider()}
         ${p(`<span style="color:${T.hint};">Need to reschedule? Reply to this email and we\u2019ll sort it out.</span>`)}
@@ -561,13 +582,12 @@ const templates = {
     };
   },
 
-  invoiceEmail({ customer_name, customer_email, business_name, order_id, title, description, total_amount, total_cents, status, created_at, portal_url }) {
+  invoiceEmail({ customer_name, customer_email, business_name, order_id, title, description, total_amount, total_cents, status, created_at, portal_url, invoice_number, due_date, payment_url }) {
     const n = total_cents != null ? total_cents / 100 : Number(total_amount || 0);
     const fmt = isNaN(n) || !n ? null : '$' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
     const dateStr = created_at
       ? new Date(created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
       : new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-    const statusLabel = String(status || 'new').replace(/_/g, ' ').replace(/\b\w/g, (m) => m.toUpperCase());
     return {
       to     : customer_email,
       subject: `Invoice from ${business_name}${fmt ? ' — ' + fmt + ' due' : ''}`,
@@ -575,14 +595,14 @@ const templates = {
         ${badge('Invoice', T.redLight, T.red, T.redBorder)}<br/><br/>
         ${h1(`Invoice from ${business_name}`)}
         ${infoBox([
-          ['Invoice #', String(order_id || '').slice(0, 8).toUpperCase() || '—'],
+          ['Invoice #', invoice_number || String(order_id || '').slice(0, 8).toUpperCase() || '—'],
           ['Date', dateStr],
+          ...(due_date ? [['Due date', new Date(due_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })]] : []),
           ['Service', title || '—'],
-          ['Status', statusLabel],
           ...(fmt ? [['Amount due', fmt]] : []),
         ])}
         ${description ? p(`<em>${description}</em>`) : ''}
-        ${portal_url ? `<div style="text-align:center;margin:0 0 28px;">${cta('View in portal →', portal_url, T.red)}</div>` : ''}
+        <div style="text-align:center;margin:0 0 28px;">${cta(payment_url ? 'Pay now →' : 'View invoice →', payment_url || portal_url, T.red)}</div>
         ${divider()}
         ${p(`<span style="color:${T.hint};">Questions? Just reply and we\u2019ll sort it out.</span>`)}
       `)}</table>`, { preheader: `Invoice from ${business_name}${fmt ? ' — ' + fmt + ' due' : ''}.` }),
@@ -607,7 +627,7 @@ const templates = {
 
 };
 
-module.exports = { sendEmail, templates, getChecklist, CHECKLIST_BY_TYPE };
+module.exports = { sendEmail, loggedSendEmail, templates, getChecklist, CHECKLIST_BY_TYPE };
 
 // ── Standalone helpers for server-side use ────────────────────────────────────
 // These are exported separately so agent/orchestrator layers can use them without
