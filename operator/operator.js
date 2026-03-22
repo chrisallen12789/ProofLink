@@ -406,6 +406,10 @@ const availabilityMsg = $("availabilityMsg");
 const btnSaveAvailability = $("btnSaveAvailability");
 const btnRefreshAvailability = $("btnRefreshAvailability");
 
+// Bookings
+let BOOKINGS_CACHE = [];
+let BK_VIEW_DATE   = new Date(); // month currently shown in calendar
+
 const expensesList = $("expensesList");
 const btnNewExpense = $("btnNewExpense");
 const btnRefreshExpenses = $("btnRefreshExpenses");
@@ -1374,6 +1378,7 @@ const WORKSPACE_BASE_TAB_ORDER = [
   "products",
   "pricing",
   "availability",
+  "bookings",
   "expenses",
   "money",
   "guidance",
@@ -4008,6 +4013,239 @@ btnSaveAvailability?.addEventListener("click", async () => {
   }
 });
 
+// ── Bookings ─────────────────────────────────────────────────────────────────
+
+async function fetchBookings() {
+  const tok = await getAccessToken();
+  const year  = BK_VIEW_DATE.getFullYear();
+  const month = BK_VIEW_DATE.getMonth();
+  const start = new Date(year, month, 1).toISOString().slice(0, 10);
+  const end   = new Date(year, month + 1, 0).toISOString().slice(0, 10);
+  const res = await fetch(`/.netlify/functions/get-bookings?start=${start}&end=${end}`, {
+    headers: { "Authorization": `Bearer ${tok}` },
+  });
+  const d = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(d.error || "Failed to fetch bookings");
+  BOOKINGS_CACHE = d.bookings || [];
+  return BOOKINGS_CACHE;
+}
+
+function renderBookingsCalendar(bookings) {
+  const cal   = $("bookingsCalendar");
+  const label = $("bkMonthLabel");
+  if (!cal) return;
+
+  const year  = BK_VIEW_DATE.getFullYear();
+  const month = BK_VIEW_DATE.getMonth();
+  const monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  if (label) label.textContent = `${monthNames[month]} ${year}`;
+
+  const firstDay  = new Date(year, month, 1).getDay(); // 0=Sun
+  const daysInMo  = new Date(year, month + 1, 0).getDate();
+  const today     = new Date().toISOString().slice(0, 10);
+
+  // Group bookings by date
+  const byDate = {};
+  (bookings || []).forEach((bk) => {
+    const d = bk.starts_at ? bk.starts_at.slice(0, 10) : null;
+    if (!d) return;
+    if (!byDate[d]) byDate[d] = [];
+    byDate[d].push(bk);
+  });
+
+  let html = `<table style="width:100%;border-collapse:collapse;table-layout:fixed;font-size:.8rem;">
+    <thead><tr>`;
+  ["Su","Mo","Tu","We","Th","Fr","Sa"].forEach((d) => {
+    html += `<th style="padding:4px 2px;text-align:center;color:rgba(255,255,255,.4);font-weight:500;">${d}</th>`;
+  });
+  html += `</tr></thead><tbody><tr>`;
+
+  // Empty cells before first day
+  for (let i = 0; i < firstDay; i++) html += `<td></td>`;
+
+  for (let day = 1; day <= daysInMo; day++) {
+    if ((firstDay + day - 1) % 7 === 0 && day > 1) html += `</tr><tr>`;
+    const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    const isToday = dateStr === today;
+    const dayBks  = byDate[dateStr] || [];
+    const dotHtml = dayBks.length
+      ? `<span style="display:block;width:6px;height:6px;background:#c84b2f;border-radius:50%;margin:1px auto 0;"></span>`
+      : '';
+    html += `<td style="padding:4px 2px;text-align:center;vertical-align:top;cursor:pointer;" class="bk-cal-day" data-date="${dateStr}">
+      <span style="display:inline-block;width:24px;height:24px;line-height:24px;border-radius:50%;${isToday ? 'background:#c84b2f;color:#fff;font-weight:700;' : ''}">${day}</span>
+      ${dotHtml}
+    </td>`;
+  }
+
+  html += `</tr></tbody></table>`;
+  cal.innerHTML = html;
+
+  // Click day → filter list to that day
+  cal.querySelectorAll(".bk-cal-day").forEach((cell) => {
+    cell.addEventListener("click", () => {
+      const date = cell.dataset.date;
+      renderBookingsList(bookings.filter((bk) => bk.starts_at?.slice(0,10) === date));
+      const lbl = $("bkListLabel");
+      if (lbl) lbl.textContent = `Appointments on ${date}`;
+    });
+  });
+}
+
+function renderBookingsList(bookings) {
+  const list = $("bookingsList");
+  if (!list) return;
+  if (!bookings || !bookings.length) {
+    list.innerHTML = `<p class="muted" style="padding:12px 0;">No appointments found.</p>`;
+    return;
+  }
+  list.innerHTML = bookings.map((bk) => {
+    const start = bk.starts_at ? new Date(bk.starts_at) : null;
+    const end   = bk.ends_at   ? new Date(bk.ends_at)   : null;
+    const dateStr = start ? start.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }) : "—";
+    const timeStr = start
+      ? start.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) +
+        (end ? ` – ${end.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}` : '')
+      : "—";
+    const statusColor = bk.status === 'cancelled' ? '#f87171' : bk.status === 'completed' ? '#4ade80' : '#93c5fd';
+    return `<div class="list-row" style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.06);">
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:600;font-size:.9rem;">${bk.title || "Appointment"}</div>
+        <div style="font-size:.8rem;color:rgba(255,255,255,.5);">${bk.customer_name || "—"} · ${dateStr} · ${timeStr}</div>
+      </div>
+      <span style="font-size:.75rem;padding:3px 8px;background:rgba(255,255,255,.06);border-radius:12px;color:${statusColor};white-space:nowrap;">${bk.status || "confirmed"}</span>
+      <button class="btn btn-ghost btn-sm bk-cancel-btn" data-id="${bk.id}" type="button" ${bk.status === 'cancelled' ? 'disabled' : ''} style="white-space:nowrap;">Cancel</button>
+    </div>`;
+  }).join('');
+
+  list.querySelectorAll(".bk-cancel-btn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      if (!confirm("Cancel this booking?")) return;
+      btn.disabled = true;
+      try {
+        const tok = await getAccessToken();
+        const res = await fetch("/.netlify/functions/update-booking", {
+          method : "PATCH",
+          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${tok}` },
+          body   : JSON.stringify({ id: btn.dataset.id, status: "cancelled" }),
+        });
+        if (!res.ok) throw new Error("Failed to cancel");
+        await fetchBookings();
+        renderBookingsCalendar(BOOKINGS_CACHE);
+        renderBookingsList(BOOKINGS_CACHE);
+        const lbl = $("bkListLabel");
+        if (lbl) lbl.textContent = "Upcoming appointments";
+      } catch (err) {
+        alert(err.message || "Error cancelling booking");
+        btn.disabled = false;
+      }
+    });
+  });
+}
+
+async function renderBookings() {
+  try {
+    await fetchBookings();
+  } catch (err) {
+    console.error("[renderBookings]", err);
+  }
+  renderBookingsCalendar(BOOKINGS_CACHE);
+  // Show upcoming (next 30 days)
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const upcoming = BOOKINGS_CACHE.filter((bk) =>
+    bk.starts_at && bk.starts_at.slice(0,10) >= todayStr && bk.status !== 'cancelled'
+  );
+  renderBookingsList(upcoming.length ? upcoming : BOOKINGS_CACHE);
+  // Booking link
+  const linkEl = $("bookingLinkDisplay");
+  if (linkEl && TENANT_ID) {
+    linkEl.textContent = `${location.origin}/book.html?tenant=${TENANT_ID}`;
+  }
+}
+
+// Bookings event handlers
+$("btnNewBooking")?.addEventListener("click", () => {
+  const form = $("newBookingForm");
+  if (form) {
+    form.classList.toggle("hidden");
+    if (!form.classList.contains("hidden")) {
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const bkDate = $("bkDate");
+      if (bkDate && !bkDate.value) bkDate.value = tomorrow.toISOString().slice(0, 10);
+    }
+  }
+});
+
+$("btnCancelBooking")?.addEventListener("click", () => {
+  const form = $("newBookingForm");
+  if (form) form.classList.add("hidden");
+});
+
+$("btnCopyBookingLink")?.addEventListener("click", () => {
+  const link = $("bookingLinkDisplay")?.textContent?.trim();
+  if (!link || link === "—") return;
+  navigator.clipboard.writeText(link).then(() => {
+    const btn = $("btnCopyBookingLink");
+    if (btn) { btn.textContent = "Copied!"; setTimeout(() => { btn.textContent = "Copy link"; }, 2000); }
+  });
+});
+
+$("btnRefreshBookings")?.addEventListener("click", () => renderBookings());
+
+$("btnBkPrev")?.addEventListener("click", async () => {
+  BK_VIEW_DATE = new Date(BK_VIEW_DATE.getFullYear(), BK_VIEW_DATE.getMonth() - 1, 1);
+  await renderBookings();
+});
+$("btnBkNext")?.addEventListener("click", async () => {
+  BK_VIEW_DATE = new Date(BK_VIEW_DATE.getFullYear(), BK_VIEW_DATE.getMonth() + 1, 1);
+  await renderBookings();
+});
+
+$("btnSaveBooking")?.addEventListener("click", async () => {
+  const btn  = $("btnSaveBooking");
+  const msg  = $("newBookingMsg");
+  const name  = $("bkCustomerName")?.value.trim();
+  const email = $("bkCustomerEmail")?.value.trim();
+  const title = $("bkTitle")?.value.trim();
+  const date  = $("bkDate")?.value;
+  const time  = $("bkStart")?.value;
+  const dur   = parseInt($("bkDuration")?.value || "60", 10);
+  const notes = $("bkNotes")?.value.trim();
+
+  if (msg) { msg.textContent = ""; msg.className = "msg"; }
+  if (!name || !title || !date || !time) {
+    if (msg) { msg.textContent = "Please fill in all required fields."; msg.className = "msg error"; }
+    return;
+  }
+
+  const startsAt = new Date(`${date}T${time}:00`).toISOString();
+  const endsAt   = new Date(new Date(startsAt).getTime() + dur * 60000).toISOString();
+
+  btn.disabled = true;
+  if (msg) { msg.textContent = "Saving…"; msg.className = "msg"; }
+  try {
+    const tok = await getAccessToken();
+    const res = await fetch("/.netlify/functions/create-booking", {
+      method : "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${tok}` },
+      body   : JSON.stringify({ customer_name: name, customer_email: email || undefined, title, starts_at: startsAt, ends_at: endsAt, notes: notes || undefined }),
+    });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(d.error || "Failed to save booking");
+    if (msg) { msg.textContent = "✓ Booking saved!"; msg.className = "msg success"; }
+    // Reset form
+    ["bkCustomerName","bkCustomerEmail","bkTitle","bkNotes"].forEach((id) => { const el = $( id); if (el) el.value = ""; });
+    btn.disabled = false;
+    await renderBookings();
+    setTimeout(() => { const form = $("newBookingForm"); if (form) form.classList.add("hidden"); }, 1200);
+  } catch (err) {
+    if (msg) { msg.textContent = err.message || "Error saving."; msg.className = "msg error"; }
+    btn.disabled = false;
+  }
+});
+
+// ── End Bookings ─────────────────────────────────────────────────────────────
+
 async function fetchCustomers() {
   const { data, error } = await scopeQuery(sb
     .from("customers")
@@ -4307,6 +4545,12 @@ async function renderCustomerDetail(customerId) {
       <div class="detail-copy">Preferred contact: ${escapeHtml(customer.preferred_contact || "email")}</div>
       <div class="detail-copy">Lifetime value: ${formatUsd(customer.lifetime_value_cents || 0)}  |  Orders: ${escapeHtml(String(customer.order_count || 0))}</div>
       <div class="detail-copy">Last touch: ${escapeHtml(customer.last_contact_at ? formatDateTime(customer.last_contact_at) : "Not recorded")}</div>
+      ${customer.email && TENANT_ID ? `
+      <div class="detail-copy" style="margin-top:8px;">
+        Customer portal link:
+        <button id="btnCopyPortalLink" class="btn btn-ghost btn-sm" type="button" style="margin-left:6px;">Copy link</button>
+        <span id="portalLinkCopied" style="display:none;font-size:.75rem;color:#4ade80;margin-left:6px;">Copied!</span>
+      </div>` : ''}
     </div>
 
     <div class="detail-card" style="margin-top:14px;">
@@ -4404,7 +4648,106 @@ async function renderCustomerDetail(customerId) {
         </div>
       </div>
     </div>
+
+    ${customer.phone ? `
+    <div class="card" style="margin-top:14px;">
+      <div class="card-hd">
+        <strong>SMS</strong>
+        <span class="muted">Two-way text with ${escapeHtml(customer.name || "customer")}</span>
+      </div>
+      <div class="card-bd">
+        <div id="smsThread" style="max-height:280px;overflow-y:auto;margin-bottom:12px;"></div>
+        <div class="row" style="gap:8px;">
+          <input id="smsInput" type="text" style="flex:1;" placeholder="Type a message…" />
+          <button id="btnSendSms" class="btn btn-primary" type="button">Send</button>
+        </div>
+        <div id="smsMsg" class="msg"></div>
+      </div>
+    </div>` : ''}
   `;
+
+  // Load SMS thread if customer has phone
+  if (customer.phone) {
+    (async () => {
+      try {
+        const tok = await getAccessToken();
+        const encoded = encodeURIComponent(customer.phone);
+        const res = await fetch(`/.netlify/functions/get-sms-thread?phone=${encoded}`, {
+          headers: { "Authorization": `Bearer ${tok}` },
+        });
+        const d = await res.json().catch(() => ({}));
+        const thread = $("smsThread");
+        if (!thread) return;
+        const msgs = d.messages || [];
+        if (!msgs.length) {
+          thread.innerHTML = `<p class="muted" style="font-size:.8rem;">No messages yet.</p>`;
+        } else {
+          thread.innerHTML = msgs.map((m) => {
+            const isOut = m.direction === 'outbound';
+            return `<div style="display:flex;justify-content:${isOut ? 'flex-end' : 'flex-start'};margin-bottom:6px;">
+              <div style="max-width:75%;background:${isOut ? '#c84b2f' : 'rgba(255,255,255,.08)'};border-radius:10px;padding:7px 12px;font-size:.83rem;line-height:1.4;">
+                ${escapeHtml(m.body || "")}
+                <div style="font-size:.7rem;opacity:.5;margin-top:3px;text-align:${isOut ? 'right' : 'left'};">${formatDateTime(m.created_at)}</div>
+              </div>
+            </div>`;
+          }).join('');
+          thread.scrollTop = thread.scrollHeight;
+        }
+      } catch (e) {
+        console.error("[SMS thread load]", e);
+      }
+    })();
+  }
+
+  $("btnCopyPortalLink")?.addEventListener("click", () => {
+    if (!customer.email || !TENANT_ID) return;
+    const link = `${location.origin}/portal.html?tenant=${encodeURIComponent(TENANT_ID)}&email=${encodeURIComponent(customer.email)}`;
+    navigator.clipboard.writeText(link).then(() => {
+      const copied = $("portalLinkCopied");
+      if (copied) { copied.style.display = "inline"; setTimeout(() => { copied.style.display = "none"; }, 2000); }
+    });
+  });
+
+  $("btnSendSms")?.addEventListener("click", async () => {
+    const btn  = $("btnSendSms");
+    const msg  = $("smsMsg");
+    const text = $("smsInput")?.value?.trim();
+    if (!text) return;
+    if (!customer.phone) return;
+    btn.disabled = true;
+    if (msg) { msg.textContent = ""; msg.className = "msg"; }
+    try {
+      const tok = await getAccessToken();
+      const res = await fetch("/.netlify/functions/send-sms", {
+        method : "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${tok}` },
+        body   : JSON.stringify({ to: customer.phone, body: text, customer_id: customerId }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(d.error || "Failed to send");
+      const inp = $("smsInput");
+      if (inp) inp.value = "";
+      // Append sent message to thread
+      const thread = $("smsThread");
+      if (thread) {
+        thread.innerHTML += `<div style="display:flex;justify-content:flex-end;margin-bottom:6px;">
+          <div style="max-width:75%;background:#c84b2f;border-radius:10px;padding:7px 12px;font-size:.83rem;line-height:1.4;">
+            ${escapeHtml(text)}
+            <div style="font-size:.7rem;opacity:.5;margin-top:3px;text-align:right;">Just now</div>
+          </div>
+        </div>`;
+        thread.scrollTop = thread.scrollHeight;
+      }
+      if (msg) { msg.textContent = "✓ Message sent"; msg.className = "msg success"; setTimeout(() => { if (msg) { msg.textContent = ""; msg.className = "msg"; } }, 3000); }
+    } catch (err) {
+      if (msg) { msg.textContent = err.message || "Error sending."; msg.className = "msg error"; }
+    }
+    btn.disabled = false;
+  });
+
+  $("smsInput")?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("btnSendSms")?.click(); }
+  });
 
   $("btnSaveCustomerNotes")?.addEventListener("click", async () => {
     const notes = $("customerNotesInput")?.value?.trim() || "";
@@ -9049,7 +9392,36 @@ function renderOrders() {
         <button id="btnCollectOrderDeposit" class="btn btn-ghost" type="button">${depositGap > 0 ? "Collect deposit" : "Record payment"}</button>
         <button id="btnRecordOrderPayment" class="btn btn-ghost" type="button">Record payment</button>
         <button id="btnDownloadInvoice" class="btn btn-ghost" type="button">⬇ Invoice PDF</button>
+        <button id="btnSetupRecurring" class="btn btn-ghost" type="button">🔁 Make recurring</button>
+        ${active.customer_phone ? `<button id="btnOrderSms" class="btn btn-ghost" type="button">💬 Text customer</button>` : ""}
       </div>
+      <div id="recurringSetupPanel" style="display:none;margin-top:12px;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:8px;padding:12px;">
+        <div class="row" style="gap:8px;align-items:end;flex-wrap:wrap;">
+          <label style="flex:1;min-width:130px;">Repeat every
+            <select id="recurringFrequency">
+              <option value="weekly">Week</option>
+              <option value="biweekly">2 Weeks</option>
+              <option value="monthly">Month</option>
+            </select>
+          </label>
+          <label style="flex:1;min-width:140px;">Next date
+            <input type="date" id="recurringNextDate" />
+          </label>
+          <button id="btnSaveRecurring" class="btn btn-primary" type="button" style="flex:0 0 auto;">Save</button>
+        </div>
+        <div id="recurringMsg" class="msg" style="margin-top:6px;"></div>
+      </div>
+
+      ${active.customer_phone ? `
+      <div id="orderSmsPanel" style="display:none;margin-top:12px;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:8px;padding:12px;">
+        <div style="font-size:.8rem;color:rgba(255,255,255,.5);margin-bottom:8px;">Texting ${escapeHtml(active.customer_name || "customer")} at ${escapeHtml(active.customer_phone)}</div>
+        <div id="orderSmsThread" style="max-height:200px;overflow-y:auto;margin-bottom:8px;"></div>
+        <div class="row" style="gap:8px;">
+          <input id="orderSmsInput" type="text" style="flex:1;" placeholder="Type a message…" />
+          <button id="btnOrderSmsSend" class="btn btn-primary btn-sm" type="button">Send</button>
+        </div>
+        <div id="orderSmsMsg" class="msg"></div>
+      </div>` : ""}
     </div>
 
     <div class="detail-card" style="margin-top:14px;">
@@ -9166,6 +9538,113 @@ function renderOrders() {
       alert(err.message || String(err));
       btn.disabled = false;
     }
+  });
+
+  $("btnSetupRecurring")?.addEventListener("click", () => {
+    const panel = $("recurringSetupPanel");
+    if (!panel) return;
+    const isHidden = panel.style.display === "none";
+    panel.style.display = isHidden ? "block" : "none";
+    if (isHidden) {
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const dateInput = $("recurringNextDate");
+      if (dateInput && !dateInput.value) {
+        dateInput.value = tomorrow.toISOString().slice(0, 10);
+      }
+    }
+  });
+
+  $("btnSaveRecurring")?.addEventListener("click", async () => {
+    const btn  = $("btnSaveRecurring");
+    const msg  = $("recurringMsg");
+    const freq = $("recurringFrequency")?.value;
+    const nd   = $("recurringNextDate")?.value;
+    if (!freq || !nd) { if (msg) { msg.textContent = "Select frequency and date."; msg.className = "msg error"; } return; }
+    btn.disabled = true;
+    if (msg) { msg.textContent = "Saving…"; msg.className = "msg"; }
+    try {
+      const tok = await getAccessToken();
+      const res = await fetch("/.netlify/functions/create-recurring-order", {
+        method : "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${tok}` },
+        body   : JSON.stringify({ order_id: active.id, frequency: freq, next_date: nd }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(d.error || "Failed to save");
+      if (msg) { msg.textContent = "✓ Recurring schedule saved!"; msg.className = "msg success"; }
+      $("btnSetupRecurring").textContent = "🔁 Recurring: " + freq;
+    } catch (err) {
+      if (msg) { msg.textContent = err.message || "Error saving."; msg.className = "msg error"; }
+      btn.disabled = false;
+    }
+  });
+
+  // Order-level SMS
+  $("btnOrderSms")?.addEventListener("click", async () => {
+    const panel = $("orderSmsPanel");
+    if (!panel) return;
+    const isHidden = panel.style.display === "none";
+    panel.style.display = isHidden ? "block" : "none";
+    if (isHidden && active.customer_phone) {
+      const thread = $("orderSmsThread");
+      if (thread && !thread.dataset.loaded) {
+        thread.dataset.loaded = "1";
+        try {
+          const tok = await getAccessToken();
+          const res = await fetch(`/.netlify/functions/get-sms-thread?phone=${encodeURIComponent(active.customer_phone)}`, {
+            headers: { "Authorization": `Bearer ${tok}` },
+          });
+          const d = await res.json().catch(() => ({}));
+          const msgs = d.messages || [];
+          thread.innerHTML = msgs.length ? msgs.map((m) => {
+            const isOut = m.direction === 'outbound';
+            return `<div style="display:flex;justify-content:${isOut ? 'flex-end' : 'flex-start'};margin-bottom:5px;">
+              <div style="max-width:75%;background:${isOut ? '#c84b2f' : 'rgba(255,255,255,.1)'};border-radius:10px;padding:6px 10px;font-size:.82rem;">
+                ${escapeHtml(m.body || "")}
+              </div>
+            </div>`;
+          }).join('') : '<p style="font-size:.8rem;color:rgba(255,255,255,.4);">No messages yet.</p>';
+          thread.scrollTop = thread.scrollHeight;
+        } catch (e) { console.error("[order sms thread]", e); }
+      }
+    }
+  });
+
+  $("btnOrderSmsSend")?.addEventListener("click", async () => {
+    const btn  = $("btnOrderSmsSend");
+    const inp  = $("orderSmsInput");
+    const msg  = $("orderSmsMsg");
+    const text = inp?.value?.trim();
+    if (!text || !active.customer_phone) return;
+    btn.disabled = true;
+    if (msg) { msg.textContent = ""; msg.className = "msg"; }
+    try {
+      const tok = await getAccessToken();
+      const res = await fetch("/.netlify/functions/send-sms", {
+        method : "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${tok}` },
+        body   : JSON.stringify({ to: active.customer_phone, body: text, order_id: active.id }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(d.error || "Failed to send");
+      if (inp) inp.value = "";
+      const thread = $("orderSmsThread");
+      if (thread) {
+        thread.innerHTML += `<div style="display:flex;justify-content:flex-end;margin-bottom:5px;">
+          <div style="max-width:75%;background:#c84b2f;border-radius:10px;padding:6px 10px;font-size:.82rem;">${escapeHtml(text)}</div>
+        </div>`;
+        thread.scrollTop = thread.scrollHeight;
+      }
+      if (msg) { msg.textContent = "✓ Sent"; msg.className = "msg success"; setTimeout(() => { if (msg) { msg.textContent = ""; msg.className = "msg"; } }, 2000); }
+    } catch (err) {
+      if (msg) { msg.textContent = err.message || "Error sending."; msg.className = "msg error"; }
+    }
+    btn.disabled = false;
+  });
+
+  $("orderSmsInput")?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("btnOrderSmsSend")?.click(); }
   });
 
   $("btnCreateJobFromOrder")?.addEventListener("click", async () => {
@@ -9628,6 +10107,7 @@ async function boot() {
 
     renderProductsList("");
     renderAvailability();
+    renderBookings();
     renderPricing(await fetchPricing());
     renderExpenses(EXPENSES_CACHE);
     await refreshPicklists();
@@ -9648,6 +10128,7 @@ async function boot() {
 
     window.PROOFLINK_BOOT_READY = true;
     startRealtime();
+    registerPushNotifications();
   } catch (err) {
     console.error(err);
     CURRENT_OPERATOR = null;
@@ -9655,6 +10136,47 @@ async function boot() {
     showLogin(err?.message || String(err));
   } finally {
     BOOTING = false;
+  }
+}
+
+// ── Push Notifications ────────────────────────────────────────────────────────
+
+const VAPID_PUBLIC_KEY = "BPB-zAeBzP3xUdVT7F_zML4A3Oq0f_LE24o2oM38has6FhsIRDE6V14vNDkDZr_co2VP0HJVWkYaxr7tdAD5ARA";
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64  = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const raw     = atob(base64);
+  return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)));
+}
+
+async function registerPushNotifications() {
+  if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
+  if (Notification.permission === "denied") return;
+
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    let sub   = await reg.pushManager.getSubscription();
+
+    if (!sub) {
+      if (Notification.permission !== "granted") {
+        const perm = await Notification.requestPermission();
+        if (perm !== "granted") return;
+      }
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly     : true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+      });
+    }
+
+    const tok = await getAccessToken();
+    await fetch("/.netlify/functions/save-push-subscription", {
+      method : "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${tok}` },
+      body   : JSON.stringify({ subscription: sub.toJSON() }),
+    });
+  } catch (e) {
+    console.warn("[push] registration failed:", e.message);
   }
 }
 

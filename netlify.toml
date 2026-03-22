@@ -88,6 +88,16 @@
   status = 200
 
 [[redirects]]
+  from   = "/book"
+  to     = "/book.html"
+  status = 200
+
+[[redirects]]
+  from   = "/portal"
+  to     = "/portal.html"
+  status = 200
+
+[[redirects]]
   from   = "/blog"
   to     = "/blog/index.html"
   status = 200
@@ -110,6 +120,9 @@
 # ── Scheduled functions ───────────────────────────────────────────────────────
 [functions."platform-abuse-monitor"]
   schedule = "0 * * * *"   # every hour on the hour
+
+[functions."process-recurring-orders"]
+  schedule = "0 8 * * *"   # daily at 8 AM UTC
 
 # ── app.prooflink.co → prooflink.co canonical redirect ────────────────────────
 # If app.prooflink.co is added as a domain alias in Netlify, this redirects

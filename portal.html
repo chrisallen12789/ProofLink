@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Customer Portal</title>
+  <link rel="icon" href="/assets/favicon.png" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #0f1117;
+      color: #e8e9eb;
+      min-height: 100vh;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 40px 16px 60px;
+    }
+    .wrap { max-width: 600px; width: 100%; }
+    .logo { font-size: 1.4rem; font-weight: 700; color: #c84b2f; margin-bottom: 4px; }
+    .biz-name { font-size: 1.2rem; font-weight: 600; margin-bottom: 2px; }
+    .sub { font-size: .875rem; color: rgba(255,255,255,.5); margin-bottom: 28px; }
+    .card {
+      background: #1a1d27;
+      border: 1px solid rgba(255,255,255,.1);
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 16px;
+    }
+    .card-hd { font-weight: 600; margin-bottom: 14px; font-size: .95rem; }
+    label { display: block; font-size: .8rem; color: rgba(255,255,255,.6); margin-bottom: 4px; }
+    input {
+      width: 100%;
+      background: #0f1117;
+      border: 1px solid rgba(255,255,255,.15);
+      border-radius: 6px;
+      color: #e8e9eb;
+      padding: 10px 12px;
+      font-size: .9rem;
+      margin-bottom: 14px;
+      outline: none;
+    }
+    input:focus { border-color: #c84b2f; }
+    .btn {
+      background: #c84b2f;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 10px 20px;
+      font-size: .9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .2s;
+    }
+    .btn:hover { background: #a93e28; }
+    .btn:disabled { opacity: .5; cursor: not-allowed; }
+    .btn-ghost {
+      background: rgba(255,255,255,.07);
+      color: rgba(255,255,255,.8);
+    }
+    .btn-ghost:hover { background: rgba(255,255,255,.12); }
+    .msg { margin-top: 12px; font-size: .875rem; padding: 10px 12px; border-radius: 6px; display: none; }
+    .msg.error { background: rgba(239,68,68,.1); color: #f87171; border: 1px solid rgba(239,68,68,.2); display: block; }
+    .hidden { display: none; }
+    .section-title { font-size: .95rem; font-weight: 600; margin-bottom: 12px; }
+    .order-row {
+      padding: 12px 0;
+      border-bottom: 1px solid rgba(255,255,255,.06);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .order-row:last-child { border-bottom: none; }
+    .order-title { font-weight: 500; font-size: .9rem; }
+    .order-meta { font-size: .8rem; color: rgba(255,255,255,.5); margin-top: 2px; }
+    .badge {
+      font-size: .72rem;
+      padding: 3px 8px;
+      border-radius: 12px;
+      background: rgba(255,255,255,.06);
+      white-space: nowrap;
+    }
+    .badge.completed { color: #4ade80; }
+    .badge.cancelled { color: #f87171; }
+    .badge.new, .badge.pending { color: #93c5fd; }
+    .badge.in_progress, .badge.active { color: #fbbf24; }
+    .amount { font-size: .85rem; font-weight: 600; color: rgba(255,255,255,.8); margin-left: auto; white-space: nowrap; }
+    .empty { font-size: .875rem; color: rgba(255,255,255,.35); padding: 8px 0; }
+    .powered { text-align: center; font-size: .75rem; color: rgba(255,255,255,.3); margin-top: 24px; }
+    .powered a { color: rgba(255,255,255,.4); text-decoration: none; }
+    .tabs { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,.08); }
+    .tab-btn {
+      background: none; border: none; color: rgba(255,255,255,.5); font-size: .875rem; padding: 8px 14px;
+      cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px;
+    }
+    .tab-btn.active { color: #e8e9eb; border-bottom-color: #c84b2f; font-weight: 600; }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+    .book-link { display: inline-block; margin-top: 12px; color: #c84b2f; text-decoration: none; font-size: .875rem; }
+    .book-link:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="logo">ProofLink</div>
+  <div class="biz-name" id="bizName">Customer Portal</div>
+  <div class="sub" id="bizSub">View your order history and upcoming appointments.</div>
+
+  <!-- Login form -->
+  <div class="card" id="loginCard">
+    <div class="card-hd">Enter your email to continue</div>
+    <label>Email address</label>
+    <input type="email" id="portalEmail" placeholder="you@example.com" autocomplete="email" />
+    <button class="btn" id="btnPortalLookup" type="button">View my history</button>
+    <div class="msg" id="loginMsg"></div>
+  </div>
+
+  <!-- Portal content (shown after lookup) -->
+  <div id="portalContent" class="hidden">
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="orders" type="button">Orders</button>
+      <button class="tab-btn" data-tab="bookings" type="button">Appointments</button>
+    </div>
+
+    <div class="tab-panel active" id="tab-orders">
+      <div id="ordersList"></div>
+    </div>
+
+    <div class="tab-panel" id="tab-bookings">
+      <div id="bookingsList"></div>
+      <a class="book-link" id="newBookingLink" href="#" target="_blank">+ Schedule a new appointment →</a>
+    </div>
+
+    <button class="btn btn-ghost" id="btnPortalBack" type="button" style="margin-top:12px;">← Use a different email</button>
+  </div>
+
+  <div class="powered">Powered by <a href="https://prooflink.co" target="_blank">ProofLink</a></div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  const params   = new URLSearchParams(location.search);
+  const tenantId = params.get('tenant');
+  const prefill  = params.get('email');
+
+  if (prefill) document.getElementById('portalEmail').value = prefill;
+
+  // Tab switching
+  document.querySelectorAll('.tab-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      document.querySelectorAll('.tab-btn').forEach(function (b) { b.classList.remove('active'); });
+      document.querySelectorAll('.tab-panel').forEach(function (p) { p.classList.remove('active'); });
+      btn.classList.add('active');
+      var panel = document.getElementById('tab-' + btn.dataset.tab);
+      if (panel) panel.classList.add('active');
+    });
+  });
+
+  // Load business name
+  if (tenantId) {
+    fetch('/.netlify/functions/get-public-tenant-info?tenant_id=' + encodeURIComponent(tenantId))
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d && d.business_name) {
+          document.getElementById('bizName').textContent = d.business_name;
+          document.getElementById('bizSub').textContent = 'View your order history with ' + d.business_name + '.';
+        }
+      })
+      .catch(function () {});
+  }
+
+  function fmtDate(str) {
+    if (!str) return '—';
+    return new Date(str).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+  function fmtMoney(cents) {
+    if (!cents) return '';
+    return '$' + (cents / 100).toFixed(2);
+  }
+  function statusBadge(s) {
+    var label = (s || 'new').replace(/_/g, ' ');
+    return '<span class="badge ' + (s || 'new') + '">' + label + '</span>';
+  }
+
+  function renderOrders(orders) {
+    var el = document.getElementById('ordersList');
+    if (!orders || !orders.length) {
+      el.innerHTML = '<p class="empty">No orders found for this email.</p>';
+      return;
+    }
+    el.innerHTML = orders.map(function (o) {
+      return '<div class="order-row">' +
+        '<div style="flex:1;min-width:0;">' +
+          '<div class="order-title">' + (o.title || 'Order') + '</div>' +
+          '<div class="order-meta">' + fmtDate(o.created_at) + '</div>' +
+        '</div>' +
+        statusBadge(o.status) +
+        (o.total_amount ? '<div class="amount">' + fmtMoney(o.total_amount) + '</div>' : '') +
+      '</div>';
+    }).join('');
+  }
+
+  function renderBookings(bookings) {
+    var el = document.getElementById('bookingsList');
+    if (!bookings || !bookings.length) {
+      el.innerHTML = '<p class="empty">No appointments on record for this email.</p>';
+      return;
+    }
+    el.innerHTML = bookings.map(function (b) {
+      var start = b.starts_at ? new Date(b.starts_at) : null;
+      var timeStr = start ? start.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }) + ' at ' +
+        start.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) : '—';
+      return '<div class="order-row">' +
+        '<div style="flex:1;min-width:0;">' +
+          '<div class="order-title">' + (b.title || 'Appointment') + '</div>' +
+          '<div class="order-meta">' + timeStr + '</div>' +
+        '</div>' +
+        statusBadge(b.status) +
+      '</div>';
+    }).join('');
+  }
+
+  document.getElementById('portalEmail').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') document.getElementById('btnPortalLookup').click();
+  });
+
+  document.getElementById('btnPortalLookup').addEventListener('click', function () {
+    var btn   = document.getElementById('btnPortalLookup');
+    var msg   = document.getElementById('loginMsg');
+    var email = document.getElementById('portalEmail').value.trim();
+    msg.className = 'msg';
+    msg.style.display = 'none';
+
+    if (!email) {
+      msg.textContent = 'Please enter your email address.';
+      msg.className = 'msg error';
+      return;
+    }
+    if (!tenantId) {
+      msg.textContent = 'Invalid portal link — missing business ID.';
+      msg.className = 'msg error';
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Looking up…';
+
+    fetch('/.netlify/functions/get-customer-portal', {
+      method : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body   : JSON.stringify({ email: email, tenant_id: tenantId }),
+    })
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+      .then(function (res) {
+        btn.disabled = false;
+        btn.textContent = 'View my history';
+        if (!res.ok) throw new Error(res.d.error || 'Not found');
+        var d = res.d;
+        if (d.business_name) {
+          document.getElementById('bizName').textContent = d.business_name;
+          document.getElementById('bizSub').textContent = 'Welcome back! Here\'s your history with ' + d.business_name + '.';
+        }
+        renderOrders(d.orders);
+        renderBookings(d.bookings);
+        var bookLink = document.getElementById('newBookingLink');
+        if (bookLink) bookLink.href = '/book.html?tenant=' + encodeURIComponent(tenantId) + '&email=' + encodeURIComponent(email);
+        document.getElementById('loginCard').classList.add('hidden');
+        document.getElementById('portalContent').classList.remove('hidden');
+      })
+      .catch(function (err) {
+        btn.disabled = false;
+        btn.textContent = 'View my history';
+        msg.textContent = err.message || 'Something went wrong. Please try again.';
+        msg.className = 'msg error';
+      });
+  });
+
+  document.getElementById('btnPortalBack').addEventListener('click', function () {
+    document.getElementById('portalContent').classList.add('hidden');
+    document.getElementById('loginCard').classList.remove('hidden');
+  });
+})();
+</script>
+</body>
+</html>

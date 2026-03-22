@@ -32,6 +32,33 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
+// Push notifications
+self.addEventListener('push', (event) => {
+  let data = { title: 'ProofLink', body: '', url: '/operator/' };
+  try { data = { ...data, ...event.data.json() }; } catch (_) {}
+
+  event.waitUntil(
+    self.registration.showNotification(data.title, {
+      body : data.body,
+      icon : '/assets/pwa-192.png',
+      badge: '/assets/pwa-192.png',
+      data : { url: data.url },
+    })
+  );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const url = event.notification.data?.url || '/operator/';
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+      const match = clients.find((c) => c.url.includes('/operator/'));
+      if (match) { match.focus(); match.navigate(url); }
+      else self.clients.openWindow(url);
+    })
+  );
+});
+
 // Fetch strategy:
 // - API / Netlify functions → network only (never cache live data)
 // - Everything else → network first, fall back to cache
