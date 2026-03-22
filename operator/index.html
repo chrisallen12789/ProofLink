@@ -77,7 +77,7 @@
         <button class="tab" data-tab="messages" type="button">Messages</button>
         <button class="tab" data-tab="ai" type="button">✦ AI</button>
         <!-- More toggle -->
-        <button class="tab tab--more" id="btnSidebarMore" type="button" style="color:rgba(255,255,255,.4);font-size:.8rem;letter-spacing:.04em;">More ▾</button>
+        <button class="tab tab--more" id="btnSidebarMore" type="button" style="color:rgba(255,255,255,.4);font-size:.8rem;letter-spacing:.04em;" title="Toggle to show/hide advanced tabs. ProofLink remembers your preference.">More ▾</button>
         <!-- Secondary tabs — hidden until "More" is clicked -->
         <div id="sidebarMore" style="display:none;">
           <button class="tab" data-tab="bids" data-tour-tab="bids" type="button">Walkthrough Bids <span style="font-size:.7rem;color:rgba(255,255,255,.35);display:block;font-weight:400;">On-site estimates</span></button>
@@ -215,6 +215,8 @@
                 <div class="muted">Track live customers, pipeline, unpaid work, and cash pressure without leaving the dashboard.</div>
               </div>
               <div class="panel-actions">
+                <button id="btnLogTime" class="btn btn-ghost" type="button">⏱ Log time</button>
+                <button id="btnCopyBookingLink" class="btn btn-ghost" type="button">🔗 Copy booking link</button>
                 <button id="btnRefreshDashboard" class="btn btn-ghost" type="button">Refresh</button>
               </div>
             </div>
@@ -222,6 +224,17 @@
             <div class="card">
               <div class="card-bd">
                 <div id="dashboardWrap"></div>
+              </div>
+            </div>
+
+            <div class="grid two" style="margin-top:14px;">
+              <div class="stat-card" id="monthRevenueCard">
+                <div class="stat-label">This month</div>
+                <div class="stat-value" id="monthRevenueStat">—</div>
+              </div>
+              <div class="stat-card" id="mrrCard">
+                <div class="stat-label">Monthly recurring</div>
+                <div class="stat-value" id="mrrStat">—</div>
               </div>
             </div>
           </section>
@@ -1767,6 +1780,7 @@
                 <div id="bookingsList"></div>
               </div>
             </div>
+            <div style="margin-top:10px;font-size:.8rem;color:var(--muted);" id="bookingsNoShowStat"></div>
           </section>
 
           <section class="panel hidden" data-panel="expenses">
@@ -1937,6 +1951,13 @@
             <div class="card">
               <div class="card-bd">
                 <div id="moneyWrap"></div>
+              </div>
+            </div>
+
+            <div class="card" id="arAgingCard" style="margin-top:14px;">
+              <div class="card-hd"><strong>Accounts receivable aging</strong></div>
+              <div class="card-bd" id="arAgingContent">
+                <div class="muted" style="font-size:.85rem;">Loading...</div>
               </div>
             </div>
           </section>

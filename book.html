@@ -162,6 +162,9 @@
 
     <button class="btn" id="btnBook" type="button">Request Appointment</button>
     <div class="msg" id="bookMsg"></div>
+    <div id="pricingNote" style="display:none;margin-top:16px;padding:12px 14px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:8px;font-size:.8rem;color:rgba(255,255,255,.55);line-height:1.5;">
+      Have questions about pricing? Contact us directly.<span id="pricingContact"></span>
+    </div>
   </div>
 
   <div id="successView" class="hidden">
@@ -202,6 +205,20 @@
       .then(function (d) {
         if (d && d.business_name) bizNameEl.textContent = d.business_name;
         else bizNameEl.textContent = 'Schedule an appointment';
+        // Show pricing contact note if business has a phone or email on file
+        var phone = d && (d.phone || d.business_phone);
+        var email = d && (d.email || d.business_email);
+        if (phone || email) {
+          var contactEl = document.getElementById('pricingContact');
+          var noteEl    = document.getElementById('pricingNote');
+          if (contactEl && noteEl) {
+            var parts = [];
+            if (phone) parts.push('<a href="tel:' + phone.replace(/\s/g,'') + '" style="color:rgba(255,255,255,.7);text-decoration:underline;">' + phone + '</a>');
+            if (email) parts.push('<a href="mailto:' + email + '" style="color:rgba(255,255,255,.7);text-decoration:underline;">' + email + '</a>');
+            contactEl.innerHTML = ' ' + parts.join(' or ');
+            noteEl.style.display = 'block';
+          }
+        }
       })
       .catch(function () { bizNameEl.textContent = 'Schedule an appointment'; });
   } else {

@@ -425,7 +425,7 @@ const templates = {
         ])}
         ${portal_url ? `<div style="text-align:center;margin:0 0 28px;">${cta('View my history →', portal_url, T.red)}</div>` : ''}
         ${divider()}
-        ${p(`<span style="color:${T.hint};">Need to reschedule? Reply to this email and we'll find a new time.</span>`)}
+        ${p(`<span style="color:${T.hint};">Need to reschedule? Reply to this email and we'll find a new time. Late cancellations (less than 24 hours) may be subject to a cancellation fee per our policy.</span>`)}
       `)}</table>`, { preheader: `Your appointment with ${business_name} is confirmed.` }),
     };
   },

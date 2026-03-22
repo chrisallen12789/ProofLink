@@ -4150,6 +4150,10 @@ function showBookingDetail(bk) {
         <tr><td style="color:rgba(255,255,255,.5);padding:5px 0;">Status</td><td>${escapeHtml(bk.status || "confirmed")}</td></tr>
       </table>
       ${bk.notes ? `<div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:6px;padding:10px 12px;font-size:.82rem;color:rgba(255,255,255,.6);margin-bottom:16px;white-space:pre-wrap;">${escapeHtml(bk.notes)}</div>` : ""}
+      <div style="margin-top:10px;margin-bottom:16px;">
+        <label style="font-size:.78rem;color:rgba(255,255,255,.45);display:block;margin-bottom:4px;">Vehicle / equipment (optional)</label>
+        <input id="bkVehicleNotes" class="input" value="${escapeAttr(bk.notes_vehicle || '')}" placeholder="e.g. 2019 Honda Civic — silver, plate ABC123" style="width:100%;" />
+      </div>
       <div style="border-top:1px solid rgba(255,255,255,.08);padding-top:16px;margin-bottom:4px;">
         <div style="font-size:.82rem;font-weight:600;color:rgba(255,255,255,.5);margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em;">Reschedule</div>
         <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
@@ -4183,9 +4187,10 @@ function showBookingDetail(bk) {
     saveBtn.disabled = true;
     saveBtn.textContent = "Saving…";
     try {
-      const startsAt = new Date(`${date}T${startT}:00`).toISOString();
-      const endsAt   = endT ? new Date(`${date}T${endT}:00`).toISOString() : null;
-      const patch    = { id: bk.id, starts_at: startsAt, ...(endsAt ? { ends_at: endsAt } : {}) };
+      const startsAt     = new Date(`${date}T${startT}:00`).toISOString();
+      const endsAt       = endT ? new Date(`${date}T${endT}:00`).toISOString() : null;
+      const vehicleNotes = (document.getElementById("bkVehicleNotes")?.value || "").trim();
+      const patch        = { id: bk.id, starts_at: startsAt, ...(endsAt ? { ends_at: endsAt } : {}), ...(vehicleNotes !== (bk.notes_vehicle || "") ? { notes_vehicle: vehicleNotes } : {}) };
       const tok = await getAccessToken();
       const res = await fetch("/.netlify/functions/update-booking", {
         method : "PATCH",
@@ -4306,6 +4311,14 @@ async function renderBookings() {
     bk.starts_at && bk.starts_at.slice(0,10) >= todayStr && bk.status !== 'cancelled'
   );
   renderBookingsList(upcoming.length ? upcoming : BOOKINGS_CACHE);
+  // No-show rate stat
+  const noShowEl = $("bookingsNoShowStat");
+  if (noShowEl) {
+    const concluded = BOOKINGS_CACHE.filter((b) => ['no_show', 'completed'].includes(b.status));
+    const noShows = BOOKINGS_CACHE.filter((b) => b.status === 'no_show');
+    const noShowRate = concluded.length ? Math.round(noShows.length / concluded.length * 100) : 0;
+    noShowEl.textContent = `No-show rate: ${noShowRate}% (${noShows.length} no-show${noShows.length === 1 ? '' : 's'} out of ${concluded.length} completed+no-show)`;
+  }
   // Booking link
   const linkEl = $("bookingLinkDisplay");
   if (linkEl && TENANT_ID) {
@@ -4330,6 +4343,66 @@ $("btnNewBooking")?.addEventListener("click", () => {
 $("btnCancelBooking")?.addEventListener("click", () => {
   const form = $("newBookingForm");
   if (form) form.classList.add("hidden");
+});
+
+$("btnLogTime")?.addEventListener("click", () => {
+  const existing = document.getElementById("timeLogModal");
+  if (existing) { existing.remove(); return; }
+  const modal = document.createElement("div");
+  modal.id = "timeLogModal";
+  modal.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10000;display:flex;align-items:center;justify-content:center;";
+  modal.innerHTML = `
+    <div style="background:#1e2029;border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:28px 32px;max-width:400px;width:90%;box-shadow:0 8px 40px rgba(0,0,0,.5);">
+      <h3 style="margin:0 0 20px;font-size:1rem;color:#e8e9eb;">Log time</h3>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px;">
+        <input id="tlCustomer" class="input" placeholder="Customer name" />
+        <input id="tlDescription" class="input" placeholder="Work description" />
+        <div style="display:flex;gap:8px;">
+          <input id="tlHours" class="input" type="number" min="0" step="0.25" placeholder="Hours" style="width:80px;" />
+          <input id="tlRate" class="input" type="number" min="0" step="1" placeholder="Rate ($/hr)" style="flex:1;" />
+        </div>
+        <input id="tlDate" class="input" type="date" />
+      </div>
+      <div id="tlMsg" style="font-size:.8rem;margin-bottom:10px;"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;">
+        <button id="tlCancel" class="btn btn-ghost btn-sm" type="button">Cancel</button>
+        <button id="tlSave" class="btn btn-primary btn-sm" type="button">Save time entry</button>
+      </div>
+    </div>`;
+  modal.querySelector("#tlDate").value = new Date().toISOString().slice(0, 10);
+  modal.querySelector("#tlCancel").onclick = () => modal.remove();
+  modal.querySelector("#tlSave").onclick = async () => {
+    const customer = modal.querySelector("#tlCustomer").value.trim();
+    const desc     = modal.querySelector("#tlDescription").value.trim();
+    const hours    = parseFloat(modal.querySelector("#tlHours").value) || 0;
+    const rate     = parseFloat(modal.querySelector("#tlRate").value) || 0;
+    const date     = modal.querySelector("#tlDate").value;
+    const msgEl    = modal.querySelector("#tlMsg");
+    if (!hours || !desc) { msgEl.textContent = "Enter hours and description."; msgEl.style.color = "#f87171"; return; }
+    const amountCents = Math.round(hours * rate * 100);
+    const payload = {
+      tenant_id    : TENANT_ID,
+      operator_id  : opId(),
+      expense_type : "labor",
+      vendor       : customer || "Time entry",
+      description  : desc,
+      amount_cents : amountCents,
+      date         : date,
+      notes        : `${hours} hrs @ $${rate}/hr`,
+    };
+    try {
+      const { error } = await sb.from("expenses").insert(payload);
+      if (error) throw error;
+      msgEl.textContent = `✓ Logged ${hours}h${rate ? ` = $${(amountCents / 100).toFixed(2)}` : ''}`;
+      msgEl.style.color = "#4ade80";
+      await fetchExpenses();
+      setTimeout(() => modal.remove(), 1500);
+    } catch (err) {
+      msgEl.textContent = err.message || "Failed to save.";
+      msgEl.style.color = "#f87171";
+    }
+  };
+  document.body.appendChild(modal);
 });
 
 $("btnCopyBookingLink")?.addEventListener("click", () => {
@@ -5137,6 +5210,24 @@ async function renderCustomerDetail(customerIdValue) {
       </div>
     </div>
 
+    ${(function() {
+      const txOrders = CRM_ORDERS_CACHE.filter((o) => o.customer_id === customerIdValue);
+      const txPayments = PAYMENTS_CACHE.filter((p) => p.customer_id === customerIdValue);
+      const totalPaid = txPayments.reduce((s, p) => s + Math.max(0, paymentRevenueContributionCents(p)), 0);
+      const totalOwed = txOrders.reduce((s, o) => s + Math.max(0, Number(o.total_cents || 0) - Number(o.amount_paid_cents || 0)), 0);
+      return '<div class="card" style="margin-top:14px;"><div class="card-hd"><strong>Transaction history</strong><span class="muted">All orders and payments for this customer</span></div><div class="card-bd">'
+        + '<div style="display:flex;gap:24px;flex-wrap:wrap;margin-bottom:12px;">'
+        + '<div><div class="muted" style="font-size:.75rem;">Total collected</div><div style="font-weight:700;">' + formatUsd(totalPaid) + '</div></div>'
+        + '<div><div class="muted" style="font-size:.75rem;">Balance owed</div><div style="font-weight:700;' + (totalOwed > 0 ? 'color:#fbbf24;' : '') + '">' + formatUsd(totalOwed) + '</div></div>'
+        + '<div><div class="muted" style="font-size:.75rem;">Orders</div><div style="font-weight:700;">' + txOrders.length + '</div></div>'
+        + '<div><div class="muted" style="font-size:.75rem;">Payments</div><div style="font-weight:700;">' + txPayments.length + '</div></div>'
+        + '</div>'
+        + (txOrders.length ? '<div class="table" style="margin-bottom:10px;"><div class="tr th"><div>Order</div><div class="right">Amount</div><div class="right">Status</div></div>' + txOrders.map((o) => '<div class="tr"><div>' + escapeHtml(o.title || o.customer_name || o.id || 'Order') + '</div><div class="right">' + formatUsd(o.total_cents || 0) + '</div><div class="right"><span class="pill">' + escapeHtml(String(o.status || 'new')) + '</span></div></div>').join('') + '</div>' : '')
+        + (txPayments.length ? '<div class="table"><div class="tr th"><div>Date</div><div class="right">Amount</div><div>Mode</div></div>' + txPayments.map((p) => '<div class="tr"><div class="muted" style="font-size:.8rem;">' + escapeHtml(formatDateTime(p.paid_at || p.created_at || p.updated_at)) + '</div><div class="right">' + formatUsd(paymentAmountCents(p)) + '</div><div>' + escapeHtml(formatPaymentMode(p.payment_mode)) + '</div></div>').join('') + '</div>' : '')
+        + (!txOrders.length && !txPayments.length ? '<div class="muted">No transactions yet for this customer.</div>' : '')
+        + '</div></div>';
+    })()}
+
     <div class="card" style="margin-top:14px;">
       <div class="card-hd">
         <strong>Interaction timeline</strong>
@@ -5175,6 +5266,28 @@ async function renderCustomerDetail(customerIdValue) {
       </div>
     </div>
   `;
+
+  // Customer transaction history — lifetime value section
+  const custOrders   = CRM_ORDERS_CACHE.filter(o => o.customer_id === customerIdValue && !o.is_deleted);
+  const custPayments = PAYMENTS_CACHE.filter(p => p.customer_id === customerIdValue);
+  const totalBilled  = custOrders.reduce((s, o) => s + Number(o.total_cents || 0), 0);
+  const totalPaid    = custPayments.reduce((s, p) => s + Number(p.amount_total_cents || p.amount_cents || 0), 0);
+  const balance      = totalBilled - totalPaid;
+  const ltv = document.createElement('div');
+  ltv.className = 'card';
+  ltv.style.marginTop = '14px';
+  ltv.innerHTML = `
+    <div class="card-hd">
+      <strong>Lifetime value</strong>
+      <span class="muted">All-time billing, payments, and outstanding balance</span>
+    </div>
+    <div class="card-bd">
+      <div class="detail-copy">Total billed: <strong>${formatUsd(totalBilled)}</strong></div>
+      <div class="detail-copy">Total paid: <strong>${formatUsd(totalPaid)}</strong></div>
+      <div class="detail-copy">Outstanding balance: <strong style="${balance > 0 ? 'color:#fbbf24;' : ''}">${formatUsd(balance)}</strong></div>
+    </div>
+  `;
+  customerDetailWrap.appendChild(ltv);
 
   $("btnAddCustomerInteraction")?.addEventListener("click", async () => {
     const type = $("customerInteractionType")?.value || "note";
@@ -9268,6 +9381,26 @@ function renderDashboard() {
           <div class="money">${formatUsd(overdueBalance)}</div>
         </div>
       </div>
+      <div class="card mini">
+        <div class="card-bd">
+          <div class="muted">This month revenue</div>
+          <div class="money">${formatUsd(currentMonthRevenueCents())}</div>
+          <div class="muted" style="font-size:.75rem;margin-top:2px;">${(function(){ const mk = yyyymm(new Date()); return PAYMENTS_CACHE.filter((r) => monthKeyFromDate(r.paid_at || r.created_at || r.updated_at || new Date()) === mk).length; })()} payments collected</div>
+        </div>
+      </div>
+      <div class="card mini">
+        <div class="card-bd">
+          <div class="muted">This week revenue</div>
+          <div class="money">${formatUsd((function(){ const now = new Date(); const weekStart = new Date(now); weekStart.setDate(now.getDate() - now.getDay()); weekStart.setHours(0,0,0,0); return PAYMENTS_CACHE.filter((r) => new Date(r.paid_at || r.created_at || r.updated_at || 0) >= weekStart).reduce((s, r) => s + paymentRevenueContributionCents(r), 0); })())}</div>
+        </div>
+      </div>
+      <div class="card mini">
+        <div class="card-bd">
+          <div class="muted">MRR (active plans)</div>
+          <div class="money">${formatUsd(SERVICE_PLANS_CACHE.filter((p) => String(p.status || "").toLowerCase() === "active").reduce((s, p) => s + Number(p.amount_cents || 0), 0))}</div>
+          <div class="muted" style="font-size:.75rem;margin-top:2px;">${SERVICE_PLANS_CACHE.filter((p) => String(p.status || "").toLowerCase() === "active").length} active plan${SERVICE_PLANS_CACHE.filter((p) => String(p.status || "").toLowerCase() === "active").length === 1 ? "" : "s"}</div>
+        </div>
+      </div>
     </div>
 
     ${(function() {
@@ -9278,6 +9411,11 @@ function renderDashboard() {
         if (["paid", "cancelled"].includes(String(o.status || "").toLowerCase())) return false;
         const due = o.due_date || o.scheduled_date;
         return due && new Date(due) < today;
+      });
+      const overduePayments = CRM_ORDERS_CACHE.filter((o) => {
+        if (["paid", "cancelled"].includes(String(o.status || "").toLowerCase())) return false;
+        if (!o.payment_due_date) return false;
+        return new Date(o.payment_due_date) < today && orderPaymentState(o) !== 'paid';
       });
       const unpaidCompleted = CRM_ORDERS_CACHE.filter((o) => ["completed", "fulfilled"].includes(String(o.status || "").toLowerCase()));
       const fmtTime = (iso) => { try { return new Date(iso).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }); } catch { return ''; } };
@@ -9299,6 +9437,11 @@ function renderDashboard() {
               <div class="muted" style="font-size:.78rem;margin-bottom:4px;">Completed, unpaid</div>
               <div style="font-size:1.4rem;font-weight:700;${unpaidCompleted.length ? 'color:#fbbf24;' : ''}">${unpaidCompleted.length}</div>
               ${unpaidCompleted.length ? `<div class="muted" style="font-size:.78rem;margin-top:4px;">${formatUsd(unpaidCompleted.reduce((s, o) => s + Number(o.total_cents || 0), 0))} outstanding</div>` : `<div class="muted" style="font-size:.78rem;margin-top:4px;">All paid up</div>`}
+            </div>
+            <div style="background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px;${overduePayments.length ? 'border-color:#f87171;' : ''}">
+              <div class="muted" style="font-size:.78rem;margin-bottom:4px;">Past payment due date <span style="color:#f87171;font-size:.7rem;vertical-align:middle;">${overduePayments.length ? '●' : ''}</span></div>
+              <div style="font-size:1.4rem;font-weight:700;${overduePayments.length ? 'color:#f87171;' : ''}">${overduePayments.length}</div>
+              ${overduePayments.length ? `<div class="muted" style="font-size:.78rem;margin-top:4px;">${formatUsd(overduePayments.reduce((s, o) => s + orderAmountDueCents(o), 0))} past due</div>` : `<div class="muted" style="font-size:.78rem;margin-top:4px;">None past payment date</div>`}
             </div>
           </div>
         </div>
@@ -9400,6 +9543,31 @@ function renderDashboard() {
       </div>
     </div>
 
+    ${(function() {
+      const referralCounts = {};
+      CRM_ORDERS_CACHE.forEach((o) => {
+        const src = o.referral_source || 'Direct';
+        referralCounts[src] = (referralCounts[src] || 0) + 1;
+      });
+      const withSource = CRM_ORDERS_CACHE.filter((o) => o.referral_source).length;
+      if (withSource < 3) return '';
+      const sorted = Object.entries(referralCounts).sort((a, b) => b[1] - a[1]);
+      const total = CRM_ORDERS_CACHE.length;
+      return `
+        <div style="margin-bottom:20px;">
+          <div class="kicker" style="margin-bottom:10px;">How customers find you</div>
+          <div style="display:flex;flex-wrap:wrap;gap:8px;">
+            ${sorted.map(([src, count]) => `
+              <div style="background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:10px 14px;min-width:130px;">
+                <div style="font-size:.75rem;color:var(--muted);margin-bottom:2px;">${escapeHtml(src)}</div>
+                <div style="font-size:1.1rem;font-weight:700;">${count} <span style="font-size:.75rem;font-weight:400;color:var(--muted);">(${Math.round(count / total * 100)}%)</span></div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    })()}
+
     <div class="insight-grid">
       <div class="insight">${checklistHtml || '<h3>Launch checklist</h3><p>Checklist unavailable right now.</p>'}</div>
       <div class="insight">${paymentHtml || '<h3>Payment readiness</h3><p>Payment truth will appear here once tenant state loads.</p>'}</div>
@@ -9408,8 +9576,32 @@ function renderDashboard() {
         <p>${escapeHtml(summary.priorityOutcomes[0] || "Keep the team inside one operating system instead of scattered memory.")}</p>
         <p><strong>Next move:</strong> finish the highest-priority pending checklist step before adding new complexity.</p>
       </div>
+      <div class="insight">
+        <h3>Booking link</h3>
+        <p style="word-break:break-all;font-size:.8rem;margin-bottom:8px;">${TENANT_ID ? `${location.origin}/book.html?tenant=${encodeURIComponent(TENANT_ID)}` : "Tenant ID not loaded yet."}</p>
+        ${TENANT_ID ? `<button type="button" class="btn btn-ghost btn-sm" id="dashboardCopyBookingLink">Copy booking link</button>` : ""}
+      </div>
     </div>
   `;
+
+  // Revenue this month
+  const monthRevEl = $("monthRevenueStat");
+  if (monthRevEl) {
+    const mk = yyyymm(new Date());
+    const monthRev = PAYMENTS_CACHE
+      .filter(p => p.paid_at && yyyymm(new Date(p.paid_at)) === mk)
+      .reduce((s, p) => s + Number(p.amount_total_cents || p.amount_cents || 0), 0);
+    monthRevEl.textContent = monthRev ? money(monthRev / 100) : '$0';
+  }
+
+  // MRR from active service plans
+  const mrrEl = $("mrrStat");
+  if (mrrEl) {
+    const mrr = SERVICE_PLANS_CACHE
+      .filter(p => p.active !== false && p.amount_cents)
+      .reduce((s, p) => s + Number(p.amount_cents || 0), 0);
+    mrrEl.textContent = mrr ? money(mrr / 100) + '/mo' : '—';
+  }
 
   // Make pipeline stages clickable
   dashboardWrap.querySelectorAll('.workflow-stage').forEach((el) => {
@@ -9442,6 +9634,14 @@ function renderDashboard() {
       switchTab(tab || "dashboard");
     });
   });
+  dashboardWrap.querySelector("#dashboardCopyBookingLink")?.addEventListener("click", async () => {
+    const siteUrl = window.location.origin;
+    const link = `${siteUrl}/book.html?tenant=${encodeURIComponent(TENANT_ID)}`;
+    await navigator.clipboard.writeText(link).catch(() => {});
+    const btn = dashboardWrap.querySelector("#dashboardCopyBookingLink");
+    if (btn) { const orig = btn.textContent; btn.textContent = "✓ Copied!"; setTimeout(() => { btn.textContent = orig; }, 2000); }
+  });
+
   dashboardWrap.querySelectorAll("[data-dashboard-action]").forEach((btn) => {
     btn.addEventListener("click", () => {
       const action = btn.getAttribute("data-dashboard-action");
@@ -10544,6 +10744,47 @@ async function renderMoney() {
       </div>
     ` : ``}
   `;
+
+  // AR aging
+  const arEl = $("arAgingContent");
+  if (arEl) {
+    const now = Date.now();
+    const buckets = { current: {count:0,cents:0}, d30: {count:0,cents:0}, d60: {count:0,cents:0}, d90: {count:0,cents:0} };
+    CRM_ORDERS_CACHE
+      .filter(o => !o.is_deleted && orderPaymentState(o) !== 'paid' && orderPaymentState(o) !== 'void')
+      .forEach(o => {
+        const due = o.payment_due_date ? new Date(o.payment_due_date).getTime() : null;
+        const days = due ? Math.floor((now - due) / 86400000) : 0;
+        const amt  = Number(o.total_cents || 0) - Number(o.amount_paid_cents || 0);
+        const key  = days <= 0 ? 'current' : days <= 30 ? 'd30' : days <= 60 ? 'd60' : 'd90';
+        buckets[key].count++;
+        buckets[key].cents += amt;
+      });
+    const rows = [
+      ['Current', buckets.current],
+      ['1–30 days overdue', buckets.d30],
+      ['31–60 days overdue', buckets.d60],
+      ['61+ days overdue', buckets.d90],
+    ];
+    const total = Object.values(buckets).reduce((s, b) => s + b.cents, 0);
+    if (total > 0) {
+      arEl.innerHTML = `
+        <table style="width:100%;border-collapse:collapse;font-size:.85rem;">
+          ${rows.map(([label, b]) => b.count ? `<tr>
+            <td style="padding:7px 0;color:rgba(255,255,255,.6);">${label}</td>
+            <td style="padding:7px 0;text-align:right;color:${label.includes('61') ? '#f87171' : label.includes('31') ? '#fb923c' : '#e8e9eb'};font-weight:600;">${money(b.cents/100)}</td>
+            <td style="padding:7px 0;text-align:right;color:rgba(255,255,255,.35);padding-left:12px;">${b.count} order${b.count>1?'s':''}</td>
+          </tr>` : '').join('')}
+          <tr style="border-top:1px solid rgba(255,255,255,.08);">
+            <td style="padding:7px 0;font-weight:700;color:#e8e9eb;">Total AR</td>
+            <td style="padding:7px 0;text-align:right;font-weight:700;color:#e8e9eb;">${money(total/100)}</td>
+            <td></td>
+          </tr>
+        </table>`;
+    } else {
+      arEl.innerHTML = '<div class="muted" style="font-size:.85rem;">No outstanding receivables.</div>';
+    }
+  }
 }
 
 async function boot() {
@@ -11170,6 +11411,18 @@ async function fetchAndRenderMessages() {
 
 $("btnRefreshMessages")?.addEventListener("click", () => fetchAndRenderMessages().catch(console.error));
 
+$("btnCopyBookingLink")?.addEventListener("click", async () => {
+  const siteUrl = window.location.origin;
+  const link = `${siteUrl}/book.html?tenant=${encodeURIComponent(TENANT_ID)}`;
+  try {
+    await navigator.clipboard.writeText(link);
+    const btn = $("btnCopyBookingLink");
+    if (btn) { const t = btn.textContent; btn.textContent = "✓ Copied!"; setTimeout(() => { btn.textContent = t; }, 2000); }
+  } catch {
+    prompt("Copy this booking link:", link);
+  }
+});
+
 // ── Sidebar More toggle ────────────────────────────────────────────────────────
 const SECONDARY_TABS = new Set(['bids','jobs','quotes','plans','reviews','expenses','money','guidance','products','pricing','availability','setup','domains','import']);
 
@@ -11180,6 +11433,7 @@ $("btnSidebarMore")?.addEventListener("click", () => {
   more.style.display = isOpen ? 'none' : 'block';
   const btn = $("btnSidebarMore");
   if (btn) btn.textContent = isOpen ? 'More ▾' : 'Less ▴';
+  try { localStorage.setItem('pl_sidebar_simple', isOpen ? '1' : '0'); } catch {}
 });
 
 // Auto-expand More panel when a secondary tab is navigated to directly (hash, back button, etc.)
@@ -11470,6 +11724,15 @@ window.PROOFLINK_OPERATOR_RUNTIME = {
 };
 
 initBranding();
+
+// Restore sidebar preference
+try {
+  if (localStorage.getItem('pl_sidebar_simple') === '1') {
+    const more = $("sidebarMore");
+    if (more) more.style.display = 'none';
+  }
+} catch {}
+
 boot().catch((err) => {
   console.error(err);
   showLogin(err?.message || String(err));
