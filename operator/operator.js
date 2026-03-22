@@ -280,6 +280,7 @@ const jobScheduleWindow = $("jobScheduleWindow");
 const jobSummary = $("jobSummary");
 const jobNotes = $("jobNotes");
 const jobMsg = $("jobMsg");
+const jobAssignedTo = $("jobAssignedTo");
 const btnJobOpenOrder = $("btnJobOpenOrder");
 const btnJobRecordPayment = $("btnJobRecordPayment");
 const plansList = $("plansList");
@@ -393,7 +394,7 @@ const productName = $("productName");
 const productSlug = $("productSlug");
 const productCategory = $("productCategory");
 const productDescription = $("productDescription");
-const productIngredients = $("productIngredients");
+const productTags = $("productTags");
 const productImageUrl = $("productImageUrl");
 const productImageFile = $("productImageFile");
 const btnUploadProductImage = $("btnUploadProductImage");
@@ -2817,7 +2818,7 @@ function clearProductForm() {
   productSlug.value = "";
   productCategory.value = "";
   productDescription.value = "";
-  productIngredients.value = "";
+  productTags.value = "";
   productImageUrl.value = "";
   if (productImageFile) productImageFile.value = "";
   if (productImageStatus) productImageStatus.textContent = "";
@@ -2833,7 +2834,7 @@ function loadProductIntoForm(p) {
   productSlug.value = p.slug || "";
   productCategory.value = p.category || "";
   productDescription.value = p.description || "";
-  productIngredients.value = Array.isArray(p.ingredients) ? p.ingredients.join(", ") : "";
+  productTags.value = Array.isArray(p.ingredients) ? p.ingredients.join(", ") : "";
   productImageUrl.value = p.image_url || "";
   if (productImageFile) productImageFile.value = "";
   if (productImageStatus) productImageStatus.textContent = "";
@@ -2937,7 +2938,7 @@ productForm?.addEventListener("submit", async (e) => {
     slug: productSlug.value.trim(),
     category: preferExisting(productCategory.value, PICK_PRODUCT_CATEGORIES),
     description: productDescription.value.trim(),
-    ingredients: String(productIngredients.value || "").split(",").map((s) => normalizePick(s)).filter(Boolean),
+    ingredients: String(productTags.value || "").split(",").map((s) => normalizePick(s)).filter(Boolean),
     image_url: productImageUrl.value.trim() || null,
     is_active: !!productIsActive.checked,
     is_available: !!productIsAvailable.checked,
@@ -4159,7 +4160,7 @@ function renderContracts() {
   }
 
   if (!CONTRACTS_CACHE.length) {
-    listEl.innerHTML = '<div class="muted" style="font-size:.85rem;">No service contracts yet.</div>';
+    listEl.innerHTML = '<div class="muted" style="font-size:.85rem;">No service contracts yet.</div><div style="margin-top:10px;"><button class="btn btn-primary btn-sm" onclick="openAddContractModal()">+ Add first contract</button></div>';
     return;
   }
   listEl.innerHTML = CONTRACTS_CACHE.map(c => `
@@ -4359,7 +4360,7 @@ function renderInventory(filter = '') {
     : INVENTORY_CACHE;
 
   if (!items.length) {
-    listEl.innerHTML = `<div class="muted" style="font-size:.85rem;">${filter ? 'No items match your search.' : 'No inventory items yet. Add parts, materials, or supplies.'}</div>`;
+    listEl.innerHTML = `<div class="muted" style="font-size:.85rem;">${filter ? 'No items match your search.' : 'No inventory items yet. Add parts, materials, or supplies.'}</div>${filter ? '' : '<div style="margin-top:10px;"><button class="btn btn-primary btn-sm" onclick="openAddInventoryModal()">+ Add first item</button></div>'}`;
     return;
   }
 
@@ -4611,7 +4612,7 @@ function renderVendors() {
   const el = $("vendorsList");
   if (!el) return;
   if (!VENDORS_CACHE.length) {
-    el.innerHTML = `<div class="muted" style="font-size:.85rem;">No vendors yet. Add your first subcontractor or supplier.</div>`;
+    el.innerHTML = `<div class="muted" style="font-size:.85rem;">No vendors yet. Add your first subcontractor or supplier.</div><div style="margin-top:10px;"><button class="btn btn-primary btn-sm" onclick="openAddVendorModal()">+ Add your first vendor</button></div>`;
     return;
   }
   el.innerHTML = VENDORS_CACHE.map((v) => `
@@ -4706,7 +4707,7 @@ function renderTeamPanel() {
   const el = $('teamMembersList');
   if (!el) return;
   if (!TEAM_MEMBERS_CACHE.length) {
-    el.innerHTML = '<div class="muted" style="font-size:.85rem;">No team members yet. Invite your first crew member.</div>';
+    el.innerHTML = '<div class="muted" style="font-size:.85rem;">No team members yet. Invite your first crew member.</div><div style="margin-top:10px;"><button class="btn btn-primary btn-sm" onclick="openInviteTeamMemberModal()">+ Invite first member</button></div>';
     return;
   }
   el.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:.85rem;">
@@ -4744,10 +4745,10 @@ function openInviteTeamMemberModal() {
         <input id="tmEmail" class="input" placeholder="Email *" type="email" style="width:100%;" />
         <input id="tmName" class="input" placeholder="Display name" style="width:100%;" />
         <select id="tmRole" class="input" style="width:100%;">
-          <option value="technician">Technician</option>
+          <option value="owner">Owner</option>
           <option value="admin">Admin</option>
-          <option value="contractor">Contractor</option>
-          <option value="office">Office</option>
+          <option value="member" selected>Member</option>
+          <option value="viewer">Viewer</option>
         </select>
       </div>
       <div style="display:flex;gap:10px;justify-content:flex-end;">
@@ -4767,7 +4768,7 @@ function openInviteTeamMemberModal() {
         body: JSON.stringify({
           email,
           name: document.getElementById('tmName')?.value || undefined,
-          role: document.getElementById('tmRole')?.value || 'technician',
+          role: document.getElementById('tmRole')?.value || 'member',
         }),
       });
       if (!res.ok) throw new Error((await res.json()).error || 'Failed');
@@ -9523,11 +9524,21 @@ function renderJobCustomerOptions(selectedCustomerId = "") {
   `;
   jobCustomerId.value = options.some((customer) => customer.id === selectedCustomerId) ? selectedCustomerId : "";
 }
+function renderJobAssignedToOptions(selectedId = "") {
+  if (!jobAssignedTo) return;
+  const members = OPERATOR_MEMBERS_CACHE || [];
+  jobAssignedTo.innerHTML = `
+    <option value="">Unassigned</option>
+    ${members.map((m) => `<option value="${escapeAttr(m.id)}">${escapeHtml(m.name || m.email)}</option>`).join("")}
+  `;
+  jobAssignedTo.value = members.some((m) => m.id === selectedId) ? selectedId : "";
+}
 function clearJobForm() {
   if (jobId) jobId.value = "";
   if (jobStatus) jobStatus.value = "scheduled";
   renderJobOrderOptions(ACTIVE_ORDER_ID || "");
   renderJobCustomerOptions("");
+  renderJobAssignedToOptions("");
   if (jobTitle) jobTitle.value = "";
   if (jobServiceAddress) jobServiceAddress.value = "";
   if (jobScheduledDate) jobScheduledDate.value = "";
@@ -9546,6 +9557,7 @@ function populateJobForm(job) {
   if (jobStatus) jobStatus.value = String(job.status || "scheduled");
   renderJobOrderOptions(job.order_id || "");
   renderJobCustomerOptions(job.customer_id || "");
+  renderJobAssignedToOptions(job.assigned_operator_id || "");
   if (jobTitle) jobTitle.value = job.title || "";
   if (jobServiceAddress) jobServiceAddress.value = job.service_address || "";
   if (jobScheduledDate) jobScheduledDate.value = job.scheduled_date || "";
@@ -10191,6 +10203,7 @@ async function saveJobRecord(fields = {}) {
     schedule_window: fields.schedule_window || jobScheduleWindow?.value?.trim() || null,
     summary: fields.summary || jobSummary?.value?.trim() || "",
     notes: fields.notes || jobNotes?.value?.trim() || "",
+    assigned_operator_id: fields.assigned_operator_id || jobAssignedTo?.value || null,
     updated_at: nowIso,
   });
   if (!payload.order_id) throw new Error("Link the job to an order before saving it.");
@@ -12099,6 +12112,47 @@ async function renderMoney() {
   }
 }
 
+// ── Setup Wizard ──────────────────────────────────────────────────────────────
+async function maybeShowSetupWizard() {
+  if (localStorage.getItem('pl_wizard_dismissed')) return;
+  const cfg = SETUP_STATE?.config || {};
+  // First time if: no logo, no business hours configured, no customers yet
+  const isFirstTime = !cfg.logo_url && (!CUSTOMERS_CACHE || CUSTOMERS_CACHE.length === 0);
+  if (!isFirstTime) return;
+  showSetupWizard();
+}
+
+function showSetupWizard() {
+  const existing = document.getElementById('setupWizardModal');
+  if (existing) return;
+  const modal = document.createElement('div');
+  modal.id = 'setupWizardModal';
+  modal.className = 'modal-overlay';
+  modal.innerHTML = `<div class="modal-box" style="max-width:480px;">
+    <h2 style="margin:0 0 8px;font-size:1.2rem;">Welcome to ProofLink! 👋</h2>
+    <p style="color:rgba(255,255,255,.65);margin:0 0 20px;font-size:.9rem;">Let's get your business set up in 3 quick steps so you can start taking bookings.</p>
+    <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:20px;">
+      <button class="btn btn-primary" onclick="document.getElementById('setupWizardModal')?.remove(); switchTab('setup');" style="text-align:left;padding:14px 16px;">
+        <div style="font-weight:600;">1. Set up your business profile</div>
+        <div style="font-size:.8rem;color:rgba(255,255,255,.55);font-weight:400;">Name, logo, timezone, contact info</div>
+      </button>
+      <button class="btn btn-primary" onclick="document.getElementById('setupWizardModal')?.remove(); switchTab('availability');" style="text-align:left;padding:14px 16px;">
+        <div style="font-weight:600;">2. Set your availability</div>
+        <div style="font-size:.8rem;color:rgba(255,255,255,.55);font-weight:400;">Business hours and lead time</div>
+      </button>
+      <button class="btn btn-primary" onclick="document.getElementById('setupWizardModal')?.remove(); switchTab('bookings');" style="text-align:left;padding:14px 16px;">
+        <div style="font-weight:600;">3. Share your booking link</div>
+        <div style="font-size:.8rem;color:rgba(255,255,255,.55);font-weight:400;">Get your first customer booked</div>
+      </button>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <button class="btn btn-ghost" style="font-size:.8rem;" onclick="localStorage.setItem('pl_wizard_dismissed','1');document.getElementById('setupWizardModal')?.remove();">Skip setup</button>
+      <button class="btn btn-primary" onclick="document.getElementById('setupWizardModal')?.remove(); switchTab('setup');">Get started →</button>
+    </div>
+  </div>`;
+  document.body.appendChild(modal);
+}
+
 async function boot() {
   if (BOOTING) return;
   if (pendingAuthCallback) return; // Auth callback will handle this
@@ -12152,6 +12206,7 @@ async function boot() {
     switchTab(panelFromLocation(), { updateHash: false });
 
     window.PROOFLINK_BOOT_READY = true;
+    maybeShowSetupWizard().catch(console.warn);
     startRealtime();
     registerPushNotifications();
   } catch (err) {

@@ -512,6 +512,12 @@
                       </label>
                     </div>
 
+                    <label>Assigned to
+                      <select id="jobAssignedTo">
+                        <option value="">— Unassigned —</option>
+                      </select>
+                    </label>
+
                     <label>Job summary
                       <textarea id="jobSummary" rows="3" placeholder="What the team is there to do and what the customer expects to be solved."></textarea>
                     </label>
@@ -1085,6 +1091,23 @@
                       </label>
                     </div>
 
+                    <div class="form-row">
+                      <label>Address
+                        <input id="customerAddress1" placeholder="Street address" />
+                      </label>
+                    </div>
+                    <div class="form-row" style="display:grid;grid-template-columns:1fr 80px 90px;gap:8px;">
+                      <label>City
+                        <input id="customerCity" placeholder="City" />
+                      </label>
+                      <label>State
+                        <input id="customerState" placeholder="ST" maxlength="2" />
+                      </label>
+                      <label>ZIP
+                        <input id="customerZip" placeholder="00000" />
+                      </label>
+                    </div>
+
                     <label>Internal notes
                       <textarea id="customerNotes" rows="4" placeholder="Anything the operator should remember about this account."></textarea>
                     </label>
@@ -1092,6 +1115,7 @@
                     <div class="row">
                       <button class="btn btn-primary" type="submit">Save customer</button>
                       <button id="btnClearCustomerForm" class="btn btn-ghost" type="button">Clear form</button>
+                      <button id="btnArchiveCustomer" class="btn btn-ghost" type="button" style="color:#e05c5c;display:none;">Archive customer</button>
                     </div>
 
                     <div id="customerMsg" class="msg"></div>
@@ -1631,8 +1655,8 @@
                       <textarea id="productDescription" rows="4"></textarea>
                     </label>
 
-                    <label>Ingredients (comma separated)
-                      <input id="productIngredients" />
+                    <label>Tags (comma separated)
+                      <input id="productTags" />
                     </label>
 
                     <label>Image URL (optional)

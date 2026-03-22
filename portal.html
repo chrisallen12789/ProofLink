@@ -335,12 +335,11 @@
         financialsHtml = '<div class="order-financials">' + items.join('') + '</div>';
       }
 
-      // Show a "Pay Now" link only when there is an outstanding balance (and the order isn't void/cancelled)
+      // Show a "Pay Now" button only when there is an outstanding balance (and the order isn't void/cancelled)
       var payNowHtml = '';
       var canPay = dueCents > 0 && !['cancelled','void','completed'].includes(o.status);
       if (canPay) {
-        payNowHtml = '<a class="pay-btn" href="mailto:?subject=Payment%20for%20' + encodeURIComponent(o.title || 'Order') + '" ' +
-          'title="Contact your provider to pay this balance" target="_blank">Pay Now</a>';
+        payNowHtml = '<button class="pay-btn" onclick="handlePayNow(\'' + o.id + '\',' + dueCents + ')" style="cursor:pointer;">Pay Now</button>';
       }
 
       return '<div class="order-row" style="flex-direction:column;align-items:flex-start;gap:0;">' +
@@ -474,6 +473,7 @@
         ALL_ORDERS   = d.orders   || [];
         ALL_BOOKINGS = d.bookings || [];
         portalEmail  = email;
+        window._portalEmail = email;
         renderOrders(ALL_ORDERS);
         renderBookings(ALL_BOOKINGS);
         renderPackageBalance(ALL_ORDERS);
@@ -567,6 +567,35 @@
       });
   });
 })();
+
+async function handlePayNow(orderId, balanceCents) {
+  const btn = event.currentTarget;
+  btn.disabled = true;
+  btn.textContent = 'Loading\u2026';
+  try {
+    // Get the customer email from the portal session
+    const email = window._portalEmail || '';
+    const url = '/.netlify/functions/portal-checkout?order_id=' + encodeURIComponent(orderId) + '&email=' + encodeURIComponent(email);
+    const res = await fetch(url);
+    const data = await res.json();
+    if (!res.ok) {
+      if (data.contact_needed) {
+        alert('Online payment is not set up for this business. Please contact your provider directly to arrange payment.');
+      } else {
+        alert(data.error || 'Payment error. Please contact your provider.');
+      }
+      btn.disabled = false;
+      btn.textContent = 'Pay Now';
+      return;
+    }
+    // Redirect to Stripe Checkout
+    window.location.href = data.checkout_url;
+  } catch (err) {
+    alert('Could not connect to payment service. Please try again or contact your provider.');
+    btn.disabled = false;
+    btn.textContent = 'Pay Now';
+  }
+}
 </script>
 </body>
 </html>
