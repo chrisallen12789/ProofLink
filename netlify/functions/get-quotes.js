@@ -16,7 +16,6 @@ exports.handler = async (event) => {
 
   const { supabase, tenantId } = ctx;
 
-  const params  = new URLSearchParams(event.rawQuery || event.queryStringParameters ? new URLSearchParams(event.queryStringParameters || {}).toString() : '');
   const status  = event.queryStringParameters?.status || null;
   const limit   = Math.min(parseInt(event.queryStringParameters?.limit || '100', 10), 200);
 
