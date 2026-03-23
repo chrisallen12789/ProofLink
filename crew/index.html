@@ -869,6 +869,114 @@
     /* ─── Scrollbar ───────────────────────────────────────────────── */
     ::-webkit-scrollbar { width: 0; background: transparent; }
 
+    /* ─── Quick Log ───────────────────────────────────────────────── */
+    .hidden { display: none !important; }
+    .quick-log-btn {
+      display: block;
+      width: calc(100% - 32px);
+      margin: 0 16px 16px;
+      padding: 14px;
+      background: rgba(200,75,47,0.12);
+      border: 1.5px dashed #c84b2f;
+      border-radius: 12px;
+      color: #c84b2f;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      text-align: center;
+    }
+    .quick-log-btn:active { opacity: .7; }
+
+    .sheet {
+      position: fixed; inset: 0; z-index: 200;
+    }
+    .sheet.hidden { display: none; }
+    .sheet-backdrop {
+      position: absolute; inset: 0;
+      background: rgba(0,0,0,.6);
+    }
+    .sheet-content {
+      position: absolute; bottom: 0; left: 0; right: 0;
+      background: #1a1d27;
+      border-radius: 20px 20px 0 0;
+      padding: 12px 20px 40px;
+      max-height: 92vh;
+      overflow-y: auto;
+    }
+    .sheet-handle {
+      width: 40px; height: 4px;
+      background: rgba(255,255,255,.2);
+      border-radius: 2px;
+      margin: 0 auto 16px;
+    }
+    .sheet-title {
+      font-size: 1.1rem; font-weight: 700;
+      margin: 0 0 20px;
+    }
+    .type-grid {
+      display: flex; flex-wrap: wrap; gap: 8px;
+    }
+    .type-btn {
+      padding: 8px 16px;
+      border-radius: 20px;
+      border: 1.5px solid rgba(255,255,255,.15);
+      background: transparent;
+      color: #ccc;
+      font-size: .9rem;
+      cursor: pointer;
+    }
+    .type-btn.active {
+      border-color: #c84b2f;
+      background: rgba(200,75,47,.15);
+      color: #fff;
+    }
+    .duration-row {
+      display: flex; gap: 20px; margin-top: 8px;
+    }
+    .duration-opt {
+      display: flex; align-items: center; gap: 6px;
+      color: #ccc; font-size: .9rem;
+    }
+    .timer-btns {
+      display: flex; justify-content: center; gap: 12px;
+    }
+    .btn-timer {
+      padding: 12px 32px; border-radius: 24px;
+      font-size: 1rem; font-weight: 600; cursor: pointer;
+      border: none;
+    }
+    .btn-timer-start { background: #c84b2f; color: #fff; }
+    .btn-timer-stop  { background: rgba(255,255,255,.1); color: #fff; }
+    .manual-row {
+      display: flex; align-items: center; gap: 10px; margin-top: 8px;
+    }
+    .form-group { margin-bottom: 16px; }
+    .form-label {
+      display: block;
+      font-size: .78rem;
+      color: var(--muted);
+      margin-bottom: 6px;
+      font-weight: 500;
+    }
+    .btn-submit {
+      display: block; width: 100%;
+      padding: 16px; margin-top: 20px;
+      background: #c84b2f; color: #fff;
+      border: none; border-radius: 12px;
+      font-size: 1rem; font-weight: 700; cursor: pointer;
+    }
+    .btn-submit:disabled { opacity: .5; }
+    .msg { font-size: .85rem; min-height: 1.2em; }
+    .msg.error { color: #ef4444; }
+    .msg.success { color: #22c55e; }
+    /* Quick log timer display — overrides the job-timer .timer-display */
+    #quickLogSheet .timer-display {
+      font-size: 3rem;
+      color: #fff;
+      letter-spacing: 4px;
+      padding: 16px 0;
+    }
+
   </style>
 </head>
 <body>
@@ -940,6 +1048,10 @@
         <button id="tabUpcoming" onclick="switchJobsTab('upcoming')">Next 7 Days</button>
       </div>
     </div>
+
+    <button id="btnQuickLog" class="quick-log-btn" type="button">
+      + Log Time
+    </button>
 
     <div class="screen-body screen-body--padded" id="jobListContainer">
       <!-- Skeleton loading state -->
@@ -2059,6 +2171,68 @@ el('confirmModal').addEventListener('click', function(e) {
 /* ── Init ──────────────────────────────────────────────────────── */
 document.addEventListener('DOMContentLoaded', () => App.init());
 </script>
+
+<!-- Quick Log Sheet -->
+<div id="quickLogSheet" class="sheet hidden">
+  <div class="sheet-backdrop" onclick="closeQuickLog()"></div>
+  <div class="sheet-content">
+    <div class="sheet-handle"></div>
+    <h3 class="sheet-title">Log Time</h3>
+
+    <div class="form-group">
+      <label class="form-label">Type</label>
+      <div id="quickLogTypes" class="type-grid">
+        <button class="type-btn active" data-type="Travel">Travel</button>
+        <button class="type-btn" data-type="Shop Time">Shop Time</button>
+        <button class="type-btn" data-type="Training">Training</button>
+        <button class="type-btn" data-type="Admin">Admin</button>
+        <button class="type-btn" data-type="Other">Other</button>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Duration</label>
+      <div class="duration-row">
+        <div class="duration-opt">
+          <input type="radio" name="durMode" id="durTimer" value="timer" checked>
+          <label for="durTimer">Timer</label>
+        </div>
+        <div class="duration-opt">
+          <input type="radio" name="durMode" id="durManual" value="manual">
+          <label for="durManual">Manual</label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Timer mode -->
+    <div id="timerMode">
+      <div id="quickLogTimer" class="timer-display">00:00</div>
+      <div class="timer-btns">
+        <button id="btnTimerStart" class="btn-timer btn-timer-start" type="button">Start</button>
+        <button id="btnTimerStop" class="btn-timer btn-timer-stop hidden" type="button">Stop</button>
+      </div>
+    </div>
+
+    <!-- Manual mode -->
+    <div id="manualMode" class="hidden">
+      <div class="manual-row">
+        <input type="number" id="manualHours" class="input" placeholder="0" min="0" max="23" style="width:80px;" />
+        <span class="muted">hrs</span>
+        <input type="number" id="manualMins" class="input" placeholder="0" min="0" max="59" style="width:80px;" />
+        <span class="muted">min</span>
+      </div>
+    </div>
+
+    <div class="form-group" style="margin-top:16px;">
+      <label class="form-label">Note (optional)</label>
+      <input type="text" id="quickLogNote" class="input" placeholder="e.g. Drive to job site, loaded truck..." />
+    </div>
+
+    <div id="quickLogMsg" class="msg" style="margin-top:8px;"></div>
+
+    <button id="btnQuickLogSave" class="btn-submit" type="button">Save Entry</button>
+  </div>
+</div>
 
 </body>
 </html>

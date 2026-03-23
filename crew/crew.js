@@ -22,6 +22,12 @@ let SIG_DRAWING    = false;  // signature pad drawing state
 let SIG_POINTS     = [];     // drawn path for blank-check
 let CURRENT_DATE   = todayString(); // date filter for home view
 
+// ── Quick Log State ─────────────────────────────────────────────────────────────
+let _quickLogType          = 'Travel';
+let _quickLogTimerStart    = null;
+let _quickLogTimerInterval = null;
+let _quickLogElapsedSecs   = 0;
+
 // ── Utilities ──────────────────────────────────────────────────────────────────
 
 function todayString() {
@@ -1514,6 +1520,126 @@ function escAttr(s) {
   return String(s || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
+// ── Quick Log ──────────────────────────────────────────────────────────────────
+
+function openQuickLog() {
+  const sheet = document.getElementById('quickLogSheet');
+  if (!sheet) return;
+  // Reset state
+  _quickLogType = 'Travel';
+  _quickLogTimerStart = null;
+  _quickLogElapsedSecs = 0;
+  clearInterval(_quickLogTimerInterval);
+  const timerDisplay = document.getElementById('quickLogTimer');
+  if (timerDisplay) timerDisplay.textContent = '00:00';
+  const startBtn = document.getElementById('btnTimerStart');
+  const stopBtn = document.getElementById('btnTimerStop');
+  if (startBtn) startBtn.classList.remove('hidden');
+  if (stopBtn) stopBtn.classList.add('hidden');
+  // Reset type buttons
+  document.querySelectorAll('.type-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.type === 'Travel');
+  });
+  // Reset duration mode
+  const durTimer = document.getElementById('durTimer');
+  if (durTimer) durTimer.checked = true;
+  document.getElementById('timerMode')?.classList.remove('hidden');
+  document.getElementById('manualMode')?.classList.add('hidden');
+  // Clear note and msg
+  const noteEl = document.getElementById('quickLogNote');
+  if (noteEl) noteEl.value = '';
+  const msgEl = document.getElementById('quickLogMsg');
+  if (msgEl) { msgEl.textContent = ''; msgEl.className = 'msg'; }
+  sheet.classList.remove('hidden');
+}
+
+function closeQuickLog() {
+  clearInterval(_quickLogTimerInterval);
+  _quickLogTimerInterval = null;
+  document.getElementById('quickLogSheet')?.classList.add('hidden');
+}
+
+function startQuickLogTimer() {
+  _quickLogTimerStart = Date.now() - (_quickLogElapsedSecs * 1000);
+  _quickLogTimerInterval = setInterval(() => {
+    _quickLogElapsedSecs = Math.floor((Date.now() - _quickLogTimerStart) / 1000);
+    const mins = Math.floor(_quickLogElapsedSecs / 60).toString().padStart(2, '0');
+    const secs = (_quickLogElapsedSecs % 60).toString().padStart(2, '0');
+    const el = document.getElementById('quickLogTimer');
+    if (el) el.textContent = `${mins}:${secs}`;
+  }, 1000);
+  document.getElementById('btnTimerStart')?.classList.add('hidden');
+  document.getElementById('btnTimerStop')?.classList.remove('hidden');
+}
+
+function stopQuickLogTimer() {
+  clearInterval(_quickLogTimerInterval);
+  _quickLogTimerInterval = null;
+  document.getElementById('btnTimerStart')?.classList.remove('hidden');
+  document.getElementById('btnTimerStop')?.classList.add('hidden');
+}
+
+async function saveQuickLog() {
+  const btn = document.getElementById('btnQuickLogSave');
+  const msgEl = document.getElementById('quickLogMsg');
+  if (btn) btn.disabled = true;
+  if (msgEl) { msgEl.textContent = ''; msgEl.className = 'msg'; }
+
+  // Determine duration
+  const durMode = document.querySelector('input[name="durMode"]:checked')?.value || 'timer';
+  let durationMinutes = 0;
+
+  if (durMode === 'timer') {
+    durationMinutes = Math.round(_quickLogElapsedSecs / 60);
+  } else {
+    const hrs = parseInt(document.getElementById('manualHours')?.value || '0', 10) || 0;
+    const mins = parseInt(document.getElementById('manualMins')?.value || '0', 10) || 0;
+    durationMinutes = hrs * 60 + mins;
+  }
+
+  if (durationMinutes <= 0) {
+    if (msgEl) { msgEl.textContent = 'Add a duration first.'; msgEl.className = 'msg error'; }
+    if (btn) btn.disabled = false;
+    return;
+  }
+
+  const note = document.getElementById('quickLogNote')?.value?.trim() || '';
+  const description = note ? `${_quickLogType} — ${note}` : _quickLogType;
+  const started_at = _quickLogTimerStart
+    ? new Date(_quickLogTimerStart).toISOString()
+    : new Date(Date.now() - durationMinutes * 60000).toISOString();
+
+  try {
+    const token = await getToken();
+    if (!token) throw new Error('Not signed in');
+
+    const res = await fetch('/.netlify/functions/log-time-entry', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        description,
+        started_at,
+        duration_minutes: durationMinutes,
+        billable: false,
+      }),
+    });
+
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(d.error || 'Failed to save');
+
+    stopQuickLogTimer();
+    closeQuickLog();
+    showToast(`${_quickLogType} logged — ${durationMinutes} min`, 'success');
+  } catch (err) {
+    if (msgEl) { msgEl.textContent = err.message; msgEl.className = 'msg error'; }
+  }
+
+  if (btn) btn.disabled = false;
+}
+
 // ── Boot ───────────────────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -1576,6 +1702,38 @@ document.addEventListener('DOMContentLoaded', () => {
     if (addBtn && addBtn.dataset.type) {
       setupPhotoCapture(addBtn.dataset.type);
     }
+  });
+
+  // Quick Log
+  document.getElementById('btnQuickLog')?.addEventListener('click', openQuickLog);
+  document.getElementById('btnTimerStart')?.addEventListener('click', startQuickLogTimer);
+  document.getElementById('btnTimerStop')?.addEventListener('click', stopQuickLogTimer);
+  document.getElementById('btnQuickLogSave')?.addEventListener('click', saveQuickLog);
+
+  // Type selector
+  document.getElementById('quickLogTypes')?.addEventListener('click', (e) => {
+    const btn = e.target.closest('.type-btn');
+    if (!btn) return;
+    document.querySelectorAll('.type-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    _quickLogType = btn.dataset.type;
+  });
+
+  // Duration mode toggle
+  document.querySelectorAll('input[name="durMode"]').forEach(radio => {
+    radio.addEventListener('change', () => {
+      const isTimer = radio.value === 'timer' && radio.checked;
+      const isManual = radio.value === 'manual' && radio.checked;
+      if (isTimer) {
+        document.getElementById('timerMode')?.classList.remove('hidden');
+        document.getElementById('manualMode')?.classList.add('hidden');
+      }
+      if (isManual) {
+        document.getElementById('manualMode')?.classList.remove('hidden');
+        document.getElementById('timerMode')?.classList.add('hidden');
+        stopQuickLogTimer();
+      }
+    });
   });
 
   // Pull-to-refresh (simple touch gesture on job list)
