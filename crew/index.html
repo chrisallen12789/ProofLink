@@ -1,0 +1,2064 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <meta name="theme-color" content="#0f1117" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>ProofLink Field App</title>
+  <link rel="manifest" href="/crew/manifest.webmanifest" />
+  <style>
+    /* ─── Reset & Base ─────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #0f1117;
+      --surface:  #1a1d27;
+      --card:     #20233a;
+      --accent:   #c84b2f;
+      --accent-d: #a33a22;
+      --accent-b: rgba(200,75,47,.15);
+      --blue:     #3b82f6;
+      --blue-d:   #2563eb;
+      --green:    #22c55e;
+      --green-d:  #16a34a;
+      --amber:    #f59e0b;
+      --red:      #ef4444;
+      --text:     #e8e9eb;
+      --muted:    rgba(255,255,255,.55);
+      --border:   rgba(255,255,255,.09);
+      --radius-card: 12px;
+      --radius-in:   8px;
+      --nav-h:    64px;
+      --safe-bot: env(safe-area-inset-bottom, 0px);
+    }
+
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 16px;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ─── App Shell ─────────────────────────────────────────────── */
+    #appShell {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      max-width: 480px;
+      margin: 0 auto;
+    }
+
+    /* ─── Screens ───────────────────────────────────────────────── */
+    .screen {
+      display: none;
+      flex-direction: column;
+      flex: 1;
+      overflow: hidden;
+      position: absolute;
+      inset: 0;
+      background: var(--bg);
+    }
+    .screen.active {
+      display: flex;
+      z-index: 10;
+    }
+    .screen.slide-in {
+      transform: translateX(100%);
+      transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .screen.slide-in.active {
+      transform: translateX(0);
+    }
+    .screen.slide-in.sliding-out {
+      transform: translateX(100%);
+    }
+
+    /* Scrollable content area */
+    .screen-body {
+      flex: 1;
+      overflow-y: auto;
+      overflow-x: hidden;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
+    }
+    .screen-body--padded {
+      padding: 16px;
+    }
+
+    /* ─── Typography ─────────────────────────────────────────────── */
+    h1 { font-size: 1.5rem; font-weight: 700; line-height: 1.2; }
+    h2 { font-size: 1.15rem; font-weight: 600; }
+    h3 { font-size: .95rem; font-weight: 600; }
+    p  { line-height: 1.5; }
+
+    .label {
+      font-size: .72rem;
+      font-weight: 600;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .muted { color: var(--muted); }
+
+    /* ─── Inputs ─────────────────────────────────────────────────── */
+    input, textarea, select {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-in);
+      color: var(--text);
+      padding: 13px 14px;
+      font-size: .95rem;
+      font-family: inherit;
+      outline: none;
+      transition: border-color .2s;
+      -webkit-appearance: none;
+    }
+    input:focus, textarea:focus, select:focus {
+      border-color: var(--accent);
+    }
+    input::placeholder, textarea::placeholder { color: rgba(255,255,255,.28); }
+    textarea { resize: vertical; min-height: 90px; }
+
+    .field { margin-bottom: 14px; }
+    .field label {
+      display: block;
+      font-size: .78rem;
+      color: var(--muted);
+      margin-bottom: 6px;
+      font-weight: 500;
+    }
+
+    /* ─── Buttons ────────────────────────────────────────────────── */
+    .btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-height: 52px;
+      padding: 0 20px;
+      border: none;
+      border-radius: 100px;
+      font-size: .95rem;
+      font-weight: 700;
+      font-family: inherit;
+      cursor: pointer;
+      transition: opacity .15s, transform .1s;
+      -webkit-tap-highlight-color: transparent;
+      width: 100%;
+      letter-spacing: .01em;
+    }
+    .btn:active { transform: scale(.97); opacity: .85; }
+    .btn:disabled { opacity: .4; pointer-events: none; }
+
+    .btn-accent  { background: var(--accent);  color: #fff; }
+    .btn-accent:hover  { background: var(--accent-d); }
+    .btn-green   { background: var(--green);   color: #fff; }
+    .btn-green:hover   { background: var(--green-d); }
+    .btn-blue    { background: var(--blue);    color: #fff; }
+    .btn-blue:hover    { background: var(--blue-d); }
+    .btn-red     { background: var(--red);     color: #fff; }
+    .btn-ghost   { background: rgba(255,255,255,.07); color: var(--text); }
+    .btn-ghost:hover   { background: rgba(255,255,255,.11); }
+    .btn-sm      { min-height: 38px; font-size: .82rem; padding: 0 14px; }
+    .btn-row     { display: flex; gap: 10px; }
+    .btn-row .btn { flex: 1; }
+
+    /* ─── Cards ──────────────────────────────────────────────────── */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-card);
+      padding: 16px;
+    }
+    .card + .card { margin-top: 10px; }
+    .card__hd {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .card__hd h3 { flex: 1; }
+
+    /* ─── Status Pills ────────────────────────────────────────────── */
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 10px;
+      border-radius: 100px;
+      font-size: .72rem;
+      font-weight: 700;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    .pill-scheduled  { background: rgba(148,163,184,.15); color: #94a3b8; }
+    .pill-dispatched { background: rgba(59,130,246,.18);  color: #60a5fa; }
+    .pill-in_progress{ background: rgba(245,158,11,.18);  color: #fbbf24; }
+    .pill-blocked    { background: rgba(239,68,68,.18);   color: #f87171; }
+    .pill-completed  { background: rgba(34,197,94,.15);   color: #4ade80; }
+
+    /* ─── Top Bar ────────────────────────────────────────────────── */
+    .topbar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 16px 10px;
+      padding-top: calc(14px + env(safe-area-inset-top, 0px));
+      flex-shrink: 0;
+    }
+    .topbar__back {
+      background: none;
+      border: none;
+      color: var(--accent);
+      font-size: 1.1rem;
+      font-weight: 700;
+      cursor: pointer;
+      padding: 6px 0;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-family: inherit;
+      -webkit-tap-highlight-color: transparent;
+      white-space: nowrap;
+    }
+    .topbar__title { flex: 1; font-size: 1.05rem; font-weight: 700; }
+    .topbar__action { background: none; border: none; cursor: pointer; color: var(--muted); padding: 6px; }
+
+    /* ─── Avatar ─────────────────────────────────────────────────── */
+    .avatar {
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: .9rem;
+      flex-shrink: 0;
+      letter-spacing: .02em;
+    }
+    .avatar-lg {
+      width: 72px;
+      height: 72px;
+      font-size: 1.6rem;
+    }
+
+    /* ─── Bottom Nav ─────────────────────────────────────────────── */
+    #bottomNav {
+      display: none;
+      height: var(--nav-h);
+      padding-bottom: var(--safe-bot);
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      flex-shrink: 0;
+      position: relative;
+      z-index: 50;
+    }
+    #bottomNav.visible { display: flex; }
+    .nav-tabs {
+      display: flex;
+      width: 100%;
+    }
+    .nav-tab {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      background: none;
+      border: none;
+      color: var(--muted);
+      font-family: inherit;
+      font-size: .65rem;
+      font-weight: 600;
+      letter-spacing: .04em;
+      cursor: pointer;
+      padding: 8px 0;
+      transition: color .15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .nav-tab svg { width: 22px; height: 22px; stroke: currentColor; stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round; transition: stroke .15s; }
+    .nav-tab.active { color: var(--accent); }
+    .nav-tab:active { opacity: .7; }
+
+    /* ─── Job Card ───────────────────────────────────────────────── */
+    .job-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-card);
+      padding: 14px 16px;
+      margin-bottom: 10px;
+      cursor: pointer;
+      transition: border-color .2s, background .2s;
+      -webkit-tap-highlight-color: transparent;
+      position: relative;
+      overflow: hidden;
+    }
+    .job-card::before {
+      content: '';
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      width: 3px;
+    }
+    .job-card.status-scheduled::before  { background: #94a3b8; }
+    .job-card.status-dispatched::before { background: #3b82f6; }
+    .job-card.status-in_progress::before{ background: #f59e0b; }
+    .job-card.status-blocked::before    { background: #ef4444; }
+    .job-card.status-completed::before  { background: #22c55e; }
+    .job-card:active { background: rgba(255,255,255,.04); }
+    .job-card__header {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      margin-bottom: 6px;
+    }
+    .job-card__time {
+      font-size: .78rem;
+      font-weight: 700;
+      color: var(--muted);
+      min-width: 54px;
+      padding-top: 2px;
+    }
+    .job-card__meta { flex: 1; min-width: 0; }
+    .job-card__customer {
+      font-weight: 700;
+      font-size: .95rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .job-card__address {
+      font-size: .78rem;
+      color: var(--muted);
+      margin-top: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .job-card__footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 8px;
+      padding-left: 64px;
+    }
+    .job-card__title {
+      font-size: .8rem;
+      color: var(--muted);
+      flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      padding-right: 8px;
+    }
+    .job-card__chevron {
+      color: rgba(255,255,255,.2);
+      font-size: .8rem;
+    }
+
+    /* ─── Stats Row ──────────────────────────────────────────────── */
+    .stats-row {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .stat-chip {
+      flex: 1;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 10px;
+      text-align: center;
+    }
+    .stat-chip__num {
+      font-size: 1.5rem;
+      font-weight: 800;
+      line-height: 1;
+      margin-bottom: 3px;
+    }
+    .stat-chip__lbl {
+      font-size: .65rem;
+      color: var(--muted);
+      font-weight: 600;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+    .stat-chip.accent .stat-chip__num { color: var(--accent); }
+    .stat-chip.amber  .stat-chip__num { color: var(--amber); }
+    .stat-chip.green  .stat-chip__num { color: var(--green); }
+
+    /* ─── Section header ─────────────────────────────────────────── */
+    .section-hd {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+    .section-hd h2 { font-size: 1rem; }
+
+    /* ─── Tab Toggle ─────────────────────────────────────────────── */
+    .tab-toggle {
+      display: flex;
+      background: var(--surface);
+      border-radius: 100px;
+      padding: 3px;
+      gap: 2px;
+      margin-bottom: 16px;
+    }
+    .tab-toggle button {
+      flex: 1;
+      background: none;
+      border: none;
+      border-radius: 100px;
+      padding: 7px 12px;
+      font-size: .82rem;
+      font-weight: 600;
+      font-family: inherit;
+      color: var(--muted);
+      cursor: pointer;
+      transition: background .15s, color .15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .tab-toggle button.active {
+      background: var(--card);
+      color: var(--text);
+    }
+
+    /* ─── Photo Grid ─────────────────────────────────────────────── */
+    .photo-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .photo-cell {
+      aspect-ratio: 1/1;
+      border-radius: 8px;
+      overflow: hidden;
+      position: relative;
+      background: var(--surface);
+      border: 1px solid var(--border);
+    }
+    .photo-cell img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .photo-cell__label {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      background: rgba(0,0,0,.65);
+      padding: 4px 6px;
+      font-size: .65rem;
+      font-weight: 600;
+      color: rgba(255,255,255,.85);
+      backdrop-filter: blur(4px);
+    }
+    .photo-add {
+      aspect-ratio: 1/1;
+      border-radius: 8px;
+      background: rgba(255,255,255,.04);
+      border: 1.5px dashed rgba(255,255,255,.15);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+      transition: border-color .2s, background .2s;
+      color: var(--muted);
+      font-size: .72rem;
+      font-weight: 600;
+      position: relative;
+    }
+    .photo-add:active { background: rgba(255,255,255,.07); border-color: var(--accent); }
+    .photo-add span { font-size: 1.4rem; line-height: 1; }
+    .photo-add input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      width: 100%;
+      height: 100%;
+      padding: 0;
+      border: none;
+      background: none;
+    }
+
+    /* ─── Info Row ───────────────────────────────────────────────── */
+    .info-row {
+      display: flex;
+      gap: 12px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+      align-items: flex-start;
+    }
+    .info-row:last-child { border-bottom: none; padding-bottom: 0; }
+    .info-row:first-child { padding-top: 0; }
+    .info-row__icon { font-size: 1rem; margin-top: 1px; flex-shrink: 0; width: 20px; text-align: center; }
+    .info-row__body { flex: 1; min-width: 0; }
+    .info-row__lbl { font-size: .72rem; color: var(--muted); margin-bottom: 2px; }
+    .info-row__val { font-size: .9rem; font-weight: 500; word-break: break-word; }
+    .info-row a { color: var(--accent); text-decoration: none; }
+    .info-row a:active { opacity: .7; }
+
+    /* ─── Timer ──────────────────────────────────────────────────── */
+    .timer-display {
+      font-family: "SF Mono", "Fira Code", "Courier New", monospace;
+      font-size: 2.2rem;
+      font-weight: 700;
+      color: var(--amber);
+      letter-spacing: .04em;
+      text-align: center;
+      padding: 12px 0;
+    }
+    .timer-label { text-align: center; font-size: .72rem; color: var(--muted); font-weight: 600; letter-spacing: .05em; text-transform: uppercase; margin-bottom: 4px; }
+
+    /* ─── Signature Canvas ───────────────────────────────────────── */
+    .sig-wrap {
+      border: 1.5px dashed rgba(255,255,255,.2);
+      border-radius: var(--radius-in);
+      background: #fff;
+      overflow: hidden;
+      position: relative;
+    }
+    #sigCanvas {
+      display: block;
+      width: 100%;
+      height: 160px;
+      cursor: crosshair;
+      touch-action: none;
+    }
+    .sig-hint {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      color: rgba(0,0,0,.3);
+      font-size: .85rem;
+      pointer-events: none;
+      text-align: center;
+      transition: opacity .2s;
+    }
+    .sig-clear {
+      background: none;
+      border: none;
+      color: var(--accent);
+      font-size: .82rem;
+      cursor: pointer;
+      padding: 6px 0;
+      font-family: inherit;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* ─── Quick-select Chips ─────────────────────────────────────── */
+    .chip-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+    .chip {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 100px;
+      padding: 7px 14px;
+      font-size: .82rem;
+      font-weight: 600;
+      font-family: inherit;
+      color: var(--text);
+      cursor: pointer;
+      transition: background .15s, border-color .15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .chip.selected { background: var(--accent-b); border-color: var(--accent); color: var(--accent); }
+    .chip:active { opacity: .75; }
+
+    /* ─── Skeleton ───────────────────────────────────────────────── */
+    @keyframes shimmer {
+      0%   { background-position: -200% 0; }
+      100% { background-position:  200% 0; }
+    }
+    .skeleton {
+      background: linear-gradient(90deg, rgba(255,255,255,.06) 25%, rgba(255,255,255,.1) 50%, rgba(255,255,255,.06) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s infinite;
+      border-radius: 6px;
+      color: transparent;
+      user-select: none;
+    }
+    .skeleton-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-card);
+      padding: 14px 16px;
+      margin-bottom: 10px;
+    }
+    .skeleton-line { height: 13px; border-radius: 6px; margin-bottom: 8px; }
+    .skeleton-line.wide { width: 70%; }
+    .skeleton-line.med  { width: 50%; }
+    .skeleton-line.short{ width: 35%; }
+
+    /* ─── Toast ──────────────────────────────────────────────────── */
+    .toast {
+      position: fixed;
+      bottom: calc(var(--nav-h) + 12px + var(--safe-bot));
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: #2a2d3e;
+      color: var(--text);
+      padding: 10px 18px;
+      border-radius: 100px;
+      font-size: .85rem;
+      font-weight: 600;
+      opacity: 0;
+      transition: opacity .25s, transform .25s;
+      pointer-events: none;
+      z-index: 999;
+      white-space: nowrap;
+      max-width: 340px;
+      border: 1px solid rgba(255,255,255,.12);
+      box-shadow: 0 4px 24px rgba(0,0,0,.4);
+    }
+    .toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+    .toast.toast-success { background: rgba(34,197,94,.2); border-color: rgba(34,197,94,.3); }
+    .toast.toast-error   { background: rgba(239,68,68,.2);  border-color: rgba(239,68,68,.3); }
+
+    /* ─── Loading Overlay ─────────────────────────────────────────── */
+    .loading-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(15,17,23,.8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 900;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .2s;
+    }
+    .loading-overlay.active {
+      opacity: 1;
+      pointer-events: all;
+    }
+    .spinner {
+      width: 36px;
+      height: 36px;
+      border: 3px solid rgba(255,255,255,.1);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ─── Modal ──────────────────────────────────────────────────── */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.6);
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      z-index: 800;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .2s;
+    }
+    .modal-backdrop.open {
+      opacity: 1;
+      pointer-events: all;
+    }
+    .modal-sheet {
+      background: var(--surface);
+      border-radius: 20px 20px 0 0;
+      padding: 20px 20px calc(20px + var(--safe-bot));
+      width: 100%;
+      max-width: 480px;
+      transform: translateY(100%);
+      transition: transform .28s cubic-bezier(0.4,0,0.2,1);
+      border-top: 1px solid var(--border);
+    }
+    .modal-backdrop.open .modal-sheet {
+      transform: translateY(0);
+    }
+    .modal-handle {
+      width: 40px;
+      height: 4px;
+      background: rgba(255,255,255,.2);
+      border-radius: 2px;
+      margin: 0 auto 16px;
+    }
+    .modal-title { font-size: 1.05rem; font-weight: 700; margin-bottom: 8px; }
+    .modal-body  { font-size: .9rem; color: var(--muted); margin-bottom: 20px; line-height: 1.5; }
+
+    /* ─── Login Screen ────────────────────────────────────────────── */
+    #screenLogin {
+      align-items: center;
+      justify-content: center;
+      padding: 32px 24px;
+      padding-top: calc(32px + env(safe-area-inset-top, 0px));
+      padding-bottom: calc(32px + var(--safe-bot));
+    }
+    .login-inner { width: 100%; max-width: 360px; }
+    .login-logo {
+      font-size: 1.7rem;
+      font-weight: 800;
+      color: var(--accent);
+      letter-spacing: -.02em;
+      margin-bottom: 2px;
+    }
+    .login-sub {
+      font-size: .85rem;
+      color: var(--muted);
+      margin-bottom: 36px;
+    }
+    .login-form h1 {
+      font-size: 1.3rem;
+      margin-bottom: 4px;
+    }
+    .login-form .sub-text {
+      font-size: .85rem;
+      color: var(--muted);
+      margin-bottom: 24px;
+    }
+    .forgot-link {
+      display: block;
+      text-align: center;
+      font-size: .83rem;
+      color: var(--muted);
+      margin-top: 14px;
+      cursor: pointer;
+      background: none;
+      border: none;
+      font-family: inherit;
+      width: 100%;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .forgot-link:active { color: var(--accent); }
+    .login-footer {
+      text-align: center;
+      font-size: .72rem;
+      color: rgba(255,255,255,.25);
+      margin-top: 40px;
+    }
+    .login-footer a { color: rgba(255,255,255,.35); text-decoration: none; }
+
+    /* ─── Home Screen ────────────────────────────────────────────── */
+    #screenHome { padding-bottom: var(--nav-h); }
+    .home-header {
+      padding: 14px 16px 0;
+      padding-top: calc(14px + env(safe-area-inset-top, 0px));
+      flex-shrink: 0;
+    }
+    .home-header-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 4px;
+    }
+    .home-greeting { flex: 1; }
+    .home-greeting .name { font-weight: 700; font-size: 1rem; }
+    .home-greeting .date { font-size: .78rem; color: var(--muted); }
+    .today-heading {
+      font-size: 1.5rem;
+      font-weight: 800;
+      margin: 12px 0 16px;
+      letter-spacing: -.02em;
+    }
+
+    /* ─── Job Detail Screen ──────────────────────────────────────── */
+    #screenJob { background: var(--bg); }
+    .job-hero {
+      padding: 0 16px 16px;
+      flex-shrink: 0;
+    }
+    .job-hero__title { font-size: 1.2rem; font-weight: 800; margin-bottom: 6px; line-height: 1.3; }
+    .job-hero__status { margin-bottom: 0; }
+
+    .action-zone {
+      padding: 0 16px 16px;
+      flex-shrink: 0;
+    }
+    .action-zone .btn + .btn { margin-top: 8px; }
+    .action-zone .btn-row { margin-top: 0; }
+
+    /* ─── Profile Screen ─────────────────────────────────────────── */
+    #screenProfile { padding-bottom: var(--nav-h); }
+    .profile-hero {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px 16px 20px;
+      flex-shrink: 0;
+    }
+    .profile-hero .name { font-size: 1.2rem; font-weight: 700; margin-top: 12px; }
+    .profile-hero .role { font-size: .83rem; color: var(--muted); margin-top: 2px; }
+    .profile-hero .email { font-size: .78rem; color: var(--muted); margin-top: 4px; }
+
+    .summary-grid {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .summary-cell {
+      flex: 1;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px;
+      text-align: center;
+    }
+    .summary-cell__num { font-size: 1.8rem; font-weight: 800; line-height: 1; color: var(--accent); }
+    .summary-cell__lbl { font-size: .68rem; color: var(--muted); font-weight: 600; letter-spacing: .04em; text-transform: uppercase; margin-top: 4px; }
+
+    /* ─── Divider ─────────────────────────────────────────────────── */
+    .divider { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
+
+    /* ─── Empty state ─────────────────────────────────────────────── */
+    .empty-state {
+      text-align: center;
+      padding: 40px 24px;
+      color: var(--muted);
+    }
+    .empty-state__icon { font-size: 2.5rem; margin-bottom: 12px; }
+    .empty-state__title { font-size: .95rem; font-weight: 600; margin-bottom: 6px; color: var(--text); }
+    .empty-state__sub { font-size: .83rem; }
+
+    /* ─── Completion Screen ───────────────────────────────────────── */
+    #screenComplete .screen-body--padded { padding-bottom: 24px; }
+    .photo-count-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: .83rem;
+      font-weight: 600;
+      margin-bottom: 14px;
+    }
+    .photo-count-badge .ok   { color: var(--green); }
+    .photo-count-badge .warn { color: var(--amber); }
+
+    /* ─── Misc helpers ───────────────────────────────────────────── */
+    .mt-8  { margin-top: 8px; }
+    .mt-12 { margin-top: 12px; }
+    .mt-16 { margin-top: 16px; }
+    .mb-4  { margin-bottom: 4px; }
+    .mb-8  { margin-bottom: 8px; }
+    .mb-12 { margin-bottom: 12px; }
+    .mb-16 { margin-bottom: 16px; }
+    .text-center { text-align: center; }
+    .flex-center { display: flex; align-items: center; justify-content: center; }
+
+    /* ─── Scrollbar ───────────────────────────────────────────────── */
+    ::-webkit-scrollbar { width: 0; background: transparent; }
+
+  </style>
+</head>
+<body>
+
+<div id="appShell">
+
+  <!-- ════════════════════════════════════════════════════════════ -->
+  <!-- SCREEN: Login                                               -->
+  <!-- ════════════════════════════════════════════════════════════ -->
+  <div id="screenLogin" class="screen active">
+    <div class="login-inner">
+      <div class="login-logo">ProofLink</div>
+      <div class="login-sub">Field App</div>
+
+      <div class="login-form">
+        <h1>Welcome back</h1>
+        <p class="sub-text">Sign in to see your jobs for today.</p>
+
+        <div class="field">
+          <label for="loginEmail">Work email</label>
+          <input type="email" id="loginEmail" placeholder="you@company.com" autocomplete="email" inputmode="email" />
+        </div>
+        <div class="field">
+          <label for="loginPassword">Password</label>
+          <input type="password" id="loginPassword" placeholder="••••••••" autocomplete="current-password" />
+        </div>
+
+        <button class="btn btn-accent" id="btnSignIn">Sign in</button>
+        <button class="forgot-link" id="btnForgot">Forgot password?</button>
+      </div>
+
+      <p class="login-footer">
+        Powered by <a href="https://prooflink.com" target="_blank">ProofLink</a>
+      </p>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════ -->
+  <!-- SCREEN: Home / Today                                         -->
+  <!-- ════════════════════════════════════════════════════════════ -->
+  <div id="screenHome" class="screen">
+    <div class="home-header">
+      <div class="home-header-row">
+        <div class="home-greeting">
+          <div class="name" id="homeCrewName">Loading…</div>
+          <div class="date" id="homeDate"></div>
+        </div>
+        <div class="avatar" id="homeAvatar">?</div>
+      </div>
+      <div class="today-heading">Today</div>
+
+      <div class="stats-row">
+        <div class="stat-chip accent">
+          <div class="stat-chip__num" id="statRemaining">—</div>
+          <div class="stat-chip__lbl">Remaining</div>
+        </div>
+        <div class="stat-chip amber">
+          <div class="stat-chip__num" id="statInProgress">—</div>
+          <div class="stat-chip__lbl">In Progress</div>
+        </div>
+        <div class="stat-chip green">
+          <div class="stat-chip__num" id="statCompleted">—</div>
+          <div class="stat-chip__lbl">Done Today</div>
+        </div>
+      </div>
+
+      <div class="tab-toggle">
+        <button class="active" id="tabToday" onclick="switchJobsTab('today')">Today</button>
+        <button id="tabUpcoming" onclick="switchJobsTab('upcoming')">Next 7 Days</button>
+      </div>
+    </div>
+
+    <div class="screen-body screen-body--padded" id="jobListContainer">
+      <!-- Skeleton loading state -->
+      <div class="skeleton-card">
+        <div class="skeleton skeleton-line wide"></div>
+        <div class="skeleton skeleton-line med"></div>
+        <div class="skeleton skeleton-line short"></div>
+      </div>
+      <div class="skeleton-card">
+        <div class="skeleton skeleton-line wide"></div>
+        <div class="skeleton skeleton-line med"></div>
+        <div class="skeleton skeleton-line short"></div>
+      </div>
+      <div class="skeleton-card">
+        <div class="skeleton skeleton-line wide"></div>
+        <div class="skeleton skeleton-line med"></div>
+        <div class="skeleton skeleton-line short"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════ -->
+  <!-- SCREEN: Job Detail                                           -->
+  <!-- ════════════════════════════════════════════════════════════ -->
+  <div id="screenJob" class="screen slide-in">
+    <div class="topbar" style="flex-shrink:0">
+      <button class="topbar__back" onclick="App.goBack()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+        Jobs
+      </button>
+      <div style="flex:1"></div>
+      <button class="topbar__action" id="btnJobRefresh" onclick="App.refreshCurrentJob()" title="Refresh">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+      </button>
+    </div>
+
+    <div class="job-hero">
+      <div class="job-hero__title" id="jobTitle">Job Title</div>
+      <div class="job-hero__status">
+        <span class="pill" id="jobStatusPill">Status</span>
+      </div>
+    </div>
+
+    <!-- Action buttons — shown/hidden by JS based on status -->
+    <div class="action-zone" id="actionZone"></div>
+
+    <!-- Timer row — shown when clocked in -->
+    <div id="timerZone" style="padding: 0 16px 16px; display:none; flex-shrink:0;">
+      <div class="card" style="padding:14px 16px;">
+        <div class="timer-label">Time on job</div>
+        <div class="timer-display" id="timerDisplay">00:00:00</div>
+      </div>
+    </div>
+
+    <div class="screen-body screen-body--padded">
+
+      <!-- Info Card -->
+      <div class="card mb-12" id="jobInfoCard">
+        <div class="info-row">
+          <div class="info-row__icon">📍</div>
+          <div class="info-row__body">
+            <div class="info-row__lbl">Address</div>
+            <div class="info-row__val"><a id="jobAddress" href="#" target="_blank">Loading…</a></div>
+          </div>
+        </div>
+        <div class="info-row">
+          <div class="info-row__icon">👤</div>
+          <div class="info-row__body">
+            <div class="info-row__lbl">Customer</div>
+            <div class="info-row__val" id="jobCustomerName">—</div>
+            <div style="margin-top:4px;display:flex;gap:12px;flex-wrap:wrap;">
+              <a id="jobCustomerPhone" href="#" style="font-size:.82rem;color:var(--accent);">—</a>
+              <span id="jobCustomerEmail" style="font-size:.82rem;color:var(--muted);">—</span>
+            </div>
+          </div>
+        </div>
+        <div class="info-row">
+          <div class="info-row__icon">🕐</div>
+          <div class="info-row__body">
+            <div class="info-row__lbl">Scheduled</div>
+            <div class="info-row__val" id="jobScheduled">—</div>
+          </div>
+        </div>
+        <div class="info-row">
+          <div class="info-row__icon">📋</div>
+          <div class="info-row__body">
+            <div class="info-row__lbl">Scope</div>
+            <div class="info-row__val" id="jobScope">—</div>
+          </div>
+        </div>
+        <div class="info-row">
+          <div class="info-row__icon">🔑</div>
+          <div class="info-row__body">
+            <div class="info-row__lbl">Access &amp; Notes</div>
+            <div class="info-row__val" id="jobNotes">—</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Before Photos -->
+      <div class="card mb-12">
+        <div class="card__hd">
+          <h3>Before Photos</h3>
+          <span class="label" id="beforePhotoCount">0 photos</span>
+        </div>
+        <div class="photo-grid" id="beforePhotoGrid">
+          <label class="photo-add">
+            <span>+</span>
+            Add photo
+            <input type="file" accept="image/*" capture="environment" id="inputBeforePhoto" />
+          </label>
+        </div>
+      </div>
+
+      <!-- After Photos -->
+      <div class="card mb-12">
+        <div class="card__hd">
+          <h3>After Photos</h3>
+          <span class="label" id="afterPhotoCount">0 photos</span>
+        </div>
+        <div class="photo-grid" id="afterPhotoGrid">
+          <label class="photo-add">
+            <span>+</span>
+            Add photo
+            <input type="file" accept="image/*" capture="environment" id="inputAfterPhoto" />
+          </label>
+        </div>
+      </div>
+
+      <!-- Crew Notes -->
+      <div class="card mb-12">
+        <div class="card__hd"><h3>My Notes</h3></div>
+        <textarea id="crewNotes" placeholder="Add notes about this job — visible to your team…" rows="3"></textarea>
+        <button class="btn btn-ghost btn-sm mt-8" onclick="App.saveCrewNotes()" style="width:auto;padding:0 16px;">Save notes</button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════ -->
+  <!-- SCREEN: Complete Job                                         -->
+  <!-- ════════════════════════════════════════════════════════════ -->
+  <div id="screenComplete" class="screen slide-in">
+    <div class="topbar" style="flex-shrink:0">
+      <button class="topbar__back" onclick="App.showScreen('screenJob')">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+        Back
+      </button>
+    </div>
+
+    <div class="screen-body screen-body--padded">
+      <h1 class="mb-4" style="font-size:1.3rem;">Complete this job</h1>
+      <p class="muted mb-16" style="font-size:.85rem;">Review before submitting. This cannot be undone.</p>
+
+      <!-- After photo count reminder -->
+      <div class="card mb-12">
+        <div class="card__hd"><h3>After Photos</h3></div>
+        <div class="photo-count-badge" id="completePhotoStatus">
+          <span>📷</span>
+          <span id="completePhotoText">No after photos added</span>
+        </div>
+        <p style="font-size:.8rem;color:var(--muted);">After photos document your completed work. Add them on the job screen.</p>
+      </div>
+
+      <!-- Completion notes -->
+      <div class="field mb-16">
+        <label for="completionNotes">Completion notes <span style="color:var(--accent)">*</span></label>
+        <textarea id="completionNotes" placeholder="Summarize what was done, any issues found, materials used…" rows="4"></textarea>
+      </div>
+
+      <!-- Signature -->
+      <div class="card mb-16">
+        <div class="card__hd">
+          <h3>Customer Signature</h3>
+          <button class="sig-clear" onclick="App.clearSignature()">Clear</button>
+        </div>
+        <p style="font-size:.78rem;color:var(--muted);margin-bottom:10px;">Have the customer sign to confirm job completion.</p>
+        <div class="sig-wrap">
+          <canvas id="sigCanvas"></canvas>
+          <div class="sig-hint" id="sigHint">Sign here</div>
+        </div>
+      </div>
+
+      <button class="btn btn-green" id="btnSubmitComplete" onclick="App.submitCompletion()">
+        ✓ &nbsp;Submit completion
+      </button>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════ -->
+  <!-- SCREEN: Report Blocker                                       -->
+  <!-- ════════════════════════════════════════════════════════════ -->
+  <div id="screenBlocker" class="screen slide-in">
+    <div class="topbar" style="flex-shrink:0">
+      <button class="topbar__back" onclick="App.showScreen('screenJob')">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+        Back
+      </button>
+    </div>
+
+    <div class="screen-body screen-body--padded">
+      <h1 class="mb-4" style="font-size:1.3rem;">Report a blocker</h1>
+      <p class="muted mb-16" style="font-size:.85rem;">Tell your team what's preventing you from completing this job.</p>
+
+      <div class="field">
+        <label>Reason</label>
+        <div class="chip-grid" id="blockerChips">
+          <button class="chip" onclick="App.selectBlockerReason(this)" data-val="Customer not home">Customer not home</button>
+          <button class="chip" onclick="App.selectBlockerReason(this)" data-val="Access issue">Access issue</button>
+          <button class="chip" onclick="App.selectBlockerReason(this)" data-val="Need different equipment">Wrong equipment</button>
+          <button class="chip" onclick="App.selectBlockerReason(this)" data-val="Weather">Weather</button>
+          <button class="chip" onclick="App.selectBlockerReason(this)" data-val="Safety concern">Safety concern</button>
+          <button class="chip" onclick="App.selectBlockerReason(this)" data-val="Other">Other</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="blockerNotes">Details</label>
+        <textarea id="blockerNotes" placeholder="Describe what's blocking you and what's needed to continue…" rows="4"></textarea>
+      </div>
+
+      <div class="field">
+        <label>Photo (optional)</label>
+        <label class="photo-add" style="aspect-ratio:auto;height:80px;flex-direction:row;gap:10px;">
+          <span style="font-size:1.2rem;">📷</span>
+          <span style="font-size:.85rem;font-weight:600;">Attach a photo</span>
+          <input type="file" accept="image/*" capture="environment" id="inputBlockerPhoto" />
+        </label>
+        <div id="blockerPhotoPreview" style="margin-top:8px;display:none;">
+          <img id="blockerPhotoImg" src="" alt="Blocker photo" style="width:80px;height:80px;object-fit:cover;border-radius:8px;border:1px solid var(--border);" />
+        </div>
+      </div>
+
+      <button class="btn btn-red" id="btnReportBlocker" onclick="App.reportBlocker()">
+        ⚠ &nbsp;Report blocker
+      </button>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════ -->
+  <!-- SCREEN: Profile                                              -->
+  <!-- ════════════════════════════════════════════════════════════ -->
+  <div id="screenProfile" class="screen">
+    <div style="padding-top: env(safe-area-inset-top, 0px); flex-shrink:0;"></div>
+    <div class="profile-hero">
+      <div class="avatar avatar-lg" id="profileAvatar">?</div>
+      <div class="name" id="profileName">—</div>
+      <div class="role" id="profileRole">Field Technician</div>
+      <div class="email" id="profileEmail">—</div>
+    </div>
+
+    <div class="screen-body screen-body--padded" style="padding-bottom:calc(var(--nav-h) + 16px);">
+
+      <div class="label mb-8">Today's summary</div>
+      <div class="summary-grid mb-16">
+        <div class="summary-cell">
+          <div class="summary-cell__num" id="profileJobsDone">0</div>
+          <div class="summary-cell__lbl">Jobs Done</div>
+        </div>
+        <div class="summary-cell">
+          <div class="summary-cell__num" id="profileHours" style="color:var(--blue);">0.0</div>
+          <div class="summary-cell__lbl">Hours</div>
+        </div>
+      </div>
+
+      <div class="label mb-8">App info</div>
+      <div class="card mb-16">
+        <div class="info-row">
+          <div class="info-row__icon">📱</div>
+          <div class="info-row__body">
+            <div class="info-row__lbl">Version</div>
+            <div class="info-row__val">ProofLink Field App v1.0</div>
+          </div>
+        </div>
+        <div class="info-row">
+          <div class="info-row__icon">🔒</div>
+          <div class="info-row__body">
+            <div class="info-row__lbl">Session</div>
+            <div class="info-row__val" id="profileSession">Active</div>
+          </div>
+        </div>
+      </div>
+
+      <button class="btn btn-ghost" onclick="App.signOut()" style="color:var(--red);">
+        Sign out
+      </button>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════ -->
+  <!-- Bottom Navigation                                            -->
+  <!-- ════════════════════════════════════════════════════════════ -->
+  <nav id="bottomNav">
+    <div class="nav-tabs">
+      <button class="nav-tab active" id="navHome" onclick="App.navTo('home')">
+        <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        HOME
+      </button>
+      <button class="nav-tab" id="navSchedule" onclick="App.navTo('schedule')">
+        <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        SCHEDULE
+      </button>
+      <button class="nav-tab" id="navProfile" onclick="App.navTo('profile')">
+        <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        PROFILE
+      </button>
+    </div>
+  </nav>
+
+</div><!-- /appShell -->
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- Toast                                                           -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div id="toast" class="toast"></div>
+
+<!-- Loading overlay -->
+<div id="loadingOverlay" class="loading-overlay">
+  <div class="spinner"></div>
+</div>
+
+<!-- Confirm modal -->
+<div id="confirmModal" class="modal-backdrop">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="confirmTitle">Are you sure?</div>
+    <div class="modal-body"  id="confirmBody">This action cannot be undone.</div>
+    <button class="btn mb-8" id="confirmOk" onclick="App.confirmOk()">Confirm</button>
+    <button class="btn btn-ghost" onclick="App.confirmCancel()">Cancel</button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- Script                                                          -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<script>
+'use strict';
+
+/* ── Demo data ─────────────────────────────────────────────────── */
+const DEMO_CREW = {
+  id: 'crew_001',
+  name: 'Marcus Rivera',
+  role: 'Field Technician',
+  email: 'marcus.rivera@example.com',
+};
+
+const DEMO_JOBS = [
+  {
+    id: 'job_001',
+    title: 'Backflow Prevention Inspection',
+    customer: { name: 'Sandra & Tom Beckett', phone: '(555) 210-4499', email: 'sbeckett@email.com' },
+    address: '2847 Elm Ridge Court, Springfield, IL 62704',
+    scheduled: 'Mon Mar 23, 2026 · 8:00 AM',
+    duration: '1.5 hrs',
+    scope: 'Annual backflow preventer test and certification. Check device at main irrigation supply line.',
+    notes: 'Gate code: #4491. Dog in backyard — keep gate closed. Leave report in mailbox if no one home.',
+    status: 'in_progress',
+    actual_start_at: Date.now() - 22 * 60 * 1000,
+    day: 'today',
+    beforePhotos: [
+      { src: 'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><rect width="200" height="200" fill="#1e3a5f"/><text x="100" y="110" font-family="sans-serif" font-size="14" fill="rgba(255,255,255,.6)" text-anchor="middle">Before photo</text></svg>'), caption: 'Main valve' },
+    ],
+    afterPhotos: [],
+    crewNotes: '',
+    blockerReason: null,
+  },
+  {
+    id: 'job_002',
+    title: 'Irrigation System Winterization',
+    customer: { name: 'Patricia Holloway', phone: '(555) 338-7722', email: 'pholloway@email.com' },
+    address: '1104 Birchwood Lane, Springfield, IL 62701',
+    scheduled: 'Mon Mar 23, 2026 · 10:30 AM',
+    duration: '2 hrs',
+    scope: 'Full system blow-out using air compressor. 8 zones. Check for cracked heads before winterizing.',
+    notes: 'Spigot for compressor is on north side of house. Customer will be home.',
+    status: 'dispatched',
+    actual_start_at: null,
+    day: 'today',
+    beforePhotos: [],
+    afterPhotos: [],
+    crewNotes: '',
+    blockerReason: null,
+  },
+  {
+    id: 'job_003',
+    title: 'Sprinkler Head Replacement',
+    customer: { name: 'Daniel Okoye', phone: '(555) 457-0031', email: 'dan.okoye@email.com' },
+    address: '739 Sycamore Drive, Springfield, IL 62706',
+    scheduled: 'Mon Mar 23, 2026 · 1:00 PM',
+    duration: '1 hr',
+    scope: 'Replace 3 broken rotary heads in front zone (zone 2). Customer has already marked locations with flags.',
+    notes: 'Park in driveway. Shutoff is in garage — customer will show you.',
+    status: 'scheduled',
+    actual_start_at: null,
+    day: 'today',
+    beforePhotos: [],
+    afterPhotos: [],
+    crewNotes: '',
+    blockerReason: null,
+  },
+  {
+    id: 'job_004',
+    title: 'System Startup & Spring Check',
+    customer: { name: 'The Nguyen Family', phone: '(555) 601-2288', email: 'nguyen.home@email.com' },
+    address: '3302 Willow Bend Pkwy, Chatham, IL 62629',
+    scheduled: 'Tue Mar 24, 2026 · 9:00 AM',
+    duration: '2.5 hrs',
+    scope: '12-zone spring startup. Check all heads, test controller, adjust zone timing per customer notes.',
+    notes: 'Controller password: 2468. Customer works from home — will answer questions.',
+    status: 'scheduled',
+    actual_start_at: null,
+    day: 'upcoming',
+    beforePhotos: [],
+    afterPhotos: [],
+    crewNotes: '',
+    blockerReason: null,
+  },
+  {
+    id: 'job_005',
+    title: 'Drip System Installation',
+    customer: { name: 'Rosemary Castillo', phone: '(555) 719-3344', email: 'rcastillo@email.com' },
+    address: '218 Oak Hollow Rd, Rochester, IL 62563',
+    scheduled: 'Wed Mar 25, 2026 · 8:00 AM',
+    duration: '4 hrs',
+    scope: 'Install new 6-zone drip system for raised garden beds. Materials pre-staged in shed.',
+    notes: 'Shed code: 7731. Existing main shutoff is 1.5" — use appropriate fittings from truck stock.',
+    status: 'scheduled',
+    actual_start_at: null,
+    day: 'upcoming',
+    beforePhotos: [],
+    afterPhotos: [],
+    crewNotes: '',
+    blockerReason: null,
+  },
+];
+
+/* ── App State ──────────────────────────────────────────────────── */
+const State = {
+  crew: null,
+  jobs: [],
+  currentJobId: null,
+  currentTab: 'today',
+  timerInterval: null,
+  sigDrawing: false,
+  sigHasData: false,
+  confirmCallback: null,
+  blockerReason: null,
+  screenHistory: ['screenHome'],
+};
+
+/* ── Helpers ────────────────────────────────────────────────────── */
+function el(id) { return document.getElementById(id); }
+
+function showToast(msg, type = '') {
+  const t = el('toast');
+  t.textContent = msg;
+  t.className = 'toast' + (type ? ' toast-' + type : '');
+  t.classList.add('show');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+function showLoading() { el('loadingOverlay').classList.add('active'); }
+function hideLoading() { el('loadingOverlay').classList.remove('active'); }
+
+function formatDate(d) {
+  return d.toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric', year:'numeric' });
+}
+
+function getInitial(name) {
+  if (!name) return '?';
+  const parts = name.trim().split(' ');
+  return (parts[0][0] + (parts[1] ? parts[1][0] : '')).toUpperCase();
+}
+
+function statusLabel(s) {
+  return { scheduled:'Scheduled', dispatched:'Dispatched', in_progress:'In Progress', blocked:'Blocked', completed:'Completed' }[s] || s;
+}
+
+function fmtTime(ms) {
+  const s = Math.floor(ms / 1000);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  return [h,m,sec].map(v => String(v).padStart(2,'0')).join(':');
+}
+
+function findJob(id) { return State.jobs.find(j => j.id === id); }
+
+/* ── App Object ─────────────────────────────────────────────────── */
+const App = {
+
+  /* ── Init ─────────────────────────────────────────────────────── */
+  init() {
+    el('loginEmail').addEventListener('keydown', e => { if (e.key === 'Enter') el('loginPassword').focus(); });
+    el('loginPassword').addEventListener('keydown', e => { if (e.key === 'Enter') this.signIn(); });
+    el('btnSignIn').addEventListener('click', () => this.signIn());
+
+    el('inputBeforePhoto').addEventListener('change', e => this.addPhoto(e, 'before'));
+    el('inputAfterPhoto').addEventListener('change', e => this.addPhoto(e, 'after'));
+    el('inputBlockerPhoto').addEventListener('change', e => this.previewBlockerPhoto(e));
+
+    el('btnForgot').addEventListener('click', () => {
+      showToast('Password reset link sent to your work email.', 'success');
+    });
+
+    this.initSignaturePad();
+    this.checkSession();
+  },
+
+  /* ── Session ──────────────────────────────────────────────────── */
+  checkSession() {
+    const saved = sessionStorage.getItem('pl_crew');
+    if (saved) {
+      try {
+        State.crew = JSON.parse(saved);
+        this.loadApp();
+      } catch(e) {
+        this.showScreen('screenLogin');
+      }
+    }
+  },
+
+  signIn() {
+    const email = el('loginEmail').value.trim();
+    const pass  = el('loginPassword').value;
+    if (!email || !pass) { showToast('Please enter your email and password.', 'error'); return; }
+
+    showLoading();
+    el('btnSignIn').disabled = true;
+
+    // Simulate API call
+    setTimeout(() => {
+      hideLoading();
+      el('btnSignIn').disabled = false;
+      State.crew = DEMO_CREW;
+      sessionStorage.setItem('pl_crew', JSON.stringify(State.crew));
+      this.loadApp();
+    }, 900);
+  },
+
+  signOut() {
+    this.confirmAction(
+      'Sign out?',
+      'You\'ll be returned to the login screen.',
+      'Sign out',
+      'btn-accent',
+      () => {
+        sessionStorage.removeItem('pl_crew');
+        State.crew = null;
+        State.jobs = [];
+        State.currentJobId = null;
+        clearInterval(State.timerInterval);
+        el('bottomNav').classList.remove('visible');
+        el('loginEmail').value = '';
+        el('loginPassword').value = '';
+        this.showScreen('screenLogin');
+      }
+    );
+  },
+
+  /* ── App bootstrap ─────────────────────────────────────────────── */
+  loadApp() {
+    // Populate UI with crew info
+    const c = State.crew;
+    const init = getInitial(c.name);
+
+    el('homeCrewName').textContent = c.name;
+    el('homeDate').textContent = formatDate(new Date());
+    el('homeAvatar').textContent = init;
+    el('profileAvatar').textContent = init;
+    el('profileName').textContent = c.name;
+    el('profileRole').textContent = c.role;
+    el('profileEmail').textContent = c.email;
+    el('profileSession').textContent = c.email;
+
+    // Load jobs (simulate fetch)
+    showLoading();
+    setTimeout(() => {
+      State.jobs = JSON.parse(JSON.stringify(DEMO_JOBS));
+      hideLoading();
+      this.updateStats();
+      this.renderJobList();
+      el('bottomNav').classList.add('visible');
+      this.showScreen('screenHome');
+    }, 700);
+  },
+
+  /* ── Stats ────────────────────────────────────────────────────── */
+  updateStats() {
+    const today = State.jobs.filter(j => j.day === 'today');
+    const completed  = today.filter(j => j.status === 'completed').length;
+    const inProgress = today.filter(j => j.status === 'in_progress').length;
+    const remaining  = today.filter(j => !['completed','blocked'].includes(j.status)).length;
+
+    el('statRemaining').textContent = remaining;
+    el('statInProgress').textContent = inProgress;
+    el('statCompleted').textContent = completed;
+    el('profileJobsDone').textContent = completed;
+
+    // Rough hours: count in_progress + completed
+    const hrs = completed * 1.2 + (inProgress ? 0.5 : 0);
+    el('profileHours').textContent = hrs.toFixed(1);
+  },
+
+  /* ── Job List ─────────────────────────────────────────────────── */
+  renderJobList() {
+    const tab = State.currentTab;
+    const jobs = State.jobs.filter(j => j.day === tab);
+    const container = el('jobListContainer');
+
+    if (jobs.length === 0) {
+      container.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-state__icon">🗓️</div>
+          <div class="empty-state__title">No jobs ${tab === 'today' ? 'today' : 'coming up'}</div>
+          <div class="empty-state__sub">Check back soon or contact your dispatcher.</div>
+        </div>`;
+      return;
+    }
+
+    container.innerHTML = jobs.map(j => `
+      <div class="job-card status-${j.status}" onclick="App.openJob('${j.id}')">
+        <div class="job-card__header">
+          <div class="job-card__time">${j.scheduled.split('·')[1]?.trim() || ''}</div>
+          <div class="job-card__meta">
+            <div class="job-card__customer">${j.customer.name}</div>
+            <div class="job-card__address">${j.address}</div>
+          </div>
+          <span class="pill pill-${j.status}">${statusLabel(j.status)}</span>
+        </div>
+        <div class="job-card__footer">
+          <div class="job-card__title">${j.title}</div>
+          <div class="job-card__chevron">›</div>
+        </div>
+      </div>`).join('');
+  },
+
+  /* ── Job Detail ───────────────────────────────────────────────── */
+  openJob(id) {
+    const job = findJob(id);
+    if (!job) return;
+    State.currentJobId = id;
+    this.renderJobDetail(job);
+    this.showScreen('screenJob');
+  },
+
+  renderJobDetail(job) {
+    el('jobTitle').textContent = job.title;
+
+    const pill = el('jobStatusPill');
+    pill.textContent = statusLabel(job.status);
+    pill.className = 'pill pill-' + job.status;
+
+    // Address link
+    const addr = job.address;
+    const mapsUrl = `https://maps.apple.com/?q=${encodeURIComponent(addr)}`;
+    const addrEl = el('jobAddress');
+    addrEl.textContent = addr;
+    addrEl.href = mapsUrl;
+
+    el('jobCustomerName').textContent = job.customer.name;
+
+    const phoneEl = el('jobCustomerPhone');
+    phoneEl.textContent = job.customer.phone;
+    phoneEl.href = 'tel:' + job.customer.phone.replace(/\D/g,'');
+
+    el('jobCustomerEmail').textContent = job.customer.email;
+    el('jobScheduled').textContent = job.scheduled + ' · ' + job.duration;
+    el('jobScope').textContent = job.scope;
+    el('jobNotes').textContent = job.notes || 'No special notes.';
+    el('crewNotes').value = job.crewNotes || '';
+
+    this.renderActionZone(job);
+    this.renderPhotos('before');
+    this.renderPhotos('after');
+    this.startOrStopTimer(job);
+  },
+
+  refreshCurrentJob() {
+    const job = findJob(State.currentJobId);
+    if (job) { this.renderJobDetail(job); showToast('Refreshed'); }
+  },
+
+  /* ── Action Zone ─────────────────────────────────────────────── */
+  renderActionZone(job) {
+    const zone = el('actionZone');
+    let html = '';
+
+    switch (job.status) {
+      case 'scheduled':
+        html = `<button class="btn btn-blue" onclick="App.jobAction('on_my_way')">🚗 &nbsp;On My Way</button>`;
+        break;
+      case 'dispatched':
+        html = `
+          <div class="btn-row mb-8">
+            <button class="btn btn-blue" onclick="App.jobAction('on_my_way')">🚗 On My Way</button>
+            <button class="btn btn-green" onclick="App.jobAction('im_here')">📍 I'm Here</button>
+          </div>
+          <button class="btn btn-accent" onclick="App.jobAction('start')">▶ &nbsp;Clock In / Start Job</button>`;
+        break;
+      case 'in_progress':
+        html = `
+          <div class="btn-row">
+            <button class="btn btn-green" onclick="App.jobAction('complete')">✓ &nbsp;Mark Complete</button>
+            <button class="btn btn-red" onclick="App.jobAction('blocker')">⚠ &nbsp;Report Blocker</button>
+          </div>`;
+        break;
+      case 'blocked':
+        html = `
+          <div style="background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.2);border-radius:10px;padding:12px 14px;margin-bottom:8px;font-size:.85rem;color:#f87171;">
+            <strong>Job is blocked.</strong> Contact your dispatcher to reschedule.
+          </div>
+          <button class="btn btn-ghost btn-sm" onclick="App.jobAction('unblock')" style="width:auto;">Clear blocker</button>`;
+        break;
+      case 'completed':
+        html = `
+          <div style="background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.2);border-radius:10px;padding:12px 14px;font-size:.85rem;color:#4ade80;display:flex;align-items:center;gap:8px;">
+            <span style="font-size:1.2rem;">✓</span>
+            <span><strong>Job completed.</strong> Great work!</span>
+          </div>`;
+        break;
+    }
+    zone.innerHTML = html;
+  },
+
+  /* ── Job Actions ─────────────────────────────────────────────── */
+  jobAction(action) {
+    const job = findJob(State.currentJobId);
+    if (!job) return;
+
+    switch(action) {
+      case 'on_my_way':
+        showToast('Dispatcher notified — you\'re on the way.', 'success');
+        job.status = 'dispatched';
+        break;
+      case 'im_here':
+        showToast('Arrival confirmed.', 'success');
+        break;
+      case 'start':
+        job.status = 'in_progress';
+        job.actual_start_at = Date.now();
+        showToast('Job started. Clock running.', 'success');
+        break;
+      case 'complete':
+        this.showScreen('screenComplete');
+        this.refreshCompleteScreen();
+        return;
+      case 'blocker':
+        this.showScreen('screenBlocker');
+        el('blockerNotes').value = '';
+        el('blockerPhotoPreview').style.display = 'none';
+        State.blockerReason = null;
+        el('blockerChips').querySelectorAll('.chip').forEach(c => c.classList.remove('selected'));
+        return;
+      case 'unblock':
+        job.status = 'dispatched';
+        job.blockerReason = null;
+        showToast('Blocker cleared. Contact dispatcher.', 'success');
+        break;
+    }
+
+    this.renderJobDetail(job);
+    this.updateStats();
+    this.renderJobList();
+  },
+
+  /* ── Photos ───────────────────────────────────────────────────── */
+  addPhoto(e, type) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const job = findJob(State.currentJobId);
+    if (!job) return;
+
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const photo = { src: ev.target.result, caption: type === 'before' ? 'Before' : 'After' };
+      if (type === 'before') job.beforePhotos.push(photo);
+      else                   job.afterPhotos.push(photo);
+      this.renderPhotos(type);
+      showToast((type === 'before' ? 'Before' : 'After') + ' photo added.', 'success');
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  },
+
+  renderPhotos(type) {
+    const job = findJob(State.currentJobId);
+    if (!job) return;
+
+    const photos  = type === 'before' ? job.beforePhotos : job.afterPhotos;
+    const gridId  = type === 'before' ? 'beforePhotoGrid' : 'afterPhotoGrid';
+    const countId = type === 'before' ? 'beforePhotoCount' : 'afterPhotoCount';
+    const inputId = type === 'before' ? 'inputBeforePhoto' : 'inputAfterPhoto';
+    const grid    = el(gridId);
+    const count   = el(countId);
+
+    count.textContent = photos.length + ' photo' + (photos.length !== 1 ? 's' : '');
+
+    const photoHtml = photos.map((p, i) => `
+      <div class="photo-cell">
+        <img src="${p.src}" alt="${p.caption}" loading="lazy" />
+        <div class="photo-cell__label">${p.caption}</div>
+      </div>`).join('');
+
+    grid.innerHTML = photoHtml + `
+      <label class="photo-add">
+        <span>+</span>
+        Add
+        <input type="file" accept="image/*" capture="environment" id="${inputId}" />
+      </label>`;
+
+    // Re-bind after innerHTML replace
+    el(inputId).addEventListener('change', e => this.addPhoto(e, type));
+  },
+
+  previewBlockerPhoto(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      el('blockerPhotoImg').src = ev.target.result;
+      el('blockerPhotoPreview').style.display = 'block';
+    };
+    reader.readAsDataURL(file);
+  },
+
+  /* ── Timer ────────────────────────────────────────────────────── */
+  startOrStopTimer(job) {
+    clearInterval(State.timerInterval);
+    const zone = el('timerZone');
+
+    if (job.status === 'in_progress' && job.actual_start_at) {
+      zone.style.display = 'block';
+      const tick = () => {
+        el('timerDisplay').textContent = fmtTime(Date.now() - job.actual_start_at);
+      };
+      tick();
+      State.timerInterval = setInterval(tick, 1000);
+    } else {
+      zone.style.display = 'none';
+    }
+  },
+
+  /* ── Completion ───────────────────────────────────────────────── */
+  refreshCompleteScreen() {
+    const job = findJob(State.currentJobId);
+    if (!job) return;
+    const count = job.afterPhotos.length;
+    const badge = el('completePhotoStatus');
+    const txt   = el('completePhotoText');
+    if (count > 0) {
+      badge.className = 'photo-count-badge';
+      txt.innerHTML = `<span class="ok">✓ ${count} after photo${count !== 1 ? 's' : ''} attached</span>`;
+    } else {
+      badge.className = 'photo-count-badge';
+      txt.innerHTML = `<span class="warn">⚠ No after photos yet</span>`;
+    }
+    el('completionNotes').value = '';
+    this.clearSignature();
+  },
+
+  submitCompletion() {
+    const notes = el('completionNotes').value.trim();
+    if (!notes) { showToast('Please add completion notes before submitting.', 'error'); return; }
+
+    this.confirmAction(
+      'Submit completion?',
+      'The job will be marked complete and your notes will be sent to the office.',
+      'Submit',
+      'btn-green',
+      () => {
+        const job = findJob(State.currentJobId);
+        if (job) {
+          job.status = 'completed';
+          job.crewNotes = notes;
+        }
+        showLoading();
+        setTimeout(() => {
+          hideLoading();
+          this.updateStats();
+          this.renderJobList();
+          this.showScreen('screenHome');
+          showToast('Job marked complete. Great work!', 'success');
+        }, 800);
+      }
+    );
+  },
+
+  /* ── Blocker ──────────────────────────────────────────────────── */
+  selectBlockerReason(btn) {
+    el('blockerChips').querySelectorAll('.chip').forEach(c => c.classList.remove('selected'));
+    btn.classList.add('selected');
+    State.blockerReason = btn.dataset.val;
+  },
+
+  reportBlocker() {
+    if (!State.blockerReason) { showToast('Please select a reason.', 'error'); return; }
+    const notes = el('blockerNotes').value.trim();
+
+    this.confirmAction(
+      'Report this blocker?',
+      'Your dispatcher will be notified and the job will be marked as blocked.',
+      'Report',
+      'btn-red',
+      () => {
+        const job = findJob(State.currentJobId);
+        if (job) {
+          job.status = 'blocked';
+          job.blockerReason = State.blockerReason;
+          job.crewNotes = notes;
+        }
+        showLoading();
+        setTimeout(() => {
+          hideLoading();
+          this.updateStats();
+          this.renderJobList();
+          this.showScreen('screenJob');
+          this.renderJobDetail(job);
+          showToast('Blocker reported. Dispatcher notified.', 'error');
+        }, 700);
+      }
+    );
+  },
+
+  saveCrewNotes() {
+    const job = findJob(State.currentJobId);
+    if (job) {
+      job.crewNotes = el('crewNotes').value.trim();
+      showToast('Notes saved.', 'success');
+    }
+  },
+
+  /* ── Signature Pad ────────────────────────────────────────────── */
+  initSignaturePad() {
+    const canvas = el('sigCanvas');
+    if (!canvas) return;
+
+    // Resize canvas to match display size
+    const resize = () => {
+      const rect = canvas.getBoundingClientRect();
+      const dpr  = window.devicePixelRatio || 1;
+      canvas.width  = rect.width  * dpr;
+      canvas.height = rect.height * dpr;
+      const ctx = canvas.getContext('2d');
+      ctx.scale(dpr, dpr);
+      ctx.strokeStyle = '#1a1a2e';
+      ctx.lineWidth = 2.5;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+    };
+
+    const getPos = (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const src  = e.touches ? e.touches[0] : e;
+      return { x: src.clientX - rect.left, y: src.clientY - rect.top };
+    };
+
+    let drawing = false;
+    const ctx = canvas.getContext('2d');
+
+    const start = (e) => {
+      e.preventDefault();
+      drawing = true;
+      State.sigDrawing = true;
+      const pos = getPos(e);
+      ctx.beginPath();
+      ctx.moveTo(pos.x, pos.y);
+      if (!State.sigHasData) {
+        State.sigHasData = true;
+        el('sigHint').style.opacity = '0';
+      }
+    };
+
+    const draw = (e) => {
+      e.preventDefault();
+      if (!drawing) return;
+      const pos = getPos(e);
+      ctx.lineTo(pos.x, pos.y);
+      ctx.stroke();
+    };
+
+    const stop = (e) => {
+      if (e) e.preventDefault();
+      drawing = false;
+    };
+
+    canvas.addEventListener('mousedown',  start);
+    canvas.addEventListener('mousemove',  draw);
+    canvas.addEventListener('mouseup',    stop);
+    canvas.addEventListener('mouseleave', stop);
+    canvas.addEventListener('touchstart', start, { passive: false });
+    canvas.addEventListener('touchmove',  draw,  { passive: false });
+    canvas.addEventListener('touchend',   stop,  { passive: false });
+
+    // Initial resize
+    setTimeout(resize, 100);
+    window.addEventListener('resize', resize);
+  },
+
+  clearSignature() {
+    const canvas = el('sigCanvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    State.sigHasData = false;
+    el('sigHint').style.opacity = '1';
+  },
+
+  /* ── Navigation ───────────────────────────────────────────────── */
+  navTo(dest) {
+    // Update nav tabs
+    ['navHome','navSchedule','navProfile'].forEach(id => el(id).classList.remove('active'));
+
+    switch (dest) {
+      case 'home':
+        el('navHome').classList.add('active');
+        this.showScreen('screenHome');
+        break;
+      case 'schedule':
+        el('navSchedule').classList.add('active');
+        switchJobsTab('upcoming');
+        this.showScreen('screenHome');
+        break;
+      case 'profile':
+        el('navProfile').classList.add('active');
+        this.showScreen('screenProfile');
+        break;
+    }
+  },
+
+  showScreen(id) {
+    const all = document.querySelectorAll('.screen');
+
+    // If going back to a non-slide screen, animate slides out
+    const isSlide = (screenId) => {
+      const el = document.getElementById(screenId);
+      return el && el.classList.contains('slide-in');
+    };
+
+    all.forEach(s => {
+      if (s.id === id) {
+        s.classList.remove('sliding-out');
+        s.classList.add('active');
+      } else {
+        if (s.classList.contains('slide-in') && s.classList.contains('active') && s.id !== id) {
+          s.classList.add('sliding-out');
+          setTimeout(() => {
+            s.classList.remove('active');
+            s.classList.remove('sliding-out');
+          }, 280);
+        } else {
+          s.classList.remove('active');
+        }
+      }
+    });
+
+    // Show/hide bottom nav
+    const noNav = ['screenLogin','screenComplete','screenBlocker'];
+    if (noNav.includes(id)) {
+      el('bottomNav').classList.remove('visible');
+    } else {
+      if (State.crew) el('bottomNav').classList.add('visible');
+    }
+  },
+
+  goBack() {
+    const current = document.querySelector('.screen.active');
+    // Try to determine where we came from
+    const slideScreens = ['screenComplete','screenBlocker'];
+    if (current && slideScreens.includes(current.id)) {
+      this.showScreen('screenJob');
+    } else {
+      this.showScreen('screenHome');
+    }
+  },
+
+  /* ── Confirm Modal ────────────────────────────────────────────── */
+  confirmAction(title, body, okLabel, okClass, callback) {
+    el('confirmTitle').textContent = title;
+    el('confirmBody').textContent  = body;
+    const ok = el('confirmOk');
+    ok.textContent = okLabel;
+    ok.className = 'btn mb-8 ' + okClass;
+    State.confirmCallback = callback;
+    el('confirmModal').classList.add('open');
+  },
+
+  confirmOk() {
+    el('confirmModal').classList.remove('open');
+    if (State.confirmCallback) {
+      State.confirmCallback();
+      State.confirmCallback = null;
+    }
+  },
+
+  confirmCancel() {
+    el('confirmModal').classList.remove('open');
+    State.confirmCallback = null;
+  },
+
+};
+
+/* ── Tab switching ─────────────────────────────────────────────── */
+function switchJobsTab(tab) {
+  State.currentTab = tab;
+  el('tabToday').classList.toggle('active', tab === 'today');
+  el('tabUpcoming').classList.toggle('active', tab === 'upcoming');
+  App.renderJobList();
+}
+
+/* ── Backdrop click to close modal ────────────────────────────── */
+el('confirmModal').addEventListener('click', function(e) {
+  if (e.target === this) App.confirmCancel();
+});
+
+/* ── Init ──────────────────────────────────────────────────────── */
+document.addEventListener('DOMContentLoaded', () => App.init());
+</script>
+
+</body>
+</html>

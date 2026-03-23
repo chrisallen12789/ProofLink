@@ -3,6 +3,11 @@
 // GET (no query params needed)
 // Requires operator auth.
 // Returns { members: [...] }
+//
+// Email field note: `email` is selected directly from the operator_members table.
+// If that column is not populated for a member, the authoritative email lives in
+// Supabase Auth (auth.users) keyed by user_id. To back-fill, join:
+//   supabase.auth.admin.listUsers() and match on user_id → user.email.
 
 'use strict';
 

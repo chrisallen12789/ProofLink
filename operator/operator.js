@@ -4729,7 +4729,10 @@ function renderTeamPanel() {
           </td>
         </tr>`).join('')}
     </tbody>
-  </table>`;
+  </table>
+  <div style="margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,.07);">
+    <a href="/crew/" target="_blank" rel="noopener" style="font-size:.8rem;color:rgba(255,255,255,.45);text-decoration:none;display:inline-flex;align-items:center;gap:5px;transition:color .15s;" onmouseover="this.style.color='rgba(255,255,255,.75)'" onmouseout="this.style.color='rgba(255,255,255,.45)'">Open crew app &#8599;</a>
+  </div>`;
 }
 
 function openInviteTeamMemberModal() {
@@ -10219,6 +10222,10 @@ async function saveJobRecord(fields = {}) {
   renderOrders();
   renderDashboard();
   renderGuidance();
+  // Notify the operator when a job has just been dispatched to a crew member
+  if (String(data.status || "").toLowerCase() === "dispatched" && data.assigned_operator_id) {
+    showToast("Job dispatched — crew member will be notified");
+  }
   return data;
 }
 async function createJobFromOrderRecord(order) {

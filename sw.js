@@ -12,6 +12,10 @@ const PRECACHE = [
   '/assets/pwa-192.png',
   '/assets/pwa-512.png',
   '/manifest.webmanifest',
+  // Crew field app shell
+  '/crew/',
+  '/crew/index.html',
+  '/crew/crew.js',
 ];
 
 // Install — cache the app shell
@@ -61,7 +65,15 @@ self.addEventListener('notificationclick', (event) => {
 
 // Fetch strategy:
 // - API / Netlify functions → network only (never cache live data)
+//   Exception: /.netlify/functions/get-crew-jobs → network-first with cache fallback
+//              so offline crew members can still see their last-loaded jobs
+// - /crew/ HTML + JS → cache-first (app shell, works offline)
 // - Everything else → network first, fall back to cache
+//
+// Background sync for crew job status updates and photo uploads is managed
+// in crew.js via IndexedDB queuing + navigator.serviceWorker sync events.
+// This SW registers 'crew-sync' as the sync tag; crew.js registers the tag
+// when it detects connectivity restoration.
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
@@ -69,8 +81,42 @@ self.addEventListener('fetch', (event) => {
   // Skip non-GET and cross-origin requests
   if (request.method !== 'GET' || url.origin !== self.location.origin) return;
 
-  // API calls — always go to network
+  // Crew jobs API — network-first with cache fallback so offline crew members
+  // can still see their last-loaded job list
+  if (url.pathname === '/.netlify/functions/get-crew-jobs') {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          if (response.ok) {
+            const clone = response.clone();
+            caches.open(CACHE).then((cache) => cache.put(request, clone));
+          }
+          return response;
+        })
+        .catch(() => caches.match(request))
+    );
+    return;
+  }
+
+  // All other API calls — always go to network
   if (url.pathname.startsWith('/.netlify/') || url.pathname.startsWith('/api/')) return;
+
+  // Crew app shell — cache-first so the field app loads fully offline
+  if (url.pathname.startsWith('/crew/')) {
+    event.respondWith(
+      caches.match(request).then((cached) => {
+        if (cached) return cached;
+        return fetch(request).then((response) => {
+          if (response.ok) {
+            const clone = response.clone();
+            caches.open(CACHE).then((cache) => cache.put(request, clone));
+          }
+          return response;
+        });
+      })
+    );
+    return;
+  }
 
   event.respondWith(
     fetch(request)
