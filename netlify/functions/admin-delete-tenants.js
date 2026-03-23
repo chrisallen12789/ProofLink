@@ -51,24 +51,15 @@ exports.handler = async (event) => {
     }
   }
 
-  const deleted = [];
-  const failed  = [];
+  // Clean up related records first (best-effort; DB cascades handle the rest)
+  await supabase.from('tenant_conduct_log').delete().in('tenant_id', tenant_ids);
+  await supabase.from('operator_members').delete().in('tenant_id', tenant_ids);
 
-  for (const id of tenant_ids) {
-    try {
-      // Clean up related records first (best-effort; DB cascades handle the rest)
-      await supabase.from('tenant_conduct_log').delete().eq('tenant_id', id);
-      await supabase.from('operator_members').delete().eq('tenant_id', id);
+  // Hard-delete the tenant rows
+  const { error: deleteErr } = await supabase.from('tenants').delete().in('id', tenant_ids);
 
-      // Hard-delete the tenant row
-      const { error } = await supabase.from('tenants').delete().eq('id', id);
-      if (error) throw error;
-
-      deleted.push(id);
-    } catch (e) {
-      failed.push({ id, error: e.message });
-    }
-  }
+  const deleted = deleteErr ? [] : tenant_ids;
+  const failed  = deleteErr ? tenant_ids.map(id => ({ id, error: deleteErr.message })) : [];
 
   return respond(200, {
     ok     : true,

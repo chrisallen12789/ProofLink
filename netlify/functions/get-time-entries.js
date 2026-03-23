@@ -29,7 +29,7 @@ exports.handler = async (event) => {
 
   let query = supabase
     .from('time_entries')
-    .select('*')
+    .select('id, tenant_id, operator_id, order_id, customer_id, description, duration_minutes, amount_cents, cost_cents, started_at, ended_at, date, billable, created_at, updated_at')
     .eq('tenant_id', tenantId)
     .order('started_at', { ascending: false });
 

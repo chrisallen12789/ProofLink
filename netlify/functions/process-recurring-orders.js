@@ -47,42 +47,49 @@ exports.handler = async (event) => {
   let created = 0;
   let failed  = 0;
 
+  const allRecords   = [];
+  const validSchedules = [];
+
   for (const schedule of schedules || []) {
     const source = schedule.orders;
     if (!source) { failed++; continue; }
 
-    // Create new order from source template
+    allRecords.push({
+      tenant_id      : schedule.tenant_id,
+      operator_id    : schedule.operator_id,
+      title          : source.title,
+      description    : source.description || null,
+      customer_name  : source.customer_name || null,
+      customer_email : source.customer_email || null,
+      total_amount   : source.total_amount || 0,
+      line_items     : source.line_items || null,
+      status         : 'new',
+      source_type    : 'recurring',
+      recurring_id   : schedule.id,
+      created_at     : new Date().toISOString(),
+      updated_at     : new Date().toISOString(),
+    });
+    validSchedules.push(schedule);
+  }
+
+  if (allRecords.length > 0) {
     const { error: insertErr } = await supabase
       .from('orders')
-      .insert({
-        tenant_id      : schedule.tenant_id,
-        operator_id    : schedule.operator_id,
-        title          : source.title,
-        description    : source.description || null,
-        customer_name  : source.customer_name || null,
-        customer_email : source.customer_email || null,
-        total_amount   : source.total_amount || 0,
-        line_items     : source.line_items || null,
-        status         : 'new',
-        source_type    : 'recurring',
-        recurring_id   : schedule.id,
-        created_at     : new Date().toISOString(),
-        updated_at     : new Date().toISOString(),
-      });
+      .insert(allRecords);
 
     if (insertErr) {
       console.error('[process-recurring-orders] insert error:', insertErr);
-      failed++;
-      continue;
+      failed += allRecords.length;
+    } else {
+      // Advance next_date for each successfully inserted schedule
+      for (const schedule of validSchedules) {
+        await supabase
+          .from('recurring_orders')
+          .update({ next_date: nextDate(schedule.next_date, schedule.frequency), updated_at: new Date().toISOString() })
+          .eq('id', schedule.id);
+      }
+      created = allRecords.length;
     }
-
-    // Advance next_date
-    await supabase
-      .from('recurring_orders')
-      .update({ next_date: nextDate(schedule.next_date, schedule.frequency), updated_at: new Date().toISOString() })
-      .eq('id', schedule.id);
-
-    created++;
   }
 
   console.log(`[process-recurring-orders] created=${created} failed=${failed}`);

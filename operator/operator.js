@@ -47,6 +47,7 @@ let PICK_VENDORS = [];
 let AVAILABILITY = null;
 let CURRENT_OPERATOR = null;
 let BOOTING = false;
+const TABS_LOADED = new Set();
 window.PROOFLINK_BOOT_READY = false;
 // Tracks which password-setup flow is active: "reset" | "first-time" | null
 let passwordSetupMode = null;
@@ -2455,18 +2456,30 @@ function switchTab(tab, opts = {}) {
   if (nextTab === "money") renderMoney().catch(console.error);
   if (nextTab === "dashboard") renderDashboard();
   if (nextTab === "leads") renderLeads(leadSearch?.value || "");
-  if (nextTab === "orders") { renderOrders(); renderPackagesSummary(); }
+  if (nextTab === "orders" && !TABS_LOADED.has("orders")) {
+    TABS_LOADED.add("orders");
+    renderOrders(); renderPackagesSummary();
+  }
   if (nextTab === "bids") renderBids(bidSearch?.value || "");
-  if (nextTab === "jobs") renderJobs(jobSearch?.value || "");
+  if (nextTab === "jobs" && !TABS_LOADED.has("jobs")) {
+    TABS_LOADED.add("jobs");
+    renderJobs(jobSearch?.value || "");
+  }
   if (nextTab === "plans") renderPlans(planSearch?.value || "");
-  if (nextTab === "customers") renderCustomersList(customerSearch?.value || "");
+  if (nextTab === "customers" && !TABS_LOADED.has("customers")) {
+    TABS_LOADED.add("customers");
+    renderCustomersList(customerSearch?.value || "");
+  }
   if (nextTab === "import") window.PROOFLINK_IMPORT_WORKSPACE?.render?.();
   if (nextTab === "payments") renderPayments();
   if (nextTab === "domains") window.renderDomains?.();
   if (nextTab === "setup") fetchOperatorSetup().catch((err) => setSetupMessage(err.message || String(err), "bad"));
   if (nextTab === "guidance") renderGuidance();
   if (nextTab === "bookings") renderBookings().catch(console.error);
-  if (nextTab === "quotes")   fetchAndRenderQuotes().catch(console.error);
+  if (nextTab === "quotes" && !TABS_LOADED.has("quotes")) {
+    TABS_LOADED.add("quotes");
+    fetchAndRenderQuotes().catch(console.error);
+  }
   if (nextTab === "reviews")  fetchAndRenderReviews().catch(console.error);
   if (nextTab === "messages") fetchAndRenderMessages().catch(console.error);
   if (nextTab === "ai")       initAIPanel();
@@ -5756,6 +5769,7 @@ async function fetchCustomers() {
 
   if (error) throw error;
   CUSTOMERS_CACHE = data || [];
+  TABS_LOADED.delete('customers');
   return CUSTOMERS_CACHE;
 }
 async function fetchCustomerInteractions(customerId) {
@@ -5819,6 +5833,7 @@ async function fetchCrmOrders() {
   const { data, error } = await query;
   if (error) throw error;
   CRM_ORDERS_CACHE = data || [];
+  TABS_LOADED.delete('orders');
   return CRM_ORDERS_CACHE;
 }
 async function fetchPersistedBids() {
@@ -5861,6 +5876,7 @@ async function fetchJobs() {
     throw error;
   }
   JOBS_CACHE = data || [];
+  TABS_LOADED.delete('jobs');
   return JOBS_CACHE;
 }
 async function fetchServicePlans() {
@@ -11205,6 +11221,7 @@ function renderOrders() {
     }
 
     CRM_ORDERS_CACHE = CRM_ORDERS_CACHE.map((row) => row.id === active.id ? data : row);
+    TABS_LOADED.delete('orders');
     renderOrders();
     renderDashboard();
     renderGuidance();
@@ -11631,6 +11648,8 @@ function renderOrders() {
           deposit_required_cents: nextRequired,
         }).catch(() => null);
       }
+      TABS_LOADED.delete('orders');
+      TABS_LOADED.delete('jobs');
       renderOrders();
       renderJobs(jobSearch?.value || "");
       renderDashboard();
@@ -11664,6 +11683,8 @@ function renderOrders() {
         throw error;
       }
       CRM_ORDERS_CACHE = CRM_ORDERS_CACHE.map((row) => row.id === active.id ? data : row);
+      TABS_LOADED.delete('orders');
+      TABS_LOADED.delete('jobs');
       renderOrders();
       renderJobs(jobSearch?.value || "");
       renderDashboard();
@@ -11815,6 +11836,7 @@ function openCreateOrderModal() {
       if (error) throw error;
       CRM_ORDERS_CACHE = [data, ...CRM_ORDERS_CACHE];
       ACTIVE_ORDER_ID = data.id;
+      TABS_LOADED.delete('orders');
       renderOrders();
       renderDashboard();
       showToast("Order created.");
@@ -12207,11 +12229,15 @@ async function boot() {
     renderProductsList("");
     renderAvailability();
     renderBookings();
-    renderPricing(await fetchPricing());
     renderExpenses(EXPENSES_CACHE);
-    await refreshPicklists();
+    const [pricingData] = await Promise.allSettled([
+      fetchPricing(),
+      refreshPicklists(),
+      fetchDashboardLaunchChecklist(),
+      fetchDashboardPaymentState(),
+    ]);
+    renderPricing(pricingData.status === 'fulfilled' ? pricingData.value : []);
     renderStartupChecklist();
-    await Promise.allSettled([fetchDashboardLaunchChecklist(), fetchDashboardPaymentState()]);
     applyWorkspaceBlueprint();
     renderDashboard();
     renderLeads("");
@@ -12482,6 +12508,7 @@ async function fetchQuotes(status) {
     const res = await fetch(url, { headers: { "Authorization": `Bearer ${tok}` } });
     const d   = await res.json().catch(() => ({}));
     QUOTES_CACHE = d.quotes || [];
+    TABS_LOADED.delete('quotes');
     return QUOTES_CACHE;
   } catch (e) {
     console.warn("[quotes] fetch failed:", e.message);
@@ -13120,6 +13147,7 @@ $("btnBulkStatusApply")?.addEventListener("click", async () => {
   CRM_ORDERS_CACHE = CRM_ORDERS_CACHE.map((o) => ids.includes(o.id) ? { ...o, status, updated_at: now } : o);
   BULK_SELECTED_ORDER_IDS.clear();
   updateBulkBar();
+  TABS_LOADED.delete('orders');
   renderOrders();
   renderDashboard();
 });

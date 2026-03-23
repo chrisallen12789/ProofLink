@@ -23,7 +23,7 @@ exports.handler = async (event) => {
 
   const { data, error } = await supabase
     .from('bookings')
-    .select('*')
+    .select('id, tenant_id, operator_id, customer_id, customer_name, customer_email, title, status, starts_at, ends_at, notes, notes_vehicle, assigned_operator_id, reminder_sent_at, is_deleted, created_at, updated_at')
     .eq('tenant_id', tenantId)
     .gte('starts_at', start)
     .lte('starts_at', end)
