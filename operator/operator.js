@@ -281,6 +281,20 @@ const jobSummary = $("jobSummary");
 const jobNotes = $("jobNotes");
 const jobMsg = $("jobMsg");
 const jobAssignedTo = $("jobAssignedTo");
+const jobMainServiceType       = $("jobMainServiceType");
+const jobServiceType           = $("jobServiceType");
+const jobEquipmentId           = $("jobEquipmentId");
+const jobBillableHours         = $("jobBillableHours");
+const jobMinimumHours          = $("jobMinimumHours");
+const jobTravelHours           = $("jobTravelHours");
+const jobTruckRate             = $("jobTruckRate");
+const jobOperatorRate          = $("jobOperatorRate");
+const jobAfterHoursMultiplier  = $("jobAfterHoursMultiplier");
+const jobMobilizationFee       = $("jobMobilizationFee");
+const jobDisposalVolume        = $("jobDisposalVolume");
+const jobDisposalCost          = $("jobDisposalCost");
+const jobDisposalSite          = $("jobDisposalSite");
+const jobDisposalManifest      = $("jobDisposalManifest");
 const btnJobOpenOrder = $("btnJobOpenOrder");
 const btnJobRecordPayment = $("btnJobRecordPayment");
 const plansList = $("plansList");
@@ -418,6 +432,8 @@ let OPERATOR_MEMBERS_CACHE = [];
 let TEAM_MEMBERS_CACHE = [];
 let TIME_ENTRIES_CACHE = [];
 let VENDORS_CACHE = [];
+let EQUIPMENT_CACHE = [];
+let EQUIPMENT_PANEL_LOADED = false;
 let INVENTORY_CACHE = [];
 let INVENTORY_PANEL_LOADED = false;
 
@@ -1290,6 +1306,81 @@ function trackedJobExpenses(job, order = linkedOrderForJob(job)) {
       return true;
     });
 }
+// ── Hydrovac revenue calculation ───────────────────────────────────────────────
+function calcHydrovacRevenueCents(job) {
+  const bh       = Math.max(parseFloat(job.billable_hours) || 0, parseFloat(job.minimum_hours) || 2);
+  const mult     = parseFloat(job.after_hours_multiplier) || 1.0;
+  const truckR   = parseInt(job.hourly_truck_rate_cents)    || 0;
+  const opR      = parseInt(job.hourly_operator_rate_cents) || 0;
+  const mobFee   = parseInt(job.mobilization_fee_cents)     || 0;
+  const disposal = parseInt(job.disposal_cost_cents)        || 0;
+  if (!truckR && !opR) return null; // rates not set — not a hydrovac job
+  return Math.round(bh * mult * (truckR + opR)) + mobFee + disposal;
+}
+
+function hydrovacRevenueBreakdownHtml(job) {
+  const bh     = Math.max(parseFloat(job.billable_hours) || 0, parseFloat(job.minimum_hours) || 2);
+  const mult   = parseFloat(job.after_hours_multiplier) || 1.0;
+  const truckR = parseInt(job.hourly_truck_rate_cents)    || 0;
+  const opR    = parseInt(job.hourly_operator_rate_cents) || 0;
+  const mob    = parseInt(job.mobilization_fee_cents)     || 0;
+  const disp   = parseInt(job.disposal_cost_cents)        || 0;
+  const rate   = truckR + opR;
+  const laborRev = Math.round(bh * mult * rate);
+  const total  = laborRev + mob + disp;
+  const multLabel = mult !== 1.0 ? ` × ${mult}× after-hours` : '';
+  return {
+    html: `
+      <div>${bh.toFixed(2)} hrs × $${(rate/100).toFixed(2)}/hr${multLabel} = <strong>$${(laborRev/100).toFixed(2)}</strong></div>
+      ${mob  ? `<div>Mobilization: <strong>$${(mob/100).toFixed(2)}</strong></div>` : ''}
+      ${disp ? `<div>Disposal: <strong>$${(disp/100).toFixed(2)}</strong></div>` : ''}
+    `,
+    total,
+  };
+}
+
+function toggleHydrovacFields(value) {
+  const el = document.getElementById('hydrovacFields');
+  if (!el) return;
+  const isHydrovac = value === 'hydrovac';
+  el.style.display = isHydrovac ? 'block' : 'none';
+  if (isHydrovac) renderEquipmentOptions();
+}
+
+function renderEquipmentOptions(selectedId = '') {
+  if (!jobEquipmentId) return;
+  jobEquipmentId.innerHTML = '<option value="">— Unassigned —</option>'
+    + (EQUIPMENT_CACHE || [])
+      .filter(e => e.is_active)
+      .map(e => `<option value="${escapeAttr(e.id)}"${e.id === selectedId ? ' selected' : ''}>
+        ${escapeHtml(e.unit_number ? `${e.unit_number} — ${e.name}` : e.name)}
+        ${e.hourly_rate_cents ? ` ($${(e.hourly_rate_cents/100).toFixed(0)}/hr)` : ''}
+      </option>`)
+      .join('');
+}
+
+function updateHydrovacPreview() {
+  const preview = document.getElementById('hydrovacRevenuePreview');
+  const breakdown = document.getElementById('hydrovacRevenueBreakdown');
+  const totalEl   = document.getElementById('hydrovacRevenueTotal');
+  if (!preview) return;
+  const job = {
+    billable_hours              : jobBillableHours?.value,
+    minimum_hours               : jobMinimumHours?.value || '2',
+    after_hours_multiplier      : jobAfterHoursMultiplier?.value || '1',
+    hourly_truck_rate_cents     : Math.round((parseFloat(jobTruckRate?.value) || 0) * 100),
+    hourly_operator_rate_cents  : Math.round((parseFloat(jobOperatorRate?.value) || 0) * 100),
+    mobilization_fee_cents      : Math.round((parseFloat(jobMobilizationFee?.value) || 0) * 100),
+    disposal_cost_cents         : Math.round((parseFloat(jobDisposalCost?.value) || 0) * 100),
+  };
+  const rev = calcHydrovacRevenueCents(job);
+  if (rev === null || rev === 0) { preview.style.display = 'none'; return; }
+  const { html, total } = hydrovacRevenueBreakdownHtml(job);
+  breakdown.innerHTML = html;
+  totalEl.textContent = `Total: $${(total / 100).toFixed(2)}`;
+  preview.style.display = 'block';
+}
+
 function jobRevenueCents(job, order = linkedOrderForJob(job)) {
   return Math.max(0, orderTotalCents(order));
 }
@@ -2405,6 +2496,12 @@ function switchTab(tab, opts = {}) {
     $('btnInviteTeamMember')?.addEventListener('click', () => openInviteTeamMemberModal());
     $('btnRefreshTeam')?.addEventListener('click', () => fetchTeamMembers().catch(console.warn));
   }
+  if (nextTab === 'equipment' && !EQUIPMENT_PANEL_LOADED) {
+    EQUIPMENT_PANEL_LOADED = true;
+    fetchEquipment().catch(console.warn);
+    $('btnAddEquipment')?.addEventListener('click', () => openAddEquipmentModal());
+    $('btnRefreshEquipment')?.addEventListener('click', () => fetchEquipment().catch(console.warn));
+  }
   if (opts.updateHash !== false) syncPanelHash(nextTab);
   renderWorkspaceHub();
   scheduleWorkspaceSnapshot(nextTab);
@@ -2757,7 +2854,6 @@ async function requireOperatorContext() {
     // tenant. This allows the operator dashboard to work for any provisioned tenant,
     // not just the demo tenant hardcoded in cottagelink.tenant.js.
     console.log(`[ProofLink] Tenant scope updated: ${TENANT_ID} -> ${operatorTenantId}`);
-    // eslint-disable-next-line no-global-assign
     TENANT_ID = operatorTenantId;
   }
 
@@ -4693,6 +4789,183 @@ function openEditVendorModal(vendor) {
   };
 }
 
+// ── Equipment management ────────────────────────────────────────────────────────
+async function fetchEquipment() {
+  const token = (await sb.auth.getSession()).data.session?.access_token;
+  const res = await fetch('/.netlify/functions/manage-equipment', { headers: { Authorization: 'Bearer ' + token } });
+  const d = await res.json();
+  EQUIPMENT_CACHE = d.equipment || [];
+  renderEquipment();
+}
+
+function renderEquipment() {
+  const el = document.getElementById('equipmentList');
+  if (!el) return;
+  if (!EQUIPMENT_CACHE.length) {
+    el.innerHTML = '<div class="muted" style="font-size:.85rem;padding:16px 0;">No equipment yet. <button class="btn btn-ghost btn-sm" onclick="openAddEquipmentModal()">+ Add first truck</button></div>';
+    return;
+  }
+  const statusColor = { active: '#4caf82', maintenance: '#e5a027', retired: 'rgba(255,255,255,.3)' };
+  el.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:.85rem;">
+    <thead><tr>
+      <th style="text-align:left;padding:6px 8px;color:rgba(255,255,255,.4);font-weight:500;border-bottom:1px solid rgba(255,255,255,.08);">Unit</th>
+      <th style="text-align:left;padding:6px 8px;color:rgba(255,255,255,.4);font-weight:500;border-bottom:1px solid rgba(255,255,255,.08);">Type</th>
+      <th style="text-align:left;padding:6px 8px;color:rgba(255,255,255,.4);font-weight:500;border-bottom:1px solid rgba(255,255,255,.08);">Rate</th>
+      <th style="text-align:left;padding:6px 8px;color:rgba(255,255,255,.4);font-weight:500;border-bottom:1px solid rgba(255,255,255,.08);">Status</th>
+      <th style="padding:6px 8px;border-bottom:1px solid rgba(255,255,255,.08);"></th>
+    </tr></thead>
+    <tbody>
+      ${EQUIPMENT_CACHE.map(e => `<tr>
+        <td style="padding:8px;color:#e8e9eb;">${escapeHtml(e.unit_number ? `${e.unit_number} — ${e.name}` : e.name)}<br><span style="font-size:.75rem;color:rgba(255,255,255,.35);">${escapeHtml([e.year, e.make, e.model].filter(Boolean).join(' '))}</span></td>
+        <td style="padding:8px;color:rgba(255,255,255,.55);">${escapeHtml(e.equipment_type || '—')}</td>
+        <td style="padding:8px;color:rgba(255,255,255,.55);">${e.hourly_rate_cents ? '$' + (e.hourly_rate_cents/100).toFixed(0) + '/hr' : '—'}</td>
+        <td style="padding:8px;"><span style="font-size:.75rem;font-weight:600;color:${statusColor[e.status] || '#fff'};">${e.status || 'active'}</span></td>
+        <td style="padding:8px;text-align:right;display:flex;gap:6px;justify-content:flex-end;">
+          <button class="btn btn-ghost" style="font-size:.72rem;" onclick="openEditEquipmentModal('${escapeAttr(e.id)}')">Edit</button>
+          <button class="btn btn-ghost" style="font-size:.72rem;" onclick="deleteEquipment('${escapeAttr(e.id)}')">Remove</button>
+        </td>
+      </tr>`).join('')}
+    </tbody>
+  </table>`;
+}
+
+function openAddEquipmentModal() {
+  const existing = document.getElementById('addEquipmentModal');
+  if (existing) { existing.remove(); return; }
+  const modal = document.createElement('div');
+  modal.id = 'addEquipmentModal';
+  modal.className = 'modal-overlay';
+  modal.innerHTML = `<div class="modal-box" style="max-width:400px;">
+    <h3 style="margin:0 0 16px;font-size:1rem;">Add equipment</h3>
+    <label style="font-size:.8rem;color:rgba(255,255,255,.55);">Name *</label>
+    <input id="eqName" class="input" style="margin-bottom:10px;width:100%;" placeholder="Truck 1 / Vactor 2112">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+      <div><label style="font-size:.8rem;color:rgba(255,255,255,.55);">Unit #</label>
+        <input id="eqUnit" class="input" style="width:100%;" placeholder="T-01"></div>
+      <div><label style="font-size:.8rem;color:rgba(255,255,255,.55);">Type</label>
+        <select id="eqType" class="input" style="width:100%;">
+          <option value="hydrovac">Hydrovac</option>
+          <option value="vactor">Vactor</option>
+          <option value="jetter">Jetter</option>
+          <option value="combo">Combo</option>
+          <option value="vacuum_truck">Vacuum truck</option>
+          <option value="other">Other</option>
+        </select></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px;">
+      <div><label style="font-size:.8rem;color:rgba(255,255,255,.55);">Year</label>
+        <input id="eqYear" class="input" style="width:100%;" type="number" placeholder="2024"></div>
+      <div><label style="font-size:.8rem;color:rgba(255,255,255,.55);">Make</label>
+        <input id="eqMake" class="input" style="width:100%;" placeholder="Vactor"></div>
+      <div><label style="font-size:.8rem;color:rgba(255,255,255,.55);">Model</label>
+        <input id="eqModel" class="input" style="width:100%;" placeholder="2112"></div>
+    </div>
+    <label style="font-size:.8rem;color:rgba(255,255,255,.55);">Hourly rate ($/hr)</label>
+    <input id="eqRate" class="input" style="margin-bottom:10px;width:100%;" type="number" min="0" placeholder="0">
+    <label style="font-size:.8rem;color:rgba(255,255,255,.55);">Notes</label>
+    <textarea id="eqNotes" class="input" style="margin-bottom:16px;width:100%;height:60px;"></textarea>
+    <div style="display:flex;gap:8px;justify-content:flex-end;">
+      <button class="btn btn-ghost" onclick="document.getElementById('addEquipmentModal')?.remove()">Cancel</button>
+      <button class="btn btn-primary" id="eqSaveBtn">Save</button>
+    </div>
+  </div>`;
+  document.body.appendChild(modal);
+  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+  modal.querySelector('#eqSaveBtn').onclick = async () => {
+    const name = document.getElementById('eqName')?.value?.trim();
+    if (!name) { showToast('Name is required'); return; }
+    const token = (await sb.auth.getSession()).data.session?.access_token;
+    try {
+      const res = await fetch('/.netlify/functions/manage-equipment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({
+          name,
+          unit_number: document.getElementById('eqUnit')?.value || null,
+          equipment_type: document.getElementById('eqType')?.value || 'hydrovac',
+          year: parseInt(document.getElementById('eqYear')?.value) || null,
+          make: document.getElementById('eqMake')?.value || null,
+          model: document.getElementById('eqModel')?.value || null,
+          hourly_rate_cents: Math.round((parseFloat(document.getElementById('eqRate')?.value) || 0) * 100),
+          notes: document.getElementById('eqNotes')?.value || null,
+        }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || 'Failed');
+      modal.remove();
+      await fetchEquipment();
+      showToast('Equipment added.');
+    } catch (err) { showToast('Error: ' + err.message); }
+  };
+}
+
+function openEditEquipmentModal(id) {
+  const eq = EQUIPMENT_CACHE.find(e => e.id === id);
+  if (!eq) return;
+  const existing = document.getElementById('editEquipmentModal');
+  if (existing) existing.remove();
+  const modal = document.createElement('div');
+  modal.id = 'editEquipmentModal';
+  modal.className = 'modal-overlay';
+  modal.innerHTML = `<div class="modal-box" style="max-width:400px;">
+    <h3 style="margin:0 0 16px;font-size:1rem;">Edit equipment</h3>
+    <label style="font-size:.8rem;color:rgba(255,255,255,.55);">Name</label>
+    <input id="eqEditName" class="input" style="margin-bottom:10px;width:100%;" value="${escapeAttr(eq.name)}">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+      <div><label style="font-size:.8rem;color:rgba(255,255,255,.55);">Unit #</label>
+        <input id="eqEditUnit" class="input" style="width:100%;" value="${escapeAttr(eq.unit_number||'')}"></div>
+      <div><label style="font-size:.8rem;color:rgba(255,255,255,.55);">Status</label>
+        <select id="eqEditStatus" class="input" style="width:100%;">
+          ${['active','maintenance','retired'].map(s => `<option value="${s}"${s===eq.status?' selected':''}>${s}</option>`).join('')}
+        </select></div>
+    </div>
+    <label style="font-size:.8rem;color:rgba(255,255,255,.55);">Hourly rate ($/hr)</label>
+    <input id="eqEditRate" class="input" style="margin-bottom:10px;width:100%;" type="number" min="0" value="${eq.hourly_rate_cents ? (eq.hourly_rate_cents/100).toFixed(0) : ''}">
+    <label style="font-size:.8rem;color:rgba(255,255,255,.55);">Notes</label>
+    <textarea id="eqEditNotes" class="input" style="margin-bottom:16px;width:100%;height:60px;">${escapeHtml(eq.notes||'')}</textarea>
+    <div style="display:flex;gap:8px;justify-content:flex-end;">
+      <button class="btn btn-ghost" onclick="document.getElementById('editEquipmentModal')?.remove()">Cancel</button>
+      <button class="btn btn-primary" id="eqEditSaveBtn">Save</button>
+    </div>
+  </div>`;
+  document.body.appendChild(modal);
+  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+  modal.querySelector('#eqEditSaveBtn').onclick = async () => {
+    const token = (await sb.auth.getSession()).data.session?.access_token;
+    try {
+      const res = await fetch('/.netlify/functions/manage-equipment', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({
+          id,
+          name: document.getElementById('eqEditName')?.value?.trim(),
+          unit_number: document.getElementById('eqEditUnit')?.value || null,
+          status: document.getElementById('eqEditStatus')?.value || 'active',
+          hourly_rate_cents: Math.round((parseFloat(document.getElementById('eqEditRate')?.value) || 0) * 100),
+          notes: document.getElementById('eqEditNotes')?.value || null,
+        }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || 'Failed');
+      modal.remove();
+      await fetchEquipment();
+      showToast('Equipment updated.');
+    } catch (err) { showToast('Error: ' + err.message); }
+  };
+}
+
+async function deleteEquipment(id) {
+  if (!(await showConfirmModal('Remove this equipment?', 'Remove', 'Cancel'))) return;
+  const token = (await sb.auth.getSession()).data.session?.access_token;
+  try {
+    const res = await fetch(`/.netlify/functions/manage-equipment?id=${encodeURIComponent(id)}`, {
+      method: 'DELETE', headers: { Authorization: 'Bearer ' + token },
+    });
+    if (!res.ok) throw new Error((await res.json()).error || 'Failed');
+    EQUIPMENT_CACHE = EQUIPMENT_CACHE.filter(e => e.id !== id);
+    renderEquipment();
+    showToast('Equipment removed.');
+  } catch (err) { showToast('Error: ' + err.message); }
+}
+
 let VENDORS_PANEL_LOADED = false;
 let TEAM_PANEL_LOADED = false;
 
@@ -5719,308 +5992,6 @@ async function importBridgeOrdersToCrm() {
   await Promise.all([fetchCustomers(), fetchCrmOrders(), fetchPayments()]);
   return { imported, skipped };
 }
-function renderCustomersList(filter = "") {
-  if (!customersList) return;
-  const q = String(filter || "").trim().toLowerCase();
-
-  const rows = CUSTOMERS_CACHE.filter((c) =>
-    !q || [c.name, c.email, c.phone].some((x) => String(x || "").toLowerCase().includes(q))
-  );
-
-  customersList.innerHTML = rows.length ? "" : `<div class="muted">No customers yet.</div>`;
-
-  rows.forEach((c) => {
-    const el = document.createElement("button");
-    el.type = "button";
-    el.className = `list-item ${ACTIVE_CUSTOMER_ID === c.id ? "is-active" : ""}`;
-    el.innerHTML = `
-      <div class="li-main">
-        <div class="li-title">${escapeHtml(c.name || "Unnamed customer")}</div>
-        <div class="li-sub muted">${escapeHtml(c.email || "No email")}  |  ${escapeHtml(c.phone || "No phone")}</div>
-      </div>
-      <div class="li-meta">
-        <span class="pill pill-on">${formatUsd(c.lifetime_value_cents || 0)}</span>
-        <span class="pill">${escapeHtml(String(c.order_count || 0))} orders</span>
-      </div>
-    `;
-    el.addEventListener("click", async () => {
-      ACTIVE_CUSTOMER_ID = c.id;
-      renderCustomersList(customerSearch?.value || "");
-      await renderCustomerDetail(c.id);
-    });
-    customersList.appendChild(el);
-  });
-
-  if (!ACTIVE_CUSTOMER_ID && rows[0]) ACTIVE_CUSTOMER_ID = rows[0].id;
-  if (ACTIVE_CUSTOMER_ID) renderCustomerDetail(ACTIVE_CUSTOMER_ID).catch(console.error);
-}
-async function renderCustomerDetail(customerId) {
-  if (!customerDetailWrap) return;
-  const customer = CUSTOMERS_CACHE.find((c) => c.id === customerId);
-  if (!customer) {
-    customerDetailWrap.innerHTML = `<div class="muted">Select a customer to inspect the record.</div>`;
-    return;
-  }
-
-  const customerOrders = CRM_ORDERS_CACHE.filter((o) => o.customer_id === customerId).slice(0, 12);
-  const interactions = await fetchCustomerInteractions(customerId);
-  const customerPayments = PAYMENTS_CACHE.filter((p) => p.customer_id === customerId).slice(0, 12);
-
-  customerDetailWrap.innerHTML = `
-    <div class="detail-card">
-      <div class="kicker">Customer profile</div>
-      <div><strong>${escapeHtml(customer.name || "Unnamed customer")}</strong></div>
-      <div class="detail-copy">${escapeHtml(customer.email || "No email")}  |  ${escapeHtml(customer.phone || "No phone")}</div>
-      <div class="detail-copy">Preferred contact: ${escapeHtml(customer.preferred_contact || "email")}</div>
-      <div class="detail-copy">Lifetime value: ${formatUsd(customer.lifetime_value_cents || 0)}  |  Orders: ${escapeHtml(String(customer.order_count || 0))}</div>
-      <div class="detail-copy">Last touch: ${escapeHtml(customer.last_contact_at ? formatDateTime(customer.last_contact_at) : "Not recorded")}</div>
-      ${customer.email && TENANT_ID ? `
-      <div class="detail-copy" style="margin-top:8px;">
-        Customer portal link:
-        <button id="btnCopyPortalLink" class="btn btn-ghost btn-sm" type="button" style="margin-left:6px;">Copy link</button>
-        <span id="portalLinkCopied" style="display:none;font-size:.75rem;color:#4ade80;margin-left:6px;">Copied!</span>
-      </div>` : ''}
-    </div>
-
-    <div class="detail-card" style="margin-top:14px;">
-      <div class="kicker">Operator notes</div>
-      <textarea id="customerNotesInput" rows="4">${escapeHtml(customer.notes || "")}</textarea>
-      <div class="row" style="margin-top:10px;">
-        <button id="btnSaveCustomerNotes" class="btn btn-primary" type="button">Save notes</button>
-      </div>
-    </div>
-
-    <div class="grid two" style="margin-top:14px;">
-      <div class="card">
-        <div class="card-hd">
-          <strong>Recent orders</strong>
-          <span class="muted">Most recent first</span>
-        </div>
-        <div class="card-bd">
-          ${customerOrders.length ? `
-            <div class="list">
-              ${customerOrders.map((o) => `
-                <div class="list-item">
-                  <div class="li-main">
-                    <div class="li-title">${escapeHtml(o.status || "draft")}</div>
-                    <div class="li-sub muted">${escapeHtml(o.scheduled_date || "No scheduled date")}  |  ${escapeHtml(o.scheduled_time || "No time")}</div>
-                  </div>
-                  <div class="li-meta">
-                    <span class="pill pill-on">${formatUsd(o.total_cents || 0)}</span>
-                  </div>
-                </div>
-              `).join("")}
-            </div>
-          ` : `<div class="muted">No CRM orders for this customer yet.</div>`}
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="card-hd">
-          <strong>Payments</strong>
-          <span class="muted">Stripe will plug in here next.</span>
-        </div>
-        <div class="card-bd">
-          ${customerPayments.length ? `
-            <div class="list">
-              ${customerPayments.map((p) => `
-                <div class="list-item">
-                  <div class="li-main">
-                    <div class="li-title">${escapeHtml(p.status || "pending")}</div>
-                    <div class="li-sub muted">${escapeHtml(formatDateTime(p.created_at))}</div>
-                  </div>
-                  <div class="li-meta">
-                    <span class="pill pill-on">${formatUsd(p.amount_cents || 0)}</span>
-                  </div>
-                </div>
-              `).join("")}
-            </div>
-          ` : `<div class="muted">No payments recorded yet.</div>`}
-        </div>
-      </div>
-    </div>
-
-    <div class="card" style="margin-top:14px;">
-      <div class="card-hd">
-        <strong>Interaction timeline</strong>
-        <span class="muted">Capture live notes while you are on the phone.</span>
-      </div>
-      <div class="card-bd">
-        <div class="row">
-          <select id="customerInteractionType" style="max-width:200px;">
-            <option value="note">Note</option>
-            <option value="call">Call</option>
-            <option value="email">Email</option>
-            <option value="order">Order</option>
-            <option value="payment">Payment</option>
-          </select>
-          <input id="customerInteractionSummary" class="input" style="flex:1;max-width:none;" placeholder="What happened with this customer?" />
-          <button id="btnAddCustomerInteraction" class="btn btn-primary" type="button">Add interaction</button>
-        </div>
-
-        <div style="margin-top:14px;">
-          ${interactions.length ? `
-            <div class="list">
-              ${interactions.map((i) => `
-                <div class="list-item">
-                  <div class="li-main">
-                    <div class="li-title">${escapeHtml(i.type)}</div>
-                    <div class="li-sub muted">${escapeHtml(i.summary || "No summary")}</div>
-                  </div>
-                  <div class="li-meta">
-                    <span class="pill">${escapeHtml(formatDateTime(i.created_at))}</span>
-                  </div>
-                </div>
-              `).join("")}
-            </div>
-          ` : `<div class="muted">No interactions logged yet.</div>`}
-        </div>
-      </div>
-    </div>
-
-    ${customer.phone ? `
-    <div class="card" style="margin-top:14px;">
-      <div class="card-hd">
-        <strong>SMS</strong>
-        <span class="muted">Two-way text with ${escapeHtml(customer.name || "customer")}</span>
-      </div>
-      <div class="card-bd">
-        <div id="smsThread" style="max-height:280px;overflow-y:auto;margin-bottom:12px;"></div>
-        <div class="row" style="gap:8px;">
-          <input id="smsInput" type="text" style="flex:1;" placeholder="Type a message…" />
-          <button id="btnSendSms" class="btn btn-primary" type="button">Send</button>
-        </div>
-        <div id="smsMsg" class="msg"></div>
-      </div>
-    </div>` : ''}
-  `;
-
-  // Load SMS thread if customer has phone
-  if (customer.phone) {
-    (async () => {
-      try {
-        const tok = await getAccessToken();
-        const encoded = encodeURIComponent(customer.phone);
-        const res = await fetch(`/.netlify/functions/get-sms-thread?phone=${encoded}`, {
-          headers: { "Authorization": `Bearer ${tok}` },
-        });
-        const d = await res.json().catch(() => ({}));
-        const thread = $("smsThread");
-        if (!thread) return;
-        const msgs = d.messages || [];
-        if (!msgs.length) {
-          thread.innerHTML = `<p class="muted" style="font-size:.8rem;">No messages yet.</p>`;
-        } else {
-          thread.innerHTML = msgs.map((m) => {
-            const isOut = m.direction === 'outbound';
-            return `<div style="display:flex;justify-content:${isOut ? 'flex-end' : 'flex-start'};margin-bottom:6px;">
-              <div style="max-width:75%;background:${isOut ? '#c84b2f' : 'rgba(255,255,255,.08)'};border-radius:10px;padding:7px 12px;font-size:.83rem;line-height:1.4;">
-                ${escapeHtml(m.body || "")}
-                <div style="font-size:.7rem;opacity:.5;margin-top:3px;text-align:${isOut ? 'right' : 'left'};">${formatDateTime(m.created_at)}</div>
-              </div>
-            </div>`;
-          }).join('');
-          thread.scrollTop = thread.scrollHeight;
-        }
-      } catch (e) {
-        console.error("[SMS thread load]", e);
-      }
-    })();
-  }
-
-  $("btnCopyPortalLink")?.addEventListener("click", () => {
-    if (!customer.email || !TENANT_ID) return;
-    const link = `${location.origin}/portal.html?tenant=${encodeURIComponent(TENANT_ID)}&email=${encodeURIComponent(customer.email)}`;
-    navigator.clipboard.writeText(link).then(() => {
-      const copied = $("portalLinkCopied");
-      if (copied) { copied.style.display = "inline"; setTimeout(() => { copied.style.display = "none"; }, 2000); }
-    });
-  });
-
-  $("btnSendSms")?.addEventListener("click", async () => {
-    const btn  = $("btnSendSms");
-    const msg  = $("smsMsg");
-    const text = $("smsInput")?.value?.trim();
-    if (!text) return;
-    if (!customer.phone) return;
-    btn.disabled = true;
-    if (msg) { msg.textContent = ""; msg.className = "msg"; }
-    try {
-      const tok = await getAccessToken();
-      const res = await fetch("/.netlify/functions/send-sms", {
-        method : "POST",
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${tok}` },
-        body   : JSON.stringify({ to: customer.phone, body: text, customer_id: customerId }),
-      });
-      const d = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(d.error || "Failed to send");
-      const inp = $("smsInput");
-      if (inp) inp.value = "";
-      // Append sent message to thread
-      const thread = $("smsThread");
-      if (thread) {
-        thread.innerHTML += `<div style="display:flex;justify-content:flex-end;margin-bottom:6px;">
-          <div style="max-width:75%;background:#c84b2f;border-radius:10px;padding:7px 12px;font-size:.83rem;line-height:1.4;">
-            ${escapeHtml(text)}
-            <div style="font-size:.7rem;opacity:.5;margin-top:3px;text-align:right;">Just now</div>
-          </div>
-        </div>`;
-        thread.scrollTop = thread.scrollHeight;
-      }
-      if (msg) { msg.textContent = "✓ Message sent"; msg.className = "msg success"; setTimeout(() => { if (msg) { msg.textContent = ""; msg.className = "msg"; } }, 3000); }
-    } catch (err) {
-      if (msg) { msg.textContent = err.message || "Error sending."; msg.className = "msg error"; }
-    }
-    btn.disabled = false;
-  });
-
-  $("smsInput")?.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("btnSendSms")?.click(); }
-  });
-
-  $("btnSaveCustomerNotes")?.addEventListener("click", async () => {
-    const notes = $("customerNotesInput")?.value?.trim() || "";
-    const { data, error } = await sb.from("customers")
-      .update({ notes, updated_at: new Date().toISOString() })
-      .eq("id", customerId).eq(OPERATOR_COLUMN, opId()).eq(TENANT_COLUMN, TENANT_ID)
-      .select("*")
-      .single();
-
-    if (error) {
-      alert(error.message || String(error));
-      return;
-    }
-    CUSTOMERS_CACHE = CUSTOMERS_CACHE.map((c) => c.id === customerId ? data : c);
-    renderCustomersList(customerSearch?.value || "");
-  });
-
-  $("btnAddCustomerInteraction")?.addEventListener("click", async () => {
-    const type = $("customerInteractionType")?.value || "note";
-    const summary = $("customerInteractionSummary")?.value?.trim() || "";
-    if (!summary) return;
-
-    const { error } = await sb.from("customer_interactions").insert(withTenantScope({
-      operator_id: opId(),
-      customer_id: customerId,
-      type,
-      summary,
-      metadata: {},
-      created_at: new Date().toISOString(),
-    }));
-    if (error) {
-      alert(error.message || String(error));
-      return;
-    }
-
-    await sb.from("customers")
-      .update({ last_contact_at: new Date().toISOString(), updated_at: new Date().toISOString() })
-      .eq("id", customerId).eq(OPERATOR_COLUMN, opId()).eq(TENANT_COLUMN, TENANT_ID);
-
-    await fetchCustomers();
-    await renderCustomerDetail(customerId);
-    renderCustomersList(customerSearch?.value || "");
-  });
-}
 customerSearch?.addEventListener("input", () => renderCustomersList(customerSearch.value));
 btnRefreshCustomers?.addEventListener("click", async () => {
   try {
@@ -6031,29 +6002,6 @@ btnRefreshCustomers?.addEventListener("click", async () => {
   }
 });
 
-function renderPayments() {
-  if (!paymentsList) return;
-  paymentsList.innerHTML = PAYMENTS_CACHE.length ? "" : `<div class="muted">No payments recorded yet.</div>`;
-
-  PAYMENTS_CACHE.forEach((p) => {
-    const customer = CUSTOMERS_CACHE.find((c) => c.id === p.customer_id);
-    const order = CRM_ORDERS_CACHE.find((o) => o.id === p.order_id);
-
-    const el = document.createElement("div");
-    el.className = "list-item";
-    el.innerHTML = `
-      <div class="li-main">
-        <div class="li-title">${escapeHtml(customer?.name || "Customer")}</div>
-        <div class="li-sub muted">${escapeHtml(order?.status || "order")}  |  ${escapeHtml(formatDateTime(p.created_at))}</div>
-      </div>
-      <div class="li-meta">
-        <span class="pill">${escapeHtml(p.status || "pending")}</span>
-        <span class="pill pill-on">${formatUsd(p.amount_cents || 0)}</span>
-      </div>
-    `;
-    paymentsList.appendChild(el);
-  });
-}
 btnRefreshPayments?.addEventListener("click", async () => {
   try {
     await fetchPayments();
@@ -6684,6 +6632,19 @@ jobForm?.addEventListener("submit", async (e) => {
     setInlineMessage(jobMsg, "Job saved.", "ok");
   } catch (err) {
     setInlineMessage(jobMsg, err.message || String(err), "error");
+  }
+});
+// Hydrovac live preview
+['jobBillableHours','jobMinimumHours','jobTruckRate','jobOperatorRate',
+ 'jobAfterHoursMultiplier','jobMobilizationFee','jobDisposalCost'].forEach(id => {
+  $(id)?.addEventListener('input', updateHydrovacPreview);
+});
+// Auto-fill truck rate when equipment is selected
+jobEquipmentId?.addEventListener('change', () => {
+  const eq = EQUIPMENT_CACHE.find(e => e.id === jobEquipmentId.value);
+  if (eq?.hourly_rate_cents && jobTruckRate && !jobTruckRate.value) {
+    jobTruckRate.value = (eq.hourly_rate_cents / 100).toFixed(0);
+    updateHydrovacPreview();
   }
 });
 btnJobOpenOrder?.addEventListener("click", () => {
@@ -9550,6 +9511,20 @@ function clearJobForm() {
   if (jobSummary) jobSummary.value = "";
   if (jobNotes) jobNotes.value = "";
   setInlineMessage(jobMsg, "");
+  if (jobMainServiceType) { jobMainServiceType.value = ''; toggleHydrovacFields(''); }
+  if (jobServiceType)     jobServiceType.value = '';
+  if (jobEquipmentId)     jobEquipmentId.value = '';
+  if (jobBillableHours)   jobBillableHours.value = '';
+  if (jobMinimumHours)    jobMinimumHours.value = '2';
+  if (jobTravelHours)     jobTravelHours.value = '';
+  if (jobTruckRate)       jobTruckRate.value = '';
+  if (jobOperatorRate)    jobOperatorRate.value = '';
+  if (jobAfterHoursMultiplier) jobAfterHoursMultiplier.value = '1.0';
+  if (jobMobilizationFee) jobMobilizationFee.value = '';
+  if (jobDisposalVolume)  jobDisposalVolume.value = '';
+  if (jobDisposalCost)    jobDisposalCost.value = '';
+  if (jobDisposalSite)    jobDisposalSite.value = '';
+  if (jobDisposalManifest) jobDisposalManifest.value = '';
 }
 function populateJobForm(job) {
   if (!job) {
@@ -9568,6 +9543,23 @@ function populateJobForm(job) {
   if (jobScheduleWindow) jobScheduleWindow.value = job.schedule_window || "";
   if (jobSummary) jobSummary.value = job.summary || "";
   if (jobNotes) jobNotes.value = job.notes || "";
+  // Hydrovac fields
+  const svcType = job.service_type || '';
+  if (jobMainServiceType) { jobMainServiceType.value = svcType ? 'hydrovac' : ''; }
+  toggleHydrovacFields(svcType ? 'hydrovac' : '');
+  if (jobServiceType)          jobServiceType.value          = svcType;
+  if (jobEquipmentId)          renderEquipmentOptions(job.equipment_id || '');
+  if (jobBillableHours)        jobBillableHours.value        = job.billable_hours ?? '';
+  if (jobMinimumHours)         jobMinimumHours.value         = job.minimum_hours ?? '2';
+  if (jobTravelHours)          jobTravelHours.value          = job.travel_hours ?? '';
+  if (jobTruckRate)            jobTruckRate.value            = job.hourly_truck_rate_cents ? (job.hourly_truck_rate_cents / 100).toFixed(0) : '';
+  if (jobOperatorRate)         jobOperatorRate.value         = job.hourly_operator_rate_cents ? (job.hourly_operator_rate_cents / 100).toFixed(0) : '';
+  if (jobAfterHoursMultiplier) jobAfterHoursMultiplier.value = job.after_hours_multiplier ?? '1.0';
+  if (jobMobilizationFee)      jobMobilizationFee.value      = job.mobilization_fee_cents ? (job.mobilization_fee_cents / 100).toFixed(0) : '';
+  if (jobDisposalVolume)       jobDisposalVolume.value       = job.disposal_volume_m3 ?? '';
+  if (jobDisposalCost)         jobDisposalCost.value         = job.disposal_cost_cents ? (job.disposal_cost_cents / 100).toFixed(0) : '';
+  if (jobDisposalSite)         jobDisposalSite.value         = job.disposal_site ?? '';
+  if (jobDisposalManifest)     jobDisposalManifest.value     = job.disposal_manifest_number ?? '';
 }
 async function renderJobDetail(jobIdValue) {
   if (!jobDetailWrap) return;
@@ -9595,6 +9587,8 @@ async function renderJobDetail(jobIdValue) {
     .reduce((sum, expense) => sum + expenseAmountCents(expense), 0);
   const leftoverNotes = uniqList(trackedExpenses.flatMap((expense) => expenseLeftoverNotes(expense))).slice(0, 3);
   const wasteNotes = uniqList(trackedExpenses.flatMap((expense) => expenseWasteNotes(expense))).slice(0, 3);
+  const hvRev = calcHydrovacRevenueCents(job);
+  const hvBreakdown = hvRev !== null ? hydrovacRevenueBreakdownHtml(job) : null;
   jobDetailWrap.innerHTML = `
     <div class="detail-card">
       <div class="kicker">Execution summary</div>
@@ -9626,6 +9620,13 @@ async function renderJobDetail(jobIdValue) {
       <div class="row" style="margin-top:12px;">
         <button type="button" class="btn btn-ghost" data-job-cost-action="log" data-job-id="${escapeAttr(job.id)}">Log job cost</button>
       </div>
+      ${hvBreakdown ? `
+      <div class="job-detail-section" style="margin-top:12px;padding:12px;background:rgba(200,75,47,.06);border-radius:8px;border:1px solid rgba(200,75,47,.15);">
+        <div style="font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:rgba(255,255,255,.35);margin-bottom:6px;">Hydrovac billing</div>
+        ${hvBreakdown.html}
+        <div style="font-weight:700;margin-top:4px;">$${(hvBreakdown.total/100).toFixed(2)}</div>
+      </div>
+      ` : ''}
     </div>
     <div class="detail-card" style="margin-top:14px;">
       <div class="kicker">Linked work</div>
@@ -10207,6 +10208,19 @@ async function saveJobRecord(fields = {}) {
     summary: fields.summary || jobSummary?.value?.trim() || "",
     notes: fields.notes || jobNotes?.value?.trim() || "",
     assigned_operator_id: fields.assigned_operator_id || jobAssignedTo?.value || null,
+    service_type                : jobMainServiceType?.value === 'hydrovac' ? (jobServiceType?.value || 'hydrovac') : (jobMainServiceType?.value || null),
+    equipment_id                : jobEquipmentId?.value || null,
+    billable_hours              : jobBillableHours?.value ? parseFloat(jobBillableHours.value) : null,
+    minimum_hours               : jobMinimumHours?.value ? parseFloat(jobMinimumHours.value) : 2,
+    travel_hours                : jobTravelHours?.value ? parseFloat(jobTravelHours.value) : 0,
+    hourly_truck_rate_cents     : jobTruckRate?.value ? Math.round(parseFloat(jobTruckRate.value) * 100) : 0,
+    hourly_operator_rate_cents  : jobOperatorRate?.value ? Math.round(parseFloat(jobOperatorRate.value) * 100) : 0,
+    after_hours_multiplier      : jobAfterHoursMultiplier?.value ? parseFloat(jobAfterHoursMultiplier.value) : 1.0,
+    mobilization_fee_cents      : jobMobilizationFee?.value ? Math.round(parseFloat(jobMobilizationFee.value) * 100) : 0,
+    disposal_volume_m3          : jobDisposalVolume?.value ? parseFloat(jobDisposalVolume.value) : null,
+    disposal_cost_cents         : jobDisposalCost?.value ? Math.round(parseFloat(jobDisposalCost.value) * 100) : 0,
+    disposal_site               : jobDisposalSite?.value || null,
+    disposal_manifest_number    : jobDisposalManifest?.value || null,
     updated_at: nowIso,
   });
   if (!payload.order_id) throw new Error("Link the job to an order before saving it.");
@@ -12892,7 +12906,7 @@ $("btnCopyBookingLink")?.addEventListener("click", async () => {
 });
 
 // ── Sidebar More toggle ────────────────────────────────────────────────────────
-const SECONDARY_TABS = new Set(['bids','jobs','quotes','plans','reviews','expenses','money','guidance','products','pricing','availability','setup','domains','import','team','vendors','inventory','contracts']);
+const SECONDARY_TABS = new Set(['bids','jobs','quotes','plans','reviews','expenses','money','guidance','products','pricing','availability','setup','domains','import','team','vendors','inventory','contracts','equipment']);
 
 $("btnSidebarMore")?.addEventListener("click", () => {
   const more = $("sidebarMore");

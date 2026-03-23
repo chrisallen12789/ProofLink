@@ -396,6 +396,26 @@
         "Track material usage and leftovers against the job",
       ],
     },
+    hydrovac: {
+      label: 'Hydrovac / Vactor',
+      family: 'field_service',
+      bidProfile: 'contractor_remodeling',
+      workspaceMode: 'job_execution',
+      inventoryModel: 'truck_stock_and_disposal',
+      priorityViews: ['jobs', 'orders', 'customers', 'equipment'],
+      hiddenByDefault: ['products', 'plans'],
+      defaultFeatures: {
+        bookingPage: false,
+        onlinePayments: true,
+        recurringPlans: false,
+        jobTracking: true,
+        timeTracking: true,
+        expenseTracking: true,
+        inventory: true,
+        equipment: true,
+        hydrovacFields: true,
+      },
+    },
     property_maintenance: {
       key: "property_maintenance",
       label: "Property Maintenance",
@@ -440,6 +460,7 @@
     contractor_remodeling: "contractor",
     general_service: "service_business",
     service: "service_business",
+    vactor: "hydrovac",
   };
 
   function dedupe(values) {
