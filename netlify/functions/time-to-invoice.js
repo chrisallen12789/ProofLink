@@ -59,7 +59,6 @@ exports.handler = async (event) => {
     const durationHours = (e.duration_minutes || 0) / 60;
     const qty = Math.round(durationHours * 100) / 100; // 2 decimal places
     const unitPriceCents = e.hourly_rate_cents || 0;
-    const lineTotalCents = Math.round(qty * unitPriceCents);
     return {
       tenant_id       : tenantId,
       order_id,

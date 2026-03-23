@@ -9,7 +9,7 @@
 const twilio      = require('twilio');
 const querystring = require('querystring');
 const { getAdminClient, respond } = require('./utils/auth');
-const { sendEmail, templates }    = require('./utils/email');
+const { sendEmail }               = require('./utils/email');
 const { getConfiguredSiteUrl }    = require('./utils/runtime-config');
 
 function validateTwilio(event) {

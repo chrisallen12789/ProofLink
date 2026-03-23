@@ -40,7 +40,7 @@ const HIGH_RISK_WRITE_TOOLS = new Set([
  * Returns { allowed: boolean, reason: string, requiresApproval: boolean }
  */
 function evaluateToolCall(toolName, context) {
-  const { tenantId, operatorId, agentMode } = context;
+  const { tenantId, operatorId, agentMode: _agentMode } = context;
 
   if (!tenantId || !operatorId) {
     return { allowed: false, reason: 'Missing tenant or operator context', requiresApproval: false };

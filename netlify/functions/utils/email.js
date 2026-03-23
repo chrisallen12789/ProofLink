@@ -503,7 +503,7 @@ const templates = {
     };
   },
 
-  quoteAccepted({ customer_name, customer_email, business_name, title, amount, amount_cents, order_id, portal_url, signature }) {
+  quoteAccepted({ customer_name, customer_email, business_name, title, amount, amount_cents, order_id: _order_id, portal_url, signature }) {
     const formattedAmount = typeof amount === 'number'
       ? `$${amount.toFixed(2)}`
       : (amount_cents ? `$${(Number(amount_cents) / 100).toFixed(2)}` : 'See order');
@@ -556,7 +556,7 @@ const templates = {
     };
   },
 
-  bidProposal({ customer_name, customer_email, business_name, title, project_summary, scope_of_work, total_cents, valid_until, cover_note, proposal_url }) {
+  bidProposal({ customer_name, customer_email, business_name, title, project_summary, scope_of_work, total_cents, valid_until, cover_note, proposal_url: _proposal_url }) {
     const fmt = total_cents != null ? '$' + (total_cents / 100).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',') : null;
     const validStr = valid_until
       ? new Date(valid_until).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
@@ -582,7 +582,7 @@ const templates = {
     };
   },
 
-  invoiceEmail({ customer_name, customer_email, business_name, order_id, order_title, title, description, total_amount, total_cents, amount_cents, status, created_at, portal_url, invoice_number, due_date, payment_url, logo_url, line_items = [] }) {
+  invoiceEmail({ customer_name: _customer_name, customer_email, business_name, order_id, order_title, title, description, total_amount, total_cents, amount_cents, status: _status, created_at, portal_url, invoice_number, due_date, payment_url, logo_url, line_items = [] }) {
     const resolvedCents = amount_cents != null ? amount_cents : total_cents;
     const n = resolvedCents != null ? resolvedCents / 100 : Number(total_amount || 0);
     const fmt = isNaN(n) || !n ? null : '$' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
@@ -634,7 +634,7 @@ const templates = {
     };
   },
 
-  packageConfirmationEmail({ business_name, customer_name, customer_email, package_title, sessions_total, valid_until, amount_cents, logo_url, booking_url }) {
+  packageConfirmationEmail({ business_name: _business_name, customer_name, customer_email, package_title, sessions_total, valid_until, amount_cents, logo_url, booking_url }) {
     const fmtMoney = (cents) => cents != null ? '$' + (Number(cents) / 100).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',') : null;
     const amountStr = fmtMoney(amount_cents);
     const validStr = valid_until
@@ -671,7 +671,7 @@ const templates = {
     };
   },
 
-  retainerInvoiceEmail({ business_name, customer_name, customer_email, retainer_title, amount_cents, period_label, invoice_number, payment_url, logo_url }) {
+  retainerInvoiceEmail({ business_name: _business_name, customer_name, customer_email, retainer_title, amount_cents, period_label, invoice_number, payment_url, logo_url }) {
     const fmtMoney = (cents) => cents != null ? '$' + (Number(cents) / 100).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',') : null;
     const amountStr = fmtMoney(amount_cents);
     return {
@@ -721,10 +721,10 @@ function retainerInvoiceEmail(opts)     { return templates.retainerInvoiceEmail(
 // These are exported separately so agent/orchestrator layers can use them without
 // going through the templates object.
 module.exports.buildInvoiceHtml = function buildInvoiceHtml({
-  business_name, customer_name, customer_email, order_id, title, description,
+  business_name, customer_name: _customer_name, customer_email: _customer_email, order_id, title, description,
   total_amount, total_cents, status, created_at, portal_url,
 }) {
-  const fmt = (v) => {
+  const fmt = (_v) => {
     const n = total_cents != null ? total_cents / 100 : Number(total_amount || 0);
     return isNaN(n) ? '—' : '$' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   };

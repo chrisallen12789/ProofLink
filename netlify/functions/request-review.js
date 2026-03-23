@@ -16,7 +16,7 @@ exports.handler = async (event) => {
   try { ctx = await requireOperatorContext(event); }
   catch (err) { return respond(err.statusCode || 401, { error: err.message }); }
 
-  const { supabase, operatorId, tenantId } = ctx;
+  const { supabase, operatorId: _operatorId, tenantId } = ctx;
 
   let body;
   try { body = JSON.parse(event.body || '{}'); }

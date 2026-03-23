@@ -134,7 +134,7 @@ function buildDraftPrompt(draftType, context, extras = {}) {
 You are in DRAFT MODE. You are writing a message on behalf of the operator. The operator MUST review and edit this draft before sending. Label it clearly as a draft.`;
 
   if (draftType === 'invoice_followup') {
-    const { customer_name, order_title, amount, status, days_overdue, business_name } = extras;
+    const { customer_name, order_title, amount, status: _status, days_overdue, business_name } = extras;
     const amtStr = typeof amount === 'number' ? fmtMoney(amount) : (amount || 'the outstanding amount');
     // Fall back to context data if extras are sparse
     const nameStr = customer_name || (context.unpaid_orders?.[0]?.customer_name) || 'the customer';

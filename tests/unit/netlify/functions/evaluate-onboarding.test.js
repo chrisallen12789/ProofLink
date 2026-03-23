@@ -49,7 +49,7 @@ function createSupabaseMock() {
         return { data: null, error: null };
       }),
       single: vi.fn(async () => {
-        if (table === "onboarding_requests") return { data: requestRow, error: null };
+        if (table === "onboarding_requests" || table === "tenant_onboarding_requests") return { data: requestRow, error: null };
         return { data: null, error: new Error(`Unexpected single() table: ${table}`) };
       }),
       update: vi.fn(() => ({

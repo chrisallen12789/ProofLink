@@ -63,7 +63,7 @@ exports.handler = async function handler(event) {
   }
 
   // Look up tenant
-  const { data: tenant } = await supabase
+  const { data: _tenant } = await supabase
     .from('tenants')
     .select('name, email')
     .eq('id', quote.tenant_id)

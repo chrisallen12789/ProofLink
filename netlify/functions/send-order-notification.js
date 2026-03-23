@@ -3,7 +3,7 @@
 
 'use strict';
 
-const { requireOperatorContext, getAdminClient, respond } = require('./utils/auth');
+const { requireOperatorContext, respond } = require('./utils/auth');
 const { sendEmail, templates } = require('./utils/email');
 const { getConfiguredSiteUrl } = require('./utils/runtime-config');
 

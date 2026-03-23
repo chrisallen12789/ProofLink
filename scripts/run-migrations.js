@@ -19,16 +19,6 @@ const sb = createClient(SUPABASE_URL, SERVICE_KEY, {
   auth: { autoRefreshToken: false, persistSession: false },
 });
 
-async function runSql(label, sql) {
-  const { error } = await sb.rpc('exec_migration', { sql });
-  if (error && error.code !== 'PGRST202') {
-    console.error(`❌  ${label}:`, error.message);
-    return false;
-  }
-  // If exec_migration doesn't exist, fall through to direct approach
-  return true;
-}
-
 const MIGRATIONS = [
   // ── Orders extra columns ──────────────────────────────────────────────────
   `ALTER TABLE orders ADD COLUMN IF NOT EXISTS review_requested_at timestamptz`,

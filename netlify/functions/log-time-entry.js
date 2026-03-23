@@ -30,7 +30,7 @@ exports.handler = async (event) => {
     description,
     started_at,
     ended_at,
-    duration_minutes: durationInput,
+    duration_minutes: _duration_minutes,
     billable         = true,
     hourly_rate_cents = 0,
   } = body;
