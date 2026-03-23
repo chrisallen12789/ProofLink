@@ -16,6 +16,11 @@ const PRECACHE = [
   '/crew/',
   '/crew/index.html',
   '/crew/crew.js',
+  // Operator app shell
+  '/operator/',
+  '/operator/index.html',
+  '/operator/operator.js',
+  '/operator/operator.css',
 ];
 
 // Install — cache the app shell
@@ -103,6 +108,23 @@ self.addEventListener('fetch', (event) => {
 
   // Crew app shell — cache-first so the field app loads fully offline
   if (url.pathname.startsWith('/crew/')) {
+    event.respondWith(
+      caches.match(request).then((cached) => {
+        if (cached) return cached;
+        return fetch(request).then((response) => {
+          if (response.ok) {
+            const clone = response.clone();
+            caches.open(CACHE).then((cache) => cache.put(request, clone));
+          }
+          return response;
+        });
+      })
+    );
+    return;
+  }
+
+  // Operator app shell — cache-first so the operator UI loads fully offline
+  if (url.pathname.startsWith('/operator/')) {
     event.respondWith(
       caches.match(request).then((cached) => {
         if (cached) return cached;

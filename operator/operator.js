@@ -31,6 +31,10 @@ function getOperatorRedirectUrl() {
   return new URL(redirectPath, window.location.origin).toString();
 }
 
+const FETCH_OFFSETS = { orders: 0, customers: 0, jobs: 0, payments: 0, bids: 0 };
+const PAGE_SIZE = 50;
+let ORDERS_TOTAL_COUNT = 0;
+let CUSTOMERS_TOTAL_COUNT = 0;
 let PRODUCTS_CACHE = [];
 let EXPENSES_CACHE = [];
 let CUSTOMERS_CACHE = [];
@@ -48,6 +52,8 @@ let AVAILABILITY = null;
 let CURRENT_OPERATOR = null;
 let BOOTING = false;
 const TABS_LOADED = new Set();
+const FETCHING = new Set();
+let _tabAbortController = null;
 window.PROOFLINK_BOOT_READY = false;
 // Tracks which password-setup flow is active: "reset" | "first-time" | null
 let passwordSetupMode = null;
@@ -759,6 +765,13 @@ function cleanUrl(value) {
 }
 function money(cents) { return (Number(cents || 0) / 100).toFixed(2); }
 function formatUsd(cents) { return `$${money(cents)}`; }
+function debounce(fn, delay = 300) {
+  let timer;
+  return (...args) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn(...args), delay);
+  };
+}
 function toCents(numStr) { return Math.round(Number(numStr || 0) * 100); }
 function safeFilename(name) { return String(name || "file").trim().toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9._-]/g, ""); }
 function yyyymm(date = new Date()) { return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`; }
@@ -2440,6 +2453,8 @@ function currentPanel() {
   return panelFromLocation();
 }
 function switchTab(tab, opts = {}) {
+  if (_tabAbortController) { _tabAbortController.abort(); }
+  _tabAbortController = new AbortController();
   const nextTab = normalizePanel(tab);
   ensureSecondaryTabVisible?.(nextTab);
   const activeTab = document.querySelector(".tab.active")?.dataset.tab || "dashboard";
@@ -2881,15 +2896,21 @@ async function requireOperatorContext() {
 }
 
 async function fetchProducts() {
-  const { data, error } = await scopeQuery(sb
-    .from("products")
-    .select("*"))
-    .order("sort_order", { ascending: true })
-    .order("name", { ascending: true });
+  if (FETCHING.has('products')) return;
+  FETCHING.add('products');
+  try {
+    const { data, error } = await scopeQuery(sb
+      .from("products")
+      .select("*"))
+      .order("sort_order", { ascending: true })
+      .order("name", { ascending: true });
 
-  if (error) throw error;
-  PRODUCTS_CACHE = data || [];
-  return PRODUCTS_CACHE;
+    if (error) throw error;
+    PRODUCTS_CACHE = data || [];
+    return PRODUCTS_CACHE;
+  } finally {
+    FETCHING.delete('products');
+  }
 }
 function renderProductsList(filter = "") {
   const q = String(filter || "").trim().toLowerCase();
@@ -3024,7 +3045,7 @@ function pricingAmountForUi(productRow) {
 productName?.addEventListener("input", () => {
   if (!productId.value) productSlug.value = slugify(productName.value);
 });
-productSearch?.addEventListener("input", () => renderProductsList(productSearch.value));
+productSearch?.addEventListener("input", debounce(() => renderProductsList(productSearch.value)));
 btnRefreshProducts?.addEventListener("click", async () => {
   try {
     await fetchProducts();
@@ -3401,14 +3422,25 @@ btnRefreshPricing?.addEventListener("click", async () => {
 });
 
 async function fetchExpenses() {
-  const { data, error } = await scopeQuery(sb
-    .from("expenses")
-    .select("*"))
-    .order("date", { ascending: false })
-    .limit(250);
-  if (error) throw error;
-  EXPENSES_CACHE = data || [];
-  return EXPENSES_CACHE;
+  if (FETCHING.has('expenses')) return;
+  FETCHING.add('expenses');
+  try {
+    const { data, error } = await scopeQuery(sb
+      .from("expenses")
+      .abortSignal(_tabAbortController?.signal)
+      .select("*"))
+      .order("date", { ascending: false })
+      .limit(250);
+    if (error) {
+      if (error.name === 'AbortError' || error.message?.includes('abort')) return;
+      console.error('[fetchExpenses]', error);
+      return;
+    }
+    EXPENSES_CACHE = data || [];
+    return EXPENSES_CACHE;
+  } finally {
+    FETCHING.delete('expenses');
+  }
 }
 function renderExpenseCustomerOptions(selectedCustomerId = "") {
   if (!expenseCustomerId) return;
@@ -4204,18 +4236,28 @@ btnSaveAvailability?.addEventListener("click", async () => {
 // ── Bookings ─────────────────────────────────────────────────────────────────
 
 async function fetchBookings() {
-  const tok = await getAccessToken();
-  const year  = BK_VIEW_DATE.getFullYear();
-  const month = BK_VIEW_DATE.getMonth();
-  const start = new Date(year, month, 1).toISOString().slice(0, 10);
-  const end   = new Date(year, month + 1, 0).toISOString().slice(0, 10);
-  const res = await fetch(`/.netlify/functions/get-bookings?start=${start}&end=${end}`, {
-    headers: { "Authorization": `Bearer ${tok}` },
-  });
-  const d = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(d.error || "Failed to fetch bookings");
-  BOOKINGS_CACHE = (d.bookings || []).filter((b) => !b.is_deleted);
-  return BOOKINGS_CACHE;
+  if (FETCHING.has('bookings')) return;
+  FETCHING.add('bookings');
+  try {
+    const tok = await getAccessToken();
+    const year  = BK_VIEW_DATE.getFullYear();
+    const month = BK_VIEW_DATE.getMonth();
+    const start = new Date(year, month, 1).toISOString().slice(0, 10);
+    const end   = new Date(year, month + 1, 0).toISOString().slice(0, 10);
+    const res = await fetch(`/.netlify/functions/get-bookings?start=${start}&end=${end}`, {
+      headers: { "Authorization": `Bearer ${tok}` },
+      signal: _tabAbortController?.signal,
+    });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(d.error || "Failed to fetch bookings");
+    BOOKINGS_CACHE = (d.bookings || []).filter((b) => !b.is_deleted);
+    return BOOKINGS_CACHE;
+  } catch (err) {
+    if (err.name === 'AbortError' || err.message?.includes('abort')) return;
+    throw err;
+  } finally {
+    FETCHING.delete('bookings');
+  }
 }
 
 async function fetchOperatorMembers() {
@@ -5337,65 +5379,66 @@ function renderBookingsList(bookings) {
         ${bk.notes ? `<div style="font-size:.78rem;color:rgba(255,255,255,.35);margin-top:2px;white-space:pre-wrap;">${escapeHtml(bk.notes.slice(0, 120))}${bk.notes.length > 120 ? '…' : ''}</div>` : ''}
       </div>
       <span style="font-size:.75rem;padding:3px 8px;background:rgba(255,255,255,.06);border-radius:12px;color:${statusColor};white-space:nowrap;">${bk.status || "confirmed"}</span>
-      ${bk.customer_email && !['cancelled','completed','no_show'].includes(bk.status) && bk.starts_at && new Date(bk.starts_at) > new Date() ? `<button class="btn btn-ghost btn-sm bk-remind-btn" data-id="${bk.id}" type="button" title="Send reminder email" style="white-space:nowrap;">Remind</button>` : ''}
-      <button class="btn btn-ghost btn-sm bk-cancel-btn" data-id="${bk.id}" type="button" ${bk.status === 'cancelled' ? 'disabled' : ''} style="white-space:nowrap;">Cancel</button>
-      <button class="btn btn-ghost btn-sm bk-detail-btn" data-id="${bk.id}" type="button" style="white-space:nowrap;">Details</button>
+      ${bk.customer_email && !['cancelled','completed','no_show'].includes(bk.status) && bk.starts_at && new Date(bk.starts_at) > new Date() ? `<button class="btn btn-ghost btn-sm bk-remind-btn" data-action="remind" data-booking-id="${bk.id}" type="button" title="Send reminder email" style="white-space:nowrap;">Remind</button>` : ''}
+      <button class="btn btn-ghost btn-sm bk-cancel-btn" data-action="cancel" data-booking-id="${bk.id}" type="button" ${bk.status === 'cancelled' ? 'disabled' : ''} style="white-space:nowrap;">Cancel</button>
+      <button class="btn btn-ghost btn-sm bk-detail-btn" data-action="detail" data-booking-id="${bk.id}" type="button" style="white-space:nowrap;">Details</button>
     </div>`;
   }).join('');
 
-  list.querySelectorAll(".bk-cancel-btn").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      if (!confirm("Cancel this booking?")) return;
-      btn.disabled = true;
-      try {
-        const tok = await getAccessToken();
-        const res = await fetch("/.netlify/functions/update-booking", {
-          method : "PATCH",
-          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${tok}` },
-          body   : JSON.stringify({ id: btn.dataset.id, status: "cancelled" }),
-        });
-        if (!res.ok) throw new Error("Failed to cancel");
-        await fetchBookings();
-        renderBookingsCalendar(BOOKINGS_CACHE);
-        renderBookingsList(BOOKINGS_CACHE);
-        const lbl = $("bkListLabel");
-        if (lbl) lbl.textContent = "Upcoming appointments";
-      } catch (err) {
-        alert(err.message || "Error cancelling booking");
-        btn.disabled = false;
+  if (!list._delegated) {
+    list._delegated = true;
+    list.addEventListener('click', async (e) => {
+      const btn = e.target.closest('[data-action]');
+      if (!btn) return;
+      const bookingId = btn.dataset.bookingId;
+      const action = btn.dataset.action;
+      if (action === 'cancel') {
+        if (!confirm("Cancel this booking?")) return;
+        btn.disabled = true;
+        try {
+          const tok = await getAccessToken();
+          const res = await fetch("/.netlify/functions/update-booking", {
+            method : "PATCH",
+            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${tok}` },
+            body   : JSON.stringify({ id: bookingId, status: "cancelled" }),
+          });
+          if (!res.ok) throw new Error("Failed to cancel");
+          await fetchBookings();
+          renderBookingsCalendar(BOOKINGS_CACHE);
+          renderBookingsList(BOOKINGS_CACHE);
+          const lbl = $("bkListLabel");
+          if (lbl) lbl.textContent = "Upcoming appointments";
+        } catch (err) {
+          alert(err.message || "Error cancelling booking");
+          btn.disabled = false;
+        }
+      }
+      if (action === 'detail') {
+        const bk = BOOKINGS_CACHE.find((b) => b.id === bookingId);
+        if (bk) showBookingDetail(bk);
+      }
+      if (action === 'remind') {
+        btn.disabled = true;
+        btn.textContent = "Sending…";
+        try {
+          const tok = await getAccessToken();
+          const res = await fetch("/.netlify/functions/send-booking-reminder", {
+            method : "POST",
+            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${tok}` },
+            body   : JSON.stringify({ booking_id: bookingId }),
+          });
+          const d = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(d.error || "Failed to send reminder");
+          btn.textContent = "Sent ✓";
+          setTimeout(() => { btn.textContent = "Remind"; btn.disabled = false; }, 3000);
+        } catch (err) {
+          alert(err.message || "Error sending reminder");
+          btn.textContent = "Remind";
+          btn.disabled = false;
+        }
       }
     });
-  });
-
-  list.querySelectorAll(".bk-detail-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const bk = bookings.find((b) => b.id === btn.dataset.id);
-      if (bk) showBookingDetail(bk);
-    });
-  });
-
-  list.querySelectorAll(".bk-remind-btn").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      btn.disabled = true;
-      btn.textContent = "Sending…";
-      try {
-        const tok = await getAccessToken();
-        const res = await fetch("/.netlify/functions/send-booking-reminder", {
-          method : "POST",
-          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${tok}` },
-          body   : JSON.stringify({ booking_id: btn.dataset.id }),
-        });
-        const d = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(d.error || "Failed to send reminder");
-        btn.textContent = "Sent ✓";
-        setTimeout(() => { btn.textContent = "Remind"; btn.disabled = false; }, 3000);
-      } catch (err) {
-        alert(err.message || "Error sending reminder");
-        btn.textContent = "Remind";
-        btn.disabled = false;
-      }
-    });
-  });
+  }
 }
 
 async function renderBookings() {
@@ -5760,17 +5803,44 @@ $("btnSaveBooking")?.addEventListener("click", async () => {
 // ── End Bookings ─────────────────────────────────────────────────────────────
 
 async function fetchCustomers() {
-  const { data, error } = await scopeQuery(sb
-    .from("customers")
-    .select("*"))
-    .eq('is_deleted', false)
-    .order("lifetime_value_cents", { ascending: false })
-    .order("updated_at", { ascending: false });
+  if (FETCHING.has('customers')) return;
+  FETCHING.add('customers');
+  try {
+    const { count, error: countError } = await scopeQuery(sb
+      .from("customers")
+      .select('*', { count: 'exact', head: true }))
+      .eq('is_deleted', false);
+    if (countError) {
+      if (countError.name === 'AbortError' || countError.message?.includes('abort')) return;
+      console.error('[fetchCustomers count]', countError);
+    } else {
+      CUSTOMERS_TOTAL_COUNT = count || 0;
+    }
 
-  if (error) throw error;
-  CUSTOMERS_CACHE = data || [];
-  TABS_LOADED.delete('customers');
-  return CUSTOMERS_CACHE;
+    const { data, error } = await scopeQuery(sb
+      .from("customers")
+      .abortSignal(_tabAbortController?.signal)
+      .select("*"))
+      .eq('is_deleted', false)
+      .order("lifetime_value_cents", { ascending: false })
+      .order("updated_at", { ascending: false })
+      .range(FETCH_OFFSETS.customers, FETCH_OFFSETS.customers + PAGE_SIZE - 1);
+
+    if (error) {
+      if (error.name === 'AbortError' || error.message?.includes('abort')) return;
+      console.error('[fetchCustomers]', error);
+      return;
+    }
+    if (FETCH_OFFSETS.customers === 0) {
+      CUSTOMERS_CACHE = data || [];
+    } else {
+      CUSTOMERS_CACHE = [...CUSTOMERS_CACHE, ...(data || [])];
+    }
+    TABS_LOADED.delete('customers');
+    return CUSTOMERS_CACHE;
+  } finally {
+    FETCHING.delete('customers');
+  }
 }
 async function fetchCustomerInteractions(customerId) {
   const { data, error } = await scopeQuery(sb
@@ -5805,99 +5875,165 @@ async function logCustomerInteraction(customerId, type, summary, metadata = {}) 
   return nowIso;
 }
 async function fetchLeads() {
-  const { data, error } = await scopeQuery(sb
-    .from("leads")
-    .select("*"))
-    .order("updated_at", { ascending: false })
-    .order("created_at", { ascending: false })
-    .limit(250);
+  if (FETCHING.has('leads')) return;
+  FETCHING.add('leads');
+  try {
+    const { data, error } = await scopeQuery(sb
+      .from("leads")
+      .select("*"))
+      .order("updated_at", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(250);
 
-  if (error) {
-    if (isMissingDatabaseFeatureError(error, ["leads"])) {
-      LEADS_CACHE = [];
-      return LEADS_CACHE;
+    if (error) {
+      if (isMissingDatabaseFeatureError(error, ["leads"])) {
+        LEADS_CACHE = [];
+        return LEADS_CACHE;
+      }
+      throw error;
     }
-    throw error;
+    LEADS_CACHE = data || [];
+    return LEADS_CACHE;
+  } finally {
+    FETCHING.delete('leads');
   }
-  LEADS_CACHE = data || [];
-  return LEADS_CACHE;
 }
 async function fetchCrmOrders() {
-  let query = scopeQuery(sb
-    .from("orders")
-    .select("*"))
-    .eq('is_deleted', false)
-    .order("created_at", { ascending: false })
-    .limit(250);
+  if (FETCHING.has('orders')) return;
+  FETCHING.add('orders');
+  try {
+    const { count, error: countError } = await scopeQuery(sb
+      .from("orders")
+      .select('*', { count: 'exact', head: true }))
+      .eq('is_deleted', false);
+    if (countError) {
+      if (countError.name === 'AbortError' || countError.message?.includes('abort')) return;
+      console.error('[fetchCrmOrders count]', countError);
+    } else {
+      ORDERS_TOTAL_COUNT = count || 0;
+    }
 
-  const { data, error } = await query;
-  if (error) throw error;
-  CRM_ORDERS_CACHE = data || [];
-  TABS_LOADED.delete('orders');
-  return CRM_ORDERS_CACHE;
+    const { data, error } = await scopeQuery(sb
+      .from("orders")
+      .abortSignal(_tabAbortController?.signal)
+      .select("*"))
+      .eq('is_deleted', false)
+      .order("created_at", { ascending: false })
+      .range(FETCH_OFFSETS.orders, FETCH_OFFSETS.orders + PAGE_SIZE - 1);
+
+    if (error) {
+      if (error.name === 'AbortError' || error.message?.includes('abort')) return;
+      console.error('[fetchCrmOrders]', error);
+      return;
+    }
+    if (FETCH_OFFSETS.orders === 0) {
+      CRM_ORDERS_CACHE = data || [];
+    } else {
+      CRM_ORDERS_CACHE = [...CRM_ORDERS_CACHE, ...(data || [])];
+    }
+    TABS_LOADED.delete('orders');
+    return CRM_ORDERS_CACHE;
+  } finally {
+    FETCHING.delete('orders');
+  }
 }
 async function fetchPersistedBids() {
-  const { data, error } = await scopeQuery(sb
-    .from("bids")
-    .select("*"))
-    .order("updated_at", { ascending: false })
-    .limit(250);
+  if (FETCHING.has('bids')) return;
+  FETCHING.add('bids');
+  try {
+    const { data, error } = await scopeQuery(sb
+      .from("bids")
+      .abortSignal(_tabAbortController?.signal)
+      .select("*"))
+      .order("updated_at", { ascending: false })
+      .limit(250);
 
-  if (error) {
-    if (isMissingDatabaseFeatureError(error, ["bids"])) return [];
-    throw error;
+    if (error) {
+      if (error.name === 'AbortError' || error.message?.includes('abort')) return;
+      if (isMissingDatabaseFeatureError(error, ["bids"])) return [];
+      console.error('[fetchPersistedBids]', error);
+      return;
+    }
+    return data || [];
+  } finally {
+    FETCHING.delete('bids');
   }
-  return data || [];
 }
 async function fetchPayments() {
-  const { data, error } = await scopeQuery(sb
-    .from("payments")
-    .select("*"))
-    .order("created_at", { ascending: false })
-    .limit(250);
+  if (FETCHING.has('payments')) return;
+  FETCHING.add('payments');
+  try {
+    const { data, error } = await scopeQuery(sb
+      .from("payments")
+      .abortSignal(_tabAbortController?.signal)
+      .select("*"))
+      .order("created_at", { ascending: false })
+      .limit(250);
 
-  if (error) throw error;
-  PAYMENTS_CACHE = data || [];
-  return PAYMENTS_CACHE;
+    if (error) {
+      if (error.name === 'AbortError' || error.message?.includes('abort')) return;
+      console.error('[fetchPayments]', error);
+      return;
+    }
+    PAYMENTS_CACHE = data || [];
+    return PAYMENTS_CACHE;
+  } finally {
+    FETCHING.delete('payments');
+  }
 }
 async function fetchJobs() {
-  const { data, error } = await scopeQuery(sb
-    .from("jobs")
-    .select("*"))
-    .order("updated_at", { ascending: false })
-    .order("created_at", { ascending: false })
-    .limit(250);
+  if (FETCHING.has('jobs')) return;
+  FETCHING.add('jobs');
+  try {
+    const { data, error } = await scopeQuery(sb
+      .from("jobs")
+      .abortSignal(_tabAbortController?.signal)
+      .select("*"))
+      .order("updated_at", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(250);
 
-  if (error) {
-    if (isMissingDatabaseFeatureError(error, ["jobs"])) {
-      JOBS_CACHE = [];
-      return JOBS_CACHE;
+    if (error) {
+      if (error.name === 'AbortError' || error.message?.includes('abort')) return;
+      if (isMissingDatabaseFeatureError(error, ["jobs"])) {
+        JOBS_CACHE = [];
+        return JOBS_CACHE;
+      }
+      console.error('[fetchJobs]', error);
+      return;
     }
-    throw error;
+    JOBS_CACHE = data || [];
+    TABS_LOADED.delete('jobs');
+    return JOBS_CACHE;
+  } finally {
+    FETCHING.delete('jobs');
   }
-  JOBS_CACHE = data || [];
-  TABS_LOADED.delete('jobs');
-  return JOBS_CACHE;
 }
 async function fetchServicePlans() {
-  const { data, error } = await scopeQuery(sb
-    .from("service_plans")
-    .select("*"))
-    .order("updated_at", { ascending: false })
-    .order("created_at", { ascending: false })
-    .limit(250);
+  if (FETCHING.has('service_plans')) return;
+  FETCHING.add('service_plans');
+  try {
+    const { data, error } = await scopeQuery(sb
+      .from("service_plans")
+      .select("*"))
+      .order("updated_at", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(250);
 
-  if (error) {
-    if (isMissingDatabaseFeatureError(error, ["service_plans"])) {
-      SERVICE_PLANS_CACHE = [];
-      SERVICE_PLANS_FEATURE_READY = false;
-      return SERVICE_PLANS_CACHE;
+    if (error) {
+      if (isMissingDatabaseFeatureError(error, ["service_plans"])) {
+        SERVICE_PLANS_CACHE = [];
+        SERVICE_PLANS_FEATURE_READY = false;
+        return SERVICE_PLANS_CACHE;
+      }
+      throw error;
     }
-    throw error;
+    SERVICE_PLANS_FEATURE_READY = true;
+    SERVICE_PLANS_CACHE = data || [];
+    return SERVICE_PLANS_CACHE;
+  } finally {
+    FETCHING.delete('service_plans');
   }
-  SERVICE_PLANS_FEATURE_READY = true;
-  SERVICE_PLANS_CACHE = data || [];
-  return SERVICE_PLANS_CACHE;
 }
 function findExistingCustomerRecord(row) {
   const email = String(row?.email || "").trim().toLowerCase();
@@ -6008,7 +6144,7 @@ async function importBridgeOrdersToCrm() {
   await Promise.all([fetchCustomers(), fetchCrmOrders(), fetchPayments()]);
   return { imported, skipped };
 }
-customerSearch?.addEventListener("input", () => renderCustomersList(customerSearch.value));
+customerSearch?.addEventListener("input", debounce(() => renderCustomersList(customerSearch.value)));
 btnRefreshCustomers?.addEventListener("click", async () => {
   try {
     await Promise.all([fetchCustomers(), fetchCrmOrders(), fetchPayments()]);
@@ -6102,6 +6238,22 @@ function renderCustomersList(filter = "") {
     });
     customersList.appendChild(el);
   });
+
+  if (CUSTOMERS_CACHE.length < CUSTOMERS_TOTAL_COUNT) {
+    const remaining = CUSTOMERS_TOTAL_COUNT - CUSTOMERS_CACHE.length;
+    const btn = document.createElement('button');
+    btn.className = 'btn btn-ghost';
+    btn.style.cssText = 'width:100%;margin-top:12px;';
+    btn.textContent = `Load ${Math.min(PAGE_SIZE, remaining)} more (${CUSTOMERS_CACHE.length} of ${CUSTOMERS_TOTAL_COUNT} shown)`;
+    btn.addEventListener('click', async () => {
+      FETCH_OFFSETS.customers += PAGE_SIZE;
+      btn.disabled = true;
+      btn.textContent = 'Loading…';
+      await fetchCustomers();
+      renderCustomersList(customerSearch?.value || "");
+    });
+    customersList.appendChild(btn);
+  }
 
   if (!rows.length) {
     if (!CUSTOMERS_CACHE.length) {
@@ -6580,7 +6732,7 @@ paymentForm?.addEventListener("submit", async (e) => {
     setInlineMessage(paymentMsg, err.message || String(err), "error");
   }
 });
-leadSearch?.addEventListener("input", () => renderLeads(leadSearch.value));
+leadSearch?.addEventListener("input", debounce(() => renderLeads(leadSearch.value)));
 btnNewLead?.addEventListener("click", () => {
   ACTIVE_LEAD_ID = null;
   clearLeadForm();
@@ -6624,7 +6776,7 @@ btnLeadOpenBid?.addEventListener("click", async () => {
   renderBids(bidSearch?.value || "");
   switchTab("bids");
 });
-jobSearch?.addEventListener("input", () => renderJobs(jobSearch.value));
+jobSearch?.addEventListener("input", debounce(() => renderJobs(jobSearch.value)));
 btnNewJob?.addEventListener("click", () => {
   ACTIVE_JOB_ID = null;
   clearJobForm();
@@ -6683,7 +6835,7 @@ btnJobRecordPayment?.addEventListener("click", () => {
   });
   switchTab("payments");
 });
-planSearch?.addEventListener("input", () => renderPlans(planSearch.value));
+planSearch?.addEventListener("input", debounce(() => renderPlans(planSearch.value)));
 btnNewPlan?.addEventListener("click", () => {
   ACTIVE_PLAN_ID = null;
   clearPlanForm();
@@ -8443,7 +8595,7 @@ async function uploadBidPhotoAsset(file, bidDraft) {
     };
   }
 }
-bidSearch?.addEventListener("input", () => renderBids(bidSearch.value, { preserveForm: true }));
+bidSearch?.addEventListener("input", debounce(() => renderBids(bidSearch.value, { preserveForm: true })));
 btnNewBid?.addEventListener("click", () => startNewBid(preferredBidProfile()));
 btnDuplicateBid?.addEventListener("click", () => duplicateCurrentBid());
 btnApplyBidProfile?.addEventListener("click", () => applyBidProfileStructure(false));
@@ -10937,6 +11089,22 @@ function renderOrders() {
     });
   });
 
+  if (CRM_ORDERS_CACHE.length < ORDERS_TOTAL_COUNT) {
+    const remaining = ORDERS_TOTAL_COUNT - CRM_ORDERS_CACHE.length;
+    const btn = document.createElement('button');
+    btn.className = 'btn btn-ghost';
+    btn.style.cssText = 'width:100%;margin-top:12px;';
+    btn.textContent = `Load ${Math.min(PAGE_SIZE, remaining)} more (${CRM_ORDERS_CACHE.length} of ${ORDERS_TOTAL_COUNT} shown)`;
+    btn.addEventListener('click', async () => {
+      FETCH_OFFSETS.orders += PAGE_SIZE;
+      btn.disabled = true;
+      btn.textContent = 'Loading…';
+      await fetchCrmOrders();
+      renderOrders();
+    });
+    ordersList.appendChild(btn);
+  }
+
   const totalCents = Number(active.total_cents || active.subtotal_cents || active.estimatedTotalCents || 0);
   const scheduledDate = active.scheduled_date || getScheduledDateFromOrder(active) || "Not specified";
   const scheduledTime = active.scheduled_time || active.pickupWindow || "Not specified";
@@ -11222,6 +11390,7 @@ function renderOrders() {
 
     CRM_ORDERS_CACHE = CRM_ORDERS_CACHE.map((row) => row.id === active.id ? data : row);
     TABS_LOADED.delete('orders');
+    FETCH_OFFSETS.orders = 0;
     renderOrders();
     renderDashboard();
     renderGuidance();
@@ -11649,6 +11818,7 @@ function renderOrders() {
         }).catch(() => null);
       }
       TABS_LOADED.delete('orders');
+      FETCH_OFFSETS.orders = 0;
       TABS_LOADED.delete('jobs');
       renderOrders();
       renderJobs(jobSearch?.value || "");
@@ -11684,6 +11854,7 @@ function renderOrders() {
       }
       CRM_ORDERS_CACHE = CRM_ORDERS_CACHE.map((row) => row.id === active.id ? data : row);
       TABS_LOADED.delete('orders');
+      FETCH_OFFSETS.orders = 0;
       TABS_LOADED.delete('jobs');
       renderOrders();
       renderJobs(jobSearch?.value || "");
@@ -11837,6 +12008,7 @@ function openCreateOrderModal() {
       CRM_ORDERS_CACHE = [data, ...CRM_ORDERS_CACHE];
       ACTIVE_ORDER_ID = data.id;
       TABS_LOADED.delete('orders');
+      FETCH_OFFSETS.orders = 0;
       renderOrders();
       renderDashboard();
       showToast("Order created.");
@@ -12435,6 +12607,8 @@ function generateInvoicePDF(order) {
 // ── Reviews ───────────────────────────────────────────────────────────────────
 
 async function fetchReviews() {
+  if (FETCHING.has('reviews')) return;
+  FETCHING.add('reviews');
   try {
     const tok = await getAccessToken();
     const res = await fetch("/.netlify/functions/get-reviews", {
@@ -12446,6 +12620,8 @@ async function fetchReviews() {
   } catch (e) {
     console.warn("[reviews] fetch failed:", e.message);
     return [];
+  } finally {
+    FETCHING.delete('reviews');
   }
 }
 
@@ -12500,19 +12676,24 @@ $("btnExportReviewsCsv")?.addEventListener("click", () => {
 // ── Quotes Panel ──────────────────────────────────────────────────────────────
 
 async function fetchQuotes(status) {
+  if (FETCHING.has('quotes')) return;
+  FETCHING.add('quotes');
   try {
     const tok = await getAccessToken();
     const url = status
       ? `/.netlify/functions/get-quotes?status=${encodeURIComponent(status)}`
       : "/.netlify/functions/get-quotes";
-    const res = await fetch(url, { headers: { "Authorization": `Bearer ${tok}` } });
+    const res = await fetch(url, { headers: { "Authorization": `Bearer ${tok}` }, signal: _tabAbortController?.signal });
     const d   = await res.json().catch(() => ({}));
     QUOTES_CACHE = d.quotes || [];
     TABS_LOADED.delete('quotes');
     return QUOTES_CACHE;
   } catch (e) {
+    if (e.name === 'AbortError' || e.message?.includes('abort')) return;
     console.warn("[quotes] fetch failed:", e.message);
     return [];
+  } finally {
+    FETCHING.delete('quotes');
   }
 }
 
@@ -12676,7 +12857,7 @@ function runGlobalSearch(q) {
   });
 }
 
-globalSearch?.addEventListener("input", () => runGlobalSearch(globalSearch.value.trim()));
+globalSearch?.addEventListener("input", debounce(() => runGlobalSearch(globalSearch.value.trim())));
 globalSearch?.addEventListener("keydown", (e) => { if (e.key === "Escape") { globalSearchOverlay.style.display = "none"; globalSearch.value = ""; } });
 document.addEventListener("click", (e) => {
   if (globalSearchOverlay && !globalSearch?.contains(e.target) && !globalSearchOverlay.contains(e.target)) {
@@ -13148,6 +13329,7 @@ $("btnBulkStatusApply")?.addEventListener("click", async () => {
   BULK_SELECTED_ORDER_IDS.clear();
   updateBulkBar();
   TABS_LOADED.delete('orders');
+  FETCH_OFFSETS.orders = 0;
   renderOrders();
   renderDashboard();
 });
