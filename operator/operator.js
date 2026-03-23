@@ -2523,6 +2523,16 @@ function switchTab(tab, opts = {}) {
     fetchTeamMembers().catch(console.warn);
     $('btnInviteTeamMember')?.addEventListener('click', () => openInviteTeamMemberModal());
     $('btnRefreshTeam')?.addEventListener('click', () => fetchTeamMembers().catch(console.warn));
+    $('btnLoadHours')?.addEventListener('click', loadHoursReport);
+    $('btnExportHoursCsv')?.addEventListener('click', exportHoursCsv);
+    // Set default date range to current month
+    const hoursStart = $('hoursStart');
+    const hoursEnd = $('hoursEnd');
+    if (hoursStart && !hoursStart.value) {
+      const now = new Date();
+      hoursStart.value = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+      hoursEnd.value = now.toISOString().split('T')[0];
+    }
   }
   if (nextTab === 'equipment' && !EQUIPMENT_PANEL_LOADED) {
     EQUIPMENT_PANEL_LOADED = true;
@@ -5168,6 +5178,163 @@ async function removeTeamMember(id) {
   } catch (err) {
     showToast('Error: ' + err.message);
   }
+}
+
+async function loadHoursReport() {
+  const startEl = $('hoursStart');
+  const endEl = $('hoursEnd');
+  const reportEl = $('hoursReport');
+  if (!reportEl) return;
+
+  const start = startEl?.value;
+  const end = endEl?.value;
+  if (!start || !end) { reportEl.innerHTML = '<div class="muted">Set start and end dates.</div>'; return; }
+
+  reportEl.innerHTML = '<div class="muted">Loading\u2026</div>';
+
+  try {
+    const tok = await getOperatorAccessToken();
+    const res = await fetch(`/.netlify/functions/get-team-hours?start=${start}&end=${end}`, {
+      headers: { Authorization: `Bearer ${tok}` },
+    });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(d.error || 'Failed to load hours');
+    renderHoursReport(d);
+  } catch (err) {
+    reportEl.innerHTML = `<div class="msg error">${escapeHtml(err.message)}</div>`;
+  }
+}
+
+function renderHoursReport(data) {
+  const reportEl = $('hoursReport');
+  if (!reportEl) return;
+
+  const { members = [], totals = {} } = data;
+
+  if (!members.length) {
+    reportEl.innerHTML = '<div class="muted">No hours logged in this period.</div>';
+    return;
+  }
+
+  const toHrs = (mins) => (mins / 60).toFixed(1);
+
+  const memberHtml = members.map((m) => {
+    const hasActivity = m.total_minutes > 0 || m.job_count > 0;
+    const jobRows = (m.jobs || []).map((j) => {
+      const dur = j.actual_end_at && j.actual_start_at
+        ? Math.round((new Date(j.actual_end_at) - new Date(j.actual_start_at)) / 60000)
+        : null;
+      return `<div class="list-item" style="padding:6px 0;">
+        <div class="li-main">
+          <div class="li-title" style="font-size:.85rem;">${escapeHtml(j.title || 'Untitled job')} &middot; ${escapeHtml(j.customer_name || '')}</div>
+          <div class="li-sub muted" style="font-size:.75rem;">${escapeHtml(j.actual_start_at ? new Date(j.actual_start_at).toLocaleDateString() : '\u2014')}${dur != null ? ` &middot; ${toHrs(dur)}h` : ''}</div>
+        </div>
+        <div class="li-meta"><span class="pill ${j.status === 'completed' ? 'pill-on' : ''}">${escapeHtml(j.status || '')}</span></div>
+      </div>`;
+    }).join('');
+
+    const entryRows = (m.entries || []).map((e) => `
+      <div class="list-item" style="padding:6px 0;">
+        <div class="li-main">
+          <div class="li-title" style="font-size:.85rem;">${escapeHtml(e.description || 'Time entry')}</div>
+          <div class="li-sub muted" style="font-size:.75rem;">${escapeHtml(e.started_at ? new Date(e.started_at).toLocaleDateString() : '\u2014')} &middot; ${escapeHtml(e.billable ? 'Billable' : 'Non-billable')}</div>
+        </div>
+        <div class="li-meta"><span class="pill">${toHrs(e.duration_minutes || 0)}h</span></div>
+      </div>`).join('');
+
+    return `
+      <div class="card" style="margin-bottom:12px;${!hasActivity ? 'opacity:.55;' : ''}">
+        <div class="card-hd" style="cursor:pointer;" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'">
+          <div>
+            <strong>${escapeHtml(m.name || 'Unknown')}</strong>
+            <span class="pill" style="margin-left:8px;">${escapeHtml(m.role || '')}</span>
+          </div>
+          <div class="row" style="gap:16px;font-size:.85rem;">
+            <span><strong>${toHrs(m.total_minutes)}</strong> hrs total</span>
+            <span class="muted">${toHrs(m.billable_minutes)} billable</span>
+            <span class="muted">${m.job_count} jobs</span>
+            ${m.estimated_pay_cents > 0 ? `<span class="pill pill-on">${formatUsd(m.estimated_pay_cents)}</span>` : ''}
+          </div>
+        </div>
+        <div class="card-bd" style="display:none;">
+          ${jobRows ? `<div style="margin-bottom:10px;"><div class="kicker">Jobs</div><div class="list">${jobRows}</div></div>` : ''}
+          ${entryRows ? `<div><div class="kicker">Time entries</div><div class="list">${entryRows}</div></div>` : ''}
+          ${!jobRows && !entryRows ? '<div class="muted">No detail records in this period.</div>' : ''}
+        </div>
+      </div>`;
+  }).join('');
+
+  const totalHtml = `
+    <div style="border-top:1px solid rgba(255,255,255,.08);padding-top:14px;margin-top:4px;display:flex;gap:24px;font-size:.9rem;">
+      <span><strong>${toHrs(totals.total_minutes || 0)}</strong> total hours</span>
+      <span class="muted">${toHrs(totals.billable_minutes || 0)} billable</span>
+      <span class="muted">${totals.member_count || 0} team members</span>
+      ${totals.estimated_pay_cents > 0 ? `<span class="pill pill-on">Est. payroll: ${formatUsd(totals.estimated_pay_cents)}</span>` : ''}
+    </div>`;
+
+  reportEl.innerHTML = memberHtml + totalHtml;
+
+  // Store for CSV export
+  reportEl._data = data;
+}
+
+function exportHoursCsv() {
+  const reportEl = $('hoursReport');
+  const data = reportEl?._data;
+  if (!data) { showToast('Load a report first.'); return; }
+
+  const startEl = $('hoursStart');
+  const endEl = $('hoursEnd');
+
+  const rows = [['Member', 'Role', 'Date', 'Description', 'Type', 'Billable', 'Duration (hrs)', 'Hourly Rate', 'Est. Pay']];
+
+  for (const m of data.members || []) {
+    // Time entries
+    for (const e of m.entries || []) {
+      const hrs = ((e.duration_minutes || 0) / 60).toFixed(2);
+      const rate = ((e.hourly_rate_cents || m.hourly_rate_cents || 0) / 100).toFixed(2);
+      const pay = ((e.duration_minutes || 0) / 60 * (e.hourly_rate_cents || m.hourly_rate_cents || 0) / 100).toFixed(2);
+      rows.push([
+        m.name || '',
+        m.role || '',
+        e.started_at ? new Date(e.started_at).toLocaleDateString() : '',
+        e.description || 'Time entry',
+        'Time Entry',
+        e.billable ? 'Yes' : 'No',
+        hrs,
+        `$${rate}`,
+        `$${pay}`,
+      ]);
+    }
+    // Jobs
+    for (const j of m.jobs || []) {
+      if (!j.actual_start_at || !j.actual_end_at) continue;
+      const mins = Math.round((new Date(j.actual_end_at) - new Date(j.actual_start_at)) / 60000);
+      const hrs = (mins / 60).toFixed(2);
+      const rate = (m.hourly_rate_cents / 100).toFixed(2);
+      const pay = (mins / 60 * m.hourly_rate_cents / 100).toFixed(2);
+      rows.push([
+        m.name || '',
+        m.role || '',
+        new Date(j.actual_start_at).toLocaleDateString(),
+        j.title || 'Job',
+        'Job',
+        'Yes',
+        hrs,
+        `$${rate}`,
+        `$${pay}`,
+      ]);
+    }
+  }
+
+  const csv = rows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `hours-${startEl?.value || 'report'}-to-${endEl?.value || 'report'}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 async function fetchTimeEntries(orderId) {

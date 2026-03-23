@@ -1928,6 +1928,21 @@
             <div id="teamMembersList">
               <p class="empty-state">Loading team members...</p>
             </div>
+            <div class="card" style="margin-top:18px;">
+              <div class="card-hd">
+                <strong>Hours &amp; Pay</strong>
+                <div class="row" style="gap:8px;align-items:center;">
+                  <input type="date" id="hoursStart" class="input" style="width:150px;" />
+                  <span class="muted">to</span>
+                  <input type="date" id="hoursEnd" class="input" style="width:150px;" />
+                  <button id="btnLoadHours" class="btn btn-primary btn-sm">Load</button>
+                  <button id="btnExportHoursCsv" class="btn btn-ghost btn-sm">Export CSV</button>
+                </div>
+              </div>
+              <div class="card-bd">
+                <div id="hoursReport" class="muted">Select a date range and click Load.</div>
+              </div>
+            </div>
           </div>
 
           <section class="panel hidden" data-panel="availability">
