@@ -2864,7 +2864,7 @@ async function requireOperatorContext() {
   // Try direct user_id lookup
   let { data, error } = await sb
     .from("operator_members")
-    .select("role, operators!operator_id(id, name, tenant_id)")
+    .select("role, tenant_id, operators!operator_id(id, name, tenant_id)")
     .eq("user_id", uid)
     .limit(1)
     .maybeSingle();
@@ -2883,7 +2883,7 @@ async function requireOperatorContext() {
       if (res.ok) {
         const retry = await sb
           .from("operator_members")
-          .select("role, operators!operator_id(id, name, tenant_id)")
+          .select("role, tenant_id, operators!operator_id(id, name, tenant_id)")
           .eq("user_id", uid)
           .limit(1)
           .maybeSingle();
@@ -2903,7 +2903,8 @@ async function requireOperatorContext() {
     throw new Error("No operator membership found for this user." + (detail ? " Server: " + detail : "") + (linkStatus ? " (HTTP " + linkStatus + ")" : ""));
   }
 
-  const operatorTenantId = String(data.operators.tenant_id || '').trim();
+  // Use tenant_id from operator_members first (handles platform_admin whose operators row has null tenant_id)
+  const operatorTenantId = String(data.tenant_id || data.operators.tenant_id || '').trim();
   if (TENANT_SCOPE_ENABLED && operatorTenantId && operatorTenantId !== TENANT_ID) {
     // Tenant in database doesn't match static config - update the module-level
     // TENANT_ID to the real value from the database so all queries use the correct
