@@ -221,7 +221,7 @@
               </div>
               <div class="panel-actions">
                 <button id="btnLogTime" class="btn btn-ghost" type="button">⏱ Log time</button>
-                <button id="btnCopyBookingLink" class="btn btn-ghost" type="button">🔗 Copy booking link</button>
+                <button id="btnCopyBookingLink" class="btn btn-ghost" type="button" data-website-feature>🔗 Copy booking link</button>
                 <button id="btnRefreshDashboard" class="btn btn-ghost" type="button">Refresh</button>
               </div>
             </div>
@@ -1596,6 +1596,11 @@
                         <input id="setupAllowCustomRequests" type="checkbox" />
                         Allow custom requests
                       </label>
+
+                      <label class="check">
+                        <input id="setupBookingPageEnabled" type="checkbox" />
+                        Enable customer booking page &amp; website features
+                      </label>
                     </div>
                   </form>
                 </div>
@@ -1993,7 +1998,7 @@
               </div>
             </div>
 
-            <div class="card" style="margin-bottom:14px;">
+            <div class="card" style="margin-bottom:14px;" data-website-feature>
               <div class="card-bd">
                 <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
                   <span style="font-size:.85rem;color:rgba(255,255,255,.5);">Customer booking link:</span>

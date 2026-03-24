@@ -9,7 +9,7 @@ const ALLOWED_KEYS = new Set([
   'service_area', 'review_platform_label', 'review_link_url', 'referral_message',
   'instagram', 'facebook', 'hours_notes', 'fulfillment_notes',
   'accent_color', 'show_prices', 'allow_custom_requests', 'about', 'onboarding_complete',
-  'workspace_business_type',
+  'workspace_business_type', 'booking_page_enabled',
 ]);
 
 const PROTECTED_KEYS = new Set([
@@ -31,7 +31,7 @@ const HEX_COLOR_RE = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 
 function normalizeValue(key, value) {
   if (value === null || value === undefined) return '';
-  if (key === 'show_prices' || key === 'allow_custom_requests' || key === 'onboarding_complete') {
+  if (key === 'show_prices' || key === 'allow_custom_requests' || key === 'onboarding_complete' || key === 'booking_page_enabled') {
     return !!value;
   }
   if (key === 'accent_color') {

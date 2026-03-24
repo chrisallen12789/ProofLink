@@ -54,6 +54,7 @@ let BOOTING = false;
 const TABS_LOADED = new Set();
 const FETCHING = new Set();
 let _tabAbortController = null;
+let BOOKING_PAGE_ENABLED = true;
 window.PROOFLINK_BOOT_READY = false;
 // Tracks which password-setup flow is active: "reset" | "first-time" | null
 let passwordSetupMode = null;
@@ -2129,6 +2130,10 @@ function fillSetupForm(payload = {}, record = null) {
   if (setupFulfillmentNotes) setupFulfillmentNotes.value = payload.fulfillment_notes || "";
   if (setupShowPrices) setupShowPrices.checked = payload.show_prices !== false;
   if (setupAllowCustomRequests) setupAllowCustomRequests.checked = payload.allow_custom_requests !== false;
+  const bookingEnabled = payload.booking_page_enabled !== false;
+  const setupBookingPageEl = document.getElementById('setupBookingPageEnabled');
+  if (setupBookingPageEl) setupBookingPageEl.checked = bookingEnabled;
+  applyWebsiteMode(bookingEnabled);
   if (setupPreviewWrap) setupPreviewWrap.innerHTML = setupPreviewHtml(payload, record || SETUP_STATE?.locked_record || null);
   renderLockedBusinessRecord(record || SETUP_STATE?.locked_record || {});
 }
@@ -2155,8 +2160,16 @@ function collectSetupPayload(extra = {}) {
     fulfillment_notes: setupFulfillmentNotes?.value?.trim() || "",
     show_prices: !!setupShowPrices?.checked,
     allow_custom_requests: !!setupAllowCustomRequests?.checked,
+    booking_page_enabled: document.getElementById('setupBookingPageEnabled')?.checked !== false,
     ...extra,
   };
+}
+
+function applyWebsiteMode(enabled) {
+  BOOKING_PAGE_ENABLED = enabled;
+  document.querySelectorAll('[data-website-feature]').forEach((el) => {
+    el.style.display = enabled ? '' : 'none';
+  });
 }
 
 function renderLockedBusinessRecord(record = {}) {
@@ -9969,8 +9982,30 @@ async function renderJobDetail(jobIdValue) {
       <div class="detail-copy">Customer: ${escapeHtml((CUSTOMERS_CACHE.find((row) => row.id === job.customer_id) || {}).name || "Not linked")}</div>
       <div class="detail-copy">${escapeHtml(job.service_address || "No service address recorded")}</div>
     </div>
+    ${(() => {
+      if (!job.assigned_operator_id) return '';
+      const member = (TEAM_MEMBERS_CACHE || []).find(
+        (m) => m.id === job.assigned_operator_id || m.user_id === job.assigned_operator_id
+      );
+      const memberName = member?.name || member?.email || 'Assigned crew';
+      const actualMins = job.actual_start_at && job.actual_end_at
+        ? Math.round((new Date(job.actual_end_at) - new Date(job.actual_start_at)) / 60000)
+        : null;
+      return `
+        <div class="detail-card" style="margin-top:14px;">
+          <div class="kicker">Crew &amp; Hours</div>
+          <div class="detail-copy"><strong>${escapeHtml(memberName)}</strong>${member?.role ? ` &middot; ${escapeHtml(member.role)}` : ''}</div>
+          ${actualMins != null ? `<div class="detail-copy">Actual time: <strong>${(actualMins / 60).toFixed(1)}h</strong> &middot; ${escapeHtml(formatDateTime(job.actual_start_at))} &rarr; ${escapeHtml(formatDateTime(job.actual_end_at))}</div>` : ''}
+          ${job.billable_hours ? `<div class="detail-copy">Estimated: ${job.billable_hours}h</div>` : ''}
+          ${job.check_in_lat ? `<div class="detail-copy muted" style="font-size:.8rem;">Check-in: ${job.check_in_lat}, ${job.check_in_lng}</div>` : ''}
+          <div class="row" style="margin-top:10px;">
+            <button type="button" class="btn btn-ghost btn-sm" id="btnJobLogHours">Log hours for ${escapeHtml(memberName)}</button>
+          </div>
+        </div>`;
+    })()}
   `;
   jobDetailWrap.querySelector('[data-job-cost-action="log"]')?.addEventListener("click", () => openExpenseForJob(job));
+  jobDetailWrap.querySelector('#btnJobLogHours')?.addEventListener("click", () => maybeLogJobHours(job));
   if (btnJobOpenOrder) btnJobOpenOrder.disabled = !job.order_id;
   if (btnJobRecordPayment) btnJobRecordPayment.disabled = !job.order_id;
 }
@@ -10526,6 +10561,96 @@ async function createBidFromLeadRecord(lead, options = {}) {
   if (bid) ACTIVE_BID_ID = bid.id;
   return { bid, existing: false };
 }
+function maybeLogJobHours(job) {
+  if (!job?.assigned_operator_id) return;
+  const member = (TEAM_MEMBERS_CACHE || []).find(
+    (m) => m.id === job.assigned_operator_id || m.user_id === job.assigned_operator_id
+  );
+  const memberName = member?.name || member?.email || 'crew member';
+  const autoMins = job.actual_start_at && job.actual_end_at
+    ? Math.round((new Date(job.actual_end_at) - new Date(job.actual_start_at)) / 60000)
+    : null;
+  const defaultHrs = autoMins != null
+    ? (autoMins / 60).toFixed(2)
+    : (job.billable_hours || '');
+  const hint = autoMins != null
+    ? `${(autoMins / 60).toFixed(1)}h from crew check-in/out`
+    : (job.billable_hours ? `${job.billable_hours}h estimated` : '');
+
+  const existing = document.getElementById('jobHoursLogModal');
+  if (existing) existing.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'jobHoursLogModal';
+  modal.className = 'modal-overlay';
+  modal.innerHTML = `
+    <div class="modal" style="max-width:400px;">
+      <div class="modal-hd"><strong>Log hours for ${escapeHtml(memberName)}</strong></div>
+      <div class="modal-bd">
+        <div class="detail-copy" style="margin-bottom:14px;">${escapeHtml(job.title || 'Job')}</div>
+        <label class="form-label">Hours worked</label>
+        <input type="number" id="jobHoursInput" class="input" value="${escapeAttr(String(defaultHrs))}" min="0" max="24" step="0.25" placeholder="e.g. 2.5" style="margin-top:4px;" />
+        ${hint ? `<div class="muted" style="font-size:.78rem;margin-top:4px;">${escapeHtml(hint)}</div>` : ''}
+        <label class="check" style="margin-top:14px;">
+          <input type="checkbox" id="jobHoursBillable" checked /> Billable — include in payroll
+        </label>
+        <div id="jobHoursLogMsg" class="msg" style="margin-top:10px;"></div>
+      </div>
+      <div class="modal-ft">
+        <button id="btnJobHoursSkip" class="btn btn-ghost" type="button">Skip</button>
+        <button id="btnJobHoursSave" class="btn btn-primary" type="button">Log Hours</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+
+  document.getElementById('btnJobHoursSkip')?.addEventListener('click', () => modal.remove());
+
+  document.getElementById('btnJobHoursSave')?.addEventListener('click', async () => {
+    const hoursVal = parseFloat(document.getElementById('jobHoursInput')?.value || '0');
+    const billable = document.getElementById('jobHoursBillable')?.checked !== false;
+    const msgEl   = document.getElementById('jobHoursLogMsg');
+    const saveBtn = document.getElementById('btnJobHoursSave');
+
+    if (!hoursVal || hoursVal <= 0) {
+      if (msgEl) { msgEl.textContent = 'Enter hours greater than 0.'; msgEl.className = 'msg error'; }
+      return;
+    }
+    if (saveBtn) saveBtn.disabled = true;
+
+    try {
+      const tok = await window.PROOFLINK_OPERATOR_RUNTIME?.getAccessToken?.();
+      const durationMinutes = Math.round(hoursVal * 60);
+      const startedAt = job.actual_start_at
+        || (job.scheduled_date
+          ? new Date(`${job.scheduled_date}T${job.scheduled_time || '08:00'}:00`).toISOString()
+          : new Date(Date.now() - durationMinutes * 60000).toISOString());
+
+      const res = await fetch('/.netlify/functions/log-time-entry', {
+        method : 'POST',
+        headers: { 'Content-Type': 'application/json', ...(tok ? { Authorization: `Bearer ${tok}` } : {}) },
+        body   : JSON.stringify({
+          operator_id      : member?.user_id || job.assigned_operator_id,
+          job_id           : job.id,
+          customer_id      : job.customer_id || null,
+          order_id         : job.order_id   || null,
+          description      : `${job.title || 'Job'} — ${memberName}`,
+          started_at       : startedAt,
+          duration_minutes : durationMinutes,
+          billable,
+          hourly_rate_cents: member?.hourly_rate_cents || 0,
+        }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(d.error || 'Failed to log hours');
+      modal.remove();
+      showToast(`${hoursVal}h logged for ${memberName}`);
+    } catch (err) {
+      if (msgEl) { msgEl.textContent = err.message; msgEl.className = 'msg error'; }
+      if (saveBtn) saveBtn.disabled = false;
+    }
+  });
+}
+
 async function saveJobRecord(fields = {}) {
   const nowIso = new Date().toISOString();
   const linkedOrder = CRM_ORDERS_CACHE.find((row) => row.id === (fields.order_id || jobOrderId?.value || ""));
@@ -10574,6 +10699,10 @@ async function saveJobRecord(fields = {}) {
   // Notify the operator when a job has just been dispatched to a crew member
   if (String(data.status || "").toLowerCase() === "dispatched" && data.assigned_operator_id) {
     showToast("Job dispatched — crew member will be notified");
+  }
+  // Prompt to log hours when a job is marked complete and has an assigned crew member
+  if (String(data.status || "").toLowerCase() === "completed" && data.assigned_operator_id) {
+    maybeLogJobHours(data);
   }
   return data;
 }
