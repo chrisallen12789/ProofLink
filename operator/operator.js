@@ -134,7 +134,10 @@ async function fetchDashboardPaymentState() {
 async function fetchDashboardLaunchChecklist() {
   if (!TENANT_ID) return null;
   try {
-    const res = await fetch(`/.netlify/functions/get-launch-checklist?tenant_id=${encodeURIComponent(TENANT_ID)}`);
+    const tok = await getOperatorAccessToken();
+    const res = await fetch(`/.netlify/functions/get-launch-checklist?tenant_id=${encodeURIComponent(TENANT_ID)}`, {
+      headers: tok ? { Authorization: `Bearer ${tok}` } : {},
+    });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) return null;
     DASHBOARD_LAUNCH_CHECKLIST = data;
@@ -818,6 +821,8 @@ function setInlineMessage(el, message = "", tone = "") {
 function getOperatorAccessToken() {
   return window.PROOFLINK_OPERATOR_RUNTIME?.getAccessToken?.() || Promise.resolve("");
 }
+// Alias used throughout the file
+const getAccessToken = getOperatorAccessToken;
 async function postOperatorFunction(functionName, payload = {}) {
   const token = await getOperatorAccessToken();
   const res = await fetch(`/.netlify/functions/${functionName}`, {
