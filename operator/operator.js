@@ -45,6 +45,7 @@ let BIDS_CACHE = [];
 let JOBS_CACHE = [];
 let SERVICE_PLANS_CACHE = [];
 let SERVICE_PLANS_FEATURE_READY = true;
+let PRICING_CACHE = [];
 let PICK_PRODUCT_CATEGORIES = [];
 let PICK_EXPENSE_CATEGORIES = [];
 let PICK_VENDORS = [];
@@ -67,6 +68,8 @@ let ACTIVE_PAYMENT_ID = null;
 let ACTIVE_JOB_ID = null;
 let ACTIVE_PLAN_ID = null;
 let ACTIVE_BID_LINE_ITEM_ID = null;
+let ACTIVE_PRICING_PRODUCT_ID = null;
+let PREVIOUS_PANEL_TAB = "dashboard";
 let BID_QUICK_CUSTOMER_OPEN = false;
 let DASHBOARD_PAYMENT_STATE = null;
 let DASHBOARD_LAUNCH_CHECKLIST = null;
@@ -258,6 +261,7 @@ const bidPhotoNote = $("bidPhotoNote");
 const bidPhotoMsg = $("bidPhotoMsg");
 const bidPhotosList = $("bidPhotosList");
 const bidScopeStarters = $("bidScopeStarters");
+const bidCatalogStarters = $("bidCatalogStarters");
 const bidLineItemForm = $("bidLineItemForm");
 const bidLineItemId = $("bidLineItemId");
 const bidLineItemName = $("bidLineItemName");
@@ -425,9 +429,12 @@ const setupPublishMeta = $("setupPublishMeta");
 let SETUP_STATE = null;
 
 const productsList = $("productsList");
+const productPresetNotice = $("productPresetNotice");
 const btnNewProduct = $("btnNewProduct");
+const btnLoadRecommendedServices = $("btnLoadRecommendedServices");
 const btnRefreshProducts = $("btnRefreshProducts");
 const productSearch = $("productSearch");
+const servicePresetPack = $("servicePresetPack");
 const productForm = $("productForm");
 const productFormTitle = $("productFormTitle");
 const productMsg = $("productMsg");
@@ -1382,7 +1389,14 @@ function toggleHydrovacFields(value) {
   if (!el) return;
   const isHydrovac = value === 'hydrovac';
   el.style.display = isHydrovac ? 'block' : 'none';
-  if (isHydrovac) renderEquipmentOptions();
+  if (isHydrovac) {
+    renderEquipmentOptions();
+    if (jobServiceType && !String(jobServiceType.value || "").trim()) {
+      applyHydrovacJobTemplate("hydrovac_4hr_laborer_minimum", {
+        preserveExisting: true,
+      });
+    }
+  }
 }
 
 function renderEquipmentOptions(selectedId = '') {
@@ -2028,12 +2042,438 @@ function applyWorkspaceBlueprint() {
       : "Track the sale from first contact to payment, keep customer history in one place, and make business decisions with less guesswork.";
   }
 
+  renderServicePresetPicker();
+  renderPanelBackButtons();
   renderWorkspaceHub();
   const activeTab = currentPanel();
   if (!isTabVisibleInWorkspace(activeTab, blueprint)) {
     switchTab("dashboard", { force: true });
   }
   return blueprint;
+}
+
+const BENKARI_HYDROVAC_RATE_SHEET = {
+  truckAndOperatorHourly: 215,
+  plumberHourly: 103,
+  laborerHourly: 63,
+  liquidDisposalPerGallon: 0.61,
+  catchBasinWastePerTon: 146.28,
+  minimumHours4: 4,
+  minimumHours8: 8,
+  includedLiquidGallons4: 1500,
+  includedLiquidGallons8: 3000,
+  includedSolidsYards4: 2,
+  includedSolidsYards8: 4,
+  tankWashoutBase: 250,
+  tankWashoutExtended: 450,
+  solidificationWashoutFee: 100,
+};
+
+function roundDollars(amount) {
+  return Math.round(Number(amount || 0) * 100) / 100;
+}
+
+function benkariHydrovacMinimumDollars(hours, helperHourly, includedGallons) {
+  return roundDollars(
+    (BENKARI_HYDROVAC_RATE_SHEET.truckAndOperatorHourly + helperHourly) * Number(hours || 0)
+    + (BENKARI_HYDROVAC_RATE_SHEET.liquidDisposalPerGallon * Number(includedGallons || 0))
+  );
+}
+
+function benkariHydrovacDisposalDollars(gallons) {
+  return roundDollars(Number(gallons || 0) * BENKARI_HYDROVAC_RATE_SHEET.liquidDisposalPerGallon);
+}
+
+const HYDROVAC_JOB_TEMPLATE_LIBRARY = {
+  hydrovac_4hr_laborer_minimum: {
+    key: "hydrovac_4hr_laborer_minimum",
+    label: "4-hour minimum (truck + laborer)",
+    summary: "4-hour hydrovac minimum with truck, operator, laborer, 2 yards solids, and 1,500 gallons liquid disposal included.",
+    serviceTypeValue: "hydrovac_4hr_laborer_minimum",
+    minimumHours: BENKARI_HYDROVAC_RATE_SHEET.minimumHours4,
+    truckRate: BENKARI_HYDROVAC_RATE_SHEET.truckAndOperatorHourly,
+    helperRate: BENKARI_HYDROVAC_RATE_SHEET.laborerHourly,
+    disposalGallons: BENKARI_HYDROVAC_RATE_SHEET.includedLiquidGallons4,
+    disposalCost: benkariHydrovacDisposalDollars(BENKARI_HYDROVAC_RATE_SHEET.includedLiquidGallons4),
+    note: `Company-standard 4-hour minimum. Includes ${BENKARI_HYDROVAC_RATE_SHEET.includedSolidsYards4} yards of solids and ${BENKARI_HYDROVAC_RATE_SHEET.includedLiquidGallons4} gallons of liquid disposal.`,
+  },
+  hydrovac_8hr_laborer_minimum: {
+    key: "hydrovac_8hr_laborer_minimum",
+    label: "8-hour minimum (truck + laborer)",
+    summary: "8-hour hydrovac minimum with truck, operator, laborer, 4 yards solids, and 3,000 gallons liquid disposal included.",
+    serviceTypeValue: "hydrovac_8hr_laborer_minimum",
+    minimumHours: BENKARI_HYDROVAC_RATE_SHEET.minimumHours8,
+    truckRate: BENKARI_HYDROVAC_RATE_SHEET.truckAndOperatorHourly,
+    helperRate: BENKARI_HYDROVAC_RATE_SHEET.laborerHourly,
+    disposalGallons: BENKARI_HYDROVAC_RATE_SHEET.includedLiquidGallons8,
+    disposalCost: benkariHydrovacDisposalDollars(BENKARI_HYDROVAC_RATE_SHEET.includedLiquidGallons8),
+    note: `Built as the doubled Benkari minimum for all-day hydrovac work. Includes ${BENKARI_HYDROVAC_RATE_SHEET.includedSolidsYards8} yards of solids and ${BENKARI_HYDROVAC_RATE_SHEET.includedLiquidGallons8} gallons of liquid disposal.`,
+  },
+  hydrovac_4hr_plumber_minimum: {
+    key: "hydrovac_4hr_plumber_minimum",
+    label: "4-hour minimum (truck + plumber)",
+    summary: "4-hour hydrovac minimum with truck, operator, plumber, 2 yards solids, and 1,500 gallons liquid disposal included.",
+    serviceTypeValue: "hydrovac_4hr_plumber_minimum",
+    minimumHours: BENKARI_HYDROVAC_RATE_SHEET.minimumHours4,
+    truckRate: BENKARI_HYDROVAC_RATE_SHEET.truckAndOperatorHourly,
+    helperRate: BENKARI_HYDROVAC_RATE_SHEET.plumberHourly,
+    disposalGallons: BENKARI_HYDROVAC_RATE_SHEET.includedLiquidGallons4,
+    disposalCost: benkariHydrovacDisposalDollars(BENKARI_HYDROVAC_RATE_SHEET.includedLiquidGallons4),
+    note: `Use this standard when the hydrovac truck is paired with a plumber instead of a laborer. Includes ${BENKARI_HYDROVAC_RATE_SHEET.includedSolidsYards4} yards solids and ${BENKARI_HYDROVAC_RATE_SHEET.includedLiquidGallons4} gallons liquid disposal.`,
+  },
+  hydrovac_8hr_plumber_minimum: {
+    key: "hydrovac_8hr_plumber_minimum",
+    label: "8-hour minimum (truck + plumber)",
+    summary: "8-hour hydrovac minimum with truck, operator, plumber, 4 yards solids, and 3,000 gallons liquid disposal included.",
+    serviceTypeValue: "hydrovac_8hr_plumber_minimum",
+    minimumHours: BENKARI_HYDROVAC_RATE_SHEET.minimumHours8,
+    truckRate: BENKARI_HYDROVAC_RATE_SHEET.truckAndOperatorHourly,
+    helperRate: BENKARI_HYDROVAC_RATE_SHEET.plumberHourly,
+    disposalGallons: BENKARI_HYDROVAC_RATE_SHEET.includedLiquidGallons8,
+    disposalCost: benkariHydrovacDisposalDollars(BENKARI_HYDROVAC_RATE_SHEET.includedLiquidGallons8),
+    note: `Use this standard when the hydrovac truck is paired with a plumber for the full day. Includes ${BENKARI_HYDROVAC_RATE_SHEET.includedSolidsYards8} yards solids and ${BENKARI_HYDROVAC_RATE_SHEET.includedLiquidGallons8} gallons liquid disposal.`,
+  },
+  hydrovac_additional_truck_hour: {
+    key: "hydrovac_additional_truck_hour",
+    label: "Additional truck hour",
+    summary: "Additional truck and operator hour once the minimum block is already covered.",
+    serviceTypeValue: "hydrovac_additional_truck_hour",
+    minimumHours: 1,
+    truckRate: BENKARI_HYDROVAC_RATE_SHEET.truckAndOperatorHourly,
+    helperRate: 0,
+    disposalGallons: 0,
+    disposalCost: 0,
+    note: "Use this to extend the base hydrovac minimum once the included minimum block has already been sold.",
+  },
+  hydrovac_additional_laborer_hour: {
+    key: "hydrovac_additional_laborer_hour",
+    label: "Additional laborer hour",
+    summary: "Additional JVT laborer hour layered onto the hydrovac truck after the minimum.",
+    serviceTypeValue: "hydrovac_additional_laborer_hour",
+    minimumHours: 1,
+    truckRate: 0,
+    helperRate: BENKARI_HYDROVAC_RATE_SHEET.laborerHourly,
+    disposalGallons: 0,
+    disposalCost: 0,
+    note: "Standard hourly add-on for the extra laborer once the minimum job is already covered.",
+  },
+  hydrovac_additional_plumber_hour: {
+    key: "hydrovac_additional_plumber_hour",
+    label: "Additional plumber hour",
+    summary: "Additional plumber hour layered onto hydrovac work once the minimum is covered.",
+    serviceTypeValue: "hydrovac_additional_plumber_hour",
+    minimumHours: 1,
+    truckRate: 0,
+    helperRate: BENKARI_HYDROVAC_RATE_SHEET.plumberHourly,
+    disposalGallons: 0,
+    disposalCost: 0,
+    note: "Use this when the field scope needs a plumber on top of the base hydrovac block.",
+  },
+  hydrovac_liquid_disposal: {
+    key: "hydrovac_liquid_disposal",
+    label: "Liquid waste disposal",
+    summary: "Company-standard liquid waste disposal charged per gallon.",
+    serviceTypeValue: "hydrovac_liquid_disposal",
+    minimumHours: 0,
+    truckRate: 0,
+    helperRate: 0,
+    disposalGallons: 0,
+    disposalCost: 0,
+    note: `Company-standard disposal charge is $${BENKARI_HYDROVAC_RATE_SHEET.liquidDisposalPerGallon.toFixed(2)} per gallon.`,
+  },
+  catch_basin_waste_disposal: {
+    key: "catch_basin_waste_disposal",
+    label: "Catch basin waste disposal",
+    summary: "Catch basin waste treatment charged per ton.",
+    serviceTypeValue: "catch_basin_waste_disposal",
+    minimumHours: 0,
+    truckRate: 0,
+    helperRate: 0,
+    disposalGallons: 0,
+    disposalCost: 0,
+    note: `Current treatment anchor is $${BENKARI_HYDROVAC_RATE_SHEET.catchBasinWastePerTon.toFixed(2)} per ton. Use on top of crew time and haul scope.`,
+  },
+  tank_washout_base: {
+    key: "tank_washout_base",
+    label: "Tank washout",
+    summary: "Tank washout charge for up to 15 minutes.",
+    serviceTypeValue: "tank_washout_base",
+    minimumHours: 0,
+    truckRate: 0,
+    helperRate: 0,
+    disposalGallons: 0,
+    disposalCost: 0,
+    note: "Standard tank washout up to 15 minutes. Use the extended washout line if the yard charges the higher bracket.",
+  },
+};
+
+const BENKARI_PRODUCT_JOB_TEMPLATE_MAP = {
+  "hydrovac-4-hour-minimum-truck-laborer": "hydrovac_4hr_laborer_minimum",
+  "hydrovac-8-hour-minimum-truck-laborer": "hydrovac_8hr_laborer_minimum",
+  "hydrovac-4-hour-minimum-truck-plumber": "hydrovac_4hr_plumber_minimum",
+  "hydrovac-8-hour-minimum-truck-plumber": "hydrovac_8hr_plumber_minimum",
+  "additional-hydrovac-truck-operator-hour": "hydrovac_additional_truck_hour",
+  "additional-jvt-laborer-hour": "hydrovac_additional_laborer_hour",
+  "additional-plumber-hour": "hydrovac_additional_plumber_hour",
+  "liquid-waste-disposal": "hydrovac_liquid_disposal",
+  "catch-basin-waste-treatment": "catch_basin_waste_disposal",
+  "tank-washout-up-to-15-minutes": "tank_washout_base",
+};
+
+const SERVICE_PRESET_LIBRARY = {
+  hydrovac_southeast_michigan: {
+    label: "Benkari hydrovac rate sheet",
+    summary: "Current Benkari company-standard hydrovac pricing with 4-hour and 8-hour minimums, helper/plumber variants, and disposal anchors built from your working rate sheet.",
+    businessKeys: ["hydrovac"],
+    items: [
+      {
+        name: "Hydrovac 4-hour minimum (truck + laborer)",
+        slug: "hydrovac-4-hour-minimum-truck-laborer",
+        category: "Minimums",
+        pricing_mode: "fixed",
+        sell_price_dollars: benkariHydrovacMinimumDollars(BENKARI_HYDROVAC_RATE_SHEET.minimumHours4, BENKARI_HYDROVAC_RATE_SHEET.laborerHourly, BENKARI_HYDROVAC_RATE_SHEET.includedLiquidGallons4),
+        unit_label: "minimum",
+        description: `Operator with truck, JVT laborer, ${BENKARI_HYDROVAC_RATE_SHEET.includedSolidsYards4} yards of solids, and ${BENKARI_HYDROVAC_RATE_SHEET.includedLiquidGallons4} gallons of liquid waste disposal included.`,
+        notes: "Primary Benkari minimum for hydrovac work when the helper is a laborer. Good standard-price line item for normal dispatches.",
+      },
+      {
+        name: "Hydrovac 8-hour minimum (truck + laborer)",
+        slug: "hydrovac-8-hour-minimum-truck-laborer",
+        category: "Minimums",
+        pricing_mode: "fixed",
+        sell_price_dollars: benkariHydrovacMinimumDollars(BENKARI_HYDROVAC_RATE_SHEET.minimumHours8, BENKARI_HYDROVAC_RATE_SHEET.laborerHourly, BENKARI_HYDROVAC_RATE_SHEET.includedLiquidGallons8),
+        unit_label: "minimum",
+        description: `Full-day hydrovac minimum with operator, truck, JVT laborer, ${BENKARI_HYDROVAC_RATE_SHEET.includedSolidsYards8} yards of solids, and ${BENKARI_HYDROVAC_RATE_SHEET.includedLiquidGallons8} gallons of liquid waste disposal included.`,
+        notes: "Built as the full-day Benkari standard. Adjust the included waste allowance if the field conditions call for something different.",
+      },
+      {
+        name: "Hydrovac 4-hour minimum (truck + plumber)",
+        slug: "hydrovac-4-hour-minimum-truck-plumber",
+        category: "Minimums",
+        pricing_mode: "fixed",
+        sell_price_dollars: benkariHydrovacMinimumDollars(BENKARI_HYDROVAC_RATE_SHEET.minimumHours4, BENKARI_HYDROVAC_RATE_SHEET.plumberHourly, BENKARI_HYDROVAC_RATE_SHEET.includedLiquidGallons4),
+        unit_label: "minimum",
+        description: `Operator with truck, plumber, ${BENKARI_HYDROVAC_RATE_SHEET.includedSolidsYards4} yards of solids, and ${BENKARI_HYDROVAC_RATE_SHEET.includedLiquidGallons4} gallons of liquid waste disposal included.`,
+        notes: "Use when the job needs a plumber on the crew inside the base 4-hour block.",
+      },
+      {
+        name: "Hydrovac 8-hour minimum (truck + plumber)",
+        slug: "hydrovac-8-hour-minimum-truck-plumber",
+        category: "Minimums",
+        pricing_mode: "fixed",
+        sell_price_dollars: benkariHydrovacMinimumDollars(BENKARI_HYDROVAC_RATE_SHEET.minimumHours8, BENKARI_HYDROVAC_RATE_SHEET.plumberHourly, BENKARI_HYDROVAC_RATE_SHEET.includedLiquidGallons8),
+        unit_label: "minimum",
+        description: `Full-day hydrovac minimum with operator, truck, plumber, ${BENKARI_HYDROVAC_RATE_SHEET.includedSolidsYards8} yards of solids, and ${BENKARI_HYDROVAC_RATE_SHEET.includedLiquidGallons8} gallons of liquid waste disposal included.`,
+        notes: "Use when the field work needs a plumber for the full-day minimum block.",
+      },
+      {
+        name: "Additional hydrovac truck/operator hour",
+        slug: "additional-hydrovac-truck-operator-hour",
+        category: "Hourly add-ons",
+        pricing_mode: "fixed",
+        sell_price_dollars: BENKARI_HYDROVAC_RATE_SHEET.truckAndOperatorHourly,
+        unit_label: "hour",
+        description: "Additional truck and operator hour once the sold minimum block is already covered.",
+        notes: "Layer this on top of the 4-hour or 8-hour minimum when the truck stays onsite longer.",
+      },
+      {
+        name: "Additional JVT laborer hour",
+        slug: "additional-jvt-laborer-hour",
+        category: "Hourly add-ons",
+        pricing_mode: "fixed",
+        sell_price_dollars: BENKARI_HYDROVAC_RATE_SHEET.laborerHourly,
+        unit_label: "hour",
+        description: "Additional laborer hour once the sold minimum block is already covered.",
+        notes: "Use when the helper time extends beyond the minimum crew block.",
+      },
+      {
+        name: "Additional plumber hour",
+        slug: "additional-plumber-hour",
+        category: "Hourly add-ons",
+        pricing_mode: "fixed",
+        sell_price_dollars: BENKARI_HYDROVAC_RATE_SHEET.plumberHourly,
+        unit_label: "hour",
+        description: "Additional plumber hour layered onto the hydrovac scope once the minimum block is covered.",
+        notes: "Use this when the plumber stays longer than the included minimum or is added after the base block.",
+      },
+      {
+        name: "Liquid waste disposal",
+        slug: "liquid-waste-disposal",
+        category: "Disposal",
+        pricing_mode: "fixed",
+        sell_price_dollars: BENKARI_HYDROVAC_RATE_SHEET.liquidDisposalPerGallon,
+        unit_label: "gallon",
+        description: "Company-standard liquid waste disposal charged by the gallon.",
+        notes: `Current Benkari disposal charge is $${BENKARI_HYDROVAC_RATE_SHEET.liquidDisposalPerGallon.toFixed(2)} per gallon. The minimum blocks already include disposal allowances.`,
+      },
+      {
+        name: "Catch basin waste treatment",
+        slug: "catch-basin-waste-treatment",
+        category: "Disposal",
+        pricing_mode: "fixed",
+        sell_price_dollars: BENKARI_HYDROVAC_RATE_SHEET.catchBasinWastePerTon,
+        unit_label: "ton",
+        description: "Catch basin waste treatment charged by the ton for Dearborn-yard style disposal.",
+        notes: "Use on top of crew time when catch basin solids are being hauled and treated separately.",
+      },
+      {
+        name: "Tank washout (up to 15 minutes)",
+        slug: "tank-washout-up-to-15-minutes",
+        category: "Yard charges",
+        pricing_mode: "fixed",
+        sell_price_dollars: BENKARI_HYDROVAC_RATE_SHEET.tankWashoutBase,
+        unit_label: "washout",
+        description: "Tank washout for up to 15 minutes.",
+        notes: "Add the extended washout or solidification fee if the yard charge escalates beyond the base washout.",
+      },
+      {
+        name: "Tank washout (extended)",
+        slug: "tank-washout-extended",
+        category: "Yard charges",
+        pricing_mode: "fixed",
+        sell_price_dollars: BENKARI_HYDROVAC_RATE_SHEET.tankWashoutExtended,
+        unit_label: "washout",
+        description: "Extended tank washout when the yard charges the higher bracket.",
+        notes: "Use when the base tank washout is not enough and the yard moves to the extended rate.",
+      },
+      {
+        name: "Mandatory solidification washout fee",
+        slug: "mandatory-solidification-washout-fee",
+        category: "Yard charges",
+        pricing_mode: "fixed",
+        sell_price_dollars: BENKARI_HYDROVAC_RATE_SHEET.solidificationWashoutFee,
+        unit_label: "fee",
+        description: "Mandatory washout fee for solidification loads.",
+        notes: "Use when the load type triggers the extra washout fee at the disposal yard.",
+      },
+    ],
+  },
+  contractor_southeast_michigan: {
+    label: "Contractor / Field Crew - Southeast Michigan",
+    summary: "Common service anchors for punch-list work, small projects, emergency response, and cleanup-oriented field jobs.",
+    businessKeys: ["contractor"],
+    items: [
+      { name: "Service call minimum", category: "Field service", pricing_mode: "fixed", sell_price_dollars: 145, unit_label: "visit", description: "Minimum dispatch covering travel, setup, assessment, and the first block of light field work.", notes: "Useful base anchor for fast jobs where the real value is getting a capable crew on site." },
+      { name: "Two-hour field block", category: "Field service", pricing_mode: "fixed", sell_price_dollars: 245, unit_label: "block", description: "Standard two-hour work block for repairs, punch lists, and small completion items.", notes: "Good standard-price line item when the crew can handle a defined scope without a full-day rate." },
+      { name: "Half-day field crew", category: "Crew rate", pricing_mode: "fixed", sell_price_dollars: 495, unit_label: "half day", description: "Half-day crew rate for mixed-scope site work with tools, travel, and basic materials handling.", notes: "Strong anchor for small remodel support, maintenance punch lists, or cleanup-heavy service calls." },
+      { name: "Full-day field crew", category: "Crew rate", pricing_mode: "fixed", sell_price_dollars: 895, unit_label: "day", description: "Full-day crew rate for scope that benefits from a clean single-day commitment.", notes: "Use when the job is best sold as one committed day instead of piecemeal hourly pricing." },
+      { name: "Emergency board-up / site secure", category: "Emergency", pricing_mode: "starts_at", starting_price_dollars: 375, unit_label: "job", description: "Secure openings, protect the property, and stabilize the site after damage, break-ins, or urgent field failures.", notes: "Starting anchor before premium materials, after-hours labor, or multi-opening scope is added." },
+      { name: "Debris removal and haul-away", category: "Cleanup", pricing_mode: "starts_at", starting_price_dollars: 225, unit_label: "load", description: "Remove job debris, bag waste, and leave the work area clean enough for the next trade or owner walk-through.", notes: "Good standard line item for cleanup, disposal, and closeout labor." },
+    ],
+  },
+  general_service_southeast_michigan: {
+    label: "General service - Southeast Michigan",
+    summary: "Broad service anchors for dispatch work, small jobs, half-day visits, emergency response, and materials handling.",
+    businessKeys: ["service_business", "other"],
+    items: [
+      { name: "Standard service call", category: "Dispatch", pricing_mode: "fixed", sell_price_dollars: 125, unit_label: "visit", description: "Dispatch, diagnosis, and first-pass field work for small service needs that can be resolved quickly.", notes: "Baseline service-call pricing anchor for owner-operators and small crews." },
+      { name: "Two-hour service block", category: "Field work", pricing_mode: "fixed", sell_price_dollars: 225, unit_label: "block", description: "Two-hour service block for jobs that need more than a quick dispatch but not a half-day crew.", notes: "Use as the standard-price option when the scope is straightforward and time-boxed." },
+      { name: "Half-day site visit", category: "Field work", pricing_mode: "fixed", sell_price_dollars: 425, unit_label: "half day", description: "Half-day crew visit for mixed-scope service, troubleshooting, repairs, and documented closeout.", notes: "Good fit for owner-operators who need a clean anchor between hourly and quote-only pricing." },
+      { name: "Full-day field service", category: "Field work", pricing_mode: "fixed", sell_price_dollars: 795, unit_label: "day", description: "Full-day commitment for larger site work, project punch lists, or scope that is easiest to sell as one complete visit.", notes: "Works well when the customer wants one quoted day instead of stacked small charges." },
+      { name: "Emergency response dispatch", category: "Emergency", pricing_mode: "starts_at", starting_price_dollars: 295, unit_label: "dispatch", description: "Urgent or same-day response where schedule disruption, weather, or site risk increases the cost of showing up fast.", notes: "Starting anchor for short-notice response before job-specific labor or materials are layered in." },
+      { name: "Materials pickup / disposal", category: "Support", pricing_mode: "fixed", sell_price_dollars: 95, unit_label: "trip", description: "Dedicated pickup, dump, or materials-run line item when the job needs travel and handling outside the base service visit.", notes: "Useful company-standard add-on that operators can pull into bids without rewriting it." },
+    ],
+  },
+};
+
+function servicePresetKeyForWorkspace() {
+  const businessKey = String(currentWorkspaceBlueprint()?.business?.key || "").trim().toLowerCase();
+  if (businessKey === "hydrovac") return "hydrovac_southeast_michigan";
+  if (businessKey === "contractor") return "contractor_southeast_michigan";
+  return "general_service_southeast_michigan";
+}
+
+function servicePresetChoicesForWorkspace() {
+  const primaryKey = servicePresetKeyForWorkspace();
+  const ordered = [primaryKey, "hydrovac_southeast_michigan", "contractor_southeast_michigan", "general_service_southeast_michigan"];
+  return uniqList(ordered).map((key) => SERVICE_PRESET_LIBRARY[key]).filter(Boolean);
+}
+
+function currentServicePreset() {
+  const selectedKey = servicePresetPack?.value || servicePresetKeyForWorkspace();
+  return SERVICE_PRESET_LIBRARY[selectedKey] || SERVICE_PRESET_LIBRARY[servicePresetKeyForWorkspace()];
+}
+
+function presetAmountCents(item) {
+  if (item.pricing_mode === "fixed") return Math.round(Number(item.sell_price_dollars || 0) * 100);
+  if (item.pricing_mode === "starts_at") return Math.round(Number(item.starting_price_dollars || 0) * 100);
+  return 0;
+}
+
+function renderServicePresetPicker() {
+  const choices = servicePresetChoicesForWorkspace();
+  const activeKey = currentServicePreset()?.label ? (servicePresetPack?.value || servicePresetKeyForWorkspace()) : servicePresetKeyForWorkspace();
+
+  if (servicePresetPack) {
+    servicePresetPack.innerHTML = choices.map((preset) => `
+      <option value="${escapeAttr(Object.keys(SERVICE_PRESET_LIBRARY).find((key) => SERVICE_PRESET_LIBRARY[key] === preset) || "")}">
+        ${escapeHtml(preset.label)}
+      </option>
+    `).join("");
+    servicePresetPack.value = activeKey;
+  }
+
+  const preset = currentServicePreset();
+  if (btnLoadRecommendedServices) {
+    btnLoadRecommendedServices.textContent = PRODUCTS_CACHE.length ? "Add missing starters" : "Load starters";
+  }
+  if (productPresetNotice) {
+    productPresetNotice.innerHTML = preset ? `
+      <div class="workspace-panel-notice__title">${escapeHtml(preset.label)}</div>
+      <div class="workspace-panel-notice__copy">${escapeHtml(preset.summary)} Choose a service below, then jump straight into pricing and reuse those company-standard numbers inside bids.</div>
+    ` : `<div class="workspace-panel-notice__copy">Choose a recommended service pack, then load it into the catalog so operators can price from real anchors instead of memory.</div>`;
+  }
+}
+
+function currentPricingRow(productId) {
+  return PRICING_CACHE.find((row) => row.product_id === productId) || null;
+}
+
+function hydrovacTemplateForProduct(product) {
+  const slug = String(product?.slug || "").trim().toLowerCase();
+  const templateKey = BENKARI_PRODUCT_JOB_TEMPLATE_MAP[slug] || "";
+  return HYDROVAC_JOB_TEMPLATE_LIBRARY[templateKey] || null;
+}
+
+function applyHydrovacJobTemplate(templateKey, options = {}) {
+  const template = HYDROVAC_JOB_TEMPLATE_LIBRARY[String(templateKey || "").trim()];
+  if (!template) return null;
+  const preserveExisting = options.preserveExisting !== false;
+  const shouldWrite = (el) => !preserveExisting || !String(el?.value || "").trim();
+
+  if (jobMainServiceType) jobMainServiceType.value = "hydrovac";
+  if (jobServiceType) jobServiceType.value = template.serviceTypeValue || template.key;
+  toggleHydrovacFields("hydrovac");
+  if (jobSummary && shouldWrite(jobSummary)) jobSummary.value = template.summary || "";
+  if (jobMinimumHours && (shouldWrite(jobMinimumHours) || Number(jobMinimumHours.value || 0) <= 0)) jobMinimumHours.value = String(template.minimumHours ?? 0);
+  if (jobTruckRate && (shouldWrite(jobTruckRate) || Number(jobTruckRate.value || 0) <= 0)) jobTruckRate.value = template.truckRate ? String(template.truckRate) : "0";
+  if (jobOperatorRate && (shouldWrite(jobOperatorRate) || Number(jobOperatorRate.value || 0) <= 0)) jobOperatorRate.value = template.helperRate ? String(template.helperRate) : "0";
+  if (jobDisposalVolume && (shouldWrite(jobDisposalVolume) || Number(jobDisposalVolume.value || 0) <= 0)) jobDisposalVolume.value = template.disposalGallons ? String(template.disposalGallons) : "";
+  if (jobDisposalCost && (shouldWrite(jobDisposalCost) || Number(jobDisposalCost.value || 0) <= 0)) jobDisposalCost.value = template.disposalCost ? template.disposalCost.toFixed(2) : "0.00";
+  if (jobAfterHoursMultiplier && (shouldWrite(jobAfterHoursMultiplier) || Number(jobAfterHoursMultiplier.value || 0) <= 0)) jobAfterHoursMultiplier.value = "1.0";
+  if (jobNotes) {
+    const currentNotes = String(jobNotes.value || "").trim();
+    if (!currentNotes || !preserveExisting) {
+      jobNotes.value = template.note || "";
+    } else if (!currentNotes.includes(template.note || "")) {
+      jobNotes.value = [currentNotes, template.note || ""].filter(Boolean).join("\n\n");
+    }
+  }
+  updateHydrovacPreview();
+  if (options.announce !== false) {
+    setInlineMessage(jobMsg, `${template.label} loaded from company-standard pricing. Adjust the job-specific numbers if this site needs something different.`, "ok");
+  }
+  return template;
+}
+
+function pricingSummaryForRow(row) {
+  if (!row) return "Quoted after scope review";
+  const amountCents = pricingAmountForUi(row);
+  const unit = row.unit_label || "job";
+  const mode = normalizePricingModeForUi(row);
+  if (mode === "fixed") return `${formatUsd(amountCents)} / ${unit}`;
+  if (mode === "starts_at") return `Starts at ${formatUsd(amountCents)} / ${unit}`;
+  return "Quoted after scope review";
 }
 
 function renderStartupChecklist() {
@@ -2664,6 +3104,39 @@ function syncPanelHash(tab) {
 function currentPanel() {
   return panelFromLocation();
 }
+function renderPanelBackButtons() {
+  const blueprint = currentWorkspaceBlueprint();
+  document.querySelectorAll(".panel").forEach((panel) => {
+    const panelTab = panel.dataset.panel;
+    const actions = panel.querySelector(".panel-actions");
+    if (!actions) return;
+
+    let button = actions.querySelector("[data-panel-back]");
+    if (!button) {
+      button = document.createElement("button");
+      button.type = "button";
+      button.className = "btn btn-ghost hidden";
+      button.setAttribute("data-panel-back", panelTab);
+      button.title = "Go back to the previous workspace";
+      actions.prepend(button);
+    }
+
+    const previousTab = PREVIOUS_PANEL_TAB && PREVIOUS_PANEL_TAB !== panelTab && panelTab !== "dashboard"
+      ? PREVIOUS_PANEL_TAB
+      : "";
+
+    if (!previousTab) {
+      button.classList.add("hidden");
+      button.textContent = "";
+      return;
+    }
+
+    button.classList.remove("hidden");
+    button.textContent = `← ${workspaceTabLabel(previousTab, blueprint)}`;
+    button.textContent = `Back to ${workspaceTabLabel(previousTab, blueprint)}`;
+    button.onclick = () => switchTab(previousTab);
+  });
+}
 function switchTab(tab, opts = {}) {
   if (_tabAbortController) { _tabAbortController.abort(); }
   _tabAbortController = new AbortController();
@@ -2676,6 +3149,7 @@ function switchTab(tab, opts = {}) {
     if (opts.updateHash !== false) syncPanelHash(activeTab);
     return false;
   }
+  if (nextTab !== activeTab) PREVIOUS_PANEL_TAB = activeTab;
   document.querySelectorAll(".tab").forEach((b) => b.classList.toggle("active", b.dataset.tab === nextTab));
   document.querySelectorAll(".panel").forEach((p) => p.classList.toggle("hidden", p.dataset.panel !== nextTab));
   setWorkspaceCollapsed(nextTab, false);
@@ -2753,6 +3227,7 @@ function switchTab(tab, opts = {}) {
     $('btnRefreshEquipment')?.addEventListener('click', () => fetchEquipment().catch(console.warn));
   }
   if (opts.updateHash !== false) syncPanelHash(nextTab);
+  renderPanelBackButtons();
   renderWorkspaceHub();
   scheduleWorkspaceSnapshot(nextTab);
   return true;
@@ -3148,21 +3623,53 @@ function renderProductsList(filter = "") {
   productsList.innerHTML = rows.length ? "" : `<div class="muted">No products.</div>`;
 
   rows.forEach((p) => {
-    const el = document.createElement("button");
-    el.type = "button";
+    const pricingRow = currentPricingRow(p.id) || {
+      product_id: p.id,
+      product_name: p.name || "",
+      unit_label: "job",
+      pricing_mode: normalizePricingModeForUi(p),
+      sell_price_cents: Number(p.sell_price_cents || 0),
+      starting_price_cents: Number(p.starting_price_cents || 0),
+    };
+    const el = document.createElement("div");
     el.className = "list-item";
+    el.tabIndex = 0;
+    el.setAttribute("role", "button");
     el.innerHTML = `
       <div class="li-main">
         <div class="li-title">${escapeHtml(p.name)}</div>
-        <div class="li-sub muted">${escapeHtml(p.category || "-")}  |  ${escapeHtml(p.slug)}</div>
+        <div class="li-sub muted">${escapeHtml(p.category || "-")}  |  ${escapeHtml(p.slug)}  |  ${escapeHtml(pricingSummaryForRow(pricingRow))}</div>
       </div>
       <div class="li-meta">
         <span class="pill ${p.is_active ? "pill-on" : ""}">${p.is_active ? "On site" : "Hidden"}</span>
         <span class="pill ${p.is_available ? "pill-on" : ""}">${p.is_available ? "Available" : "Unavailable"}</span>
+        <button class="btn btn-ghost btn-sm" type="button" data-edit-product-id="${escapeAttr(p.id)}">Edit</button>
+        <button class="btn btn-primary btn-sm" type="button" data-price-product-id="${escapeAttr(p.id)}">Price</button>
       </div>
     `;
-    el.addEventListener("click", () => loadProductIntoForm(p));
+    el.addEventListener("click", () => openPricingForProduct(p.id));
+    el.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        openPricingForProduct(p.id);
+      }
+    });
     productsList.appendChild(el);
+  });
+
+  productsList.querySelectorAll("[data-edit-product-id]").forEach((btn) => {
+    btn.addEventListener("click", (event) => {
+      event.stopPropagation();
+      const row = PRODUCTS_CACHE.find((product) => product.id === btn.getAttribute("data-edit-product-id"));
+      if (row) loadProductIntoForm(row);
+    });
+  });
+
+  productsList.querySelectorAll("[data-price-product-id]").forEach((btn) => {
+    btn.addEventListener("click", async (event) => {
+      event.stopPropagation();
+      await openPricingForProduct(btn.getAttribute("data-price-product-id"));
+    });
   });
 }
 function clearProductForm() {
@@ -3196,6 +3703,122 @@ function loadProductIntoForm(p) {
   if (productSort) productSort.value = String(p.sort_order ?? 0);
   if (productMsg) productMsg.textContent = "";
   if (productFormTitle) productFormTitle.textContent = `Edit: ${p.name}`;
+}
+async function openPricingForProduct(productId) {
+  if (!productId) return;
+  const product = PRODUCTS_CACHE.find((row) => row.id === productId) || null;
+  const hydrovacTemplate = hydrovacTemplateForProduct(product);
+  ACTIVE_PRICING_PRODUCT_ID = productId;
+  renderPricing(await fetchPricing());
+  switchTab("pricing");
+  if (hydrovacTemplate && !ACTIVE_JOB_ID) {
+    applyHydrovacJobTemplate(hydrovacTemplate.key, {
+      preserveExisting: true,
+      announce: false,
+    });
+    showToast(`${hydrovacTemplate.label} is ready in Jobs too.`);
+  }
+}
+
+function presetProductPayload(item, sortOrder) {
+  const pricingMode = String(item.pricing_mode || "quote");
+  return withTenantScope({
+    operator_id: opId(),
+    name: item.name,
+    slug: item.slug || slugify(item.name),
+    category: item.category || "Services",
+    description: item.description || "",
+    ingredients: [],
+    image_url: null,
+    is_active: true,
+    is_available: true,
+    sort_order: sortOrder,
+    pricing_mode: pricingMode,
+    sell_price_cents: pricingMode === "fixed" ? presetAmountCents(item) : 0,
+    starting_price_cents: pricingMode === "starts_at" ? presetAmountCents(item) : 0,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  });
+}
+
+async function loadRecommendedServicePack() {
+  const preset = currentServicePreset();
+  if (!preset?.items?.length) {
+    alert("No recommended services are configured for this workspace yet.");
+    return;
+  }
+
+  if (productMsg) productMsg.textContent = "Loading recommended services...";
+
+  const existingBySlug = new Map((PRODUCTS_CACHE || []).map((row) => [String(row.slug || "").trim().toLowerCase(), row]));
+  let inserted = 0;
+  let updated = 0;
+  let skipped = 0;
+
+  for (const [index, item] of preset.items.entries()) {
+    const slug = slugify(item.name);
+    const existing = existingBySlug.get(slug);
+    let productIdValue = existing?.id || "";
+
+    if (!existing) {
+      const { data, error } = await sb.from("products")
+        .insert(presetProductPayload(item, index))
+        .select("id")
+        .single();
+      if (error) throw error;
+      productIdValue = data?.id || "";
+      inserted += 1;
+    } else {
+      const shouldHydrateExisting = Number(existing.sell_price_cents || existing.starting_price_cents || 0) <= 0;
+      if (shouldHydrateExisting || !String(existing.description || "").trim()) {
+        const patch = {
+          category: existing.category || item.category || "Services",
+          description: String(existing.description || "").trim() || item.description || "",
+          pricing_mode: shouldHydrateExisting ? item.pricing_mode : existing.pricing_mode,
+          sell_price_cents: shouldHydrateExisting && item.pricing_mode === "fixed" ? presetAmountCents(item) : Number(existing.sell_price_cents || 0),
+          starting_price_cents: shouldHydrateExisting && item.pricing_mode === "starts_at" ? presetAmountCents(item) : Number(existing.starting_price_cents || 0),
+          updated_at: new Date().toISOString(),
+        };
+        const { error } = await sb.from("products")
+          .update(patch)
+          .eq("id", existing.id)
+          .eq(OPERATOR_COLUMN, opId())
+          .eq(TENANT_COLUMN, TENANT_ID);
+        if (error) throw error;
+        updated += 1;
+      } else {
+        skipped += 1;
+      }
+    }
+
+    if (!productIdValue) continue;
+    await ensurePricingRow(productIdValue);
+
+    const pricingPatch = {
+      unit_label: item.unit_label || "job",
+      notes: item.notes || "",
+      updated_at: new Date().toISOString(),
+    };
+    const { error: pricingError } = await sb.from("pricing")
+      .update(pricingPatch)
+      .eq("product_id", productIdValue)
+      .eq(OPERATOR_COLUMN, opId())
+      .eq(TENANT_COLUMN, TENANT_ID);
+    if (pricingError) throw pricingError;
+  }
+
+  await fetchProducts();
+  renderProductsList(productSearch?.value || "");
+  renderPricing(await fetchPricing());
+  renderServicePresetPicker();
+  renderBidCatalogStarters(currentBid());
+  renderStartupChecklist();
+
+  const summary = `${inserted} added, ${updated} filled in, ${skipped} left alone.`;
+  if (productMsg) productMsg.textContent = `Recommended services loaded. ${summary}`;
+  if (productPresetNotice) {
+    productPresetNotice.innerHTML += `<div class="workspace-panel-notice__copy" style="margin-top:8px;">Latest load: ${escapeHtml(summary)}</div>`;
+  }
 }
 async function ensurePricingRow(productRowId) {
   const { data, error } = await sb
@@ -3269,10 +3892,22 @@ productName?.addEventListener("input", () => {
   if (!productId.value) productSlug.value = slugify(productName.value);
 });
 productSearch?.addEventListener("input", debounce(() => renderProductsList(productSearch.value)));
+servicePresetPack?.addEventListener("change", renderServicePresetPicker);
+btnLoadRecommendedServices?.addEventListener("click", async () => {
+  try {
+    await loadRecommendedServicePack();
+  } catch (err) {
+    if (productMsg) productMsg.textContent = err.message || String(err);
+    else alert(err.message || String(err));
+  }
+});
 btnRefreshProducts?.addEventListener("click", async () => {
   try {
     await fetchProducts();
+    await fetchPricing();
     renderProductsList(productSearch.value);
+    renderServicePresetPicker();
+    renderBidCatalogStarters(currentBid());
     await refreshPicklists();
     renderStartupChecklist();
   } catch (err) {
@@ -3325,7 +3960,10 @@ productForm?.addEventListener("submit", async (e) => {
       if (productMsg) productMsg.textContent = "Saved.";
       markWorkspaceClean("products");
       await fetchProducts();
+      await fetchPricing();
     renderProductsList(productSearch.value);
+    renderServicePresetPicker();
+    renderBidCatalogStarters(currentBid());
     await refreshPicklists();
     renderStartupChecklist();
     const current = PRODUCTS_CACHE.find((p) => p.id === savedId);
@@ -3345,7 +3983,10 @@ btnArchiveProduct?.addEventListener("click", async () => {
     if (error) throw error;
     if (productMsg) productMsg.textContent = "Archived.";
     await fetchProducts();
+    await fetchPricing();
     renderProductsList(productSearch.value);
+    renderServicePresetPicker();
+    renderBidCatalogStarters(currentBid());
     renderStartupChecklist();
   } catch (err) {
     if (productMsg) productMsg.textContent = err.message || String(err);
@@ -3395,7 +4036,7 @@ async function fetchPricing() {
 
   const pricingByProductId = new Map((pricingRes.data || []).map((r) => [r.product_id, r]));
 
-  return (productsRes.data || []).map((product) => {
+  PRICING_CACHE = (productsRes.data || []).map((product) => {
     const pricingRow = pricingByProductId.get(product.id) || null;
     return {
       product_id: product.id,
@@ -3412,6 +4053,7 @@ async function fetchPricing() {
       has_cost_row: !!pricingRow,
     };
   });
+  return PRICING_CACHE;
 }
 function totalCostCents(row) {
   return Number(row.cost_ingredients_cents || 0) + Number(row.cost_packaging_cents || 0);
@@ -3419,6 +4061,7 @@ function totalCostCents(row) {
 function renderPricing(rows) {
   if (!pricingList) return;
 
+  PRICING_CACHE = Array.isArray(rows) ? rows : [];
   pricingList.innerHTML = "";
   if (!rows.length) {
     pricingList.innerHTML = `<div class="muted">No products yet.</div>`;
@@ -3431,6 +4074,7 @@ function renderPricing(rows) {
 
     const el = document.createElement("div");
     el.className = "list-item";
+    if (r.product_id === ACTIVE_PRICING_PRODUCT_ID) el.classList.add("is-active");
     el.innerHTML = `
       <div class="li-main">
         <div class="li-title">${escapeHtml(r.product_name || r.product_id)}</div>
@@ -3476,6 +4120,11 @@ function renderPricing(rows) {
     `;
     pricingList.appendChild(el);
   });
+
+  if (ACTIVE_PRICING_PRODUCT_ID) {
+    const activeRow = pricingList.querySelector(`.list-item.is-active`);
+    activeRow?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }
 
   pricingList.querySelectorAll("select[data-pricing-mode]").forEach((selectEl) => {
     selectEl.addEventListener("change", async () => {
@@ -3725,6 +4374,7 @@ btnRefreshPricing?.addEventListener("click", async () => {
   try {
     await fetchProducts();
     renderPricing(await fetchPricing());
+    renderBidCatalogStarters(currentBid());
   } catch (err) {
     alert(err.message || String(err));
   }
@@ -7313,6 +7963,25 @@ jobForm?.addEventListener("submit", async (e) => {
  'jobAfterHoursMultiplier','jobMobilizationFee','jobDisposalCost'].forEach(id => {
   $(id)?.addEventListener('input', updateHydrovacPreview);
 });
+jobMainServiceType?.addEventListener('change', () => {
+  const value = String(jobMainServiceType.value || '').trim();
+  toggleHydrovacFields(value);
+  if (value === 'hydrovac' && jobServiceType && !String(jobServiceType.value || '').trim()) {
+    applyHydrovacJobTemplate('hydrovac_4hr_laborer_minimum', {
+      preserveExisting: true,
+    });
+  }
+});
+jobServiceType?.addEventListener('change', () => {
+  const templateKey = String(jobServiceType.value || '').trim();
+  if (HYDROVAC_JOB_TEMPLATE_LIBRARY[templateKey]) {
+    applyHydrovacJobTemplate(templateKey, {
+      preserveExisting: false,
+    });
+  } else {
+    updateHydrovacPreview();
+  }
+});
 // Auto-fill truck rate when equipment is selected
 jobEquipmentId?.addEventListener('change', () => {
   const eq = EQUIPMENT_CACHE.find(e => e.id === jobEquipmentId.value);
@@ -7494,6 +8163,8 @@ function mergeBidLineItem(base = {}, item = {}) {
     unit_price_cents: Number(item.unit_price_cents ?? base.unit_price_cents ?? 0),
     kind: String(item.kind || base.kind || "base"),
     template_key: item.template_key || base.template_key || "",
+    product_id: item.product_id || base.product_id || "",
+    pricing_source: item.pricing_source || base.pricing_source || "job_specific",
   };
 }
 function formatBidStatus(status) {
@@ -8362,6 +9033,89 @@ function renderBidScopeStarters(draft) {
     btn.addEventListener("click", () => addBidScopeStarter(btn.getAttribute("data-bid-scope-starter")));
   });
 }
+function addBidCatalogStarter(productId) {
+  let active = updateCurrentBidFromForm({ allowCreate: true }) || currentBid();
+  if (!active) active = startNewBid(preferredBidProfile());
+  const product = PRODUCTS_CACHE.find((row) => row.id === productId);
+  const pricingRow = currentPricingRow(productId);
+  if (!product) return null;
+
+  const existing = (active.line_items || []).find((item) => item.product_id === productId);
+  if (existing) {
+    populateBidLineItemForm(existing);
+    setInlineMessage(bidLineItemMsg, `${product.name} is already on this bid. Adjust the company-standard price if this job needs a custom number.`, "ok");
+    bidLineItemUnitPrice?.focus();
+    return existing;
+  }
+
+  const mode = normalizePricingModeForUi(pricingRow || product);
+  const nextItem = mergeBidLineItem({}, {
+    name: product.name || "Service line item",
+    description: product.description || "",
+    quantity: 1,
+    unit: pricingRow?.unit_label || "job",
+    unit_price_cents: mode === "quote" ? 0 : pricingAmountForUi(pricingRow || product),
+    kind: "base",
+    template_key: `catalog:${productId}`,
+    product_id: productId,
+    pricing_source: "company_standard",
+  });
+
+  const nextDraft = {
+    ...active,
+    line_items: [...(active.line_items || []), nextItem],
+    updated_at: new Date().toISOString(),
+  };
+  replaceBidDraft(nextDraft);
+  renderBidWorkspace(nextDraft, { preserveForm: true });
+  renderBidList(bidSearch?.value || "");
+  populateBidLineItemForm(nextItem);
+  setInlineMessage(bidLineItemMsg, `${product.name} loaded from company-standard pricing. Adjust the number if this specific job needs a custom price.`, "ok");
+  bidLineItemUnitPrice?.focus();
+  return nextItem;
+}
+function renderBidCatalogStarters(draft) {
+  if (!bidCatalogStarters) return;
+  const activeServices = PRODUCTS_CACHE
+    .filter((row) => !!row.is_active && !!row.is_available)
+    .map((row) => ({
+      product: row,
+      pricing: currentPricingRow(row.id),
+    }))
+    .filter(({ product, pricing }) => !!product && (!!pricing || ["fixed", "starts_at", "quote"].includes(String(product.pricing_mode || "").toLowerCase())))
+    .slice(0, 16);
+
+  if (!activeServices.length) {
+    bidCatalogStarters.innerHTML = `<div class="muted">Company-standard services will appear here once the service catalog has live offerings.</div>`;
+    return;
+  }
+
+  const activeProductIds = new Set((draft?.line_items || []).map((item) => item.product_id).filter(Boolean));
+  bidCatalogStarters.innerHTML = `
+    <div class="bid-template-panel__top">
+      <div>
+        <strong>Company-standard pricing</strong>
+        <div class="bid-template-panel__copy">Tap a live service to drop your standard pricing into this bid, then tighten it for the specific job without rebuilding the line item from scratch.</div>
+      </div>
+    </div>
+    <div class="bid-template-grid">
+      ${activeServices.map(({ product, pricing }) => `
+        <button class="bid-template-card ${activeProductIds.has(product.id) ? "is-added" : ""}" type="button" data-bid-catalog-starter="${escapeAttr(product.id)}">
+          <div class="bid-template-card__kicker">${escapeHtml(product.category || "Service")}</div>
+          <div class="bid-template-card__title">${escapeHtml(product.name || "Service")}</div>
+          <div class="bid-template-card__copy">${escapeHtml(pricingSummaryForRow(pricing || product))}</div>
+          <div class="bid-template-card__meta">
+            <span class="pill">${escapeHtml((pricing?.unit_label || "job").toString())}</span>
+            <span class="pill ${activeProductIds.has(product.id) ? "pill-on" : ""}">${activeProductIds.has(product.id) ? "Added" : "Use standard"}</span>
+          </div>
+        </button>
+      `).join("")}
+    </div>
+  `;
+  bidCatalogStarters.querySelectorAll("[data-bid-catalog-starter]").forEach((btn) => {
+    btn.addEventListener("click", () => addBidCatalogStarter(btn.getAttribute("data-bid-catalog-starter")));
+  });
+}
 function renderBidStatsCard(draft) {
   if (!bidStatsWrap) return;
   if (!draft) {
@@ -8501,7 +9255,10 @@ function renderBidLineItems(draft) {
           <div class="line-item-card__title">${escapeHtml(item.name || "Line item")}</div>
           <div class="line-item-card__copy">${escapeParagraphs(item.description || "")}</div>
         </div>
-        <span class="pill pill-on">${escapeHtml(formatBidLineItemKind(item.kind))}</span>
+        <div class="inline">
+          <span class="pill pill-on">${escapeHtml(formatBidLineItemKind(item.kind))}</span>
+          <span class="pill ${item.pricing_source === "company_standard" ? "pill-on" : "pill-muted"}">${item.pricing_source === "company_standard" ? "Company standard" : "Job specific"}</span>
+        </div>
       </div>
       <div class="line-item-card__meta">
         <span class="pill">${escapeHtml(String(item.quantity || 0))} ${escapeHtml(item.unit || "unit")}</span>
@@ -8551,6 +9308,7 @@ function renderBidWorkspace(draft, opts = {}) {
     renderBidProfileGuideCard(null);
     renderBidPhotoGuide(null);
     renderBidScopeStarters(null);
+    renderBidCatalogStarters(null);
     renderBidStatsCard(null);
     renderBidDeliveryCard(null);
     if (bidPhotosList) bidPhotosList.innerHTML = `<div class="muted">No walkthrough photos saved yet.</div>`;
@@ -8569,6 +9327,7 @@ function renderBidWorkspace(draft, opts = {}) {
   renderBidProfileGuideCard(draft);
   renderBidPhotoGuide(draft);
   renderBidScopeStarters(draft);
+  renderBidCatalogStarters(draft);
   renderBidStatsCard(draft);
   renderBidDeliveryCard(draft);
   renderBidPhotos(draft);
