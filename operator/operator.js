@@ -3590,6 +3590,39 @@ btnSaveSetupTop?.addEventListener("click", async () => {
     setSetupMessage(err.message || String(err), 'bad');
   }
 });
+
+// Normalize the operator theme after the rest of the UI boots.
+// This keeps the console readable even when tenant branding is dramatic.
+(function initializeReadableOperatorTheme() {
+  const root = document.documentElement;
+  window.__prooflinkThemeManaged = true;
+  const savedTheme = localStorage.getItem("pl_theme");
+  if (!savedTheme) {
+    root.setAttribute("data-theme", "light");
+  }
+
+  const originalButton = $("btnDarkMode");
+  if (!originalButton) return;
+
+  const replacementButton = originalButton.cloneNode(true);
+  originalButton.replaceWith(replacementButton);
+
+  function syncThemeButton() {
+    const activeTheme = root.getAttribute("data-theme") || "light";
+    replacementButton.textContent = activeTheme === "light" ? "◐" : "☀";
+    replacementButton.title = activeTheme === "light" ? "Switch to dark mode" : "Switch to light mode";
+  }
+
+  syncThemeButton();
+
+  replacementButton.addEventListener("click", () => {
+    const currentTheme = root.getAttribute("data-theme") || "light";
+    const nextTheme = currentTheme === "light" ? "dark" : "light";
+    root.setAttribute("data-theme", nextTheme);
+    localStorage.setItem("pl_theme", nextTheme);
+    syncThemeButton();
+  });
+})();
 btnPreviewWebsite?.addEventListener("click", () => {
   if (setupPreviewWrap) setupPreviewWrap.innerHTML = setupPreviewHtml(collectSetupPayload(), SETUP_STATE?.locked_record || null);
   renderSetupPublishMeta(collectSetupPayload());
@@ -12932,15 +12965,11 @@ async function boot() {
 
     await Promise.all([
       fetchProducts(),
-      fetchExpenses(),
       fetchCustomers(),
       fetchLeads(),
       fetchCrmOrders(),
       fetchPayments(),
       fetchJobs(),
-      fetchServicePlans(),
-      fetchAvailability(),
-      fetchOperatorSetup().catch(() => null),
     ]);
     loadBidDrafts();
     await loadPersistedBids();
@@ -12952,13 +12981,7 @@ async function boot() {
     renderAvailability();
     renderBookings();
     renderExpenses(EXPENSES_CACHE);
-    const [pricingData] = await Promise.allSettled([
-      fetchPricing(),
-      refreshPicklists(),
-      fetchDashboardLaunchChecklist(),
-      fetchDashboardPaymentState(),
-    ]);
-    renderPricing(pricingData.status === 'fulfilled' ? pricingData.value : []);
+    renderPricing([]);
     renderStartupChecklist();
     applyWorkspaceBlueprint();
     renderDashboard();
@@ -12970,14 +12993,43 @@ async function boot() {
     renderCustomersList("");
     renderPayments();
     renderGuidance();
-    fetchReviews().then(() => renderReviews()).catch(console.warn);
-    await renderMoney();
     switchTab(panelFromLocation(), { updateHash: false });
 
     window.PROOFLINK_BOOT_READY = true;
     maybeShowSetupWizard().catch(console.warn);
     startRealtime();
     registerPushNotifications();
+
+    Promise.allSettled([
+      fetchExpenses(),
+      fetchServicePlans(),
+      fetchAvailability(),
+      fetchPricing(),
+      refreshPicklists(),
+      fetchDashboardLaunchChecklist(),
+      fetchDashboardPaymentState(),
+      fetchOperatorSetup(),
+      fetchReviews(),
+    ]).then(async (results) => {
+      const pricingData = results[3];
+      if (pricingData?.status === "fulfilled") {
+        renderPricing(pricingData.value || []);
+      }
+      renderAvailability();
+      renderBookings();
+      renderExpenses(EXPENSES_CACHE);
+      renderStartupChecklist();
+      applyWorkspaceBlueprint();
+      renderDashboard();
+      renderPlans(planSearch?.value || "");
+      renderGuidance();
+      renderReviews();
+      await renderMoney();
+      const activeTab = panelFromLocation();
+      if (activeTab === "setup") {
+        renderSetupPreviewActions?.();
+      }
+    }).catch(console.warn);
   } catch (err) {
     console.error(err);
     CURRENT_OPERATOR = null;
@@ -13423,6 +13475,7 @@ document.addEventListener("click", (e) => {
 })();
 
 $("btnDarkMode")?.addEventListener("click", () => {
+  if (window.__prooflinkThemeManaged) return;
   const current = document.documentElement.getAttribute("data-theme") || "dark";
   const next = current === "light" ? "dark" : "light";
   document.documentElement.setAttribute("data-theme", next);

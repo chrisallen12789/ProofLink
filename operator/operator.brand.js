@@ -8,11 +8,13 @@
     tenantLogoUrl: branding.tenantLogoUrl || "/assets/logo.png",
     platformLogoUrl: branding.platformLogoUrl || "/assets/cottagelink-logo.png",
     accent: branding.accent || "#c9a227",
-    bg0: branding.bg0 || "#0b0b0b",
-    bg1: branding.bg1 || "#121212",
-    panel: branding.panel || "#161616",
-    text: branding.text || "#f5f2ea",
-    muted: branding.muted || "#b8b1a5",
-    border: branding.border || "rgba(255,255,255,.08)",
+    // Keep the operator console readable and stable even when the tenant
+    // website uses dramatic brand colors that work poorly for internal tools.
+    bg0: "#1b1713",
+    bg1: "#241f1a",
+    panel: "#312a24",
+    text: "#f7f3ec",
+    muted: "#d6cab9",
+    border: "rgba(255,255,255,.16)",
   };
 })();
