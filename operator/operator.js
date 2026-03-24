@@ -1776,7 +1776,7 @@ function workspaceTabLabel(tab, blueprint = currentWorkspaceBlueprint()) {
     case "dashboard":
       return "Today";
     case "leads":
-      return "Leads";
+      return "Requests";
     case "orders":
       return workspaceQuotedBookedLabel(blueprint);
     case "bids":
@@ -1817,8 +1817,8 @@ function workspacePanelCopy(tab, blueprint = currentWorkspaceBlueprint()) {
       };
     case "leads":
       return {
-        title: "Leads",
-        subtitle: "Capture inbound work cleanly and move qualified opportunities into pricing without rebuilding the record.",
+        title: "Requests",
+        subtitle: "Capture inbound work cleanly, link it to the customer automatically, and move it into quoting without rebuilding the record.",
       };
     case "orders":
       return {
@@ -10658,8 +10658,8 @@ function todayActionItems() {
     const stale = staleLead && staleLead.id === urgentLead.id;
     actions.push({
       tab: "leads",
-      title: stale ? "Recover a missed lead" : (urgentLead.converted_bid_id ? "Follow up active lead" : "Work the next lead"),
-      detail: `${urgentLead.contact_name || urgentLead.title || "Lead"} | ${String(urgentLead.status || "new").replace(/_/g, " ")} | ${ageLabelFromTime(leadLastTouchedAt(urgentLead))}`,
+      title: stale ? "Recover a missed request" : (urgentLead.converted_bid_id ? "Follow up active request" : "Work the next request"),
+      detail: `${urgentLead.contact_name || urgentLead.title || "Request"} | ${String(urgentLead.status || "new").replace(/_/g, " ")} | ${ageLabelFromTime(leadLastTouchedAt(urgentLead))}`,
       targetId: urgentLead.id,
     });
   }
@@ -10743,7 +10743,7 @@ function dashboardClientTrackerRows(todayActions = []) {
       ? `Job ${titleCaseWords(String(activeJob.status || "scheduled").replace(/_/g, " "))}`
       : (activeOrder
         ? `${titleCaseWords(String(activeOrder.status || "new").replace(/_/g, " "))} ${workspaceOrderLabel(currentWorkspaceBlueprint())}`
-        : (activeLead ? `Lead ${titleCaseWords(String(activeLead.status || "new").replace(/_/g, " "))}` : "Customer record"));
+        : (activeLead ? `Request ${titleCaseWords(String(activeLead.status || "new").replace(/_/g, " "))}` : "Customer record"));
     const summary = activeJob?.title
       || activeOrder?.cart_summary
       || activeLead?.title
@@ -10897,7 +10897,7 @@ async function renderLeadDetail(leadIdValue) {
   populateLeadForm(lead);
   if (!lead) {
     if (btnLeadOpenBid) btnLeadOpenBid.disabled = true;
-    leadDetailWrap.innerHTML = `<div class="detail-card"><div class="kicker">Lead intake</div><div><strong>Create or select a lead.</strong></div><div class="detail-copy">This record becomes the bridge between the customer conversation and the quote, order, and job that follow.</div></div>`;
+    leadDetailWrap.innerHTML = `<div class="detail-card"><div class="kicker">Request intake</div><div><strong>Create or select a request.</strong></div><div class="detail-copy">This record becomes the bridge between the customer conversation and the quote, quoted work, and job that follow.</div></div>`;
     return;
   }
   const linkedCustomer = CUSTOMERS_CACHE.find((row) => row.id === lead.customer_id) || null;
@@ -10905,8 +10905,8 @@ async function renderLeadDetail(leadIdValue) {
   const linkedOrder = CRM_ORDERS_CACHE.find((row) => row.id === lead.converted_order_id) || null;
   leadDetailWrap.innerHTML = `
     <div class="detail-card">
-      <div class="kicker">Lead summary</div>
-      <div><strong>${escapeHtml(lead.contact_name || lead.title || "Lead")}</strong></div>
+      <div class="kicker">Request summary</div>
+      <div><strong>${escapeHtml(lead.contact_name || lead.title || "Request")}</strong></div>
       <div class="detail-copy">${escapeHtml(lead.contact_email || "No email")} | ${escapeHtml(lead.contact_phone || "No phone")}</div>
       <div class="detail-copy">Status: ${escapeHtml(String(lead.status || "new").replace(/_/g, " "))} | Priority: ${escapeHtml(String(lead.priority || "normal"))}</div>
       <div class="detail-copy">Requested service: ${escapeHtml(lead.requested_service_type || "Not specified")}</div>
@@ -10945,7 +10945,7 @@ function renderLeads(filter = "") {
   if (!leadsList) return;
   const rows = sortedLeads(filter);
   if (!rows.length) {
-    leadsList.innerHTML = `<div class="muted">No leads yet.</div>`;
+    leadsList.innerHTML = `<div class="muted">No requests yet.</div>`;
     ACTIVE_LEAD_ID = null;
     renderLeadDetail(null).catch(console.error);
     return;
@@ -10956,7 +10956,7 @@ function renderLeads(filter = "") {
   leadsList.innerHTML = rows.map((row) => `
     <button type="button" class="list-item ${row.id === active.id ? "is-active" : ""}" data-lead-id="${escapeAttr(row.id)}">
       <div class="li-main">
-        <div class="li-title">${escapeHtml(row.contact_name || row.title || "Lead")}</div>
+        <div class="li-title">${escapeHtml(row.contact_name || row.title || "Request")}</div>
         <div class="li-sub muted">${escapeHtml(row.requested_service_type || "Service request")} | ${escapeHtml(String(row.status || "new").replace(/_/g, " "))}</div>
         <div class="li-sub muted">${escapeHtml(row.service_address || "No service address")}</div>
       </div>
@@ -12018,8 +12018,8 @@ function renderDashboard() {
           </div>
           <div style="display:flex;align-items:center;gap:10px;">
             <span style="font-size:1.1rem;color:${step2Done ? "#4ade80" : "rgba(255,255,255,.3)"};">${step2Done ? "✓" : "○"}</span>
-            <span style="color:${step2Done ? "rgba(255,255,255,.5)" : "inherit"};text-decoration:${step2Done ? "line-through" : "none"};">Create your first order</span>
-            ${!step2Done ? `<button data-tab="orders" class="btn btn-ghost" style="margin-left:auto;font-size:.75rem;padding:3px 10px;">Go →</button>` : ""}
+            <span style="color:${step2Done ? "rgba(255,255,255,.5)" : "inherit"};text-decoration:${step2Done ? "line-through" : "none"};">Capture your first request</span>
+            ${!step2Done ? `<button data-tab="leads" class="btn btn-ghost" style="margin-left:auto;font-size:.75rem;padding:3px 10px;">Go →</button>` : ""}
           </div>
           <div style="display:flex;align-items:center;gap:10px;">
             <span style="font-size:1.1rem;color:${step3Done ? "#4ade80" : "rgba(255,255,255,.3)"};">${step3Done ? "✓" : "○"}</span>
@@ -12045,7 +12045,7 @@ function renderDashboard() {
 
     <div class="workflow-strip">
       <div class="workflow-stage">
-        <span class="workflow-stage__label">Leads</span>
+        <span class="workflow-stage__label">Requests</span>
         <strong>${pipeline.leads}</strong>
       </div>
       <div class="workflow-stage">
@@ -12085,7 +12085,7 @@ function renderDashboard() {
       </div>
       <div class="card mini">
         <div class="card-bd">
-          <div class="muted">Leads waiting 24h+</div>
+          <div class="muted">Requests waiting 24h+</div>
           <div class="money">${staleLeadRows.length}</div>
         </div>
       </div>
@@ -12185,7 +12185,7 @@ function renderDashboard() {
         <div>
           <div class="kicker">Active client tracker</div>
           <h3>See who is active, what stage they are in, and where the money still sits.</h3>
-          <p>Open the client, order, job, or lead directly from the tracking row instead of hunting across the system.</p>
+          <p>Open the client, quoted work, job, or request directly from the tracking row instead of hunting across the system.</p>
         </div>
         <div class="workspace-chip-row">
           <span class="pill">${escapeHtml(String(trackedClients.length))} clients in focus</span>
@@ -12249,7 +12249,7 @@ function renderDashboard() {
               <button type="button" class="btn btn-ghost btn-sm" data-follow-up-action="snooze" data-follow-up-index="${escapeAttr(index)}">Snooze 24h</button>
             </div>
           </article>
-        `).join("") : `<div class="detail-card"><div class="kicker">Queue</div><div><strong>No safe follow-up is queued right now.</strong></div><div class="detail-copy">That means leads are being worked, money is caught up, or recent contact already happened.</div></div>`}
+        `).join("") : `<div class="detail-card"><div class="kicker">Queue</div><div><strong>No safe follow-up is queued right now.</strong></div><div class="detail-copy">That means requests are being worked, money is caught up, or recent contact already happened.</div></div>`}
       </div>
     </div>
 
@@ -12260,7 +12260,7 @@ function renderDashboard() {
       </div>
       <div class="insight">
         <h3>Owner pressure points</h3>
-        <p>Stale leads: <strong>${staleLeadRows.length}</strong> | Completed but unpaid: <strong>${completedUnpaid.length}</strong></p>
+        <p>Stale requests: <strong>${staleLeadRows.length}</strong> | Completed but unpaid: <strong>${completedUnpaid.length}</strong></p>
         <p>Quoted pipeline waiting on decision: <strong>${pipeline.quoted}</strong> | Due recurring work: <strong>${duePlans.length}</strong> | Missing deposits: <strong>${formatUsd(missingDepositBalance)}</strong></p>
       </div>
       <div class="insight">
@@ -13326,7 +13326,7 @@ function renderGuidance() {
   const notes = [];
   notes.push(["Workspace blueprint", `${summary.businessLabel} is running in ${summary.workspaceModeLabel}. Keep the team living inside ${(summary.focusTabs.length ? summary.focusTabs : ["Customers", workspaceTabLabel("orders", blueprint), "Payments"]).join(", ")}.`]);
   notes.push(["How this should feel", summary.operatorNeeds[0] ? `${summary.operatorNeeds[0]}. ${summary.promise}` : summary.promise]);
-  notes.push(["Lead pipeline", LEADS_CACHE.length ? `You have ${LEADS_CACHE.length} lead record(s). Work them forward instead of letting website requests or phone notes die in memory.` : "No leads exist yet. As service intake starts landing here, the pipeline becomes much easier to trust."]);
+  notes.push(["Request pipeline", LEADS_CACHE.length ? `You have ${LEADS_CACHE.length} request record(s). Work them forward instead of letting website requests or phone notes die in memory.` : "No requests exist yet. As service intake starts landing here, the pipeline becomes much easier to trust."]);
   notes.push(["CRM foundation", CUSTOMERS_CACHE.length ? `You now have ${CUSTOMERS_CACHE.length} customer record(s). Start ranking by lifetime value and following up based on real history.` : "No customers are in CRM yet. The next win is building customer memory that does not live in texts or somebody's head."]);
   notes.push(["Execution", JOBS_CACHE.length ? `You have ${JOBS_CACHE.length} tracked job record(s). That means work no longer has to live only inside the order list.` : "No jobs are tracked yet. Convert booked work into jobs so schedule, proof, and collection all stay visible."]);
   if (isTabVisibleInWorkspace("plans", blueprint)) {

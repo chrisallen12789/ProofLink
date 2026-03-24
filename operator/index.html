@@ -69,7 +69,7 @@
       <div class="nav" aria-label="Sections" data-tour="sidebar-nav">
         <!-- Primary tabs — always visible -->
         <button class="tab active" data-tab="dashboard" data-tour-tab="dashboard" type="button">Today</button>
-        <button class="tab" data-tab="leads" data-tour-tab="leads" type="button">Leads</button>
+        <button class="tab" data-tab="leads" data-tour-tab="leads" type="button">Requests</button>
         <button class="tab" data-tab="orders" data-tour-tab="orders" type="button">Orders</button>
         <button class="tab" data-tab="customers" data-tour-tab="customers" type="button">Customers</button>
         <button class="tab" data-tab="bookings" data-tour-tab="bookings" type="button">Bookings</button>
@@ -247,12 +247,12 @@
           <section class="panel hidden" data-panel="leads">
             <div class="panel-head">
               <div>
-                <h2>Leads</h2>
-                <div class="muted">Capture service opportunities cleanly and move them into pricing without rebuilding the record.</div>
+                <h2>Requests</h2>
+                <div class="muted">Capture inbound work cleanly, link it to the right customer, and move it into quoting without rebuilding the record.</div>
               </div>
               <div class="panel-actions">
-                <input id="leadSearch" class="input" placeholder="Search leads..." />
-                <button id="btnNewLead" class="btn" type="button">New lead</button>
+                <input id="leadSearch" class="input" placeholder="Search requests..." />
+                <button id="btnNewLead" class="btn" type="button">New request</button>
               </div>
             </div>
 
@@ -261,7 +261,7 @@
             <div class="grid two">
               <div class="card">
                 <div class="card-hd">
-                  <strong>Pipeline intake</strong>
+                  <strong>Request pipeline</strong>
                   <span class="muted">Newest and most urgent first</span>
                 </div>
                 <div class="card-bd">
@@ -271,7 +271,7 @@
 
               <div class="card">
                 <div class="card-hd">
-                  <strong>Lead detail</strong>
+                  <strong>Request detail</strong>
                   <span class="muted">Keep the customer context and next action in one place.</span>
                 </div>
                 <div class="card-bd">
@@ -306,7 +306,7 @@
                     </div>
 
                     <div class="grid two form-grid">
-                      <label>Lead title
+                      <label>Request title
                         <input id="leadTitle" placeholder="Exterior wash request" />
                       </label>
 
@@ -356,7 +356,7 @@
                     </label>
 
                     <div class="row">
-                      <button class="btn btn-primary" type="submit">Save lead</button>
+                      <button class="btn btn-primary" type="submit">Save request</button>
                       <button id="btnLeadCreateBid" class="btn" type="button">Create quote</button>
                       <button id="btnLeadOpenBid" class="btn btn-ghost" type="button">Open linked quote</button>
                     </div>
@@ -364,7 +364,7 @@
                     <div id="leadMsg" class="msg"></div>
                   </form>
 
-                  <div id="leadDetailWrap" class="muted" style="margin-top:16px;">Create or select a lead to see the workflow context.</div>
+                  <div id="leadDetailWrap" class="muted" style="margin-top:16px;">Create or select a request to see the workflow context.</div>
                 </div>
               </div>
             </div>
@@ -1280,7 +1280,7 @@
                     <button class="import-kind-card" type="button" data-import-kind="open_work">
                       <div class="kicker">Step 2</div>
                       <strong>Open work</strong>
-                      <div class="detail-copy">Leads, quotes, booked jobs, and unpaid work still in motion.</div>
+                        <div class="detail-copy">Requests, quotes, booked jobs, and unpaid work still in motion.</div>
                     </button>
                     <button class="import-kind-card" type="button" data-import-kind="payments">
                       <div class="kicker">Step 3</div>
