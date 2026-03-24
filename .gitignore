@@ -140,3 +140,4 @@ vite.config.ts.timestamp-*
 
 # Local Netlify folder
 .netlify
+.claude/settings.local.json
