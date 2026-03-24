@@ -4,6 +4,7 @@
 [build]
   publish   = "."
   functions = "netlify/functions"
+  command   = "npm install --omit=dev"
 
 # ── Scheduled functions ───────────────────────────────────────────────────────
 [functions."booking-reminders"]
