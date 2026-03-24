@@ -284,7 +284,7 @@
                           <option value="new">New</option>
                           <option value="contacted">Contacted</option>
                           <option value="qualified">Qualified</option>
-                          <option value="quoted">Quoted</option>
+                          <option value="quoted">Quoted / awaiting approval</option>
                           <option value="converted">Converted</option>
                           <option value="lost">Lost</option>
                           <option value="archived">Archived</option>
@@ -357,8 +357,8 @@
 
                     <div class="row">
                       <button class="btn btn-primary" type="submit">Save lead</button>
-                      <button id="btnLeadCreateBid" class="btn" type="button">Create bid</button>
-                      <button id="btnLeadOpenBid" class="btn btn-ghost" type="button">Open linked bid</button>
+                      <button id="btnLeadCreateBid" class="btn" type="button">Create quote</button>
+                      <button id="btnLeadOpenBid" class="btn btn-ghost" type="button">Open linked quote</button>
                     </div>
 
                     <div id="leadMsg" class="msg"></div>
@@ -404,7 +404,7 @@
                     <select id="bulkStatusSelect" style="flex:1;min-width:120px;">
                       <option value="">Change status to…</option>
                       <option value="new">New</option>
-                      <option value="quoted">Quoted</option>
+                      <option value="quoted">Quoted / awaiting approval</option>
                       <option value="confirmed">Confirmed</option>
                       <option value="fulfilled">Fulfilled</option>
                       <option value="completed">Completed</option>
@@ -424,7 +424,7 @@
                   <span class="muted">Review intake details, cart summary, and CRM status.</span>
                 </div>
                 <div class="card-bd">
-                  <div id="orderDetailWrap" class="muted">Select an order to inspect it.</div>
+                  <div id="orderDetailWrap" class="muted">Select quoted or booked work to inspect it.</div>
                   <div id="phasesSection">
                     <div class="section-toggle" id="phasesToggle">
                       <span>Project Phases</span>
@@ -778,7 +778,7 @@
               </div>
               <div class="panel-actions">
                 <input id="bidSearch" class="input" placeholder="Search bid..." />
-                <button id="btnNewBid" class="btn" type="button">New bid</button>
+                <button id="btnNewBid" class="btn" type="button">New quote</button>
                 <button id="btnConvertBidToOrder" class="btn btn-primary" type="button">Create tracked order</button>
                 <button id="btnEmailBidToCustomer" class="btn btn-ghost" type="button">📧 Email to customer</button>
                 <button id="btnPrintBidProposal" class="btn btn-ghost" type="button">Print proposal</button>
@@ -921,7 +921,7 @@
                           <option value="draft">Draft</option>
                           <option value="walkthrough_complete">Walkthrough complete</option>
                           <option value="ready_to_send">Ready to send</option>
-                          <option value="sent">Sent to client</option>
+                          <option value="sent">Quoted / awaiting approval</option>
                           <option value="approved">Approved</option>
                           <option value="declined">Declined</option>
                         </select>

@@ -511,8 +511,8 @@ const WORKSPACE_CONTEXT_GROUPS = {
   dashboard: ["dashboard", "leads", "bids", "orders", "jobs", "payments", "customers", "import"],
   leads: ["leads", "bids", "customers"],
   bids: ["bids", "leads", "orders", "customers"],
-  orders: ["orders", "jobs", "payments", "customers"],
-  jobs: ["jobs", "orders", "payments", "expenses"],
+  orders: ["orders", "bids", "payments", "customers"],
+  jobs: ["jobs", "bids", "payments", "expenses"],
   plans: ["plans", "jobs", "customers", "payments"],
   customers: ["customers", "leads", "bids", "payments"],
   import: ["import", "customers", "orders", "payments"],
@@ -1720,6 +1720,14 @@ function workspaceOrderLabel(blueprint = currentWorkspaceBlueprint()) {
   if (isServiceWorkspace(blueprint)) return "Jobs";
   return "Orders";
 }
+function workspaceQuotedBookedLabel(blueprint = currentWorkspaceBlueprint()) {
+  if (isServiceWorkspace(blueprint)) return "Quoted / booked";
+  return workspaceOrderLabel(blueprint);
+}
+function workspaceJobsNavLabel(blueprint = currentWorkspaceBlueprint()) {
+  if (isServiceWorkspace(blueprint)) return "Active jobs";
+  return "Jobs";
+}
 function workspaceOrderLabelLower(blueprint = currentWorkspaceBlueprint()) {
   return workspaceOrderLabel(blueprint).toLowerCase();
 }
@@ -1740,6 +1748,10 @@ function workspaceBidLabel(blueprint = currentWorkspaceBlueprint()) {
   if (isServiceWorkspace(blueprint)) return "Walkthrough Bids";
   if (isEventWorkspace(blueprint)) return "Proposals";
   return "Bids";
+}
+function workspaceQuotesArchiveLabel(blueprint = currentWorkspaceBlueprint()) {
+  if (isServiceWorkspace(blueprint)) return "Quote pages";
+  return "Quotes";
 }
 function workspaceAnalyticsMode() {
   const rules = window.ProofLinkPlan?.getPlanRules?.(workspaceTenantRecord()) || {};
@@ -1766,15 +1778,17 @@ function workspaceTabLabel(tab, blueprint = currentWorkspaceBlueprint()) {
     case "leads":
       return "Leads";
     case "orders":
-      return workspaceOrderLabel(blueprint);
+      return workspaceQuotedBookedLabel(blueprint);
     case "bids":
       return workspaceBidLabel(blueprint);
     case "jobs":
-      return "Jobs";
+      return workspaceJobsNavLabel(blueprint);
     case "plans":
       return "Recurring Plans";
     case "import":
       return "Switch & Import";
+    case "quotes":
+      return workspaceQuotesArchiveLabel(blueprint);
     case "products":
       return workspaceCatalogLabel(blueprint);
     case "pricing":
@@ -1808,22 +1822,24 @@ function workspacePanelCopy(tab, blueprint = currentWorkspaceBlueprint()) {
       };
     case "orders":
       return {
-        title: workspaceOrderLabel(blueprint),
+        title: isServiceWorkspace(blueprint) ? "Quoted / booked work" : workspaceOrderLabel(blueprint),
         subtitle: isServiceWorkspace(blueprint)
-          ? `Review live ${orderLower}, schedule commitments, and the next action for each customer.`
+          ? "Keep quoted work waiting on approval and booked work in one clear stage before it becomes an active field job."
           : `Review live ${orderLower}, intake details, and what needs to happen next.`,
       };
     case "bids":
       return {
         title: workspaceBidLabel(blueprint),
         subtitle: isServiceWorkspace(blueprint)
-          ? "Build on-site scope, photos, pricing, and delivery language in one professional record."
+          ? "Build the quote here with scope, photos, pricing, and customer-ready delivery language, then send it for approval."
           : "Build clear offers, pricing, and customer-ready delivery language in one place.",
       };
     case "jobs":
       return {
         title: "Jobs",
-        subtitle: "Track scheduled work, field progress, proof, and payment state without splitting execution from the customer record.",
+        subtitle: isServiceWorkspace(blueprint)
+          ? "Track approved and scheduled field work here. If the customer is still deciding, keep it in Walkthrough Bids or Quoted / booked work."
+          : "Track scheduled work, field progress, proof, and payment state without splitting execution from the customer record.",
       };
     case "plans":
       return {
@@ -1896,6 +1912,9 @@ function isTabVisibleInWorkspace(tab, blueprint = currentWorkspaceBlueprint()) {
   if (tab === "plans") {
     return isServiceWorkspace(blueprint) || isBookingWorkspace(blueprint);
   }
+  if (tab === "quotes" && isServiceWorkspace(blueprint)) {
+    return false;
+  }
   return true;
 }
 function isTabLockedInWorkspace(tab, blueprint = currentWorkspaceBlueprint()) {
@@ -1948,6 +1967,30 @@ function panelNoticeHtml(tab, blueprint = currentWorkspaceBlueprint()) {
       <div class="workspace-panel-notice is-soft">
         <div class="workspace-panel-notice__title">This view stays intentionally simple</div>
         <div class="workspace-panel-notice__copy">You already have the essentials. Deeper reporting, team accountability, and more advanced visibility can layer in later without making the workspace harder to teach.</div>
+      </div>
+    `;
+  }
+  if (tab === "bids" && isServiceWorkspace(blueprint)) {
+    return `
+      <div class="workspace-panel-notice is-soft">
+        <div class="workspace-panel-notice__title">Build and send the quote here</div>
+        <div class="workspace-panel-notice__copy">Start from a lead or click New quote. Use <strong>Quoted / awaiting approval</strong> after it has been sent and you are waiting on the customer to approve it.</div>
+      </div>
+    `;
+  }
+  if (tab === "orders" && isServiceWorkspace(blueprint)) {
+    return `
+      <div class="workspace-panel-notice is-soft">
+        <div class="workspace-panel-notice__title">This is the quote and booking stage</div>
+        <div class="workspace-panel-notice__copy">Use <strong>Quoted / awaiting approval</strong> while the customer is deciding. Once they approve, move it to confirmed or create the active field job.</div>
+      </div>
+    `;
+  }
+  if (tab === "jobs" && isServiceWorkspace(blueprint)) {
+    return `
+      <div class="workspace-panel-notice is-soft">
+        <div class="workspace-panel-notice__title">Jobs are for approved work</div>
+        <div class="workspace-panel-notice__copy">If you still need to work up or send the quote, open <strong>Walkthrough Bids</strong>. If the quote is out and waiting on approval, keep it in <strong>Quoted / booked work</strong>.</div>
       </div>
     `;
   }
@@ -3140,7 +3183,10 @@ function renderPanelBackButtons() {
 function switchTab(tab, opts = {}) {
   if (_tabAbortController) { _tabAbortController.abort(); }
   _tabAbortController = new AbortController();
-  const nextTab = normalizePanel(tab);
+  let nextTab = normalizePanel(tab);
+  if (nextTab === "quotes" && isServiceWorkspace(currentWorkspaceBlueprint())) {
+    nextTab = "bids";
+  }
   ensureSecondaryTabVisible?.(nextTab);
   const activeTab = document.querySelector(".tab.active")?.dataset.tab || "dashboard";
   ensureWorkspaceWindowShell();
@@ -8172,12 +8218,24 @@ function formatBidStatus(status) {
     draft: "Draft",
     walkthrough_complete: "Walkthrough complete",
     ready_to_send: "Ready to send",
-    sent: "Sent to client",
+    sent: "Quoted / awaiting approval",
     approved: "Approved",
     declined: "Declined",
     converted: "Converted",
   };
   return labels[String(status || "").trim().toLowerCase()] || (status ? String(status) : "Draft");
+}
+function formatOrderWorkflowStatus(status) {
+  const labels = {
+    new: "New request",
+    quoted: "Quoted / awaiting approval",
+    confirmed: "Approved / booked",
+    fulfilled: "Work finished",
+    completed: "Completed",
+    paid: "Paid",
+    cancelled: "Cancelled",
+  };
+  return labels[String(status || "").trim().toLowerCase()] || titleCaseWords(String(status || "new"));
 }
 function bidRecordId(draft) {
   return draft?.record_id || (isUuidLike(draft?.id) ? draft.id : "");
@@ -8808,9 +8866,13 @@ function bidGuidedSteps(draft) {
     {
       id: "operations",
       title: "Push the bid into live work",
-      copy: "Once the proposal is real, convert it into a tracked order so the rest of the business can manage it without relying on memory.",
+      copy: isServiceWorkspace(currentWorkspaceBlueprint())
+        ? "Once the proposal is real, move it into quoted / booked work so the rest of the business can manage it without relying on memory."
+        : "Once the proposal is real, convert it into a tracked order so the rest of the business can manage it without relying on memory.",
       done: !!draft?.converted_order_id,
-      actionLabel: draft?.converted_order_id ? "Open order" : "Create tracked order",
+      actionLabel: draft?.converted_order_id
+        ? (isServiceWorkspace(currentWorkspaceBlueprint()) ? "Open quoted / booked" : "Open order")
+        : (isServiceWorkspace(currentWorkspaceBlueprint()) ? "Move to quoted / booked" : "Create tracked order"),
       targetId: "btnConvertBidToOrder",
     },
   ];
@@ -9142,7 +9204,7 @@ function renderBidStatsCard(draft) {
         <div class="bid-stat__value" style="font-size:14px;">${escapeHtml(formatDateTime(draft.updated_at || draft.created_at))}</div>
       </div>
       <div class="bid-stat">
-        <div class="bid-stat__label">Tracked order</div>
+        <div class="bid-stat__label">${escapeHtml(isServiceWorkspace(currentWorkspaceBlueprint()) ? "Quoted / booked work" : "Tracked order")}</div>
         <div class="bid-stat__value" style="font-size:14px;">${escapeHtml(draft.converted_order_id ? "Created" : "Not yet")}</div>
       </div>
     </div>
@@ -9171,7 +9233,7 @@ function renderBidList(filter = "") {
   if (!bidsList) return;
   const rows = sortedBids(filter);
   if (!rows.length) {
-    bidsList.innerHTML = `<div class="muted">${BIDS_CACHE.length ? "No walkthrough bids match this search." : "No walkthrough bids yet. Click New bid to start the first one."}</div>`;
+  bidsList.innerHTML = `<div class="muted">${BIDS_CACHE.length ? "No walkthrough bids match this search." : "No walkthrough bids yet. Click New quote to start the first one."}</div>`;
     if (!BIDS_CACHE.length) ACTIVE_BID_ID = null;
     return;
   }
@@ -9188,7 +9250,7 @@ function renderBidList(filter = "") {
         </div>
         <div class="li-meta">
           <span class="pill">${escapeHtml(formatBidStatus(row.status))}</span>
-          ${row.converted_order_id ? `<span class="pill pill-on">Tracked order</span>` : ""}
+          ${row.converted_order_id ? `<span class="pill pill-on">${escapeHtml(isServiceWorkspace(currentWorkspaceBlueprint()) ? "Quoted / booked" : "Tracked order")}</span>` : ""}
           <span class="pill">${formatUsd(totals.total)}</span>
         </div>
       </button>
@@ -9300,7 +9362,7 @@ function renderBidWorkspace(draft, opts = {}) {
   if (!draft) {
     clearBidForm();
     if (btnConvertBidToOrder) {
-      btnConvertBidToOrder.textContent = "Create tracked order";
+      btnConvertBidToOrder.textContent = isServiceWorkspace(currentWorkspaceBlueprint()) ? "Move to quoted / booked work" : "Create tracked order";
       btnConvertBidToOrder.disabled = true;
     }
     renderBidQuickCustomerCard(null);
@@ -9320,7 +9382,9 @@ function renderBidWorkspace(draft, opts = {}) {
   if (btnConvertBidToOrder) {
     const linkedOrder = currentBidOrder(draft);
     btnConvertBidToOrder.disabled = false;
-    btnConvertBidToOrder.textContent = linkedOrder ? "Open tracked order" : "Create tracked order";
+    btnConvertBidToOrder.textContent = linkedOrder
+      ? (isServiceWorkspace(currentWorkspaceBlueprint()) ? "Open quoted / booked work" : "Open tracked order")
+      : (isServiceWorkspace(currentWorkspaceBlueprint()) ? "Move to quoted / booked work" : "Create tracked order");
   }
   renderBidQuickCustomerCard(draft);
   renderBidGuideFlow(draft);
@@ -9919,11 +9983,17 @@ btnConvertBidToOrder?.addEventListener("click", async () => {
     renderOrders();
     return;
   }
-  setInlineMessage(bidMsg, "Creating tracked order...");
+  setInlineMessage(bidMsg, isServiceWorkspace(currentWorkspaceBlueprint()) ? "Moving quote into quoted / booked work..." : "Creating tracked order...");
   try {
     const result = await convertBidToTrackedOrder();
     renderBids(bidSearch?.value || "", { preserveForm: true });
-    setInlineMessage(bidMsg, result.existed ? "Tracked order already existed. Opening Orders next." : "Tracked order created. Opening Orders next.", "ok");
+    setInlineMessage(
+      bidMsg,
+      result.existed
+        ? (isServiceWorkspace(currentWorkspaceBlueprint()) ? "Quoted / booked work already existed. Opening it next." : "Tracked order already existed. Opening Orders next.")
+        : (isServiceWorkspace(currentWorkspaceBlueprint()) ? "Quote moved into quoted / booked work. Opening it next." : "Tracked order created. Opening Orders next."),
+      "ok",
+    );
     switchTab("orders");
     renderOrders();
   } catch (err) {
@@ -10908,7 +10978,7 @@ function renderJobOrderOptions(selectedOrderId = "") {
   const rows = [...CRM_ORDERS_CACHE].sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
   jobOrderId.innerHTML = `
     <option value="">Link order</option>
-    ${rows.map((order) => `<option value="${escapeAttr(order.id)}">${escapeHtml(`${order.customer_name || "Customer"} | ${String(order.status || "new")} | ${formatWorkflowPaymentState(orderPaymentState(order))}`)}</option>`).join("")}
+    ${rows.map((order) => `<option value="${escapeAttr(order.id)}">${escapeHtml(`${order.customer_name || "Customer"} | ${formatOrderWorkflowStatus(order.status || "new")} | ${formatWorkflowPaymentState(orderPaymentState(order))}`)}</option>`).join("")}
   `;
   jobOrderId.value = rows.some((row) => row.id === selectedOrderId) ? selectedOrderId : "";
 }
@@ -11001,7 +11071,7 @@ async function renderJobDetail(jobIdValue) {
   if (!job) {
     if (btnJobOpenOrder) btnJobOpenOrder.disabled = true;
     if (btnJobRecordPayment) btnJobRecordPayment.disabled = true;
-    jobDetailWrap.innerHTML = `<div class="detail-card"><div class="kicker">Job execution</div><div><strong>Create or select a job.</strong></div><div class="detail-copy">This becomes the execution record tied back to the customer, order, and payment state.</div></div>`;
+  jobDetailWrap.innerHTML = `<div class="detail-card"><div class="kicker">Job execution</div><div><strong>Create or select a job.</strong></div><div class="detail-copy">Use jobs only for approved work that is ready for the field. Quotes still being worked up belong in Walkthrough Bids.</div></div>`;
     return;
   }
   const order = linkedOrderForJob(job);
@@ -11028,6 +11098,7 @@ async function renderJobDetail(jobIdValue) {
       <div><strong>${escapeHtml(job.title || "Job")}</strong></div>
       <div class="detail-copy">Status: ${escapeHtml(String(job.status || "scheduled").replace(/_/g, " "))}</div>
       <div class="detail-copy">Scheduled: ${escapeHtml(String(job.scheduled_date || "No date"))} | ${escapeHtml(String(job.scheduled_time || "No time"))}</div>
+      <div class="detail-copy">Order stage: <span class="pill">${escapeHtml(formatOrderWorkflowStatus(order.status || "new"))}</span></div>
       <div class="detail-copy">Payment: <span class="pill ${paymentStateClass(job.payment_state || orderPaymentState(order))}">${escapeHtml(formatWorkflowPaymentState(job.payment_state || orderPaymentState(order)))}</span></div>
       ${order ? `<div class="detail-copy">Deposit: <span class="pill ${depositStatusClass(depositStatus)}">${escapeHtml(formatDepositStatus(depositStatus))}</span>${orderDepositGapCents(order) > 0 ? ` | ${formatUsd(orderDepositGapCents(order))} still open` : ""}</div>` : ""}
       <div class="detail-copy">Due: ${formatUsd(Number(job.amount_due_cents || orderAmountDueCents(order) || 0))}</div>
@@ -11116,7 +11187,7 @@ function renderJobs(filter = "") {
   if (!jobsList) return;
   const rows = sortedJobs(filter);
   if (!rows.length) {
-    jobsList.innerHTML = `<div class="muted">No jobs yet.</div>`;
+    jobsList.innerHTML = `<div class="muted">No active jobs yet. Approved work will show up here once it is ready for execution.</div>`;
     ACTIVE_JOB_ID = null;
     renderJobDetail(null).catch(console.error);
     return;
@@ -12273,7 +12344,7 @@ function renderDashboard() {
     el.addEventListener('click', () => {
       const label = (el.querySelector('.workflow-stage__label, .stage-label, [class*="label"]')?.textContent || '').toLowerCase();
       if      (label.includes('lead'))                     switchTab('leads');
-      else if (label.includes('quote'))                    switchTab('quotes');
+      else if (label.includes('quote'))                    switchTab(isServiceWorkspace(currentWorkspaceBlueprint()) ? 'bids' : 'quotes');
       else if (label.includes('book') || label.includes('scheduled')) switchTab('bookings');
       else if (label.includes('progress') || label.includes('active')) { switchTab('orders'); }
       else if (label.includes('complet'))                  { switchTab('orders'); }
@@ -12413,8 +12484,8 @@ function renderOrders() {
   const statusOptions = ["new", "quoted", "confirmed", "fulfilled", "completed", "paid", "cancelled"];
 
   if (!rows.length) {
-    ordersList.innerHTML = `<div class="muted">No orders yet.</div>`;
-    if (orderDetailWrap) orderDetailWrap.innerHTML = `<div class="muted">Select an order to inspect it.</div>`;
+    ordersList.innerHTML = `<div class="muted">No quoted or booked work yet.</div>`;
+    if (orderDetailWrap) orderDetailWrap.innerHTML = `<div class="muted">Select quoted or booked work to inspect it.</div>`;
     return;
   }
 
@@ -12444,7 +12515,7 @@ function renderOrders() {
             <div class="li-sub muted">${escapeHtml(fulfillment)}  |  ${escapeHtml(String(scheduledDate))}  |  ${escapeHtml(String(scheduledTime))}</div>
           </div>
           <div class="li-meta">
-            <span class="pill ${["fulfilled", "completed", "paid"].includes(String(row.status || "new").toLowerCase()) ? "pill-on" : ""}">${escapeHtml(String(row.status || "new"))}</span>
+            <span class="pill ${["fulfilled", "completed", "paid"].includes(String(row.status || "new").toLowerCase()) ? "pill-on" : ""}">${escapeHtml(formatOrderWorkflowStatus(row.status || "new"))}</span>
             ${depositStatus !== "not_required" ? `<span class="pill ${depositStatusClass(depositStatus)}">${escapeHtml(formatDepositStatus(depositStatus))}</span>` : ""}
             <span class="pill ${paymentStateClass(paymentState)}">${escapeHtml(formatWorkflowPaymentState(paymentState))}</span>
             <span class="pill">${formatUsd(totalCents)}</span>
@@ -12636,7 +12707,7 @@ function renderOrders() {
         <label class="field" style="flex:1;min-width:120px;">
           <span>Status</span>
           <select id="orderStatusSelect">
-            ${statusOptions.map((status) => `<option value="${status}" ${String(active.status || "new").toLowerCase() === status ? "selected" : ""}>${status}</option>`).join("")}
+            ${statusOptions.map((status) => `<option value="${status}" ${String(active.status || "new").toLowerCase() === status ? "selected" : ""}>${escapeHtml(formatOrderWorkflowStatus(status))}</option>`).join("")}
           </select>
         </label>
         ${active.customer_email ? `<label style="display:flex;align-items:center;gap:6px;font-size:.8rem;cursor:pointer;white-space:nowrap;"><input type="checkbox" id="chkNotifyOnStatusChange" checked /> Notify customer</label>` : ""}
@@ -14104,7 +14175,7 @@ function renderQuotesList() {
   const rows = statusFilter ? QUOTES_CACHE.filter((q) => q.status === statusFilter) : QUOTES_CACHE;
 
   if (!rows.length) {
-    el.innerHTML = `<div class="muted">No quotes found. Send quotes to customers from the Orders panel.</div>`;
+    el.innerHTML = `<div class="muted">No quote pages found yet. In service workspaces, build and send quotes from Walkthrough Bids.</div>`;
     return;
   }
 
