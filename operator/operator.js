@@ -6340,6 +6340,41 @@ async function logCustomerInteraction(customerId, type, summary, metadata = {}) 
   if (customerError) throw customerError;
   return nowIso;
 }
+
+const CUSTOMER_INTERACTION_OPTIONS = [
+  { value: "note", label: "General note", placeholder: "What happened with this customer?" },
+  { value: "call", label: "Phone call", placeholder: "What was discussed on the call?" },
+  { value: "text", label: "Text message", placeholder: "What did you text or learn by text?" },
+  { value: "email", label: "Email", placeholder: "What was sent or answered by email?" },
+  { value: "voicemail", label: "Voicemail", placeholder: "What message was left or received?" },
+  { value: "onsite", label: "On-site visit", placeholder: "What happened at the property or visit?" },
+  { value: "quote", label: "Quote or bid", placeholder: "What changed with the quote or bid?" },
+  { value: "follow_up", label: "Follow-up", placeholder: "What follow-up happened or is needed next?" },
+  { value: "issue", label: "Issue or complaint", placeholder: "What problem or concern came up?" },
+  { value: "payment", label: "Payment", placeholder: "What happened with payment or collection?" },
+  { value: "order", label: "Order or job", placeholder: "What changed on the order or job?" },
+  { value: "internal", label: "Internal note", placeholder: "What should the team remember internally?" },
+];
+
+function customerInteractionLabel(type) {
+  const match = CUSTOMER_INTERACTION_OPTIONS.find((option) => option.value === String(type || "").trim());
+  if (match) return match.label;
+  return String(type || "note")
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function customerInteractionPlaceholder(type) {
+  return CUSTOMER_INTERACTION_OPTIONS.find((option) => option.value === String(type || "").trim())?.placeholder
+    || "What happened with this customer?";
+}
+
+function customerInteractionOptionsMarkup(selected = "note") {
+  return CUSTOMER_INTERACTION_OPTIONS.map((option) => (
+    `<option value="${escapeHtml(option.value)}"${option.value === selected ? " selected" : ""}>${escapeHtml(option.label)}</option>`
+  )).join("");
+}
+
 async function fetchLeads() {
   if (FETCHING.has('leads')) return;
   FETCHING.add('leads');
@@ -6850,13 +6885,9 @@ async function renderCustomerDetail(customerIdValue) {
       <div class="card-bd">
         <div class="row">
           <select id="customerInteractionType" style="max-width:200px;">
-            <option value="note">Note</option>
-            <option value="call">Call</option>
-            <option value="email">Email</option>
-            <option value="order">Order</option>
-            <option value="payment">Payment</option>
+            ${customerInteractionOptionsMarkup("note")}
           </select>
-          <input id="customerInteractionSummary" class="input" style="flex:1;max-width:none;" placeholder="What happened with this customer?" />
+          <input id="customerInteractionSummary" class="input" style="flex:1;max-width:none;" placeholder="${escapeHtml(customerInteractionPlaceholder("note"))}" />
           <button id="btnAddCustomerInteraction" class="btn btn-primary" type="button">Add interaction</button>
         </div>
 
@@ -6866,7 +6897,7 @@ async function renderCustomerDetail(customerIdValue) {
               ${interactions.map((i) => `
                 <div class="list-item">
                   <div class="li-main">
-                    <div class="li-title">${escapeHtml(i.type)}</div>
+                    <div class="li-title">${escapeHtml(customerInteractionLabel(i.type))}</div>
                     <div class="li-sub muted">${escapeHtml(i.summary || "No summary")}</div>
                   </div>
                   <div class="li-meta">
@@ -6902,6 +6933,14 @@ async function renderCustomerDetail(customerIdValue) {
     </div>
   `;
   customerDetailWrap.appendChild(ltv);
+
+  $("customerInteractionType")?.addEventListener("change", () => {
+    const type = $("customerInteractionType")?.value || "note";
+    const summaryInput = $("customerInteractionSummary");
+    if (summaryInput) {
+      summaryInput.placeholder = customerInteractionPlaceholder(type);
+    }
+  });
 
   $("btnAddCustomerInteraction")?.addEventListener("click", async () => {
     const type = $("customerInteractionType")?.value || "note";
