@@ -190,7 +190,10 @@
     $(`section-${step}`)?.classList.add('visible');
     state.step = step;
     updateProgress(step);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    const formCard = document.querySelector('.form-card');
+    if (formCard) {
+      formCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
   }
 
   function validateStep1() {
