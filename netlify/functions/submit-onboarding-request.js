@@ -8,6 +8,7 @@ const { getAdminClient, respond } = require('./utils/auth');
 const { slugify }                  = require('./utils/slugify');
 const { sendEmail, templates }     = require('./utils/email');
 const { checkRateLimit, rateLimitResponse, getClientIP } = require('./utils/rate-limit');
+const { getConfiguredSiteUrl }     = require('./utils/runtime-config');
 
 exports.handler = async (event) => {
   // CORS pre-flight
@@ -111,6 +112,26 @@ exports.handler = async (event) => {
   if (error) {
     console.error('Insert onboarding request error:', error);
     return respond(500, { error: 'Failed to submit onboarding request' });
+  }
+
+  // ── Auto-evaluate (fire-and-forget — triggers auto-approval + provisioning)
+  const internalSecret = process.env.INTERNAL_SECRET;
+  if (internalSecret) {
+    try {
+      const siteUrl = getConfiguredSiteUrl();
+      fetch(`${siteUrl}/.netlify/functions/evaluate-onboarding`, {
+        method : 'POST',
+        headers: {
+          'Content-Type'         : 'application/json',
+          'x-prooflink-internal' : internalSecret,
+        },
+        body: JSON.stringify({ request_id: data.id }),
+      }).catch((e) => console.warn('[submit] evaluate-onboarding fire failed:', e.message));
+    } catch (e) {
+      console.warn('[submit] could not resolve site URL for auto-evaluation:', e.message);
+    }
+  } else {
+    console.warn('[submit] INTERNAL_SECRET not set — skipping auto-evaluation');
   }
 
   // ── Fire emails (non-fatal)

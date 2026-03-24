@@ -31,9 +31,10 @@ function getConfiguredSiteUrl() {
     return explicitSiteUrl.replace(/\/+$/, '');
   }
 
-  const localFallbackUrl = clean(process.env.URL || process.env.DEPLOY_PRIME_URL);
-  if (isLocalUrl(localFallbackUrl)) {
-    return localFallbackUrl.replace(/\/+$/, '');
+  // Netlify automatically sets URL (production) and DEPLOY_PRIME_URL (branch deploys)
+  const netlifyUrl = clean(process.env.URL || process.env.DEPLOY_PRIME_URL);
+  if (netlifyUrl) {
+    return netlifyUrl.replace(/\/+$/, '');
   }
 
   throw configurationError('SITE_URL or PUBLIC_SITE_URL is not configured.');
