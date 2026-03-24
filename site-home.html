@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Home | ProofLink</title>
+  <meta name="description" content="Customer-facing website powered by ProofLink.">
+  <link rel="icon" type="image/png" href="/assets/favicon.png">
+  <link rel="shortcut icon" href="/favicon.ico">
+  <link rel="stylesheet" href="styles.css">
+  <script src="layout.js" defer></script>
+  <script src="cottagelink.tenant.js" defer></script>
+  <script src="cottagelink.config.js" defer></script>
+  <script src="cottagelink.core.js" defer></script>
+  <script src="cart.js" defer></script>
+  <script src="site-home.js" defer></script>
+</head>
+<body class="site-home">
+  <header>
+    <div class="container topbar">
+      <div id="site-nav"></div>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="section-card home-hero-card">
+      <div class="home-hero-grid">
+        <div class="home-hero-copy">
+          <div class="home-hero-kicker">Customer website</div>
+          <h1 id="siteHomeHeading">Professional work, clear communication, and a tracked next step.</h1>
+          <p id="siteHomeSubheading" class="muted">Send a request, get the scope confirmed, and keep the next step clear without the usual back-and-forth.</p>
+          <div class="home-hero-actions">
+            <a class="btn" id="siteHomePrimaryCta" href="order.html"><span data-cl-primary-cta-label>Request service</span></a>
+            <a class="btn btn-secondary" id="siteHomeCatalogCta" href="products.html">View <span data-cl-catalog-label>Products</span></a>
+          </div>
+          <div class="home-hero-highlights">
+            <div class="home-highlight">
+              <strong>Service area</strong>
+              <span data-cl-service-area>Service area available on request.</span>
+            </div>
+            <div class="home-highlight">
+              <strong>Response rhythm</strong>
+              <span data-cl-hours-note>We confirm the next step after review.</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="home-hero-panel">
+          <div class="home-proof-card">
+            <div class="home-proof-card__eyebrow">What customers can expect</div>
+            <h2>Clear scope before the work moves.</h2>
+            <ul class="home-proof-list">
+              <li>One tracked request instead of loose texts and missed callbacks</li>
+              <li>Real follow-up on pricing, timing, and job details</li>
+              <li>A clear next step instead of wondering what happens after the first message</li>
+            </ul>
+          </div>
+          <div class="home-review-card" id="siteHomeReviewCard" hidden>
+            <div class="home-proof-card__eyebrow">Reviews</div>
+            <h3 id="siteHomeReviewLabel">Google reviews</h3>
+            <p class="muted">See what customers say, or leave feedback after the work is done.</p>
+            <a class="btn btn-secondary" id="siteHomeReviewLink" href="#" target="_blank" rel="noopener">Open review page</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section-card">
+      <div class="title-row">
+        <h2>How this business works</h2>
+      </div>
+      <div class="grid-3 home-steps-grid">
+        <div class="mini-card">
+          <h3>1. Send the request</h3>
+          <p class="muted">Choose the service or submit the job details so the right person can review it.</p>
+        </div>
+        <div class="mini-card">
+          <h3>2. Confirm the scope</h3>
+          <p class="muted">We review access, timing, and pricing details before work is booked or dispatched.</p>
+        </div>
+        <div class="mini-card">
+          <h3>3. Keep the next step clear</h3>
+          <p class="muted">Customers get follow-up that feels organized, direct, and easy to trust.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section-card">
+      <div class="title-row">
+        <h2>Featured <span data-cl-catalog-label>Products</span></h2>
+        <a class="btn btn-secondary" href="products.html">See all <span data-cl-catalog-label>Products</span></a>
+      </div>
+      <p class="muted" id="siteHomeCatalogLead">Review the public offers and send the details through one tracked request.</p>
+      <div id="siteHomeFeaturedGrid" class="product-grid" aria-live="polite"></div>
+    </section>
+
+    <section class="section-card about-section watermark-section">
+      <h2>About this business</h2>
+      <p data-cl-about-copy>This business is set up to keep customer communication clear, work organized, and expectations realistic from the first request through the final follow-up.</p>
+      <div class="product-actions" style="margin-top: 1.25rem;">
+        <a class="btn" href="contact.html">Contact us</a>
+        <a class="btn btn-secondary" href="how-it-works.html">How it works</a>
+      </div>
+    </section>
+  </main>
+
+  <div id="toastHost" class="toast-host" aria-live="polite" aria-atomic="true"></div>
+
+  <footer>
+    <div class="container">
+      <div id="site-footer"></div>
+    </div>
+  </footer>
+
+  <button id="backToTop" class="back-to-top" aria-label="Back to top">↑</button>
+</body>
+</html>

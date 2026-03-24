@@ -48,19 +48,19 @@ exports.handler = async (event) => {
     authUserResult,
   ] = await Promise.allSettled([
 
-    // Step 3: Has at least one product
+  // Step 5: Has at least one product
     supabase.from('products')
       .select('id', { count: 'exact', head: true })
       .eq('tenant_id', tenant.id),
 
-    // Step 5: Site settings / publish state
+    // Step 2 / 3: Site settings / publish state
     supabase.from('tenant_config')
       .select('config_value')
       .eq('tenant_id', tenant.id)
       .eq('config_key', 'site_settings')
       .maybeSingle(),
 
-    // Step 2: Auth user last sign-in (password set)
+    // Keep auth user lookup available for rollout context even if not surfaced directly
     tenant.owner_email
       ? supabase.auth.admin.listUsers()
       : Promise.resolve({ data: null }),
@@ -69,69 +69,72 @@ exports.handler = async (event) => {
   // Step 1: Always complete (they're here = approved & provisioned)
   const step1 = true;
 
-  // Step 2: Password set = auth user exists and has signed in at least once
-  let step2 = false;
-  try {
-    const users = authUserResult.value?.data?.users || [];
-    const user  = users.find((u) => u.email === tenant.owner_email);
-    step2 = !!(user && user.last_sign_in_at);
-  } catch {}
-
-  // Step 3: Products added
+  // Step 5: Products added
   const productCount = productResult.status === 'fulfilled'
     ? (productResult.value?.count || 0)
     : 0;
-  const step3 = productCount > 0;
+  const step5 = productCount > 0;
 
   // Step 4: Stripe connected
   const step4 = !!(tenant.stripe_account_id && tenant.stripe_charges_enabled);
 
-  // Step 5: Website published or clearly launch-ready
-  let step5 = false;
+  // Step 2 / 3: Website draft and publish state
+  let step2 = false;
+  let step3 = false;
   try {
     const configRow = configResult.value?.data;
     if (configRow?.config_value) {
       const cfg = JSON.parse(configRow.config_value);
-      step5 = !!(
-        cfg.site_publish_status === 'published' ||
-        (cfg.booking_page_enabled !== false && cfg.hero_heading && cfg.public_contact_email)
+      step2 = !!(
+        (cfg.hero_heading || cfg.tagline) &&
+        (cfg.public_contact_email || cfg.public_business_phone) &&
+        cfg.site_primary_cta_label
       );
+      step3 = cfg.site_publish_status === 'published';
     }
+  } catch {}
+
+  let ownerSignedIn = false;
+  try {
+    const users = authUserResult.value?.data?.users || [];
+    const user  = users.find((u) => u.email === tenant.owner_email);
+    ownerSignedIn = !!(user && user.last_sign_in_at);
   } catch {}
 
   const steps = [
     {
       id       : 'approved',
-      label    : 'Application approved',
-      detail   : 'Your ProofLink account has been created.',
+      label    : 'Workspace ready',
+      detail   : ownerSignedIn ? 'The business account exists and the owner has already signed in.' : 'The business account exists and is ready to launch.',
       complete : step1,
     },
     {
-      id       : 'password',
-      label    : 'Set your password',
-      detail   : 'Sign in using the link in your welcome email.',
+      id       : 'website_shape',
+      label    : 'Shape the website',
+      detail   : step2 ? 'Core website details are in place.' : 'Add the hero, contact details, and CTA labels.',
       complete : step2,
+      cta      : { label: 'Open website setup', href: '/operator/#setup' },
     },
     {
-      id       : 'products',
-      label    : 'Add your first product or service',
-      detail   : `${productCount} product${productCount !== 1 ? 's' : ''} added so far.`,
+      id       : 'website_publish',
+      label    : 'Preview and publish',
+      detail   : step3 ? 'Website is published.' : 'Preview the public pages and publish when they feel ready.',
       complete : step3,
-      cta      : { label: 'Add products', href: '/operator/products.html' },
+      cta      : { label: 'Open publish controls', href: '/operator/#setup' },
     },
     {
-      id       : 'stripe',
-      label    : 'Connect Stripe for payouts',
-      detail   : step4 ? 'Stripe is connected and active.' : 'Link your bank account to receive payments.',
+      id       : 'money',
+      label    : 'Turn on billing and payouts',
+      detail   : step4 ? 'Billing and payouts are ready.' : 'Activate the software plan and connect payouts.',
       complete : step4,
       cta      : step4 ? null : { label: 'Connect Stripe', href: '/operator/payments.html' },
     },
     {
-      id       : 'customize',
-      label    : 'Publish your website',
-      detail   : step5 ? 'Website settings are ready for customers.' : 'Set the branding, contact details, and publish state.',
+      id       : 'products',
+      label    : 'Add the first service and test',
+      detail   : `${productCount} service${productCount !== 1 ? 's' : ''} added so far.`,
       complete : step5,
-      cta      : { label: 'Open website setup', href: '/operator/#setup' },
+      cta      : { label: 'Add services', href: '/operator/#products' },
     },
   ];
 

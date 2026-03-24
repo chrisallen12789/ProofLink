@@ -93,41 +93,41 @@
           <div class="step-item" id="nav-step-1">
             <div class="step-line">
               <div class="step-num">1</div>
-              <h3>Business created</h3>
+              <h3>Workspace ready</h3>
             </div>
-            <p>Business profile, login, and storefront URL are ready.</p>
+            <p>The business, login, and public URL are in place.</p>
           </div>
 
           <div class="step-item" id="nav-step-2">
             <div class="step-line">
               <div class="step-num">2</div>
-              <h3>Activate ProofLink billing</h3>
+              <h3>Shape the website</h3>
             </div>
-            <p>Turn on the platform subscription.</p>
+            <p>Set the branding, copy, contact details, and CTA.</p>
           </div>
 
           <div class="step-item" id="nav-step-3">
             <div class="step-line">
               <div class="step-num">3</div>
-              <h3>Connect Stripe payouts</h3>
+              <h3>Preview and publish</h3>
             </div>
-            <p>Connect the business payout account.</p>
+            <p>Walk the public pages and publish when they feel trustworthy.</p>
           </div>
 
           <div class="step-item" id="nav-step-4">
             <div class="step-line">
               <div class="step-num">4</div>
-              <h3>Add the first offer</h3>
+              <h3>Turn on money flows</h3>
             </div>
-            <p>Create the first product or service.</p>
+            <p>Activate the platform and connect business payouts.</p>
           </div>
 
           <div class="step-item" id="nav-step-5">
             <div class="step-line">
               <div class="step-num">5</div>
-              <h3>Publish and sell</h3>
+              <h3>Add the first service and test</h3>
             </div>
-            <p>Open the storefront and start taking orders.</p>
+            <p>Create one real offer, then run one real-world test request.</p>
           </div>
         </div>
       </aside>
@@ -137,43 +137,71 @@
 
         <section class="panel active" id="step-1">
           <h2>Business workspace created</h2>
-          <p>The business workspace is ready. Now activate billing so the account becomes live on the platform.</p>
+          <p>The business workspace is live. Now make the site feel like the business, publish it, and then turn on the money tools.</p>
           <div class="kv" id="businessKv"></div>
           <div class="actions">
-            <button class="btn" id="goToBillingBtn">Start platform billing</button>
+            <a class="btn" href="/operator/#setup">Open website builder</a>
             <button class="btn secondary" id="refreshStateBtn1">Refresh status</button>
           </div>
-          <div class="note">The business exists already. This step is just confirmation and routing.</div>
+          <div class="note">The fastest self-serve path is simple: shape the website first, preview it like a customer, then move into billing and payouts.</div>
           <div class="msg" id="msg-step-1"></div>
         </section>
 
         <section class="panel" id="step-2">
-          <h2>Activate ProofLink billing</h2>
-          <p>This is the platform subscription for using ProofLink. It's separate from payments your customers make to the business.</p>
+          <h2>Shape the website</h2>
+          <p>Make the site look and sound like the business. Set the hero, service area, contact details, font, and CTA text before worrying about the backend details.</p>
+          <div class="checks">
+            <div class="check">
+              <strong>Website status</strong>
+              <span id="websiteStatusText">Draft</span>
+            </div>
+            <div class="check">
+              <strong>Next move</strong>
+              <span>Open Business Setup and make the homepage, service page, and request flow feel real.</span>
+            </div>
+          </div>
+          <div class="actions">
+            <a class="btn" href="/operator/#setup">Open website builder</a>
+            <button class="btn secondary" id="openHomePreviewBtn">Preview homepage</button>
+            <button class="btn secondary" id="refreshStateBtn2">Refresh status</button>
+          </div>
+          <div class="note">Keep it clean: business name, service area, hours note, strong hero line, and direct CTA labels. Make it obvious what a customer should do next.</div>
+          <div class="msg" id="msg-step-2"></div>
+        </section>
+
+        <section class="panel" id="step-3">
+          <h2>Preview and publish</h2>
+          <p>Walk the public pages like a customer. When the homepage, service menu, and request page feel ready, publish the website.</p>
+          <div class="checks">
+            <div class="check">
+              <strong>Publish state</strong>
+              <span id="publishStatusText">Unknown</span>
+            </div>
+            <div class="check">
+              <strong>Website URL</strong>
+              <span id="websiteUrlText">Unknown</span>
+            </div>
+          </div>
+          <div class="actions">
+            <button class="btn" id="openServicesPreviewBtn">Preview services page</button>
+            <button class="btn secondary" id="openRequestPreviewBtn">Preview request page</button>
+            <a class="btn secondary" href="/operator/#setup">Open publish controls</a>
+            <button class="btn secondary" id="refreshStateBtn3">Refresh status</button>
+          </div>
+          <div class="note">Publishing should feel calm. If the site still feels generic, go back into Business Setup and refine it before you put real traffic on it.</div>
+          <div class="msg" id="msg-step-3"></div>
+        </section>
+
+        <section class="panel" id="step-4">
+          <h2>Turn on billing and payouts</h2>
+          <p>Activate the ProofLink subscription and connect the business payout account so customer payments can move cleanly.</p>
           <div class="checks">
             <div class="check">
               <strong>Current billing status</strong>
               <span id="billingStatusText">Unknown</span>
             </div>
             <div class="check">
-              <strong>Plan</strong>
-              <span id="planText">Starter</span>
-            </div>
-          </div>
-          <div class="actions">
-            <button class="btn" id="startBillingBtn">Start platform billing</button>
-            <button class="btn secondary" id="refreshStateBtn2">Refresh status</button>
-          </div>
-          <div class="note">After Stripe returns here, use refresh once if the webhook has not landed yet.</div>
-          <div class="msg" id="msg-step-2"></div>
-        </section>
-
-        <section class="panel" id="step-3">
-          <h2>Connect Stripe payouts</h2>
-          <p>This connects the business’s Stripe account so customer payments go directly to the business, not to ProofLink.</p>
-          <div class="checks">
-            <div class="check">
-              <strong>Connect status</strong>
+              <strong>Payments status</strong>
               <span id="connectStatusText">Unknown</span>
             </div>
             <div class="check">
@@ -182,42 +210,34 @@
             </div>
           </div>
           <div class="actions">
-            <button class="btn" id="connectStripeBtn">Connect Stripe</button>
-            <button class="btn secondary" id="refreshStateBtn3">Refresh status</button>
+            <button class="btn" id="startBillingBtn">Start platform billing</button>
+            <button class="btn secondary" id="connectStripeBtn">Connect Stripe</button>
+            <button class="btn secondary" id="refreshStateBtn4">Refresh status</button>
           </div>
-          <div class="note">Online payments stay blocked until billing is active and Connect is complete.</div>
-          <div class="msg" id="msg-step-3"></div>
-        </section>
-
-        <section class="panel" id="step-4">
-          <h2>Add the first offer</h2>
-          <p>Create the first product or service so the storefront has something to sell.</p>
-          <div class="actions">
-            <a class="btn" href="/operator/#products">Go to products</a>
-            <button class="btn secondary" id="markProductsDoneBtn">I added the first offer</button>
-          </div>
-          <div class="note">For a service business, add one simple starter service first. Do not overbuild the menu.</div>
+          <div class="note">Billing is the software subscription. Connect Stripe is the business payout account. Keeping those separate makes the setup much easier to teach.</div>
           <div class="msg" id="msg-step-4"></div>
         </section>
 
         <section class="panel" id="step-5">
-          <h2>Publish and sell</h2>
-          <p>The account is ready to move into live use.</p>
+          <h2>Add the first service and test the request flow</h2>
+          <p>Create one starter service, open the public site, and run one test request all the way through before you start bringing in real customers.</p>
           <div class="checks">
             <div class="check">
-              <strong>Storefront URL</strong>
+              <strong>Website URL</strong>
               <span id="subdomainText">Unknown</span>
             </div>
             <div class="check">
-              <strong>Next move</strong>
-              <span>Open the storefront, test one order, then hand the owner their login.</span>
+              <strong>Launch move</strong>
+              <span>Open the website, send one test request, and confirm the next step shows up where the operator will actually work it.</span>
             </div>
           </div>
           <div class="actions">
-            <a class="btn" id="openStorefrontBtn" href="/" target="_blank" rel="noopener">Open storefront</a>
+            <a class="btn" href="/operator/#products">Open services</a>
+            <button class="btn secondary" id="markProductsDoneBtn">I added the first service</button>
+            <a class="btn secondary" id="openStorefrontBtn" href="/" target="_blank" rel="noopener">Open website</a>
             <a class="btn secondary" href="/operator/">Open dashboard</a>
           </div>
-          <div class="note">This is the point where you can demo the platform in the field.</div>
+          <div class="note">This is the real launch check: the site looks right, the request flow works, and the business can start taking customers without improvising.</div>
           <div class="msg" id="msg-step-5"></div>
         </section>
       </main>

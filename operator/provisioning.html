@@ -440,7 +440,7 @@
     // Detail button always visible
     html.push(`<button class="btn btn-detail" onclick="openDetailModal(event,'${r.id}')">Details</button>`);
 
-    if (r.status === 'submitted') {
+    if (r.status === 'submitted' || r.status === 'needs_review') {
       html.push(`<button class="btn btn-approve" onclick="approveRequest('${r.id}')">Approve</button>`);
       html.push(`<button class="btn btn-retry" onclick="openRejectModal(event,'${r.id}')" style="background:#fee2e2;color:var(--danger)">Reject</button>`);
     }

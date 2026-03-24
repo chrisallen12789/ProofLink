@@ -3,51 +3,76 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Terms | Honest To Crust</title>
-
-    <!-- favicon -->
-  <link rel="icon" type="image/png" href="/assets/favicon.png">
-  <link rel="shortcut icon" href="/favicon.ico">
-  
-  <meta name="description" content="Terms for using the site and placing order requests." />
+  <title>Terms | ProofLink</title>
+  <meta name="description" content="Terms for using the website and sending a request." />
+  <link rel="icon" type="image/png" href="/assets/favicon.png" />
+  <link rel="shortcut icon" href="/favicon.ico" />
   <link rel="stylesheet" href="styles.css" />
-  <link rel="icon" href="assets/favicon.png" />
+  <script src="layout.js" defer></script>
+  <script src="cottagelink.tenant.js" defer></script>
+  <script src="cottagelink.config.js" defer></script>
+  <script src="cottagelink.core.js" defer></script>
+  <script src="cart.js" defer></script>
 </head>
 <body>
-  <div id="site-nav"></div>
-  <div data-include="partials/nav.html"></div>
+  <header>
+    <div class="container topbar">
+      <div id="site-nav"></div>
+    </div>
+  </header>
 
   <main class="container legal">
-    
-<h1>Terms</h1>
-<p>This site provides information about products and allows you to submit contact and order requests. By using this site, you agree to the terms below.</p>
+    <section class="section-card">
+      <h1>Terms</h1>
+      <p>
+        This website lets customers review available <span data-cl-catalog-label>Products</span>,
+        send requests, ask questions, and move work forward with a real business. By using this site,
+        you agree to the terms below.
+      </p>
 
-<h2>Order requests and confirmation</h2>
-<ul>
-  <li>Submitting an order request does not guarantee availability or acceptance.</li>
-  <li>We confirm orders by email after we review details such as quantity, customizations, and timing.</li>
-  <li>Production begins only after we confirm the order and any required payment is received.</li>
-</ul>
+      <h2>Requests and approvals</h2>
+      <ul>
+        <li>Submitting a request does not guarantee acceptance, availability, or final pricing.</li>
+        <li>Work is confirmed after review of scope, timing, access, and any required deposit or payment terms.</li>
+        <li>If the request needs clarification, we will ask questions before moving forward.</li>
+      </ul>
 
-<h2>Custom work</h2>
-<p>Many items are made to order. Variations in size, texture, and appearance are normal for handmade baked goods.</p>
+      <h2>Pricing and scope</h2>
+      <ul>
+        <li>Some work is priced immediately, while other jobs require review before final approval.</li>
+        <li>Changes in scope, access, materials, timing, or job conditions can affect the final price.</li>
+        <li>Quoted or booked work may be paused until required approvals, deposits, or documents are complete.</li>
+      </ul>
 
-<h2>Allergens</h2>
-<p>Our kitchen uses common allergens including wheat, eggs, dairy, and nuts. Cross contact with allergens is possible. If you have a severe allergy, contact us before placing a request.</p>
+      <h2>Customer responsibilities</h2>
+      <ul>
+        <li>Provide accurate contact, address, and scope information.</li>
+        <li>Tell us about access limits, deadlines, safety concerns, or site conditions that affect the work.</li>
+        <li>Review confirmations, invoices, and follow-up messages in a timely way.</li>
+      </ul>
 
-<h2>Food safety and storage</h2>
-<p>We will share handling and storage guidance when appropriate. Once an order is picked up or delivered, storage and consumption are the customer’s responsibility.</p>
+      <h2>Limitation of liability</h2>
+      <p>
+        To the maximum extent permitted by law, the business is not liable for indirect, incidental,
+        or consequential damages related to the use of this site or the handling of a request.
+      </p>
 
-<h2>Limitation of liability</h2>
-<p>To the maximum extent permitted by law, Honest To Crust is not liable for indirect, incidental, or consequential damages related to the use of this site or the purchase of products.</p>
+      <h2>Updates</h2>
+      <p>
+        These terms may be updated as the business grows. The current version remains posted here.
+      </p>
 
-<h2>Policy updates</h2>
-<p>We may update these terms as the business grows. The current version is posted on this page.</p>
-
+      <div class="product-actions" style="margin-top: 1.25rem;">
+        <a class="btn" href="how-it-works.html">How it works</a>
+        <a class="btn btn-secondary" href="site-home.html">Back home</a>
+      </div>
+    </section>
   </main>
 
-  <div data-include="partials/footer.html"></div>
-  <script src="layout.js"></script>
-  <div id="site-footer"></div>
+  <footer>
+    <div class="container">
+      <div id="site-footer"></div>
+    </div>
+  </footer>
 </body>
 </html>

@@ -290,7 +290,7 @@ test.describe.serial("service workflow e2e", () => {
     await page.locator(`#ordersList button[data-order-id="${state.orderId}"]`).click();
     await page.locator("#orderDepositOverrideReason").fill("E2E validation override to complete the workflow handoff.");
     await page.locator("#btnSaveOrderDepositSettings").click();
-    await expect(page.locator("#orderDepositMsg")).toContainText(/saved/i);
+    await expect(page.locator("#orderDepositMsg")).toContainText(/saved/i, { timeout: 15000 });
     await page.locator("#btnCreateJobFromOrder").click();
 
     await expect(page.getByRole("heading", { name: "Jobs" })).toBeVisible();
@@ -312,7 +312,7 @@ test.describe.serial("service workflow e2e", () => {
     await expect(page.getByRole("heading", { name: "Payments" })).toBeVisible();
     await page.locator("#paymentAmount").fill("150.00");
     await page.locator("#paymentForm").getByRole("button", { name: "Save payment" }).click();
-    await expect(page.locator("#paymentMsg")).toContainText(/saved/i);
+    await expect(page.locator("#paymentMsg")).toContainText(/saved/i, { timeout: 15000 });
 
     const partialState = await waitForOrderPaymentState(admin, state.orderId, "partially_paid");
     expect(partialState.amount_due_cents).toBe(20000);

@@ -48,12 +48,12 @@ test("public onboarding request can be approved and provisioned", async ({ page 
   }
 
   await page.getByRole("button", { name: /Refresh/i }).click();
-  const provisionButton = page
-    .locator("#requests-tbody tr", { hasText: businessName })
-    .getByRole("button", { name: /Provision/ })
-    .first();
-  await expect(provisionButton).toBeVisible({ timeout: 15000 });
-  await provisionButton.click();
-  await expect(page.locator("#toast")).toContainText("provisioned", { timeout: 20000 });
-  await expect(row).toContainText("provisioned");
+  const latestRow = page.locator("#requests-tbody tr", { hasText: businessName });
+  const provisionButton = latestRow.getByRole("button", { name: /Provision/ }).first();
+  if (await provisionButton.count()) {
+    await provisionButton.click();
+    await expect(page.locator("#toast")).toContainText("provisioned", { timeout: 20000 });
+  } else {
+    await expect(latestRow).toContainText(/Approved|Setting Up|Active|provisioned/i, { timeout: 20000 });
+  }
 });

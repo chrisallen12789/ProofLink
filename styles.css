@@ -367,6 +367,100 @@ main {
   padding: 26px;
 }
 
+.home-hero-card{
+  overflow:hidden;
+}
+
+.home-hero-grid{
+  display:grid;
+  grid-template-columns: 1.15fr .85fr;
+  gap:24px;
+  align-items:stretch;
+}
+
+.home-hero-copy{
+  display:flex;
+  flex-direction:column;
+  gap:16px;
+}
+
+.home-hero-kicker,
+.home-proof-card__eyebrow{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  padding:6px 12px;
+  border-radius:999px;
+  border:1px solid var(--border);
+  background:rgba(168,81,45,.08);
+  color:var(--accent-dark);
+  font-size:.78rem;
+  font-weight:800;
+  letter-spacing:.04em;
+  text-transform:uppercase;
+  width:fit-content;
+}
+
+.home-hero-copy h1{
+  font-size:clamp(2rem, 5vw, 3.2rem);
+  line-height:1.02;
+  margin:0;
+}
+
+.home-hero-copy p{
+  max-width:58ch;
+  margin:0;
+}
+
+.home-hero-actions{
+  display:flex;
+  flex-wrap:wrap;
+  gap:12px;
+}
+
+.home-hero-highlights{
+  display:grid;
+  grid-template-columns:repeat(2, minmax(0, 1fr));
+  gap:12px;
+}
+
+.home-highlight,
+.home-proof-card,
+.home-review-card{
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  background:linear-gradient(180deg, rgba(255,255,255,.7) 0%, rgba(255,255,255,.96) 100%);
+  padding:18px;
+}
+
+.home-highlight strong{
+  display:block;
+  margin-bottom:6px;
+  font-family:var(--font-display);
+}
+
+.home-hero-panel{
+  display:flex;
+  flex-direction:column;
+  gap:14px;
+}
+
+.home-proof-card h2,
+.home-review-card h3{
+  margin:8px 0 10px;
+}
+
+.home-proof-list{
+  margin:0;
+  padding-left:18px;
+  display:grid;
+  gap:10px;
+}
+
+.home-steps-grid .mini-card{
+  min-height:100%;
+}
+
 .hero-grid {
   display: grid;
   grid-template-columns: 1.1fr 0.9fr;
@@ -1127,6 +1221,8 @@ footer {
   .hero-image { height: 300px; }
   .product-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .grid-3 { grid-template-columns: 1fr 1fr; }
+  .home-hero-grid { grid-template-columns: 1fr; }
+  .home-hero-highlights { grid-template-columns: 1fr; }
 
   footer .footer-inner,
   .site-footer .footer-inner {
@@ -1170,9 +1266,11 @@ footer {
   .hero { padding: 20px; }
   .hero-image { height: 240px; }
   .hero-copy h1 { font-size: 1.5rem; }
+  .home-hero-copy h1 { font-size: 1.8rem; }
 
   .product-actions { flex-direction: column; align-items: stretch; }
   .btn { width: 100%; text-align: center; }
+  .home-hero-actions { flex-direction: column; }
 
   .form-grid { grid-template-columns: 1fr; }
   .form__row { grid-template-columns: 1fr; }

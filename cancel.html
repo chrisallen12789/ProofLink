@@ -3,32 +3,41 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Payment Canceled | Honest To Crust</title>
-
-    <!-- favicon -->
-  <link rel="icon" type="image/png" href="/assets/favicon.png">
-  <link rel="shortcut icon" href="/favicon.ico">
-  
+  <title>Payment canceled | ProofLink</title>
   <meta name="robots" content="noindex" />
-  <style>
-    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0b0b0b;color:#f5f5f5}
-    .card{max-width:640px;width:92%;background:#141414;border:1px solid #2a2a2a;border-radius:16px;padding:28px}
-    h1{margin:0 0 10px;font-size:24px}
-    p{margin:0 0 16px;line-height:1.5;color:#d9d9d9}
-    .row{display:flex;gap:12px;flex-wrap:wrap;margin-top:18px}
-    a.button{display:inline-block;padding:10px 14px;border-radius:12px;text-decoration:none;border:1px solid #3a3a3a;color:#f5f5f5}
-    a.button.primary{border-color:#caa44d}
-  </style>
+  <meta name="description" content="Payment cancellation page." />
+  <link rel="icon" type="image/png" href="/assets/favicon.png" />
+  <link rel="shortcut icon" href="/favicon.ico" />
+  <link rel="stylesheet" href="styles.css" />
+  <script src="layout.js" defer></script>
+  <script src="cottagelink.tenant.js" defer></script>
+  <script src="cottagelink.config.js" defer></script>
+  <script src="cottagelink.core.js" defer></script>
+  <script src="cart.js" defer></script>
 </head>
 <body>
-  <main class="card">
-    <h1>Payment canceled.</h1>
-    <p>No charge was made.</p>
-    <p>You can try again when ready.</p>
-    <div class="row">
-      <a class="button primary" href="/order.html">Try again</a>
-      <a class="button" href="/">Back to Home</a>
+  <header>
+    <div class="container topbar">
+      <div id="site-nav"></div>
     </div>
+  </header>
+
+  <main class="container">
+    <section class="section-card watermark-section">
+      <h1>Payment canceled</h1>
+      <p>No charge was recorded.</p>
+      <p class="muted">You can return to the request flow and try again when you are ready.</p>
+      <div class="product-actions" style="margin-top: 1.25rem;">
+        <a class="btn" href="order.html">Try again</a>
+        <a class="btn btn-secondary" href="site-home.html">Back home</a>
+      </div>
+    </section>
   </main>
+
+  <footer>
+    <div class="container">
+      <div id="site-footer"></div>
+    </div>
+  </footer>
 </body>
 </html>

@@ -3,46 +3,76 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Privacy | Honest To Crust</title>
-
-    <!-- favicon -->
-  <link rel="icon" type="image/png" href="/assets/favicon.png">
-  <link rel="shortcut icon" href="/favicon.ico">
-  
-  <meta name="description" content="How we handle contact and order request information." />
+  <title>Privacy | ProofLink</title>
+  <meta name="description" content="How customer request, contact, and payment information is handled." />
+  <link rel="icon" type="image/png" href="/assets/favicon.png" />
+  <link rel="shortcut icon" href="/favicon.ico" />
   <link rel="stylesheet" href="styles.css" />
-  <link rel="icon" href="assets/favicon.png" />
+  <script src="layout.js" defer></script>
+  <script src="cottagelink.tenant.js" defer></script>
+  <script src="cottagelink.config.js" defer></script>
+  <script src="cottagelink.core.js" defer></script>
+  <script src="cart.js" defer></script>
 </head>
 <body>
-  <div id="site-nav"></div>
-  <div data-include="partials/nav.html"></div>
+  <header>
+    <div class="container topbar">
+      <div id="site-nav"></div>
+    </div>
+  </header>
 
   <main class="container legal">
-    
-<h1>Privacy</h1>
-<p>We collect the information you submit through our contact and order request forms. This typically includes your name, email address, and the message you send.</p>
-<h2>How we use your information</h2>
-<ul>
-  <li>To reply to your message and coordinate your order</li>
-  <li>To confirm details such as pickup time, delivery request, and customizations</li>
-  <li>To keep basic records of inquiries and orders for business operations</li>
-</ul>
-<h2>What we do not do</h2>
-<ul>
-  <li>We do not sell your information</li>
-  <li>We do not use your information for unrelated marketing without your permission</li>
-</ul>
-<h2>Data retention</h2>
-<p>We keep messages as long as reasonably necessary for operational and record keeping purposes.</p>
-<h2>Third party services</h2>
-<p>Form submissions are processed through our hosting and email services so we can receive and respond to requests. Those providers may store logs required to operate the service.</p>
-<h2>Contact</h2>
-<p>If you have questions about privacy, use the contact page and we will respond by email.</p>
+    <section class="section-card">
+      <h1>Privacy</h1>
+      <p>
+        We collect the information customers submit through request forms, contact forms,
+        payment flows, and follow-up messages so the business can review the work, confirm
+        the next step, and keep a usable record of the relationship.
+      </p>
 
+      <h2>What we collect</h2>
+      <ul>
+        <li>Name, email, phone number, service address, and request details you choose to send.</li>
+        <li>Photos, notes, and scheduling details attached to a request or active job.</li>
+        <li>Payment and billing details needed to record deposits, invoices, or completed payments.</li>
+      </ul>
+
+      <h2>How the information is used</h2>
+      <ul>
+        <li>To review the request and confirm pricing, timing, or scope.</li>
+        <li>To deliver the work, document what happened, and keep customer communication organized.</li>
+        <li>To send service updates, receipts, reminders, or review follow-up tied to real business activity.</li>
+      </ul>
+
+      <h2>What we do not do</h2>
+      <ul>
+        <li>We do not sell customer information.</li>
+        <li>We do not send unrelated marketing just because you sent one request.</li>
+        <li>We do not share job details beyond the vendors, payment processors, or service providers needed to operate the business.</li>
+      </ul>
+
+      <h2>Data retention</h2>
+      <p>
+        We keep customer and job records as long as reasonably necessary to operate the business,
+        answer questions, handle payment issues, and maintain normal business history.
+      </p>
+
+      <h2>Questions</h2>
+      <p>
+        If you have a privacy question, use the contact page and include the best way to reach you.
+      </p>
+
+      <div class="product-actions" style="margin-top: 1.25rem;">
+        <a class="btn" href="contact.html">Contact us</a>
+        <a class="btn btn-secondary" href="site-home.html">Back home</a>
+      </div>
+    </section>
   </main>
 
-  <div data-include="partials/footer.html"></div>
-  <script src="layout.js"></script>
-  <div id="site-footer"></div>
+  <footer>
+    <div class="container">
+      <div id="site-footer"></div>
+    </div>
+  </footer>
 </body>
 </html>

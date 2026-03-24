@@ -410,10 +410,14 @@ const setupHeroFile = $("setupHeroFile");
 const btnUploadSetupLogo = $("btnUploadSetupLogo");
 const btnUploadSetupHero = $("btnUploadSetupHero");
 const btnPreviewWebsite = $("btnPreviewWebsite");
+const btnOpenSetupHomePreview = $("btnOpenSetupHomePreview");
 const btnPublishWebsite = $("btnPublishWebsite");
 const btnPublishWebsiteTop = $("btnPublishWebsiteTop");
 const btnOpenSetupProductsPreview = $("btnOpenSetupProductsPreview");
 const btnOpenSetupOrderPreview = $("btnOpenSetupOrderPreview");
+const btnOpenSetupAboutPreview = $("btnOpenSetupAboutPreview");
+const btnOpenSetupContactPreview = $("btnOpenSetupContactPreview");
+const btnOpenSetupHowPreview = $("btnOpenSetupHowPreview");
 const btnOpenSetupPublishedSite = $("btnOpenSetupPublishedSite");
 const setupLogoStatus = $("setupLogoStatus");
 const setupHeroStatus = $("setupHeroStatus");
@@ -2160,21 +2164,30 @@ function setupPreviewUrl(page = "products.html") {
   return url.toString();
 }
 
-function setupPublishedUrl(page = "products.html") {
-  const path = `/${String(page || "products.html").replace(/^\/+/, "")}`;
+function setupPublishedUrl(page = "site-home.html") {
+  const normalizedPage = String(page || "site-home.html").replace(/^\/+/, "");
+  const path = normalizedPage === "site-home.html" ? "/" : `/${normalizedPage}`;
   const customDomain = String(SETUP_STATE?.config?.custom_domain || SETUP_STATE?.tenant?.custom_domain || "").trim();
   if (customDomain) {
     return `https://${customDomain.replace(/^https?:\/\//i, "").replace(/\/+$/, "")}${path}`;
   }
   const slug = setupTenantSlug();
   if (slug) return `https://${slug}.prooflink.co${path}`;
-  return setupPreviewUrl(page);
+  return setupPreviewUrl(normalizedPage);
 }
 
 function renderSetupPreviewActions() {
   const slug = setupTenantSlug();
   const previewAvailable = !!slug;
-  [btnOpenSetupProductsPreview, btnOpenSetupOrderPreview, btnOpenSetupPublishedSite].forEach((button) => {
+  [
+    btnOpenSetupHomePreview,
+    btnOpenSetupProductsPreview,
+    btnOpenSetupOrderPreview,
+    btnOpenSetupAboutPreview,
+    btnOpenSetupContactPreview,
+    btnOpenSetupHowPreview,
+    btnOpenSetupPublishedSite,
+  ].forEach((button) => {
     if (!button) return;
     button.disabled = !previewAvailable;
     button.title = previewAvailable ? "" : "Save or reload setup once the tenant record is available.";
@@ -3583,14 +3596,26 @@ btnPreviewWebsite?.addEventListener("click", () => {
   renderSetupPreviewActions();
   setSetupMessage('Preview refreshed with the current draft.', 'good');
 });
+btnOpenSetupHomePreview?.addEventListener("click", () => {
+  window.open(setupPreviewUrl("site-home.html"), "_blank", "noopener");
+});
 btnOpenSetupProductsPreview?.addEventListener("click", () => {
   window.open(setupPreviewUrl("products.html"), "_blank", "noopener");
 });
 btnOpenSetupOrderPreview?.addEventListener("click", () => {
   window.open(setupPreviewUrl("order.html"), "_blank", "noopener");
 });
+btnOpenSetupAboutPreview?.addEventListener("click", () => {
+  window.open(setupPreviewUrl("about.html"), "_blank", "noopener");
+});
+btnOpenSetupContactPreview?.addEventListener("click", () => {
+  window.open(setupPreviewUrl("contact.html"), "_blank", "noopener");
+});
+btnOpenSetupHowPreview?.addEventListener("click", () => {
+  window.open(setupPreviewUrl("how-it-works.html"), "_blank", "noopener");
+});
 btnOpenSetupPublishedSite?.addEventListener("click", () => {
-  window.open(setupPublishedUrl("products.html"), "_blank", "noopener");
+  window.open(setupPublishedUrl("site-home.html"), "_blank", "noopener");
 });
 btnPublishWebsite?.addEventListener("click", async () => {
   try {
@@ -7169,8 +7194,9 @@ btnLeadCreateBid?.addEventListener("click", async () => {
     if (target) ACTIVE_BID_ID = target.id;
     renderBids(bidSearch?.value || "");
     renderLeads(leadSearch?.value || "");
+    markWorkspaceClean("leads");
     setInlineMessage(leadMsg, result?.existing ? "Linked bid opened." : "Lead converted into a bid.", "ok");
-    switchTab("bids");
+    switchTab("bids", { force: true });
   } catch (err) {
     setInlineMessage(leadMsg, err.message || String(err), "error");
   }

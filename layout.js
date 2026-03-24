@@ -48,6 +48,9 @@
       if (url.pathname.startsWith("/.netlify/")) return;
       if (!/(\.html)?$/i.test(url.pathname)) return;
 
+      if (/(^\/$|\/index\.html$)/i.test(url.pathname)) {
+        url.pathname = "/site-home.html";
+      }
       url.searchParams.set("tenant", slug);
       anchor.href = `${url.pathname}${url.search}${url.hash}`;
     });
@@ -138,6 +141,7 @@
     const page = (window.location.pathname.split("/").pop() || "index.html").toLowerCase();
 
     const titles = {
+      "site-home.html": `${businessName} | Home`,
       "products.html": `${storefront.catalogLabel || "Products"} | ${businessName}`,
       "order.html": `${storefront.orderPageTitle || "Order request"} | ${businessName}`,
       "contact.html": `Contact | ${businessName}`,
@@ -145,8 +149,16 @@
       "how-it-works.html": `How it works | ${businessName}`,
       "thanks.html": `Request received | ${businessName}`,
       "contact-thanks.html": `Message received | ${businessName}`,
+      "privacy.html": `Privacy | ${businessName}`,
+      "terms.html": `Terms | ${businessName}`,
+      "refunds.html": `Refunds and cancellations | ${businessName}`,
+      "accessibility.html": `Accessibility | ${businessName}`,
+      "success.html": `Payment received | ${businessName}`,
+      "cancel.html": `Payment canceled | ${businessName}`,
+      "review.html": `Leave a review | ${businessName}`,
     };
     const descriptions = {
+      "site-home.html": storefront.heroSubheading || storefront.intro || `Visit ${businessName} online, review available services, and send a tracked request.`,
       "products.html": storefront.intro || `Review available ${String(storefront.catalogLabel || "services").toLowerCase()} and send a tracked request to ${businessName}.`,
       "order.html": storefront.orderIntro || `Send a tracked request to ${businessName} and get the next step confirmed by a real person.`,
       "contact.html": storefront.contactIntro || `Contact ${businessName} directly and keep questions attached to the right customer record.`,
@@ -154,6 +166,13 @@
       "how-it-works.html": `See how ${businessName} moves a request from first contact to confirmed work.`,
       "thanks.html": `Your request was received by ${businessName}. Watch for the confirmed next step.`,
       "contact-thanks.html": `Your message was received by ${businessName}.`,
+      "privacy.html": `See how ${businessName} handles customer request, contact, and payment information.`,
+      "terms.html": `Review the terms for using ${businessName}'s website and request flow.`,
+      "refunds.html": `Review how ${businessName} handles cancellations, deposits, and customer concerns.`,
+      "accessibility.html": `Accessibility information for ${businessName}'s website.`,
+      "success.html": `Payment confirmation for ${businessName}.`,
+      "cancel.html": `Payment cancellation page for ${businessName}.`,
+      "review.html": `Leave feedback for ${businessName}.`,
     };
 
     if (titles[page]) document.title = titles[page];
@@ -213,6 +232,7 @@
     const file = (location.pathname.split("/").pop() || "index.html").toLowerCase();
     const map = {
       "index.html": "home",
+      "site-home.html": "home",
       "about.html": "about",
       "products.html": "products",
       "how-it-works.html": "how",

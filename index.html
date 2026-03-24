@@ -38,6 +38,21 @@
       );
       if (hashHit || queryHit) {
         window.location.replace('/operator/' + s + h);
+        return;
+      }
+
+      var params = new URLSearchParams(s || '');
+      var tenantQuery = (params.get('tenant') || params.get('slug') || '').trim();
+      var host = (window.location.hostname || '').toLowerCase();
+      var tenantHost = (
+        host &&
+        host !== 'prooflink.co' &&
+        host !== 'www.prooflink.co' &&
+        host !== 'localhost' &&
+        host !== '127.0.0.1'
+      );
+      if (tenantQuery || tenantHost) {
+        window.location.replace('/site-home.html' + s + h);
       }
     })();
   </script>
