@@ -74,6 +74,15 @@ exports.handler = async (event) => {
     review_link_url: rawConfig.review_link_url || '',
     referral_message: rawConfig.referral_message || '',
     workspace_business_type: rawConfig.workspace_business_type || tenant.business_type || '',
+    site_font_preset: rawConfig.site_font_preset || 'modern_sans',
+    site_surface_style: rawConfig.site_surface_style || 'clean',
+    site_button_style: rawConfig.site_button_style || 'rounded',
+    site_card_style: rawConfig.site_card_style || 'soft',
+    site_hero_layout: rawConfig.site_hero_layout || 'split',
+    site_primary_cta_label: rawConfig.site_primary_cta_label || 'Request service',
+    site_booking_cta_label: rawConfig.site_booking_cta_label || 'Book now',
+    site_publish_status: rawConfig.site_publish_status || 'draft',
+    site_published_at: rawConfig.site_published_at || '',
   };
 
   return respond(200, {
@@ -86,6 +95,9 @@ exports.handler = async (event) => {
       'instagram', 'facebook', 'hours_notes', 'fulfillment_notes',
       'workspace_business_type',
       'show_prices', 'allow_custom_requests', 'onboarding_complete',
+      'site_font_preset', 'site_surface_style', 'site_button_style', 'site_card_style',
+      'site_hero_layout', 'site_primary_cta_label', 'site_booking_cta_label',
+      'site_publish_status', 'site_published_at',
     ],
     protected_fields: [
       'site_title', 'contact_email', 'business_type', 'city_state', 'license_number',

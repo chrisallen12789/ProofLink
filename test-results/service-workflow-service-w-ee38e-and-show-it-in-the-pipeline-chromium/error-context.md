@@ -1,0 +1,246 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - complementary [ref=e3]:
+    - generic [ref=e4]:
+      - img "Tenant logo" [ref=e6]
+      - generic [ref=e7]:
+        - strong [ref=e8]: Company Name
+        - generic [ref=e9]: Business powered by ProofLink
+    - generic [ref=e11]:
+      - generic [ref=e12]: Signed in
+      - generic [ref=e13]: pltest.tenant.a.admin@example.com
+    - generic [ref=e14]:
+      - generic [ref=e15]: Startup progress
+      - generic [ref=e16]:
+        - button "Add your first product Open Products" [ref=e17] [cursor=pointer]:
+          - generic [ref=e19]: Add your first product
+          - generic [ref=e20]: Open Products
+        - button "Make at least one product live for intake Review Products" [ref=e21] [cursor=pointer]:
+          - generic [ref=e23]: Make at least one product live for intake
+          - generic [ref=e24]: Review Products
+        - button "Price at least one product Open Products" [ref=e25] [cursor=pointer]:
+          - generic [ref=e27]: Price at least one product
+          - generic [ref=e28]: Open Products
+        - button "Capture your first customer in CRM Open Customers" [ref=e29] [cursor=pointer]:
+          - generic [ref=e31]: Capture your first customer in CRM
+          - generic [ref=e32]: Open Customers
+        - button "Create your first professional bid draft Open Bids" [ref=e33] [cursor=pointer]:
+          - generic [ref=e35]: Create your first professional bid draft
+          - generic [ref=e36]: Open Bids
+        - button "Price at least one real bid scope Finish pricing" [ref=e37] [cursor=pointer]:
+          - generic [ref=e39]: Price at least one real bid scope
+          - generic [ref=e40]: Finish pricing
+        - button "Bring over customers, open work, or payment history from your old spreadsheet or app Open Switch & Import" [ref=e41] [cursor=pointer]:
+          - generic [ref=e43]: Bring over customers, open work, or payment history from your old spreadsheet or app
+          - generic [ref=e44]: Open Switch & Import
+        - button "Convert at least one request into tracked orders Open Orders" [ref=e45] [cursor=pointer]:
+          - generic [ref=e47]: Convert at least one request into tracked orders
+          - generic [ref=e48]: Open Orders
+        - button "Track your first expense Open Expenses" [ref=e49] [cursor=pointer]:
+          - generic [ref=e51]: Track your first expense
+          - generic [ref=e52]: Open Expenses
+        - button "Add branding, media, and public profile details Open Setup" [ref=e53] [cursor=pointer]:
+          - generic [ref=e55]: Add branding, media, and public profile details
+          - generic [ref=e56]: Open Setup
+        - button "Log your first payment, deposit, or offline collection Open Payments" [ref=e57] [cursor=pointer]:
+          - generic [ref=e59]: Log your first payment, deposit, or offline collection
+          - generic [ref=e60]: Open Payments
+    - generic "Sections" [ref=e61]:
+      - button "More ▾" [ref=e62] [cursor=pointer]
+      - button "Today" [ref=e63] [cursor=pointer]:
+        - generic [ref=e64]: Today
+      - button "Customers" [ref=e65] [cursor=pointer]:
+        - generic [ref=e66]: Customers
+      - button "Orders" [ref=e67] [cursor=pointer]:
+        - generic [ref=e68]: Orders
+      - button "Payments" [ref=e69] [cursor=pointer]:
+        - generic [ref=e70]: Payments
+      - button "Guidance" [ref=e71] [cursor=pointer]:
+        - generic [ref=e72]: Guidance
+      - button "Leads" [ref=e73] [cursor=pointer]:
+        - generic [ref=e74]: Leads
+      - button "Bids" [ref=e75] [cursor=pointer]:
+        - generic [ref=e76]: Bids
+      - button "Jobs" [ref=e77] [cursor=pointer]:
+        - generic [ref=e78]: Jobs
+      - button "Switch & Import" [ref=e79] [cursor=pointer]:
+        - generic [ref=e80]: Switch & Import
+      - button "Domains" [ref=e81] [cursor=pointer]:
+        - generic [ref=e82]: Domains
+      - button "Setup" [ref=e83] [cursor=pointer]:
+        - generic [ref=e84]: Setup
+      - button "Products" [ref=e85] [cursor=pointer]:
+        - generic [ref=e86]: Products
+      - button "Pricing" [ref=e87] [cursor=pointer]:
+        - generic [ref=e88]: Pricing
+      - button "Availability" [ref=e89] [cursor=pointer]:
+        - generic [ref=e90]: Availability
+      - button "Bookings" [ref=e91] [cursor=pointer]:
+        - generic [ref=e92]: Bookings
+      - button "Expenses" [ref=e93] [cursor=pointer]:
+        - generic [ref=e94]: Expenses
+      - button "Insights" [ref=e95] [cursor=pointer]:
+        - generic [ref=e96]: Insights
+      - button "Quotes" [ref=e97] [cursor=pointer]:
+        - generic [ref=e98]: Quotes
+      - button "Reviews" [ref=e99] [cursor=pointer]:
+        - generic [ref=e100]: Reviews
+      - button "Messages" [ref=e101] [cursor=pointer]:
+        - generic [ref=e102]: Messages
+      - button "Ai" [ref=e103] [cursor=pointer]:
+        - generic [ref=e104]: Ai
+    - generic [ref=e105]:
+      - generic [ref=e106]: What ProofLink is for
+      - generic [ref=e107]: Start from a clean backbone instead of a bad fit. Run a busier business without chaos compounding.
+    - generic [ref=e108]:
+      - generic [ref=e109]:
+        - img "ProofLink logo" [ref=e111]
+        - generic [ref=e112]:
+          - generic [ref=e113]: ProofLink
+          - generic [ref=e114]: Learn business while earning
+      - generic [ref=e115]:
+        - generic [ref=e116]: Operator
+        - generic [ref=e117]: ProofLink
+      - generic [ref=e118]: © ProofLink
+  - main [ref=e119]:
+    - generic [ref=e120]:
+      - generic [ref=e121]:
+        - heading "Operator Console" [level=1] [ref=e122]
+        - generic [ref=e123]: "Other workspace on Growth. Priority views: Customers, Orders, Payments."
+      - generic [ref=e124]:
+        - searchbox "Search orders, customers, bookings…" [ref=e125]
+        - button "☀" [ref=e126] [cursor=pointer]
+        - button "Start tour" [ref=e127] [cursor=pointer]
+        - button "Sign out" [ref=e128] [cursor=pointer]
+    - generic [ref=e131]:
+      - generic [ref=e132]:
+        - generic [ref=e133]:
+          - heading "Orders" [level=2] [ref=e134]
+          - generic [ref=e135]: Review live orders, intake details, and what needs to happen next.
+        - generic [ref=e136]:
+          - button "Refresh" [ref=e137] [cursor=pointer]
+          - button "Export JSON" [ref=e138] [cursor=pointer]
+          - button "Export CSV" [ref=e139] [cursor=pointer]
+          - generic [ref=e140]:
+            - button "Collapse" [ref=e141] [cursor=pointer]
+            - button "Close" [ref=e142] [cursor=pointer]
+      - generic [ref=e143]:
+        - generic [ref=e144]: Related views
+        - generic [ref=e145]:
+          - button "Orders" [ref=e146] [cursor=pointer]
+          - button "Jobs" [ref=e147] [cursor=pointer]
+          - button "Payments" [ref=e148] [cursor=pointer]
+          - button "Customers" [ref=e149] [cursor=pointer]
+      - generic [ref=e151]:
+        - generic [ref=e152]:
+          - generic [ref=e153]:
+            - strong [ref=e154]: Inbox
+            - generic [ref=e155]: Newest requests first
+          - generic [ref=e158] [cursor=pointer]:
+            - checkbox [ref=e159]
+            - button "PL Test E2E pltest-e2e-service-1774365410706-8cbp2m pltest-e2e-service-1774365410706-8cbp2m@example.com | Mar 24, 2026, 11:17 AM service | No scheduled date | No time confirmed Deposit waived Unpaid $350.00" [ref=e160]:
+              - generic [ref=e161]:
+                - generic [ref=e162]: PL Test E2E pltest-e2e-service-1774365410706-8cbp2m
+                - generic [ref=e163]: pltest-e2e-service-1774365410706-8cbp2m@example.com | Mar 24, 2026, 11:17 AM
+                - generic [ref=e164]: service | No scheduled date | No time
+              - generic [ref=e165]:
+                - generic [ref=e166]: confirmed
+                - generic [ref=e167]: Deposit waived
+                - generic [ref=e168]: Unpaid
+                - generic [ref=e169]: $350.00
+        - generic [ref=e170]:
+          - generic [ref=e171]:
+            - strong [ref=e172]: Order detail
+            - generic [ref=e173]: Review intake details, cart summary, and CRM status.
+          - generic [ref=e174]:
+            - generic [ref=e175]:
+              - generic [ref=e176]:
+                - generic [ref=e177]: Customer
+                - strong [ref=e179]: PL Test E2E pltest-e2e-service-1774365410706-8cbp2m
+                - generic [ref=e180]: pltest-e2e-service-1774365410706-8cbp2m@example.com | 555-777-1111
+                - generic [ref=e181]: "Submitted: Mar 24, 2026, 11:17 AM"
+                - generic [ref=e182]: "Status: confirmed"
+                - generic [ref=e183]: ✓ In CRM as PL Test E2E pltest-e2e-service-1774365410706-8cbp2m · 0 prior order(s)
+              - generic [ref=e184]:
+                - generic [ref=e185]: Order profile
+                - generic [ref=e186]: "Fulfillment: service"
+                - generic [ref=e187]: "Scheduled date: Not specified"
+                - generic [ref=e188]: "Scheduled time: Not specified"
+                - generic [ref=e189]: "Items: 1"
+                - generic [ref=e190]: "Source: service bid"
+              - generic [ref=e191]:
+                - generic [ref=e192]: Commercial read
+                - generic [ref=e193]: "Order value: $350.00"
+                - generic [ref=e194]: "Paid: $0.00 | Due: $350.00"
+                - generic [ref=e195]: "Deposit: $0.00 paid of $100.00 required | $100.00 still open"
+                - generic [ref=e196]:
+                  - text: "Deposit status:"
+                  - generic [ref=e197]: Deposit waived
+                - generic [ref=e198]: "Payment state: Unpaid"
+                - generic [ref=e199]: "Tenant: a6a4ece0-5ac6-41b9-91f3-beb5b24b3625"
+                - generic [ref=e200]: Exterior cleaning request pltest-e2e-service-1774365410706-8cbp2m
+              - generic [ref=e201]:
+                - generic [ref=e202]: Workflow next step
+                - generic [ref=e203]: "Tracked job: No job yet"
+                - generic [ref=e204]: "Recurring plan: Not set up"
+                - generic [ref=e205]: Create a job when this work is ready to be scheduled or performed.
+                - generic [ref=e206]:
+                  - button "Create job" [ref=e207] [cursor=pointer]
+                  - button "Make recurring" [ref=e208] [cursor=pointer]
+                  - button "Collect deposit" [ref=e209] [cursor=pointer]
+                  - button "Record payment" [ref=e210] [cursor=pointer]
+                  - button "⬇ Invoice PDF" [ref=e211] [cursor=pointer]
+                  - button "🔁 Make recurring" [ref=e212] [cursor=pointer]
+              - generic [ref=e213]:
+                - generic [ref=e214]: Deposit control
+                - generic [ref=e215]: Required before job | Due Mar 23, 2026
+                - generic [ref=e216]: "Override reason: E2E validation override to complete the workflow handoff."
+                - generic [ref=e217]:
+                  - generic [ref=e218]:
+                    - text: Deposit policy
+                    - combobox "Deposit policy" [ref=e219]:
+                      - option "Optional"
+                      - option "Required before booking"
+                      - option "Required before job" [selected]
+                  - generic [ref=e220]:
+                    - text: Required amount (USD)
+                    - spinbutton "Required amount (USD)" [ref=e221]: "100.00"
+                  - generic [ref=e222]:
+                    - text: Deposit due date
+                    - textbox "Deposit due date" [ref=e223]: 2026-03-24
+                - generic [ref=e224]:
+                  - text: Override reason
+                  - textbox "Override reason" [ref=e225]:
+                    - /placeholder: Why this order can move ahead before the deposit is collected.
+                    - text: E2E validation override to complete the workflow handoff.
+                - generic [ref=e226]:
+                  - button "Save deposit settings" [ref=e227] [cursor=pointer]
+                  - button "Clear override" [ref=e228] [cursor=pointer]
+              - generic [ref=e229]:
+                - generic [ref=e230]: Order status
+                - generic [ref=e231]:
+                  - generic [ref=e232]:
+                    - text: Status
+                    - combobox "Status" [ref=e233]:
+                      - option "new"
+                      - option "quoted"
+                      - option "confirmed" [selected]
+                      - option "fulfilled"
+                      - option "completed"
+                      - option "paid"
+                      - option "cancelled"
+                  - button "Save status" [ref=e234] [cursor=pointer]
+              - generic [ref=e236] [cursor=pointer]:
+                - generic [ref=e237]: Project phases ▸
+                - button "+ Phase" [ref=e238]
+              - generic [ref=e240] [cursor=pointer]:
+                - generic [ref=e241]: Time logged ▸
+                - button "+ Log Time" [ref=e242]
+            - generic [ref=e244]:
+              - text: Project Phases
+              - button "+ Phase" [ref=e245]
+              - text: ▾
+    - generic [ref=e246]: Operator UI v3 - Company Name | Powered by ProofLink | tenant_id ready (default)
+```

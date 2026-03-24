@@ -392,6 +392,13 @@ const setupServiceArea = $("setupServiceArea");
 const setupReviewPlatformLabel = $("setupReviewPlatformLabel");
 const setupReviewLinkUrl = $("setupReviewLinkUrl");
 const setupReferralMessage = $("setupReferralMessage");
+const setupPrimaryCtaLabel = $("setupPrimaryCtaLabel");
+const setupBookingCtaLabel = $("setupBookingCtaLabel");
+const setupSiteFontPreset = $("setupSiteFontPreset");
+const setupSiteSurfaceStyle = $("setupSiteSurfaceStyle");
+const setupSiteButtonStyle = $("setupSiteButtonStyle");
+const setupSiteCardStyle = $("setupSiteCardStyle");
+const setupSiteHeroLayout = $("setupSiteHeroLayout");
 const setupInstagram = $("setupInstagram");
 const setupFacebook = $("setupFacebook");
 const setupHoursNotes = $("setupHoursNotes");
@@ -402,8 +409,15 @@ const setupLogoFile = $("setupLogoFile");
 const setupHeroFile = $("setupHeroFile");
 const btnUploadSetupLogo = $("btnUploadSetupLogo");
 const btnUploadSetupHero = $("btnUploadSetupHero");
+const btnPreviewWebsite = $("btnPreviewWebsite");
+const btnPublishWebsite = $("btnPublishWebsite");
+const btnPublishWebsiteTop = $("btnPublishWebsiteTop");
+const btnOpenSetupProductsPreview = $("btnOpenSetupProductsPreview");
+const btnOpenSetupOrderPreview = $("btnOpenSetupOrderPreview");
+const btnOpenSetupPublishedSite = $("btnOpenSetupPublishedSite");
 const setupLogoStatus = $("setupLogoStatus");
 const setupHeroStatus = $("setupHeroStatus");
+const setupPublishMeta = $("setupPublishMeta");
 let SETUP_STATE = null;
 
 const productsList = $("productsList");
@@ -2078,27 +2092,157 @@ function setSetupMessage(message = "", tone = "") {
   setupMsg.textContent = message;
 }
 
+function siteFontLabel(value) {
+  const labels = {
+    modern_sans: "Modern sans",
+    editorial: "Editorial",
+    trust_serif: "Trust serif",
+    compact_ui: "Compact UI",
+  };
+  return labels[String(value || "").trim().toLowerCase()] || "Modern sans";
+}
+
+function siteStyleLabel(value, kind) {
+  const maps = {
+    surface: {
+      clean: "Clean and bright",
+      warm: "Warm and approachable",
+      bold: "Bold and high contrast",
+    },
+    button: {
+      rounded: "Rounded buttons",
+      solid: "Solid buttons",
+      outline: "Outline buttons",
+    },
+    card: {
+      soft: "Soft panels",
+      lined: "Lined panels",
+      elevated: "Elevated panels",
+    },
+    hero: {
+      split: "Split hero",
+      stacked: "Stacked hero",
+      statement: "Statement hero",
+    },
+  };
+  return maps[kind]?.[String(value || "").trim().toLowerCase()] || "-";
+}
+
+function setupPublishStatus(payload = {}) {
+  return String(payload.site_publish_status || "").trim().toLowerCase() || "draft";
+}
+
+function renderSetupPublishMeta(payload = {}) {
+  if (!setupPublishMeta) return;
+  const status = setupPublishStatus(payload);
+  const publishedAt = payload.site_published_at ? formatDateTime(payload.site_published_at) : "";
+  const message = status === "published"
+    ? `Website is published${publishedAt ? ` since ${publishedAt}` : ""}.`
+    : status === "ready"
+      ? "Website is saved and marked ready, but not published yet."
+      : "Website is still in draft mode. Save your changes, then publish when it looks right.";
+  setupPublishMeta.textContent = message;
+}
+
+function setupTenantSlug() {
+  return String(
+    SETUP_STATE?.tenant?.slug ||
+    SETUP_STATE?.locked_record?.tenant_slug ||
+    SETUP_STATE?.locked_record?.slug ||
+    ""
+  ).trim();
+}
+
+function setupPreviewUrl(page = "products.html") {
+  const slug = setupTenantSlug();
+  const url = new URL(`/${String(page || "products.html").replace(/^\/+/, "")}`, window.location.origin);
+  if (slug) url.searchParams.set("tenant", slug);
+  return url.toString();
+}
+
+function setupPublishedUrl(page = "products.html") {
+  const path = `/${String(page || "products.html").replace(/^\/+/, "")}`;
+  const customDomain = String(SETUP_STATE?.config?.custom_domain || SETUP_STATE?.tenant?.custom_domain || "").trim();
+  if (customDomain) {
+    return `https://${customDomain.replace(/^https?:\/\//i, "").replace(/\/+$/, "")}${path}`;
+  }
+  const slug = setupTenantSlug();
+  if (slug) return `https://${slug}.prooflink.co${path}`;
+  return setupPreviewUrl(page);
+}
+
+function renderSetupPreviewActions() {
+  const slug = setupTenantSlug();
+  const previewAvailable = !!slug;
+  [btnOpenSetupProductsPreview, btnOpenSetupOrderPreview, btnOpenSetupPublishedSite].forEach((button) => {
+    if (!button) return;
+    button.disabled = !previewAvailable;
+    button.title = previewAvailable ? "" : "Save or reload setup once the tenant record is available.";
+  });
+}
+
+function initSetupBuilderNav() {
+  document.querySelectorAll("[data-setup-target]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const targetId = String(button.getAttribute("data-setup-target") || "").trim();
+      if (!targetId) return;
+      document.querySelectorAll("[data-setup-target]").forEach((item) => {
+        item.classList.toggle("is-active", item === button);
+      });
+      const target = document.getElementById(targetId);
+      target?.scrollIntoView({ behavior: "smooth", block: "start" });
+      target?.classList.add("setup-focus-flash");
+      window.setTimeout(() => target?.classList.remove("setup-focus-flash"), 900);
+    });
+  });
+}
+
 function setupPreviewHtml(payload = {}, record = null) {
   const logoUrl = String(payload.logo_url || "").trim();
   const heroUrl = String(payload.hero_image_url || "").trim();
   const reviewUrl = cleanUrl(payload.review_link_url || "");
   const reviewPlatform = String(payload.review_platform_label || "").trim() || (reviewUrl ? "Google" : "-");
   const referralMessage = String(payload.referral_message || "").trim();
+  const accent = String(payload.accent_color || "#c84b2f").trim() || "#c84b2f";
+  const surface = String(payload.site_surface_style || "clean").trim().toLowerCase();
+  const fontPreset = String(payload.site_font_preset || "modern_sans").trim().toLowerCase();
+  const cardStyle = String(payload.site_card_style || "soft").trim().toLowerCase();
+  const buttonStyle = String(payload.site_button_style || "rounded").trim().toLowerCase();
+  const surfaceBg = surface === "warm" ? "rgba(200, 160, 120, .08)" : surface === "bold" ? "rgba(255,255,255,.08)" : "rgba(255,255,255,.03)";
+  const heroBg = surface === "warm" ? "linear-gradient(180deg, rgba(200,160,120,.13), rgba(255,255,255,.03))" : surface === "bold" ? "linear-gradient(180deg, rgba(255,255,255,.14), rgba(255,255,255,.03))" : "linear-gradient(180deg, rgba(22,79,99,.10), rgba(255,255,255,.03))";
+  const fontFamily = fontPreset === "trust_serif" ? "Georgia, 'Times New Roman', serif" : fontPreset === "editorial" ? "'Palatino Linotype', 'Book Antiqua', Palatino, serif" : "var(--font-display)";
+  const cardBorderRadius = cardStyle === "lined" ? "12px" : cardStyle === "elevated" ? "20px" : "16px";
+  const cardShadow = cardStyle === "elevated" ? "0 18px 36px rgba(0,0,0,.22)" : "none";
+  const buttonRadius = buttonStyle === "solid" ? "10px" : buttonStyle === "outline" ? "999px" : "16px";
+  const buttonBackground = buttonStyle === "outline" ? "transparent" : accent;
+  const buttonBorder = buttonStyle === "outline" ? `1px solid ${accent}` : "1px solid transparent";
+  const buttonColor = buttonStyle === "outline" ? accent : "#ffffff";
+  const publishStatus = setupPublishStatus(payload);
+  const bookingCta = String(payload.site_booking_cta_label || "Book now").trim();
+  const primaryCta = String(payload.site_primary_cta_label || "Request service").trim();
+
   return `
-    <div class="stack" style="display:grid;gap:14px;">
-      <div style="display:flex;align-items:center;gap:14px;">
-        <div style="width:64px;height:64px;border-radius:14px;border:1px solid var(--border);background:rgba(255,255,255,.03);display:grid;place-items:center;overflow:hidden;">
-          ${logoUrl ? `<img src="${escapeAttr(logoUrl)}" alt="Logo" style="width:100%;height:100%;object-fit:cover;" />` : `<span class="muted" style="font-size:.8rem;">No logo</span>`}
+    <div class="setup-site-preview" style="display:grid;gap:14px;">
+      <div class="setup-site-preview__top" style="display:flex;align-items:center;justify-content:space-between;gap:14px;">
+        <div style="display:flex;align-items:center;gap:14px;">
+          <div style="width:64px;height:64px;border-radius:14px;border:1px solid var(--border);background:${surfaceBg};display:grid;place-items:center;overflow:hidden;">
+            ${logoUrl ? `<img src="${escapeAttr(logoUrl)}" alt="Logo" style="width:100%;height:100%;object-fit:cover;" />` : `<span class="muted" style="font-size:.8rem;">No logo</span>`}
+          </div>
+          <div>
+            <div style="font-weight:800;font-size:1.05rem;">${escapeHtml(record?.legal_business_name || OPERATOR_CONFIG.tenantBusinessName || "Business")}</div>
+            <div class="muted">${escapeHtml(payload.tagline || "No tagline yet.")}</div>
+          </div>
         </div>
-        <div>
-          <div style="font-weight:800;font-size:1.05rem;">${escapeHtml(record?.legal_business_name || OPERATOR_CONFIG.tenantBusinessName || "Business")}</div>
-          <div class="muted">${escapeHtml(payload.tagline || "No tagline yet.")}</div>
-        </div>
+        <span class="pill" style="border-color:${publishStatus === "published" ? "rgba(67,160,71,.3)" : "var(--border)"};color:${publishStatus === "published" ? "var(--good)" : "var(--muted)"};">${escapeHtml(publishStatus)}</span>
       </div>
-      <div style="padding:14px;border-radius:14px;border:1px solid var(--border);background:rgba(255,255,255,.02);">
-        <div style="font-weight:800;font-size:1rem;margin-bottom:6px;">${escapeHtml(payload.hero_heading || record?.legal_business_name || "Hero heading not set")}</div>
-        <div class="muted">${escapeHtml(payload.hero_subheading || "No hero subheading yet.")}</div>
-        ${heroUrl ? `<div style="margin-top:12px;border-radius:12px;overflow:hidden;border:1px solid var(--border);"><img src="${escapeAttr(heroUrl)}" alt="Hero" style="display:block;width:100%;height:220px;object-fit:cover;" /></div>` : ``}
+      <div class="setup-site-preview__hero" style="padding:18px;border-radius:${cardBorderRadius};border:1px solid var(--border);background:${heroBg};box-shadow:${cardShadow};">
+        <div style="font-family:${fontFamily};font-weight:800;font-size:1.4rem;line-height:1.05;margin-bottom:8px;">${escapeHtml(payload.hero_heading || record?.legal_business_name || "Hero heading not set")}</div>
+        <div class="muted" style="line-height:1.65;">${escapeHtml(payload.hero_subheading || "No hero subheading yet.")}</div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;">
+          <span style="display:inline-flex;align-items:center;justify-content:center;min-height:40px;padding:0 16px;border-radius:${buttonRadius};border:${buttonBorder};background:${buttonBackground};color:${buttonColor};font-weight:700;">${escapeHtml(primaryCta)}</span>
+          <span style="display:inline-flex;align-items:center;justify-content:center;min-height:40px;padding:0 16px;border-radius:${buttonRadius};border:1px solid var(--border);background:rgba(255,255,255,.04);color:var(--text);font-weight:700;">${escapeHtml(bookingCta)}</span>
+        </div>
+        ${heroUrl ? `<div style="margin-top:14px;border-radius:${cardBorderRadius};overflow:hidden;border:1px solid var(--border);"><img src="${escapeAttr(heroUrl)}" alt="Hero" style="display:block;width:100%;height:220px;object-fit:cover;" /></div>` : ``}
       </div>
       <div class="table">
         <div class="tr"><div>Public contact</div><div>${escapeHtml(payload.public_contact_email || payload.contact_email || "-")}</div></div>
@@ -2107,6 +2251,16 @@ function setupPreviewHtml(payload = {}, record = null) {
         <div class="tr"><div>Service area</div><div>${escapeHtml(payload.service_area || "-")}</div></div>
         <div class="tr"><div>Review platform</div><div>${escapeHtml(reviewPlatform)}</div></div>
         <div class="tr"><div>Review link</div><div>${reviewUrl ? `<a href="${escapeAttr(reviewUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(reviewUrl)}</a>` : "-"}</div></div>
+      </div>
+      <div class="grid two" style="gap:12px;">
+        <div class="detail-card">
+          <div class="kicker">Style choices</div>
+          <div class="detail-copy">Font: ${escapeHtml(siteFontLabel(fontPreset))}<br />Surface: ${escapeHtml(siteStyleLabel(payload.site_surface_style, "surface"))}<br />Buttons: ${escapeHtml(siteStyleLabel(payload.site_button_style, "button"))}</div>
+        </div>
+        <div class="detail-card">
+          <div class="kicker">Website structure</div>
+          <div class="detail-copy">Hero: ${escapeHtml(siteStyleLabel(payload.site_hero_layout, "hero"))}<br />Cards: ${escapeHtml(siteStyleLabel(payload.site_card_style, "card"))}<br />Prices visible: ${payload.show_prices !== false ? "Yes" : "No"}</div>
+        </div>
       </div>
       ${referralMessage ? `<div class="detail-card"><div class="kicker">Referral thank-you note</div><div class="detail-copy">${escapeHtml(referralMessage)}</div></div>` : ``}
     </div>
@@ -2121,6 +2275,13 @@ function fillSetupForm(payload = {}, record = null) {
   if (setupAbout) setupAbout.value = payload.about || "";
   if (setupWorkspaceBusinessType) setupWorkspaceBusinessType.value = String(payload.workspace_business_type || record?.business_type || "").trim().toLowerCase();
   if (setupAccentColor) setupAccentColor.value = payload.accent_color || window.COTTAGELINK_BRAND?.accent || "#c84b2f";
+  if (setupPrimaryCtaLabel) setupPrimaryCtaLabel.value = payload.site_primary_cta_label || "Request service";
+  if (setupBookingCtaLabel) setupBookingCtaLabel.value = payload.site_booking_cta_label || "Book now";
+  if (setupSiteFontPreset) setupSiteFontPreset.value = payload.site_font_preset || "modern_sans";
+  if (setupSiteSurfaceStyle) setupSiteSurfaceStyle.value = payload.site_surface_style || "clean";
+  if (setupSiteButtonStyle) setupSiteButtonStyle.value = payload.site_button_style || "rounded";
+  if (setupSiteCardStyle) setupSiteCardStyle.value = payload.site_card_style || "soft";
+  if (setupSiteHeroLayout) setupSiteHeroLayout.value = payload.site_hero_layout || "split";
   if (setupLogoUrl) setupLogoUrl.value = payload.logo_url || "";
   if (setupHeroImageUrl) setupHeroImageUrl.value = payload.hero_image_url || "";
   if (setupPublicContactEmail) setupPublicContactEmail.value = payload.public_contact_email || payload.contact_email || "";
@@ -2139,7 +2300,9 @@ function fillSetupForm(payload = {}, record = null) {
   const setupBookingPageEl = document.getElementById('setupBookingPageEnabled');
   if (setupBookingPageEl) setupBookingPageEl.checked = bookingEnabled;
   applyWebsiteMode(bookingEnabled);
+  renderSetupPublishMeta(payload);
   if (setupPreviewWrap) setupPreviewWrap.innerHTML = setupPreviewHtml(payload, record || SETUP_STATE?.locked_record || null);
+  renderSetupPreviewActions();
   renderLockedBusinessRecord(record || SETUP_STATE?.locked_record || {});
 }
 
@@ -2151,6 +2314,13 @@ function collectSetupPayload(extra = {}) {
     about: setupAbout?.value?.trim() || "",
     workspace_business_type: setupWorkspaceBusinessType?.value?.trim() || "",
     accent_color: setupAccentColor?.value?.trim() || "",
+    site_primary_cta_label: setupPrimaryCtaLabel?.value?.trim() || "Request service",
+    site_booking_cta_label: setupBookingCtaLabel?.value?.trim() || "Book now",
+    site_font_preset: setupSiteFontPreset?.value?.trim() || "modern_sans",
+    site_surface_style: setupSiteSurfaceStyle?.value?.trim() || "clean",
+    site_button_style: setupSiteButtonStyle?.value?.trim() || "rounded",
+    site_card_style: setupSiteCardStyle?.value?.trim() || "soft",
+    site_hero_layout: setupSiteHeroLayout?.value?.trim() || "split",
     logo_url: setupLogoUrl?.value?.trim() || "",
     hero_image_url: setupHeroImageUrl?.value?.trim() || "",
     public_contact_email: setupPublicContactEmail?.value?.trim() || "",
@@ -2166,6 +2336,8 @@ function collectSetupPayload(extra = {}) {
     show_prices: !!setupShowPrices?.checked,
     allow_custom_requests: !!setupAllowCustomRequests?.checked,
     booking_page_enabled: document.getElementById('setupBookingPageEnabled')?.checked !== false,
+    site_publish_status: setupPublishStatus(SETUP_STATE?.config || extra) || "draft",
+    site_published_at: String(SETUP_STATE?.config?.site_published_at || "").trim(),
     ...extra,
   };
 }
@@ -2231,6 +2403,15 @@ async function saveOperatorSetup(extra = {}) {
   markWorkspaceClean("setup");
   setSetupMessage('Setup saved.', 'good');
   return data;
+}
+
+async function publishWebsite() {
+  const nextStatus = 'published';
+  return saveOperatorSetup({
+    site_publish_status: nextStatus,
+    site_published_at: new Date().toISOString(),
+    onboarding_complete: true,
+  });
 }
 
 async function uploadSetupAsset(file, slot = 'asset') {
@@ -3396,6 +3577,37 @@ btnSaveSetupTop?.addEventListener("click", async () => {
     setSetupMessage(err.message || String(err), 'bad');
   }
 });
+btnPreviewWebsite?.addEventListener("click", () => {
+  if (setupPreviewWrap) setupPreviewWrap.innerHTML = setupPreviewHtml(collectSetupPayload(), SETUP_STATE?.locked_record || null);
+  renderSetupPublishMeta(collectSetupPayload());
+  renderSetupPreviewActions();
+  setSetupMessage('Preview refreshed with the current draft.', 'good');
+});
+btnOpenSetupProductsPreview?.addEventListener("click", () => {
+  window.open(setupPreviewUrl("products.html"), "_blank", "noopener");
+});
+btnOpenSetupOrderPreview?.addEventListener("click", () => {
+  window.open(setupPreviewUrl("order.html"), "_blank", "noopener");
+});
+btnOpenSetupPublishedSite?.addEventListener("click", () => {
+  window.open(setupPublishedUrl("products.html"), "_blank", "noopener");
+});
+btnPublishWebsite?.addEventListener("click", async () => {
+  try {
+    await publishWebsite();
+    setSetupMessage('Website published. Customers should now see the live version of this draft.', 'good');
+  } catch (err) {
+    setSetupMessage(err.message || String(err), 'bad');
+  }
+});
+btnPublishWebsiteTop?.addEventListener("click", async () => {
+  try {
+    await publishWebsite();
+    setSetupMessage('Website published. Customers should now see the live version of this draft.', 'good');
+  } catch (err) {
+    setSetupMessage(err.message || String(err), 'bad');
+  }
+});
 btnMarkSetupComplete?.addEventListener("click", async () => {
   try {
     await saveOperatorSetup({ onboarding_complete: true });
@@ -3434,12 +3646,22 @@ btnUploadSetupHero?.addEventListener('click', async () => {
     if (setupHeroStatus) setupHeroStatus.textContent = err.message || String(err);
   }
 });
-[setupTagline, setupHeroHeading, setupHeroSubheading, setupAbout, setupLogoUrl, setupHeroImageUrl, setupPublicContactEmail, setupPublicBusinessPhone, setupServiceArea, setupReviewPlatformLabel, setupReviewLinkUrl, setupReferralMessage, setupInstagram, setupFacebook, setupHoursNotes, setupFulfillmentNotes, setupAccentColor].forEach((el) => {
-  el?.addEventListener('input', () => { if (setupPreviewWrap) setupPreviewWrap.innerHTML = setupPreviewHtml(collectSetupPayload(), SETUP_STATE?.locked_record || null); });
+[setupTagline, setupHeroHeading, setupHeroSubheading, setupAbout, setupLogoUrl, setupHeroImageUrl, setupPublicContactEmail, setupPublicBusinessPhone, setupServiceArea, setupReviewPlatformLabel, setupReviewLinkUrl, setupReferralMessage, setupInstagram, setupFacebook, setupHoursNotes, setupFulfillmentNotes, setupAccentColor, setupPrimaryCtaLabel, setupBookingCtaLabel].forEach((el) => {
+  el?.addEventListener('input', () => {
+    if (setupPreviewWrap) setupPreviewWrap.innerHTML = setupPreviewHtml(collectSetupPayload(), SETUP_STATE?.locked_record || null);
+    renderSetupPublishMeta(collectSetupPayload());
+    renderSetupPreviewActions();
+  });
 });
-[setupShowPrices, setupAllowCustomRequests, setupWorkspaceBusinessType].forEach((el) => {
-  el?.addEventListener('change', () => { if (setupPreviewWrap) setupPreviewWrap.innerHTML = setupPreviewHtml(collectSetupPayload(), SETUP_STATE?.locked_record || null); });
+[setupShowPrices, setupAllowCustomRequests, setupWorkspaceBusinessType, setupSiteFontPreset, setupSiteSurfaceStyle, setupSiteButtonStyle, setupSiteCardStyle, setupSiteHeroLayout].forEach((el) => {
+  el?.addEventListener('change', () => {
+    if (setupPreviewWrap) setupPreviewWrap.innerHTML = setupPreviewHtml(collectSetupPayload(), SETUP_STATE?.locked_record || null);
+    renderSetupPublishMeta(collectSetupPayload());
+    renderSetupPreviewActions();
+  });
 });
+initSetupBuilderNav();
+renderSetupPreviewActions();
 
 btnRefreshPricing?.addEventListener("click", async () => {
   try {

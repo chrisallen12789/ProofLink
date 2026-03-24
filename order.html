@@ -27,15 +27,15 @@
 
     <main class="container">
       <section class="section-card form-page-card">
-        <h1>Order request</h1>
+        <h1><span data-cl-order-page-title>Order request</span></h1>
         <p class="muted">
-          <span data-cl-order-intro>This is not instant checkout. We will email you to confirm details and schedule pickup or delivery.</span>
+          <span data-cl-order-intro>This is not instant checkout. We will review the request and confirm the next step by email.</span>
         </p>
 
         <section class="cart-box" aria-label="Your cart">
           <h2>Your cart</h2>
 
-          <p id="cartEmpty" class="muted" style="display:none;">Your cart is empty. Browse products to add items.</p>
+            <p id="cartEmpty" class="muted" style="display:none;">Your request is empty. Browse the public catalog to add what you need.</p>
 
           <div id="cartItems" class="cart-items" aria-live="polite"></div>
 
@@ -50,7 +50,7 @@
             <div style="display:grid; gap:14px; margin-top:16px;">
               <div class="form__row">
                 <div class="form__field">
-                  <label for="orderFulfillment">Pickup or delivery</label>
+                  <label for="orderFulfillment"><span data-cl-fulfillment-label>Pickup or delivery</span></label>
                   <select id="orderFulfillment" name="fulfillment">
                     <option value="pickup">Pickup</option>
                     <option value="delivery">Delivery</option>
@@ -106,7 +106,7 @@
                   <span data-cl-quote-disclaimer>Some items may still require confirmation pricing.</span>
                 </p>
                 <p id="cartDeliveryMessage" class="muted small" style="margin-top:6px;">
-                  Pickup selected.
+                  Request type selected.
                 </p>
               </div>
             </div>
@@ -202,14 +202,13 @@
             <button type="submit" class="btn btn--primary">
               Request confirmation
             </button>
-            <a class="btn btn--ghost" href="products.html">Keep shopping</a>
+            <a class="btn btn--ghost" href="products.html">Back to <span data-cl-catalog-label>Products</span></a>
           </div>
 
           <div class="status" data-status style="display:none;"></div>
 
           <p class="availability-note">
-            Made in a home kitchen that has not been inspected by the Michigan
-            Department of Agriculture and Rural Development.
+            <span data-cl-compliance-note></span>
           </p>
         </form>
       </section>

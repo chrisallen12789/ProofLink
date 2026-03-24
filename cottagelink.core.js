@@ -188,34 +188,59 @@
     }
 
     const run = (async () => {
+      if (typeof window.PROOFLINK_WAIT_FOR_TENANT_READY === "function") {
+        await window.PROOFLINK_WAIT_FOR_TENANT_READY().catch(() => null);
+      } else if (window.COTTAGELINK_TENANT_READY && typeof window.COTTAGELINK_TENANT_READY.then === "function") {
+        await window.COTTAGELINK_TENANT_READY.catch(() => null);
+      }
+      if (typeof window.COTTAGELINK_REFRESH_CONFIG === "function") {
+        window.COTTAGELINK_REFRESH_CONFIG();
+      }
       const tenantSlug =
         window.COTTAGELINK_CONFIG?.tenant?.slug ||
         window.CottageLink?.config?.tenant?.slug ||
         "honest-to-crust";
-      const supabaseBaseUrl = String(supabase.url || "").replace(/\/+$/, "");
-      const rpcName = String(supabase.publicCatalogRpc || "get_public_catalog_by_tenant").trim();
-      const url = `${supabaseBaseUrl}/rest/v1/rpc/${rpcName}`;
+      let rows = [];
 
-      const res = await fetchJsonWithTimeout(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          apikey: supabase.anonKey,
-          Authorization: `Bearer ${supabase.anonKey}`,
-        },
-        body: JSON.stringify({
-          tenant_slug: tenantSlug,
-          include_unavailable: !!includeUnavailable,
-        }),
-      }, supabase.catalogFetchTimeoutMs || 8000);
+      try {
+        const fnRes = await fetchJsonWithTimeout(`/.netlify/functions/get-public-catalog?slug=${encodeURIComponent(tenantSlug)}&include_unavailable=${includeUnavailable ? "true" : "false"}`, {
+          method: "GET",
+          headers: { Accept: "application/json" },
+        }, supabase.catalogFetchTimeoutMs || 8000);
 
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        throw new Error(`Catalog request failed (${res.status}): ${text}`);
+        if (fnRes.ok) {
+          const fnData = await fnRes.json().catch(() => ({}));
+          rows = (Array.isArray(fnData?.products) ? fnData.products : []).map(normalizeCatalogProduct).filter((x) => x && x.id);
+        } else {
+          throw new Error(`Public catalog function failed (${fnRes.status})`);
+        }
+      } catch (functionError) {
+        const supabaseBaseUrl = String(supabase.url || "").replace(/\/+$/, "");
+        const rpcName = String(supabase.publicCatalogRpc || "get_public_catalog_by_tenant").trim();
+        const url = `${supabaseBaseUrl}/rest/v1/rpc/${rpcName}`;
+
+        const res = await fetchJsonWithTimeout(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            apikey: supabase.anonKey,
+            Authorization: `Bearer ${supabase.anonKey}`,
+          },
+          body: JSON.stringify({
+            tenant_slug: tenantSlug,
+            include_unavailable: !!includeUnavailable,
+          }),
+        }, supabase.catalogFetchTimeoutMs || 8000);
+
+        if (!res.ok) {
+          const text = await res.text().catch(() => "");
+          throw new Error(`Catalog request failed (${res.status}): ${text}`);
+        }
+
+        const data = await res.json();
+        rows = (Array.isArray(data) ? data : []).map(normalizeCatalogProduct).filter((x) => x && x.id);
       }
 
-      const data = await res.json();
-      const rows = (Array.isArray(data) ? data : []).map(normalizeCatalogProduct).filter((x) => x && x.id);
       saveCatalogCache(rows);
       window.HTC_CATALOG = rows;
       return rows;

@@ -1,30 +1,33 @@
 (() => {
-  const tenant = window.COTTAGELINK_TENANT || {};
-  const storefront = tenant.storefront || {};
-  const branding = tenant.branding || {};
-  const cart = tenant.cart || {};
-  const fulfillment = tenant.fulfillment || {};
-  const backend = tenant.backend || {};
-  const contact = tenant.contact || {};
-  const payments = tenant.payments || {};
-  const domains = tenant.domains || {};
-  const help = tenant.help || {};
+  function buildConfig() {
+    const tenant = window.COTTAGELINK_TENANT || {};
+    const storefront = tenant.storefront || {};
+    const branding = tenant.branding || {};
+    const cart = tenant.cart || {};
+    const fulfillment = tenant.fulfillment || {};
+    const backend = tenant.backend || {};
+    const contact = tenant.contact || {};
+    const payments = tenant.payments || {};
+    const domains = tenant.domains || {};
+    const help = tenant.help || {};
+    const website = tenant.website || {};
 
-  window.COTTAGELINK_CONFIG = window.COTTAGELINK_CONFIG || {
-    platform: {
+    window.COTTAGELINK_CONFIG = window.COTTAGELINK_CONFIG || {};
+    window.COTTAGELINK_CONFIG.platform = {
       name: tenant.platformName || "ProofLink",
-      version: "phase3.5",
-    },
-    tenant: {
+      version: "phase4.0",
+    };
+    window.COTTAGELINK_CONFIG.tenant = {
       id: tenant.id || "default",
       slug: tenant.slug || "default",
       businessName: tenant.businessName || "Tenant",
-      businessType: tenant.businessType || "food-business",
+      businessType: tenant.businessType || "service_business",
       storefront,
       branding,
       contact,
       payments,
       domains,
+      website,
       help,
       backend: {
         tenantColumn: backend.tenantColumn || "tenant_id",
@@ -33,14 +36,14 @@
         orderBridgeKey: backend.orderBridgeKey || `cottagelink_operator_order_bridge_v1_${tenant.slug || "default"}`,
       },
       operator: tenant.operator || {},
-    },
-    supabase: {
+    };
+    window.COTTAGELINK_CONFIG.supabase = {
       url: "https://ygfpawksbqfbgohztisv.supabase.co",
       anonKey: "sb_publishable_bcILNxLX87f-G2zq_SbDGA_Vvs62biB",
       publicCatalogRpc: "get_public_catalog_by_tenant",
       catalogFetchTimeoutMs: 8000,
-    },
-    storefront: {
+    };
+    window.COTTAGELINK_CONFIG.storefront = {
       cart: {
         storageKey: cart.storageKey || "cl_cart_v1",
         catalogCacheKey: cart.catalogCacheKey || `cl_public_catalog_${tenant.slug || "default"}`,
@@ -53,13 +56,19 @@
         zipFeeMessage: fulfillment.zipFeeMessage || "Delivery fee is based on your ZIP code.",
         freeMessage: fulfillment.freeMessage || "Delivery is free on qualifying orders.",
         pickupMessage: fulfillment.pickupMessage || "Pickup selected.",
+        pickupLabel: fulfillment.pickupLabel || "Pickup",
+        deliveryLabel: fulfillment.deliveryLabel || "Delivery",
       },
       pricing: {
-        fixedLabel: "Fixed product price.",
-        startsAtLabel: "Customization may increase final price.",
+        fixedLabel: "Fixed price.",
+        startsAtLabel: "Scope may change final price.",
         quoteLabel: "Final price confirmed after review.",
-        quoteDisplay: "Contact for quote",
+        quoteDisplay: storefront.quoteDisclaimer || "Contact for quote",
       },
-    },
-  };
+    };
+    return window.COTTAGELINK_CONFIG;
+  }
+
+  window.COTTAGELINK_REFRESH_CONFIG = buildConfig;
+  buildConfig();
 })();

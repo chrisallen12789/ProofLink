@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>About | Honest To Crust</title>
+  <title>About | ProofLink</title>
 
     <!-- favicon -->
   <link rel="icon" type="image/png" href="/assets/favicon.png">
@@ -12,9 +12,12 @@
 
   <link rel="stylesheet" href="styles.css">
   <script src="layout.js" defer></script>
+  <script src="cottagelink.tenant.js" defer></script>
+  <script src="cottagelink.config.js" defer></script>
+  <script src="cottagelink.core.js" defer></script>
   <script src="cart.js" defer></script>
 
-  <meta name="description" content="Learn about Honest To Crust, a small batch home bakery focused on honest ingredients, clear communication, and bake to order pickup.">
+  <meta name="description" content="Learn about the business, how it works, and what customers should expect.">
 </head>
 
 <body class="about">
@@ -26,18 +29,18 @@
 
   <main class="container">
     <section class="section-card about-section watermark-section">
-      <h1>About Honest To Crust</h1>
+      <h1>About the business</h1>
 
-      <p>We are a small batch home bakery focused on honest ingredients, clean processes, and bake to order pickup. There are no inventory games, just clear communication and great bread.</p>
+      <p data-cl-about-copy>This business is set up to keep customer communication clear, work organized, and expectations realistic from the first request through the final follow-up.</p>
 
       <hr>
 
-      <p>Our menu grows as recipes are tested to perfection. When something is ready, it shows up on the Products page. If you do not see it yet, it is still in development.</p>
+      <p>What is offered publicly appears on the <span data-cl-catalog-label>Products</span> page. If something is not listed yet, send a message and we can confirm whether it is available or still being finalized.</p>
 
-      <p>Want something specific? Send an inquiry and we will confirm what is realistic for your timeline.</p>
+      <p>Need something specific? Send an inquiry and we will confirm what is realistic for the scope, timing, and next step.</p>
 
       <div class="product-actions" style="margin-top: 1.25rem;">
-        <a class="btn" href="products.html">Browse products</a>
+        <a class="btn" href="products.html"><span data-cl-catalog-label>Products</span></a>
         <a class="btn btn-secondary" href="contact.html">Contact us</a>
       </div>
     </section>

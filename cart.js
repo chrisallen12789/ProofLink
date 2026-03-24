@@ -16,6 +16,28 @@
   let CATALOG_BY_ID = catalog.buildIndex(CATALOG_CACHE);
   let SYNC_IN_FLIGHT = null;
 
+  function fulfillmentCopy() {
+    const deliveryCfg = config?.storefront?.delivery || {};
+    return {
+      pickupLabel: deliveryCfg.pickupLabel || "Pickup",
+      deliveryLabel: deliveryCfg.deliveryLabel || "Delivery",
+      pickupMessage: deliveryCfg.pickupMessage || "Pickup selected.",
+    };
+  }
+
+  function syncFulfillmentLabels() {
+    const labels = fulfillmentCopy();
+    const fulfillmentSelect = $("#orderFulfillment");
+    if (fulfillmentSelect) {
+      const pickupOption = fulfillmentSelect.querySelector('option[value="pickup"]');
+      const deliveryOption = fulfillmentSelect.querySelector('option[value="delivery"]');
+      if (pickupOption) pickupOption.textContent = labels.pickupLabel;
+      if (deliveryOption) deliveryOption.textContent = labels.deliveryLabel;
+    }
+    const deliveryValueLabel = document.querySelector('[data-cl-fulfillment-label]');
+    if (deliveryValueLabel) deliveryValueLabel.textContent = `${labels.pickupLabel} or ${labels.deliveryLabel}`;
+  }
+
   function read() {
     const raw = localStorage.getItem(STORAGE_KEY);
     const parsed = raw ? safeParse(raw) : null;
@@ -204,7 +226,7 @@
         lines.push("Delivery: unavailable for selected ZIP");
       }
     } else {
-      lines.push("Fulfillment: Pickup");
+      lines.push(`Fulfillment: ${fulfillmentCopy().pickupLabel}`);
     }
 
     if (context.unpricedCount > 0) {
@@ -318,7 +340,7 @@
 
     if (deliveryField) {
       if (delivery.fulfillment !== "delivery") {
-        deliveryField.textContent = "Pickup";
+        deliveryField.textContent = fulfillmentCopy().pickupLabel;
       } else if (delivery.free && delivery.originalFeeCents > 0) {
         deliveryField.innerHTML = `<span style="text-decoration:line-through;opacity:.6;margin-right:6px;">${formatCents(delivery.originalFeeCents)}</span>Free`;
       } else if (delivery.valid) {
@@ -495,6 +517,7 @@
   });
 
   loadCatalogRows(CATALOG_CACHE);
+  syncFulfillmentLabels();
   updateCountBadges();
   renderOrderCart();
   syncCartWithCatalog().then(() => notify()).catch(console.error);

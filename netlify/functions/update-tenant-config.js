@@ -10,6 +10,9 @@ const ALLOWED_KEYS = new Set([
   'instagram', 'facebook', 'hours_notes', 'fulfillment_notes',
   'accent_color', 'show_prices', 'allow_custom_requests', 'about', 'onboarding_complete',
   'workspace_business_type', 'booking_page_enabled',
+  'site_font_preset', 'site_surface_style', 'site_button_style', 'site_card_style',
+  'site_hero_layout', 'site_primary_cta_label', 'site_booking_cta_label',
+  'site_publish_status', 'site_published_at',
 ]);
 
 const PROTECTED_KEYS = new Set([
@@ -28,6 +31,12 @@ function parseConfig(value) {
 }
 
 const HEX_COLOR_RE = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
+const FONT_PRESETS = new Set(['modern_sans', 'editorial', 'trust_serif', 'compact_ui']);
+const SURFACE_STYLES = new Set(['clean', 'warm', 'bold']);
+const BUTTON_STYLES = new Set(['rounded', 'solid', 'outline']);
+const CARD_STYLES = new Set(['soft', 'lined', 'elevated']);
+const HERO_LAYOUTS = new Set(['split', 'stacked', 'statement']);
+const PUBLISH_STATUSES = new Set(['draft', 'ready', 'published']);
 
 function normalizeValue(key, value) {
   if (value === null || value === undefined) return '';
@@ -38,6 +47,42 @@ function normalizeValue(key, value) {
     const color = String(value).trim();
     if (!HEX_COLOR_RE.test(color)) throw Object.assign(new Error('accent_color must be a valid hex color (e.g. #ff6600 or #f60)'), { statusCode: 400 });
     return color;
+  }
+  if (key === 'site_font_preset') {
+    const preset = String(value).trim().toLowerCase() || 'modern_sans';
+    if (!FONT_PRESETS.has(preset)) throw Object.assign(new Error('site_font_preset is invalid'), { statusCode: 400 });
+    return preset;
+  }
+  if (key === 'site_surface_style') {
+    const style = String(value).trim().toLowerCase() || 'clean';
+    if (!SURFACE_STYLES.has(style)) throw Object.assign(new Error('site_surface_style is invalid'), { statusCode: 400 });
+    return style;
+  }
+  if (key === 'site_button_style') {
+    const style = String(value).trim().toLowerCase() || 'rounded';
+    if (!BUTTON_STYLES.has(style)) throw Object.assign(new Error('site_button_style is invalid'), { statusCode: 400 });
+    return style;
+  }
+  if (key === 'site_card_style') {
+    const style = String(value).trim().toLowerCase() || 'soft';
+    if (!CARD_STYLES.has(style)) throw Object.assign(new Error('site_card_style is invalid'), { statusCode: 400 });
+    return style;
+  }
+  if (key === 'site_hero_layout') {
+    const layout = String(value).trim().toLowerCase() || 'split';
+    if (!HERO_LAYOUTS.has(layout)) throw Object.assign(new Error('site_hero_layout is invalid'), { statusCode: 400 });
+    return layout;
+  }
+  if (key === 'site_publish_status') {
+    const status = String(value).trim().toLowerCase() || 'draft';
+    if (!PUBLISH_STATUSES.has(status)) throw Object.assign(new Error('site_publish_status is invalid'), { statusCode: 400 });
+    return status;
+  }
+  if (key === 'site_published_at') {
+    const stamp = String(value).trim();
+    if (!stamp) return '';
+    if (Number.isNaN(Date.parse(stamp))) throw Object.assign(new Error('site_published_at must be a valid ISO date'), { statusCode: 400 });
+    return new Date(stamp).toISOString();
   }
   return String(value).trim();
 }

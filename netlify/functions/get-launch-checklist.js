@@ -53,7 +53,7 @@ exports.handler = async (event) => {
       .select('id', { count: 'exact', head: true })
       .eq('tenant_id', tenant.id),
 
-    // Step 5: Config has tagline (signals customization started)
+    // Step 5: Site settings / publish state
     supabase.from('tenant_config')
       .select('config_value')
       .eq('tenant_id', tenant.id)
@@ -86,13 +86,16 @@ exports.handler = async (event) => {
   // Step 4: Stripe connected
   const step4 = !!(tenant.stripe_account_id && tenant.stripe_charges_enabled);
 
-  // Step 5: Store customized (tagline or logo set)
+  // Step 5: Website published or clearly launch-ready
   let step5 = false;
   try {
     const configRow = configResult.value?.data;
     if (configRow?.config_value) {
       const cfg = JSON.parse(configRow.config_value);
-      step5 = !!(cfg.tagline || cfg.logo_url || cfg.onboarding_complete);
+      step5 = !!(
+        cfg.site_publish_status === 'published' ||
+        (cfg.booking_page_enabled !== false && cfg.hero_heading && cfg.public_contact_email)
+      );
     }
   } catch {}
 
@@ -125,10 +128,10 @@ exports.handler = async (event) => {
     },
     {
       id       : 'customize',
-      label    : 'Customize your storefront',
-      detail   : 'Set your tagline, logo, and theme.',
+      label    : 'Publish your website',
+      detail   : step5 ? 'Website settings are ready for customers.' : 'Set the branding, contact details, and publish state.',
       complete : step5,
-      cta      : { label: 'Edit store', href: '/operator/settings.html' },
+      cta      : { label: 'Open website setup', href: '/operator/#setup' },
     },
   ];
 

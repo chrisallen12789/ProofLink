@@ -1509,16 +1509,28 @@
             <div class="panel-head">
               <div>
                 <h2>Business Setup</h2>
-                <div class="muted">This workspace is for branding, storefront media, and customer-facing profile upkeep. Application and account-record fields stay protected.</div>
+                <div class="muted">Set up the customer-facing website, adjust the brand, and publish when it feels ready. Protected account-record fields stay locked.</div>
+                </div>
+                <div class="panel-actions">
+                  <button id="btnRefreshSetup" class="btn btn-ghost" type="button">Refresh</button>
+                  <button id="btnSaveSetupTop" class="btn btn-primary" type="button">Save draft</button>
+                  <button id="btnPublishWebsiteTop" class="btn" type="button">Publish website</button>
+                </div>
               </div>
-              <div class="panel-actions">
-                <button id="btnRefreshSetup" class="btn btn-ghost" type="button">Refresh</button>
-                <button id="btnSaveSetupTop" class="btn btn-primary" type="button">Save media and profile</button>
-              </div>
+
+            <div class="setup-builder-nav" aria-label="Website builder sections">
+              <button class="setup-builder-tab is-active" type="button" data-setup-target="setupLockedRecordCard">Business record</button>
+              <button class="setup-builder-tab" type="button" data-setup-target="setupBrandingCard">Messaging</button>
+              <button class="setup-builder-tab" type="button" data-setup-target="setupStyleCard">Style</button>
+              <button class="setup-builder-tab" type="button" data-setup-target="setupProfileCard">Contact</button>
+              <button class="setup-builder-tab" type="button" data-setup-target="setupPreviewCard">Preview and publish</button>
+            </div>
+            <div class="setup-builder-note">
+              Work left to right. Save your draft as you go, preview the public pages, then publish when the website feels right for customers.
             </div>
 
             <div class="grid two">
-              <div class="card">
+              <div class="card" id="setupLockedRecordCard">
                 <div class="card-hd">
                   <strong>Verified business record</strong>
                   <span class="muted">Read-only account and onboarding data</span>
@@ -1534,13 +1546,13 @@
                 </div>
               </div>
 
-              <div class="card">
-                <div class="card-hd">
-                  <strong>Branding and media</strong>
-                  <span class="muted">What customers see first</span>
-                </div>
-                <div class="card-bd">
-                  <form id="setupForm" class="form" data-tour="branding-form">
+                <div class="card" id="setupBrandingCard">
+                  <div class="card-hd">
+                    <strong>Branding and media</strong>
+                    <span class="muted">What customers see first</span>
+                  </div>
+                  <div class="card-bd">
+                    <form id="setupForm" class="form" data-tour="branding-form">
                     <label>Tagline
                       <input id="setupTagline" placeholder="One clear sentence that explains the business." />
                     </label>
@@ -1562,12 +1574,20 @@
                       <div class="muted" style="margin-top:6px;line-height:1.5;">This shapes the operator workspace for how the business actually runs. It does not change the protected onboarding record.</div>
                     </label>
 
-                    <label>Accent color
-                      <input id="setupAccentColor" placeholder="#c84b2f" />
-                    </label>
+                      <label>Accent color
+                        <input id="setupAccentColor" placeholder="#c84b2f" />
+                      </label>
 
-                    <label>Logo image URL
-                      <input id="setupLogoUrl" placeholder="https://..." />
+                      <label>Primary website button text
+                        <input id="setupPrimaryCtaLabel" placeholder="Request service" />
+                      </label>
+
+                      <label>Booking button text
+                        <input id="setupBookingCtaLabel" placeholder="Book now" />
+                      </label>
+
+                      <label>Logo image URL
+                        <input id="setupLogoUrl" placeholder="https://..." />
                     </label>
 
                     <label>Upload logo
@@ -1601,17 +1621,68 @@
                         <input id="setupBookingPageEnabled" type="checkbox" />
                         Enable customer booking page &amp; website features
                       </label>
-                    </div>
-                  </form>
+                      </div>
+                    </form>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div class="grid two" style="margin-top:16px;">
-              <div class="card">
-                <div class="card-hd">
-                  <strong>Public business profile</strong>
-                  <span class="muted">Editable customer-facing contact and service details</span>
+              <div class="grid two" style="margin-top:16px;">
+                <div class="card" id="setupStyleCard">
+                  <div class="card-hd">
+                    <strong>Website style</strong>
+                    <span class="muted">Make it feel like the business</span>
+                  </div>
+                  <div class="card-bd">
+                    <div class="form">
+                      <label>Font preset
+                        <select id="setupSiteFontPreset">
+                          <option value="modern_sans">Modern sans</option>
+                          <option value="editorial">Editorial</option>
+                          <option value="trust_serif">Trust serif</option>
+                          <option value="compact_ui">Compact UI</option>
+                        </select>
+                      </label>
+
+                      <label>Surface mood
+                        <select id="setupSiteSurfaceStyle">
+                          <option value="clean">Clean and bright</option>
+                          <option value="warm">Warm and approachable</option>
+                          <option value="bold">Bold and high contrast</option>
+                        </select>
+                      </label>
+
+                      <label>Button style
+                        <select id="setupSiteButtonStyle">
+                          <option value="rounded">Rounded</option>
+                          <option value="solid">Solid</option>
+                          <option value="outline">Outline</option>
+                        </select>
+                      </label>
+
+                      <label>Card style
+                        <select id="setupSiteCardStyle">
+                          <option value="soft">Soft panels</option>
+                          <option value="lined">Lined panels</option>
+                          <option value="elevated">Elevated panels</option>
+                        </select>
+                      </label>
+
+                      <label>Hero layout
+                        <select id="setupSiteHeroLayout">
+                          <option value="split">Split hero</option>
+                          <option value="stacked">Stacked hero</option>
+                          <option value="statement">Statement hero</option>
+                        </select>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="card" id="setupProfileCard">
+                  <div class="card-hd">
+                    <strong>Public business profile</strong>
+                    <span class="muted">Editable customer-facing contact and service details</span>
                 </div>
                 <div class="card-bd">
                   <div class="form">
@@ -1656,25 +1727,33 @@
                       <textarea id="setupFulfillmentNotes" rows="4" placeholder="Anything the customer should know before ordering or booking."></textarea>
                     </label>
 
-                    <div class="row">
-                      <button id="btnSaveSetup" class="btn btn-primary" type="button">Save media and profile</button>
-                      <button id="btnMarkSetupComplete" class="btn" type="button">Mark setup complete</button>
-                    </div>
+                      <div class="row">
+                        <button id="btnSaveSetup" class="btn btn-primary" type="button">Save draft</button>
+                        <button id="btnPreviewWebsite" class="btn btn-ghost" type="button">Preview publish state</button>
+                        <button id="btnPublishWebsite" class="btn" type="button">Publish website</button>
+                        <button id="btnMarkSetupComplete" class="btn" type="button">Mark setup complete</button>
+                      </div>
 
-                    <div id="setupMsg" class="msg"></div>
+                      <div id="setupMsg" class="msg"></div>
+                    </div>
+                </div>
+              </div>
+
+                <div class="card" id="setupPreviewCard">
+                  <div class="card-hd">
+                    <strong>Website preview</strong>
+                    <span class="muted">Quick sanity check before publish</span>
+                  </div>
+                  <div class="card-bd">
+                    <div id="setupPublishMeta" class="muted" style="margin-bottom:12px;">Draft website. Save and publish when it looks right.</div>
+                    <div class="setup-preview-actions">
+                      <button id="btnOpenSetupProductsPreview" class="btn btn-ghost" type="button">Open services page</button>
+                      <button id="btnOpenSetupOrderPreview" class="btn btn-ghost" type="button">Open request page</button>
+                      <button id="btnOpenSetupPublishedSite" class="btn btn-ghost" type="button">Open published website</button>
+                    </div>
+                    <div id="setupPreviewWrap" class="muted">Load setup data to preview the current business profile.</div>
                   </div>
                 </div>
-              </div>
-
-              <div class="card">
-                <div class="card-hd">
-                  <strong>Setup preview</strong>
-                  <span class="muted">Quick sanity check before launch</span>
-                </div>
-                <div class="card-bd">
-                  <div id="setupPreviewWrap" class="muted">Load setup data to preview the current business profile.</div>
-                </div>
-              </div>
             </div>
 
             <div class="grid two" style="margin-top:16px;">

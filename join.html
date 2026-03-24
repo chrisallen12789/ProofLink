@@ -6,10 +6,10 @@
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
   <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;600;700;800&family=Google+Sans+Text:wght@400;500;600;700&display=swap" rel="stylesheet"/>
-  <title>Choose a Plan and Apply | ProofLink</title>
+  <title>Create Your ProofLink Workspace</title>
   <meta
     name="description"
-    content="Choose the ProofLink plan that matches your operational mess, then apply for the workspace with that plan attached."
+    content="Choose a ProofLink plan, start your workspace, and decide whether you want self-serve setup or hands-on help."
   />
   <link rel="stylesheet" href="/join-page.css" />
   <link rel="manifest" href="/manifest.webmanifest" />
@@ -24,12 +24,12 @@
 
   <main class="page">
     <header class="page-header">
-      <span class="eyebrow">Problem-first rollout</span>
-      <h1>Choose the level of control your business needs, then apply for the workspace.</h1>
+      <span class="eyebrow">Customer setup</span>
+      <h1>Choose your plan, start the workspace, and get the business moving.</h1>
       <p>
-        If work is getting scattered across calls, DMs, spreadsheets, and payment links, start
-        here. Pick the plan that matches your volume and complexity, keep it attached to your
-        application, and we will build the workspace around that choice.
+        Starter and Growth can start right away. If you want hands-on help, or if you need
+        Enterprise, we can still guide the setup for you. Either way, this is where ProofLink
+        becomes the operating system and website foundation for the business.
       </p>
     </header>
 
@@ -45,8 +45,8 @@
       <div class="plan-choice-grid" id="planChoiceGrid" role="radiogroup" aria-label="Choose a ProofLink plan"></div>
 
       <div class="plan-context-note" id="planIntentNote">
-        You are not paying today. You are locking in the rollout level so the workspace is
-        provisioned correctly.
+        Starter and Growth can create the workspace immediately. Enterprise moves into a guided
+        rollout before billing begins.
       </div>
     </section>
 
@@ -68,37 +68,37 @@
 
         <div class="type-grid" id="businessTypeGrid">
           <button class="type-chip" type="button" data-value="bakery">
-            <span class="type-chip-icon">🍞</span>Bakery / Food
+            <span class="type-chip-icon">BA</span>Bakery / Food
           </button>
           <button class="type-chip" type="button" data-value="pressure_washing">
             <span class="type-chip-icon">PW</span>Pressure Washing
           </button>
           <button class="type-chip" type="button" data-value="contractor">
-            <span class="type-chip-icon">🔨</span>Contractor / Remodeling
+            <span class="type-chip-icon">CR</span>Contractor / Remodeling
           </button>
           <button class="type-chip" type="button" data-value="lawn_care">
-            <span class="type-chip-icon">🌿</span>Lawn Care
+            <span class="type-chip-icon">LC</span>Lawn Care
           </button>
           <button class="type-chip" type="button" data-value="cleaning">
-            <span class="type-chip-icon">🧹</span>Cleaning
+            <span class="type-chip-icon">CL</span>Cleaning
           </button>
           <button class="type-chip" type="button" data-value="photography">
-            <span class="type-chip-icon">📸</span>Photography
+            <span class="type-chip-icon">PH</span>Photography
           </button>
           <button class="type-chip" type="button" data-value="pet_services">
-            <span class="type-chip-icon">🐾</span>Pet Services
+            <span class="type-chip-icon">PS</span>Pet Services
           </button>
           <button class="type-chip" type="button" data-value="events">
-            <span class="type-chip-icon">🎉</span>Events
+            <span class="type-chip-icon">EV</span>Events
           </button>
           <button class="type-chip" type="button" data-value="handyman">
-            <span class="type-chip-icon">🛠️</span>Handyman
+            <span class="type-chip-icon">HM</span>Handyman
           </button>
           <button class="type-chip" type="button" data-value="hvac">
             <span class="type-chip-icon">HV</span>HVAC
           </button>
           <button class="type-chip" type="button" data-value="hydrovac">
-            <span class="type-chip-icon">💧</span>Hydrovac
+            <span class="type-chip-icon">HY</span>Hydrovac
           </button>
           <button class="type-chip" type="button" data-value="plumbing">
             <span class="type-chip-icon">PL</span>Plumbing
@@ -107,7 +107,7 @@
             <span class="type-chip-icon">PM</span>Property Maintenance
           </button>
           <button class="type-chip" type="button" data-value="other">
-            <span class="type-chip-icon">💼</span>Other
+            <span class="type-chip-icon">OT</span>Other
           </button>
         </div>
         <input type="hidden" id="business_type" />
@@ -157,9 +157,10 @@
       </div>
 
       <div class="form-section" id="section-3">
-        <h2 class="form-section-title">Who owns this rollout?</h2>
+        <h2 class="form-section-title">Who should own the workspace and setup?</h2>
         <p class="form-section-sub">
-          This is the person we contact for review, approval, and the first secure login.
+          This person gets the first secure login and chooses whether setup stays self-serve or
+          gets hands-on help.
         </p>
 
         <div class="field-row">
@@ -168,12 +169,13 @@
             <input type="text" id="owner_name" placeholder="Full name" autocomplete="name" />
             <p class="field-error" id="err-owner_name">Your name is required.</p>
           </div>
-          <div class="field">
-            <label for="phone">Phone number</label>
-            <input type="tel" id="phone" placeholder="(555) 000-0000" autocomplete="tel" />
-            <p class="hint">Optional, but helpful if we need to unblock setup quickly.</p>
+            <div class="field">
+              <label for="phone">Phone number</label>
+              <input type="tel" id="phone" placeholder="(555) 000-0000" autocomplete="tel" />
+              <p class="hint">Best contact number if we need to unblock setup quickly.</p>
+              <p class="field-error" id="err-phone">A phone number is required for instant workspace setup.</p>
+            </div>
           </div>
-        </div>
 
         <div class="field-row single">
           <div class="field">
@@ -191,6 +193,22 @@
           </div>
         </div>
 
+        <div class="setup-mode-grid" id="setupModeGrid">
+          <button class="setup-mode-card selected" type="button" data-setup-mode="self_serve">
+            <span class="setup-mode-card__eyebrow">Recommended</span>
+            <strong>Set it up myself</strong>
+            <p>Create the workspace now, then customize the website, branding, and business settings inside ProofLink.</p>
+          </button>
+          <button class="setup-mode-card" type="button" data-setup-mode="guided">
+            <span class="setup-mode-card__eyebrow">Hands-on help</span>
+            <strong>I want help setting it up</strong>
+            <p>Use this if you want ProofLink to help shape the workspace, website, or rollout before you go live.</p>
+          </button>
+        </div>
+        <p class="hint" id="setupModeNote">
+          Self-serve is available for Starter and Growth. Enterprise automatically moves into guided setup.
+        </p>
+
         <div class="form-nav">
           <button class="btn btn-ghost" type="button" id="backFromStep3">Back</button>
           <button class="btn btn-solid" type="button" id="nextFromStep3">Review</button>
@@ -198,22 +216,23 @@
       </div>
 
       <div class="form-section" id="section-4">
-        <h2 class="form-section-title">Review before we build</h2>
+        <h2 class="form-section-title">Review before we start the workspace</h2>
         <p class="form-section-sub">
-          We use this info and your selected plan to provision the right starting workspace.
+          We use this info to start the workspace and route the setup the right way.
         </p>
 
         <table class="review-table" id="review-table">
           <tbody>
-            <tr><td>Selected plan</td><td id="rev-plan">—</td></tr>
-            <tr><td>Business type</td><td id="rev-business_type">—</td></tr>
-            <tr><td>Business name</td><td id="rev-business_name">—</td></tr>
-            <tr><td>City / State</td><td id="rev-city_state">—</td></tr>
-            <tr><td>URL handle</td><td id="rev-subdomain">—</td></tr>
-            <tr><td>Owner</td><td id="rev-owner_name">—</td></tr>
-            <tr><td>Email</td><td id="rev-owner_email">—</td></tr>
-            <tr><td>Phone</td><td id="rev-phone">—</td></tr>
-            <tr id="rev-coupon-row" style="display:none;"><td>Promo code</td><td id="rev-coupon">—</td></tr>
+            <tr><td>Selected plan</td><td id="rev-plan">-</td></tr>
+            <tr><td>Setup path</td><td id="rev-setup_mode">Self-serve</td></tr>
+            <tr><td>Business type</td><td id="rev-business_type">-</td></tr>
+            <tr><td>Business name</td><td id="rev-business_name">-</td></tr>
+            <tr><td>City / State</td><td id="rev-city_state">-</td></tr>
+            <tr><td>URL handle</td><td id="rev-subdomain">-</td></tr>
+            <tr><td>Owner</td><td id="rev-owner_name">-</td></tr>
+            <tr><td>Email</td><td id="rev-owner_email">-</td></tr>
+            <tr><td>Phone</td><td id="rev-phone">-</td></tr>
+            <tr id="rev-coupon-row" style="display:none;"><td>Promo code</td><td id="rev-coupon">-</td></tr>
           </tbody>
         </table>
 
@@ -221,19 +240,18 @@
 
         <div class="form-nav">
           <button class="btn btn-ghost" type="button" id="backFromStep4">Back</button>
-          <button class="btn btn-solid" type="button" id="submit-btn">Submit application</button>
+          <button class="btn btn-solid" type="button" id="submit-btn">Start workspace</button>
         </div>
       </div>
 
       <section id="success-screen" aria-live="polite">
-        <div class="success-icon">✓</div>
-        <h2 id="successTitle">Application received</h2>
+        <div class="success-icon">&#10003;</div>
+        <h2 id="successTitle">Workspace request received</h2>
         <p id="successLead">
           We saved your business details and locked in your selected plan.
         </p>
         <p>
-          The next email will go to <strong id="success-email"></strong> after your business is
-          reviewed and provisioned.
+          The next email will go to <strong id="success-email"></strong> with the next setup step.
         </p>
         <p id="successPlanText"></p>
         <p id="success-ref"></p>

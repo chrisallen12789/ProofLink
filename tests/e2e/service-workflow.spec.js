@@ -88,9 +88,9 @@ test.describe.serial("service workflow e2e", () => {
     await dismissTourIfVisible(page);
     await page.waitForFunction(() => {
       if (window.PROOFLINK_BOOT_READY === true) return true;
-      const dashboardText = document.querySelector("#dashboardWrap")?.textContent || "";
-      return dashboardText.trim().length > 0;
-    }, null, { timeout: 30000 });
+      const viewApp = document.getElementById("viewApp");
+      return !!viewApp && !viewApp.classList.contains("hidden");
+    }, null, { timeout: 45000 });
   }
 
   async function loginAsTenantB(page) {
@@ -104,9 +104,9 @@ test.describe.serial("service workflow e2e", () => {
     await dismissTourIfVisible(page);
     await page.waitForFunction(() => {
       if (window.PROOFLINK_BOOT_READY === true) return true;
-      const dashboardText = document.querySelector("#dashboardWrap")?.textContent || "";
-      return dashboardText.trim().length > 0;
-    }, null, { timeout: 30000 });
+      const viewApp = document.getElementById("viewApp");
+      return !!viewApp && !viewApp.classList.contains("hidden");
+    }, null, { timeout: 45000 });
   }
 
   async function openTab(page, tabName) {
@@ -275,7 +275,7 @@ test.describe.serial("service workflow e2e", () => {
     state.orderId = orderRow.id;
     remember("orders", state.orderId);
     await expect(page.locator('[data-panel="orders"]')).not.toHaveClass(/hidden/);
-    await expect(page.locator(`#ordersList [data-order-id="${state.orderId}"]`)).toBeVisible({ timeout: 15000 });
+    await expect(page.locator(`#ordersList button[data-order-id="${state.orderId}"]`)).toBeVisible({ timeout: 15000 });
 
     expect(orderRow.lead_id).toBe(state.leadId);
     expect(orderRow.customer_id).toBe(state.customerId);
@@ -287,7 +287,7 @@ test.describe.serial("service workflow e2e", () => {
 
     await loginAsTenantA(page);
     await openTab(page, "orders");
-    await page.locator(`#ordersList [data-order-id="${state.orderId}"]`).click();
+    await page.locator(`#ordersList button[data-order-id="${state.orderId}"]`).click();
     await page.locator("#orderDepositOverrideReason").fill("E2E validation override to complete the workflow handoff.");
     await page.locator("#btnSaveOrderDepositSettings").click();
     await expect(page.locator("#orderDepositMsg")).toContainText(/saved/i);
@@ -306,7 +306,7 @@ test.describe.serial("service workflow e2e", () => {
 
     await loginAsTenantA(page);
     await openTab(page, "orders");
-    await page.locator(`#ordersList [data-order-id="${state.orderId}"]`).click();
+    await page.locator(`#ordersList button[data-order-id="${state.orderId}"]`).click();
     await page.locator("#btnRecordOrderPayment").click();
 
     await expect(page.getByRole("heading", { name: "Payments" })).toBeVisible();
@@ -322,7 +322,7 @@ test.describe.serial("service workflow e2e", () => {
     paymentRows.data.forEach((row) => remember("payments", row.id));
 
     await openTab(page, "orders");
-    await page.locator(`#ordersList [data-order-id="${state.orderId}"]`).click();
+    await page.locator(`#ordersList button[data-order-id="${state.orderId}"]`).click();
     await expect(page.locator("#orderDetailWrap")).toContainText("Payment state: Partially paid");
   });
 
@@ -331,7 +331,7 @@ test.describe.serial("service workflow e2e", () => {
 
     await loginAsTenantA(page);
     await openTab(page, "orders");
-    await page.locator(`#ordersList [data-order-id="${state.orderId}"]`).click();
+    await page.locator(`#ordersList button[data-order-id="${state.orderId}"]`).click();
     await page.locator("#btnRecordOrderPayment").click();
 
     await page.locator("#paymentAmount").fill("200.00");
@@ -345,7 +345,7 @@ test.describe.serial("service workflow e2e", () => {
     paymentRows.data.forEach((row) => remember("payments", row.id));
 
     await openTab(page, "orders");
-    await page.locator(`#ordersList [data-order-id="${state.orderId}"]`).click();
+    await page.locator(`#ordersList button[data-order-id="${state.orderId}"]`).click();
     await expect(page.locator("#orderDetailWrap")).toContainText("Payment state: Paid");
   });
 
@@ -402,7 +402,7 @@ test.describe.serial("service workflow e2e", () => {
 
     await loginAsTenantA(page);
     await openTab(page, "orders");
-    await page.locator(`#ordersList [data-order-id="${state.overdueOrderId}"]`).click();
+    await page.locator(`#ordersList button[data-order-id="${state.overdueOrderId}"]`).click();
     await expect(page.locator("#orderDetailWrap")).toContainText("Payment state: Overdue");
   });
 

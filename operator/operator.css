@@ -1990,6 +1990,51 @@ input:focus, textarea:focus, select:focus{
   color:var(--muted);
   font-size:13px;
 }
+.setup-builder-nav{
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+  margin:0 0 12px;
+}
+.setup-builder-tab{
+  border:1px solid var(--border);
+  border-radius:999px;
+  background:rgba(255,255,255,.03);
+  color:var(--muted);
+  padding:10px 14px;
+  font:600 13px/1 var(--font-body);
+  cursor:pointer;
+  transition:border-color .15s ease, background .15s ease, color .15s ease, transform .08s ease;
+}
+.setup-builder-tab:hover{
+  border-color:rgba(200,75,47,.35);
+  background:rgba(200,75,47,.08);
+  color:var(--text);
+}
+.setup-builder-tab.is-active{
+  border-color:rgba(200,75,47,.5);
+  background:linear-gradient(180deg, rgba(200,75,47,.14) 0%, rgba(255,255,255,.03) 100%);
+  color:var(--text);
+}
+.setup-builder-note{
+  margin-bottom:16px;
+  border:1px solid var(--border);
+  border-radius:16px;
+  background:rgba(255,255,255,.025);
+  color:var(--muted);
+  padding:14px 16px;
+  line-height:1.65;
+}
+.setup-preview-actions{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  margin-bottom:12px;
+}
+.setup-focus-flash{
+  outline:2px solid rgba(200,75,47,.38);
+  outline-offset:4px;
+}
 .import-preview-wrap{
   display:flex;
   flex-direction:column;

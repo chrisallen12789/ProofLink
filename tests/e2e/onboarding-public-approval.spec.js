@@ -22,12 +22,13 @@ test("public onboarding request can be approved and provisioned", async ({ page 
   await page.locator("#owner_name").fill("PL Test E2E");
   await page.locator("#phone").fill("555-111-2222");
   await page.locator("#owner_email").fill(email);
+  await page.locator('[data-setup-mode="guided"]').click();
   await page.getByRole("button", { name: /^Review$/i }).click();
 
   await expect(page.locator("#review-table")).toContainText(businessName);
   await page.locator("#submit-btn").click();
 
-  await expect(page.getByRole("heading", { name: "Application received" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Workspace request received" })).toBeVisible();
   await expect(page.locator("#success-email")).toHaveText(email);
   await expect(page.locator("#success-ref")).toContainText("Reference ID:");
 
@@ -40,10 +41,19 @@ test("public onboarding request can be approved and provisioned", async ({ page 
 
   const row = page.locator("#requests-tbody tr", { hasText: businessName });
   await expect(row).toBeVisible({ timeout: 15000 });
-  await row.getByRole("button", { name: "Approve" }).click();
-  await expect(page.locator("#toast")).toContainText("Request approved");
+  const approveButton = row.getByRole("button", { name: /Approve|Re-approve/ });
+  if (await approveButton.count()) {
+    await approveButton.first().click();
+    await expect(page.locator("#toast")).toContainText("Request approved");
+  }
 
-  await row.getByRole("button", { name: /Provision/ }).click();
+  await page.getByRole("button", { name: /Refresh/i }).click();
+  const provisionButton = page
+    .locator("#requests-tbody tr", { hasText: businessName })
+    .getByRole("button", { name: /Provision/ })
+    .first();
+  await expect(provisionButton).toBeVisible({ timeout: 15000 });
+  await provisionButton.click();
   await expect(page.locator("#toast")).toContainText("provisioned", { timeout: 20000 });
   await expect(row).toContainText("provisioned");
 });

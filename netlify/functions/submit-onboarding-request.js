@@ -45,6 +45,8 @@ exports.handler = async (event) => {
     seed_template_key,
     selected_plan,
     coupon_code,
+    requested_help,
+    intake_mode,
   } = body;
 
   // ── Validate required fields
@@ -72,6 +74,9 @@ exports.handler = async (event) => {
   const appliedCoupon    = normalizedCoupon === VALID_COUPON && normalizedPlan === 'growth'
     ? VALID_COUPON
     : null;
+  const needsGuidedHelp = requested_help === true
+    || String(intake_mode || '').trim().toLowerCase() === 'guided'
+    || normalizedPlan === 'enterprise';
 
   // ── Build slug
   const business_slug = slugify(
@@ -92,7 +97,7 @@ exports.handler = async (event) => {
   const { data, error } = await supabase
     .from('tenant_onboarding_requests')
     .insert([{
-      status              : 'submitted',
+      status              : needsGuidedHelp ? 'needs_review' : 'submitted',
       business_name       : business_name.trim(),
       business_slug,
       owner_name          : owner_name.trim(),
@@ -105,6 +110,7 @@ exports.handler = async (event) => {
       seed_template_key   : seed_template_key   || 'default',
       selected_plan       : normalizedPlan,
       coupon_code         : appliedCoupon,
+      admin_notes         : needsGuidedHelp ? 'customer_requested_guided_setup' : null,
     }])
     .select('id, business_name, status')
     .single();
@@ -116,7 +122,7 @@ exports.handler = async (event) => {
 
   // ── Auto-evaluate (fire-and-forget — triggers auto-approval + provisioning)
   const internalSecret = process.env.INTERNAL_SECRET;
-  if (internalSecret) {
+  if (!needsGuidedHelp && internalSecret) {
     try {
       const siteUrl = getConfiguredSiteUrl();
       fetch(`${siteUrl}/.netlify/functions/evaluate-onboarding`, {

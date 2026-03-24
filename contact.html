@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>Contact | Honest To Crust</title>
+    <title>Contact | ProofLink</title>
 
     <!-- favicon -->
     <link rel="icon" type="image/png" href="/assets/favicon.png">
@@ -29,8 +29,7 @@
       <section class="section-card form-page-card">
         <h1>Contact</h1>
         <p class="muted">
-          Send a message and we will reply by email. For orders, use the cart so
-          we can see exactly what you want.
+          <span data-cl-contact-intro>Send a message and we will reply by email. For active work or a new request, use the tracked request flow so we can keep the details attached to the job.</span>
         </p>
 
         <form id="contactForm" class="form" novalidate>
@@ -105,15 +104,12 @@
 </div>
           <div class="form__actions">
             <button type="submit" class="btn btn--primary">Send message</button>
-            <a class="btn btn--ghost" href="products.html">Browse products</a>
+            <a class="btn btn--ghost" href="products.html"><span data-cl-catalog-label>Products</span></a>
           </div>
 
           <div class="status" data-status style="display:none;"></div>
 
-          <p class="availability-note">
-            Made in a home kitchen that has not been inspected by the Michigan
-            Department of Agriculture and Rural Development.
-          </p>
+          <p class="availability-note" data-cl-compliance-note></p>
         </form>
       </section>
     </main>

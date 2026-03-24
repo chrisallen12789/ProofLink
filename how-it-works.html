@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>How it works | Honest To Crust</title>
+  <title>How it works | ProofLink</title>
 
     <!-- favicon -->
   <link rel="icon" type="image/png" href="/assets/favicon.png">
@@ -12,9 +12,12 @@
 
   <link rel="stylesheet" href="styles.css">
   <script src="layout.js" defer></script>
+  <script src="cottagelink.tenant.js" defer></script>
+  <script src="cottagelink.config.js" defer></script>
+  <script src="cottagelink.core.js" defer></script>
   <script src="cart.js" defer></script>
 
-  <meta name="description" content="How Honest To Crust works: browse products, build a cart, submit a request, then confirm details and pickup timing by email.">
+  <meta name="description" content="See how the request flow works from first inquiry to confirmed work.">
 </head>
 
 <body class="how">
@@ -31,34 +34,30 @@
       <div class="grid-3" style="margin-top: 1rem;">
         <div class="mini-card">
           <h2>1) Build your request</h2>
-          <p class="muted">Browse the Products page and add items to your cart.</p>
+          <p class="muted">Browse the <span data-cl-catalog-label>Products</span> page and choose the work or offer you need.</p>
         </div>
 
         <div class="mini-card">
           <h2>2) Submit request</h2>
-          <p class="muted">Go to Cart and tell us anything important: timing goals, ingredient questions, preferences.</p>
+          <p class="muted">Send the request with the important details, timing goals, and any notes that help us scope it correctly.</p>
         </div>
 
         <div class="mini-card">
           <h2>3) Confirm by email</h2>
-          <p class="muted">We confirm what is realistic for your pickup window and total cost before baking.</p>
+          <p class="muted">We confirm what is realistic for the schedule, scope, and any pricing details before the work is booked.</p>
         </div>
       </div>
 
       <hr style="margin: 1.25rem 0;">
 
-      <p>We are bake to order. That protects quality and prevents assumptions about what you meant. You stay in control; we handle the execution.</p>
+      <p>Requests are confirmed by a real person before anything moves forward. That keeps the work cleaner, the timing clearer, and the next step easier to trust.</p>
 
-      <h2 style="margin-top: 1rem;">Allergens and cross contact?</h2>
-      <p class="muted">This is a home kitchen that uses wheat, eggs, dairy, and nuts. Cross contact with allergens is possible.</p>
-
-      <p class="muted" style="margin-top: 1rem;">
-        Made in a home kitchen that has not been inspected by the Michigan Department of Agriculture and Rural Development.
-      </p>
+      <p class="muted" style="margin-top: 1rem;" data-cl-hours-note></p>
+      <p class="muted" data-cl-compliance-note></p>
 
       <div class="product-actions" style="margin-top: 1.25rem;">
-        <a class="btn" href="products.html">Browse products</a>
-        <a class="btn btn-secondary" href="order.html">Go to cart</a>
+        <a class="btn" href="products.html"><span data-cl-catalog-label>Products</span></a>
+        <a class="btn btn-secondary" href="order.html"><span data-cl-order-page-title>Order request</span></a>
       </div>
     </section>
   </main>

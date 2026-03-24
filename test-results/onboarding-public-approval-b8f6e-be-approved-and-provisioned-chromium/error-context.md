@@ -1,0 +1,124 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e1]:
+  - navigation [ref=e2]:
+    - link "ProofLink" [ref=e3] [cursor=pointer]:
+      - /url: /
+    - generic [ref=e4]: ›
+    - generic [ref=e5]: Provisioning
+    - generic [ref=e6]:
+      - link "Analytics" [ref=e7] [cursor=pointer]:
+        - /url: /operator/analytics.html
+      - link "Tenants" [ref=e8] [cursor=pointer]:
+        - /url: /operator/tenants.html
+      - link "← Dashboard" [ref=e9] [cursor=pointer]:
+        - /url: /operator/
+  - generic [ref=e11]:
+    - generic [ref=e12]:
+      - generic [ref=e13]:
+        - heading "Onboarding Queue" [level=1] [ref=e14]
+        - paragraph [ref=e15]: Review, approve, and provision businesses onto ProofLink.
+      - button "↻ Refresh" [active] [ref=e16] [cursor=pointer]
+    - generic [ref=e17]:
+      - button "All" [ref=e18] [cursor=pointer]
+      - button "Submitted" [ref=e19] [cursor=pointer]
+      - button "Approved" [ref=e20] [cursor=pointer]
+      - button "Provisioning" [ref=e21] [cursor=pointer]
+      - button "Provisioned" [ref=e22] [cursor=pointer]
+      - button "Failed" [ref=e23] [cursor=pointer]
+    - table [ref=e25]:
+      - rowgroup [ref=e26]:
+        - row "Business Type Location Submitted Status Actions" [ref=e27]:
+          - columnheader "Business" [ref=e28]
+          - columnheader "Type" [ref=e29]
+          - columnheader "Location" [ref=e30]
+          - columnheader "Submitted" [ref=e31]
+          - columnheader "Status" [ref=e32]
+          - columnheader "Actions" [ref=e33]
+      - rowgroup [ref=e34]:
+        - row "pltest-e2e-1774365377342 pltest.e2e.1774365377342@example.com bakery Detroit, MI Mar 24, 2026 needs_review Details" [ref=e35]:
+          - cell "pltest-e2e-1774365377342 pltest.e2e.1774365377342@example.com" [ref=e36]:
+            - generic [ref=e37]: pltest-e2e-1774365377342
+            - generic [ref=e38]: pltest.e2e.1774365377342@example.com
+          - cell "bakery" [ref=e39]
+          - cell "Detroit, MI" [ref=e40]
+          - cell "Mar 24, 2026" [ref=e41]
+          - cell "needs_review" [ref=e42]:
+            - generic [ref=e43]: needs_review
+          - cell "Details" [ref=e44]:
+            - button "Details" [ref=e46] [cursor=pointer]
+        - row "pltest-e2e-1774365211835 pltest.e2e.1774365211835@example.com bakery Detroit, MI Mar 24, 2026 needs_review Details" [ref=e47]:
+          - cell "pltest-e2e-1774365211835 pltest.e2e.1774365211835@example.com" [ref=e48]:
+            - generic [ref=e49]: pltest-e2e-1774365211835
+            - generic [ref=e50]: pltest.e2e.1774365211835@example.com
+          - cell "bakery" [ref=e51]
+          - cell "Detroit, MI" [ref=e52]
+          - cell "Mar 24, 2026" [ref=e53]
+          - cell "needs_review" [ref=e54]:
+            - generic [ref=e55]: needs_review
+          - cell "Details" [ref=e56]:
+            - button "Details" [ref=e58] [cursor=pointer]
+        - row "pltest-e2e-1774365061448 pltest.e2e.1774365061448@example.com bakery Detroit, MI Mar 24, 2026 needs_review Details" [ref=e59]:
+          - cell "pltest-e2e-1774365061448 pltest.e2e.1774365061448@example.com" [ref=e60]:
+            - generic [ref=e61]: pltest-e2e-1774365061448
+            - generic [ref=e62]: pltest.e2e.1774365061448@example.com
+          - cell "bakery" [ref=e63]
+          - cell "Detroit, MI" [ref=e64]
+          - cell "Mar 24, 2026" [ref=e65]
+          - cell "needs_review" [ref=e66]:
+            - generic [ref=e67]: needs_review
+          - cell "Details" [ref=e68]:
+            - button "Details" [ref=e70] [cursor=pointer]
+        - row "pltest-e2e-1774364959840 pltest.e2e.1774364959840@example.com bakery Detroit, MI Mar 24, 2026 needs_review Details" [ref=e71]:
+          - cell "pltest-e2e-1774364959840 pltest.e2e.1774364959840@example.com" [ref=e72]:
+            - generic [ref=e73]: pltest-e2e-1774364959840
+            - generic [ref=e74]: pltest.e2e.1774364959840@example.com
+          - cell "bakery" [ref=e75]
+          - cell "Detroit, MI" [ref=e76]
+          - cell "Mar 24, 2026" [ref=e77]
+          - cell "needs_review" [ref=e78]:
+            - generic [ref=e79]: needs_review
+          - cell "Details" [ref=e80]:
+            - button "Details" [ref=e82] [cursor=pointer]
+        - row "pltest-submitted-onboarding pltest.submitted.owner@example.com bakery Ann Arbor, MI Mar 24, 2026 Awaiting Review Details Approve Reject" [ref=e83]:
+          - cell "pltest-submitted-onboarding pltest.submitted.owner@example.com" [ref=e84]:
+            - generic [ref=e85]: pltest-submitted-onboarding
+            - generic [ref=e86]: pltest.submitted.owner@example.com
+          - cell "bakery" [ref=e87]
+          - cell "Ann Arbor, MI" [ref=e88]
+          - cell "Mar 24, 2026" [ref=e89]
+          - cell "Awaiting Review" [ref=e90]:
+            - generic [ref=e91]: Awaiting Review
+          - cell "Details Approve Reject" [ref=e92]:
+            - generic [ref=e93]:
+              - button "Details" [ref=e94] [cursor=pointer]
+              - button "Approve" [ref=e95] [cursor=pointer]
+              - button "Reject" [ref=e96] [cursor=pointer]
+        - row "pltest-approved-onboarding pltest.approved.owner@example.com contractor Fenton, MI Mar 24, 2026 Active Details ✓ Done" [ref=e97]:
+          - cell "pltest-approved-onboarding pltest.approved.owner@example.com" [ref=e98]:
+            - generic [ref=e99]: pltest-approved-onboarding
+            - generic [ref=e100]: pltest.approved.owner@example.com
+          - cell "contractor" [ref=e101]
+          - cell "Fenton, MI" [ref=e102]
+          - cell "Mar 24, 2026" [ref=e103]
+          - cell "Active" [ref=e104]:
+            - generic [ref=e105]: Active
+          - cell "Details ✓ Done" [ref=e106]:
+            - generic [ref=e107]:
+              - button "Details" [ref=e108] [cursor=pointer]
+              - generic [ref=e109]: ✓ Done
+        - row "Benkari Vac's clane@benkari.net hydrovac Detroit, MI Mar 24, 2026 Active Details ✓ Done" [ref=e110]:
+          - cell "Benkari Vac's clane@benkari.net" [ref=e111]:
+            - generic [ref=e112]: Benkari Vac's
+            - generic [ref=e113]: clane@benkari.net
+          - cell "hydrovac" [ref=e114]
+          - cell "Detroit, MI" [ref=e115]
+          - cell "Mar 24, 2026" [ref=e116]
+          - cell "Active" [ref=e117]:
+            - generic [ref=e118]: Active
+          - cell "Details ✓ Done" [ref=e119]:
+            - generic [ref=e120]:
+              - button "Details" [ref=e121] [cursor=pointer]
+              - generic [ref=e122]: ✓ Done
+```

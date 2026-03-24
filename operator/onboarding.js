@@ -51,6 +51,11 @@
     return String(params.get('plan') || '').trim().toLowerCase();
   }
 
+  function isSelfServeStart() {
+    const params = new URLSearchParams(window.location.search || '');
+    return String(params.get('selfServe') || '').trim() === '1';
+  }
+
   function setMsg(step, text, tone) {
     const el = $(`msg-step-${step}`);
     if (!el) return;
@@ -105,9 +110,14 @@
     const ownerName = ctx.ownerName || 'Unknown';
     const email = ctx.email || 'Unknown';
     const planKey = state.planKey || ctx.planKey || 'starter';
+    const selfServe = isSelfServeStart();
 
     $('pageTitle').textContent = `Finish setup for ${businessName}`;
-    $('pageSub').textContent = `Complete billing, payouts, and launch for ${businessName}.`;
+    $('pageSub').textContent = selfServe
+      ? `Set up the website, billing, and live workflow for ${businessName} without waiting on a manual handoff.`
+      : `Complete billing, payouts, and launch for ${businessName}.`;
+    const eyebrow = $('onboardingEyebrow');
+    if (eyebrow) eyebrow.textContent = selfServe ? 'Self-serve setup' : 'Workspace setup';
 
     $('businessKv').innerHTML = `
       <div class="k">Business</div><div>${businessName}</div>

@@ -13,6 +13,21 @@ const catalogStatus = document.getElementById("catalogStatus");
 let PRODUCTS = [];
 let ACTIVE_CATEGORY = "All";
 
+function catalogCopy() {
+  const storefront = CL?.config?.tenant?.storefront || {};
+  const catalogLabel = String(storefront.catalogLabel || "Products").trim();
+  const singular = /services/i.test(catalogLabel) ? "service" : "product";
+  const actionLabel = /request/i.test(String(storefront.cartLabel || "").trim()) ? "Add to request" : "Add to cart";
+  return {
+    catalogLabel,
+    singular,
+    actionLabel,
+    loading: `Loading ${catalogLabel.toLowerCase()}...`,
+    empty: `No ${singular}s available right now.`,
+    noMatch: `No matching ${singular}s found.`,
+  };
+}
+
 function setStatus(msg) {
   if (catalogStatus) catalogStatus.textContent = msg || "";
 }
@@ -21,12 +36,12 @@ async function fetchProducts() {
   const cached = catalog.loadCache();
 
   try {
-    setStatus("Loading products...");
+    setStatus(catalogCopy().loading);
     PRODUCTS = await catalog.fetch(false);
 
     buildCategoryFilters();
     renderProducts();
-    setStatus(PRODUCTS.length ? "" : "No products available right now.");
+    setStatus("");
   } catch (err) {
     console.error(err);
 
@@ -74,6 +89,11 @@ function renderProducts() {
 
   const query = String(searchInput?.value || "").trim().toLowerCase();
 
+  if (!PRODUCTS.length) {
+    grid.innerHTML = `<p class="muted">${escapeHtml(catalogCopy().empty)}</p>`;
+    return;
+  }
+
   const filtered = PRODUCTS.filter((p) => {
     const matchesCategory = ACTIVE_CATEGORY === "All" || String(p.category || "") === ACTIVE_CATEGORY;
     const haystack = [
@@ -87,7 +107,7 @@ function renderProducts() {
   });
 
   if (!filtered.length) {
-    grid.innerHTML = `<p class="muted">No matching products found.</p>`;
+    grid.innerHTML = `<p class="muted">${escapeHtml(catalogCopy().noMatch)}</p>`;
     return;
   }
 
@@ -140,7 +160,7 @@ function renderProducts() {
               data-trial-product-starting-price-cents="${toFiniteCents(p.trial_product_starting_price_cents)}"
               ${p.is_available === false ? "disabled" : ""}
             >
-              ${p.is_available === false ? "Unavailable" : "Add to cart"}
+              ${p.is_available === false ? "Unavailable" : escapeHtml(catalogCopy().actionLabel)}
             </button>
           </div>
         </div>
@@ -177,7 +197,7 @@ document.addEventListener("click", (e) => {
   if (window.HTC_CART && typeof window.HTC_CART.add === "function") {
     window.HTC_CART.add(item);
     if (typeof window.HTC_CART.toast === "function") {
-      window.HTC_CART.toast(`${item.name} added to cart`);
+      window.HTC_CART.toast(`${item.name} ${/request/i.test(catalogCopy().actionLabel) ? "added to request" : "added to cart"}`);
     }
   }
 });

@@ -10,7 +10,7 @@ test("operator auth gate blocks anonymous access and allows seeded operator logi
 }) => {
   await page.goto("/operator/provisioning.html");
 
-  await expect(page.getByText("Operator login required")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Sign in to continue" })).toBeVisible();
   await page.locator("#login-email").fill("wrong@example.com");
   await page.locator("#login-password").fill("wrong-password");
   await page.getByRole("button", { name: "Sign in" }).click();
