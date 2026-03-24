@@ -1,4 +1,4 @@
-const CACHE = 'prooflink-v1';
+const CACHE = 'prooflink-v2';
 
 const PRECACHE = [
   '/',
