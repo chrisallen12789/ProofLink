@@ -807,6 +807,32 @@ input, textarea, select{
   outline:none;
   margin-top: 6px;
 }
+select{
+  color-scheme: dark;
+  background-color: rgba(255,255,255,.12);
+  color: var(--text);
+}
+select option,
+select optgroup{
+  background: #2f2924;
+  color: #f7f3ec;
+}
+select option:disabled{
+  color: #c9baa4;
+}
+html[data-theme="light"] select{
+  color-scheme: light;
+  background-color: #ffffff;
+  color: #1f1a16;
+}
+html[data-theme="light"] select option,
+html[data-theme="light"] select optgroup{
+  background: #ffffff;
+  color: #1f1a16;
+}
+html[data-theme="light"] select option:disabled{
+  color: #7a6b59;
+}
 
 .input{
   width: 240px;
