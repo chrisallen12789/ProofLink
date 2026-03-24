@@ -3450,8 +3450,8 @@ async function fetchExpenses() {
   try {
     const { data, error } = await scopeQuery(sb
       .from("expenses")
-      .abortSignal(_tabAbortController?.signal)
       .select("*"))
+      .abortSignal(_tabAbortController?.signal)
       .order("date", { ascending: false })
       .limit(250);
     if (error) {
@@ -5999,8 +5999,8 @@ async function fetchCustomers() {
 
     const { data, error } = await scopeQuery(sb
       .from("customers")
-      .abortSignal(_tabAbortController?.signal)
       .select("*"))
+      .abortSignal(_tabAbortController?.signal)
       .eq('is_deleted', false)
       .order("lifetime_value_cents", { ascending: false })
       .order("updated_at", { ascending: false })
@@ -6095,8 +6095,8 @@ async function fetchCrmOrders() {
 
     const { data, error } = await scopeQuery(sb
       .from("orders")
-      .abortSignal(_tabAbortController?.signal)
       .select("*"))
+      .abortSignal(_tabAbortController?.signal)
       .eq('is_deleted', false)
       .order("created_at", { ascending: false })
       .range(FETCH_OFFSETS.orders, FETCH_OFFSETS.orders + PAGE_SIZE - 1);
@@ -6123,8 +6123,8 @@ async function fetchPersistedBids() {
   try {
     const { data, error } = await scopeQuery(sb
       .from("bids")
-      .abortSignal(_tabAbortController?.signal)
       .select("*"))
+      .abortSignal(_tabAbortController?.signal)
       .order("updated_at", { ascending: false })
       .limit(250);
 
@@ -6145,8 +6145,8 @@ async function fetchPayments() {
   try {
     const { data, error } = await scopeQuery(sb
       .from("payments")
-      .abortSignal(_tabAbortController?.signal)
       .select("*"))
+      .abortSignal(_tabAbortController?.signal)
       .order("created_at", { ascending: false })
       .limit(250);
 
@@ -6167,8 +6167,8 @@ async function fetchJobs() {
   try {
     const { data, error } = await scopeQuery(sb
       .from("jobs")
-      .abortSignal(_tabAbortController?.signal)
       .select("*"))
+      .abortSignal(_tabAbortController?.signal)
       .order("updated_at", { ascending: false })
       .order("created_at", { ascending: false })
       .limit(250);
