@@ -19,7 +19,7 @@ exports.handler = async (event) => {
     return respond(err.statusCode || 401, { error: err.message });
   }
 
-  const { tenantId, adminSb, operatorId, user } = ctx;
+  const { tenantId, adminSb, operatorId } = ctx;
   const params = event.queryStringParameters || {};
 
   if (event.httpMethod === 'GET') {
@@ -143,13 +143,6 @@ exports.handler = async (event) => {
     const id = clean(body.id);
     if (!id) return respond(400, { error: 'id is required' });
 
-    const { data: member } = await adminSb
-      .from('operator_members')
-      .select('id')
-      .eq('tenant_id', tenantId)
-      .eq('user_id', user.id)
-      .maybeSingle();
-
     const patch = {};
     const allowedFields = [
       'status', 'all_clear', 'utilities_notified', 'conflict_utilities',
@@ -170,7 +163,7 @@ exports.handler = async (event) => {
 
     if (patch.verified_on_site === true) {
       patch.verified_at = new Date().toISOString();
-      patch.verified_by_member_id = member?.id || operatorId || null;
+      patch.verified_by_member_id = clean(body.verified_by_member_id) || operatorId || null;
     }
 
     const { data, error } = await adminSb

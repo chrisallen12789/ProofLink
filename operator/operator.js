@@ -77,6 +77,7 @@ let WORKSPACE_BLUEPRINT = null;
 let BID_SYNC_TIMER = null;
 let BID_SYNC_IN_FLIGHT = false;
 let BID_SYNC_PROMISE = null;
+let BID_WORKSPACE_BOOTSTRAPPING = false;
 let CURRENT_FOLLOW_UP_QUEUE = [];
 let FOLLOW_UP_QUEUE_MESSAGE = null;
 
@@ -486,6 +487,7 @@ let INVENTORY_PANEL_LOADED = false;
 // Reviews
 let REVIEWS_CACHE = [];
 let QUOTES_CACHE  = [];
+const JOB_HYDROVAC_DETAIL_CACHE = new Map();
 
 // Bulk order selection
 let BULK_SELECTED_ORDER_IDS = new Set();
@@ -887,19 +889,25 @@ function getOperatorAccessToken() {
 }
 // Alias used throughout the file
 const getAccessToken = getOperatorAccessToken;
-async function postOperatorFunction(functionName, payload = {}) {
+async function requestOperatorFunction(functionName, options = {}) {
+  const method = String(options.method || "GET").trim().toUpperCase() || "GET";
+  const query = String(options.query || "").trim();
   const token = await getOperatorAccessToken();
-  const res = await fetch(`/.netlify/functions/${functionName}`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: JSON.stringify(payload),
+  const headers = {
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+  if (options.body !== undefined) headers["Content-Type"] = "application/json";
+  const res = await fetch(`/.netlify/functions/${functionName}${query ? `?${query}` : ""}`, {
+    method,
+    headers,
+    ...(options.body !== undefined ? { body: JSON.stringify(options.body) } : {}),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || "Request failed.");
   return data;
+}
+async function postOperatorFunction(functionName, payload = {}) {
+  return requestOperatorFunction(functionName, { method: "POST", body: payload });
 }
 function errorText(error) {
   return String(error?.message || error?.details || error?.hint || "").toLowerCase();
@@ -1206,6 +1214,107 @@ function currentPayment() {
 }
 function currentJob() {
   return JOBS_CACHE.find((row) => row.id === ACTIVE_JOB_ID) || null;
+}
+function hydrovacJobDetailState(jobId) {
+  return JOB_HYDROVAC_DETAIL_CACHE.get(jobId) || {
+    tickets: [],
+    manifests: [],
+    loading: false,
+    error: "",
+    loadedAt: 0,
+  };
+}
+function setHydrovacJobDetailState(jobId, nextState = {}) {
+  const current = hydrovacJobDetailState(jobId);
+  const merged = { ...current, ...nextState };
+  JOB_HYDROVAC_DETAIL_CACHE.set(jobId, merged);
+  return merged;
+}
+async function fetchJobHydrovacDetails(jobId, options = {}) {
+  const cleanJobId = String(jobId || "").trim();
+  if (!cleanJobId) return hydrovacJobDetailState("");
+  const existing = hydrovacJobDetailState(cleanJobId);
+  const freshEnough = existing.loadedAt && (Date.now() - existing.loadedAt) < 20000;
+  if (!options.force && (existing.loading || freshEnough)) return existing;
+  setHydrovacJobDetailState(cleanJobId, { loading: true, error: "" });
+  try {
+    const [ticketData, manifestData] = await Promise.all([
+      requestOperatorFunction("manage-locate-tickets", {
+        query: `job_id=${encodeURIComponent(cleanJobId)}`,
+      }),
+      requestOperatorFunction("manage-waste-manifests", {
+        query: `job_id=${encodeURIComponent(cleanJobId)}`,
+      }),
+    ]);
+    return setHydrovacJobDetailState(cleanJobId, {
+      tickets: Array.isArray(ticketData?.tickets) ? ticketData.tickets : [],
+      manifests: Array.isArray(manifestData?.manifests) ? manifestData.manifests : [],
+      loading: false,
+      error: "",
+      loadedAt: Date.now(),
+    });
+  } catch (error) {
+    return setHydrovacJobDetailState(cleanJobId, {
+      loading: false,
+      error: error?.message || "Failed to load hydrovac details.",
+      loadedAt: Date.now(),
+    });
+  }
+}
+function localDateToIso(value, endOfDay = false) {
+  const raw = String(value || "").trim();
+  if (!raw) return null;
+  const time = endOfDay ? "T23:59:59" : "T00:00:00";
+  const date = new Date(`${raw}${time}`);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+function hydrovacLocateToneClass(ticket) {
+  const status = normalizeWorkflowStatusValue(ticket?.status || "requested");
+  const validUntil = Date.parse(ticket?.extended_until || ticket?.valid_until || "");
+  if (status === "cancelled") return "pill-muted";
+  if (Number.isFinite(validUntil) && validUntil < Date.now()) return "pill-bad";
+  if (ticket?.verified_on_site && status === "active") return "pill-good";
+  if (status === "active") return "pill-warn";
+  return "pill-muted";
+}
+function hydrovacManifestToneClass(manifest) {
+  const status = normalizeWorkflowStatusValue(manifest?.status || "in_transit");
+  if (status === "confirmed" || status === "invoiced") return "pill-good";
+  if (status === "void") return "pill-muted";
+  return "pill-warn";
+}
+function hydrovacManifestQuantityLabel(manifest) {
+  const quantity = manifest?.quantity_actual ?? manifest?.quantity_estimated;
+  if (quantity == null || quantity === "") return "Qty pending";
+  const unit = String(manifest?.quantity_unit || "gallons").replace(/_/g, " ");
+  return `${Number(quantity)} ${unit}`;
+}
+function formatCountNumber(value) {
+  return Number(value || 0).toLocaleString();
+}
+function hydrovacLocateExpiryLabel(ticket) {
+  const raw = ticket?.extended_until || ticket?.valid_until || "";
+  if (!raw) return "No expiry recorded";
+  return `Expires ${formatDateTime(raw)}`;
+}
+function hydrovacMaterialLabel(value) {
+  return titleCaseWords(String(value || "mixed").replace(/_/g, " "));
+}
+function hydrovacOpsSummary(job, tickets = [], manifests = []) {
+  const activeTickets = tickets.filter((ticket) => {
+    const status = normalizeWorkflowStatusValue(ticket?.status || "requested");
+    const validUntil = Date.parse(ticket?.extended_until || ticket?.valid_until || "");
+    return status === "active" && (!Number.isFinite(validUntil) || validUntil > Date.now());
+  });
+  const confirmedLoads = manifests.filter((manifest) => ["confirmed", "invoiced"].includes(normalizeWorkflowStatusValue(manifest?.status || "")));
+  return {
+    activeTickets: activeTickets.length,
+    verifiedTickets: tickets.filter((ticket) => ticket?.verified_on_site).length,
+    loadsLogged: manifests.length,
+    confirmedLoads: confirmedLoads.length,
+    gallonsHauled: Number(job?.total_gallons_hauled || 0),
+    yardsHauled: Number(job?.total_yards_hauled || 0),
+  };
 }
 function normalizeExpenseType(value) {
   const raw = String(value || "").trim().toLowerCase();
@@ -1753,6 +1862,26 @@ function isBookingWorkspace(blueprint = currentWorkspaceBlueprint()) {
 function isEventWorkspace(blueprint = currentWorkspaceBlueprint()) {
   return WORKSPACE_EVENT_FAMILIES.has(workspaceFamily(blueprint));
 }
+function isHydrovacWorkspace(blueprint = currentWorkspaceBlueprint()) {
+  return String(blueprint?.business?.key || workspaceBusinessType() || "").trim().toLowerCase() === "hydrovac";
+}
+function isHydrovacJob(job, blueprint = currentWorkspaceBlueprint()) {
+  if (!job) return false;
+  if (isHydrovacWorkspace(blueprint)) return true;
+  const type = String(job.service_type || job.job_type || "").trim().toLowerCase();
+  return [
+    "hydrovac",
+    "vactor",
+    "daylighting",
+    "potholing",
+    "catch_basin",
+    "lift_station",
+    "storm_drain",
+    "industrial_vacuum",
+    "tank_cleaning",
+    "line_jetting",
+  ].some((needle) => type.includes(needle));
+}
 function workspaceUsesServiceCatalog(blueprint = currentWorkspaceBlueprint()) {
   return isServiceWorkspace(blueprint);
 }
@@ -1811,6 +1940,9 @@ function workspaceFeatureLabel(featureKey) {
   return Architecture?.FEATURE_CATALOG?.[featureKey] || titleCaseWords(featureKey);
 }
 function workspacePriorityTabs(blueprint = currentWorkspaceBlueprint()) {
+  if (isHydrovacWorkspace(blueprint)) {
+    return ["orders", "jobs", "customers", "payments"];
+  }
   if (isServiceWorkspace(blueprint)) {
     return ["orders", "customers", "bookings", "payments"];
   }
@@ -3097,7 +3229,15 @@ function setWorkspaceCollapsed(tab, collapsed) {
 }
 function workspaceContextTabsFor(tab, blueprint = currentWorkspaceBlueprint()) {
   const group = WORKSPACE_CONTEXT_GROUPS[tab] || [tab];
-  return uniqList(group.filter((candidate) => isTabVisibleInWorkspace(candidate, blueprint)));
+  const seenLabels = new Set();
+  return uniqList(group.filter((candidate) => {
+    if (!isTabVisibleInWorkspace(candidate, blueprint)) return false;
+    const labelKey = String(workspaceTabLabel(candidate, blueprint) || "").trim().toLowerCase();
+    if (!labelKey) return false;
+    if (seenLabels.has(labelKey)) return false;
+    seenLabels.add(labelKey);
+    return true;
+  }));
 }
 function renderWorkspaceContextTabs() {
   const blueprint = currentWorkspaceBlueprint();
@@ -8479,16 +8619,37 @@ btnLeadCreateBid?.addEventListener("click", async () => {
     if (!lead || !lead.id) {
       lead = await saveLeadRecord();
     }
-    const result = await createBidFromLeadRecord(lead, { profile: preferredBidProfile() });
+    setBidWorkspaceBootstrapping(true, "Opening proposal workspace...");
+    let localDraft = null;
+    if (!lead.converted_bid_id) {
+      localDraft = bidDraftFromLeadRecord(lead, preferredBidProfile());
+      BIDS_CACHE = [...(BIDS_CACHE || []).filter((row) => row.id !== localDraft.id), localDraft]
+        .sort((a, b) => new Date(b.updated_at || 0).getTime() - new Date(a.updated_at || 0).getTime());
+      persistBidDrafts();
+      ACTIVE_BID_ID = localDraft.id;
+      renderBids(bidSearch?.value || "");
+    }
+    switchTab("bids", { force: true });
+    setInlineMessage(bidMsg, "Opening proposal workspace...");
+    const result = await createBidFromLeadRecord(lead, {
+      profile: preferredBidProfile(),
+      localDraftId: localDraft?.id || "",
+    });
     const target = result?.bid || BIDS_CACHE[0] || null;
     if (target) ACTIVE_BID_ID = target.id;
-    renderBids(bidSearch?.value || "");
+    setBidWorkspaceBootstrapping(false);
+    renderBids(bidSearch?.value || "", localDraft ? { preserveForm: true } : {});
     renderLeads(leadSearch?.value || "");
     markWorkspaceClean("leads");
     setInlineMessage(leadMsg, result?.existing ? "Linked bid opened." : "Lead converted into a bid.", "ok");
-    switchTab("bids", { force: true });
+    const currentBidMessage = String(bidMsg?.textContent || "").trim().toLowerCase();
+    if (!currentBidMessage || currentBidMessage.includes("opening proposal workspace")) {
+      setInlineMessage(bidMsg, result?.existing ? "Linked proposal opened." : "Proposal draft ready.", "ok");
+    }
   } catch (err) {
+    setBidWorkspaceBootstrapping(false);
     setInlineMessage(leadMsg, err.message || String(err), "error");
+    setInlineMessage(bidMsg, err.message || String(err), "error");
   }
 });
 btnLeadOpenBid?.addEventListener("click", async () => {
@@ -8952,6 +9113,27 @@ function emptyBidDraft(profileKey = preferredBidProfile()) {
     updated_at: nowIso,
   };
 }
+function bidDraftFromLeadRecord(lead, profileKey = preferredBidProfile(), seedDraft = null) {
+  const profile = normalizeBidProfile(profileKey);
+  const baseDraft = seedDraft
+    ? cloneJson(seedDraft, {})
+    : emptyBidDraft(profile);
+  const nowIso = new Date().toISOString();
+  return {
+    ...baseDraft,
+    title: String(lead?.title || lead?.requested_service_type || baseDraft.title || "Service proposal").trim(),
+    customer_id: lead?.customer_id || baseDraft.customer_id || "",
+    lead_id: lead?.id || baseDraft.lead_id || "",
+    profile,
+    status: String(baseDraft.status || "draft"),
+    walkthrough_at: baseDraft.walkthrough_at || nowIso,
+    service_address: lead?.service_address || baseDraft.service_address || "",
+    site_contact: lead?.contact_name || baseDraft.site_contact || "",
+    project_summary: lead?.summary || baseDraft.project_summary || "",
+    internal_notes: lead?.notes || baseDraft.internal_notes || "",
+    updated_at: nowIso,
+  };
+}
 function mergeBidDraftCollections(localRows = [], remoteRows = []) {
   const merged = new Map();
   [...localRows, ...remoteRows].forEach((row) => {
@@ -8976,6 +9158,25 @@ function persistBidDrafts() {
     setInlineMessage(bidMsg, err.message || "Bid drafts could not be saved in this browser.", "error");
     return false;
   }
+}
+function setBidWorkspaceBootstrapping(pending, message = "") {
+  BID_WORKSPACE_BOOTSTRAPPING = !!pending;
+  if (bidForm) {
+    bidForm.hidden = !!pending;
+    bidForm.setAttribute("aria-busy", pending ? "true" : "false");
+  }
+  const host = bidForm?.parentElement;
+  if (!host) return;
+  let state = host.querySelector("#bidWorkspaceBootstrappingState");
+  if (!state) {
+    state = document.createElement("div");
+    state.id = "bidWorkspaceBootstrappingState";
+    state.className = "detail-copy";
+    state.style.marginBottom = "14px";
+    host.insertBefore(state, bidForm || null);
+  }
+  state.hidden = !pending;
+  state.textContent = pending ? (message || "Opening proposal workspace...") : "";
 }
 function loadBidDrafts() {
   try {
@@ -9884,6 +10085,7 @@ function renderBidLineItems(draft) {
 }
 function renderBidWorkspace(draft, opts = {}) {
   renderProposalWorkspace();
+  if (!BID_WORKSPACE_BOOTSTRAPPING) setBidWorkspaceBootstrapping(false);
   if (!draft) {
     clearBidForm();
     if (btnConvertBidToOrder) {
@@ -10530,6 +10732,7 @@ bidForm?.addEventListener("submit", async (e) => {
   const nextDraft = updateCurrentBidFromForm({ allowCreate: true }) || startNewBid(preferredBidProfile());
   renderBidWorkspace(nextDraft, { preserveForm: true });
   renderBidList(bidSearch?.value || "");
+  setInlineMessage(bidMsg, "Bid saved locally. Syncing...", "ok");
   if (BID_SYNC_TIMER) {
     window.clearTimeout(BID_SYNC_TIMER);
     BID_SYNC_TIMER = null;
@@ -11621,6 +11824,132 @@ function populateJobForm(job) {
   if (jobDisposalSite)         jobDisposalSite.value         = job.disposal_site ?? '';
   if (jobDisposalManifest)     jobDisposalManifest.value     = job.disposal_manifest_number ?? '';
 }
+function renderHydrovacJobOperations(job, order, detailState) {
+  const tickets = Array.isArray(detailState?.tickets) ? detailState.tickets : [];
+  const manifests = Array.isArray(detailState?.manifests) ? detailState.manifests : [];
+  const summary = hydrovacOpsSummary(job, tickets, manifests);
+  return `
+    <div class="detail-card job-hydrovac-card" style="margin-top:14px;">
+      <div class="kicker">Hydrovac ops</div>
+      <div class="detail-copy">Keep utility locate compliance, load logging, and disposal proof on the job instead of in a glove box or another tab.</div>
+      <div class="workspace-chip-row">
+        <span class="pill ${summary.activeTickets ? "pill-good" : "pill-bad"}">${escapeHtml(String(summary.activeTickets))} active locate ticket${summary.activeTickets === 1 ? "" : "s"}</span>
+        <span class="pill ${summary.verifiedTickets ? "pill-good" : "pill-warn"}">${escapeHtml(String(summary.verifiedTickets))} verified on site</span>
+        <span class="pill">${escapeHtml(String(summary.loadsLogged))} load${summary.loadsLogged === 1 ? "" : "s"} logged</span>
+        <span class="pill">${escapeHtml(formatCountNumber(summary.gallonsHauled))} gal hauled</span>
+        <span class="pill">${escapeHtml(formatCountNumber(summary.yardsHauled))} yd hauled</span>
+      </div>
+      ${detailState?.error ? `<div class="msg error" style="margin-top:12px;">${escapeHtml(detailState.error)}</div>` : ``}
+      ${detailState?.loading ? `<div class="detail-copy" style="margin-top:12px;">Loading hydrovac compliance and load records...</div>` : ``}
+      <div class="job-hydrovac-grid">
+        <div class="job-hydrovac-panel">
+          <div class="job-hydrovac-panel__head">
+            <strong>Utility locate tickets</strong>
+            <span class="muted">811 / one-call proof for excavation work</span>
+          </div>
+          <div class="job-hydrovac-list">
+            ${tickets.length ? tickets.map((ticket) => `
+              <div class="job-hydrovac-row">
+                <div class="job-hydrovac-row__top">
+                  <div>
+                    <div class="job-hydrovac-row__title">${escapeHtml(ticket.ticket_number || "Locate ticket")}</div>
+                    <div class="job-hydrovac-row__meta">${escapeHtml(ticket.one_call_center || "One-call center pending")} | ${escapeHtml(ticket.work_site_address || job.service_address || "No work site address")}</div>
+                  </div>
+                  <span class="pill ${hydrovacLocateToneClass(ticket)}">${escapeHtml(titleCaseWords(String(ticket.status || "requested").replace(/_/g, " ")))}</span>
+                </div>
+                <div class="job-hydrovac-row__meta">${escapeHtml(hydrovacLocateExpiryLabel(ticket))}</div>
+                ${ticket.locate_notes ? `<div class="job-hydrovac-row__meta">${escapeHtml(ticket.locate_notes)}</div>` : ``}
+                <div class="job-hydrovac-mini-actions">
+                  ${ticket.verified_on_site ? `<span class="pill pill-good">Verified on site</span>` : `<button type="button" class="btn btn-ghost btn-sm" data-hv-verify-ticket="${escapeAttr(ticket.id)}">Mark verified</button>`}
+                </div>
+              </div>
+            `).join("") : `<div class="job-hydrovac-empty">No utility locate tickets logged yet.</div>`}
+          </div>
+          <form id="jobHydrovacTicketForm" class="job-hydrovac-form">
+            <div class="grid three form-grid">
+              <label>Ticket number
+                <input id="jobHydrovacTicketNumber" placeholder="2026-1234567" />
+              </label>
+              <label>One-call center
+                <input id="jobHydrovacTicketCenter" placeholder="Miss Dig 811" value="Miss Dig 811" />
+              </label>
+              <label>Valid until
+                <input id="jobHydrovacTicketValidUntil" type="date" value="${escapeAttr(todayDateValue(10))}" />
+              </label>
+            </div>
+            <div class="row">
+              <button type="submit" class="btn btn-ghost">Save locate ticket</button>
+            </div>
+          </form>
+        </div>
+        <div class="job-hydrovac-panel">
+          <div class="job-hydrovac-panel__head">
+            <strong>Loads & disposal</strong>
+            <span class="muted">Manifest every haul-off from this job</span>
+          </div>
+          <div class="job-hydrovac-list">
+            ${manifests.length ? manifests.map((manifest) => `
+              <div class="job-hydrovac-row">
+                <div class="job-hydrovac-row__top">
+                  <div>
+                    <div class="job-hydrovac-row__title">${escapeHtml(manifest.manifest_number || "Manifest pending")} - ${escapeHtml(hydrovacMaterialLabel(manifest.material_type))}</div>
+                    <div class="job-hydrovac-row__meta">${escapeHtml(hydrovacManifestQuantityLabel(manifest))} | Charge ${escapeHtml(formatUsd(Number(manifest.disposal_charge_cents || 0)))} | Cost ${escapeHtml(formatUsd(Number(manifest.disposal_cost_cents || 0)))}</div>
+                  </div>
+                  <span class="pill ${hydrovacManifestToneClass(manifest)}">${escapeHtml(titleCaseWords(String(manifest.status || "in_transit").replace(/_/g, " ")))}</span>
+                </div>
+                <div class="job-hydrovac-row__meta">${escapeHtml(manifest.disposal_ticket_number ? `Facility ticket ${manifest.disposal_ticket_number}` : "Facility ticket pending")}</div>
+                ${manifest.notes ? `<div class="job-hydrovac-row__meta">${escapeHtml(manifest.notes)}</div>` : ``}
+                <div class="job-hydrovac-mini-actions">
+                  ${normalizeWorkflowStatusValue(manifest.status) === "in_transit" ? `<button type="button" class="btn btn-ghost btn-sm" data-hv-confirm-manifest="${escapeAttr(manifest.id)}">Confirm load</button><button type="button" class="btn btn-ghost btn-sm" data-hv-delete-manifest="${escapeAttr(manifest.id)}">Delete draft load</button>` : `<span class="pill pill-good">Load saved</span>`}
+                </div>
+              </div>
+            `).join("") : `<div class="job-hydrovac-empty">No loads logged yet. Start with the first haul-off from this site.</div>`}
+          </div>
+          <form id="jobHydrovacManifestForm" class="job-hydrovac-form">
+            <div class="grid two form-grid">
+              <label>Material type
+                <select id="jobHydrovacManifestMaterial">
+                  <option value="soil">Soil</option>
+                  <option value="sewage">Sewage</option>
+                  <option value="grease">Grease</option>
+                  <option value="concrete_slurry">Concrete slurry</option>
+                  <option value="industrial_waste">Industrial waste</option>
+                  <option value="mixed">Mixed waste</option>
+                  <option value="other">Other</option>
+                </select>
+              </label>
+              <label>Estimated quantity
+                <input id="jobHydrovacManifestQuantity" type="number" min="0" step="1" placeholder="1500" />
+              </label>
+            </div>
+            <div class="grid three form-grid">
+              <label>Unit
+                <select id="jobHydrovacManifestUnit">
+                  <option value="gallons">Gallons</option>
+                  <option value="cubic_yards">Cubic yards</option>
+                  <option value="tons">Tons</option>
+                </select>
+              </label>
+              <label>Disposal charge ($)
+                <input id="jobHydrovacManifestCharge" type="number" min="0" step="1" placeholder="0" />
+              </label>
+              <label>Disposal cost ($)
+                <input id="jobHydrovacManifestCost" type="number" min="0" step="1" placeholder="0" />
+              </label>
+            </div>
+            <label>Load note
+              <input id="jobHydrovacManifestNote" placeholder="Catch basin debris, rear lot" />
+            </label>
+            <div class="job-hydrovac-mini-actions">
+              <button type="submit" class="btn btn-ghost">Log load</button>
+              <button type="button" class="btn btn-ghost btn-sm" data-hv-action="invoice">Draft hydrovac invoice</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  `;
+}
 async function renderJobDetail(jobIdValue) {
   if (!jobDetailWrap) return;
   const job = JOBS_CACHE.find((row) => row.id === jobIdValue) || null;
@@ -11652,6 +11981,7 @@ async function renderJobDetail(jobIdValue) {
   const wasteNotes = uniqList(trackedExpenses.flatMap((expense) => expenseWasteNotes(expense))).slice(0, 3);
   const hvRev = calcHydrovacRevenueCents(job);
   const hvBreakdown = hvRev !== null ? hydrovacRevenueBreakdownHtml(job) : null;
+  const hydrovacState = isHydrovacJob(job) ? hydrovacJobDetailState(job.id) : null;
   jobDetailWrap.innerHTML = `
     <div class="detail-card">
       <div class="kicker">Execution summary</div>
@@ -11705,6 +12035,7 @@ async function renderJobDetail(jobIdValue) {
         <button id="btnJobOpenCustomer" class="btn btn-ghost" type="button">${linkedCustomer ? "Open customer" : "Open customers"}</button>
       </div>
     </div>
+    ${isHydrovacJob(job) ? renderHydrovacJobOperations(job, order, hydrovacState) : ""}
     ${(() => {
       if (!job.assigned_operator_id) return '';
       const member = (TEAM_MEMBERS_CACHE || []).find(
@@ -11744,6 +12075,146 @@ async function renderJobDetail(jobIdValue) {
     }
     switchTab("customers");
   });
+  if (isHydrovacJob(job)) {
+    if (!hydrovacState?.loadedAt && !hydrovacState?.loading) {
+      fetchJobHydrovacDetails(job.id)
+        .then(() => {
+          if (ACTIVE_JOB_ID === job.id) renderJobDetail(job.id).catch(console.error);
+        })
+        .catch(console.warn);
+    }
+    jobDetailWrap.querySelector('#jobHydrovacTicketForm')?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      try {
+        setInlineMessage(jobMsg, "Saving locate ticket...");
+        await requestOperatorFunction("manage-locate-tickets", {
+          method: "POST",
+          body: {
+            job_id: job.id,
+            order_id: job.order_id || order?.id || null,
+            customer_id: job.customer_id || order?.customer_id || null,
+            ticket_number: jobDetailWrap.querySelector('#jobHydrovacTicketNumber')?.value || "",
+            one_call_center: jobDetailWrap.querySelector('#jobHydrovacTicketCenter')?.value || "",
+            work_site_address: job.service_address || order?.service_address || "",
+            excavation_type: job.service_type || job.job_type || "hydrovac",
+            valid_from: new Date().toISOString(),
+            valid_until: localDateToIso(jobDetailWrap.querySelector('#jobHydrovacTicketValidUntil')?.value, true),
+          },
+        });
+        setInlineMessage(jobMsg, "Locate ticket saved.", "good");
+        await fetchJobHydrovacDetails(job.id, { force: true });
+        await renderJobDetail(job.id);
+      } catch (error) {
+        setInlineMessage(jobMsg, error?.message || "Failed to save locate ticket.", "error");
+      }
+    });
+    jobDetailWrap.querySelectorAll('[data-hv-verify-ticket]').forEach((button) => {
+      button.addEventListener("click", async () => {
+        try {
+          setInlineMessage(jobMsg, "Marking ticket verified...");
+          const ticketId = button.getAttribute("data-hv-verify-ticket") || "";
+          const ticket = (hydrovacState?.tickets || []).find((row) => row.id === ticketId);
+          await requestOperatorFunction("manage-locate-tickets", {
+            method: "PATCH",
+            body: {
+              id: ticketId,
+              status: ticket?.status === "requested" ? "active" : ticket?.status,
+              verified_on_site: true,
+            },
+          });
+          setInlineMessage(jobMsg, "Locate ticket marked verified.", "good");
+          await fetchJobHydrovacDetails(job.id, { force: true });
+          await renderJobDetail(job.id);
+        } catch (error) {
+          setInlineMessage(jobMsg, error?.message || "Failed to verify locate ticket.", "error");
+        }
+      });
+    });
+    jobDetailWrap.querySelector('#jobHydrovacManifestForm')?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      try {
+        setInlineMessage(jobMsg, "Logging load...");
+        await requestOperatorFunction("manage-waste-manifests", {
+          method: "POST",
+          body: {
+            job_id: job.id,
+            order_id: job.order_id || order?.id || null,
+            customer_id: job.customer_id || order?.customer_id || null,
+            material_type: jobDetailWrap.querySelector('#jobHydrovacManifestMaterial')?.value || "soil",
+            quantity_unit: jobDetailWrap.querySelector('#jobHydrovacManifestUnit')?.value || "gallons",
+            quantity_estimated: Number(jobDetailWrap.querySelector('#jobHydrovacManifestQuantity')?.value || 0),
+            pickup_address: job.service_address || order?.service_address || "",
+            departed_site_at: new Date().toISOString(),
+            disposal_charge_cents: toCents(jobDetailWrap.querySelector('#jobHydrovacManifestCharge')?.value || 0),
+            disposal_cost_cents: toCents(jobDetailWrap.querySelector('#jobHydrovacManifestCost')?.value || 0),
+            notes: jobDetailWrap.querySelector('#jobHydrovacManifestNote')?.value || "",
+          },
+        });
+        setInlineMessage(jobMsg, "Load logged.", "good");
+        await fetchJobHydrovacDetails(job.id, { force: true });
+        await fetchJobs();
+        renderJobs(jobSearch?.value || "");
+      } catch (error) {
+        setInlineMessage(jobMsg, error?.message || "Failed to log load.", "error");
+      }
+    });
+    jobDetailWrap.querySelectorAll('[data-hv-confirm-manifest]').forEach((button) => {
+      button.addEventListener("click", async () => {
+        try {
+          setInlineMessage(jobMsg, "Confirming load...");
+          const manifestId = button.getAttribute("data-hv-confirm-manifest") || "";
+          const manifest = (hydrovacState?.manifests || []).find((row) => row.id === manifestId);
+          await requestOperatorFunction("manage-waste-manifests", {
+            method: "PATCH",
+            body: {
+              id: manifestId,
+              status: "confirmed",
+              arrived_facility_at: new Date().toISOString(),
+              quantity_actual: manifest?.quantity_actual ?? manifest?.quantity_estimated ?? null,
+            },
+          });
+          setInlineMessage(jobMsg, "Load confirmed.", "good");
+          await Promise.all([
+            fetchJobHydrovacDetails(job.id, { force: true }),
+            fetchJobs(),
+          ]);
+          renderJobs(jobSearch?.value || "");
+        } catch (error) {
+          setInlineMessage(jobMsg, error?.message || "Failed to confirm load.", "error");
+        }
+      });
+    });
+    jobDetailWrap.querySelectorAll('[data-hv-delete-manifest]').forEach((button) => {
+      button.addEventListener("click", async () => {
+        try {
+          setInlineMessage(jobMsg, "Removing draft load...");
+          const manifestId = button.getAttribute("data-hv-delete-manifest") || "";
+          await requestOperatorFunction("manage-waste-manifests", {
+            method: "DELETE",
+            query: `id=${encodeURIComponent(manifestId)}`,
+          });
+          setInlineMessage(jobMsg, "Draft load removed.", "good");
+          await Promise.all([
+            fetchJobHydrovacDetails(job.id, { force: true }),
+            fetchJobs(),
+          ]);
+          renderJobs(jobSearch?.value || "");
+        } catch (error) {
+          setInlineMessage(jobMsg, error?.message || "Failed to remove draft load.", "error");
+        }
+      });
+    });
+    jobDetailWrap.querySelector('[data-hv-action="invoice"]')?.addEventListener("click", async () => {
+      try {
+        setInlineMessage(jobMsg, "Drafting hydrovac invoice...");
+        await postOperatorFunction("generate-hydrovac-invoice", { job_id: job.id });
+        await Promise.all([fetchCrmOrders(), fetchJobs()]);
+        setInlineMessage(jobMsg, "Hydrovac invoice draft created on the linked order.", "good");
+      } catch (error) {
+        setInlineMessage(jobMsg, error?.message || "Failed to draft hydrovac invoice.", "error");
+      }
+    });
+  }
   if (btnJobOpenOrder) btnJobOpenOrder.disabled = !job.order_id;
   if (btnJobRecordPayment) btnJobRecordPayment.disabled = !job.order_id;
 }
@@ -12248,6 +12719,21 @@ async function createBidFromLeadRecord(lead, options = {}) {
   }
 
   const profile = normalizeBidProfile(options.profile || preferredBidProfile());
+  const localDraftId = String(options.localDraftId || "").trim();
+  const baseLocalDraft = localDraftId
+    ? ((BIDS_CACHE || []).find((row) => row.id === localDraftId) || null)
+    : null;
+  const latestLocalDraftForMerge = () => {
+    if (!localDraftId) return null;
+    if (currentBid()?.id === localDraftId) {
+      try {
+        return collectBidFormDraft();
+      } catch (_) {
+        // Ignore form collection failures and fall back to cached draft.
+      }
+    }
+    return (BIDS_CACHE || []).find((row) => row.id === localDraftId) || baseLocalDraft;
+  };
   const { data, error } = await sb.rpc("create_bid_from_lead", {
     p_lead_id: lead.id,
     p_profile: profile,
@@ -12255,27 +12741,33 @@ async function createBidFromLeadRecord(lead, options = {}) {
 
   if (!error) {
     await Promise.all([fetchLeads(), loadPersistedBids()]);
-    const bid = findBidRecordById(data?.bid_id) || BIDS_CACHE[0] || null;
+    let bid = findBidRecordById(data?.bid_id) || BIDS_CACHE[0] || null;
+    const localDraft = latestLocalDraftForMerge();
+    if (bid && localDraft) {
+      const mergedBid = {
+        ...cloneJson(bid, {}),
+        ...cloneJson(localDraft, {}),
+        id: localDraft.id,
+        record_id: bid.record_id || data?.bid_id || localDraft.record_id || "",
+        metadata: {
+          ...(bid.metadata || {}),
+          ...(localDraft.metadata || {}),
+          local_draft_id: localDraft.id,
+        },
+        updated_at: localDraft.updated_at || bid.updated_at || new Date().toISOString(),
+      };
+      BIDS_CACHE = [...(BIDS_CACHE || []).filter((row) => row.id !== mergedBid.id), mergedBid]
+        .sort((a, b) => new Date(b.updated_at || 0).getTime() - new Date(a.updated_at || 0).getTime());
+      persistBidDrafts();
+      bid = mergedBid;
+    }
     if (bid) ACTIVE_BID_ID = bid.id;
     return { bid, existing: !!data?.existing };
   }
   if (!isMissingDatabaseFeatureError(error, ["create_bid_from_lead"])) throw error;
 
   const nowIso = new Date().toISOString();
-  const draft = {
-    ...emptyBidDraft(),
-    title: lead.title || lead.requested_service_type || "Service quote",
-    customer_id: lead.customer_id || "",
-    lead_id: lead.id,
-    profile,
-    status: "draft",
-    walkthrough_at: nowIso,
-    service_address: lead.service_address || "",
-    project_summary: lead.summary || "",
-    internal_notes: lead.notes || "",
-    created_at: nowIso,
-    updated_at: nowIso,
-  };
+  const draft = bidDraftFromLeadRecord(lead, profile, latestLocalDraftForMerge());
   const rowPayload = bidRowFromDraft(draft);
   const { data: bidRow, error: bidError } = await sb.from("bids")
     .insert({ ...rowPayload, created_at: nowIso, updated_at: nowIso })
@@ -12296,7 +12788,26 @@ async function createBidFromLeadRecord(lead, options = {}) {
   if (leadError) throw leadError;
 
   await Promise.all([fetchLeads(), loadPersistedBids()]);
-  const bid = findBidRecordById(bidRow.id) || draftFromBidRow(bidRow);
+  let bid = findBidRecordById(bidRow.id) || draftFromBidRow(bidRow);
+  const localDraft = latestLocalDraftForMerge();
+  if (bid && localDraft) {
+    const mergedBid = {
+      ...cloneJson(bid, {}),
+      ...cloneJson(localDraft, {}),
+      id: localDraft.id,
+      record_id: bid.record_id || bidRow.id,
+      metadata: {
+        ...(bid.metadata || {}),
+        ...(localDraft.metadata || {}),
+        local_draft_id: localDraft.id,
+      },
+      updated_at: localDraft.updated_at || bid.updated_at || nowIso,
+    };
+    BIDS_CACHE = [...(BIDS_CACHE || []).filter((row) => row.id !== mergedBid.id), mergedBid]
+      .sort((a, b) => new Date(b.updated_at || 0).getTime() - new Date(a.updated_at || 0).getTime());
+    persistBidDrafts();
+    bid = mergedBid;
+  }
   if (bid) ACTIVE_BID_ID = bid.id;
   return { bid, existing: false };
 }

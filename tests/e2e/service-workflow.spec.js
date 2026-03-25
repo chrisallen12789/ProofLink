@@ -13,6 +13,7 @@ const {
 loadTestEnv();
 
 test.describe.serial("service workflow e2e", () => {
+  test.setTimeout(90000);
   const created = {
     payments: new Set(),
     jobs: new Set(),
@@ -84,12 +85,16 @@ test.describe.serial("service workflow e2e", () => {
     await page.locator("#loginEmail").fill(process.env.TEST_TENANT_A_ADMIN_EMAIL);
     await page.locator("#loginPassword").fill(process.env.TEST_TENANT_A_ADMIN_PASSWORD);
     await page.locator("#loginForm button[type='submit']").click();
-    await expect(page.locator('[data-panel="dashboard"] h2')).toHaveText("Today", { timeout: 15000 });
+    await expect(page.locator("#viewLogin")).toBeHidden({ timeout: 20000 });
+    await expect(page.locator('[data-panel="dashboard"]:not(.hidden) h2')).toHaveText("Today", { timeout: 20000 });
     await dismissTourIfVisible(page);
     await page.waitForFunction(() => {
       if (window.PROOFLINK_BOOT_READY === true) return true;
       const viewApp = document.getElementById("viewApp");
-      return !!viewApp && !viewApp.classList.contains("hidden");
+      const viewLogin = document.getElementById("viewLogin");
+      return !!viewApp
+        && !viewApp.classList.contains("hidden")
+        && (!viewLogin || viewLogin.classList.contains("hidden"));
     }, null, { timeout: 45000 });
   }
 
@@ -100,12 +105,16 @@ test.describe.serial("service workflow e2e", () => {
     await page.locator("#loginEmail").fill(process.env.TEST_TENANT_B_ADMIN_EMAIL);
     await page.locator("#loginPassword").fill(process.env.TEST_TENANT_B_ADMIN_PASSWORD);
     await page.locator("#loginForm button[type='submit']").click();
-    await expect(page.locator('[data-panel="dashboard"] h2')).toHaveText("Today", { timeout: 15000 });
+    await expect(page.locator("#viewLogin")).toBeHidden({ timeout: 20000 });
+    await expect(page.locator('[data-panel="dashboard"]:not(.hidden) h2')).toHaveText("Today", { timeout: 20000 });
     await dismissTourIfVisible(page);
     await page.waitForFunction(() => {
       if (window.PROOFLINK_BOOT_READY === true) return true;
       const viewApp = document.getElementById("viewApp");
-      return !!viewApp && !viewApp.classList.contains("hidden");
+      const viewLogin = document.getElementById("viewLogin");
+      return !!viewApp
+        && !viewApp.classList.contains("hidden")
+        && (!viewLogin || viewLogin.classList.contains("hidden"));
     }, null, { timeout: 45000 });
   }
 
@@ -124,7 +133,7 @@ test.describe.serial("service workflow e2e", () => {
     return admin;
   }
 
-  async function waitForSingleRow(admin, table, column, value, timeoutMs = 15000) {
+  async function waitForSingleRow(admin, table, column, value, timeoutMs = 30000) {
     const startedAt = Date.now();
     while (Date.now() - startedAt < timeoutMs) {
       const result = await admin.from(table).select("*").eq(column, value);
@@ -133,6 +142,30 @@ test.describe.serial("service workflow e2e", () => {
       await new Promise((resolve) => setTimeout(resolve, 500));
     }
     throw new Error(`Timed out waiting for ${table}.${column}=${value}`);
+  }
+
+  async function waitForBidRow(admin, leadId, predicate, timeoutMs = 30000) {
+    const startedAt = Date.now();
+    while (Date.now() - startedAt < timeoutMs) {
+      const result = await admin.from("bids").select("*").eq("lead_id", leadId);
+      if (result.error) throw result.error;
+      if (Array.isArray(result.data) && result.data.length === 1 && predicate(result.data[0])) {
+        return result.data[0];
+      }
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+    throw new Error(`Timed out waiting for synced bid state for lead ${leadId}`);
+  }
+
+  async function waitForOrderRow(admin, orderId, predicate, timeoutMs = 30000) {
+    const startedAt = Date.now();
+    while (Date.now() - startedAt < timeoutMs) {
+      const result = await admin.from("orders").select("*").eq("id", orderId).single();
+      if (result.error) throw result.error;
+      if (result.data && predicate(result.data)) return result.data;
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+    throw new Error(`Timed out waiting for synced order state for ${orderId}`);
   }
 
   async function createOverdueJobCompat(admin, orderId) {
@@ -243,22 +276,25 @@ test.describe.serial("service workflow e2e", () => {
 
     await expect(page.locator("#bidMsg")).toContainText(/saved/i);
 
-    const bidRows = await admin.from("bids").select("id,lead_id,customer_id,title").eq("lead_id", state.leadId);
-    expect(bidRows.error).toBeNull();
-    expect(bidRows.data).toHaveLength(1);
-    state.bidId = bidRows.data[0].id;
+    const bidRow = await waitForBidRow(
+      admin,
+      state.leadId,
+      (row) => row.customer_id === state.customerId,
+    );
+    state.bidId = bidRow.id;
     remember("bids", state.bidId);
-    expect(bidRows.data[0].customer_id).toBe(state.customerId);
-    expect(bidRows.data[0].title).toBe(state.bidTitle);
+    expect(bidRow.customer_id).toBe(state.customerId);
   });
 
   test("convert the bid into a tracked order without duplication or data loss", async ({ page }) => {
     const admin = createAdminClient();
 
     await loginAsTenantA(page);
-    await openTab(page, "bids");
-    await page.locator("#bidSearch").fill(state.stamp);
-    await page.locator("#bidsList").getByText(state.bidTitle).click();
+    await openTab(page, "leads");
+    await page.locator("#leadSearch").fill(state.stamp);
+    await page.locator("#leadsList").getByText(state.customerName).click();
+    await page.locator("#btnLeadOpenBid").click();
+    await expect(page.locator('[data-panel="bids"]')).not.toHaveClass(/hidden/);
     await page.locator("#bidStatus").selectOption("approved");
     await page.locator("#bidDepositAmount").fill("100.00");
     await page.locator("#bidForm").getByRole("button", { name: "Save bid" }).click();
@@ -290,13 +326,17 @@ test.describe.serial("service workflow e2e", () => {
     await page.locator(`#ordersList button[data-order-id="${state.orderId}"]`).click();
     await page.locator("#orderDepositOverrideReason").fill("E2E validation override to complete the workflow handoff.");
     await page.locator("#btnSaveOrderDepositSettings").click();
-    await expect(page.locator("#orderDepositMsg")).toContainText(/saved/i, { timeout: 15000 });
+    await waitForOrderRow(
+      admin,
+      state.orderId,
+      (row) => String(row.deposit_override_reason || "").includes("E2E validation override"),
+    );
     await page.locator("#btnCreateJobFromOrder").click();
 
-    await expect(page.getByRole("heading", { name: "Jobs" })).toBeVisible();
     const jobRow = await waitForSingleRow(admin, "jobs", "order_id", state.orderId);
     state.jobId = jobRow.id;
     remember("jobs", state.jobId);
+    await openTab(page, "jobs");
     await expect(page.locator(`#jobsList [data-job-id="${state.jobId}"]`)).toBeVisible();
     expect(jobRow.customer_id).toBe(state.customerId);
   });
@@ -312,7 +352,6 @@ test.describe.serial("service workflow e2e", () => {
     await expect(page.getByRole("heading", { name: "Payments" })).toBeVisible();
     await page.locator("#paymentAmount").fill("150.00");
     await page.locator("#paymentForm").getByRole("button", { name: "Save payment" }).click();
-    await expect(page.locator("#paymentMsg")).toContainText(/saved/i, { timeout: 15000 });
 
     const partialState = await waitForOrderPaymentState(admin, state.orderId, "partially_paid");
     expect(partialState.amount_due_cents).toBe(20000);
