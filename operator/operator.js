@@ -7409,6 +7409,86 @@ function startNewCustomer() {
   renderCustomersList(customerSearch?.value || "");
 }
 
+function customerDisplayAddress(customer) {
+  if (!customer) return "No service address yet.";
+  const parts = [
+    customer.address_line1 || customer.service_address || customer.billing_address || "",
+    [customer.city || "", customer.state || "", customer.zip || ""].filter(Boolean).join(" ").trim(),
+  ].filter(Boolean);
+  return parts.length ? parts.join(", ") : "No service address yet.";
+}
+
+function customerRequests(customerIdValue) {
+  return [...(LEADS_CACHE || [])]
+    .filter((row) => row.customer_id === customerIdValue)
+    .sort((a, b) => new Date(b.updated_at || b.created_at || 0).getTime() - new Date(a.updated_at || a.created_at || 0).getTime());
+}
+
+function customerBids(customerIdValue) {
+  return [...(BIDS_CACHE || [])]
+    .filter((row) => row.customer_id === customerIdValue)
+    .sort((a, b) => new Date(b.updated_at || b.created_at || 0).getTime() - new Date(a.updated_at || a.created_at || 0).getTime());
+}
+
+function customerJobs(customerIdValue) {
+  return [...(JOBS_CACHE || [])]
+    .filter((row) => row.customer_id === customerIdValue)
+    .sort((a, b) => new Date(b.updated_at || b.created_at || 0).getTime() - new Date(a.updated_at || a.created_at || 0).getTime());
+}
+
+function openCustomerRequestDraft(customer) {
+  if (!customer) return;
+  switchTab("leads");
+  ACTIVE_LEAD_ID = null;
+  clearLeadForm();
+  renderLeadCustomerOptions(customer.id);
+  if (leadCustomerId) leadCustomerId.value = customer.id;
+  if (leadContactName) leadContactName.value = customer.name || "";
+  if (leadContactEmail) leadContactEmail.value = customer.email || "";
+  if (leadContactPhone) leadContactPhone.value = customer.phone || "";
+  if (leadPreferredContact) leadPreferredContact.value = customer.preferred_contact || "phone";
+  if (leadTitle) leadTitle.value = `${customer.name || "Customer"} request`;
+  const address = customerDisplayAddress(customer);
+  if (leadServiceAddress) leadServiceAddress.value = address === "No service address yet." ? "" : address;
+  if (leadSummary) leadSummary.focus();
+  setInlineMessage(leadMsg, "New request draft opened from the customer record.", "ok");
+}
+
+function openCustomerBidDraft(customer) {
+  if (!customer) return;
+  switchTab("bids");
+  const draft = startNewBid(preferredBidProfile());
+  const address = customerDisplayAddress(customer);
+  const nextDraft = {
+    ...draft,
+    customer_id: customer.id,
+    title: `${customer.name || "Customer"} proposal`,
+    site_contact: customer.name || "",
+    service_address: address === "No service address yet." ? "" : address,
+    updated_at: new Date().toISOString(),
+  };
+  replaceBidDraft(nextDraft);
+  renderBids(bidSearch?.value || "");
+  if (bidProjectSummary) bidProjectSummary.focus();
+  setInlineMessage(bidMsg, "Proposal draft opened from the customer record.", "ok");
+}
+
+function openCustomerPaymentDraft(customerIdValue) {
+  switchTab("payments");
+  clearPaymentForm({ customerId: customerIdValue || "" });
+  paymentAmount?.focus?.();
+  setInlineMessage(paymentMsg, "Payment form opened for this customer.", "ok");
+}
+
+function openCustomerRecordTab(tab, recordId) {
+  if (!recordId) return;
+  if (tab === "leads") ACTIVE_LEAD_ID = recordId;
+  if (tab === "bids") ACTIVE_BID_ID = recordId;
+  if (tab === "orders") ACTIVE_ORDER_ID = recordId;
+  if (tab === "jobs") ACTIVE_JOB_ID = recordId;
+  switchTab(tab);
+}
+
 async function archiveCustomer(customerId) {
   if (!(await showConfirmModal("Archive this customer? They will be hidden from the active list.", "Archive", "Cancel"))) return;
   try {
