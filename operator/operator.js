@@ -178,6 +178,8 @@ const dashboardWrap = $("dashboardWrap");
 const btnRefreshDashboard = $("btnRefreshDashboard");
 const leadsList = $("leadsList");
 const leadDetailWrap = $("leadDetailWrap");
+const requestStageStrip = $("requestStageStrip");
+const requestActionBar = $("requestActionBar");
 const btnNewLead = $("btnNewLead");
 const leadSearch = $("leadSearch");
 const leadForm = $("leadForm");
@@ -200,6 +202,8 @@ const btnLeadCreateBid = $("btnLeadCreateBid");
 const btnLeadOpenBid = $("btnLeadOpenBid");
 const ordersList = $("ordersList");
 const orderDetailWrap = $("orderDetailWrap");
+const pipelineStageStrip = $("pipelineStageStrip");
+const pipelineActionBar = $("pipelineActionBar");
 const btnRefreshOrders = $("btnRefreshOrders");
 const btnExportOrders = $("btnExportOrders");
 const btnImportBridgeOrders = $("btnImportBridgeOrders");
@@ -208,6 +212,8 @@ const btnNewBid = $("btnNewBid");
 const btnConvertBidToOrder = $("btnConvertBidToOrder");
 const btnPrintBidProposal = $("btnPrintBidProposal");
 const bidGuideFlow = $("bidGuideFlow");
+const proposalStageStrip = $("proposalStageStrip");
+const proposalActionBar = $("proposalActionBar");
 const bidsList = $("bidsList");
 const bidProfileGuide = $("bidProfileGuide");
 const bidStatsWrap = $("bidStatsWrap");
@@ -280,6 +286,8 @@ const guidanceWrap = $("guidanceWrap");
 const btnRefreshGuidance = $("btnRefreshGuidance");
 const jobsList = $("jobsList");
 const jobDetailWrap = $("jobDetailWrap");
+const jobStageStrip = $("jobStageStrip");
+const jobActionBar = $("jobActionBar");
 const btnNewJob = $("btnNewJob");
 const jobSearch = $("jobSearch");
 const jobForm = $("jobForm");
@@ -358,6 +366,8 @@ const customerState = $("customerState");
 const customerZip = $("customerZip");
 
 const paymentsList = $("paymentsList");
+const moneyStageStrip = $("moneyStageStrip");
+const moneyActionBar = $("moneyActionBar");
 const btnRefreshPayments = $("btnRefreshPayments");
 const paymentForm = $("paymentForm");
 const paymentFormTitle = $("paymentFormTitle");
@@ -509,19 +519,20 @@ const WORKSPACE_SNAPSHOT_BY_TAB = new Map();
 const WORKSPACE_SNAPSHOT_TIMERS = new Map();
 const WORKSPACE_CONTEXT_GROUPS = {
   dashboard: ["dashboard", "leads", "bids", "orders", "jobs", "payments", "customers", "import"],
-  leads: ["leads", "bids", "customers"],
-  bids: ["bids", "leads", "orders", "customers"],
-  orders: ["orders", "bids", "payments", "customers"],
-  jobs: ["jobs", "bids", "payments", "expenses"],
-  plans: ["plans", "jobs", "customers", "payments"],
-  customers: ["customers", "leads", "bids", "payments"],
+  leads: ["leads", "bids", "orders", "customers"],
+  bids: ["bids", "leads", "orders", "jobs", "customers"],
+  orders: ["orders", "leads", "bids", "jobs", "payments", "customers"],
+  jobs: ["jobs", "orders", "bids", "payments", "expenses", "customers"],
+  plans: ["plans", "bookings", "jobs", "customers", "payments"],
+  customers: ["customers", "leads", "bids", "orders", "jobs", "payments"],
   import: ["import", "customers", "orders", "payments"],
-  payments: ["payments", "orders", "jobs", "money"],
+  payments: ["payments", "orders", "jobs", "money", "customers"],
   domains: ["domains", "setup"],
   setup: ["setup", "domains", "guidance"],
   products: ["products", "pricing", "availability"],
   pricing: ["pricing", "products", "availability"],
-  availability: ["availability", "products", "pricing", "plans"],
+  availability: ["availability", "bookings", "products", "pricing", "plans"],
+  bookings: ["bookings", "availability", "plans", "jobs"],
   expenses: ["expenses", "jobs", "money"],
   money: ["money", "payments", "expenses", "jobs"],
   guidance: ["guidance", "dashboard", "money"],
@@ -1190,6 +1201,9 @@ function linkedOrderForJob(job) {
 function currentLead() {
   return LEADS_CACHE.find((row) => row.id === ACTIVE_LEAD_ID) || null;
 }
+function currentPayment() {
+  return PAYMENTS_CACHE.find((row) => row.id === ACTIVE_PAYMENT_ID) || null;
+}
 function currentJob() {
   return JOBS_CACHE.find((row) => row.id === ACTIVE_JOB_ID) || null;
 }
@@ -1579,22 +1593,22 @@ function initBranding() {
 
 const WORKSPACE_BASE_TAB_ORDER = [
   "dashboard",
-  "leads",
   "orders",
+  "customers",
+  "bookings",
+  "payments",
+  "leads",
   "bids",
   "jobs",
   "plans",
-  "customers",
-  "import",
-  "payments",
-  "domains",
-  "setup",
+  "expenses",
+  "money",
   "products",
   "pricing",
   "availability",
-  "bookings",
-  "expenses",
-  "money",
+  "import",
+  "setup",
+  "domains",
   "guidance",
   "quotes",
   "reviews",
@@ -1797,6 +1811,12 @@ function workspaceFeatureLabel(featureKey) {
   return Architecture?.FEATURE_CATALOG?.[featureKey] || titleCaseWords(featureKey);
 }
 function workspacePriorityTabs(blueprint = currentWorkspaceBlueprint()) {
+  if (isServiceWorkspace(blueprint)) {
+    return ["orders", "customers", "bookings", "payments"];
+  }
+  if (isBookingWorkspace(blueprint) || isEventWorkspace(blueprint)) {
+    return ["bookings", "customers", "payments", "orders"];
+  }
   return uniqList((blueprint?.priorityViews || []).map((moduleKey) => WORKSPACE_PRIORITY_TAB_MAP[moduleKey]).filter(Boolean));
 }
 function workspaceTabLabel(tab, blueprint = currentWorkspaceBlueprint()) {
@@ -1806,13 +1826,19 @@ function workspaceTabLabel(tab, blueprint = currentWorkspaceBlueprint()) {
     case "leads":
       return "Requests";
     case "orders":
-      return workspaceQuotedBookedLabel(blueprint);
+      return isServiceWorkspace(blueprint) ? "Pipeline" : workspaceQuotedBookedLabel(blueprint);
     case "bids":
       return workspaceBidLabel(blueprint);
     case "jobs":
       return workspaceJobsNavLabel(blueprint);
     case "plans":
       return "Recurring Plans";
+    case "bookings":
+      return (isServiceWorkspace(blueprint) || isBookingWorkspace(blueprint) || isEventWorkspace(blueprint))
+        ? "Calendar"
+        : "Bookings";
+    case "payments":
+      return isServiceWorkspace(blueprint) ? "Money" : "Payments";
     case "import":
       return "Switch & Import";
     case "quotes":
@@ -1850,9 +1876,9 @@ function workspacePanelCopy(tab, blueprint = currentWorkspaceBlueprint()) {
       };
     case "orders":
       return {
-        title: isServiceWorkspace(blueprint) ? "Quoted / booked work" : workspaceOrderLabel(blueprint),
+        title: isServiceWorkspace(blueprint) ? "Pipeline" : workspaceOrderLabel(blueprint),
         subtitle: isServiceWorkspace(blueprint)
-          ? "Keep quoted work waiting on approval and booked work in one clear stage before it becomes an active field job."
+          ? "Work the request, proposal, booked-work, and active-job stages from one pipeline workspace instead of bouncing across separate menus."
           : `Review live ${orderLower}, intake details, and what needs to happen next.`,
       };
     case "bids":
@@ -1873,6 +1899,20 @@ function workspacePanelCopy(tab, blueprint = currentWorkspaceBlueprint()) {
       return {
         title: "Recurring Plans",
         subtitle: "Turn repeat service into scheduled orders and jobs without rebuilding the same work from scratch every month.",
+      };
+    case "bookings":
+      return {
+        title: workspaceTabLabel("bookings", blueprint),
+        subtitle: (isServiceWorkspace(blueprint) || isBookingWorkspace(blueprint) || isEventWorkspace(blueprint))
+          ? "See the calendar, upcoming commitments, booking flow, and route pressure in one place."
+          : "Manage appointments and scheduled commitments in one place.",
+      };
+    case "payments":
+      return {
+        title: workspaceTabLabel("payments", blueprint),
+        subtitle: isServiceWorkspace(blueprint)
+          ? "Track deposits, collections, overdue balances, and payment follow-up without leaving the work behind."
+          : "Track payments, collection status, and money movement in one place.",
       };
     case "import":
       return {
@@ -1932,6 +1972,9 @@ function workspacePanelCopy(tab, blueprint = currentWorkspaceBlueprint()) {
 function isTabVisibleInWorkspace(tab, blueprint = currentWorkspaceBlueprint()) {
   const hidden = new Set(blueprint?.hiddenByDefault || []);
   if (hidden.has(tab)) return false;
+  if (isServiceWorkspace(blueprint) && (tab === "messages" || tab === "ai")) {
+    return false;
+  }
   if (tab === "bids") {
     if (hidden.has("bids")) return false;
     const priorityTabs = workspacePriorityTabs(blueprint);
@@ -8288,6 +8331,7 @@ btnClearCustomerForm?.addEventListener("click", startNewCustomer);
 
 function renderPayments() {
   if (!paymentsList) return;
+  renderMoneyWorkspace();
   if (paymentId?.value) {
     renderPaymentCustomerOptions(paymentCustomerId?.value || "");
     renderPaymentOrderOptions(paymentCustomerId?.value || "", paymentOrderId?.value || "");
@@ -9839,6 +9883,7 @@ function renderBidLineItems(draft) {
   });
 }
 function renderBidWorkspace(draft, opts = {}) {
+  renderProposalWorkspace();
   if (!draft) {
     clearBidForm();
     if (btnConvertBidToOrder) {
@@ -11382,7 +11427,8 @@ async function renderLeadDetail(leadIdValue) {
   }
   const linkedCustomer = CUSTOMERS_CACHE.find((row) => row.id === lead.customer_id) || null;
   const linkedBid = findBidRecordById(lead.converted_bid_id);
-  const linkedOrder = CRM_ORDERS_CACHE.find((row) => row.id === lead.converted_order_id) || null;
+  const linkedOrder = linkedOrderForLead(lead);
+  const linkedJob = linkedOrder ? (JOBS_CACHE.find((row) => row.order_id === linkedOrder.id || row.id === linkedOrder.primary_job_id) || null) : null;
   leadDetailWrap.innerHTML = `
     <div class="detail-card">
       <div class="kicker">Request summary</div>
@@ -11397,11 +11443,41 @@ async function renderLeadDetail(leadIdValue) {
       <div class="detail-copy">Customer: ${escapeHtml(linkedCustomer?.name || "Not linked yet")}</div>
       <div class="detail-copy">Bid: ${escapeHtml(linkedBid?.title || (lead.converted_bid_id ? "Linked record" : "Not created yet"))}</div>
       <div class="detail-copy">Order: ${escapeHtml(linkedOrder?.customer_name || (lead.converted_order_id ? "Linked order" : "Not created yet"))}</div>
+      <div class="detail-copy">Job: ${escapeHtml(linkedJob?.title || "Not created yet")}</div>
+      <div class="pipeline-next-steps">
+        <button id="btnLeadOpenCustomer" class="btn btn-ghost" type="button">${linkedCustomer ? "Open customer" : "Create customer"}</button>
+        <button id="btnLeadDraftProposal" class="btn" type="button">${linkedBid ? "Open proposal" : "Draft proposal"}</button>
+        <button id="btnLeadOpenPipeline" class="btn btn-ghost" type="button">${linkedOrder ? "Open quoted / booked" : "Open pipeline"}</button>
+        <button id="btnLeadOpenJob" class="btn btn-ghost" type="button">${linkedJob ? "Open active job" : "Open jobs"}</button>
+      </div>
     </div>
   `;
   if (btnLeadOpenBid) {
     btnLeadOpenBid.disabled = !lead.converted_bid_id;
   }
+  $("btnLeadOpenCustomer")?.addEventListener("click", () => {
+    if (linkedCustomer?.id) {
+      ACTIVE_CUSTOMER_ID = linkedCustomer.id;
+      CUSTOMER_CREATING = false;
+      switchTab("customers");
+      return;
+    }
+    startNewCustomer();
+    if (customerName) customerName.value = lead.contact_name || "";
+    if (customerEmail) customerEmail.value = lead.contact_email || "";
+    if (customerPhone) customerPhone.value = lead.contact_phone || "";
+    if (customerAddress) customerAddress.value = lead.service_address || "";
+    switchTab("customers");
+  });
+  $("btnLeadDraftProposal")?.addEventListener("click", () => btnLeadCreateBid?.click());
+  $("btnLeadOpenPipeline")?.addEventListener("click", () => {
+    if (linkedOrder?.id) ACTIVE_ORDER_ID = linkedOrder.id;
+    switchTab("orders");
+  });
+  $("btnLeadOpenJob")?.addEventListener("click", () => {
+    if (linkedJob?.id) ACTIVE_JOB_ID = linkedJob.id;
+    switchTab("jobs");
+  });
 }
 function sortedLeads(filter = "") {
   const needle = String(filter || "").trim().toLowerCase();
@@ -11423,6 +11499,7 @@ function sortedLeads(filter = "") {
 }
 function renderLeads(filter = "") {
   if (!leadsList) return;
+  renderRequestWorkspace();
   const rows = sortedLeads(filter);
   if (!rows.length) {
     leadsList.innerHTML = `<div class="muted">No requests yet.</div>`;
@@ -11555,6 +11632,9 @@ async function renderJobDetail(jobIdValue) {
     return;
   }
   const order = linkedOrderForJob(job);
+  const linkedLead = linkedLeadForOrder(order);
+  const linkedBid = linkedBidForOrder(order);
+  const linkedCustomer = CUSTOMERS_CACHE.find((row) => row.id === job.customer_id) || null;
   const depositStatus = orderDepositStatus(order);
   const revenueCents = jobRevenueCents(job, order);
   const costCents = jobTrackedCostCents(job, order);
@@ -11614,9 +11694,16 @@ async function renderJobDetail(jobIdValue) {
     </div>
     <div class="detail-card" style="margin-top:14px;">
       <div class="kicker">Linked work</div>
+      <div class="detail-copy">Request: ${escapeHtml(linkedLead?.contact_name || linkedLead?.title || "Not linked")}</div>
+      <div class="detail-copy">Proposal: ${escapeHtml(linkedBid?.title || "Not linked")}</div>
       <div class="detail-copy">Order: ${escapeHtml(order?.customer_name || "Not linked")}</div>
-      <div class="detail-copy">Customer: ${escapeHtml((CUSTOMERS_CACHE.find((row) => row.id === job.customer_id) || {}).name || "Not linked")}</div>
+      <div class="detail-copy">Customer: ${escapeHtml(linkedCustomer?.name || "Not linked")}</div>
       <div class="detail-copy">${escapeHtml(job.service_address || "No service address recorded")}</div>
+      <div class="pipeline-next-steps">
+        <button id="btnJobOpenRequest" class="btn btn-ghost" type="button">${linkedLead ? "Open request" : "Open requests"}</button>
+        <button id="btnJobOpenBid" class="btn btn-ghost" type="button">${linkedBid ? "Open proposal" : "Open proposals"}</button>
+        <button id="btnJobOpenCustomer" class="btn btn-ghost" type="button">${linkedCustomer ? "Open customer" : "Open customers"}</button>
+      </div>
     </div>
     ${(() => {
       if (!job.assigned_operator_id) return '';
@@ -11642,6 +11729,21 @@ async function renderJobDetail(jobIdValue) {
   `;
   jobDetailWrap.querySelector('[data-job-cost-action="log"]')?.addEventListener("click", () => openExpenseForJob(job));
   jobDetailWrap.querySelector('#btnJobLogHours')?.addEventListener("click", () => maybeLogJobHours(job));
+  jobDetailWrap.querySelector('#btnJobOpenRequest')?.addEventListener("click", () => {
+    if (linkedLead?.id) ACTIVE_LEAD_ID = linkedLead.id;
+    switchTab("leads");
+  });
+  jobDetailWrap.querySelector('#btnJobOpenBid')?.addEventListener("click", () => {
+    if (linkedBid?.id) ACTIVE_BID_ID = linkedBid.id;
+    switchTab("bids");
+  });
+  jobDetailWrap.querySelector('#btnJobOpenCustomer')?.addEventListener("click", () => {
+    if (linkedCustomer?.id) {
+      ACTIVE_CUSTOMER_ID = linkedCustomer.id;
+      CUSTOMER_CREATING = false;
+    }
+    switchTab("customers");
+  });
   if (btnJobOpenOrder) btnJobOpenOrder.disabled = !job.order_id;
   if (btnJobRecordPayment) btnJobRecordPayment.disabled = !job.order_id;
 }
@@ -11665,6 +11767,7 @@ function sortedJobs(filter = "") {
 }
 function renderJobs(filter = "") {
   if (!jobsList) return;
+  renderJobWorkspace();
   const rows = sortedJobs(filter);
   if (!rows.length) {
     jobsList.innerHTML = `<div class="muted">No active jobs yet. Approved work will show up here once it is ready for execution.</div>`;
@@ -12958,8 +13061,479 @@ function renderDashboard() {
     });
   });
 }
+function normalizeWorkflowStatusValue(value) {
+  return String(value || "").trim().toLowerCase();
+}
+function linkedLeadForOrder(order) {
+  if (!order) return null;
+  const directLeadId = String(order.lead_id || order.source_lead_id || "").trim();
+  if (directLeadId) {
+    const direct = LEADS_CACHE.find((row) => row.id === directLeadId);
+    if (direct) return direct;
+  }
+  const sourceRef = String(order.source_ref || "").trim();
+  if (sourceRef) {
+    const bySource = LEADS_CACHE.find((row) => row.id === sourceRef);
+    if (bySource) return bySource;
+  }
+  const bid = linkedBidForOrder(order);
+  if (bid?.lead_id) {
+    return LEADS_CACHE.find((row) => row.id === bid.lead_id) || null;
+  }
+  return null;
+}
+function linkedBidForOrder(order) {
+  if (!order) return null;
+  const bidId = String(order.bid_id || "").trim();
+  if (bidId) {
+    const direct = findBidRecordById(bidId);
+    if (direct) return direct;
+  }
+  const sourceRef = String(order.source_ref || "").trim();
+  if (sourceRef) {
+    const bySource = findBidRecordById(sourceRef);
+    if (bySource) return bySource;
+  }
+  const leadId = String(order.lead_id || order.source_lead_id || "").trim();
+  if (leadId) {
+    return BIDS_CACHE.find((row) => String(row.lead_id || "") === leadId) || null;
+  }
+  return null;
+}
+function linkedOrderForLead(lead) {
+  if (!lead) return null;
+  const directOrderId = String(lead.converted_order_id || "").trim();
+  if (directOrderId) {
+    return CRM_ORDERS_CACHE.find((row) => row.id === directOrderId) || null;
+  }
+  const bid = lead.converted_bid_id ? findBidRecordById(lead.converted_bid_id) : null;
+  if (bid) return currentBidOrder(bid);
+  return null;
+}
+function pipelineStageStats() {
+  const requestCount = (LEADS_CACHE || []).filter((lead) => {
+    const status = normalizeWorkflowStatusValue(lead.status);
+    return !["converted", "cancelled", "closed", "won", "lost"].includes(status);
+  }).length;
+  const proposalCount = (BIDS_CACHE || []).filter((bid) => {
+    const status = normalizeWorkflowStatusValue(bid.status);
+    return !bid.converted_order_id && !["converted", "declined", "cancelled", "archived"].includes(status);
+  }).length;
+  const quotedBookedCount = (CRM_ORDERS_CACHE || []).filter((order) => {
+    const status = normalizeWorkflowStatusValue(order.status || "new");
+    return !["completed", "paid", "cancelled"].includes(status);
+  }).length;
+  const activeJobCount = (JOBS_CACHE || []).filter((job) => {
+    const status = normalizeWorkflowStatusValue(job.status || "scheduled");
+    return !["completed", "cancelled"].includes(status);
+  }).length;
+  return [
+    {
+      tab: "leads",
+      value: requestCount,
+      eyebrow: "Stage 1",
+      title: "Requests",
+      copy: "Inbound work that still needs qualification and scope.",
+    },
+    {
+      tab: "bids",
+      value: proposalCount,
+      eyebrow: "Stage 2",
+      title: "Proposals",
+      copy: "Quotes being worked up, reviewed, or waiting to be sent.",
+    },
+    {
+      tab: "orders",
+      value: quotedBookedCount,
+      eyebrow: "Stage 3",
+      title: "Quoted / booked",
+      copy: "Priced work that is approved, waiting on approval, or being scheduled.",
+    },
+    {
+      tab: "jobs",
+      value: activeJobCount,
+      eyebrow: "Stage 4",
+      title: "Active jobs",
+      copy: "Approved work that is moving through dispatch and field execution.",
+    },
+  ];
+}
+function renderRequestWorkspace() {
+  const activeLead = currentLead();
+  const linkedCustomer = activeLead?.customer_id ? (CUSTOMERS_CACHE.find((row) => row.id === activeLead.customer_id) || null) : null;
+  const linkedBid = activeLead?.converted_bid_id ? findBidRecordById(activeLead.converted_bid_id) : null;
+  const linkedOrder = linkedOrderForLead(activeLead);
+  const requestCount = (LEADS_CACHE || []).filter((lead) => !["converted", "lost", "archived"].includes(normalizeWorkflowStatusValue(lead.status))).length;
+  const readyToQuote = (LEADS_CACHE || []).filter((lead) => ["qualified", "contacted"].includes(normalizeWorkflowStatusValue(lead.status)) && !lead.converted_bid_id).length;
+  const movedToProposal = (LEADS_CACHE || []).filter((lead) => !!lead.converted_bid_id).length;
+  if (requestStageStrip) {
+    const cards = [
+      { tab: "leads", eyebrow: "Requests", value: requestCount, title: "Open intake", copy: "New inbound work that still needs qualification or customer context." },
+      { tab: "leads", eyebrow: "Ready next", value: readyToQuote, title: "Ready to quote", copy: "Qualified requests that should move into a proposal next." },
+      { tab: "bids", eyebrow: "Moved forward", value: movedToProposal, title: "In proposals", copy: "Requests already linked to a draft or active proposal." },
+    ];
+    requestStageStrip.innerHTML = cards.map((stage) => `
+      <button type="button" class="pipeline-stage-card ${stage.tab === "leads" ? "is-active" : ""}" data-request-stage-tab="${escapeAttr(stage.tab)}">
+        <div class="pipeline-stage-card__eyebrow">${escapeHtml(stage.eyebrow)}</div>
+        <div class="pipeline-stage-card__value">${escapeHtml(String(stage.value))}</div>
+        <div class="pipeline-stage-card__title">${escapeHtml(stage.title)}</div>
+        <div class="pipeline-stage-card__copy">${escapeHtml(stage.copy)}</div>
+      </button>
+    `).join("");
+    requestStageStrip.querySelectorAll("[data-request-stage-tab]").forEach((button) => {
+      button.addEventListener("click", () => switchTab(button.getAttribute("data-request-stage-tab") || "leads"));
+    });
+  }
+  if (requestActionBar) {
+    requestActionBar.innerHTML = `
+      <button type="button" class="pipeline-action-chip" data-request-action="new-request">New request</button>
+      <button type="button" class="pipeline-action-chip" data-request-action="draft-proposal">${linkedBid ? "Open proposal" : "Draft proposal"}</button>
+      <button type="button" class="pipeline-action-chip" data-request-action="open-customer">${linkedCustomer ? "Open customer" : "Create customer"}</button>
+      <button type="button" class="pipeline-action-chip" data-request-action="open-pipeline">${linkedOrder ? "Open quoted / booked" : "Open pipeline"}</button>
+    `;
+    requestActionBar.querySelectorAll("[data-request-action]").forEach((button) => {
+      button.addEventListener("click", async () => {
+        const action = button.getAttribute("data-request-action");
+        if (action === "new-request") {
+          ACTIVE_LEAD_ID = null;
+          clearLeadForm();
+          renderLeadDetail(null).catch(console.error);
+          return;
+        }
+        if (action === "open-customer") {
+          if (linkedCustomer?.id) {
+            ACTIVE_CUSTOMER_ID = linkedCustomer.id;
+            CUSTOMER_CREATING = false;
+            switchTab("customers");
+            return;
+          }
+          startNewCustomer();
+          if (customerName) customerName.value = activeLead?.contact_name || "";
+          if (customerEmail) customerEmail.value = activeLead?.contact_email || "";
+          if (customerPhone) customerPhone.value = activeLead?.contact_phone || "";
+          if (customerAddress) customerAddress.value = activeLead?.service_address || "";
+          switchTab("customers");
+          return;
+        }
+        if (action === "draft-proposal") {
+          if (linkedBid?.id) {
+            ACTIVE_BID_ID = linkedBid.id;
+            renderBids(bidSearch?.value || "");
+            switchTab("bids");
+            return;
+          }
+          btnLeadCreateBid?.click();
+          return;
+        }
+        if (action === "open-pipeline") {
+          if (linkedOrder?.id) ACTIVE_ORDER_ID = linkedOrder.id;
+          switchTab("orders");
+        }
+      });
+    });
+  }
+}
+function renderProposalWorkspace() {
+  const draft = currentBid();
+  const customer = draft?.customer_id ? findBidCustomer(draft.customer_id) : null;
+  const linkedLead = draft?.lead_id ? (LEADS_CACHE.find((row) => row.id === draft.lead_id) || null) : null;
+  const linkedOrder = draft ? currentBidOrder(draft) : null;
+  const draftCount = (BIDS_CACHE || []).filter((row) => !row.converted_order_id && ["draft", "review", ""].includes(normalizeWorkflowStatusValue(row.status || "draft"))).length;
+  const readyCount = (BIDS_CACHE || []).filter((row) => !row.converted_order_id && calculateBidTotals(row).total > 0).length;
+  const movedCount = (BIDS_CACHE || []).filter((row) => !!row.converted_order_id).length;
+  if (proposalStageStrip) {
+    const cards = [
+      { tab: "bids", eyebrow: "Proposals", value: draftCount, title: "Drafting", copy: "Quotes being scoped, priced, or cleaned up before delivery." },
+      { tab: "bids", eyebrow: "Ready next", value: readyCount, title: "Priced and usable", copy: "Drafts with enough pricing in them to finish and send." },
+      { tab: "orders", eyebrow: "Moved forward", value: movedCount, title: "In pipeline", copy: "Proposals already turned into quoted or booked work." },
+    ];
+    proposalStageStrip.innerHTML = cards.map((stage) => `
+      <button type="button" class="pipeline-stage-card ${stage.tab === "bids" ? "is-active" : ""}" data-proposal-stage-tab="${escapeAttr(stage.tab)}">
+        <div class="pipeline-stage-card__eyebrow">${escapeHtml(stage.eyebrow)}</div>
+        <div class="pipeline-stage-card__value">${escapeHtml(String(stage.value))}</div>
+        <div class="pipeline-stage-card__title">${escapeHtml(stage.title)}</div>
+        <div class="pipeline-stage-card__copy">${escapeHtml(stage.copy)}</div>
+      </button>
+    `).join("");
+    proposalStageStrip.querySelectorAll("[data-proposal-stage-tab]").forEach((button) => {
+      button.addEventListener("click", () => switchTab(button.getAttribute("data-proposal-stage-tab") || "bids"));
+    });
+  }
+  if (proposalActionBar) {
+    proposalActionBar.innerHTML = `
+      <button type="button" class="pipeline-action-chip" data-proposal-action="new-proposal">New quote</button>
+      <button type="button" class="pipeline-action-chip" data-proposal-action="open-request">${linkedLead ? "Open request" : "Create request"}</button>
+      <button type="button" class="pipeline-action-chip" data-proposal-action="open-customer">${customer ? "Open customer" : "Create customer"}</button>
+      <button type="button" class="pipeline-action-chip" data-proposal-action="open-pipeline">${linkedOrder ? "Open quoted / booked" : "Move into pipeline"}</button>
+    `;
+    proposalActionBar.querySelectorAll("[data-proposal-action]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const action = button.getAttribute("data-proposal-action");
+        if (action === "new-proposal") {
+          startNewBid(preferredBidProfile());
+          return;
+        }
+        if (action === "open-request") {
+          if (linkedLead?.id) {
+            ACTIVE_LEAD_ID = linkedLead.id;
+            switchTab("leads");
+            return;
+          }
+          clearLeadForm();
+          renderLeadCustomerOptions(customer?.id || "");
+          if (leadCustomerId) leadCustomerId.value = customer?.id || "";
+          if (leadContactName) leadContactName.value = customer?.name || "";
+          if (leadContactEmail) leadContactEmail.value = customer?.email || "";
+          if (leadContactPhone) leadContactPhone.value = customer?.phone || "";
+          if (leadServiceAddress) leadServiceAddress.value = draft?.service_address || "";
+          if (leadTitle) leadTitle.value = draft?.title ? `${draft.title} request` : "";
+          if (leadSummary) leadSummary.value = draft?.project_summary || "";
+          ACTIVE_LEAD_ID = null;
+          renderLeadDetail(null).catch(console.error);
+          switchTab("leads");
+          return;
+        }
+        if (action === "open-customer") {
+          if (customer?.id) {
+            ACTIVE_CUSTOMER_ID = customer.id;
+            CUSTOMER_CREATING = false;
+            switchTab("customers");
+            return;
+          }
+          startNewCustomer();
+          if (customerName) customerName.value = draft?.site_contact || "";
+          if (customerEmail) customerEmail.value = "";
+          if (customerPhone) customerPhone.value = "";
+          if (customerAddress) customerAddress.value = draft?.service_address || "";
+          switchTab("customers");
+          return;
+        }
+        if (action === "open-pipeline") {
+          if (linkedOrder?.id) {
+            ACTIVE_ORDER_ID = linkedOrder.id;
+            renderOrders();
+            switchTab("orders");
+            return;
+          }
+          btnConvertBidToOrder?.click();
+        }
+      });
+    });
+  }
+}
+function renderJobWorkspace() {
+  const activeJob = currentJob();
+  const activeOrder = linkedOrderForJob(activeJob);
+  const activeCustomer = activeJob?.customer_id ? (CUSTOMERS_CACHE.find((row) => row.id === activeJob.customer_id) || null) : null;
+  const scheduledCount = (JOBS_CACHE || []).filter((job) => ["scheduled", "dispatched"].includes(normalizeWorkflowStatusValue(job.status || "scheduled"))).length;
+  const activeCount = (JOBS_CACHE || []).filter((job) => normalizeWorkflowStatusValue(job.status) === "in_progress").length;
+  const blockedCount = (JOBS_CACHE || []).filter((job) => normalizeWorkflowStatusValue(job.status) === "blocked").length;
+  const unpaidCount = (JOBS_CACHE || []).filter((job) => {
+    const order = linkedOrderForJob(job);
+    const paymentState = job.payment_state || orderPaymentState(order);
+    return !["paid"].includes(normalizeWorkflowStatusValue(paymentState)) && !["cancelled"].includes(normalizeWorkflowStatusValue(job.status));
+  }).length;
+  if (jobStageStrip) {
+    const cards = [
+      { tab: "jobs", eyebrow: "Ready", value: scheduledCount, title: "Scheduled / dispatched", copy: "Approved work waiting to roll or already assigned to the field." },
+      { tab: "jobs", eyebrow: "Live", value: activeCount, title: "In progress", copy: "Jobs crews are actively working right now." },
+      { tab: "jobs", eyebrow: "Watch", value: blockedCount, title: "Blocked", copy: "Execution records that need an operator decision or missing info." },
+      { tab: "payments", eyebrow: "Money", value: unpaidCount, title: "Still unpaid", copy: "Jobs that are done or active but still need collection." },
+    ];
+    jobStageStrip.innerHTML = cards.map((stage) => `
+      <button type="button" class="pipeline-stage-card ${stage.tab === "jobs" ? "is-active" : ""}" data-job-stage-tab="${escapeAttr(stage.tab)}">
+        <div class="pipeline-stage-card__eyebrow">${escapeHtml(stage.eyebrow)}</div>
+        <div class="pipeline-stage-card__value">${escapeHtml(String(stage.value))}</div>
+        <div class="pipeline-stage-card__title">${escapeHtml(stage.title)}</div>
+        <div class="pipeline-stage-card__copy">${escapeHtml(stage.copy)}</div>
+      </button>
+    `).join("");
+    jobStageStrip.querySelectorAll("[data-job-stage-tab]").forEach((button) => {
+      button.addEventListener("click", () => switchTab(button.getAttribute("data-job-stage-tab") || "jobs"));
+    });
+  }
+  if (jobActionBar) {
+    const linkedLead = linkedLeadForOrder(activeOrder);
+    const linkedBid = linkedBidForOrder(activeOrder);
+    jobActionBar.innerHTML = `
+      <button type="button" class="pipeline-action-chip" data-job-action="new-job">New job</button>
+      <button type="button" class="pipeline-action-chip" data-job-action="open-pipeline">${activeOrder ? "Open quoted / booked" : "Open pipeline"}</button>
+      <button type="button" class="pipeline-action-chip" data-job-action="open-proposal">${linkedBid ? "Open proposal" : "Open proposals"}</button>
+      <button type="button" class="pipeline-action-chip" data-job-action="open-request">${linkedLead ? "Open request" : "Open requests"}</button>
+      <button type="button" class="pipeline-action-chip" data-job-action="open-customer">${activeCustomer ? "Open customer" : "Open customers"}</button>
+      <button type="button" class="pipeline-action-chip" data-job-action="record-payment">Record payment</button>
+    `;
+    jobActionBar.querySelectorAll("[data-job-action]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const action = button.getAttribute("data-job-action");
+        if (action === "new-job") {
+          ACTIVE_JOB_ID = null;
+          clearJobForm();
+          renderJobDetail(null).catch(console.error);
+          return;
+        }
+        if (action === "open-pipeline") {
+          if (activeOrder?.id) ACTIVE_ORDER_ID = activeOrder.id;
+          switchTab("orders");
+          return;
+        }
+        if (action === "open-proposal") {
+          const linkedBid = linkedBidForOrder(activeOrder);
+          if (linkedBid?.id) ACTIVE_BID_ID = linkedBid.id;
+          switchTab("bids");
+          return;
+        }
+        if (action === "open-request") {
+          const linkedLead = linkedLeadForOrder(activeOrder);
+          if (linkedLead?.id) ACTIVE_LEAD_ID = linkedLead.id;
+          switchTab("leads");
+          return;
+        }
+        if (action === "open-customer") {
+          if (activeCustomer?.id) {
+            ACTIVE_CUSTOMER_ID = activeCustomer.id;
+            CUSTOMER_CREATING = false;
+          }
+          switchTab("customers");
+          return;
+        }
+        if (action === "record-payment") {
+          const order = linkedOrderForJob(activeJob);
+          clearPaymentForm({
+            customerId: activeJob?.customer_id || order?.customer_id || "",
+            orderId: order?.id || activeJob?.order_id || "",
+            jobId: activeJob?.id || "",
+          });
+          switchTab("payments");
+        }
+      });
+    });
+  }
+}
+function renderMoneyWorkspace() {
+  const unpaidOrders = (CRM_ORDERS_CACHE || []).filter((order) => {
+    const state = normalizeWorkflowStatusValue(orderPaymentState(order));
+    return !["paid"].includes(state) && !["cancelled"].includes(normalizeWorkflowStatusValue(order.status || "new"));
+  });
+  const overdueOrders = unpaidOrders.filter((order) => normalizeWorkflowStatusValue(orderPaymentState(order)) === "overdue");
+  const depositOpenOrders = unpaidOrders.filter((order) => orderDepositGapCents(order) > 0);
+  const recordedPayments = sortedPayments(PAYMENTS_CACHE || []).length;
+  const activePayment = currentPayment();
+  const activeOrder = activePayment?.order_id ? (CRM_ORDERS_CACHE.find((row) => row.id === activePayment.order_id) || null) : null;
+  const activeJob = activePayment?.job_id ? (JOBS_CACHE.find((row) => row.id === activePayment.job_id) || null) : null;
+  const activeCustomer = activePayment?.customer_id ? (CUSTOMERS_CACHE.find((row) => row.id === activePayment.customer_id) || null) : null;
+  if (moneyStageStrip) {
+    const cards = [
+      { tab: "payments", eyebrow: "Collection", value: unpaidOrders.length, title: "Open balances", copy: "Quoted or completed work that still has money left to collect." },
+      { tab: "payments", eyebrow: "Urgent", value: overdueOrders.length, title: "Overdue", copy: "Balances that have slipped past the expected collection window." },
+      { tab: "payments", eyebrow: "Deposit", value: depositOpenOrders.length, title: "Deposits open", copy: "Orders that still need a required deposit before work should move ahead." },
+      { tab: "payments", eyebrow: "Recorded", value: recordedPayments, title: "Payments logged", copy: "Manual and synced payment records already in the ledger." },
+    ];
+    moneyStageStrip.innerHTML = cards.map((stage) => `
+      <button type="button" class="pipeline-stage-card is-active" data-money-stage-tab="${escapeAttr(stage.tab)}">
+        <div class="pipeline-stage-card__eyebrow">${escapeHtml(stage.eyebrow)}</div>
+        <div class="pipeline-stage-card__value">${escapeHtml(String(stage.value))}</div>
+        <div class="pipeline-stage-card__title">${escapeHtml(stage.title)}</div>
+        <div class="pipeline-stage-card__copy">${escapeHtml(stage.copy)}</div>
+      </button>
+    `).join("");
+    moneyStageStrip.querySelectorAll("[data-money-stage-tab]").forEach((button) => {
+      button.addEventListener("click", () => switchTab(button.getAttribute("data-money-stage-tab") || "payments"));
+    });
+  }
+  if (moneyActionBar) {
+    moneyActionBar.innerHTML = `
+      <button type="button" class="pipeline-action-chip" data-money-action="new-payment">Record payment</button>
+      <button type="button" class="pipeline-action-chip" data-money-action="open-pipeline">${activeOrder ? "Open quoted / booked" : "Open pipeline"}</button>
+      <button type="button" class="pipeline-action-chip" data-money-action="open-job">${activeJob ? "Open active job" : "Open jobs"}</button>
+      <button type="button" class="pipeline-action-chip" data-money-action="open-customer">${activeCustomer ? "Open customer" : "Open customers"}</button>
+    `;
+    moneyActionBar.querySelectorAll("[data-money-action]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const action = button.getAttribute("data-money-action");
+        if (action === "new-payment") {
+          clearPaymentForm();
+          renderPayments();
+          return;
+        }
+        if (action === "open-pipeline") {
+          if (activeOrder?.id) ACTIVE_ORDER_ID = activeOrder.id;
+          switchTab("orders");
+          return;
+        }
+        if (action === "open-job") {
+          if (activeJob?.id) ACTIVE_JOB_ID = activeJob.id;
+          switchTab("jobs");
+          return;
+        }
+        if (action === "open-customer") {
+          if (activeCustomer?.id) {
+            ACTIVE_CUSTOMER_ID = activeCustomer.id;
+            CUSTOMER_CREATING = false;
+          }
+          switchTab("customers");
+        }
+      });
+    });
+  }
+}
+function renderPipelineWorkspace() {
+  const stages = pipelineStageStats();
+  if (pipelineStageStrip) {
+    pipelineStageStrip.innerHTML = stages.map((stage) => `
+      <button
+        type="button"
+        class="pipeline-stage-card ${stage.tab === "orders" ? "is-active" : ""}"
+        data-pipeline-tab="${escapeAttr(stage.tab)}"
+      >
+        <div class="pipeline-stage-card__eyebrow">${escapeHtml(stage.eyebrow)}</div>
+        <div class="pipeline-stage-card__value">${escapeHtml(String(stage.value))}</div>
+        <div class="pipeline-stage-card__title">${escapeHtml(stage.title)}</div>
+        <div class="pipeline-stage-card__copy">${escapeHtml(stage.copy)}</div>
+      </button>
+    `).join("");
+    pipelineStageStrip.querySelectorAll("[data-pipeline-tab]").forEach((button) => {
+      button.addEventListener("click", () => switchTab(button.getAttribute("data-pipeline-tab") || "orders"));
+    });
+  }
+  if (pipelineActionBar) {
+    pipelineActionBar.innerHTML = `
+      <button type="button" class="pipeline-action-chip" data-pipeline-action="new-request">New request</button>
+      <button type="button" class="pipeline-action-chip" data-pipeline-action="draft-proposal">Draft proposal</button>
+      <button type="button" class="pipeline-action-chip" data-pipeline-action="open-jobs">Open active jobs</button>
+      <button type="button" class="pipeline-action-chip" data-pipeline-action="record-payment">Record payment</button>
+    `;
+    pipelineActionBar.querySelectorAll("[data-pipeline-action]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const action = button.getAttribute("data-pipeline-action");
+        if (action === "new-request") {
+          ACTIVE_LEAD_ID = null;
+          clearLeadForm();
+          renderLeadDetail(null).catch(console.error);
+          switchTab("leads");
+          return;
+        }
+        if (action === "draft-proposal") {
+          startNewBid(preferredBidProfile());
+          switchTab("bids");
+          return;
+        }
+        if (action === "open-jobs") {
+          switchTab("jobs");
+          return;
+        }
+        if (action === "record-payment") {
+          clearPaymentForm({ customerId: ACTIVE_CUSTOMER_ID || "" });
+          renderPayments();
+          switchTab("payments");
+        }
+      });
+    });
+  }
+}
 function renderOrders() {
   if (!ordersList) return;
+  renderPipelineWorkspace();
   const rows = Array.isArray(CRM_ORDERS_CACHE) ? CRM_ORDERS_CACHE : [];
   const statusOptions = ["new", "quoted", "confirmed", "fulfilled", "completed", "paid", "cancelled"];
 
@@ -13045,6 +13619,8 @@ function renderOrders() {
   const sourceLabel = String(active.source_type || "storefront").replace(/_/g, " ");
   const linkedJob = JOBS_CACHE.find((row) => row.order_id === active.id || row.id === active.primary_job_id) || null;
   const linkedPlan = SERVICE_PLANS_CACHE.find((row) => row.source_order_id === active.id) || null;
+  const linkedLead = linkedLeadForOrder(active);
+  const linkedBid = linkedBidForOrder(active);
   const paymentState = orderPaymentState(active);
   const amountDue = orderAmountDueCents(active);
   const amountPaid = orderAmountPaidCents(active);
@@ -13111,14 +13687,19 @@ function renderOrders() {
 
     <div class="detail-card" style="margin-top:14px;">
       <div class="kicker">Workflow next step</div>
+      <div class="detail-copy">Request: ${escapeHtml(linkedLead?.contact_name || linkedLead?.title || "Not linked")}</div>
+      <div class="detail-copy">Proposal: ${escapeHtml(linkedBid?.title || "Not linked")}</div>
       <div class="detail-copy">Tracked job: ${escapeHtml(linkedJob?.title || (linkedJob ? "Linked job" : "No job yet"))}</div>
       <div class="detail-copy">Recurring plan: ${escapeHtml(linkedPlan?.title || "Not set up")}</div>
       <div class="detail-copy">${linkedJob ? `Execution status: ${escapeHtml(String(linkedJob.status || "scheduled").replace(/_/g, " "))}` : "Create a job when this work is ready to be scheduled or performed."}</div>
       <div class="row" style="margin-top:10px;">
+        <button id="btnOpenOrderRequest" class="btn btn-ghost" type="button">${linkedLead ? "Open request" : "Create request"}</button>
+        <button id="btnOpenOrderBid" class="btn btn-ghost" type="button">${linkedBid ? "Open proposal" : "Draft proposal"}</button>
         <button id="btnCreateJobFromOrder" class="btn btn-primary" type="button">${linkedJob ? "Open linked job" : "Create job"}</button>
         <button id="btnCreateRecurringPlanFromOrder" class="btn" type="button">${linkedPlan ? "Open recurring plan" : "Make recurring"}</button>
         <button id="btnCollectOrderDeposit" class="btn btn-ghost" type="button">${depositGap > 0 ? "Collect deposit" : "Record payment"}</button>
         <button id="btnRecordOrderPayment" class="btn btn-ghost" type="button">Record payment</button>
+        <button id="btnOpenOrderCustomer" class="btn btn-ghost" type="button">Open customer</button>
         <button id="btnDownloadInvoice" class="btn btn-ghost" type="button">⬇ Invoice PDF</button>
         <button id="btnSetupRecurring" class="btn btn-ghost" type="button">🔁 Make recurring</button>
         ${active.customer_phone ? `<button id="btnOrderSms" class="btn btn-ghost" type="button">💬 Text customer</button>` : ""}
@@ -13355,6 +13936,68 @@ function renderOrders() {
         console.warn("[notify] status notification failed:", e.message);
       }
     }
+  });
+  $("btnOpenOrderCustomer")?.addEventListener("click", () => {
+    if (existingCustomer?.id) {
+      ACTIVE_CUSTOMER_ID = existingCustomer.id;
+      CUSTOMER_CREATING = false;
+      switchTab("customers");
+      return;
+    }
+    const fallbackCustomerId = active.customer_id || "";
+    if (fallbackCustomerId) {
+      ACTIVE_CUSTOMER_ID = fallbackCustomerId;
+      CUSTOMER_CREATING = false;
+      switchTab("customers");
+      return;
+    }
+    startNewCustomer();
+    if (customerName) customerName.value = active.customer_name || active.name || "";
+    if (customerEmail) customerEmail.value = active.email || active.customer_email || "";
+    if (customerPhone) customerPhone.value = active.phone || active.customer_phone || "";
+    if (customerAddress) customerAddress.value = active.service_address || active.address || "";
+    switchTab("customers");
+  });
+  $("btnOpenOrderRequest")?.addEventListener("click", () => {
+    if (linkedLead?.id) {
+      ACTIVE_LEAD_ID = linkedLead.id;
+      switchTab("leads");
+      return;
+    }
+    clearLeadForm();
+    renderLeadCustomerOptions(existingCustomer?.id || active.customer_id || "");
+    if (leadCustomerId) leadCustomerId.value = existingCustomer?.id || active.customer_id || "";
+    if (leadContactName) leadContactName.value = active.customer_name || active.name || "";
+    if (leadContactEmail) leadContactEmail.value = active.email || active.customer_email || "";
+    if (leadContactPhone) leadContactPhone.value = active.phone || active.customer_phone || "";
+    if (leadServiceAddress) leadServiceAddress.value = active.service_address || active.address || "";
+    if (leadTitle) leadTitle.value = active.customer_name ? `${active.customer_name} request` : "";
+    if (leadSummary) leadSummary.value = active.notes || active.cartSummary || "";
+    ACTIVE_LEAD_ID = null;
+    renderLeadDetail(null).catch(console.error);
+    switchTab("leads");
+  });
+  $("btnOpenOrderBid")?.addEventListener("click", () => {
+    if (linkedBid?.id) {
+      ACTIVE_BID_ID = linkedBid.id;
+      renderBids(bidSearch?.value || "");
+      switchTab("bids");
+      return;
+    }
+    const draft = startNewBid(preferredBidProfile());
+    const nextDraft = {
+      ...draft,
+      customer_id: existingCustomer?.id || active.customer_id || draft.customer_id || "",
+      lead_id: linkedLead?.id || draft.lead_id || "",
+      title: active.customer_name ? `${active.customer_name} proposal` : (draft.title || ""),
+      service_address: active.service_address || draft.service_address || "",
+      schedule_window: active.scheduled_time || active.pickupWindow || draft.schedule_window || "",
+      project_summary: active.notes || active.cartSummary || draft.project_summary || "",
+    };
+    replaceBidDraft(nextDraft);
+    persistBidDrafts();
+    queueBidDraftSync();
+    switchTab("bids");
   });
   $("btnDownloadInvoice")?.addEventListener("click", () => {
     generateInvoicePDF(active);
@@ -15066,7 +15709,7 @@ $("btnCopyBookingLink")?.addEventListener("click", async () => {
 });
 
 // ── Sidebar More toggle ────────────────────────────────────────────────────────
-const SECONDARY_TABS = new Set(['bids','jobs','quotes','plans','reviews','expenses','money','guidance','products','pricing','availability','setup','domains','import','team','vendors','inventory','contracts','equipment']);
+const SECONDARY_TABS = new Set(['leads','bids','jobs','quotes','plans','reviews','expenses','money','guidance','products','pricing','availability','setup','domains','import','team','vendors','inventory','contracts','equipment','messages','ai']);
 
 $("btnSidebarMore")?.addEventListener("click", () => {
   const more = $("sidebarMore");
@@ -15074,7 +15717,7 @@ $("btnSidebarMore")?.addEventListener("click", () => {
   const isOpen = more.style.display !== 'none';
   more.style.display = isOpen ? 'none' : 'block';
   const btn = $("btnSidebarMore");
-  if (btn) btn.textContent = isOpen ? 'More ▾' : 'Less ▴';
+  if (btn) btn.textContent = isOpen ? 'More' : 'Less';
   try { localStorage.setItem('pl_sidebar_simple', isOpen ? '1' : '0'); } catch {}
 });
 
@@ -15085,7 +15728,7 @@ function ensureSecondaryTabVisible(tab) {
   const btn  = $("btnSidebarMore");
   if (more && more.style.display === 'none') {
     more.style.display = 'block';
-    if (btn) btn.textContent = 'Less ▴';
+    if (btn) btn.textContent = 'Less';
   }
 }
 

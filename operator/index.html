@@ -69,19 +69,18 @@
       <div class="nav" aria-label="Sections" data-tour="sidebar-nav">
         <!-- Primary tabs — always visible -->
         <button class="tab active" data-tab="dashboard" data-tour-tab="dashboard" type="button">Today</button>
-        <button class="tab" data-tab="leads" data-tour-tab="leads" type="button">Requests</button>
-        <button class="tab" data-tab="orders" data-tour-tab="orders" type="button">Orders</button>
+        <button class="tab" data-tab="orders" data-tour-tab="orders" type="button">Pipeline</button>
         <button class="tab" data-tab="customers" data-tour-tab="customers" type="button">Customers</button>
-        <button class="tab" data-tab="bookings" data-tour-tab="bookings" type="button">Bookings</button>
-        <button class="tab" data-tab="payments" data-tour-tab="payments" type="button">Payments</button>
-        <button class="tab" data-tab="messages" type="button">Messages</button>
+        <button class="tab" data-tab="bookings" data-tour-tab="bookings" type="button">Calendar</button>
+        <button class="tab" data-tab="payments" data-tour-tab="payments" type="button">Money</button>
         <button class="tab" data-tab="ai" type="button">✦ AI</button>
         <!-- More toggle -->
         <button class="tab tab--more" id="btnSidebarMore" type="button" style="color:rgba(255,255,255,.4);font-size:.8rem;letter-spacing:.04em;" title="Toggle to show/hide advanced tabs. ProofLink remembers your preference.">More ▾</button>
         <!-- Secondary tabs — hidden until "More" is clicked -->
         <div id="sidebarMore" style="display:none;">
+          <button class="tab" data-tab="leads" data-tour-tab="leads" type="button">Requests</button>
           <button class="tab" data-tab="bids" data-tour-tab="bids" type="button">Walkthrough Bids <span style="font-size:.7rem;color:rgba(255,255,255,.35);display:block;font-weight:400;">On-site estimates</span></button>
-          <button class="tab" data-tab="jobs" data-tour-tab="jobs" type="button">Jobs</button>
+          <button class="tab" data-tab="jobs" data-tour-tab="jobs" type="button">Active Jobs</button>
           <button class="tab" data-tab="quotes" data-tour-tab="quotes" type="button">Quotes</button>
           <button class="tab" data-tab="plans" data-tour-tab="plans" type="button">Recurring Plans</button>
           <button class="tab" data-tab="reviews" data-tour-tab="reviews" type="button">Reviews</button>
@@ -258,6 +257,9 @@
 
             <div id="productPresetNotice" class="workspace-panel-notice is-soft" style="margin-bottom:14px;"></div>
 
+            <div id="requestStageStrip" class="pipeline-stage-strip"></div>
+            <div id="requestActionBar" class="pipeline-action-bar"></div>
+
             <div class="grid two">
               <div class="card">
                 <div class="card-hd">
@@ -373,8 +375,8 @@
           <section class="panel hidden" data-panel="orders">
             <div class="panel-head">
               <div>
-                <h2>Orders</h2>
-                <div class="muted">Review live storefront orders and inspect intake details.</div>
+                <h2>Pipeline</h2>
+                <div class="muted">Keep requests, proposals, quoted work, and active jobs moving without bouncing around the app.</div>
               </div>
               <div class="panel-actions">
                 <button id="btnRefreshOrders" class="btn btn-ghost" type="button">Refresh</button>
@@ -385,6 +387,14 @@
             </div>
 
             <!-- Package orders summary — shown when packages exist -->
+            <div class="workspace-panel-notice is-soft">
+              <div class="workspace-panel-notice__title">Run the service flow from one workspace</div>
+              <div class="workspace-panel-notice__copy">Requests feed proposals, proposals move into quoted or booked work, and approved work becomes active jobs. Use the stage buttons below to jump right to the exact step you need.</div>
+            </div>
+
+            <div id="pipelineStageStrip" class="pipeline-stage-strip"></div>
+            <div id="pipelineActionBar" class="pipeline-action-bar"></div>
+
             <div class="card" id="packagesSummaryCard" style="display:none;margin-bottom:14px;">
               <div class="card-hd"><strong>Active packages</strong> <span class="muted" style="font-size:.78rem;">Session-based orders</span></div>
               <div class="card-bd" id="packagesSummaryList">
@@ -395,8 +405,8 @@
             <div class="grid two">
               <div class="card">
                 <div class="card-hd">
-                  <strong>Inbox</strong>
-                  <span class="muted">Newest requests first</span>
+                  <strong>Quoted / booked work</strong>
+                  <span class="muted">Work that is priced, approved, or waiting to move into the field</span>
                 </div>
                 <div class="card-bd">
                   <div id="bulkStatusBar" style="display:none;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 0 12px;border-bottom:1px solid var(--border);margin-bottom:8px;">
@@ -420,8 +430,8 @@
 
               <div class="card">
                 <div class="card-hd">
-                  <strong>Order detail</strong>
-                  <span class="muted">Review intake details, cart summary, and CRM status.</span>
+                  <strong>Pipeline detail</strong>
+                  <span class="muted">Review the work record, see linked stages, and take the next action.</span>
                 </div>
                 <div class="card-bd">
                   <div id="orderDetailWrap" class="muted">Select quoted or booked work to inspect it.</div>
@@ -449,6 +459,9 @@
                 <button id="btnNewJob" class="btn" type="button">New job</button>
               </div>
             </div>
+
+            <div id="jobStageStrip" class="pipeline-stage-strip"></div>
+            <div id="jobActionBar" class="pipeline-action-bar"></div>
 
             <div class="grid two">
               <div class="card">
@@ -784,6 +797,9 @@
                 <button id="btnPrintBidProposal" class="btn btn-ghost" type="button">Print proposal</button>
               </div>
             </div>
+
+            <div id="proposalStageStrip" class="pipeline-stage-strip"></div>
+            <div id="proposalActionBar" class="pipeline-action-bar"></div>
 
             <div class="card">
               <div class="card-hd">
@@ -1333,15 +1349,18 @@
             <div class="panel-head">
               <div>
                 <div class="panel-title-row">
-                  <h2>Payments</h2>
+                  <h2>Money</h2>
                   <button class="help-btn" type="button" data-help-topic="payments" aria-label="Payment help">?</button>
                 </div>
-                <div class="muted">Manage your ProofLink subscription and customer payment settings. Status shown reflects what is actually active.</div>
+                <div class="muted">Stay on top of collection, deposits, payout setup, and what is still open across the workflow.</div>
               </div>
               <div class="panel-actions">
                 <button id="btnRefreshPayments" class="btn btn-ghost" type="button">Refresh</button>
               </div>
             </div>
+
+            <div id="moneyStageStrip" class="pipeline-stage-strip"></div>
+            <div id="moneyActionBar" class="pipeline-action-bar"></div>
 
             <div class="grid three payments-summary-grid">
               <div class="card stat-card">
@@ -2793,15 +2812,19 @@
   </button>
   <button class="mbn-item" data-mbn-tab="orders" type="button">
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-    <span>Orders</span>
+    <span>Pipeline</span>
   </button>
   <button class="mbn-item" data-mbn-tab="customers" type="button">
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
     <span>Customers</span>
   </button>
+  <button class="mbn-item" data-mbn-tab="bookings" type="button">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+    <span>Calendar</span>
+  </button>
   <button class="mbn-item" data-mbn-tab="payments" type="button">
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
-    <span>Payments</span>
+    <span>Money</span>
   </button>
   <button class="mbn-item" data-mbn-tab="__menu" type="button" id="mbnMenuBtn">
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>

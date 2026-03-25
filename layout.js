@@ -88,8 +88,8 @@
     const storefront = tenant.storefront || {};
 
     setText("[data-cl-catalog-label]", storefront.catalogLabel || "Products");
-    setText("[data-cl-cart-label]", storefront.cartLabel || "Cart");
-    setText("[data-cl-order-page-title]", storefront.orderPageTitle || "Order request");
+    setText("[data-cl-cart-label]", storefront.cartLabel || "Request");
+    setText("[data-cl-order-page-title]", storefront.orderPageTitle || "Request service");
     setText("[data-cl-primary-cta-label]", storefront.primaryCtaLabel || "Request service");
     setText("[data-cl-booking-cta-label]", storefront.bookingCtaLabel || "Book now");
     setText("[data-cl-hours-note]", storefront.hoursNotes || "");
@@ -143,7 +143,7 @@
     const titles = {
       "site-home.html": `${businessName} | Home`,
       "products.html": `${storefront.catalogLabel || "Products"} | ${businessName}`,
-      "order.html": `${storefront.orderPageTitle || "Order request"} | ${businessName}`,
+      "order.html": `${storefront.orderPageTitle || "Request service"} | ${businessName}`,
       "contact.html": `Contact | ${businessName}`,
       "about.html": `About | ${businessName}`,
       "how-it-works.html": `How it works | ${businessName}`,
@@ -160,7 +160,7 @@
     const descriptions = {
       "site-home.html": storefront.heroSubheading || storefront.intro || `Visit ${businessName} online, review available services, and send a tracked request.`,
       "products.html": storefront.intro || `Review available ${String(storefront.catalogLabel || "services").toLowerCase()} and send a tracked request to ${businessName}.`,
-      "order.html": storefront.orderIntro || `Send a tracked request to ${businessName} and get the next step confirmed by a real person.`,
+      "order.html": storefront.orderIntro || `Send a tracked service request to ${businessName} and get the next step confirmed by a real person.`,
       "contact.html": storefront.contactIntro || `Contact ${businessName} directly and keep questions attached to the right customer record.`,
       "about.html": storefront.about || `Learn what ${businessName} does, where they work, and how they handle customer requests.`,
       "how-it-works.html": `See how ${businessName} moves a request from first contact to confirmed work.`,
