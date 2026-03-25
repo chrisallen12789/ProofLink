@@ -399,7 +399,7 @@
     hydrovac: {
       label: 'Hydrovac / Vactor',
       family: 'field_service',
-      bidProfile: 'contractor_remodeling',
+      bidProfile: 'hydrovac_vactor',
       workspaceMode: 'job_execution',
       inventoryModel: 'truck_stock_and_disposal',
       priorityViews: ['jobs', 'orders', 'customers', 'equipment'],

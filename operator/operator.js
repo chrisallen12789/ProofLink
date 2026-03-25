@@ -732,6 +732,34 @@ const BID_PROFILE_LIBRARY = {
     terms: "Pricing reflects the visible site conditions at the walkthrough. New tenant requests, hidden issues, or scope expansion require approval.",
     deliveryNote: "Here is the property maintenance proposal from the walkthrough, including the active punch list, recommended sequencing, and the investment.",
   },
+  hydrovac_vactor: {
+    label: "Hydrovac / Vactor",
+    intro: "Built for Vactor and hydrovac work where truck time, crew mix, disposal, and site access are the main pricing drivers.",
+    scopePrompt: "Capture the site conditions, structure count, spoil and liquid assumptions, access constraints, and whether the truck is supporting cleanout, excavation, flood response, or line work.",
+    solutionPrompt: "Spell out the truck and crew minimum, disposal assumptions, work sequence on site, and any allowance for extra gallons, tonnage, or specialty support.",
+    photoPrompts: [
+      "Wide shot of the site, basin area, or excavation zone",
+      "Close-up of solids, sludge, debris, or flooding conditions",
+      "Truck access, hose route, traffic, or safety constraints",
+      "Structure IDs, basin lids, line entry points, or measured work zones",
+    ],
+    pricingPrompts: [
+      "Minimum truck and crew block",
+      "Liquid disposal or spoil treatment beyond the included allowance",
+      "Optional extra support like plumber, washout, or emergency response",
+    ],
+    lineItems: [
+      { name: "Truck and crew minimum", description: "Base hydrovac / Vactor block for the truck, operator, helper or plumber, and the included disposal allowance tied to the visit.", quantity: 1, unit: "job", unit_price_cents: 0, kind: "base" },
+      { name: "Disposal or spoil overage", description: "Allowance for extra liquid gallons, solids tonnage, or treatment charges beyond the included minimum block.", quantity: 1, unit: "allowance", unit_price_cents: 0, kind: "allowance" },
+      { name: "Optional support or extended time", description: "Optional add-on for extra truck time, plumber support, washout, or emergency conditions beyond the base visit.", quantity: 1, unit: "option", unit_price_cents: 0, kind: "option" },
+    ],
+    materials: "Truck time, helper or plumber support, disposal allowances, and site handling assumptions are staged from the walkthrough and the company-standard Vactor pricing.",
+    unused: "Unused disposal allowance and reserved support stay documented in the quote record, while leftover materials or site notes carry forward to the active job.",
+    exclusions: "Traffic control, permit costs, hidden obstructions, extra disposal beyond the included allowance, and emergency conditions outside the written scope are excluded unless listed.",
+    warranty: "Proposal scope is reviewed at completion based on the documented site conditions and the truck support provided during the work window.",
+    terms: "Pricing reflects the visible site conditions, the included minimum block, and the listed disposal assumptions. Extra gallons, tonnage, hidden obstructions, or expanded scope require approval.",
+    deliveryNote: "Attached is the hydrovac / Vactor proposal from the walkthrough, including the site conditions, the crew and truck block we recommend, and the disposal assumptions built into the price.",
+  },
   contractor_remodeling: {
     label: "Contractor / remodeling",
     intro: "For renovation, carpentry, finish work, and mixed-scope projects where the bid must balance professionalism, allowances, and change-order discipline.",
@@ -8141,6 +8169,8 @@ function preferredBidProfile() {
     hvac: "hvac",
     plumbing: "plumbing",
     property_maintenance: "property_maintenance",
+    hydrovac: "hydrovac_vactor",
+    vactor: "hydrovac_vactor",
   };
   return map[raw] || "general_service";
 }
