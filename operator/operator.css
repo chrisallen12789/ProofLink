@@ -1217,6 +1217,81 @@ input:focus, textarea:focus, select:focus{
   font-weight:700;
   text-align:right;
 }
+.hydrovac-pressure{
+  border:1px solid var(--border);
+  border-radius:18px;
+  background: linear-gradient(180deg, rgba(200,75,47,.08) 0%, rgba(255,255,255,.03) 100%);
+  padding:16px;
+  margin: 0 0 14px;
+}
+.hydrovac-pressure__head{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:14px;
+  margin-bottom:14px;
+}
+.hydrovac-pressure__head h3{
+  margin:6px 0 4px;
+  font-family: var(--font-display);
+  font-size:18px;
+  letter-spacing:-.02em;
+}
+.hydrovac-pressure__head p{
+  margin:0;
+  color:var(--muted);
+  max-width:62ch;
+  line-height:1.55;
+}
+.hydrovac-pressure__stats{
+  display:grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap:12px;
+}
+.hydrovac-pressure__stat{
+  border:1px solid rgba(255,255,255,.12);
+  border-radius:16px;
+  background: rgba(255,255,255,.05);
+  padding:14px;
+}
+.hydrovac-pressure__stat strong{
+  display:block;
+  margin:8px 0 4px;
+  font-family: var(--font-display);
+  font-size:24px;
+}
+.hydrovac-pressure__stat .muted{
+  line-height:1.5;
+}
+.hydrovac-pressure__list{
+  display:grid;
+  gap:10px;
+  margin-top:14px;
+}
+.hydrovac-pressure-row{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:14px;
+  width:100%;
+  border:1px solid rgba(255,255,255,.12);
+  border-radius:16px;
+  background: rgba(255,255,255,.05);
+  color:var(--text);
+  text-align:left;
+  padding:14px;
+  cursor:pointer;
+  transition:border-color .15s ease, background .15s ease;
+}
+.hydrovac-pressure-row:hover{
+  border-color: rgba(200,75,47,.32);
+  background: rgba(200,75,47,.08);
+}
+.hydrovac-pressure-row strong{
+  display:block;
+  font-family: var(--font-display);
+  margin-bottom:6px;
+}
 .today-actions-grid{
   display:grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -2441,6 +2516,35 @@ input:focus, textarea:focus, select:focus{
   align-items:flex-start;
   gap:12px;
 }
+.dispatch-column__stats{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  margin-top:8px;
+  color:var(--muted);
+  font-size:12px;
+}
+.dispatch-fill{
+  margin-top:8px;
+}
+.dispatch-fill__bar{
+  height:8px;
+  border-radius:999px;
+  background: rgba(255,255,255,.08);
+  overflow:hidden;
+}
+.dispatch-fill__bar span{
+  display:block;
+  height:100%;
+  border-radius:999px;
+  background: linear-gradient(90deg, rgba(200,75,47,.95) 0%, rgba(251,191,36,.95) 100%);
+}
+.dispatch-fill__label{
+  margin-top:6px;
+  color:var(--muted);
+  font-size:12px;
+  line-height:1.45;
+}
 .dispatch-column__body{
   display:flex;
   flex-direction:column;
@@ -2482,12 +2586,59 @@ input:focus, textarea:focus, select:focus{
   gap:8px;
   margin-top:10px;
 }
+.dispatch-readiness{
+  display:grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap:10px;
+  margin-top:12px;
+}
+.dispatch-readiness__item{
+  border:1px solid rgba(255,255,255,.12);
+  border-radius:14px;
+  background: rgba(255,255,255,.04);
+  padding:12px;
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+.dispatch-readiness__item.is-blocked{
+  border-color: rgba(239,68,68,.32);
+  background: rgba(239,68,68,.08);
+}
+.dispatch-readiness__item strong{
+  font-size:13px;
+}
+.invoice-workbench{
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+}
+.invoice-workbench__summary{
+  display:grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap:10px;
+}
+.invoice-workbench__stat{
+  border:1px solid rgba(255,255,255,.12);
+  border-radius:14px;
+  background: rgba(255,255,255,.04);
+  padding:12px;
+}
+.invoice-workbench__stat strong{
+  display:block;
+  margin-top:6px;
+  font-family: var(--font-display);
+  font-size:20px;
+}
 @media (max-width: 920px){
   .status-kv{ grid-template-columns:1fr; }
   .bid-inline-create__top{ flex-direction:column; }
   .workspace-summary-grid{ grid-template-columns:1fr; }
   .workspace-hub{ grid-template-columns:1fr; }
   .dispatch-board{ grid-template-columns:1fr; }
+  .hydrovac-pressure__head,
+  .dashboard-tracker__head,
+  .follow-up-queue__head{ flex-direction:column; }
   .import-hero,
   .import-kind-grid,
   .import-summary-grid,
