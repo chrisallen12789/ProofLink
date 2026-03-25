@@ -76,6 +76,12 @@ html[data-theme="light"] .tab.is-secondary{
 html[data-theme="light"] .tab.active{
   background: rgba(200,75,47,.14);
 }
+html[data-theme="light"] .tab.tab--more{
+  background: rgba(255,255,255,.58);
+}
+html[data-theme="light"] .nav-group{
+  background: rgba(255,255,255,.56);
+}
 html[data-theme="light"] .list-item:hover { background: rgba(200,75,47,.08); }
 html[data-theme="light"] input, html[data-theme="light"] select, html[data-theme="light"] textarea {
   background: #ffffff;
@@ -250,6 +256,36 @@ body{
   gap:8px;
 }
 
+.nav-primary,
+.nav-more{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+
+.nav-more{
+  margin-top:2px;
+}
+
+.nav-group{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  padding:10px;
+  border-radius:16px;
+  border:1px solid var(--border);
+  background:rgba(255,255,255,.03);
+}
+
+.nav-group__label{
+  font-size:11px;
+  font-weight:700;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+  color:var(--muted);
+  padding:0 2px 2px;
+}
+
 .tab{
   width:100%;
   display:flex;
@@ -275,6 +311,16 @@ body{
 }
 .tab.is-secondary{
   background: rgba(255,255,255,.05);
+}
+.tab.tab--more{
+  background:rgba(255,255,255,.03);
+  border-style:dashed;
+  color:var(--muted);
+  font-size:.8rem;
+  letter-spacing:.04em;
+}
+.tab.tab--more:hover{
+  color:var(--text);
 }
 .tab.is-locked{
   border-color: rgba(233,159,87,.26);

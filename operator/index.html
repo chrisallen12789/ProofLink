@@ -67,42 +67,62 @@
       </section>
 
       <div class="nav" aria-label="Sections" data-tour="sidebar-nav">
-        <!-- Primary tabs — always visible -->
-        <button class="tab active" data-tab="dashboard" data-tour-tab="dashboard" type="button">Today</button>
-        <button class="tab" data-tab="orders" data-tour-tab="orders" type="button">Work</button>
-        <button class="tab" data-tab="customers" data-tour-tab="customers" type="button">Customers</button>
-        <button class="tab" data-tab="bookings" data-tour-tab="bookings" type="button">Calendar</button>
-        <button class="tab" data-tab="payments" data-tour-tab="payments" type="button">Money</button>
-        <button class="tab" data-tab="ai" type="button">✦ AI</button>
-        <!-- More toggle -->
-        <button class="tab tab--more" id="btnSidebarMore" type="button" style="color:rgba(255,255,255,.4);font-size:.8rem;letter-spacing:.04em;" title="Show or hide secondary setup tools. ProofLink remembers your preference.">Tools</button>
-        <!-- Secondary tabs — hidden until "More" is clicked -->
-        <div id="sidebarMore" style="display:none;">
-          <button class="tab" data-tab="leads" data-tour-tab="leads" type="button">Requests</button>
-          <button class="tab" data-tab="bids" data-tour-tab="bids" type="button">Walkthrough Bids <span style="font-size:.7rem;color:rgba(255,255,255,.35);display:block;font-weight:400;">On-site estimates</span></button>
-          <button class="tab" data-tab="jobs" data-tour-tab="jobs" type="button">Active Jobs</button>
-          <button class="tab" data-tab="quotes" data-tour-tab="quotes" type="button">Quotes</button>
-          <button class="tab" data-tab="plans" data-tour-tab="plans" type="button">Recurring Plans</button>
-          <button class="tab" data-tab="reviews" data-tour-tab="reviews" type="button">Reviews</button>
-          <button class="tab" data-tab="expenses" data-tour-tab="expenses" type="button">Expenses</button>
-          <button class="tab" data-tab="money" data-tour-tab="money" type="button">Money</button>
-          <button class="tab" data-tab="guidance" data-tour-tab="guidance" type="button">Operations</button>
-          <button class="tab" data-tab="products" data-tour-tab="products" type="button">Products</button>
-          <button class="tab" data-tab="pricing" data-tour-tab="pricing" type="button">Pricing</button>
-          <button class="tab" data-tab="availability" data-tour-tab="availability" type="button">Availability</button>
+        <div class="nav-primary" id="sidebarPrimary">
+          <button class="tab active" data-tab="dashboard" data-tour-tab="dashboard" type="button">Today</button>
+          <button class="tab" data-tab="orders" data-tour-tab="orders" type="button">Work</button>
+          <button class="tab" data-tab="customers" data-tour-tab="customers" type="button">Customers</button>
+          <button class="tab" data-tab="bookings" data-tour-tab="bookings" type="button">Calendar</button>
+          <button class="tab" data-tab="payments" data-tour-tab="payments" type="button">Money</button>
           <button class="tab" data-tab="setup" data-tour-tab="setup" type="button">Website</button>
-          <button class="tab" data-tab="domains" data-tour-tab="domains" type="button">Domains</button>
-          <button class="tab" data-tab="import" data-tour-tab="import" type="button">Switch &amp; Import</button>
+          <button class="tab" data-tab="guidance" data-tour-tab="guidance" type="button">Operations</button>
+          <button class="tab" data-tab="ai" type="button">✦ AI</button>
+        </div>
+
+        <button class="tab tab--more" id="btnSidebarMore" type="button" title="Show or hide grouped tools and support views. ProofLink remembers your preference.">Tools</button>
+
+        <div id="sidebarMore" class="nav-more" style="display:none;">
+          <section class="nav-group" data-nav-group="workflow">
+            <div class="nav-group__label">Work pipeline</div>
+            <button class="tab" data-tab="leads" data-tour-tab="leads" type="button">Requests</button>
+            <button class="tab" data-tab="bids" data-tour-tab="bids" type="button">Walkthrough Bids <span style="font-size:.7rem;color:rgba(255,255,255,.35);display:block;font-weight:400;">On-site estimates</span></button>
+            <button class="tab" data-tab="jobs" data-tour-tab="jobs" type="button">Active Jobs</button>
+            <button class="tab" data-tab="quotes" data-tour-tab="quotes" type="button">Quotes</button>
+            <button class="tab" data-tab="plans" data-tour-tab="plans" type="button">Recurring Plans</button>
+          </section>
+
+          <section class="nav-group" data-nav-group="money">
+            <div class="nav-group__label">Follow-through</div>
+            <button class="tab" data-tab="expenses" data-tour-tab="expenses" type="button">Expenses</button>
+            <button class="tab" data-tab="money" data-tour-tab="money" type="button">Insights</button>
+            <button class="tab" data-tab="reviews" data-tour-tab="reviews" type="button">Reviews</button>
+          </section>
+
+          <section class="nav-group" data-nav-group="website">
+            <div class="nav-group__label">Website details</div>
+            <button class="tab" data-tab="products" data-tour-tab="products" type="button">Products</button>
+            <button class="tab" data-tab="pricing" data-tour-tab="pricing" type="button">Pricing</button>
+            <button class="tab" data-tab="availability" data-tour-tab="availability" type="button">Availability</button>
+            <button class="tab" data-tab="domains" data-tour-tab="domains" type="button">Domains</button>
+            <button class="tab" data-tab="import" data-tour-tab="import" type="button">Switch &amp; Import</button>
+          </section>
+
+          <section class="nav-group" data-nav-group="operations">
+            <div class="nav-group__label">Back office</div>
             <button class="tab" data-tab="vendors" type="button">Vendors <span style="font-size:.7rem;color:rgba(255,255,255,.35);display:block;font-weight:400;">Subs &amp; suppliers</span></button>
             <button class="tab" data-tab="equipment" type="button">Equipment <span style="font-size:.7rem;color:rgba(255,255,255,.35);display:block;font-weight:400;">Trucks &amp; machines</span></button>
+            <button class="tab" data-tab="team" type="button">Team <span style="font-size:.7rem;color:rgba(255,255,255,.35);display:block;font-weight:400;">Members &amp; crew</span></button>
+            <button class="tab" data-tab="inventory" type="button">Inventory <span style="font-size:.7rem;color:rgba(255,255,255,.35);display:block;font-weight:400;">Parts &amp; materials</span></button>
+            <button class="tab" data-tab="contracts" type="button">Contracts <span style="font-size:.7rem;color:rgba(255,255,255,.35);display:block;font-weight:400;">Warranties &amp; plans</span></button>
+          </section>
+
+          <section class="nav-group" data-nav-group="hydrovac">
+            <div class="nav-group__label">Hydrovac operations</div>
             <button class="tab" data-tab="facilities" type="button">Facilities <span style="font-size:.7rem;color:rgba(255,255,255,.35);display:block;font-weight:400;">Dump sites &amp; rates</span></button>
             <button class="tab" data-tab="manifests" type="button">Loads &amp; Manifests <span style="font-size:.7rem;color:rgba(255,255,255,.35);display:block;font-weight:400;">Waste tracking</span></button>
             <button class="tab" data-tab="locates" type="button">Locate Tickets <span style="font-size:.7rem;color:rgba(255,255,255,.35);display:block;font-weight:400;">811 / one-call</span></button>
             <button class="tab" data-tab="compliance" type="button">Compliance <span style="font-size:.7rem;color:rgba(255,255,255,.35);display:block;font-weight:400;">Docs &amp; alerts</span></button>
-            <button class="tab" data-tab="team" type="button">Team <span style="font-size:.7rem;color:rgba(255,255,255,.35);display:block;font-weight:400;">Members &amp; crew</span></button>
-            <button class="tab" data-tab="inventory" type="button">Inventory <span style="font-size:.7rem;color:rgba(255,255,255,.35);display:block;font-weight:400;">Parts &amp; materials</span></button>
-            <button class="tab" data-tab="contracts" type="button">Contracts <span style="font-size:.7rem;color:rgba(255,255,255,.35);display:block;font-weight:400;">Warranties &amp; plans</span></button>
-          </div>
+          </section>
+        </div>
       </div>
 
       <section class="side-card">

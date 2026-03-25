@@ -162,6 +162,7 @@ async function fetchDashboardLaunchChecklist() {
 
 const $ = (id) => document.getElementById(id);
 const sectionNav = document.querySelector('.nav[aria-label="Sections"]');
+const sidebarPrimary = $("sidebarPrimary");
 sectionNav?.querySelector('.tab[data-tab="ai"]')?.setAttribute("hidden", "hidden");
 const viewLogin = $("viewLogin");
 const viewApp = $("viewApp");
@@ -1993,6 +1994,38 @@ const WORKSPACE_BASE_TAB_ORDER = [
   "messages",
   "ai",
 ];
+const PRIMARY_TABS = new Set(["dashboard", "orders", "customers", "bookings", "payments", "setup", "guidance"]);
+const SECONDARY_TABS = new Set([
+  "leads",
+  "bids",
+  "jobs",
+  "quotes",
+  "plans",
+  "expenses",
+  "money",
+  "reviews",
+  "products",
+  "pricing",
+  "availability",
+  "domains",
+  "import",
+  "vendors",
+  "equipment",
+  "team",
+  "inventory",
+  "contracts",
+  "facilities",
+  "manifests",
+  "locates",
+  "compliance",
+]);
+const SIDEBAR_GROUPS = {
+  workflow: ["leads", "bids", "jobs", "quotes", "plans"],
+  money: ["expenses", "money", "reviews"],
+  website: ["products", "pricing", "availability", "domains", "import"],
+  operations: ["vendors", "equipment", "team", "inventory", "contracts"],
+  hydrovac: ["facilities", "manifests", "locates", "compliance"],
+};
 const WORKSPACE_PRIORITY_TAB_MAP = {
   crm: "customers",
   intake: "orders",
@@ -2520,8 +2553,7 @@ function updateWorkspaceTabPresentation(tab, blueprint = currentWorkspaceBluepri
   if (!btn) return;
   const visible = isTabVisibleInWorkspace(tab, blueprint);
   const locked = isTabLockedInWorkspace(tab, blueprint);
-  const priorityTabs = workspacePriorityTabs(blueprint);
-  const isPrimary = tab === "dashboard" || priorityTabs.includes(tab);
+  const isPrimary = PRIMARY_TABS.has(tab);
   btn.hidden = !visible;
   btn.classList.toggle("is-secondary", visible && !isPrimary);
   btn.classList.toggle("is-locked", locked);
@@ -2542,6 +2574,23 @@ function updateWorkspacePanelPresentation(tab, blueprint = currentWorkspaceBluep
   if (titleEl) titleEl.textContent = copy.title;
   if (subtitleEl && copy.subtitle) subtitleEl.textContent = copy.subtitle;
   renderPanelNotice(tab, blueprint);
+}
+function syncSidebarGroupVisibility(blueprint = currentWorkspaceBlueprint()) {
+  const more = $("sidebarMore");
+  const moreButton = $("btnSidebarMore");
+  if (!more) return;
+  let visibleGroupCount = 0;
+  Object.entries(SIDEBAR_GROUPS).forEach(([groupKey, tabs]) => {
+    const group = more.querySelector(`[data-nav-group="${groupKey}"]`);
+    if (!group) return;
+    const hasVisibleTab = tabs.some((tab) => {
+      const button = group.querySelector(`.tab[data-tab="${tab}"]`);
+      return button && !button.hidden && isTabVisibleInWorkspace(tab, blueprint);
+    });
+    group.hidden = !hasVisibleTab;
+    if (hasVisibleTab) visibleGroupCount += 1;
+  });
+  if (moreButton) moreButton.hidden = visibleGroupCount === 0;
 }
 function workspaceSummaryData(blueprint = currentWorkspaceBlueprint()) {
   const focusTabs = workspacePriorityTabs(blueprint).map((tab) => workspaceTabLabel(tab, blueprint));
@@ -2587,17 +2636,7 @@ function syncOperatorShellLayout(blueprint = currentWorkspaceBlueprint()) {
   sectionNav?.querySelector('.tab[data-tab="ai"]')?.setAttribute("hidden", "hidden");
   const more = $("sidebarMore");
   const moreButton = $("btnSidebarMore");
-  const allowedSecondaryTabs = new Set(["setup", "guidance", "import"]);
-  more?.querySelectorAll(".tab[data-tab]").forEach((button) => {
-    const tab = button.dataset.tab || "";
-    button.hidden = !allowedSecondaryTabs.has(tab);
-  });
-  const setupButton = more?.querySelector('.tab[data-tab="setup"]');
-  const guidanceButton = more?.querySelector('.tab[data-tab="guidance"]');
-  const importButton = more?.querySelector('.tab[data-tab="import"]');
-  if (setupButton) setupButton.textContent = workspaceTabLabel("setup", blueprint);
-  if (guidanceButton) guidanceButton.textContent = workspaceTabLabel("guidance", blueprint);
-  if (importButton) importButton.textContent = workspaceTabLabel("import", blueprint);
+  syncSidebarGroupVisibility(blueprint);
   if (moreButton) moreButton.textContent = more && more.style.display !== "none" ? "Hide tools" : "Tools";
   const mobileWorkLabel = document.querySelector('.mbn-item[data-mbn-tab="orders"] span');
   if (mobileWorkLabel) mobileWorkLabel.textContent = workspaceTabLabel("orders", blueprint);
@@ -2618,14 +2657,14 @@ function applyWorkspaceBlueprint() {
   });
 
   if (sectionNav) {
-    const orderedTabs = uniqList([
+    const orderedPrimaryTabs = uniqList([
       "dashboard",
-      ...workspacePriorityTabs(blueprint).filter((tab) => isTabVisibleInWorkspace(tab, blueprint)),
-      ...WORKSPACE_BASE_TAB_ORDER.filter((tab) => isTabVisibleInWorkspace(tab, blueprint)),
+      ...workspacePriorityTabs(blueprint).filter((tab) => PRIMARY_TABS.has(tab) && isTabVisibleInWorkspace(tab, blueprint)),
+      ...Array.from(PRIMARY_TABS).filter((tab) => tab !== "dashboard" && isTabVisibleInWorkspace(tab, blueprint)),
     ]);
-    orderedTabs.forEach((tab) => {
-      const btn = sectionNav.querySelector(`.tab[data-tab="${tab}"]`);
-      if (btn) sectionNav.appendChild(btn);
+    orderedPrimaryTabs.forEach((tab) => {
+      const btn = sidebarPrimary?.querySelector(`.tab[data-tab="${tab}"]`) || sectionNav.querySelector(`.tab[data-tab="${tab}"]`);
+      if (btn && sidebarPrimary) sidebarPrimary.appendChild(btn);
     });
   }
 
@@ -3875,7 +3914,7 @@ function switchTab(tab, opts = {}) {
   scheduleWorkspaceSnapshot(nextTab);
   return true;
 }
-document.querySelectorAll(".tab").forEach((btn) => {
+document.querySelectorAll(".tab[data-tab]").forEach((btn) => {
   btn.addEventListener("click", () => switchTab(btn.dataset.tab));
 });
 startupChecklist?.addEventListener("click", (e) => {
@@ -18345,8 +18384,6 @@ $("btnCopyBookingLink")?.addEventListener("click", async () => {
 });
 
 // ── Sidebar More toggle ────────────────────────────────────────────────────────
-const SECONDARY_TABS = new Set(['setup','guidance','import']);
-
 $("btnSidebarMore")?.addEventListener("click", () => {
   const more = $("sidebarMore");
   if (!more) return;
