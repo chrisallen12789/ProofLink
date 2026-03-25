@@ -374,6 +374,52 @@
                 </div>
               </div>
             </div>
+
+            <div id="permitStageStrip" class="pipeline-stage-strip"></div>
+            <div id="permitActionBar" class="pipeline-action-bar"></div>
+            <div class="grid two" style="margin-top:14px;">
+              <div class="card">
+                <div class="card-hd">
+                  <strong>Confined space permits</strong>
+                  <span class="muted">Entry paperwork, atmosphere checks, and permit status</span>
+                </div>
+                <div class="card-bd">
+                  <div id="hydrovacPermitList" class="list"></div>
+                </div>
+              </div>
+              <div class="card">
+                <div class="card-hd">
+                  <strong>Permit detail</strong>
+                  <span class="muted">Create, update, and close entry permits without leaving compliance</span>
+                </div>
+                <div class="card-bd">
+                  <div id="hydrovacPermitDetail" class="muted">Select a permit or create one from a job that needs confined-space coverage.</div>
+                </div>
+              </div>
+            </div>
+
+            <div id="assetStageStrip" class="pipeline-stage-strip"></div>
+            <div id="assetActionBar" class="pipeline-action-bar"></div>
+            <div class="grid two" style="margin-top:14px;">
+              <div class="card">
+                <div class="card-hd">
+                  <strong>Infrastructure assets</strong>
+                  <span class="muted">Catch basins, manholes, wet wells, tanks, and due service</span>
+                </div>
+                <div class="card-bd">
+                  <div id="hydrovacAssetList" class="list"></div>
+                </div>
+              </div>
+              <div class="card">
+                <div class="card-hd">
+                  <strong>Asset detail</strong>
+                  <span class="muted">Condition, next due date, and linked history</span>
+                </div>
+                <div class="card-bd">
+                  <div id="hydrovacAssetDetail" class="muted">Select an asset to see service history and next due work.</div>
+                </div>
+              </div>
+            </div>
           </section>
 
           <section class="panel hidden" data-panel="orders">
@@ -2325,16 +2371,41 @@
             </div>
           </section>
 
-            <div class="panel hidden" data-panel="team">
-            <div class="panel-header">
-              <h2>Team Members</h2>
+          <section class="panel hidden" data-panel="team">
+            <div class="panel-head">
+              <div>
+                <h2>Team</h2>
+                <div class="muted">Keep crew roster, driver compliance, and payroll visibility in one office view.</div>
+              </div>
               <div class="panel-actions">
-                <button id="btnInviteTeamMember" class="btn-primary">+ Invite Member</button>
-                <button id="btnRefreshTeam" class="btn-secondary">Refresh</button>
+                <button id="btnInviteTeamMember" class="btn btn-primary" type="button">+ Invite member</button>
+                <button id="btnRefreshTeam" class="btn btn-ghost" type="button">Refresh</button>
               </div>
             </div>
-            <div id="teamMembersList">
-              <p class="empty-state">Loading team members...</p>
+            <div id="driverStageStrip" class="pipeline-stage-strip"></div>
+            <div id="driverActionBar" class="pipeline-action-bar"></div>
+            <div class="grid two" style="margin-bottom:18px;">
+              <div class="card">
+                <div class="card-hd">
+                  <strong>Crew roster</strong>
+                  <span class="muted">Operators, techs, and drivers</span>
+                </div>
+                <div class="card-bd">
+                  <div id="teamMembersList">
+                    <p class="empty-state">Loading team members...</p>
+                  </div>
+                </div>
+              </div>
+              <div class="card">
+                <div class="card-hd">
+                  <strong>Driver qualifications</strong>
+                  <span class="muted">CDL, med card, H2S, confined-space, and HOS</span>
+                </div>
+                <div class="card-bd">
+                  <div id="driverQualificationsList" class="list" style="margin-bottom:14px;"></div>
+                  <div id="driverQualificationDetail" class="muted">Select a driver or create the first qualification record.</div>
+                </div>
+              </div>
             </div>
             <div class="card" style="margin-top:18px;">
               <div class="card-hd">
@@ -2351,7 +2422,7 @@
                 <div id="hoursReport" class="muted">Select a date range and click Load.</div>
               </div>
             </div>
-          </div>
+          </section>
 
           <section class="panel hidden" data-panel="availability">
             <div class="panel-head">
@@ -2390,14 +2461,46 @@
           <section class="panel hidden" data-panel="bookings">
             <div class="panel-head">
               <div>
-                <h2>Bookings</h2>
-                <div class="muted">Manage appointments. Share your booking link so customers can self-schedule.</div>
+                <h2>Calendar</h2>
+                <div class="muted">Run dispatch, appointments, and field timing from the same calendar instead of bouncing between office screens.</div>
               </div>
               <div class="panel-actions">
                 <button id="btnNewBooking" class="btn" type="button">+ New booking</button>
                 <button id="btnWalkIn" class="btn btn-ghost" type="button">⚡ Walk-in</button>
                 <button id="btnMyBookings" class="btn btn-ghost" type="button" style="font-size:.8rem;">&#128100; My bookings</button>
                 <button id="btnRefreshBookings" class="btn btn-ghost" type="button">Refresh</button>
+              </div>
+            </div>
+
+            <div id="dispatchStageStrip" class="pipeline-stage-strip"></div>
+            <div id="dispatchActionBar" class="pipeline-action-bar"></div>
+
+            <div class="workspace-panel-notice is-soft">
+              <div class="workspace-panel-notice__title">Dispatch hydrovac work from here</div>
+              <div class="workspace-panel-notice__copy">Keep truck assignment, driver compliance, and scheduled work in one place so the crew rolls with the right truck, the right driver, and the right paperwork.</div>
+            </div>
+
+            <div class="grid two" style="margin-top:14px;">
+              <div class="card">
+                <div class="card-hd">
+                  <strong>Truck board</strong>
+                  <div class="row" style="gap:8px;align-items:center;">
+                    <input id="dispatchDate" class="input" type="date" style="width:160px;" />
+                    <button id="btnRefreshDispatchBoard" class="btn btn-ghost btn-sm" type="button">Refresh board</button>
+                  </div>
+                </div>
+                <div class="card-bd">
+                  <div id="dispatchBoard" class="dispatch-board"></div>
+                </div>
+              </div>
+              <div class="card">
+                <div class="card-hd">
+                  <strong>Dispatch detail</strong>
+                  <span class="muted">Assign the truck, confirm the driver, and send the crew</span>
+                </div>
+                <div class="card-bd">
+                  <div id="dispatchDetail" class="muted">Select a scheduled hydrovac job to dispatch it.</div>
+                </div>
               </div>
             </div>
 
@@ -2663,9 +2766,45 @@
               </div>
             </div>
 
+            <div id="hydrovacInvoiceStageStrip" class="pipeline-stage-strip"></div>
+            <div id="hydrovacInvoiceActionBar" class="pipeline-action-bar"></div>
+
             <div class="card">
               <div class="card-bd">
                 <div id="moneyWrap"></div>
+              </div>
+            </div>
+
+            <div class="grid two" style="margin-top:14px;">
+              <div class="card">
+                <div class="card-hd">
+                  <strong>Hydrovac invoice draft</strong>
+                  <span class="muted">Bring time, disposal, and carried-over quote lines into one draft</span>
+                </div>
+                <div class="card-bd">
+                  <div class="row" style="gap:8px;align-items:end;flex-wrap:wrap;">
+                    <label style="flex:1;min-width:220px;">Job
+                      <select id="hydrovacInvoiceJobSelect">
+                        <option value="">Select a hydrovac job</option>
+                      </select>
+                    </label>
+                    <button id="btnPreviewHydrovacInvoice" class="btn btn-primary" type="button">Refresh draft</button>
+                  </div>
+                  <div id="hydrovacInvoiceMsg" class="msg"></div>
+                  <div id="hydrovacInvoicePreview" class="muted" style="margin-top:10px;">Pick a hydrovac job to build or refresh the invoice draft on the linked order.</div>
+                </div>
+              </div>
+              <div class="card">
+                <div class="card-hd">
+                  <strong>Hydrovac billing reminders</strong>
+                  <span class="muted">What the office should verify before sending</span>
+                </div>
+                <div class="card-bd">
+                  <div class="workspace-panel-notice is-soft" style="margin:0;">
+                    <div class="workspace-panel-notice__title">Draft from real work, not memory</div>
+                    <div class="workspace-panel-notice__copy">Use the linked job after completion to pull in mobilization, time segments, confirmed disposal manifests, water usage, and any carried-over bid items. Then review the draft before sending the invoice.</div>
+                  </div>
+                </div>
               </div>
             </div>
 

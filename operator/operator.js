@@ -70,6 +70,10 @@ let ACTIVE_PLAN_ID = null;
 let ACTIVE_FACILITY_ID = null;
 let ACTIVE_MANIFEST_ID = null;
 let ACTIVE_LOCATE_ID = null;
+let ACTIVE_DRIVER_QUAL_MEMBER_ID = null;
+let ACTIVE_DISPATCH_JOB_ID = null;
+let ACTIVE_PERMIT_ID = null;
+let ACTIVE_ASSET_ID = null;
 let ACTIVE_BID_LINE_ITEM_ID = null;
 let ACTIVE_PRICING_PRODUCT_ID = null;
 let PREVIOUS_PANEL_TAB = "dashboard";
@@ -377,6 +381,30 @@ const hydrovacComplianceSummary = $("hydrovacComplianceSummary");
 const hydrovacComplianceUrgent = $("hydrovacComplianceUrgent");
 const hydrovacComplianceCoverage = $("hydrovacComplianceCoverage");
 const btnRefreshCompliance = $("btnRefreshCompliance");
+const driverStageStrip = $("driverStageStrip");
+const driverActionBar = $("driverActionBar");
+const driverQualificationsList = $("driverQualificationsList");
+const driverQualificationDetail = $("driverQualificationDetail");
+const dispatchStageStrip = $("dispatchStageStrip");
+const dispatchActionBar = $("dispatchActionBar");
+const dispatchDate = $("dispatchDate");
+const dispatchBoard = $("dispatchBoard");
+const dispatchDetail = $("dispatchDetail");
+const btnRefreshDispatchBoard = $("btnRefreshDispatchBoard");
+const hydrovacInvoiceStageStrip = $("hydrovacInvoiceStageStrip");
+const hydrovacInvoiceActionBar = $("hydrovacInvoiceActionBar");
+const hydrovacInvoiceJobSelect = $("hydrovacInvoiceJobSelect");
+const btnPreviewHydrovacInvoice = $("btnPreviewHydrovacInvoice");
+const hydrovacInvoiceMsg = $("hydrovacInvoiceMsg");
+const hydrovacInvoicePreview = $("hydrovacInvoicePreview");
+const permitStageStrip = $("permitStageStrip");
+const permitActionBar = $("permitActionBar");
+const hydrovacPermitList = $("hydrovacPermitList");
+const hydrovacPermitDetail = $("hydrovacPermitDetail");
+const assetStageStrip = $("assetStageStrip");
+const assetActionBar = $("assetActionBar");
+const hydrovacAssetList = $("hydrovacAssetList");
+const hydrovacAssetDetail = $("hydrovacAssetDetail");
 const plansList = $("plansList");
 const planDetailWrap = $("planDetailWrap");
 const btnNewPlan = $("btnNewPlan");
@@ -543,6 +571,8 @@ let HYDROVAC_LOCATE_TICKETS_CACHE = [];
 let HYDROVAC_DRIVER_COMPLIANCE_CACHE = [];
 let HYDROVAC_EQUIPMENT_COMPLIANCE_CACHE = [];
 let HYDROVAC_ANALYTICS_CACHE = null;
+let HYDROVAC_PERMITS_CACHE = [];
+let HYDROVAC_ASSETS_CACHE = [];
 let INVENTORY_CACHE = [];
 let INVENTORY_PANEL_LOADED = false;
 
@@ -3535,7 +3565,14 @@ function switchTab(tab, opts = {}) {
   if (nextTab === "domains") window.renderDomains?.();
   if (nextTab === "setup") fetchOperatorSetup().catch((err) => setSetupMessage(err.message || String(err), "bad"));
   if (nextTab === "guidance") renderGuidance();
-  if (nextTab === "bookings") renderBookings().catch(console.error);
+  if (nextTab === "bookings") {
+    renderBookings().catch(console.error);
+    if (isHydrovacWorkspace()) {
+      fetchEquipment().catch(console.warn);
+      fetchHydrovacLocateTickets().catch(console.warn);
+      fetchHydrovacComplianceData().catch(console.warn);
+    }
+  }
     if (nextTab === "quotes" && !TABS_LOADED.has("quotes")) {
       TABS_LOADED.add("quotes");
       fetchAndRenderQuotes().catch(console.error);
@@ -3570,8 +3607,12 @@ function switchTab(tab, opts = {}) {
   if (nextTab === 'team' && !TEAM_PANEL_LOADED) {
     TEAM_PANEL_LOADED = true;
     fetchTeamMembers().catch(console.warn);
+    fetchHydrovacDriverQualifications().catch(console.warn);
     $('btnInviteTeamMember')?.addEventListener('click', () => openInviteTeamMemberModal());
-    $('btnRefreshTeam')?.addEventListener('click', () => fetchTeamMembers().catch(console.warn));
+    $('btnRefreshTeam')?.addEventListener('click', async () => {
+      await fetchTeamMembers().catch(console.warn);
+      await fetchHydrovacDriverQualifications().catch(console.warn);
+    });
     $('btnLoadHours')?.addEventListener('click', loadHoursReport);
     $('btnExportHoursCsv')?.addEventListener('click', exportHoursCsv);
     // Set default date range to current month
@@ -3582,6 +3623,8 @@ function switchTab(tab, opts = {}) {
       hoursStart.value = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
       hoursEnd.value = now.toISOString().split('T')[0];
     }
+  } else if (nextTab === 'team') {
+    fetchHydrovacDriverQualifications().catch(console.warn);
   }
   if (nextTab === 'equipment' && !EQUIPMENT_PANEL_LOADED) {
     EQUIPMENT_PANEL_LOADED = true;
@@ -6376,6 +6419,35 @@ function currentHydrovacManifest() {
 function currentHydrovacLocate() {
   return HYDROVAC_LOCATE_TICKETS_CACHE.find((row) => row.id === ACTIVE_LOCATE_ID) || null;
 }
+function currentDriverQualification() {
+  return HYDROVAC_DRIVER_COMPLIANCE_CACHE.find((row) => row.member_id === ACTIVE_DRIVER_QUAL_MEMBER_ID) || null;
+}
+function currentHydrovacPermit() {
+  return HYDROVAC_PERMITS_CACHE.find((row) => row.id === ACTIVE_PERMIT_ID) || null;
+}
+function currentHydrovacAsset() {
+  return HYDROVAC_ASSETS_CACHE.find((row) => row.id === ACTIVE_ASSET_ID) || null;
+}
+function hydrovacSeverityRank(severity = "") {
+  const normalized = String(severity || "").trim().toLowerCase();
+  if (normalized === "expired") return 3;
+  if (normalized === "critical") return 2;
+  if (normalized === "warning") return 1;
+  return 0;
+}
+function teamMemberLabel(member) {
+  return member?.display_name || member?.name || member?.email || member?.id || "Crew member";
+}
+function driverStatusTone(warnings = []) {
+  const highest = (warnings || []).reduce((max, warning) => Math.max(max, hydrovacSeverityRank(warning?.severity)), 0);
+  if (highest >= 3) return "pill-bad";
+  if (highest >= 2) return "pill-warn";
+  if (highest >= 1) return "pill";
+  return "pill-on";
+}
+function hydrovacJobSortDate(job) {
+  return String(job?.scheduled_date || job?.created_at || "").trim();
+}
 function clearHydrovacFacilityForm() {
   ACTIVE_FACILITY_ID = null;
   if (hydrovacFacilityId) hydrovacFacilityId.value = "";
@@ -6472,7 +6544,7 @@ async function fetchHydrovacLocateTickets() {
   return HYDROVAC_LOCATE_TICKETS_CACHE;
 }
 async function fetchHydrovacComplianceData() {
-  const [equipmentData, driverData, locateData, manifestData, analyticsData, facilitiesData, locateBoardData] = await Promise.all([
+  const [equipmentData, driverData, locateData, manifestData, analyticsData, facilitiesData, locateBoardData, permitData, assetData] = await Promise.all([
     requestOperatorFunction("manage-equipment", { query: "action=compliance_summary" }),
     requestOperatorFunction("manage-driver-qualifications", { query: "action=compliance_summary" }),
     requestOperatorFunction("manage-locate-tickets", { query: "status=active&days_until_expiry=30&limit=100" }),
@@ -6480,16 +6552,202 @@ async function fetchHydrovacComplianceData() {
     requestOperatorFunction("get-hydrovac-analytics", { query: "days=90" }),
     requestOperatorFunction("manage-disposal-facilities"),
     requestOperatorFunction("manage-locate-tickets", { query: "limit=100" }),
+    requestOperatorFunction("manage-confined-space-permits", { query: "limit=100" }),
+    requestOperatorFunction("manage-infrastructure-assets"),
   ]);
   HYDROVAC_EQUIPMENT_COMPLIANCE_CACHE = Array.isArray(equipmentData?.equipment) ? equipmentData.equipment : [];
   HYDROVAC_DRIVER_COMPLIANCE_CACHE = Array.isArray(driverData?.drivers) ? driverData.drivers : [];
   HYDROVAC_ANALYTICS_CACHE = analyticsData?.analytics || null;
   HYDROVAC_FACILITIES_CACHE = Array.isArray(facilitiesData?.facilities) ? facilitiesData.facilities : HYDROVAC_FACILITIES_CACHE;
   HYDROVAC_LOCATE_TICKETS_CACHE = Array.isArray(locateBoardData?.tickets) ? locateBoardData.tickets : HYDROVAC_LOCATE_TICKETS_CACHE;
+  HYDROVAC_PERMITS_CACHE = Array.isArray(permitData?.permits) ? permitData.permits : HYDROVAC_PERMITS_CACHE;
+  HYDROVAC_ASSETS_CACHE = Array.isArray(assetData?.assets) ? assetData.assets : HYDROVAC_ASSETS_CACHE;
   renderHydrovacCompliance(
     Array.isArray(locateData?.tickets) ? locateData.tickets : [],
     Array.isArray(manifestData?.manifests) ? manifestData.manifests : [],
   );
+}
+async function fetchHydrovacDriverQualifications() {
+  const driverData = await requestOperatorFunction("manage-driver-qualifications", { query: "action=compliance_summary" });
+  HYDROVAC_DRIVER_COMPLIANCE_CACHE = Array.isArray(driverData?.drivers) ? driverData.drivers : [];
+  renderHydrovacDriverWorkspace();
+  return HYDROVAC_DRIVER_COMPLIANCE_CACHE;
+}
+async function fetchHydrovacPermits() {
+  const permitData = await requestOperatorFunction("manage-confined-space-permits", { query: "limit=100" });
+  HYDROVAC_PERMITS_CACHE = Array.isArray(permitData?.permits) ? permitData.permits : [];
+  if (!ACTIVE_PERMIT_ID && HYDROVAC_PERMITS_CACHE[0]) ACTIVE_PERMIT_ID = HYDROVAC_PERMITS_CACHE[0].id;
+  renderHydrovacPermitsWorkspace();
+  return HYDROVAC_PERMITS_CACHE;
+}
+async function fetchHydrovacAssets() {
+  const assetData = await requestOperatorFunction("manage-infrastructure-assets");
+  HYDROVAC_ASSETS_CACHE = Array.isArray(assetData?.assets) ? assetData.assets : [];
+  if (!ACTIVE_ASSET_ID && HYDROVAC_ASSETS_CACHE[0]) ACTIVE_ASSET_ID = HYDROVAC_ASSETS_CACHE[0].id;
+  renderHydrovacAssetsWorkspace();
+  return HYDROVAC_ASSETS_CACHE;
+}
+function renderHydrovacDriverWorkspace() {
+  if (!driverQualificationsList || !driverQualificationDetail) return;
+  const members = Array.isArray(TEAM_MEMBERS_CACHE) ? TEAM_MEMBERS_CACHE : [];
+  const driverRows = members.map((member) => {
+    const qualification = HYDROVAC_DRIVER_COMPLIANCE_CACHE.find((row) => row.member_id === member.id) || null;
+    return { member, qualification, warnings: qualification?.warnings || [] };
+  });
+  const critical = driverRows.filter((row) => row.warnings.some((warning) => ["critical", "expired"].includes(String(warning.severity || "").toLowerCase()))).length;
+  const missing = driverRows.filter((row) => !row.qualification).length;
+  const ready = driverRows.filter((row) => row.qualification && !(row.warnings || []).length).length;
+  if (driverStageStrip) {
+    driverStageStrip.innerHTML = [
+      { eyebrow: "Roster", value: driverRows.length, title: "Crew records", copy: "Team members the office can dispatch or track against work." },
+      { eyebrow: "Ready", value: ready, title: "Driver-ready", copy: "People with qualification records and no current expiry pressure." },
+      { eyebrow: "Watch", value: critical, title: "Compliance pressure", copy: "Drivers with expiring or expired documents." },
+      { eyebrow: "Missing", value: missing, title: "Needs setup", copy: "Crew records still missing a qualification profile." },
+    ].map((stage) => `
+      <div class="pipeline-stage-card is-active">
+        <div class="pipeline-stage-card__eyebrow">${escapeHtml(stage.eyebrow)}</div>
+        <div class="pipeline-stage-card__value">${escapeHtml(String(stage.value))}</div>
+        <div class="pipeline-stage-card__title">${escapeHtml(stage.title)}</div>
+        <div class="pipeline-stage-card__copy">${escapeHtml(stage.copy)}</div>
+      </div>
+    `).join("");
+  }
+  if (driverActionBar) {
+    driverActionBar.innerHTML = `
+      <button type="button" class="pipeline-action-chip" data-driver-action="invite">Invite member</button>
+      <button type="button" class="pipeline-action-chip" data-driver-action="calendar">Open calendar</button>
+      <button type="button" class="pipeline-action-chip" data-driver-action="compliance">Open compliance</button>
+      <button type="button" class="pipeline-action-chip" data-driver-action="jobs">Open jobs</button>
+    `;
+    driverActionBar.querySelectorAll("[data-driver-action]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const action = button.getAttribute("data-driver-action");
+        if (action === "invite") return openInviteTeamMemberModal();
+        if (action === "calendar") return switchTab("bookings");
+        if (action === "compliance") return switchTab("compliance");
+        if (action === "jobs") return switchTab("jobs");
+      });
+    });
+  }
+  if (!driverRows.length) {
+    driverQualificationsList.innerHTML = `<div class="muted">No team members yet. Invite the first crew member so you can track driver docs and dispatch readiness.</div>`;
+    driverQualificationDetail.innerHTML = `<div class="muted">The driver qualification form will appear once at least one team member exists.</div>`;
+    return;
+  }
+  if (!ACTIVE_DRIVER_QUAL_MEMBER_ID || !driverRows.some((row) => row.member.id === ACTIVE_DRIVER_QUAL_MEMBER_ID)) ACTIVE_DRIVER_QUAL_MEMBER_ID = driverRows[0].member.id;
+  driverQualificationsList.innerHTML = driverRows.map((row) => `
+    <button type="button" class="list-item ${row.member.id === ACTIVE_DRIVER_QUAL_MEMBER_ID ? "is-active" : ""}" data-driver-member-id="${escapeAttr(row.member.id)}">
+      <div class="li-main">
+        <div class="li-title">${escapeHtml(teamMemberLabel(row.member))}</div>
+        <div class="li-sub muted">${escapeHtml(row.member.role || row.member.role_title || "Crew member")}</div>
+      </div>
+      <div class="li-meta">
+        <span class="pill ${driverStatusTone(row.warnings)}">${row.qualification ? escapeHtml(row.warnings.length ? `${row.warnings.length} warning${row.warnings.length === 1 ? "" : "s"}` : "Ready") : "Needs setup"}</span>
+      </div>
+    </button>
+  `).join("");
+  driverQualificationsList.querySelectorAll("[data-driver-member-id]").forEach((button) => {
+    button.addEventListener("click", () => {
+      ACTIVE_DRIVER_QUAL_MEMBER_ID = button.getAttribute("data-driver-member-id") || null;
+      renderHydrovacDriverWorkspace();
+    });
+  });
+  const activeRow = driverRows.find((row) => row.member.id === ACTIVE_DRIVER_QUAL_MEMBER_ID) || driverRows[0];
+  const qualification = activeRow?.qualification || null;
+  const warnings = qualification?.warnings || [];
+  driverQualificationDetail.innerHTML = `
+    <div class="detail-card">
+      <div class="detail-card__header">
+        <strong>${escapeHtml(teamMemberLabel(activeRow.member))}</strong>
+        <span class="pill ${driverStatusTone(warnings)}">${qualification ? escapeHtml(warnings.length ? "Needs attention" : "Dispatch-ready") : "New record"}</span>
+      </div>
+      <div class="detail-grid">
+        <label>CDL number
+          <input id="driverCdlNumber" value="${escapeAttr(qualification?.cdl_number || "")}" placeholder="License number" />
+        </label>
+        <label>CDL class
+          <select id="driverCdlClass">
+            <option value="">Select</option>
+            <option value="A"${qualification?.cdl_class === "A" ? " selected" : ""}>Class A</option>
+            <option value="B"${qualification?.cdl_class === "B" ? " selected" : ""}>Class B</option>
+            <option value="C"${qualification?.cdl_class === "C" ? " selected" : ""}>Class C</option>
+          </select>
+        </label>
+        <label>CDL expiry
+          <input id="driverCdlExpiry" type="date" value="${escapeAttr(qualification?.cdl_expiry_date || "")}" />
+        </label>
+        <label>Medical card expiry
+          <input id="driverMedicalExpiry" type="date" value="${escapeAttr(qualification?.medical_certificate_expiry || "")}" />
+        </label>
+        <label>HOS available (minutes)
+          <input id="driverHosMinutes" type="number" min="0" step="1" value="${escapeAttr(qualification?.hos_available_driving_minutes ?? "")}" />
+        </label>
+        <label>MVR status
+          <select id="driverMvrStatus">
+            <option value="">Not set</option>
+            <option value="clear"${qualification?.mvr_status === "clear" ? " selected" : ""}>Clear</option>
+            <option value="violations"${qualification?.mvr_status === "violations" ? " selected" : ""}>Violations</option>
+            <option value="disqualified"${qualification?.mvr_status === "disqualified" ? " selected" : ""}>Disqualified</option>
+          </select>
+        </label>
+        <label><input id="driverHazmatCertified" type="checkbox"${qualification?.hazmat_certified ? " checked" : ""} /> Hazmat certified</label>
+        <label>Hazmat expiry
+          <input id="driverHazmatExpiry" type="date" value="${escapeAttr(qualification?.hazmat_cert_expiry_date || "")}" />
+        </label>
+        <label><input id="driverConfinedCertified" type="checkbox"${qualification?.confined_space_certified ? " checked" : ""} /> Confined-space certified</label>
+        <label>Confined-space expiry
+          <input id="driverConfinedExpiry" type="date" value="${escapeAttr(qualification?.confined_space_cert_expiry_date || "")}" />
+        </label>
+        <label><input id="driverH2sCertified" type="checkbox"${qualification?.h2s_alive_certified ? " checked" : ""} /> H2S certified</label>
+        <label>H2S expiry
+          <input id="driverH2sExpiry" type="date" value="${escapeAttr(qualification?.h2s_cert_expiry_date || "")}" />
+        </label>
+      </div>
+      ${warnings.length ? `<div class="detail-copy" style="margin-top:12px;">${warnings.map((warning) => `${titleCaseWords(String(warning.field || "").replace(/_/g, " "))}: ${warning.expiry_date || "No date"}`).join(" | ")}</div>` : `<div class="detail-copy" style="margin-top:12px;">No compliance warnings are showing for this driver record right now.</div>`}
+      <label style="margin-top:12px;">Notes
+        <textarea id="driverQualificationNotes" rows="3" placeholder="CDL notes, med card follow-up, consortium details, or dispatch notes.">${escapeHtml(qualification?.notes || "")}</textarea>
+      </label>
+      <div class="row" style="margin-top:12px;">
+        <button id="btnSaveDriverQualification" class="btn btn-primary" type="button">${qualification ? "Save driver record" : "Create driver record"}</button>
+        <button id="btnOpenDriverCalendar" class="btn btn-ghost" type="button">Open calendar</button>
+        <button id="btnOpenDriverCompliance" class="btn btn-ghost" type="button">Open compliance</button>
+      </div>
+      <div id="driverQualificationMsg" class="msg"></div>
+    </div>
+  `;
+  $("btnOpenDriverCalendar")?.addEventListener("click", () => switchTab("bookings"));
+  $("btnOpenDriverCompliance")?.addEventListener("click", () => switchTab("compliance"));
+  $("btnSaveDriverQualification")?.addEventListener("click", async () => {
+    const payload = {
+      member_id: activeRow.member.id,
+      cdl_number: $("driverCdlNumber")?.value || null,
+      cdl_class: $("driverCdlClass")?.value || null,
+      cdl_expiry_date: $("driverCdlExpiry")?.value || null,
+      medical_certificate_expiry: $("driverMedicalExpiry")?.value || null,
+      hos_available_driving_minutes: $("driverHosMinutes")?.value || null,
+      mvr_status: $("driverMvrStatus")?.value || null,
+      hazmat_certified: $("driverHazmatCertified")?.checked || false,
+      hazmat_cert_expiry_date: $("driverHazmatExpiry")?.value || null,
+      confined_space_certified: $("driverConfinedCertified")?.checked || false,
+      confined_space_cert_expiry_date: $("driverConfinedExpiry")?.value || null,
+      h2s_alive_certified: $("driverH2sCertified")?.checked || false,
+      h2s_cert_expiry_date: $("driverH2sExpiry")?.value || null,
+      notes: $("driverQualificationNotes")?.value || null,
+    };
+    if (qualification?.id) payload.id = qualification.id;
+    setInlineMessage($("driverQualificationMsg"), "Saving...");
+    try {
+      await requestOperatorFunction("manage-driver-qualifications", {
+        method: qualification?.id ? "PATCH" : "POST",
+        body: payload,
+      });
+      await fetchHydrovacDriverQualifications();
+      if (TABS_LOADED.has("compliance")) await fetchHydrovacComplianceData();
+      setInlineMessage($("driverQualificationMsg"), "Driver record saved.", "ok");
+    } catch (error) {
+      setInlineMessage($("driverQualificationMsg"), error.message || String(error), "error");
+    }
+  });
 }
 function renderHydrovacFacilities() {
   if (!hydrovacFacilitiesList) return;
@@ -6860,6 +7118,340 @@ function renderHydrovacCompliance(expiringTickets = [], unbilledManifests = []) 
       <div class="li-meta"><span class="pill">${escapeHtml(String((HYDROVAC_LOCATE_TICKETS_CACHE || []).filter((row) => ["active", "extended"].includes(String(row.status || "").toLowerCase())).length))}</span></div>
     </div>
   `;
+  renderHydrovacPermitsWorkspace();
+  renderHydrovacAssetsWorkspace();
+}
+
+function renderHydrovacPermitsWorkspace() {
+  if (!hydrovacPermitList || !hydrovacPermitDetail) return;
+  const rows = Array.isArray(HYDROVAC_PERMITS_CACHE) ? HYDROVAC_PERMITS_CACHE : [];
+  if (!ACTIVE_PERMIT_ID && rows[0]) ACTIVE_PERMIT_ID = rows[0].id;
+  if (ACTIVE_PERMIT_ID && rows.length && !rows.some((row) => row.id === ACTIVE_PERMIT_ID)) ACTIVE_PERMIT_ID = rows[0].id;
+  const openCount = rows.filter((row) => String(row.status || "").toLowerCase() === "open").length;
+  const expiredCount = rows.filter((row) => {
+    const days = daysUntil(row.permit_valid_until);
+    return days != null && days < 0 && String(row.status || "").toLowerCase() === "open";
+  }).length;
+  const needsReading = rows.filter((row) => !Array.isArray(row.atmospheric_readings) || !row.atmospheric_readings.length).length;
+  if (permitStageStrip) {
+    permitStageStrip.innerHTML = [
+      { eyebrow: "Open", value: openCount, title: "Active permits", copy: "Permit-required entries still open in the field." },
+      { eyebrow: "Risk", value: expiredCount, title: "Expired", copy: "Open permits past their valid-until window." },
+      { eyebrow: "Readings", value: needsReading, title: "Atmosphere missing", copy: "Permits that still need a full atmosphere reading logged." },
+    ].map((stage) => `
+      <div class="pipeline-stage-card is-active">
+        <div class="pipeline-stage-card__eyebrow">${escapeHtml(stage.eyebrow)}</div>
+        <div class="pipeline-stage-card__value">${escapeHtml(String(stage.value))}</div>
+        <div class="pipeline-stage-card__title">${escapeHtml(stage.title)}</div>
+        <div class="pipeline-stage-card__copy">${escapeHtml(stage.copy)}</div>
+      </div>
+    `).join("");
+  }
+  if (permitActionBar) {
+    permitActionBar.innerHTML = `
+      <button type="button" class="pipeline-action-chip" data-permit-action="new">New permit</button>
+      <button type="button" class="pipeline-action-chip" data-permit-action="jobs">Open jobs</button>
+      <button type="button" class="pipeline-action-chip" data-permit-action="refresh">Refresh</button>
+    `;
+    permitActionBar.querySelectorAll("[data-permit-action]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const action = button.getAttribute("data-permit-action");
+        if (action === "new") {
+          ACTIVE_PERMIT_ID = null;
+          renderHydrovacPermitsWorkspace();
+          return;
+        }
+        if (action === "jobs") return switchTab("jobs");
+        if (action === "refresh") return fetchHydrovacPermits().catch(console.error);
+      });
+    });
+  }
+  hydrovacPermitList.innerHTML = rows.length ? rows.map((row) => `
+    <button type="button" class="list-item ${row.id === ACTIVE_PERMIT_ID ? "is-active" : ""}" data-permit-id="${escapeAttr(row.id)}">
+      <div class="li-main">
+        <div class="li-title">${escapeHtml(row.permit_number || row.space_description || "Permit")}</div>
+        <div class="li-sub muted">${escapeHtml(row.space_description || "Space description missing")}</div>
+      </div>
+      <div class="li-meta">
+        <span class="pill ${String(row.status || "").toLowerCase() === "open" ? "pill-warn" : "pill-on"}">${escapeHtml(titleCaseWords(String(row.status || "open").replace(/_/g, " ")))}</span>
+      </div>
+    </button>
+  `).join("") : `<div class="muted">No confined-space permits logged yet.</div>`;
+  hydrovacPermitList.querySelectorAll("[data-permit-id]").forEach((button) => {
+    button.addEventListener("click", () => {
+      ACTIVE_PERMIT_ID = button.getAttribute("data-permit-id") || null;
+      renderHydrovacPermitsWorkspace();
+    });
+  });
+  const active = currentHydrovacPermit();
+  const reading = Array.isArray(active?.atmospheric_readings) && active.atmospheric_readings.length ? active.atmospheric_readings[active.atmospheric_readings.length - 1] : {};
+  hydrovacPermitDetail.innerHTML = `
+    <div class="detail-card">
+      <div class="detail-card__header">
+        <strong>${escapeHtml(active?.permit_number || "New permit")}</strong>
+        <span class="pill ${active ? hydrovacManifestToneClass(active.status) : "pill"}">${escapeHtml(titleCaseWords(String(active?.status || "draft").replace(/_/g, " ")))}</span>
+      </div>
+      <div class="detail-grid">
+        <label>Job
+          <select id="permitJobId">
+            <option value="">Select job</option>
+            ${(JOBS_CACHE || []).filter((job) => isHydrovacJob(job)).map((job) => `<option value="${escapeAttr(job.id)}"${job.id === active?.job_id ? " selected" : ""}>${escapeHtml(job.title || "Untitled job")}</option>`).join("")}
+          </select>
+        </label>
+        <label>Space description
+          <input id="permitSpaceDescription" value="${escapeAttr(active?.space_description || "")}" placeholder="Wet well, manhole, tank, or vault" />
+        </label>
+        <label>Supervisor
+          <input id="permitSupervisor" value="${escapeAttr(active?.entry_supervisor_name || "")}" placeholder="Entry supervisor" />
+        </label>
+        <label>Attendant
+          <input id="permitAttendant" value="${escapeAttr(active?.attendant_name || "")}" placeholder="Attendant" />
+        </label>
+        <label>Valid until
+          <input id="permitValidUntil" type="datetime-local" value="${escapeAttr(hydrovacDateTimeInputValue(active?.permit_valid_until))}" />
+        </label>
+        <label>Status
+          <select id="permitStatusSelect">
+            <option value="open"${String(active?.status || "").toLowerCase() === "open" ? " selected" : ""}>Open</option>
+            <option value="closed"${String(active?.status || "").toLowerCase() === "closed" ? " selected" : ""}>Closed</option>
+            <option value="cancelled"${String(active?.status || "").toLowerCase() === "cancelled" ? " selected" : ""}>Cancelled</option>
+          </select>
+        </label>
+        <label>O2 %
+          <input id="permitOxygen" type="number" step="0.1" value="${escapeAttr(reading?.oxygen_pct ?? "")}" />
+        </label>
+        <label>LEL %
+          <input id="permitLel" type="number" step="0.1" value="${escapeAttr(reading?.lel_pct ?? "")}" />
+        </label>
+        <label>H2S ppm
+          <input id="permitH2s" type="number" step="0.1" value="${escapeAttr(reading?.h2s_ppm ?? "")}" />
+        </label>
+        <label>CO ppm
+          <input id="permitCo" type="number" step="0.1" value="${escapeAttr(reading?.co_ppm ?? "")}" />
+        </label>
+      </div>
+      <label style="margin-top:12px;">Known hazards
+        <input id="permitHazards" value="${escapeAttr(Array.isArray(active?.known_hazards) ? active.known_hazards.join(", ") : "")}" placeholder="h2s, engulfment, electrical" />
+      </label>
+      <label style="margin-top:12px;">Rescue procedure
+        <textarea id="permitRescueProcedure" rows="2" placeholder="How rescue is staged for this entry.">${escapeHtml(active?.rescue_procedure || "")}</textarea>
+      </label>
+      <div class="row" style="margin-top:12px;">
+        <button id="btnSavePermit" class="btn btn-primary" type="button">${active ? "Save permit" : "Create permit"}</button>
+        ${active?.job_id ? `<button id="btnOpenPermitJob" class="btn btn-ghost" type="button">Open job</button>` : ""}
+      </div>
+      <div id="permitMsg" class="msg"></div>
+    </div>
+  `;
+  $("btnOpenPermitJob")?.addEventListener("click", () => {
+    if (!active?.job_id) return;
+    ACTIVE_JOB_ID = active.job_id;
+    switchTab("jobs");
+  });
+  $("btnSavePermit")?.addEventListener("click", async () => {
+    const oxygen = Number($("permitOxygen")?.value || "");
+    const lel = Number($("permitLel")?.value || "");
+    const h2s = Number($("permitH2s")?.value || "");
+    const co = Number($("permitCo")?.value || "");
+    const readingPayload = [oxygen, lel, h2s, co].some((value) => Number.isFinite(value)) ? [{
+      tested_at: new Date().toISOString(),
+      oxygen_pct: Number.isFinite(oxygen) ? oxygen : null,
+      lel_pct: Number.isFinite(lel) ? lel : null,
+      h2s_ppm: Number.isFinite(h2s) ? h2s : null,
+      co_ppm: Number.isFinite(co) ? co : null,
+      tester_name: CURRENT_OPERATOR?.name || "",
+      monitor_serial: null,
+    }] : (Array.isArray(active?.atmospheric_readings) ? active.atmospheric_readings : []);
+    const oxygenOk = readingPayload.length ? (Number.isFinite(oxygen) ? (oxygen >= 19.5 && oxygen <= 23.5) : active?.oxygen_acceptable !== false) : true;
+    const lelOk = readingPayload.length ? (Number.isFinite(lel) ? lel < 10 : active?.lel_acceptable !== false) : true;
+    const h2sOk = readingPayload.length ? (Number.isFinite(h2s) ? h2s < 10 : active?.h2s_acceptable !== false) : true;
+    const coOk = readingPayload.length ? (Number.isFinite(co) ? co < 35 : active?.co_acceptable !== false) : true;
+    const payload = {
+      job_id: $("permitJobId")?.value || null,
+      space_description: $("permitSpaceDescription")?.value || "",
+      entry_supervisor_name: $("permitSupervisor")?.value || null,
+      attendant_name: $("permitAttendant")?.value || null,
+      permit_valid_until: $("permitValidUntil")?.value ? new Date($("permitValidUntil").value).toISOString() : null,
+      known_hazards: String($("permitHazards")?.value || "").split(",").map((part) => part.trim()).filter(Boolean),
+      rescue_procedure: $("permitRescueProcedure")?.value || null,
+      atmospheric_readings: readingPayload,
+      oxygen_acceptable: oxygenOk,
+      lel_acceptable: lelOk,
+      h2s_acceptable: h2sOk,
+      co_acceptable: coOk,
+      status: $("permitStatusSelect")?.value || "open",
+    };
+    if (active?.id) payload.id = active.id;
+    setInlineMessage($("permitMsg"), "Saving...");
+    try {
+      await requestOperatorFunction("manage-confined-space-permits", {
+        method: active?.id ? "PATCH" : "POST",
+        body: payload,
+      });
+      await fetchHydrovacPermits();
+      if (TABS_LOADED.has("compliance")) await fetchHydrovacComplianceData();
+      setInlineMessage($("permitMsg"), "Permit saved.", "ok");
+    } catch (error) {
+      setInlineMessage($("permitMsg"), error.message || String(error), "error");
+    }
+  });
+}
+
+function renderHydrovacAssetsWorkspace() {
+  if (!hydrovacAssetList || !hydrovacAssetDetail) return;
+  const rows = Array.isArray(HYDROVAC_ASSETS_CACHE) ? HYDROVAC_ASSETS_CACHE : [];
+  if (!ACTIVE_ASSET_ID && rows[0]) ACTIVE_ASSET_ID = rows[0].id;
+  if (ACTIVE_ASSET_ID && rows.length && !rows.some((row) => row.id === ACTIVE_ASSET_ID)) ACTIVE_ASSET_ID = rows[0].id;
+  const dueSoon = rows.filter((row) => {
+    const days = daysUntil(row.next_service_due_date);
+    return days != null && days >= 0 && days <= 14 && String(row.status || "").toLowerCase() !== "decommissioned";
+  }).length;
+  const withDefects = rows.filter((row) => row.has_defects === true).length;
+  const activeRows = rows.filter((row) => String(row.status || "").toLowerCase() === "active").length;
+  if (assetStageStrip) {
+    assetStageStrip.innerHTML = [
+      { eyebrow: "Live", value: activeRows, title: "Active assets", copy: "Catch basins, manholes, tanks, and structures still in service." },
+      { eyebrow: "Due", value: dueSoon, title: "Needs service soon", copy: "Assets with maintenance due in the next two weeks." },
+      { eyebrow: "Watch", value: withDefects, title: "Defects flagged", copy: "Assets carrying condition or defect notes." },
+    ].map((stage) => `
+      <div class="pipeline-stage-card is-active">
+        <div class="pipeline-stage-card__eyebrow">${escapeHtml(stage.eyebrow)}</div>
+        <div class="pipeline-stage-card__value">${escapeHtml(String(stage.value))}</div>
+        <div class="pipeline-stage-card__title">${escapeHtml(stage.title)}</div>
+        <div class="pipeline-stage-card__copy">${escapeHtml(stage.copy)}</div>
+      </div>
+    `).join("");
+  }
+  if (assetActionBar) {
+    assetActionBar.innerHTML = `
+      <button type="button" class="pipeline-action-chip" data-asset-action="new">New asset</button>
+      <button type="button" class="pipeline-action-chip" data-asset-action="customers">Open customers</button>
+      <button type="button" class="pipeline-action-chip" data-asset-action="calendar">Open calendar</button>
+    `;
+    assetActionBar.querySelectorAll("[data-asset-action]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const action = button.getAttribute("data-asset-action");
+        if (action === "new") {
+          ACTIVE_ASSET_ID = null;
+          renderHydrovacAssetsWorkspace();
+          return;
+        }
+        if (action === "customers") return switchTab("customers");
+        if (action === "calendar") return switchTab("bookings");
+      });
+    });
+  }
+  hydrovacAssetList.innerHTML = rows.length ? rows.map((row) => `
+    <button type="button" class="list-item ${row.id === ACTIVE_ASSET_ID ? "is-active" : ""}" data-asset-id="${escapeAttr(row.id)}">
+      <div class="li-main">
+        <div class="li-title">${escapeHtml(row.asset_name || row.external_asset_id || titleCaseWords(String(row.asset_type || "asset").replace(/_/g, " ")))}</div>
+        <div class="li-sub muted">${escapeHtml(row.address || row.location_description || "Address not set")}</div>
+      </div>
+      <div class="li-meta">
+        <span class="pill ${row.has_defects ? "pill-warn" : "pill-on"}">${row.has_defects ? "Defects" : escapeHtml(titleCaseWords(String(row.status || "active")))}</span>
+      </div>
+    </button>
+  `).join("") : `<div class="muted">No infrastructure assets saved yet.</div>`;
+  hydrovacAssetList.querySelectorAll("[data-asset-id]").forEach((button) => {
+    button.addEventListener("click", () => {
+      ACTIVE_ASSET_ID = button.getAttribute("data-asset-id") || null;
+      renderHydrovacAssetsWorkspace();
+    });
+  });
+  const active = currentHydrovacAsset();
+  hydrovacAssetDetail.innerHTML = `
+    <div class="detail-card">
+      <div class="detail-card__header">
+        <strong>${escapeHtml(active?.asset_name || "New asset")}</strong>
+        <span class="pill ${active?.has_defects ? "pill-warn" : "pill-on"}">${escapeHtml(titleCaseWords(String(active?.status || "active").replace(/_/g, " ")))}</span>
+      </div>
+      <div class="detail-grid">
+        <label>Customer
+          <select id="assetCustomerId">
+            <option value="">Optional</option>
+            ${(CUSTOMERS_CACHE || []).map((customer) => `<option value="${escapeAttr(customer.id)}"${customer.id === active?.customer_id ? " selected" : ""}>${escapeHtml(customer.name || customer.email || "Customer")}</option>`).join("")}
+          </select>
+        </label>
+        <label>Asset type
+          <select id="assetType">
+            ${["catch_basin","manhole","lift_station","wet_well","storm_drain","grease_trap","industrial_tank","vault","sump","pipe_segment","other"].map((type) => `<option value="${type}"${type === (active?.asset_type || "catch_basin") ? " selected" : ""}>${escapeHtml(titleCaseWords(type.replace(/_/g, " ")))}</option>`).join("")}
+          </select>
+        </label>
+        <label>Asset name
+          <input id="assetName" value="${escapeAttr(active?.asset_name || "")}" placeholder="CB-047 / Main & Oak NW" />
+        </label>
+        <label>External asset ID
+          <input id="assetExternalId" value="${escapeAttr(active?.external_asset_id || "")}" placeholder="Customer or GIS asset ID" />
+        </label>
+        <label>Address
+          <input id="assetAddress" value="${escapeAttr(active?.address || "")}" placeholder="Asset location" />
+        </label>
+        <label>Service frequency (days)
+          <input id="assetServiceFrequency" type="number" min="0" step="1" value="${escapeAttr(active?.service_frequency_days ?? "")}" />
+        </label>
+        <label>Next due date
+          <input id="assetNextDueDate" type="date" value="${escapeAttr(active?.next_service_due_date || "")}" />
+        </label>
+        <label>Condition
+          <select id="assetConditionRating">
+            <option value="">Not set</option>
+            <option value="good"${active?.last_condition_rating === "good" ? " selected" : ""}>Good</option>
+            <option value="fair"${active?.last_condition_rating === "fair" ? " selected" : ""}>Fair</option>
+            <option value="poor"${active?.last_condition_rating === "poor" ? " selected" : ""}>Poor</option>
+            <option value="critical"${active?.last_condition_rating === "critical" ? " selected" : ""}>Critical</option>
+          </select>
+        </label>
+      </div>
+      <label style="margin-top:12px;"><input id="assetHasDefects" type="checkbox"${active?.has_defects ? " checked" : ""} /> Defects present</label>
+      <label style="margin-top:12px;">Defect codes
+        <input id="assetDefectCodes" value="${escapeAttr(Array.isArray(active?.defect_codes) ? active.defect_codes.join(", ") : "")}" placeholder="Broken frame, collapsed wall, heavy sediment" />
+      </label>
+      <label style="margin-top:12px;">Notes
+        <textarea id="assetNotes" rows="3" placeholder="Condition notes, site access, or municipal context.">${escapeHtml(active?.notes || "")}</textarea>
+      </label>
+      <div class="detail-copy" style="margin-top:12px;">Service count: ${escapeHtml(String(active?.service_count_total || 0))} total • Last serviced ${escapeHtml(active?.last_service_date || "Not yet recorded")}</div>
+      <div class="row" style="margin-top:12px;">
+        <button id="btnSaveAsset" class="btn btn-primary" type="button">${active ? "Save asset" : "Create asset"}</button>
+        ${active?.customer_id ? `<button id="btnOpenAssetCustomer" class="btn btn-ghost" type="button">Open customer</button>` : ""}
+      </div>
+      <div id="assetMsg" class="msg"></div>
+    </div>
+  `;
+  $("btnOpenAssetCustomer")?.addEventListener("click", () => {
+    if (!active?.customer_id) return;
+    ACTIVE_CUSTOMER_ID = active.customer_id;
+    CUSTOMER_CREATING = false;
+    switchTab("customers");
+  });
+  $("btnSaveAsset")?.addEventListener("click", async () => {
+    const payload = {
+      customer_id: $("assetCustomerId")?.value || null,
+      asset_type: $("assetType")?.value || "catch_basin",
+      asset_name: $("assetName")?.value || null,
+      external_asset_id: $("assetExternalId")?.value || null,
+      address: $("assetAddress")?.value || null,
+      service_frequency_days: $("assetServiceFrequency")?.value || null,
+      next_service_due_date: $("assetNextDueDate")?.value || null,
+      last_condition_rating: $("assetConditionRating")?.value || null,
+      has_defects: $("assetHasDefects")?.checked || false,
+      defect_codes: String($("assetDefectCodes")?.value || "").split(",").map((part) => part.trim()).filter(Boolean),
+      notes: $("assetNotes")?.value || null,
+      status: active?.status || "active",
+    };
+    if (active?.id) payload.id = active.id;
+    setInlineMessage($("assetMsg"), "Saving...");
+    try {
+      await requestOperatorFunction("manage-infrastructure-assets", {
+        method: active?.id ? "PATCH" : "POST",
+        body: payload,
+      });
+      await fetchHydrovacAssets();
+      if (TABS_LOADED.has("compliance")) await fetchHydrovacComplianceData();
+      setInlineMessage($("assetMsg"), "Asset saved.", "ok");
+    } catch (error) {
+      setInlineMessage($("assetMsg"), error.message || String(error), "error");
+    }
+  });
 }
 
 btnRefreshFacilities?.addEventListener("click", () => fetchHydrovacFacilities().catch(console.error));
@@ -6948,6 +7540,52 @@ hydrovacLocateForm?.addEventListener("submit", async (event) => {
   }
 });
 btnRefreshCompliance?.addEventListener("click", () => fetchHydrovacComplianceData().catch(console.error));
+btnRefreshDispatchBoard?.addEventListener("click", async () => {
+  await Promise.all([fetchJobs(), fetchEquipment(), fetchHydrovacLocateTickets()]);
+  renderDispatchWorkspace();
+});
+dispatchDate?.addEventListener("change", () => renderDispatchWorkspace());
+hydrovacInvoiceJobSelect?.addEventListener("change", () => {
+  ACTIVE_JOB_ID = hydrovacInvoiceJobSelect.value || null;
+  renderHydrovacInvoiceWorkbench();
+});
+btnPreviewHydrovacInvoice?.addEventListener("click", async () => {
+  const jobId = hydrovacInvoiceJobSelect?.value || "";
+  if (!jobId) {
+    setInlineMessage(hydrovacInvoiceMsg, "Choose a hydrovac job first.", "error");
+    return;
+  }
+  ACTIVE_JOB_ID = jobId;
+  setInlineMessage(hydrovacInvoiceMsg, "Refreshing draft...");
+  try {
+    const result = await postOperatorFunction("generate-hydrovac-invoice", { job_id: jobId });
+    const lines = Array.isArray(result?.line_items) ? result.line_items : [];
+    hydrovacInvoicePreview.innerHTML = lines.length ? `
+      <div class="table" style="margin-top:10px;">
+        <div class="tr th">
+          <div>Description</div>
+          <div class="right">Amount</div>
+        </div>
+        ${lines.map((item) => `
+          <div class="tr">
+            <div>
+              <div><strong>${escapeHtml(item.name || "Line item")}</strong></div>
+              <div class="muted" style="margin-top:4px;">${escapeHtml(item.description || item.kind || "Hydrovac draft line")}</div>
+            </div>
+            <div class="right">${formatUsd(Number(item.total_cents || 0))}</div>
+          </div>
+        `).join("")}
+        <div class="tr">
+          <div><strong>Draft total</strong></div>
+          <div class="right"><strong>${formatUsd(Number(result?.total_cents || 0))}</strong></div>
+        </div>
+      </div>
+    ` : `<div class="muted">No draft line items were created for this job yet.</div>`;
+    setInlineMessage(hydrovacInvoiceMsg, "Draft refreshed on the linked order.", "ok");
+  } catch (error) {
+    setInlineMessage(hydrovacInvoiceMsg, error.message || String(error), "error");
+  }
+});
 
 let VENDORS_PANEL_LOADED = false;
 let TEAM_PANEL_LOADED = false;
@@ -6964,6 +7602,7 @@ function renderTeamPanel() {
   if (!el) return;
   if (!TEAM_MEMBERS_CACHE.length) {
     el.innerHTML = '<div class="muted" style="font-size:.85rem;">No team members yet. Invite your first crew member.</div><div style="margin-top:10px;"><button class="btn btn-primary btn-sm" onclick="openInviteTeamMemberModal()">+ Invite first member</button></div>';
+    renderHydrovacDriverWorkspace();
     return;
   }
   el.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:.85rem;">
@@ -6989,6 +7628,7 @@ function renderTeamPanel() {
   <div style="margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,.07);">
     <a href="/crew/" target="_blank" rel="noopener" style="font-size:.8rem;color:rgba(255,255,255,.45);text-decoration:none;display:inline-flex;align-items:center;gap:5px;transition:color .15s;" onmouseover="this.style.color='rgba(255,255,255,.75)'" onmouseout="this.style.color='rgba(255,255,255,.45)'">Open crew app &#8599;</a>
   </div>`;
+  renderHydrovacDriverWorkspace();
 }
 
 function openInviteTeamMemberModal() {
@@ -7565,6 +8205,163 @@ async function renderBookings() {
   if (linkEl && TENANT_ID) {
     linkEl.textContent = `${location.origin}/book.html?tenant=${TENANT_ID}`;
   }
+  renderDispatchWorkspace();
+}
+
+function renderDispatchWorkspace() {
+  if (!dispatchBoard || !dispatchDetail) return;
+  const targetDate = dispatchDate?.value || new Date().toISOString().slice(0, 10);
+  if (dispatchDate && !dispatchDate.value) dispatchDate.value = targetDate;
+  const hydrovacJobs = (JOBS_CACHE || [])
+    .filter((job) => isHydrovacJob(job) && hydrovacJobSortDate(job) === targetDate)
+    .sort((a, b) => String(a.scheduled_time || "").localeCompare(String(b.scheduled_time || "")));
+  const trucks = (EQUIPMENT_CACHE || []).filter((unit) => unit.is_active !== false);
+  const scheduled = hydrovacJobs.filter((job) => String(job.status || "").toLowerCase() === "scheduled").length;
+  const dispatched = hydrovacJobs.filter((job) => String(job.status || "").toLowerCase() === "dispatched").length;
+  const inProgress = hydrovacJobs.filter((job) => String(job.status || "").toLowerCase() === "in_progress").length;
+  const unassigned = hydrovacJobs.filter((job) => !job.assigned_truck_id).length;
+  if (dispatchStageStrip) {
+    dispatchStageStrip.innerHTML = [
+      { eyebrow: "Today", value: hydrovacJobs.length, title: "Hydrovac work", copy: "Scheduled hydrovac jobs on the selected day." },
+      { eyebrow: "Queued", value: scheduled, title: "Still waiting", copy: "Scheduled jobs that still need truck or driver confirmation." },
+      { eyebrow: "Rolling", value: dispatched + inProgress, title: "In motion", copy: "Jobs already dispatched or currently in progress." },
+      { eyebrow: "Open", value: unassigned, title: "Truck not assigned", copy: "Work that still needs a truck before it can roll." },
+    ].map((stage) => `
+      <div class="pipeline-stage-card is-active">
+        <div class="pipeline-stage-card__eyebrow">${escapeHtml(stage.eyebrow)}</div>
+        <div class="pipeline-stage-card__value">${escapeHtml(String(stage.value))}</div>
+        <div class="pipeline-stage-card__title">${escapeHtml(stage.title)}</div>
+        <div class="pipeline-stage-card__copy">${escapeHtml(stage.copy)}</div>
+      </div>
+    `).join("");
+  }
+  if (dispatchActionBar) {
+    dispatchActionBar.innerHTML = `
+      <button type="button" class="pipeline-action-chip" data-dispatch-action="jobs">Open jobs</button>
+      <button type="button" class="pipeline-action-chip" data-dispatch-action="locates">Open locate tickets</button>
+      <button type="button" class="pipeline-action-chip" data-dispatch-action="team">Open team</button>
+      <button type="button" class="pipeline-action-chip" data-dispatch-action="equipment">Open equipment</button>
+    `;
+    dispatchActionBar.querySelectorAll("[data-dispatch-action]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const action = button.getAttribute("data-dispatch-action");
+        if (action === "jobs") return switchTab("jobs");
+        if (action === "locates") return switchTab("locates");
+        if (action === "team") return switchTab("team");
+        if (action === "equipment") return switchTab("equipment");
+      });
+    });
+  }
+  const columns = [{ id: "", label: "Unassigned", unit: null }, ...trucks.map((truck) => ({ id: truck.id, label: truck.unit_number || truck.name || "Truck", unit: truck }))];
+  dispatchBoard.innerHTML = columns.map((column) => {
+    const columnJobs = hydrovacJobs.filter((job) => String(job.assigned_truck_id || "") === column.id);
+    const warningCount = column.unit ? ((HYDROVAC_EQUIPMENT_COMPLIANCE_CACHE.find((row) => row.id === column.unit.id)?.warnings || []).length) : 0;
+    return `
+      <div class="dispatch-column">
+        <div class="dispatch-column__header">
+          <div>
+            <strong>${escapeHtml(column.label)}</strong>
+            <div class="muted">${column.unit ? escapeHtml(column.unit.name || "Equipment record") : "Jobs still waiting on a truck"}</div>
+          </div>
+          <span class="pill ${warningCount ? "pill-warn" : "pill-on"}">${warningCount ? `${warningCount} watch` : `${columnJobs.length} job${columnJobs.length === 1 ? "" : "s"}`}</span>
+        </div>
+        <div class="dispatch-column__body">
+          ${columnJobs.length ? columnJobs.map((job) => {
+            const member = (TEAM_MEMBERS_CACHE || []).find((row) => row.id === job.assigned_member_id) || null;
+            const locateCount = (HYDROVAC_LOCATE_TICKETS_CACHE || []).filter((row) => row.job_id === job.id && ["active", "extended"].includes(String(row.status || "").toLowerCase())).length;
+            return `
+              <button type="button" class="dispatch-job-card ${job.id === ACTIVE_DISPATCH_JOB_ID ? "is-active" : ""}" data-dispatch-job-id="${escapeAttr(job.id)}">
+                <div class="dispatch-job-card__title">${escapeHtml(job.title || "Untitled job")}</div>
+                <div class="dispatch-job-card__meta">${escapeHtml(job.customer_name || job.service_address || "Customer not linked")}</div>
+                <div class="dispatch-job-card__meta">${escapeHtml(job.scheduled_time || "Time not set")} • ${escapeHtml(titleCaseWords(String(job.status || "scheduled").replace(/_/g, " ")))}</div>
+                <div class="dispatch-job-card__chips">
+                  <span class="pill ${locateCount ? "pill-on" : "pill-warn"}">${locateCount ? `${locateCount} ticket` : "No locate"}</span>
+                  <span class="pill">${escapeHtml(member ? teamMemberLabel(member) : "Driver open")}</span>
+                </div>
+              </button>
+            `;
+          }).join("") : `<div class="muted">No jobs in this column for ${escapeHtml(targetDate)}.</div>`}
+        </div>
+      </div>
+    `;
+  }).join("");
+  dispatchBoard.querySelectorAll("[data-dispatch-job-id]").forEach((button) => {
+    button.addEventListener("click", () => {
+      ACTIVE_DISPATCH_JOB_ID = button.getAttribute("data-dispatch-job-id") || null;
+      renderDispatchWorkspace();
+    });
+  });
+  if (!ACTIVE_DISPATCH_JOB_ID || !hydrovacJobs.some((job) => job.id === ACTIVE_DISPATCH_JOB_ID)) ACTIVE_DISPATCH_JOB_ID = hydrovacJobs[0]?.id || null;
+  const activeJob = hydrovacJobs.find((job) => job.id === ACTIVE_DISPATCH_JOB_ID) || null;
+  if (!activeJob) {
+    dispatchDetail.innerHTML = `<div class="muted">No hydrovac jobs are scheduled on ${escapeHtml(targetDate)} yet.</div>`;
+    return;
+  }
+  const assignedTruck = (EQUIPMENT_CACHE || []).find((unit) => unit.id === activeJob.assigned_truck_id) || null;
+  const assignedDriver = (TEAM_MEMBERS_CACHE || []).find((row) => row.id === activeJob.assigned_member_id) || null;
+  const activeLocates = (HYDROVAC_LOCATE_TICKETS_CACHE || []).filter((row) => row.job_id === activeJob.id && ["active", "extended"].includes(String(row.status || "").toLowerCase()));
+  const currentTruckId = assignedTruck?.id || activeJob.assigned_truck_id || "";
+  const currentDriverId = assignedDriver?.id || activeJob.assigned_member_id || "";
+  dispatchDetail.innerHTML = `
+    <div class="detail-card">
+      <div class="detail-card__header">
+        <strong>${escapeHtml(activeJob.title || "Untitled hydrovac job")}</strong>
+        <span class="pill ${hydrovacManifestToneClass(activeJob.status)}">${escapeHtml(titleCaseWords(String(activeJob.status || "scheduled").replace(/_/g, " ")))}</span>
+      </div>
+      <div class="detail-copy">${escapeHtml(activeJob.customer_name || activeJob.service_address || "Customer not linked")}</div>
+      <div class="detail-grid" style="margin-top:12px;">
+        <div><span class="muted">Scheduled</span><div>${escapeHtml(activeJob.scheduled_date || targetDate)} ${escapeHtml(activeJob.scheduled_time || "")}</div></div>
+        <div><span class="muted">Locate tickets</span><div>${escapeHtml(String(activeLocates.length))}</div></div>
+      </div>
+      <div class="detail-grid" style="margin-top:12px;">
+        <label>Truck
+          <select id="dispatchTruckSelect">
+            <option value="">Select truck</option>
+            ${(EQUIPMENT_CACHE || []).filter((unit) => unit.is_active !== false).map((unit) => `<option value="${escapeAttr(unit.id)}"${unit.id === currentTruckId ? " selected" : ""}>${escapeHtml(unit.unit_number || unit.name || "Truck")}</option>`).join("")}
+          </select>
+        </label>
+        <label>Driver
+          <select id="dispatchDriverSelect">
+            <option value="">Select driver</option>
+            ${(TEAM_MEMBERS_CACHE || []).map((member) => `<option value="${escapeAttr(member.id)}"${member.id === currentDriverId ? " selected" : ""}>${escapeHtml(teamMemberLabel(member))}</option>`).join("")}
+          </select>
+        </label>
+      </div>
+      <div class="row" style="margin-top:12px;">
+        <button id="btnDispatchJobNow" class="btn btn-primary" type="button">${String(activeJob.status || "").toLowerCase() === "dispatched" ? "Refresh dispatch" : "Dispatch job"}</button>
+        <button id="btnDispatchOpenJob" class="btn btn-ghost" type="button">Open job</button>
+        <button id="btnDispatchOpenLocates" class="btn btn-ghost" type="button">Open locate tickets</button>
+      </div>
+      <div id="dispatchMsg" class="msg"></div>
+    </div>
+  `;
+  $("btnDispatchOpenJob")?.addEventListener("click", () => {
+    ACTIVE_JOB_ID = activeJob.id;
+    switchTab("jobs");
+  });
+  $("btnDispatchOpenLocates")?.addEventListener("click", () => switchTab("locates"));
+  $("btnDispatchJobNow")?.addEventListener("click", async () => {
+    const truckId = $("dispatchTruckSelect")?.value || "";
+    const driverId = $("dispatchDriverSelect")?.value || "";
+    setInlineMessage($("dispatchMsg"), "Dispatching...");
+    try {
+      await requestOperatorFunction("dispatch-job", {
+        method: "POST",
+        body: {
+          job_id: activeJob.id,
+          assigned_truck_id: truckId,
+          driver_member_id: driverId,
+          scheduled_date: targetDate,
+          scheduled_time: activeJob.scheduled_time || null,
+        },
+      });
+      await Promise.all([fetchJobs(), fetchEquipment(), fetchHydrovacComplianceData()]);
+      renderDispatchWorkspace();
+      setInlineMessage($("dispatchMsg"), "Job dispatched.", "ok");
+    } catch (error) {
+      setInlineMessage($("dispatchMsg"), error.message || String(error), "error");
+    }
+  });
 }
 
 // Bookings event handlers
@@ -13674,10 +14471,28 @@ async function createJobFromOrderRecord(order) {
   const existingJob = JOBS_CACHE.find((row) => row.order_id === order.id || row.id === order.primary_job_id) || null;
   if (existingJob) return { job: existingJob, existing: true };
 
+  async function reloadJobForOrder() {
+    await Promise.all([fetchJobs(), fetchCrmOrders()]);
+    let job = JOBS_CACHE.find((row) => row.id === order.primary_job_id || row.order_id === order.id) || null;
+    if (job) return job;
+    const { data: freshJob, error: freshJobError } = await scopeQuery(
+      sb.from("jobs").select("*")
+    )
+      .eq("order_id", order.id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (freshJobError) throw freshJobError;
+    if (freshJob) {
+      JOBS_CACHE = [freshJob, ...JOBS_CACHE.filter((row) => row.id !== freshJob.id)];
+      job = freshJob;
+    }
+    return job;
+  }
+
   const { data, error } = await sb.rpc("create_job_from_order", { p_order_id: order.id });
   if (!error) {
-    await Promise.all([fetchJobs(), fetchCrmOrders()]);
-    const job = JOBS_CACHE.find((row) => row.id === data?.job_id || row.order_id === order.id) || null;
+    const job = await reloadJobForOrder();
     if (!job) throw new Error("The job was created, but it could not be reloaded.");
     ACTIVE_JOB_ID = job.id;
     return { job, existing: !!data?.existing };
@@ -13740,7 +14555,7 @@ async function createJobFromOrderRecord(order) {
   ]);
 
   await Promise.all([fetchJobs(), fetchCrmOrders(), fetchLeads()]);
-  const job = JOBS_CACHE.find((row) => row.id === jobRow.id) || jobRow;
+  const job = JOBS_CACHE.find((row) => row.id === jobRow.id || row.order_id === order.id) || jobRow;
   ACTIVE_JOB_ID = job.id;
   return { job, existing: false };
 }
@@ -15490,15 +16305,87 @@ function renderOrders() {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("btnOrderSmsSend")?.click(); }
   });
 
+  async function saveOrderDepositSettings(options = {}) {
+    const msgEl = $("orderDepositMsg");
+    const silent = !!options.silent;
+    if (!silent) setInlineMessage(msgEl, "Saving...");
+    const sourceOrder = CRM_ORDERS_CACHE.find((row) => row.id === active.id) || active;
+    const nextPolicy = normalizeDepositPolicy($("orderDepositPolicySelect")?.value || "optional");
+    const nextRequired = toCents($("orderDepositRequiredAmount")?.value || 0);
+    const nextDueDate = $("orderDepositDueDate")?.value || null;
+    const nextOverride = $("orderDepositOverrideReason")?.value?.trim() || null;
+    if (nextPolicy !== "optional" && nextRequired <= 0) {
+      const validationError = new Error("A required deposit policy needs an amount greater than zero.");
+      if (!silent) setInlineMessage(msgEl, validationError.message, "error");
+      throw validationError;
+    }
+    const payload = {
+      deposit_policy: nextRequired > 0 ? nextPolicy : "optional",
+      deposit_required_cents: nextRequired,
+      deposit_due_date: nextRequired > 0 && nextPolicy !== "optional"
+        ? (nextDueDate || sourceOrder.scheduled_date || sourceOrder.payment_due_date || new Date().toISOString().slice(0, 10))
+        : null,
+      deposit_override_reason: nextOverride,
+      deposit_override_at: nextOverride ? new Date().toISOString() : null,
+      updated_at: new Date().toISOString(),
+    };
+    const { data, error } = await sb.from("orders")
+      .update(payload)
+      .eq("id", sourceOrder.id)
+      .eq(OPERATOR_COLUMN, opId())
+      .eq(TENANT_COLUMN, TENANT_ID)
+      .select("*")
+      .single();
+    if (error) {
+      if (isMissingDatabaseFeatureError(error, ["deposit_policy", "deposit_due_date", "deposit_override_reason"])) {
+        throw new Error("Deposit control needs the service_deposit_control.sql migration before these settings can be saved.");
+      }
+      throw error;
+    }
+    ACTIVE_ORDER_ID = data.id;
+    CRM_ORDERS_CACHE = CRM_ORDERS_CACHE.some((row) => row.id === sourceOrder.id)
+      ? CRM_ORDERS_CACHE.map((row) => row.id === sourceOrder.id ? data : row)
+      : [data, ...CRM_ORDERS_CACHE];
+    if (nextOverride && sourceOrder.customer_id) {
+      await logCustomerInteraction(sourceOrder.customer_id, "payment", `Deposit override recorded for ${sourceOrder.cart_summary || "order"}`, {
+        order_id: sourceOrder.id,
+        deposit_override_reason: nextOverride,
+        deposit_required_cents: nextRequired,
+      }).catch(() => null);
+    }
+    TABS_LOADED.delete('orders');
+    FETCH_OFFSETS.orders = 0;
+    TABS_LOADED.delete('jobs');
+    renderOrders();
+    renderJobs(jobSearch?.value || "");
+    renderDashboard();
+    renderGuidance();
+    renderMoney().catch(console.error);
+    if (!silent) setInlineMessage($("orderDepositMsg"), "Deposit settings saved.", "ok");
+    return data;
+  }
+
   $("btnCreateJobFromOrder")?.addEventListener("click", async () => {
-    if (linkedJob) {
-      ACTIVE_JOB_ID = linkedJob.id;
+    let currentOrder = CRM_ORDERS_CACHE.find((row) => row.id === active.id) || active;
+    const pendingOverride = $("orderDepositOverrideReason")?.value?.trim() || null;
+    if (orderDepositBlocksJob(currentOrder) && pendingOverride) {
+      try {
+        currentOrder = await saveOrderDepositSettings({ silent: true });
+      } catch (error) {
+        setInlineMessage($("orderDepositMsg"), error.message || String(error), "error");
+        $("orderDepositOverrideReason")?.focus();
+        return;
+      }
+    }
+    const currentLinkedJob = JOBS_CACHE.find((row) => row.order_id === currentOrder.id || row.id === currentOrder.primary_job_id) || null;
+    if (currentLinkedJob) {
+      ACTIVE_JOB_ID = currentLinkedJob.id;
       switchTab("jobs");
       return;
     }
     try {
-      assertOrderAllowsJobCreation(active);
-      await createJobFromOrderRecord(active);
+      assertOrderAllowsJobCreation(currentOrder);
+      await createJobFromOrderRecord(currentOrder);
       renderJobs(jobSearch?.value || "");
       renderOrders();
       renderDashboard();
@@ -15584,58 +16471,10 @@ function renderOrders() {
     switchTab("payments");
   });
   $("btnSaveOrderDepositSettings")?.addEventListener("click", async () => {
-    const msgEl = $("orderDepositMsg");
-    setInlineMessage(msgEl, "Saving...");
-    const nextPolicy = normalizeDepositPolicy($("orderDepositPolicySelect")?.value || "optional");
-    const nextRequired = toCents($("orderDepositRequiredAmount")?.value || 0);
-    const nextDueDate = $("orderDepositDueDate")?.value || null;
-    const nextOverride = $("orderDepositOverrideReason")?.value?.trim() || null;
-    if (nextPolicy !== "optional" && nextRequired <= 0) {
-      setInlineMessage(msgEl, "A required deposit policy needs an amount greater than zero.", "error");
-      return;
-    }
     try {
-      const payload = {
-        deposit_policy: nextRequired > 0 ? nextPolicy : "optional",
-        deposit_required_cents: nextRequired,
-        deposit_due_date: nextRequired > 0 && nextPolicy !== "optional" ? (nextDueDate || active.scheduled_date || active.payment_due_date || new Date().toISOString().slice(0, 10)) : null,
-        deposit_override_reason: nextOverride,
-        deposit_override_at: nextOverride ? new Date().toISOString() : null,
-        deposit_override_by: nextOverride ? opId() : null,
-        updated_at: new Date().toISOString(),
-      };
-      const { data, error } = await sb.from("orders")
-        .update(payload)
-        .eq("id", active.id)
-        .eq(OPERATOR_COLUMN, opId())
-        .eq(TENANT_COLUMN, TENANT_ID)
-        .select("*")
-        .single();
-      if (error) {
-        if (isMissingDatabaseFeatureError(error, ["deposit_policy", "deposit_due_date", "deposit_override_reason"])) {
-          throw new Error("Deposit control needs the service_deposit_control.sql migration before these settings can be saved.");
-        }
-        throw error;
-      }
-      CRM_ORDERS_CACHE = CRM_ORDERS_CACHE.map((row) => row.id === active.id ? data : row);
-      if (nextOverride && active.customer_id) {
-        await logCustomerInteraction(active.customer_id, "payment", `Deposit override recorded for ${active.cart_summary || "order"}`, {
-          order_id: active.id,
-          deposit_override_reason: nextOverride,
-          deposit_required_cents: nextRequired,
-        }).catch(() => null);
-      }
-      TABS_LOADED.delete('orders');
-      FETCH_OFFSETS.orders = 0;
-      TABS_LOADED.delete('jobs');
-      renderOrders();
-      renderJobs(jobSearch?.value || "");
-      renderDashboard();
-      renderGuidance();
-      renderMoney().catch(console.error);
-      setInlineMessage($("orderDepositMsg"), "Deposit settings saved.", "ok");
+      await saveOrderDepositSettings();
     } catch (err) {
-      setInlineMessage(msgEl, err.message || String(err), "error");
+      setInlineMessage($("orderDepositMsg"), err.message || String(err), "error");
     }
   });
   $("btnClearOrderDepositOverride")?.addEventListener("click", async () => {
@@ -15660,6 +16499,7 @@ function renderOrders() {
         }
         throw error;
       }
+      ACTIVE_ORDER_ID = data.id;
       CRM_ORDERS_CACHE = CRM_ORDERS_CACHE.map((row) => row.id === active.id ? data : row);
       TABS_LOADED.delete('orders');
       FETCH_OFFSETS.orders = 0;
@@ -15886,6 +16726,43 @@ $('btnExportPaymentsCsv')?.addEventListener('click', () => {
   a.download = 'payments.csv';
   a.click();
 });
+function renderHydrovacInvoiceWorkbench() {
+  if (!hydrovacInvoicePreview || !hydrovacInvoiceJobSelect) return;
+  const hydrovacJobs = (JOBS_CACHE || []).filter((job) => isHydrovacJob(job));
+  const completed = hydrovacJobs.filter((job) => ["completed", "fulfilled"].includes(String(job.status || "").toLowerCase())).length;
+  const withDisposal = hydrovacJobs.filter((job) => Number(job.total_loads_hauled || 0) > 0).length;
+  const openAmounts = (CRM_ORDERS_CACHE || []).filter((order) => Number(order.amount_due_cents || 0) > 0).length;
+  if (hydrovacInvoiceStageStrip) {
+    hydrovacInvoiceStageStrip.innerHTML = [
+      { eyebrow: "Ready", value: completed, title: "Completed jobs", copy: "Hydrovac work likely ready for invoice drafting." },
+      { eyebrow: "Loads", value: withDisposal, title: "Jobs with disposal", copy: "Jobs that should pull confirmed manifests into the draft." },
+      { eyebrow: "AR", value: openAmounts, title: "Open balances", copy: "Quoted or completed work still carrying money due." },
+    ].map((stage) => `
+      <div class="pipeline-stage-card is-active">
+        <div class="pipeline-stage-card__eyebrow">${escapeHtml(stage.eyebrow)}</div>
+        <div class="pipeline-stage-card__value">${escapeHtml(String(stage.value))}</div>
+        <div class="pipeline-stage-card__title">${escapeHtml(stage.title)}</div>
+        <div class="pipeline-stage-card__copy">${escapeHtml(stage.copy)}</div>
+      </div>
+    `).join("");
+  }
+  if (hydrovacInvoiceActionBar) {
+    hydrovacInvoiceActionBar.innerHTML = `
+      <button type="button" class="pipeline-action-chip" data-hydrovac-invoice-action="jobs">Open jobs</button>
+      <button type="button" class="pipeline-action-chip" data-hydrovac-invoice-action="manifests">Open manifests</button>
+      <button type="button" class="pipeline-action-chip" data-hydrovac-invoice-action="payments">Open payments</button>
+    `;
+    hydrovacInvoiceActionBar.querySelectorAll("[data-hydrovac-invoice-action]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const action = button.getAttribute("data-hydrovac-invoice-action");
+        if (action === "jobs") return switchTab("jobs");
+        if (action === "manifests") return switchTab("manifests");
+        if (action === "payments") return switchTab("payments");
+      });
+    });
+  }
+  hydrovacInvoiceJobSelect.innerHTML = `<option value="">Select a hydrovac job</option>${hydrovacJobs.map((job) => `<option value="${escapeAttr(job.id)}"${job.id === ACTIVE_JOB_ID ? " selected" : ""}>${escapeHtml(job.title || job.customer_name || "Untitled job")} — ${escapeHtml(job.scheduled_date || "No date")}</option>`).join("")}`;
+}
 async function renderMoney() {
   if (!moneyWrap) return;
 
@@ -16133,6 +17010,7 @@ async function renderMoney() {
       arEl.innerHTML = '<div class="muted" style="font-size:.85rem;">No outstanding receivables.</div>';
     }
   }
+  renderHydrovacInvoiceWorkbench();
 }
 
 // ── Setup Wizard ──────────────────────────────────────────────────────────────

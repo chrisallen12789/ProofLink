@@ -42,7 +42,20 @@ exports.handler = async (event) => {
 
   if (event.httpMethod === 'GET') {
     const jobId = clean(params.job_id);
-    if (!jobId) return respond(400, { error: 'job_id is required' });
+    if (!jobId) {
+      let query = adminSb
+        .from('confined_space_permits')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .order('created_at', { ascending: false });
+
+      if (clean(params.status)) query = query.eq('status', clean(params.status));
+      if (clean(params.order_id)) query = query.eq('order_id', clean(params.order_id));
+
+      const { data, error } = await query.limit(Math.min(Number(params.limit || 100), 250));
+      if (error) return respond(500, { error: error.message });
+      return respond(200, { permits: data || [] });
+    }
 
     const { data, error } = await adminSb
       .from('confined_space_permits')

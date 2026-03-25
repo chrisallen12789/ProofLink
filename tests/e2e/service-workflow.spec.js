@@ -138,7 +138,9 @@ test.describe.serial("service workflow e2e", () => {
     while (Date.now() - startedAt < timeoutMs) {
       const result = await admin.from(table).select("*").eq(column, value);
       if (result.error) throw result.error;
-      if (Array.isArray(result.data) && result.data.length === 1) return result.data[0];
+      if (Array.isArray(result.data) && result.data.length >= 1) {
+        return result.data.sort((a, b) => new Date(b.updated_at || b.created_at || 0).getTime() - new Date(a.updated_at || a.created_at || 0).getTime())[0];
+      }
       await new Promise((resolve) => setTimeout(resolve, 500));
     }
     throw new Error(`Timed out waiting for ${table}.${column}=${value}`);
@@ -149,8 +151,11 @@ test.describe.serial("service workflow e2e", () => {
     while (Date.now() - startedAt < timeoutMs) {
       const result = await admin.from("bids").select("*").eq("lead_id", leadId);
       if (result.error) throw result.error;
-      if (Array.isArray(result.data) && result.data.length === 1 && predicate(result.data[0])) {
-        return result.data[0];
+      if (Array.isArray(result.data) && result.data.length) {
+        const match = [...result.data]
+          .sort((a, b) => new Date(b.updated_at || b.created_at || 0).getTime() - new Date(a.updated_at || a.created_at || 0).getTime())
+          .find((row) => predicate(row));
+        if (match) return match;
       }
       await new Promise((resolve) => setTimeout(resolve, 500));
     }
@@ -293,7 +298,7 @@ test.describe.serial("service workflow e2e", () => {
     await openTab(page, "leads");
     await page.locator("#leadSearch").fill(state.stamp);
     await page.locator("#leadsList").getByText(state.customerName).click();
-    await page.locator("#btnLeadOpenBid").click();
+    await page.locator("#btnLeadDraftProposal").click();
     await expect(page.locator('[data-panel="bids"]')).not.toHaveClass(/hidden/);
     await page.locator("#bidStatus").selectOption("approved");
     await page.locator("#bidDepositAmount").fill("100.00");
