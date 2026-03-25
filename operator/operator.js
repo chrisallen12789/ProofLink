@@ -2059,13 +2059,13 @@ function workspaceProfileChoices() {
   const preferredOrder = [
     "service_business",
     "pressure_washing",
+    "landscaping",
     "property_maintenance",
     "contractor",
     "handyman",
     "hvac",
     "plumbing",
     "cleaning",
-    "lawn_care",
     "events",
     "photography",
     "pet_services",
@@ -2955,6 +2955,19 @@ const SERVICE_PRESET_LIBRARY = {
       { name: "Debris removal and haul-away", category: "Cleanup", pricing_mode: "starts_at", starting_price_dollars: 225, unit_label: "load", description: "Remove job debris, bag waste, and leave the work area clean enough for the next trade or owner walk-through.", notes: "Good standard line item for cleanup, disposal, and closeout labor." },
     ],
   },
+  landscaping_southeast_michigan: {
+    label: "Landscaping - Southeast Michigan",
+    summary: "Simple starter pricing for mowing, cleanup, mulch, trimming, and small property visits that keep a young operator focused on selling and following through.",
+    businessKeys: ["landscaping"],
+    items: [
+      { name: "Weekly lawn cut", category: "Recurring", pricing_mode: "starts_at", starting_price_dollars: 45, unit_label: "visit", description: "Routine mow, trim, and blow visit for a standard residential yard.", notes: "Good first recurring anchor that keeps pricing simple and easy to explain." },
+      { name: "Biweekly lawn cut", category: "Recurring", pricing_mode: "starts_at", starting_price_dollars: 55, unit_label: "visit", description: "Biweekly mow, trim, and blow visit when the property is not maintained every week.", notes: "Useful second anchor when growth and cleanup take a little longer." },
+      { name: "Front-bed cleanup", category: "Cleanup", pricing_mode: "starts_at", starting_price_dollars: 95, unit_label: "job", description: "Light bed cleanup, weed pull, debris bagging, and simple reset around the front of the property.", notes: "Keeps small one-off landscape jobs easy to quote." },
+      { name: "Spring or fall cleanup", category: "Seasonal", pricing_mode: "starts_at", starting_price_dollars: 175, unit_label: "job", description: "Leaf pickup, bed cleanup, light trimming, and curbside bag staging for a seasonal reset.", notes: "Strong seasonal anchor that can scale up by yard size." },
+      { name: "Mulch refresh", category: "Enhancement", pricing_mode: "starts_at", starting_price_dollars: 225, unit_label: "job", description: "Bed preparation and mulch install priced from bed count, material depth, and access.", notes: "Use this as the starting point before material quantity is finalized." },
+      { name: "Shrub trimming visit", category: "Enhancement", pricing_mode: "starts_at", starting_price_dollars: 125, unit_label: "visit", description: "Trim and shape shrubs or hedges with cleanup and haul-away priced from quantity and access.", notes: "Good add-on or standalone service that teaches simple upselling." },
+    ],
+  },
   general_service_southeast_michigan: {
     label: "General service - Southeast Michigan",
     summary: "Broad service anchors for dispatch work, small jobs, half-day visits, emergency response, and materials handling.",
@@ -2974,12 +2987,13 @@ function servicePresetKeyForWorkspace() {
   const businessKey = String(currentWorkspaceBlueprint()?.business?.key || "").trim().toLowerCase();
   if (businessKey === "hydrovac") return "hydrovac_southeast_michigan";
   if (businessKey === "contractor") return "contractor_southeast_michigan";
+  if (businessKey === "landscaping") return "landscaping_southeast_michigan";
   return "general_service_southeast_michigan";
 }
 
 function servicePresetChoicesForWorkspace() {
   const primaryKey = servicePresetKeyForWorkspace();
-  const ordered = [primaryKey, "hydrovac_southeast_michigan", "contractor_southeast_michigan", "general_service_southeast_michigan"];
+  const ordered = [primaryKey, "hydrovac_southeast_michigan", "contractor_southeast_michigan", "landscaping_southeast_michigan", "general_service_southeast_michigan"];
   return uniqList(ordered).map((key) => SERVICE_PRESET_LIBRARY[key]).filter(Boolean);
 }
 

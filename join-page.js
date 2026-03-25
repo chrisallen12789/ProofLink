@@ -31,7 +31,6 @@
     handyman: "Handyman",
     hvac: "HVAC",
     landscaping: "Landscaping",
-    lawn_care: "Lawn Care",
     other: "Other",
     pet_services: "Pet Services",
     photography: "Photography",
@@ -51,6 +50,13 @@
 
   function $(id) {
     return document.getElementById(id);
+  }
+
+  function normalizeBusinessType(value) {
+    const raw = String(value || "").trim().toLowerCase();
+    if (!raw) return "";
+    const normalized = Architecture?.sanitizeBusinessType ? Architecture.sanitizeBusinessType(raw) : raw;
+    return normalized === "lawn_care" ? "landscaping" : normalized;
   }
 
   function slugify(value) {
@@ -249,6 +255,8 @@
   }
 
   function validateStep1() {
+    state.businessType = normalizeBusinessType(state.businessType || $("business_type")?.value || "");
+    if ($("business_type")) $("business_type").value = state.businessType;
     if (!state.businessType) {
       showError("err-type");
       return false;
@@ -313,6 +321,7 @@
   }
 
   function populateReview() {
+    state.businessType = normalizeBusinessType(state.businessType || $("business_type")?.value || "");
     const plan = selectedPlan();
     const title = plan.priceSuffix ? `${plan.name} ${plan.priceDisplay}${plan.priceSuffix}` : `${plan.name} ${plan.priceDisplay}`;
     $("rev-plan").textContent = title;
@@ -335,6 +344,7 @@
   }
 
   function buildPayload() {
+    state.businessType = normalizeBusinessType(state.businessType || $("business_type")?.value || "");
     return {
       business_name: state.businessName,
       owner_name: state.ownerName,
@@ -492,7 +502,7 @@
       chip.addEventListener("click", () => {
         document.querySelectorAll(".type-chip[data-value]").forEach((item) => item.classList.remove("selected"));
         chip.classList.add("selected");
-        state.businessType = chip.getAttribute("data-value") || "";
+        state.businessType = normalizeBusinessType(chip.getAttribute("data-value") || "");
         $("business_type").value = state.businessType;
         hideError("err-type");
       });
