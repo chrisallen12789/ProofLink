@@ -2078,7 +2078,9 @@ function workspaceProfileChoices() {
 }
 function hydrateWorkspaceProfileOptions(selectedValue = "") {
   if (!setupWorkspaceBusinessType) return;
-  const selected = String(selectedValue || "").trim().toLowerCase();
+  const Architecture = window.PROOFLINK_WORKSPACE_ARCHITECTURE;
+  const rawSelected = String(selectedValue || "").trim().toLowerCase();
+  const selected = Architecture?.sanitizeBusinessType ? Architecture.sanitizeBusinessType(rawSelected) : rawSelected;
   const options = workspaceProfileChoices();
   setupWorkspaceBusinessType.innerHTML = [
     `<option value="">Use protected business type if set</option>`,

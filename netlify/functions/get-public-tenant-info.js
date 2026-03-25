@@ -6,6 +6,7 @@
 'use strict';
 
 const { getAdminClient, respond } = require('./utils/auth');
+const { normalizeBusinessTypeKey } = require('./utils/business-type');
 
 function clean(value) {
   return String(value || '').trim();
@@ -163,7 +164,8 @@ function toResponse(tenant, cfg) {
   const fontPreset = clean(cfg.site_font_preset || 'modern_sans') || 'modern_sans';
   const fonts = fontPresetMap(fontPreset);
   const palette = surfacePalette(cfg.site_surface_style, accent);
-  const labels = serviceAwareLabels(cfg.workspace_business_type || tenant.business_type || '');
+  const resolvedBusinessType = normalizeBusinessTypeKey(cfg.workspace_business_type || tenant.business_type || '');
+  const labels = serviceAwareLabels(resolvedBusinessType);
   const heroHeading = clean(cfg.hero_heading || '') || clean(tenant.name);
   const heroSubheading = clean(cfg.hero_subheading || '') || clean(cfg.tagline || '') || labels.storefrontIntro;
   const businessName = clean(tenant.name || 'Business');
@@ -175,7 +177,7 @@ function toResponse(tenant, cfg) {
       slug: tenant.slug,
       businessName,
       platformName: 'ProofLink',
-      businessType: clean(cfg.workspace_business_type || tenant.business_type || ''),
+      businessType: resolvedBusinessType,
       storefront: {
         titleSuffix: businessName,
         intro: clean(cfg.tagline || '') || labels.storefrontIntro,

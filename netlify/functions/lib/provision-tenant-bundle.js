@@ -1,10 +1,21 @@
 "use strict";
 
 const { uniqueTenantSlug } = require("../utils/slugify");
+const { normalizeBusinessTypeKey } = require("../utils/business-type");
 const { seedTemplateForTenant } = require("./seed-templates");
 
 function clean(value) {
   return String(value || "").trim();
+}
+
+function parseConfig(value) {
+  if (!value) return {};
+  if (typeof value === "object") return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return {};
+  }
 }
 
 function normalizePlan(value) {
@@ -13,7 +24,9 @@ function normalizePlan(value) {
 }
 
 function normalizeBusinessType(payload) {
-  return clean(payload.business_type || payload.businessCategory || payload.business_category).toLowerCase() || null;
+  return normalizeBusinessTypeKey(
+    payload.business_type || payload.businessCategory || payload.business_category
+  ) || null;
 }
 
 function extractErrorCode(error) {
@@ -146,6 +159,33 @@ async function provisionTenantBundle({ supabase, payload, invitedByOperatorId = 
     clean(payload.seed_template_key || payload.seedTemplateKey) || businessType || "default"
   );
   await seedTenantSettings(supabase, tenant.id, payload);
+
+  const existingSiteSettings = await supabase
+    .from("tenant_config")
+    .select("config_value")
+    .eq("tenant_id", tenant.id)
+    .eq("config_key", "site_settings")
+    .maybeSingle();
+
+  if (existingSiteSettings.error) {
+    console.warn("[provision-tenant-bundle] site_settings fetch non-fatal:", existingSiteSettings.error.message);
+  }
+
+  const siteSettingsUpsert = await supabase
+    .from("tenant_config")
+    .upsert([{
+      tenant_id: tenant.id,
+      config_key: "site_settings",
+      config_value: JSON.stringify({
+        ...parseConfig(existingSiteSettings.data?.config_value),
+        workspace_business_type: businessType || "",
+        business_type: businessType || "",
+      }),
+    }], { onConflict: "tenant_id,config_key" });
+
+  if (siteSettingsUpsert.error) {
+    console.warn("[provision-tenant-bundle] site_settings business type upsert non-fatal:", siteSettingsUpsert.error.message);
+  }
 
   return {
     tenant_id: tenant.id,

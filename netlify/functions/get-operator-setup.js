@@ -2,6 +2,7 @@
 // Operator-only. Returns the current tenant plus protected account record and editable setup config.
 
 const { requireOperatorContext, respond } = require('./utils/auth');
+const { normalizeBusinessTypeKey } = require('./utils/business-type');
 
 function parseConfig(value) {
   if (!value) return {};
@@ -45,11 +46,12 @@ exports.handler = async (event) => {
   if (cfgErr) return respond(500, { error: 'Failed to load tenant config' });
 
   const rawConfig = parseConfig(cfgRow?.config_value);
-  const resolvedBusinessType =
+  const resolvedBusinessType = normalizeBusinessTypeKey(
     tenant.business_type ||
     rawConfig.workspace_business_type ||
     rawConfig.business_type ||
-    '';
+    ''
+  );
   const lockedRecord = {
     legal_business_name: tenant.name || '',
     owner_name: tenant.owner_name || '',
@@ -73,7 +75,7 @@ exports.handler = async (event) => {
     review_platform_label: rawConfig.review_platform_label || '',
     review_link_url: rawConfig.review_link_url || '',
     referral_message: rawConfig.referral_message || '',
-    workspace_business_type: rawConfig.workspace_business_type || tenant.business_type || '',
+    workspace_business_type: normalizeBusinessTypeKey(rawConfig.workspace_business_type || tenant.business_type || ''),
     site_font_preset: rawConfig.site_font_preset || 'modern_sans',
     site_surface_style: rawConfig.site_surface_style || 'clean',
     site_button_style: rawConfig.site_button_style || 'rounded',
