@@ -67,6 +67,9 @@ let CUSTOMER_CREATING = false;
 let ACTIVE_PAYMENT_ID = null;
 let ACTIVE_JOB_ID = null;
 let ACTIVE_PLAN_ID = null;
+let ACTIVE_FACILITY_ID = null;
+let ACTIVE_MANIFEST_ID = null;
+let ACTIVE_LOCATE_ID = null;
 let ACTIVE_BID_LINE_ITEM_ID = null;
 let ACTIVE_PRICING_PRODUCT_ID = null;
 let PREVIOUS_PANEL_TAB = "dashboard";
@@ -321,6 +324,59 @@ const jobDisposalSite          = $("jobDisposalSite");
 const jobDisposalManifest      = $("jobDisposalManifest");
 const btnJobOpenOrder = $("btnJobOpenOrder");
 const btnJobRecordPayment = $("btnJobRecordPayment");
+const facilityStageStrip = $("facilityStageStrip");
+const facilityActionBar = $("facilityActionBar");
+const hydrovacFacilitiesList = $("hydrovacFacilitiesList");
+const hydrovacFacilityForm = $("hydrovacFacilityForm");
+const hydrovacFacilityId = $("hydrovacFacilityId");
+const hydrovacFacilityName = $("hydrovacFacilityName");
+const hydrovacFacilityStatus = $("hydrovacFacilityStatus");
+const hydrovacFacilityType = $("hydrovacFacilityType");
+const hydrovacFacilityPermitExpiry = $("hydrovacFacilityPermitExpiry");
+const hydrovacFacilityAddress = $("hydrovacFacilityAddress");
+const hydrovacFacilityCityState = $("hydrovacFacilityCityState");
+const hydrovacFacilityRateGallon = $("hydrovacFacilityRateGallon");
+const hydrovacFacilityRateYard = $("hydrovacFacilityRateYard");
+const hydrovacFacilityMinimumCharge = $("hydrovacFacilityMinimumCharge");
+const hydrovacFacilityContact = $("hydrovacFacilityContact");
+const hydrovacFacilityDispatchPhone = $("hydrovacFacilityDispatchPhone");
+const hydrovacFacilityWasteTypes = $("hydrovacFacilityWasteTypes");
+const hydrovacFacilityNotes = $("hydrovacFacilityNotes");
+const hydrovacFacilityMsg = $("hydrovacFacilityMsg");
+const btnRefreshFacilities = $("btnRefreshFacilities");
+const btnNewFacility = $("btnNewFacility");
+const btnClearFacility = $("btnClearFacility");
+const manifestStageStrip = $("manifestStageStrip");
+const manifestActionBar = $("manifestActionBar");
+const hydrovacManifestsList = $("hydrovacManifestsList");
+const hydrovacManifestDetailWrap = $("hydrovacManifestDetailWrap");
+const btnRefreshManifests = $("btnRefreshManifests");
+const locateStageStrip = $("locateStageStrip");
+const locateActionBar = $("locateActionBar");
+const hydrovacLocateList = $("hydrovacLocateList");
+const hydrovacLocateForm = $("hydrovacLocateForm");
+const hydrovacLocateId = $("hydrovacLocateId");
+const hydrovacLocateJobId = $("hydrovacLocateJobId");
+const hydrovacLocateType = $("hydrovacLocateType");
+const hydrovacLocateNumber = $("hydrovacLocateNumber");
+const hydrovacLocateStatus = $("hydrovacLocateStatus");
+const hydrovacLocateCenter = $("hydrovacLocateCenter");
+const hydrovacLocateState = $("hydrovacLocateState");
+const hydrovacLocateAddress = $("hydrovacLocateAddress");
+const hydrovacLocateValidFrom = $("hydrovacLocateValidFrom");
+const hydrovacLocateValidUntil = $("hydrovacLocateValidUntil");
+const hydrovacLocateNotes = $("hydrovacLocateNotes");
+const hydrovacLocateMsg = $("hydrovacLocateMsg");
+const btnRefreshLocates = $("btnRefreshLocates");
+const btnNewLocate = $("btnNewLocate");
+const btnVerifyLocate = $("btnVerifyLocate");
+const btnClearLocate = $("btnClearLocate");
+const complianceStageStrip = $("complianceStageStrip");
+const complianceActionBar = $("complianceActionBar");
+const hydrovacComplianceSummary = $("hydrovacComplianceSummary");
+const hydrovacComplianceUrgent = $("hydrovacComplianceUrgent");
+const hydrovacComplianceCoverage = $("hydrovacComplianceCoverage");
+const btnRefreshCompliance = $("btnRefreshCompliance");
 const plansList = $("plansList");
 const planDetailWrap = $("planDetailWrap");
 const btnNewPlan = $("btnNewPlan");
@@ -481,6 +537,12 @@ let TIME_ENTRIES_CACHE = [];
 let VENDORS_CACHE = [];
 let EQUIPMENT_CACHE = [];
 let EQUIPMENT_PANEL_LOADED = false;
+let HYDROVAC_FACILITIES_CACHE = [];
+let HYDROVAC_MANIFESTS_CACHE = [];
+let HYDROVAC_LOCATE_TICKETS_CACHE = [];
+let HYDROVAC_DRIVER_COMPLIANCE_CACHE = [];
+let HYDROVAC_EQUIPMENT_COMPLIANCE_CACHE = [];
+let HYDROVAC_ANALYTICS_CACHE = null;
 let INVENTORY_CACHE = [];
 let INVENTORY_PANEL_LOADED = false;
 
@@ -524,11 +586,16 @@ const WORKSPACE_CONTEXT_GROUPS = {
   leads: ["leads", "bids", "orders", "customers"],
   bids: ["bids", "leads", "orders", "jobs", "customers"],
   orders: ["orders", "leads", "bids", "jobs", "payments", "customers"],
-  jobs: ["jobs", "orders", "bids", "payments", "expenses", "customers"],
+  jobs: ["jobs", "orders", "bids", "payments", "expenses", "customers", "manifests", "locates", "compliance"],
   plans: ["plans", "bookings", "jobs", "customers", "payments"],
   customers: ["customers", "leads", "bids", "orders", "jobs", "payments"],
   import: ["import", "customers", "orders", "payments"],
   payments: ["payments", "orders", "jobs", "money", "customers"],
+  equipment: ["equipment", "facilities", "compliance", "jobs"],
+  facilities: ["facilities", "manifests", "compliance", "equipment", "jobs"],
+  manifests: ["manifests", "jobs", "money", "facilities", "compliance"],
+  locates: ["locates", "jobs", "compliance", "orders"],
+  compliance: ["compliance", "locates", "manifests", "facilities", "equipment", "jobs"],
   domains: ["domains", "setup"],
   setup: ["setup", "domains", "guidance"],
   products: ["products", "pricing", "availability"],
@@ -1709,6 +1776,10 @@ const WORKSPACE_BASE_TAB_ORDER = [
   "leads",
   "bids",
   "jobs",
+  "facilities",
+  "manifests",
+  "locates",
+  "compliance",
   "plans",
   "expenses",
   "money",
@@ -1987,6 +2058,14 @@ function workspaceTabLabel(tab, blueprint = currentWorkspaceBlueprint()) {
         : "Availability";
     case "money":
       return "Insights";
+    case "facilities":
+      return "Facilities";
+    case "manifests":
+      return "Loads & Manifests";
+    case "locates":
+      return "Locate Tickets";
+    case "compliance":
+      return "Compliance";
     default:
       return titleCaseWords(tab);
   }
@@ -2079,16 +2158,36 @@ function workspacePanelCopy(tab, blueprint = currentWorkspaceBlueprint()) {
           ? `Track overhead and job costs so ${orderLower} stay profitable.`
           : "Track expenses for bookkeeping, visibility, and margin awareness.",
       };
-    case "money":
-      return {
-        title: workspaceTabLabel("money", blueprint),
-        subtitle: "Business signals, customer value, and margin clues without accounting clutter.",
-      };
-    case "guidance":
-      return {
-        title: "Guidance",
-        subtitle: `Operator advice shaped around how ${businessLabel} actually sells and delivers work.`,
-      };
+      case "money":
+        return {
+          title: workspaceTabLabel("money", blueprint),
+          subtitle: "Business signals, customer value, and margin clues without accounting clutter.",
+        };
+      case "facilities":
+        return {
+          title: "Disposal Facilities",
+          subtitle: "Keep approved dump sites, pricing, and permit coverage visible without digging through old notes.",
+        };
+      case "manifests":
+        return {
+          title: "Loads & Manifests",
+          subtitle: "Track every hauled load, what got dumped, and which disposal charges are still waiting to be billed.",
+        };
+      case "locates":
+        return {
+          title: "Locate Tickets",
+          subtitle: "Keep one-call coverage active, verified, and visible before field work turns risky.",
+        };
+      case "compliance":
+        return {
+          title: "Compliance",
+          subtitle: "Surface document risk, expiring tickets, and uninvoiced disposal before they become expensive problems.",
+        };
+      case "guidance":
+        return {
+          title: "Guidance",
+          subtitle: `Operator advice shaped around how ${businessLabel} actually sells and delivers work.`,
+        };
     case "setup":
       return {
         title: "Business Setup",
@@ -2101,12 +2200,15 @@ function workspacePanelCopy(tab, blueprint = currentWorkspaceBlueprint()) {
       };
   }
 }
-function isTabVisibleInWorkspace(tab, blueprint = currentWorkspaceBlueprint()) {
-  const hidden = new Set(blueprint?.hiddenByDefault || []);
-  if (hidden.has(tab)) return false;
-  if (isServiceWorkspace(blueprint) && (tab === "messages" || tab === "ai")) {
-    return false;
-  }
+  function isTabVisibleInWorkspace(tab, blueprint = currentWorkspaceBlueprint()) {
+    const hidden = new Set(blueprint?.hiddenByDefault || []);
+    if (hidden.has(tab)) return false;
+    if (["facilities", "manifests", "locates", "compliance"].includes(tab)) {
+      return isHydrovacWorkspace(blueprint);
+    }
+    if (isServiceWorkspace(blueprint) && (tab === "messages" || tab === "ai")) {
+      return false;
+    }
   if (tab === "bids") {
     if (hidden.has("bids")) return false;
     const priorityTabs = workspacePriorityTabs(blueprint);
@@ -3434,11 +3536,15 @@ function switchTab(tab, opts = {}) {
   if (nextTab === "setup") fetchOperatorSetup().catch((err) => setSetupMessage(err.message || String(err), "bad"));
   if (nextTab === "guidance") renderGuidance();
   if (nextTab === "bookings") renderBookings().catch(console.error);
-  if (nextTab === "quotes" && !TABS_LOADED.has("quotes")) {
-    TABS_LOADED.add("quotes");
-    fetchAndRenderQuotes().catch(console.error);
-  }
-  if (nextTab === "reviews")  fetchAndRenderReviews().catch(console.error);
+    if (nextTab === "quotes" && !TABS_LOADED.has("quotes")) {
+      TABS_LOADED.add("quotes");
+      fetchAndRenderQuotes().catch(console.error);
+    }
+    if (nextTab === "facilities") fetchHydrovacFacilities().catch(console.error);
+    if (nextTab === "manifests") fetchHydrovacManifests().catch(console.error);
+    if (nextTab === "locates") fetchHydrovacLocateTickets().catch(console.error);
+    if (nextTab === "compliance") fetchHydrovacComplianceData().catch(console.error);
+    if (nextTab === "reviews")  fetchAndRenderReviews().catch(console.error);
   if (nextTab === "messages") fetchAndRenderMessages().catch(console.error);
   if (nextTab === "ai")       initAIPanel();
   if (nextTab === "vendors" && !VENDORS_PANEL_LOADED) {
@@ -6236,6 +6342,612 @@ async function deleteEquipment(id) {
     showToast('Equipment removed.');
   } catch (err) { showToast('Error: ' + err.message); }
 }
+
+function parseHydrovacCityState(value = "") {
+  const raw = String(value || "").trim();
+  if (!raw) return { city: null, state_province: null };
+  const parts = raw.split(",").map((part) => part.trim()).filter(Boolean);
+  if (parts.length >= 2) return { city: parts[0], state_province: parts[1] };
+  return { city: raw, state_province: null };
+}
+function hydrovacCityStateLabel(row) {
+  return [row?.city, row?.state_province].filter(Boolean).join(", ");
+}
+function hydrovacDateTimeInputValue(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+function hydrovacWarningTone(severity = "") {
+  const normalized = String(severity || "").trim().toLowerCase();
+  if (normalized === "expired") return "pill-bad";
+  if (normalized === "critical") return "pill-warn";
+  if (normalized === "warning") return "pill";
+  return "pill";
+}
+function currentHydrovacFacility() {
+  return HYDROVAC_FACILITIES_CACHE.find((row) => row.id === ACTIVE_FACILITY_ID) || null;
+}
+function currentHydrovacManifest() {
+  return HYDROVAC_MANIFESTS_CACHE.find((row) => row.id === ACTIVE_MANIFEST_ID) || null;
+}
+function currentHydrovacLocate() {
+  return HYDROVAC_LOCATE_TICKETS_CACHE.find((row) => row.id === ACTIVE_LOCATE_ID) || null;
+}
+function clearHydrovacFacilityForm() {
+  ACTIVE_FACILITY_ID = null;
+  if (hydrovacFacilityId) hydrovacFacilityId.value = "";
+  if (hydrovacFacilityName) hydrovacFacilityName.value = "";
+  if (hydrovacFacilityStatus) hydrovacFacilityStatus.value = "active";
+  if (hydrovacFacilityType) hydrovacFacilityType.value = "transfer_station";
+  if (hydrovacFacilityPermitExpiry) hydrovacFacilityPermitExpiry.value = "";
+  if (hydrovacFacilityAddress) hydrovacFacilityAddress.value = "";
+  if (hydrovacFacilityCityState) hydrovacFacilityCityState.value = "";
+  if (hydrovacFacilityRateGallon) hydrovacFacilityRateGallon.value = "";
+  if (hydrovacFacilityRateYard) hydrovacFacilityRateYard.value = "";
+  if (hydrovacFacilityMinimumCharge) hydrovacFacilityMinimumCharge.value = "";
+  if (hydrovacFacilityContact) hydrovacFacilityContact.value = "";
+  if (hydrovacFacilityDispatchPhone) hydrovacFacilityDispatchPhone.value = "";
+  if (hydrovacFacilityWasteTypes) hydrovacFacilityWasteTypes.value = "";
+  if (hydrovacFacilityNotes) hydrovacFacilityNotes.value = "";
+  setInlineMessage(hydrovacFacilityMsg, "");
+}
+function populateHydrovacFacilityForm(row) {
+  if (!row) return clearHydrovacFacilityForm();
+  ACTIVE_FACILITY_ID = row.id || null;
+  if (hydrovacFacilityId) hydrovacFacilityId.value = row.id || "";
+  if (hydrovacFacilityName) hydrovacFacilityName.value = row.name || "";
+  if (hydrovacFacilityStatus) hydrovacFacilityStatus.value = row.status || "active";
+  if (hydrovacFacilityType) hydrovacFacilityType.value = row.facility_type || "transfer_station";
+  if (hydrovacFacilityPermitExpiry) hydrovacFacilityPermitExpiry.value = row.permit_expiry_date || "";
+  if (hydrovacFacilityAddress) hydrovacFacilityAddress.value = row.address || "";
+  if (hydrovacFacilityCityState) hydrovacFacilityCityState.value = hydrovacCityStateLabel(row);
+  if (hydrovacFacilityRateGallon) hydrovacFacilityRateGallon.value = row.price_per_gallon_cents ? (Number(row.price_per_gallon_cents) / 100).toFixed(2) : "";
+  if (hydrovacFacilityRateYard) hydrovacFacilityRateYard.value = row.price_per_cubic_yard_cents ? (Number(row.price_per_cubic_yard_cents) / 100).toFixed(2) : "";
+  if (hydrovacFacilityMinimumCharge) hydrovacFacilityMinimumCharge.value = row.minimum_charge_cents ? (Number(row.minimum_charge_cents) / 100).toFixed(2) : "";
+  if (hydrovacFacilityContact) hydrovacFacilityContact.value = [row.primary_contact_name, row.primary_contact_phone || row.primary_contact_email].filter(Boolean).join(" | ");
+  if (hydrovacFacilityDispatchPhone) hydrovacFacilityDispatchPhone.value = row.dispatch_phone || "";
+  if (hydrovacFacilityWasteTypes) hydrovacFacilityWasteTypes.value = Array.isArray(row.accepted_waste_types) ? row.accepted_waste_types.join(", ") : "";
+  if (hydrovacFacilityNotes) hydrovacFacilityNotes.value = row.notes || "";
+  setInlineMessage(hydrovacFacilityMsg, "");
+}
+function renderHydrovacLocateJobOptions(selectedId = "") {
+  if (!hydrovacLocateJobId) return;
+  hydrovacLocateJobId.innerHTML = `<option value="">Optional</option>${(JOBS_CACHE || []).map((job) => `
+    <option value="${escapeAttr(job.id)}"${job.id === selectedId ? " selected" : ""}>${escapeHtml(job.title || job.service_address || "Untitled job")}</option>
+  `).join("")}`;
+}
+function clearHydrovacLocateForm() {
+  ACTIVE_LOCATE_ID = null;
+  if (hydrovacLocateId) hydrovacLocateId.value = "";
+  renderHydrovacLocateJobOptions("");
+  if (hydrovacLocateType) hydrovacLocateType.value = "standard";
+  if (hydrovacLocateNumber) hydrovacLocateNumber.value = "";
+  if (hydrovacLocateStatus) hydrovacLocateStatus.value = "requested";
+  if (hydrovacLocateCenter) hydrovacLocateCenter.value = "";
+  if (hydrovacLocateState) hydrovacLocateState.value = "";
+  if (hydrovacLocateAddress) hydrovacLocateAddress.value = "";
+  if (hydrovacLocateValidFrom) hydrovacLocateValidFrom.value = "";
+  if (hydrovacLocateValidUntil) hydrovacLocateValidUntil.value = "";
+  if (hydrovacLocateNotes) hydrovacLocateNotes.value = "";
+  setInlineMessage(hydrovacLocateMsg, "");
+}
+function populateHydrovacLocateForm(row) {
+  if (!row) return clearHydrovacLocateForm();
+  ACTIVE_LOCATE_ID = row.id || null;
+  if (hydrovacLocateId) hydrovacLocateId.value = row.id || "";
+  renderHydrovacLocateJobOptions(row.job_id || "");
+  if (hydrovacLocateType) hydrovacLocateType.value = row.ticket_type || "standard";
+  if (hydrovacLocateNumber) hydrovacLocateNumber.value = row.ticket_number || "";
+  if (hydrovacLocateStatus) hydrovacLocateStatus.value = row.status || "requested";
+  if (hydrovacLocateCenter) hydrovacLocateCenter.value = row.one_call_center || "";
+  if (hydrovacLocateState) hydrovacLocateState.value = row.state_province || "";
+  if (hydrovacLocateAddress) hydrovacLocateAddress.value = row.work_site_address || "";
+  if (hydrovacLocateValidFrom) hydrovacLocateValidFrom.value = hydrovacDateTimeInputValue(row.valid_from);
+  if (hydrovacLocateValidUntil) hydrovacLocateValidUntil.value = hydrovacDateTimeInputValue(row.valid_until);
+  if (hydrovacLocateNotes) hydrovacLocateNotes.value = row.locate_notes || "";
+  setInlineMessage(hydrovacLocateMsg, "");
+}
+async function fetchHydrovacFacilities() {
+  const data = await requestOperatorFunction("manage-disposal-facilities");
+  HYDROVAC_FACILITIES_CACHE = Array.isArray(data?.facilities) ? data.facilities : [];
+  if (!ACTIVE_FACILITY_ID && HYDROVAC_FACILITIES_CACHE[0]) ACTIVE_FACILITY_ID = HYDROVAC_FACILITIES_CACHE[0].id;
+  renderHydrovacFacilities();
+  return HYDROVAC_FACILITIES_CACHE;
+}
+async function fetchHydrovacManifests() {
+  const data = await requestOperatorFunction("manage-waste-manifests", { query: "action=all&limit=100" });
+  HYDROVAC_MANIFESTS_CACHE = Array.isArray(data?.manifests) ? data.manifests : [];
+  if (!ACTIVE_MANIFEST_ID && HYDROVAC_MANIFESTS_CACHE[0]) ACTIVE_MANIFEST_ID = HYDROVAC_MANIFESTS_CACHE[0].id;
+  renderHydrovacManifests();
+  return HYDROVAC_MANIFESTS_CACHE;
+}
+async function fetchHydrovacLocateTickets() {
+  const data = await requestOperatorFunction("manage-locate-tickets", { query: "limit=100" });
+  HYDROVAC_LOCATE_TICKETS_CACHE = Array.isArray(data?.tickets) ? data.tickets : [];
+  if (!ACTIVE_LOCATE_ID && HYDROVAC_LOCATE_TICKETS_CACHE[0]) ACTIVE_LOCATE_ID = HYDROVAC_LOCATE_TICKETS_CACHE[0].id;
+  renderHydrovacLocateWorkspace();
+  return HYDROVAC_LOCATE_TICKETS_CACHE;
+}
+async function fetchHydrovacComplianceData() {
+  const [equipmentData, driverData, locateData, manifestData, analyticsData, facilitiesData, locateBoardData] = await Promise.all([
+    requestOperatorFunction("manage-equipment", { query: "action=compliance_summary" }),
+    requestOperatorFunction("manage-driver-qualifications", { query: "action=compliance_summary" }),
+    requestOperatorFunction("manage-locate-tickets", { query: "status=active&days_until_expiry=30&limit=100" }),
+    requestOperatorFunction("manage-waste-manifests", { query: "action=unbilled&days=90" }),
+    requestOperatorFunction("get-hydrovac-analytics", { query: "days=90" }),
+    requestOperatorFunction("manage-disposal-facilities"),
+    requestOperatorFunction("manage-locate-tickets", { query: "limit=100" }),
+  ]);
+  HYDROVAC_EQUIPMENT_COMPLIANCE_CACHE = Array.isArray(equipmentData?.equipment) ? equipmentData.equipment : [];
+  HYDROVAC_DRIVER_COMPLIANCE_CACHE = Array.isArray(driverData?.drivers) ? driverData.drivers : [];
+  HYDROVAC_ANALYTICS_CACHE = analyticsData?.analytics || null;
+  HYDROVAC_FACILITIES_CACHE = Array.isArray(facilitiesData?.facilities) ? facilitiesData.facilities : HYDROVAC_FACILITIES_CACHE;
+  HYDROVAC_LOCATE_TICKETS_CACHE = Array.isArray(locateBoardData?.tickets) ? locateBoardData.tickets : HYDROVAC_LOCATE_TICKETS_CACHE;
+  renderHydrovacCompliance(
+    Array.isArray(locateData?.tickets) ? locateData.tickets : [],
+    Array.isArray(manifestData?.manifests) ? manifestData.manifests : [],
+  );
+}
+function renderHydrovacFacilities() {
+  if (!hydrovacFacilitiesList) return;
+  const rows = Array.isArray(HYDROVAC_FACILITIES_CACHE) ? HYDROVAC_FACILITIES_CACHE : [];
+  const expiring = rows.filter((row) => (row.warnings || []).some((warning) => ["warning", "critical", "expired"].includes(String(warning.severity || "").toLowerCase()))).length;
+  const preferred = rows.filter((row) => String(row.status || "").toLowerCase() === "preferred").length;
+  const missingRates = rows.filter((row) => (row.warnings || []).some((warning) => warning.field === "pricing")).length;
+  if (facilityStageStrip) {
+    facilityStageStrip.innerHTML = [
+      { eyebrow: "Live", value: rows.filter((row) => String(row.status || "").toLowerCase() !== "inactive").length, title: "Active facilities", copy: "Dump sites the office can route work to right now." },
+      { eyebrow: "Preferred", value: preferred, title: "Preferred", copy: "Sites the team should default to first." },
+      { eyebrow: "Watch", value: expiring, title: "Permit pressure", copy: "Facilities with permit dates or other warnings needing attention." },
+      { eyebrow: "Rates", value: missingRates, title: "Pricing missing", copy: "Facilities still missing contracted disposal pricing." },
+    ].map((stage) => `
+      <div class="pipeline-stage-card is-active">
+        <div class="pipeline-stage-card__eyebrow">${escapeHtml(stage.eyebrow)}</div>
+        <div class="pipeline-stage-card__value">${escapeHtml(String(stage.value))}</div>
+        <div class="pipeline-stage-card__title">${escapeHtml(stage.title)}</div>
+        <div class="pipeline-stage-card__copy">${escapeHtml(stage.copy)}</div>
+      </div>
+    `).join("");
+  }
+  if (facilityActionBar) {
+    facilityActionBar.innerHTML = `
+      <button type="button" class="pipeline-action-chip" data-facility-action="new">New facility</button>
+      <button type="button" class="pipeline-action-chip" data-facility-action="manifests">Open loads</button>
+      <button type="button" class="pipeline-action-chip" data-facility-action="compliance">Open compliance</button>
+      <button type="button" class="pipeline-action-chip" data-facility-action="equipment">Open equipment</button>
+    `;
+    facilityActionBar.querySelectorAll("[data-facility-action]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const action = button.getAttribute("data-facility-action");
+        if (action === "new") return clearHydrovacFacilityForm();
+        if (action === "manifests") return switchTab("manifests");
+        if (action === "compliance") return switchTab("compliance");
+        if (action === "equipment") return switchTab("equipment");
+      });
+    });
+  }
+  if (!rows.length) {
+    hydrovacFacilitiesList.innerHTML = `<div class="muted">No disposal facilities saved yet. Add the dump sites and contracted rates the office uses most.</div>`;
+    clearHydrovacFacilityForm();
+    return;
+  }
+  if (!ACTIVE_FACILITY_ID || !rows.some((row) => row.id === ACTIVE_FACILITY_ID)) ACTIVE_FACILITY_ID = rows[0].id;
+  hydrovacFacilitiesList.innerHTML = rows.map((row) => {
+    const warning = Array.isArray(row.warnings) ? row.warnings[0] : null;
+    return `
+      <button type="button" class="list-item ${row.id === ACTIVE_FACILITY_ID ? "is-active" : ""}" data-facility-id="${escapeAttr(row.id)}">
+        <div class="li-main">
+          <div class="li-title">${escapeHtml(row.name || "Unnamed facility")}</div>
+          <div class="li-sub muted">${escapeHtml(hydrovacCityStateLabel(row) || row.address || "Location not set")}</div>
+          <div class="li-sub muted">${escapeHtml(titleCaseWords(String(row.facility_type || "transfer_station").replace(/_/g, " ")))}</div>
+        </div>
+        <div class="li-meta">
+          <span class="pill ${String(row.status || "").toLowerCase() === "preferred" ? "pill-on" : ""}">${escapeHtml(titleCaseWords(String(row.status || "active")))}</span>
+          ${warning ? `<span class="pill ${hydrovacWarningTone(warning.severity)}">${escapeHtml(warning.field === "pricing" ? "Needs rates" : "Permit watch")}</span>` : ""}
+          <span class="pill">${row.price_per_gallon_cents ? `$${(Number(row.price_per_gallon_cents) / 100).toFixed(2)}/gal` : "No gal rate"}</span>
+        </div>
+      </button>
+    `;
+  }).join("");
+  hydrovacFacilitiesList.querySelectorAll("[data-facility-id]").forEach((button) => {
+    button.addEventListener("click", () => {
+      ACTIVE_FACILITY_ID = button.getAttribute("data-facility-id") || null;
+      renderHydrovacFacilities();
+    });
+  });
+  populateHydrovacFacilityForm(currentHydrovacFacility());
+}
+function renderHydrovacManifests() {
+  if (!hydrovacManifestsList || !hydrovacManifestDetailWrap) return;
+  const rows = Array.isArray(HYDROVAC_MANIFESTS_CACHE) ? HYDROVAC_MANIFESTS_CACHE : [];
+  const openLoads = rows.filter((row) => ["in_transit", "delivered"].includes(String(row.status || "").toLowerCase())).length;
+  const confirmedUnbilled = rows.filter((row) => String(row.status || "").toLowerCase() === "confirmed" && row.invoiced !== true).length;
+  const totalCharge = rows.filter((row) => row.invoiced !== true).reduce((sum, row) => sum + Number(row.disposal_charge_cents || 0), 0);
+  const totalCost = rows.reduce((sum, row) => sum + Number(row.disposal_cost_cents || 0), 0);
+  if (manifestStageStrip) {
+    manifestStageStrip.innerHTML = [
+      { eyebrow: "Rolling", value: openLoads, title: "Open loads", copy: "Loads still in transit or waiting to be fully confirmed." },
+      { eyebrow: "Billing", value: confirmedUnbilled, title: "Confirmed / uninvoiced", copy: "Disposal charges that still need to make it onto the invoice." },
+      { eyebrow: "Charge", value: formatUsd(totalCharge), title: "Unbilled charge", copy: "Customer-facing disposal still waiting to be billed." },
+      { eyebrow: "Cost", value: formatUsd(totalCost), title: "Tracked disposal cost", copy: "What the dumps have cost the business so far." },
+    ].map((stage) => `
+      <div class="pipeline-stage-card is-active">
+        <div class="pipeline-stage-card__eyebrow">${escapeHtml(stage.eyebrow)}</div>
+        <div class="pipeline-stage-card__value">${escapeHtml(String(stage.value))}</div>
+        <div class="pipeline-stage-card__title">${escapeHtml(stage.title)}</div>
+        <div class="pipeline-stage-card__copy">${escapeHtml(stage.copy)}</div>
+      </div>
+    `).join("");
+  }
+  if (manifestActionBar) {
+    manifestActionBar.innerHTML = `
+      <button type="button" class="pipeline-action-chip" data-manifest-action="jobs">Open jobs</button>
+      <button type="button" class="pipeline-action-chip" data-manifest-action="money">Open money</button>
+      <button type="button" class="pipeline-action-chip" data-manifest-action="facilities">Open facilities</button>
+      <button type="button" class="pipeline-action-chip" data-manifest-action="compliance">Open compliance</button>
+    `;
+    manifestActionBar.querySelectorAll("[data-manifest-action]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const action = button.getAttribute("data-manifest-action");
+        if (action === "jobs") return switchTab("jobs");
+        if (action === "money") return switchTab("payments");
+        if (action === "facilities") return switchTab("facilities");
+        if (action === "compliance") return switchTab("compliance");
+      });
+    });
+  }
+  if (!rows.length) {
+    hydrovacManifestsList.innerHTML = `<div class="muted">No loads logged yet. Once the truck starts hauling, manifests will show up here for office review.</div>`;
+    hydrovacManifestDetailWrap.innerHTML = `<div class="muted">Select a load to inspect it.</div>`;
+    return;
+  }
+  if (!ACTIVE_MANIFEST_ID || !rows.some((row) => row.id === ACTIVE_MANIFEST_ID)) ACTIVE_MANIFEST_ID = rows[0].id;
+  hydrovacManifestsList.innerHTML = rows.map((row) => {
+    const job = (JOBS_CACHE || []).find((candidate) => candidate.id === row.job_id) || null;
+    const customer = (CUSTOMERS_CACHE || []).find((candidate) => candidate.id === row.customer_id) || null;
+    return `
+      <button type="button" class="list-item ${row.id === ACTIVE_MANIFEST_ID ? "is-active" : ""}" data-manifest-id="${escapeAttr(row.id)}">
+        <div class="li-main">
+          <div class="li-title">${escapeHtml(row.manifest_number || "Draft load")}</div>
+          <div class="li-sub muted">${escapeHtml(customer?.name || job?.customer_name || "Unknown customer")}</div>
+          <div class="li-sub muted">${escapeHtml(job?.title || row.pickup_address || "Job not linked")}</div>
+        </div>
+        <div class="li-meta">
+          <span class="pill ${hydrovacManifestToneClass(row.status)}">${escapeHtml(titleCaseWords(String(row.status || "in_transit").replace(/_/g, " ")))}</span>
+          <span class="pill">${escapeHtml(hydrovacManifestQuantityLabel(row) || "Qty pending")}</span>
+        </div>
+      </button>
+    `;
+  }).join("");
+  hydrovacManifestsList.querySelectorAll("[data-manifest-id]").forEach((button) => {
+    button.addEventListener("click", () => {
+      ACTIVE_MANIFEST_ID = button.getAttribute("data-manifest-id") || null;
+      renderHydrovacManifests();
+    });
+  });
+  const active = currentHydrovacManifest();
+  const linkedJob = active?.job_id ? (JOBS_CACHE || []).find((row) => row.id === active.job_id) || null : null;
+  hydrovacManifestDetailWrap.innerHTML = active ? `
+    <div class="detail-card">
+      <div class="detail-card__header">
+        <strong>${escapeHtml(active.manifest_number || "Draft load")}</strong>
+        <span class="pill ${hydrovacManifestToneClass(active.status)}">${escapeHtml(titleCaseWords(String(active.status || "in_transit").replace(/_/g, " ")))}</span>
+      </div>
+      <div class="detail-grid">
+        <div><span class="muted">Material</span><div>${escapeHtml(hydrovacMaterialLabel(active.material_type))}</div></div>
+        <div><span class="muted">Quantity</span><div>${escapeHtml(hydrovacManifestQuantityLabel(active) || "Pending")}</div></div>
+        <div><span class="muted">Facility</span><div>${escapeHtml(active.disposal_facility_name || "Not set")}</div></div>
+        <div><span class="muted">Ticket</span><div>${escapeHtml(active.disposal_ticket_number || "Pending")}</div></div>
+        <div><span class="muted">Charge</span><div>${formatUsd(Number(active.disposal_charge_cents || 0))}</div></div>
+        <div><span class="muted">Cost</span><div>${formatUsd(Number(active.disposal_cost_cents || 0))}</div></div>
+      </div>
+      <div class="detail-copy" style="margin-top:12px;">${escapeHtml(active.notes || active.pickup_address || "No additional manifest notes.")}</div>
+      <div class="pipeline-action-bar" style="padding:14px 0 0;">
+        ${linkedJob ? `<button type="button" class="pipeline-action-chip" data-manifest-open-job="${escapeAttr(linkedJob.id)}">Open job</button>` : ""}
+        ${["in_transit", "delivered"].includes(String(active.status || "").toLowerCase()) ? `<button type="button" class="pipeline-action-chip" data-manifest-confirm="${escapeAttr(active.id)}">Confirm load</button>` : ""}
+        ${active.invoiced !== true ? `<button type="button" class="pipeline-action-chip" data-manifest-open-money="1">Open money</button>` : ""}
+      </div>
+    </div>
+  ` : `<div class="muted">Select a load to inspect it.</div>`;
+  hydrovacManifestDetailWrap.querySelector("[data-manifest-open-job]")?.addEventListener("click", (event) => {
+    ACTIVE_JOB_ID = event.currentTarget.getAttribute("data-manifest-open-job") || null;
+    switchTab("jobs");
+  });
+  hydrovacManifestDetailWrap.querySelector("[data-manifest-open-money]")?.addEventListener("click", () => switchTab("payments"));
+  hydrovacManifestDetailWrap.querySelector("[data-manifest-confirm]")?.addEventListener("click", async (event) => {
+    const id = event.currentTarget.getAttribute("data-manifest-confirm");
+    if (!id) return;
+    await requestOperatorFunction("manage-waste-manifests", {
+      method: "PATCH",
+      body: { id, status: "confirmed", disposal_confirmed_at: new Date().toISOString() },
+    });
+    await fetchHydrovacManifests();
+    if (TABS_LOADED.has("jobs")) await fetchJobs();
+  });
+}
+function renderHydrovacLocateWorkspace() {
+  if (!hydrovacLocateList) return;
+  const rows = Array.isArray(HYDROVAC_LOCATE_TICKETS_CACHE) ? HYDROVAC_LOCATE_TICKETS_CACHE : [];
+  const expiringSoon = rows.filter((row) => {
+    const days = daysUntil(row.valid_until);
+    return days != null && days >= 0 && days <= 3;
+  }).length;
+  const expired = rows.filter((row) => {
+    const days = daysUntil(row.valid_until);
+    return days != null && days < 0;
+  }).length;
+  const verified = rows.filter((row) => row.verified_on_site === true).length;
+  if (locateStageStrip) {
+    locateStageStrip.innerHTML = [
+      { eyebrow: "Live", value: rows.filter((row) => ["active", "extended"].includes(String(row.status || "").toLowerCase())).length, title: "Active coverage", copy: "Tickets currently covering excavation or potholing work." },
+      { eyebrow: "Watch", value: expiringSoon, title: "Expiring soon", copy: "Coverage the office should extend before the crew gets jammed up." },
+      { eyebrow: "Risk", value: expired, title: "Expired", copy: "Tickets already out of date and worth immediate attention." },
+      { eyebrow: "Field", value: verified, title: "Verified on site", copy: "Tickets the crew has already confirmed in the field." },
+    ].map((stage) => `
+      <div class="pipeline-stage-card is-active">
+        <div class="pipeline-stage-card__eyebrow">${escapeHtml(stage.eyebrow)}</div>
+        <div class="pipeline-stage-card__value">${escapeHtml(String(stage.value))}</div>
+        <div class="pipeline-stage-card__title">${escapeHtml(stage.title)}</div>
+        <div class="pipeline-stage-card__copy">${escapeHtml(stage.copy)}</div>
+      </div>
+    `).join("");
+  }
+  if (locateActionBar) {
+    locateActionBar.innerHTML = `
+      <button type="button" class="pipeline-action-chip" data-locate-action="new">New ticket</button>
+      <button type="button" class="pipeline-action-chip" data-locate-action="jobs">Open jobs</button>
+      <button type="button" class="pipeline-action-chip" data-locate-action="compliance">Open compliance</button>
+      <button type="button" class="pipeline-action-chip" data-locate-action="pipeline">Open pipeline</button>
+    `;
+    locateActionBar.querySelectorAll("[data-locate-action]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const action = button.getAttribute("data-locate-action");
+        if (action === "new") return clearHydrovacLocateForm();
+        if (action === "jobs") return switchTab("jobs");
+        if (action === "compliance") return switchTab("compliance");
+        if (action === "pipeline") return switchTab("orders");
+      });
+    });
+  }
+  renderHydrovacLocateJobOptions(currentHydrovacLocate()?.job_id || "");
+  if (!rows.length) {
+    hydrovacLocateList.innerHTML = `<div class="muted">No locate tickets logged yet. Add 811 coverage here or from the linked job.</div>`;
+    clearHydrovacLocateForm();
+    return;
+  }
+  if (!ACTIVE_LOCATE_ID || !rows.some((row) => row.id === ACTIVE_LOCATE_ID)) ACTIVE_LOCATE_ID = rows[0].id;
+  hydrovacLocateList.innerHTML = rows.map((row) => {
+    const job = (JOBS_CACHE || []).find((candidate) => candidate.id === row.job_id) || null;
+    return `
+      <button type="button" class="list-item ${row.id === ACTIVE_LOCATE_ID ? "is-active" : ""}" data-locate-id="${escapeAttr(row.id)}">
+        <div class="li-main">
+          <div class="li-title">${escapeHtml(row.ticket_number || "Ticket pending")}</div>
+          <div class="li-sub muted">${escapeHtml(job?.title || row.work_site_address || "Job not linked")}</div>
+          <div class="li-sub muted">${escapeHtml(row.one_call_center || "One-call center not set")}</div>
+        </div>
+        <div class="li-meta">
+          <span class="pill ${hydrovacLocateToneClass(row)}">${escapeHtml(titleCaseWords(String(row.status || "requested").replace(/_/g, " ")))}</span>
+          <span class="pill">${escapeHtml(hydrovacLocateExpiryLabel(row) || "No expiry")}</span>
+        </div>
+      </button>
+    `;
+  }).join("");
+  hydrovacLocateList.querySelectorAll("[data-locate-id]").forEach((button) => {
+    button.addEventListener("click", () => {
+      ACTIVE_LOCATE_ID = button.getAttribute("data-locate-id") || null;
+      renderHydrovacLocateWorkspace();
+    });
+  });
+  populateHydrovacLocateForm(currentHydrovacLocate());
+}
+function renderHydrovacCompliance(expiringTickets = [], unbilledManifests = []) {
+  if (!hydrovacComplianceSummary || !hydrovacComplianceUrgent || !hydrovacComplianceCoverage) return;
+  const equipmentWarnings = HYDROVAC_EQUIPMENT_COMPLIANCE_CACHE.flatMap((row) => (row.warnings || []).map((warning) => ({ ...warning, type: "equipment", row })));
+  const driverWarnings = HYDROVAC_DRIVER_COMPLIANCE_CACHE.flatMap((row) => (row.warnings || []).map((warning) => ({ ...warning, type: "driver", row })));
+  const criticalCount = equipmentWarnings.filter((row) => ["critical", "expired"].includes(String(row.severity || "").toLowerCase())).length
+    + driverWarnings.filter((row) => ["critical", "expired"].includes(String(row.severity || "").toLowerCase())).length
+    + expiringTickets.filter((row) => {
+      const days = daysUntil(row.valid_until);
+      return days != null && days <= 3;
+    }).length;
+  const warningCount = equipmentWarnings.filter((row) => String(row.severity || "").toLowerCase() === "warning").length
+    + driverWarnings.filter((row) => String(row.severity || "").toLowerCase() === "warning").length;
+  const avgMargin = HYDROVAC_ANALYTICS_CACHE?.avg_job_margin != null
+    ? `${Math.round(Number(HYDROVAC_ANALYTICS_CACHE.avg_job_margin || 0) * 100)}%`
+    : "N/A";
+  if (complianceStageStrip) {
+    complianceStageStrip.innerHTML = [
+      { eyebrow: "Critical", value: criticalCount, title: "Act now", copy: "Items that can stop dispatch, compliance, or billing if ignored." },
+      { eyebrow: "Watch", value: warningCount, title: "Expiring soon", copy: "Documents and permits the office should get in front of this month." },
+      { eyebrow: "Billing", value: unbilledManifests.length, title: "Uninvoiced disposal", copy: "Confirmed manifests still waiting to make it onto an invoice." },
+      { eyebrow: "Margin", value: avgMargin, title: "Average job margin", copy: "Recent hydrovac margin based on tracked costs already in the system." },
+    ].map((stage) => `
+      <div class="pipeline-stage-card is-active">
+        <div class="pipeline-stage-card__eyebrow">${escapeHtml(stage.eyebrow)}</div>
+        <div class="pipeline-stage-card__value">${escapeHtml(String(stage.value))}</div>
+        <div class="pipeline-stage-card__title">${escapeHtml(stage.title)}</div>
+        <div class="pipeline-stage-card__copy">${escapeHtml(stage.copy)}</div>
+      </div>
+    `).join("");
+  }
+  if (complianceActionBar) {
+    complianceActionBar.innerHTML = `
+      <button type="button" class="pipeline-action-chip" data-compliance-action="locates">Open locate tickets</button>
+      <button type="button" class="pipeline-action-chip" data-compliance-action="manifests">Open manifests</button>
+      <button type="button" class="pipeline-action-chip" data-compliance-action="equipment">Open equipment</button>
+      <button type="button" class="pipeline-action-chip" data-compliance-action="jobs">Open jobs</button>
+    `;
+    complianceActionBar.querySelectorAll("[data-compliance-action]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const action = button.getAttribute("data-compliance-action");
+        if (action === "locates") return switchTab("locates");
+        if (action === "manifests") return switchTab("manifests");
+        if (action === "equipment") return switchTab("equipment");
+        if (action === "jobs") return switchTab("jobs");
+      });
+    });
+  }
+  hydrovacComplianceSummary.innerHTML = `
+    <div class="card stat-card"><div class="card-hd"><strong>Critical items</strong><span class="muted">Today</span></div><div class="card-bd"><div class="money-big">${escapeHtml(String(criticalCount))}</div></div></div>
+    <div class="card stat-card"><div class="card-hd"><strong>Driver warnings</strong><span class="muted">CDL / med / certs</span></div><div class="card-bd"><div class="money-big">${escapeHtml(String(driverWarnings.length))}</div></div></div>
+    <div class="card stat-card"><div class="card-hd"><strong>Equipment warnings</strong><span class="muted">Inspections / docs</span></div><div class="card-bd"><div class="money-big">${escapeHtml(String(equipmentWarnings.length))}</div></div></div>
+    <div class="card stat-card"><div class="card-hd"><strong>Uninvoiced disposal</strong><span class="muted">Confirmed manifests</span></div><div class="card-bd"><div class="money-big">${escapeHtml(String(unbilledManifests.length))}</div></div></div>
+  `;
+  const urgentItems = [];
+  expiringTickets.forEach((ticket) => {
+    const days = daysUntil(ticket.valid_until);
+    urgentItems.push({
+      label: `Locate ${ticket.ticket_number || "ticket"}${days != null ? ` (${days < 0 ? "expired" : `${days}d left`})` : ""}`,
+      sub: ticket.work_site_address || "Ticket coverage",
+      tone: days != null && days < 0 ? "pill-bad" : "pill-warn",
+      actionTab: "locates",
+    });
+  });
+  equipmentWarnings.forEach((warning) => {
+    urgentItems.push({
+      label: `${warning.row?.unit_number || warning.row?.name || "Truck"}: ${titleCaseWords(String(warning.field || "").replace(/_/g, " "))}`,
+      sub: warning.row?.name || "Equipment compliance",
+      tone: hydrovacWarningTone(warning.severity),
+      actionTab: "equipment",
+    });
+  });
+  driverWarnings.forEach((warning) => {
+    urgentItems.push({
+      label: `${warning.row?.operator_members?.display_name || "Driver"}: ${titleCaseWords(String(warning.field || "").replace(/_/g, " "))}`,
+      sub: "Driver compliance",
+      tone: hydrovacWarningTone(warning.severity),
+      actionTab: "compliance",
+    });
+  });
+  unbilledManifests.forEach((manifest) => {
+    urgentItems.push({
+      label: `Uninvoiced ${manifest.manifest_number || "manifest"} (${formatUsd(Number(manifest.disposal_charge_cents || 0))})`,
+      sub: manifest.disposal_facility_name || manifest.material_type || "Disposal charge waiting for billing",
+      tone: "pill-warn",
+      actionTab: "manifests",
+    });
+  });
+  hydrovacComplianceUrgent.innerHTML = urgentItems.length ? urgentItems.slice(0, 20).map((item) => `
+    <button type="button" class="list-item" data-compliance-tab="${escapeAttr(item.actionTab)}">
+      <div class="li-main">
+        <div class="li-title">${escapeHtml(item.label)}</div>
+        <div class="li-sub muted">${escapeHtml(item.sub)}</div>
+      </div>
+      <div class="li-meta"><span class="pill ${item.tone}">Review</span></div>
+    </button>
+  `).join("") : `<div class="muted">No urgent compliance issues are showing right now.</div>`;
+  hydrovacComplianceUrgent.querySelectorAll("[data-compliance-tab]").forEach((button) => {
+    button.addEventListener("click", () => switchTab(button.getAttribute("data-compliance-tab") || "compliance"));
+  });
+  hydrovacComplianceCoverage.innerHTML = `
+    <div class="list-item">
+      <div class="li-main"><div class="li-title">Hydrovac jobs tracked</div><div class="li-sub muted">Recent completed jobs in analytics</div></div>
+      <div class="li-meta"><span class="pill">${escapeHtml(String(HYDROVAC_ANALYTICS_CACHE?.total_jobs || 0))}</span></div>
+    </div>
+    <div class="list-item">
+      <div class="li-main"><div class="li-title">Tracked disposal cost</div><div class="li-sub muted">Recent period</div></div>
+      <div class="li-meta"><span class="pill">${formatUsd(Number(HYDROVAC_ANALYTICS_CACHE?.total_disposal_cost_cents || 0))}</span></div>
+    </div>
+    <div class="list-item">
+      <div class="li-main"><div class="li-title">Preferred facilities</div><div class="li-sub muted">Ready for dispatch</div></div>
+      <div class="li-meta"><span class="pill">${escapeHtml(String((HYDROVAC_FACILITIES_CACHE || []).filter((row) => String(row.status || "").toLowerCase() === "preferred").length))}</span></div>
+    </div>
+    <div class="list-item">
+      <div class="li-main"><div class="li-title">Active tickets in cache</div><div class="li-sub muted">Recent office view</div></div>
+      <div class="li-meta"><span class="pill">${escapeHtml(String((HYDROVAC_LOCATE_TICKETS_CACHE || []).filter((row) => ["active", "extended"].includes(String(row.status || "").toLowerCase())).length))}</span></div>
+    </div>
+  `;
+}
+
+btnRefreshFacilities?.addEventListener("click", () => fetchHydrovacFacilities().catch(console.error));
+btnNewFacility?.addEventListener("click", () => clearHydrovacFacilityForm());
+btnClearFacility?.addEventListener("click", () => clearHydrovacFacilityForm());
+hydrovacFacilityForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  setInlineMessage(hydrovacFacilityMsg, "Saving...");
+  try {
+    const cityState = parseHydrovacCityState(hydrovacFacilityCityState?.value || "");
+    const payload = {
+      id: hydrovacFacilityId?.value || undefined,
+      name: hydrovacFacilityName?.value || "",
+      status: hydrovacFacilityStatus?.value || "active",
+      facility_type: hydrovacFacilityType?.value || "transfer_station",
+      permit_expiry_date: hydrovacFacilityPermitExpiry?.value || null,
+      address: hydrovacFacilityAddress?.value || null,
+      city: cityState.city,
+      state_province: cityState.state_province,
+      price_per_gallon_cents: Math.round((parseFloat(hydrovacFacilityRateGallon?.value || "0") || 0) * 100),
+      price_per_cubic_yard_cents: Math.round((parseFloat(hydrovacFacilityRateYard?.value || "0") || 0) * 100),
+      minimum_charge_cents: Math.round((parseFloat(hydrovacFacilityMinimumCharge?.value || "0") || 0) * 100),
+      primary_contact_name: hydrovacFacilityContact?.value || null,
+      dispatch_phone: hydrovacFacilityDispatchPhone?.value || null,
+      accepted_waste_types: String(hydrovacFacilityWasteTypes?.value || "").split(",").map((part) => part.trim()).filter(Boolean),
+      notes: hydrovacFacilityNotes?.value || null,
+    };
+    await requestOperatorFunction("manage-disposal-facilities", {
+      method: hydrovacFacilityId?.value ? "PATCH" : "POST",
+      body: payload,
+    });
+    await fetchHydrovacFacilities();
+    if (TABS_LOADED.has("compliance")) await fetchHydrovacComplianceData();
+    setInlineMessage(hydrovacFacilityMsg, "Facility saved.", "ok");
+  } catch (error) {
+    setInlineMessage(hydrovacFacilityMsg, error.message || String(error), "error");
+  }
+});
+btnRefreshManifests?.addEventListener("click", () => fetchHydrovacManifests().catch(console.error));
+btnRefreshLocates?.addEventListener("click", () => fetchHydrovacLocateTickets().catch(console.error));
+btnNewLocate?.addEventListener("click", () => clearHydrovacLocateForm());
+btnClearLocate?.addEventListener("click", () => clearHydrovacLocateForm());
+btnVerifyLocate?.addEventListener("click", async () => {
+  const id = hydrovacLocateId?.value || "";
+  if (!id) return;
+  setInlineMessage(hydrovacLocateMsg, "Marking verified...");
+  try {
+    await requestOperatorFunction("manage-locate-tickets", {
+      method: "PATCH",
+      body: { id, verified_on_site: true },
+    });
+    await fetchHydrovacLocateTickets();
+    if (TABS_LOADED.has("compliance")) await fetchHydrovacComplianceData();
+    setInlineMessage(hydrovacLocateMsg, "Ticket marked verified.", "ok");
+  } catch (error) {
+    setInlineMessage(hydrovacLocateMsg, error.message || String(error), "error");
+  }
+});
+hydrovacLocateForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  setInlineMessage(hydrovacLocateMsg, "Saving...");
+  try {
+    const payload = {
+      id: hydrovacLocateId?.value || undefined,
+      job_id: hydrovacLocateJobId?.value || null,
+      ticket_number: hydrovacLocateNumber?.value || "",
+      ticket_type: hydrovacLocateType?.value || "standard",
+      status: hydrovacLocateStatus?.value || "requested",
+      one_call_center: hydrovacLocateCenter?.value || null,
+      state_province: hydrovacLocateState?.value || null,
+      work_site_address: hydrovacLocateAddress?.value || "",
+      valid_from: hydrovacLocateValidFrom?.value ? new Date(hydrovacLocateValidFrom.value).toISOString() : null,
+      valid_until: hydrovacLocateValidUntil?.value ? new Date(hydrovacLocateValidUntil.value).toISOString() : null,
+      locate_notes: hydrovacLocateNotes?.value || null,
+    };
+    await requestOperatorFunction("manage-locate-tickets", {
+      method: hydrovacLocateId?.value ? "PATCH" : "POST",
+      body: payload,
+    });
+    await fetchHydrovacLocateTickets();
+    if (TABS_LOADED.has("compliance")) await fetchHydrovacComplianceData();
+    if (TABS_LOADED.has("jobs")) await fetchJobs();
+    setInlineMessage(hydrovacLocateMsg, "Ticket saved.", "ok");
+  } catch (error) {
+    setInlineMessage(hydrovacLocateMsg, error.message || String(error), "error");
+  }
+});
+btnRefreshCompliance?.addEventListener("click", () => fetchHydrovacComplianceData().catch(console.error));
 
 let VENDORS_PANEL_LOADED = false;
 let TEAM_PANEL_LOADED = false;
@@ -13866,14 +14578,20 @@ function renderJobWorkspace() {
   if (jobActionBar) {
     const linkedLead = linkedLeadForOrder(activeOrder);
     const linkedBid = linkedBidForOrder(activeOrder);
+    const hydrovacActions = isHydrovacWorkspace() ? `
+        <button type="button" class="pipeline-action-chip" data-job-action="open-manifests">Open loads</button>
+        <button type="button" class="pipeline-action-chip" data-job-action="open-locates">Open locate tickets</button>
+        <button type="button" class="pipeline-action-chip" data-job-action="open-compliance">Open compliance</button>
+    ` : "";
     jobActionBar.innerHTML = `
-      <button type="button" class="pipeline-action-chip" data-job-action="new-job">New job</button>
-      <button type="button" class="pipeline-action-chip" data-job-action="open-pipeline">${activeOrder ? "Open quoted / booked" : "Open pipeline"}</button>
-      <button type="button" class="pipeline-action-chip" data-job-action="open-proposal">${linkedBid ? "Open proposal" : "Open proposals"}</button>
-      <button type="button" class="pipeline-action-chip" data-job-action="open-request">${linkedLead ? "Open request" : "Open requests"}</button>
-      <button type="button" class="pipeline-action-chip" data-job-action="open-customer">${activeCustomer ? "Open customer" : "Open customers"}</button>
-      <button type="button" class="pipeline-action-chip" data-job-action="record-payment">Record payment</button>
-    `;
+        <button type="button" class="pipeline-action-chip" data-job-action="new-job">New job</button>
+        <button type="button" class="pipeline-action-chip" data-job-action="open-pipeline">${activeOrder ? "Open quoted / booked" : "Open pipeline"}</button>
+        <button type="button" class="pipeline-action-chip" data-job-action="open-proposal">${linkedBid ? "Open proposal" : "Open proposals"}</button>
+        <button type="button" class="pipeline-action-chip" data-job-action="open-request">${linkedLead ? "Open request" : "Open requests"}</button>
+        <button type="button" class="pipeline-action-chip" data-job-action="open-customer">${activeCustomer ? "Open customer" : "Open customers"}</button>
+        <button type="button" class="pipeline-action-chip" data-job-action="record-payment">Record payment</button>
+        ${hydrovacActions}
+      `;
     jobActionBar.querySelectorAll("[data-job-action]").forEach((button) => {
       button.addEventListener("click", () => {
         const action = button.getAttribute("data-job-action");
@@ -13908,19 +14626,23 @@ function renderJobWorkspace() {
           switchTab("customers");
           return;
         }
-        if (action === "record-payment") {
-          const order = linkedOrderForJob(activeJob);
-          clearPaymentForm({
-            customerId: activeJob?.customer_id || order?.customer_id || "",
-            orderId: order?.id || activeJob?.order_id || "",
-            jobId: activeJob?.id || "",
-          });
-          switchTab("payments");
-        }
+          if (action === "record-payment") {
+            const order = linkedOrderForJob(activeJob);
+            clearPaymentForm({
+              customerId: activeJob?.customer_id || order?.customer_id || "",
+              orderId: order?.id || activeJob?.order_id || "",
+              jobId: activeJob?.id || "",
+            });
+            switchTab("payments");
+            return;
+          }
+          if (action === "open-manifests") return switchTab("manifests");
+          if (action === "open-locates") return switchTab("locates");
+          if (action === "open-compliance") return switchTab("compliance");
+        });
       });
-    });
+    }
   }
-}
 function renderMoneyWorkspace() {
   const unpaidOrders = (CRM_ORDERS_CACHE || []).filter((order) => {
     const state = normalizeWorkflowStatusValue(orderPaymentState(order));

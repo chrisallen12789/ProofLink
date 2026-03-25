@@ -23,37 +23,28 @@ exports.handler = async (event) => {
   const params = event.queryStringParameters || {};
 
   if (event.httpMethod === 'GET') {
-    if (clean(params.job_id)) {
-      const { data, error } = await adminSb
-        .from('utility_locate_tickets')
-        .select('*')
-        .eq('tenant_id', tenantId)
-        .eq('job_id', clean(params.job_id))
-        .order('valid_until', { ascending: true });
+    let query = adminSb
+      .from('utility_locate_tickets')
+      .select('*')
+      .eq('tenant_id', tenantId);
 
-      if (error) return respond(500, { error: error.message });
-      return respond(200, { tickets: data || [] });
+    if (clean(params.job_id)) query = query.eq('job_id', clean(params.job_id));
+    if (clean(params.status)) query = query.eq('status', clean(params.status));
+    if (clean(params.customer_id)) query = query.eq('customer_id', clean(params.customer_id));
+
+    const days = parseInt(params.days_until_expiry, 10);
+    if (Number.isFinite(days) && days >= 0) {
+      const until = new Date(Date.now() + (days * 24 * 60 * 60 * 1000)).toISOString();
+      query = query.lte('valid_until', until);
     }
 
-    if (clean(params.status)) {
-      let query = adminSb
-        .from('utility_locate_tickets')
-        .select('*')
-        .eq('tenant_id', tenantId)
-        .eq('status', clean(params.status));
+    const limit = Math.min(250, Math.max(1, parseInt(params.limit, 10) || 100));
+    const { data, error } = await query
+      .order('valid_until', { ascending: true, nullsFirst: false })
+      .limit(limit);
 
-      const days = parseInt(params.days_until_expiry, 10);
-      if (Number.isFinite(days) && days >= 0) {
-        const until = new Date(Date.now() + (days * 24 * 60 * 60 * 1000)).toISOString();
-        query = query.lte('valid_until', until);
-      }
-
-      const { data, error } = await query.order('valid_until', { ascending: true });
-      if (error) return respond(500, { error: error.message });
-      return respond(200, { tickets: data || [] });
-    }
-
-    return respond(400, { error: 'job_id or status is required' });
+    if (error) return respond(500, { error: error.message });
+    return respond(200, { tickets: data || [] });
   }
 
   if (event.httpMethod === 'POST') {

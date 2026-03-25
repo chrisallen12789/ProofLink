@@ -115,15 +115,37 @@ exports.handler = async (event) => {
       return respond(200, { manifests: data || [] });
     }
 
+    if (params.action === 'all' || (!clean(params.job_id) && !clean(params.status))) {
+      let query = adminSb
+        .from('waste_manifests')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .order('created_at', { ascending: false });
+
+      if (clean(params.status)) query = query.eq('status', clean(params.status));
+      if (clean(params.facility_id)) query = query.eq('disposal_facility_id', clean(params.facility_id));
+      if (clean(params.customer_id)) query = query.eq('customer_id', clean(params.customer_id));
+      const limit = Math.min(250, Math.max(1, parseInt(params.limit, 10) || 100));
+      query = query.limit(limit);
+
+      const { data, error } = await query;
+      if (error) return respond(500, { error: error.message });
+      return respond(200, { manifests: data || [] });
+    }
+
     const jobId = clean(params.job_id);
     if (!jobId) return respond(400, { error: 'job_id is required' });
 
-    const { data, error } = await adminSb
+    let query = adminSb
       .from('waste_manifests')
       .select('*')
       .eq('tenant_id', tenantId)
       .eq('job_id', jobId)
       .order('created_at', { ascending: false });
+
+    if (clean(params.status)) query = query.eq('status', clean(params.status));
+
+    const { data, error } = await query;
 
     if (error) return respond(500, { error: error.message });
     return respond(200, { manifests: data || [] });

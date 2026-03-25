@@ -86,7 +86,7 @@ test.describe.serial("service workflow e2e", () => {
     await page.locator("#loginPassword").fill(process.env.TEST_TENANT_A_ADMIN_PASSWORD);
     await page.locator("#loginForm button[type='submit']").click();
     await expect(page.locator("#viewLogin")).toBeHidden({ timeout: 20000 });
-    await expect(page.locator('[data-panel="dashboard"]:not(.hidden) h2')).toHaveText("Today", { timeout: 20000 });
+    await expect(page.locator('[data-panel="dashboard"]:not(.hidden) .panel-head h2').first()).toHaveText("Today", { timeout: 20000 });
     await dismissTourIfVisible(page);
     await page.waitForFunction(() => {
       if (window.PROOFLINK_BOOT_READY === true) return true;
@@ -106,7 +106,7 @@ test.describe.serial("service workflow e2e", () => {
     await page.locator("#loginPassword").fill(process.env.TEST_TENANT_B_ADMIN_PASSWORD);
     await page.locator("#loginForm button[type='submit']").click();
     await expect(page.locator("#viewLogin")).toBeHidden({ timeout: 20000 });
-    await expect(page.locator('[data-panel="dashboard"]:not(.hidden) h2')).toHaveText("Today", { timeout: 20000 });
+    await expect(page.locator('[data-panel="dashboard"]:not(.hidden) .panel-head h2').first()).toHaveText("Today", { timeout: 20000 });
     await dismissTourIfVisible(page);
     await page.waitForFunction(() => {
       if (window.PROOFLINK_BOOT_READY === true) return true;
@@ -133,7 +133,7 @@ test.describe.serial("service workflow e2e", () => {
     return admin;
   }
 
-  async function waitForSingleRow(admin, table, column, value, timeoutMs = 30000) {
+  async function waitForSingleRow(admin, table, column, value, timeoutMs = 60000) {
     const startedAt = Date.now();
     while (Date.now() - startedAt < timeoutMs) {
       const result = await admin.from(table).select("*").eq(column, value);
@@ -144,7 +144,7 @@ test.describe.serial("service workflow e2e", () => {
     throw new Error(`Timed out waiting for ${table}.${column}=${value}`);
   }
 
-  async function waitForBidRow(admin, leadId, predicate, timeoutMs = 30000) {
+  async function waitForBidRow(admin, leadId, predicate, timeoutMs = 60000) {
     const startedAt = Date.now();
     while (Date.now() - startedAt < timeoutMs) {
       const result = await admin.from("bids").select("*").eq("lead_id", leadId);

@@ -93,12 +93,16 @@
           <button class="tab" data-tab="setup" data-tour-tab="setup" type="button">Business Setup</button>
           <button class="tab" data-tab="domains" data-tour-tab="domains" type="button">Domains</button>
           <button class="tab" data-tab="import" data-tour-tab="import" type="button">Switch &amp; Import</button>
-          <button class="tab" data-tab="vendors" type="button">Vendors <span style="font-size:.7rem;color:rgba(255,255,255,.35);display:block;font-weight:400;">Subs &amp; suppliers</span></button>
-          <button class="tab" data-tab="equipment" type="button">Equipment <span style="font-size:.7rem;color:rgba(255,255,255,.35);display:block;font-weight:400;">Trucks &amp; machines</span></button>
-          <button class="tab" data-tab="team" type="button">Team <span style="font-size:.7rem;color:rgba(255,255,255,.35);display:block;font-weight:400;">Members &amp; crew</span></button>
-          <button class="tab" data-tab="inventory" type="button">Inventory <span style="font-size:.7rem;color:rgba(255,255,255,.35);display:block;font-weight:400;">Parts &amp; materials</span></button>
-          <button class="tab" data-tab="contracts" type="button">Contracts <span style="font-size:.7rem;color:rgba(255,255,255,.35);display:block;font-weight:400;">Warranties &amp; plans</span></button>
-        </div>
+            <button class="tab" data-tab="vendors" type="button">Vendors <span style="font-size:.7rem;color:rgba(255,255,255,.35);display:block;font-weight:400;">Subs &amp; suppliers</span></button>
+            <button class="tab" data-tab="equipment" type="button">Equipment <span style="font-size:.7rem;color:rgba(255,255,255,.35);display:block;font-weight:400;">Trucks &amp; machines</span></button>
+            <button class="tab" data-tab="facilities" type="button">Facilities <span style="font-size:.7rem;color:rgba(255,255,255,.35);display:block;font-weight:400;">Dump sites &amp; rates</span></button>
+            <button class="tab" data-tab="manifests" type="button">Loads &amp; Manifests <span style="font-size:.7rem;color:rgba(255,255,255,.35);display:block;font-weight:400;">Waste tracking</span></button>
+            <button class="tab" data-tab="locates" type="button">Locate Tickets <span style="font-size:.7rem;color:rgba(255,255,255,.35);display:block;font-weight:400;">811 / one-call</span></button>
+            <button class="tab" data-tab="compliance" type="button">Compliance <span style="font-size:.7rem;color:rgba(255,255,255,.35);display:block;font-weight:400;">Docs &amp; alerts</span></button>
+            <button class="tab" data-tab="team" type="button">Team <span style="font-size:.7rem;color:rgba(255,255,255,.35);display:block;font-weight:400;">Members &amp; crew</span></button>
+            <button class="tab" data-tab="inventory" type="button">Inventory <span style="font-size:.7rem;color:rgba(255,255,255,.35);display:block;font-weight:400;">Parts &amp; materials</span></button>
+            <button class="tab" data-tab="contracts" type="button">Contracts <span style="font-size:.7rem;color:rgba(255,255,255,.35);display:block;font-weight:400;">Warranties &amp; plans</span></button>
+          </div>
       </div>
 
       <section class="side-card">
@@ -2030,19 +2034,298 @@
           </section>
 
           <section class="panel hidden" data-panel="equipment">
-  <div class="panel-hd">
-    <h2>Equipment</h2>
-    <div class="panel-actions">
-      <button id="btnAddEquipment" class="btn btn-primary" type="button">+ Add equipment</button>
-      <button id="btnRefreshEquipment" class="btn btn-ghost" type="button">Refresh</button>
-    </div>
-  </div>
-  <div id="equipmentList" class="list-wrap">
-    <div class="muted" style="font-size:.85rem;padding:16px 0;">Loading equipment...</div>
-  </div>
-</section>
+            <div class="panel-head">
+              <div>
+                <h2>Equipment</h2>
+                <div class="muted">Manage trucks, truck specs, inspections, and what is ready to dispatch.</div>
+              </div>
+              <div class="panel-actions">
+                <button id="btnAddEquipment" class="btn btn-primary" type="button">+ Add equipment</button>
+                <button id="btnRefreshEquipment" class="btn btn-ghost" type="button">Refresh</button>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-bd">
+                <div id="equipmentList" class="list-wrap">
+                  <div class="muted" style="font-size:.85rem;padding:16px 0;">Loading equipment...</div>
+                </div>
+              </div>
+            </div>
+          </section>
 
-          <div class="panel hidden" data-panel="team">
+          <section class="panel hidden" data-panel="facilities">
+            <div class="panel-head">
+              <div>
+                <h2>Disposal Facilities</h2>
+                <div class="muted">Keep approved dump sites, rates, permit dates, and contacts in one office view.</div>
+              </div>
+              <div class="panel-actions">
+                <button id="btnRefreshFacilities" class="btn btn-ghost" type="button">Refresh</button>
+                <button id="btnNewFacility" class="btn" type="button">New facility</button>
+              </div>
+            </div>
+            <div id="facilityStageStrip" class="pipeline-stage-strip"></div>
+            <div id="facilityActionBar" class="pipeline-action-bar"></div>
+            <div class="grid two">
+              <div class="card">
+                <div class="card-hd">
+                  <strong>Approved facilities</strong>
+                  <span class="muted">Rates, status, and permit visibility</span>
+                </div>
+                <div class="card-bd">
+                  <div id="hydrovacFacilitiesList" class="list"></div>
+                </div>
+              </div>
+              <div class="card">
+                <div class="card-hd">
+                  <strong>Facility detail</strong>
+                  <span class="muted">Save the real rates and dispatch contacts the office needs.</span>
+                </div>
+                <div class="card-bd">
+                  <form id="hydrovacFacilityForm" class="form">
+                    <input id="hydrovacFacilityId" type="hidden" />
+                    <div class="grid two form-grid">
+                      <label>Facility name
+                        <input id="hydrovacFacilityName" placeholder="Valicor Dearborn Yard" />
+                      </label>
+                      <label>Status
+                        <select id="hydrovacFacilityStatus">
+                          <option value="active">Active</option>
+                          <option value="preferred">Preferred</option>
+                          <option value="inactive">Inactive</option>
+                        </select>
+                      </label>
+                    </div>
+                    <div class="grid two form-grid">
+                      <label>Facility type
+                        <select id="hydrovacFacilityType">
+                          <option value="transfer_station">Transfer station</option>
+                          <option value="liquid_waste_processor">Liquid waste processor</option>
+                          <option value="treatment_plant">Treatment plant</option>
+                          <option value="landfill">Landfill</option>
+                          <option value="recycling">Recycling</option>
+                          <option value="class_1_hazardous">Class 1 hazardous</option>
+                          <option value="class_2">Class 2</option>
+                          <option value="class_3">Class 3</option>
+                        </select>
+                      </label>
+                      <label>Permit expiry
+                        <input id="hydrovacFacilityPermitExpiry" type="date" />
+                      </label>
+                    </div>
+                    <div class="grid two form-grid">
+                      <label>Address
+                        <input id="hydrovacFacilityAddress" placeholder="Street address" />
+                      </label>
+                      <label>City / state
+                        <input id="hydrovacFacilityCityState" placeholder="Dearborn, MI" />
+                      </label>
+                    </div>
+                    <div class="grid three form-grid">
+                      <label>Rate per gallon
+                        <input id="hydrovacFacilityRateGallon" type="number" min="0" step="0.01" placeholder="0.61" />
+                      </label>
+                      <label>Rate per yard
+                        <input id="hydrovacFacilityRateYard" type="number" min="0" step="0.01" placeholder="0.00" />
+                      </label>
+                      <label>Minimum charge
+                        <input id="hydrovacFacilityMinimumCharge" type="number" min="0" step="0.01" placeholder="0.00" />
+                      </label>
+                    </div>
+                    <div class="grid two form-grid">
+                      <label>Primary contact
+                        <input id="hydrovacFacilityContact" placeholder="Name / phone / email" />
+                      </label>
+                      <label>Dispatch phone
+                        <input id="hydrovacFacilityDispatchPhone" placeholder="Dispatch line" />
+                      </label>
+                    </div>
+                    <label>Accepted waste types
+                      <input id="hydrovacFacilityWasteTypes" placeholder="soil, grease, sewage, slurry" />
+                    </label>
+                    <label>Notes
+                      <textarea id="hydrovacFacilityNotes" rows="3" placeholder="Account number, receiving rules, special billing notes, or after-hours instructions."></textarea>
+                    </label>
+                    <div class="form-actions">
+                      <button id="btnSaveFacility" class="btn btn-primary" type="submit">Save facility</button>
+                      <button id="btnClearFacility" class="btn btn-ghost" type="button">Clear</button>
+                    </div>
+                    <div id="hydrovacFacilityMsg" class="msg"></div>
+                  </form>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel hidden" data-panel="manifests">
+            <div class="panel-head">
+              <div>
+                <h2>Loads &amp; Manifests</h2>
+                <div class="muted">Track loads leaving the site, what was dumped, and what still needs to be invoiced.</div>
+              </div>
+              <div class="panel-actions">
+                <button id="btnRefreshManifests" class="btn btn-ghost" type="button">Refresh</button>
+              </div>
+            </div>
+            <div id="manifestStageStrip" class="pipeline-stage-strip"></div>
+            <div id="manifestActionBar" class="pipeline-action-bar"></div>
+            <div class="grid two">
+              <div class="card">
+                <div class="card-hd">
+                  <strong>Manifest office queue</strong>
+                  <span class="muted">Newest loads first</span>
+                </div>
+                <div class="card-bd">
+                  <div id="hydrovacManifestsList" class="list"></div>
+                </div>
+              </div>
+              <div class="card">
+                <div class="card-hd">
+                  <strong>Manifest detail</strong>
+                  <span class="muted">Confirm loads, open the job, and see the money tied to disposal.</span>
+                </div>
+                <div class="card-bd">
+                  <div id="hydrovacManifestDetailWrap" class="muted">Select a load to inspect it.</div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel hidden" data-panel="locates">
+            <div class="panel-head">
+              <div>
+                <h2>Locate Tickets</h2>
+                <div class="muted">Keep 811 / one-call tickets visible before crews roll and before tickets expire.</div>
+              </div>
+              <div class="panel-actions">
+                <button id="btnRefreshLocates" class="btn btn-ghost" type="button">Refresh</button>
+                <button id="btnNewLocate" class="btn" type="button">New ticket</button>
+              </div>
+            </div>
+            <div id="locateStageStrip" class="pipeline-stage-strip"></div>
+            <div id="locateActionBar" class="pipeline-action-bar"></div>
+            <div class="grid two">
+              <div class="card">
+                <div class="card-hd">
+                  <strong>Ticket board</strong>
+                  <span class="muted">Active, expiring, and expired coverage</span>
+                </div>
+                <div class="card-bd">
+                  <div id="hydrovacLocateList" class="list"></div>
+                </div>
+              </div>
+              <div class="card">
+                <div class="card-hd">
+                  <strong>Ticket detail</strong>
+                  <span class="muted">Log, verify, and extend coverage without leaving the office view.</span>
+                </div>
+                <div class="card-bd">
+                  <form id="hydrovacLocateForm" class="form">
+                    <input id="hydrovacLocateId" type="hidden" />
+                    <div class="grid two form-grid">
+                      <label>Linked job
+                        <select id="hydrovacLocateJobId">
+                          <option value="">Optional</option>
+                        </select>
+                      </label>
+                      <label>Ticket type
+                        <select id="hydrovacLocateType">
+                          <option value="standard">Standard</option>
+                          <option value="emergency">Emergency</option>
+                          <option value="continue">Continue</option>
+                          <option value="update">Update</option>
+                          <option value="design">Design</option>
+                        </select>
+                      </label>
+                    </div>
+                    <div class="grid two form-grid">
+                      <label>Ticket number
+                        <input id="hydrovacLocateNumber" placeholder="2026-1234567" />
+                      </label>
+                      <label>Status
+                        <select id="hydrovacLocateStatus">
+                          <option value="requested">Requested</option>
+                          <option value="active">Active</option>
+                          <option value="extended">Extended</option>
+                          <option value="expired">Expired</option>
+                          <option value="cancelled">Cancelled</option>
+                        </select>
+                      </label>
+                    </div>
+                    <div class="grid two form-grid">
+                      <label>One-call center
+                        <input id="hydrovacLocateCenter" placeholder="Michigan 811 / Dig Safe / USIC" />
+                      </label>
+                      <label>State
+                        <input id="hydrovacLocateState" placeholder="MI" />
+                      </label>
+                    </div>
+                    <label>Work site address
+                      <input id="hydrovacLocateAddress" placeholder="Jobsite address" />
+                    </label>
+                    <div class="grid two form-grid">
+                      <label>Valid from
+                        <input id="hydrovacLocateValidFrom" type="datetime-local" />
+                      </label>
+                      <label>Valid until
+                        <input id="hydrovacLocateValidUntil" type="datetime-local" />
+                      </label>
+                    </div>
+                    <label>Notes
+                      <textarea id="hydrovacLocateNotes" rows="3" placeholder="Utility responses, field verification notes, or locate caveats."></textarea>
+                    </label>
+                    <div class="form-actions">
+                      <button id="btnSaveLocate" class="btn btn-primary" type="submit">Save ticket</button>
+                      <button id="btnVerifyLocate" class="btn btn-ghost" type="button">Mark verified on site</button>
+                      <button id="btnClearLocate" class="btn btn-ghost" type="button">Clear</button>
+                    </div>
+                    <div id="hydrovacLocateMsg" class="msg"></div>
+                  </form>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel hidden" data-panel="compliance">
+            <div class="panel-head">
+              <div>
+                <h2>Compliance</h2>
+                <div class="muted">Keep the office ahead of expiring tickets, driver docs, truck inspections, and uninvoiced disposal.</div>
+              </div>
+              <div class="panel-actions">
+                <button id="btnRefreshCompliance" class="btn btn-ghost" type="button">Refresh</button>
+              </div>
+            </div>
+            <div id="complianceStageStrip" class="pipeline-stage-strip"></div>
+            <div id="complianceActionBar" class="pipeline-action-bar"></div>
+            <div class="card">
+              <div class="card-bd">
+                <div id="hydrovacComplianceSummary" class="payments-summary-grid"></div>
+              </div>
+            </div>
+            <div class="grid two">
+              <div class="card">
+                <div class="card-hd">
+                  <strong>Action required</strong>
+                  <span class="muted">Critical items that should not hide in memory</span>
+                </div>
+                <div class="card-bd">
+                  <div id="hydrovacComplianceUrgent" class="list"></div>
+                </div>
+              </div>
+              <div class="card">
+                <div class="card-hd">
+                  <strong>Coverage &amp; readiness</strong>
+                  <span class="muted">Truck, driver, and ticket coverage at a glance</span>
+                </div>
+                <div class="card-bd">
+                  <div id="hydrovacComplianceCoverage" class="list"></div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+            <div class="panel hidden" data-panel="team">
             <div class="panel-header">
               <h2>Team Members</h2>
               <div class="panel-actions">
