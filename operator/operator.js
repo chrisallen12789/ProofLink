@@ -64,10 +64,12 @@ let ACTIVE_BID_ID = null;
 let ACTIVE_CUSTOMER_ID = null;
 let ACTIVE_LEAD_ID = null;
 let CUSTOMER_CREATING = false;
+let CUSTOMER_SAVE_ADD_ANOTHER = false;
 let ACTIVE_PAYMENT_ID = null;
 let ACTIVE_JOB_ID = null;
 let ACTIVE_PLAN_ID = null;
 let ACTIVE_FACILITY_ID = null;
+let FACILITY_SAVE_ADD_ANOTHER = false;
 let ACTIVE_MANIFEST_ID = null;
 let ACTIVE_LOCATE_ID = null;
 let ACTIVE_DRIVER_QUAL_MEMBER_ID = null;
@@ -350,8 +352,10 @@ const hydrovacFacilityDispatchPhone = $("hydrovacFacilityDispatchPhone");
 const hydrovacFacilityWasteTypes = $("hydrovacFacilityWasteTypes");
 const hydrovacFacilityNotes = $("hydrovacFacilityNotes");
 const hydrovacFacilityMsg = $("hydrovacFacilityMsg");
+const hydrovacFacilityFormTitle = $("hydrovacFacilityFormTitle");
 const btnRefreshFacilities = $("btnRefreshFacilities");
 const btnNewFacility = $("btnNewFacility");
+const btnSaveAndAddFacility = $("btnSaveAndAddFacility");
 const btnClearFacility = $("btnClearFacility");
 const manifestStageStrip = $("manifestStageStrip");
 const manifestActionBar = $("manifestActionBar");
@@ -441,6 +445,7 @@ const customerSearch = $("customerSearch");
 const customerForm = $("customerForm");
 const customerFormTitle = $("customerFormTitle");
 const customerMsg = $("customerMsg");
+const btnSaveAndAddCustomer = $("btnSaveAndAddCustomer");
 const btnClearCustomerForm = $("btnClearCustomerForm");
 const customerId = $("customerId");
 const customerName = $("customerName");
@@ -6682,6 +6687,7 @@ function hydrovacJobSortDate(job) {
 }
 function clearHydrovacFacilityForm() {
   ACTIVE_FACILITY_ID = null;
+  if (hydrovacFacilityFormTitle) hydrovacFacilityFormTitle.textContent = "New facility";
   if (hydrovacFacilityId) hydrovacFacilityId.value = "";
   if (hydrovacFacilityName) hydrovacFacilityName.value = "";
   if (hydrovacFacilityStatus) hydrovacFacilityStatus.value = "active";
@@ -6696,11 +6702,13 @@ function clearHydrovacFacilityForm() {
   if (hydrovacFacilityDispatchPhone) hydrovacFacilityDispatchPhone.value = "";
   if (hydrovacFacilityWasteTypes) hydrovacFacilityWasteTypes.value = "";
   if (hydrovacFacilityNotes) hydrovacFacilityNotes.value = "";
+  if (btnClearFacility) btnClearFacility.textContent = "Clear form";
   setInlineMessage(hydrovacFacilityMsg, "");
 }
 function populateHydrovacFacilityForm(row) {
   if (!row) return clearHydrovacFacilityForm();
   ACTIVE_FACILITY_ID = row.id || null;
+  if (hydrovacFacilityFormTitle) hydrovacFacilityFormTitle.textContent = "Edit facility";
   if (hydrovacFacilityId) hydrovacFacilityId.value = row.id || "";
   if (hydrovacFacilityName) hydrovacFacilityName.value = row.name || "";
   if (hydrovacFacilityStatus) hydrovacFacilityStatus.value = row.status || "active";
@@ -6715,6 +6723,7 @@ function populateHydrovacFacilityForm(row) {
   if (hydrovacFacilityDispatchPhone) hydrovacFacilityDispatchPhone.value = row.dispatch_phone || "";
   if (hydrovacFacilityWasteTypes) hydrovacFacilityWasteTypes.value = Array.isArray(row.accepted_waste_types) ? row.accepted_waste_types.join(", ") : "";
   if (hydrovacFacilityNotes) hydrovacFacilityNotes.value = row.notes || "";
+  if (btnClearFacility) btnClearFacility.textContent = "New facility";
   setInlineMessage(hydrovacFacilityMsg, "");
 }
 function renderHydrovacLocateJobOptions(selectedId = "") {
@@ -7713,10 +7722,16 @@ function renderHydrovacAssetsWorkspace() {
 
 btnRefreshFacilities?.addEventListener("click", () => fetchHydrovacFacilities().catch(console.error));
 btnNewFacility?.addEventListener("click", () => clearHydrovacFacilityForm());
+btnSaveAndAddFacility?.addEventListener("click", () => {
+  FACILITY_SAVE_ADD_ANOTHER = true;
+  hydrovacFacilityForm?.requestSubmit?.();
+});
 btnClearFacility?.addEventListener("click", () => clearHydrovacFacilityForm());
 hydrovacFacilityForm?.addEventListener("submit", async (event) => {
   event.preventDefault();
   setInlineMessage(hydrovacFacilityMsg, "Saving...");
+  const shouldAddAnother = FACILITY_SAVE_ADD_ANOTHER;
+  FACILITY_SAVE_ADD_ANOTHER = false;
   try {
     const cityState = parseHydrovacCityState(hydrovacFacilityCityState?.value || "");
     const payload = {
@@ -7736,13 +7751,20 @@ hydrovacFacilityForm?.addEventListener("submit", async (event) => {
       accepted_waste_types: String(hydrovacFacilityWasteTypes?.value || "").split(",").map((part) => part.trim()).filter(Boolean),
       notes: hydrovacFacilityNotes?.value || null,
     };
-    await requestOperatorFunction("manage-disposal-facilities", {
+    const response = await requestOperatorFunction("manage-disposal-facilities", {
       method: hydrovacFacilityId?.value ? "PATCH" : "POST",
       body: payload,
     });
+    if (response?.facility?.id) ACTIVE_FACILITY_ID = response.facility.id;
     await fetchHydrovacFacilities();
     if (TABS_LOADED.has("compliance")) await fetchHydrovacComplianceData();
-    setInlineMessage(hydrovacFacilityMsg, "Facility saved.", "ok");
+    if (shouldAddAnother) {
+      clearHydrovacFacilityForm();
+      setInlineMessage(hydrovacFacilityMsg, "Facility saved. Ready for the next one.", "ok");
+      hydrovacFacilityName?.focus?.();
+    } else {
+      setInlineMessage(hydrovacFacilityMsg, "Facility saved.", "ok");
+    }
   } catch (error) {
     setInlineMessage(hydrovacFacilityMsg, error.message || String(error), "error");
   }
@@ -9386,7 +9408,7 @@ btnRefreshPayments?.addEventListener("click", async () => {
 });
 
 function populateCustomerForm(customer = null) {
-  if (customerFormTitle) customerFormTitle.textContent = customer?.id ? "Customer workspace" : "New customer";
+  if (customerFormTitle) customerFormTitle.textContent = customer?.id ? "Edit customer" : "New customer";
   if (customerId) customerId.value = customer?.id || "";
   if (customerName) customerName.value = customer?.name || "";
   if (customerEmail) customerEmail.value = customer?.email || "";
@@ -9397,6 +9419,7 @@ function populateCustomerForm(customer = null) {
   if (customerCity) customerCity.value = customer?.city || "";
   if (customerState) customerState.value = customer?.state || "";
   if (customerZip) customerZip.value = customer?.zip || "";
+  if (btnClearCustomerForm) btnClearCustomerForm.textContent = customer?.id ? "New customer" : "Clear form";
 }
 function startNewCustomer() {
   CUSTOMER_CREATING = true;
@@ -10209,6 +10232,10 @@ function customerInputPayload(fields = {}) {
   const name = String(fields.name || "").trim();
   const email = String(fields.email || "").trim();
   const phone = String(fields.phone || "").trim();
+  const addressLine1 = String(fields.address_line1 || "").trim();
+  const city = String(fields.city || "").trim();
+  const state = String(fields.state || "").trim().toUpperCase();
+  const zip = String(fields.zip || "").trim();
   return {
     id: fields.id || null,
     name: name || email || phone || "Customer",
@@ -10216,6 +10243,10 @@ function customerInputPayload(fields = {}) {
     phone: phone || null,
     preferred_contact: fields.preferred_contact || "email",
     notes: String(fields.notes || "").trim(),
+    address_line1: addressLine1 || null,
+    city: city || null,
+    state: state || null,
+    zip: zip || null,
   };
 }
 async function saveCustomerRecord(fields = {}) {
@@ -10228,6 +10259,10 @@ async function saveCustomerRecord(fields = {}) {
     phone: input.phone,
     preferred_contact: input.preferred_contact,
     notes: input.notes,
+    address_line1: input.address_line1,
+    city: input.city,
+    state: input.state,
+    zip: input.zip,
     updated_at: nowIso,
   });
 
@@ -10250,6 +10285,8 @@ async function saveCustomerRecord(fields = {}) {
 customerForm?.addEventListener("submit", async (e) => {
   e.preventDefault();
   setInlineMessage(customerMsg, "Saving...");
+  const shouldAddAnother = CUSTOMER_SAVE_ADD_ANOTHER;
+  CUSTOMER_SAVE_ADD_ANOTHER = false;
 
   const emailVal = (customerEmail?.value || '').trim().toLowerCase();
   const custId   = customerId?.value || null;
@@ -10275,12 +10312,22 @@ customerForm?.addEventListener("submit", async (e) => {
         zip: customerZip?.value || undefined,
       });
       markWorkspaceClean("customers");
-      setInlineMessage(customerMsg, "Customer saved.", "ok");
+      if (shouldAddAnother) {
+        startNewCustomer();
+        setInlineMessage(customerMsg, "Customer saved. Ready for the next one.", "ok");
+        customerName?.focus?.();
+      } else {
+        setInlineMessage(customerMsg, "Customer saved.", "ok");
+      }
     } catch (err) {
     setInlineMessage(customerMsg, err.message || String(err), "error");
   }
 });
 btnNewCustomer?.addEventListener("click", startNewCustomer);
+btnSaveAndAddCustomer?.addEventListener("click", () => {
+  CUSTOMER_SAVE_ADD_ANOTHER = true;
+  customerForm?.requestSubmit?.();
+});
 btnClearCustomerForm?.addEventListener("click", startNewCustomer);
 
 function renderPayments() {

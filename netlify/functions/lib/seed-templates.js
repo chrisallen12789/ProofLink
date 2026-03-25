@@ -34,6 +34,28 @@ function dollars(amount) {
   return Math.round(Number(amount) * 100);
 }
 
+const BENKARI_HYDROVAC_RATE_SHEET = {
+  truckAndOperatorHourly: 215,
+  plumberHourly: 103,
+  laborerHourly: 63,
+  liquidDisposalPerGallon: 0.61,
+  catchBasinWastePerTon: 146.28,
+  minimumHours4: 4,
+  minimumHours8: 8,
+  includedLiquidGallons4: 1500,
+  includedLiquidGallons8: 3000,
+  tankWashoutBase: 250,
+  tankWashoutExtended: 450,
+  solidificationWashoutFee: 100,
+};
+
+function hydrovacMinimumPrice(hours, helperHourly, includedGallons) {
+  return (
+    (BENKARI_HYDROVAC_RATE_SHEET.truckAndOperatorHourly + helperHourly) * Number(hours || 0)
+    + (BENKARI_HYDROVAC_RATE_SHEET.liquidDisposalPerGallon * Number(includedGallons || 0))
+  );
+}
+
 function buildProduct(tenantId, operatorId, sortOrder, {
   name,
   category,
@@ -171,6 +193,28 @@ const TEMPLATES = {
       { name: 'New System Install — AC',         category: 'Installation',              pricing_mode: 'quote',                        description: 'Full system swap or new install. Quoted in person after load calculation.' },
       { name: 'New System Install — HVAC',       category: 'Installation',              pricing_mode: 'quote',                        description: 'Full heat and cool replacement. Quoted in person.' },
       { name: 'Duct Inspection / Sealing',       category: 'Service & Repair',          pricing_mode: 'starts_at', starting_price: 120, description: 'Visual inspection and leak sealing. Starting rate; scope varies.' },
+    ],
+  },
+
+  hydrovac: {
+    site_settings: {
+      order_flow    : 'request',
+      currency      : 'USD',
+      schedule_notes: 'Hydrovac dispatch windows depend on crew, truck, disposal availability, and site access conditions.',
+    },
+    products: [
+      { name: 'Hydrovac 4-hour minimum (truck + laborer)',   category: 'Minimums',       pricing_mode: 'fixed', sell_price: hydrovacMinimumPrice(BENKARI_HYDROVAC_RATE_SHEET.minimumHours4, BENKARI_HYDROVAC_RATE_SHEET.laborerHourly, BENKARI_HYDROVAC_RATE_SHEET.includedLiquidGallons4), description: 'Operator with truck, JVT laborer, and 1,500 gallons of liquid disposal included in the base 4-hour minimum.' },
+      { name: 'Hydrovac 8-hour minimum (truck + laborer)',   category: 'Minimums',       pricing_mode: 'fixed', sell_price: hydrovacMinimumPrice(BENKARI_HYDROVAC_RATE_SHEET.minimumHours8, BENKARI_HYDROVAC_RATE_SHEET.laborerHourly, BENKARI_HYDROVAC_RATE_SHEET.includedLiquidGallons8), description: 'Full-day hydrovac minimum with truck, operator, laborer, and 3,000 gallons of liquid disposal included.' },
+      { name: 'Hydrovac 4-hour minimum (truck + plumber)',   category: 'Minimums',       pricing_mode: 'fixed', sell_price: hydrovacMinimumPrice(BENKARI_HYDROVAC_RATE_SHEET.minimumHours4, BENKARI_HYDROVAC_RATE_SHEET.plumberHourly, BENKARI_HYDROVAC_RATE_SHEET.includedLiquidGallons4), description: 'Base 4-hour hydrovac minimum when the field crew needs a plumber instead of a laborer.' },
+      { name: 'Hydrovac 8-hour minimum (truck + plumber)',   category: 'Minimums',       pricing_mode: 'fixed', sell_price: hydrovacMinimumPrice(BENKARI_HYDROVAC_RATE_SHEET.minimumHours8, BENKARI_HYDROVAC_RATE_SHEET.plumberHourly, BENKARI_HYDROVAC_RATE_SHEET.includedLiquidGallons8), description: 'Full-day hydrovac minimum when the truck is paired with a plumber for the whole shift.' },
+      { name: 'Additional hydrovac truck/operator hour',     category: 'Hourly Add-Ons', pricing_mode: 'fixed', sell_price: BENKARI_HYDROVAC_RATE_SHEET.truckAndOperatorHourly, description: 'Additional truck and operator hour once the minimum block is already covered.' },
+      { name: 'Additional JVT laborer hour',                 category: 'Hourly Add-Ons', pricing_mode: 'fixed', sell_price: BENKARI_HYDROVAC_RATE_SHEET.laborerHourly, description: 'Additional laborer hour layered onto hydrovac work after the minimum block.' },
+      { name: 'Additional plumber hour',                     category: 'Hourly Add-Ons', pricing_mode: 'fixed', sell_price: BENKARI_HYDROVAC_RATE_SHEET.plumberHourly, description: 'Additional plumber hour layered onto hydrovac work after the minimum block.' },
+      { name: 'Liquid waste disposal',                       category: 'Disposal',       pricing_mode: 'fixed', sell_price: BENKARI_HYDROVAC_RATE_SHEET.liquidDisposalPerGallon, description: 'Company-standard liquid waste disposal charged by the gallon.' },
+      { name: 'Catch basin waste treatment',                 category: 'Disposal',       pricing_mode: 'fixed', sell_price: BENKARI_HYDROVAC_RATE_SHEET.catchBasinWastePerTon, description: 'Catch basin waste treatment charged by the ton for Dearborn-yard style disposal.' },
+      { name: 'Tank washout (up to 15 minutes)',             category: 'Yard Charges',   pricing_mode: 'fixed', sell_price: BENKARI_HYDROVAC_RATE_SHEET.tankWashoutBase, description: 'Base tank washout charge for up to 15 minutes.' },
+      { name: 'Tank washout (extended)',                     category: 'Yard Charges',   pricing_mode: 'fixed', sell_price: BENKARI_HYDROVAC_RATE_SHEET.tankWashoutExtended, description: 'Extended tank washout when the yard moves to the higher bracket.' },
+      { name: 'Mandatory solidification washout fee',        category: 'Yard Charges',   pricing_mode: 'fixed', sell_price: BENKARI_HYDROVAC_RATE_SHEET.solidificationWashoutFee, description: 'Mandatory extra washout fee for solidification loads.' },
     ],
   },
 
@@ -348,6 +392,7 @@ const ALIASES = {
   events              : 'events',
   event_planning      : 'events',
   handyman            : 'handyman',
+  hydrovac            : 'hydrovac',
   hvac                : 'hvac',
   plumbing            : 'plumbing',
   property_maintenance: 'property_maintenance',
@@ -416,14 +461,33 @@ async function seedTemplateForTenant(supabase, tenantId, operatorId, seedTemplat
     return { seeded: 0, skipped: true, templateKey };
   }
 
+  let maxProducts = 0;
+  const { data: tenantRow, error: tenantError } = await supabase
+    .from('tenants')
+    .select('max_products')
+    .eq('id', tenantId)
+    .maybeSingle();
+
+  if (tenantError) {
+    console.warn('[seed-templates] tenant max_products check non-fatal:', tenantError.message);
+  } else {
+    maxProducts = Math.max(0, Number(tenantRow?.max_products || 0));
+  }
+
   // Build the product rows
   const rows = template.products.map((def, i) =>
     buildProduct(tenantId, operatorId, (i + 1) * 10, def)
   );
+  const rowsToInsert = maxProducts > 0 ? rows.slice(0, maxProducts) : rows;
+  const truncated = rowsToInsert.length < rows.length;
+
+  if (truncated) {
+    console.log(`[seed-templates] Template "${templateKey}" has ${rows.length} products but tenant ${tenantId} allows ${maxProducts}; seeding first ${rowsToInsert.length}.`);
+  }
 
   const { error: insertError } = await supabase
     .from('products')
-    .insert(rows);
+    .insert(rowsToInsert);
 
   if (insertError) {
     // Non-fatal — tenant can add products manually
@@ -431,8 +495,8 @@ async function seedTemplateForTenant(supabase, tenantId, operatorId, seedTemplat
     return { seeded: 0, error: insertError.message, templateKey };
   }
 
-  console.log(`[seed-templates] Seeded ${rows.length} products for tenant ${tenantId} (template="${templateKey}")`);
-  return { seeded: rows.length, templateKey };
+  console.log(`[seed-templates] Seeded ${rowsToInsert.length} products for tenant ${tenantId} (template="${templateKey}")`);
+  return { seeded: rowsToInsert.length, templateKey, truncated };
 }
 
 module.exports = { seedTemplateForTenant, TEMPLATES, resolveTemplateKey };
