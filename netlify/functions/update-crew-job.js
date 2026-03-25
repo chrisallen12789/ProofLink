@@ -39,7 +39,7 @@ exports.handler = async (event) => {
   // Fetch the job to verify ownership and tenant
   const { data: job, error: jobErr } = await adminSb
     .from('jobs')
-    .select('id, tenant_id, assigned_operator_id, status, actual_start_at, actual_end_at')
+    .select('id, tenant_id, assigned_operator_id, assigned_member_id, status, actual_start_at, actual_end_at')
     .eq('id', job_id)
     .maybeSingle();
 
@@ -67,6 +67,7 @@ exports.handler = async (event) => {
   // Authorization: must be assigned to this job OR be an admin/owner/manager
   const isAdmin = ADMIN_ROLES.has(role) || (member && ADMIN_ROLES.has(member.role));
   const isAssigned = member && (
+    job.assigned_member_id === member.id ||
     job.assigned_operator_id === member.id ||
     job.assigned_operator_id === user.id
   );

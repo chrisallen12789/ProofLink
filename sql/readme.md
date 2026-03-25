@@ -88,6 +88,27 @@ It adds:
 - bid-to-order deposit defaults
 - recurring-plan deposit defaults when the recurring schema is present
 
+### `hydrovac_module_foundation.sql`
+Additive hydrovac / Vactor schema. Run this after `catchup_run_this.sql` and `service_workflow_phase1.sql`.
+
+If recurring plans and deposit control are enabled too, you can run this after those files as well; it is additive and extends the existing service workflow rather than replacing it.
+
+It adds:
+- `utility_locate_tickets`
+- `waste_manifests`
+- `disposal_facilities`
+- `tenant_hydrovac_settings`
+- `confined_space_permits`
+- `driver_qualifications`
+- `infrastructure_assets`
+- `job_time_segments`
+- `equipment_maintenance_log`
+- `compliance_alerts`
+- hydrovac-specific `jobs` columns
+- hydrovac-specific `equipment` columns
+- tenant-scoped RLS coverage for the new hydrovac tables
+- manifest-to-job rollup helpers and triggers
+
 ### `get_tenant_plan_limits_compat.sql`
 Targeted repair script for older hosted environments that already have most governance schema, but need the final `get_tenant_plan_limits(...)` overloads reconciled without rerunning the full catch-up file.
 
@@ -106,10 +127,11 @@ The `/archive/` folder contains older migrations kept for reference. Some schema
 4. Run `service_workflow_phase1.sql`.
 5. Run `service_recurring_plans.sql` if you want recurring service plans enabled.
 6. Run `service_deposit_control.sql` if you want deposit requirements, overrides, and booking/job enforcement enabled.
-7. Point `.env.test` or `TEST_*` secrets at that same project.
-8. Run `npm run test:preflight:service-workflow`.
-9. Set the required environment variables from the root `.env.example`.
-10. Deploy or run the app against that project.
+7. Run `hydrovac_module_foundation.sql` if you want hydrovac / Vactor compliance, manifest, and dispatch schema enabled.
+8. Point `.env.test` or `TEST_*` secrets at that same project.
+9. Run `npm run test:preflight:service-workflow`.
+10. Set the required environment variables from the root `.env.example`.
+11. Deploy or run the app against that project.
 
 ## Change process
 

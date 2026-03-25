@@ -49,8 +49,8 @@ exports.handler = async (event) => {
     `)
     .eq('tenant_id', tenantId);
 
-  // Assignment filter: job may reference member.id (operator_members.id) or user_id directly
-  query = query.or(`assigned_operator_id.eq.${member.id},assigned_operator_id.eq.${user.id}`);
+  // Assignment filter: jobs may reference operator_members.id, operators.id, or user.id depending on age of data.
+  query = query.or(`assigned_member_id.eq.${member.id},assigned_operator_id.eq.${member.id},assigned_operator_id.eq.${user.id}`);
 
   // Status filter
   if (params.status) {
