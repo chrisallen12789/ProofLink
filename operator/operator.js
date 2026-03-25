@@ -767,6 +767,252 @@ const BID_PROFILE_LIBRARY = {
       "Call out water access, drainage, and landscape protection so the proposal feels careful and professional before anyone arrives on site.",
     ],
   },
+  landscaping_maintenance: {
+    label: "Landscaping",
+    intro: "Built for recurring maintenance, seasonal cleanups, and property-specific notes where the operator needs to keep the visit easy to sell and easy to repeat.",
+    scopePrompt: "Document yard size, access, gates, pet notes, recurring cadence, bed count, debris level, and any property-specific instructions that need to carry forward.",
+    solutionPrompt: "Break the work into the recurring visit, the seasonal reset, and any upgrade or enhancement work the customer may approve separately.",
+    photoPrompts: [
+      "Wide shot of the front yard and street view",
+      "Backyard, fence gates, and access constraints",
+      "Beds, shrubs, leaves, or overgrowth that change labor",
+      "Property notes like steep grade, toys, pet waste, or obstacles",
+    ],
+    pricingPrompts: [
+      "Recurring visit cadence",
+      "Seasonal cleanup or reset",
+      "Optional mulch, trimming, or enhancement work",
+    ],
+    lineItems: [
+      { name: "Recurring property visit", description: "Core mow, trim, blow, or recurring maintenance scope tied to the property notes captured during the visit.", quantity: 1, unit: "visit", unit_price_cents: 0, kind: "base" },
+      { name: "Seasonal cleanup allowance", description: "Allowance for leaf volume, debris haul-off, or extra cleanup labor that depends on what is actually onsite.", quantity: 1, unit: "allowance", unit_price_cents: 0, kind: "allowance" },
+      { name: "Optional enhancement", description: "Mulch, shrub trimming, bed refresh, or another property upgrade the customer can approve without changing the base visit.", quantity: 1, unit: "option", unit_price_cents: 0, kind: "option" },
+    ],
+    materials: "Seasonal consumables, debris bags, mulch, and truck tools are planned from the property notes so repeat visits stay consistent.",
+    unused: "Unused material stays tied to the property record so the next visit starts from the real on-site condition instead of memory.",
+    exclusions: "Tree removal, hardscape work, irrigation repairs, and heavy debris hauling are excluded unless specifically listed.",
+    warranty: "Recurring quality is reviewed against the agreed visit scope and the documented property notes for that customer.",
+    terms: "Pricing assumes normal property access and the visible growth conditions documented during the walkthrough. Heavy overgrowth or added tasks require approval.",
+    deliveryNote: "Here is the landscaping proposal from the site visit, including the recurring work, seasonal reset items, and any optional upgrades we recommend.",
+    proposalPrompts: [
+      "Separate the repeatable visit from the one-time cleanup so the customer understands what happens every time versus right now.",
+      "Use property-specific notes so future visits feel repeatable instead of dependent on memory.",
+      "Keep upgrades optional and clearly labeled so the base maintenance price stays easy to say yes to.",
+    ],
+    scopeStarters: [
+      { key: "recurring_property_visit", name: "Recurring property visit", description: "Routine mow, trim, blow, or recurring maintenance tied to the property notes captured on site.", quantity: 1, unit: "visit", unit_price_cents: 0, kind: "base" },
+      { key: "seasonal_cleanup", name: "Seasonal cleanup", description: "Leaf pickup, debris reset, bed cleanup, or seasonal catch-up work that should be priced separately from the repeat visit.", quantity: 1, unit: "job", unit_price_cents: 0, kind: "allowance" },
+      { key: "property_enhancement", name: "Enhancement add-on", description: "Mulch, shrub trimming, edging, or another optional upgrade the customer can approve separately.", quantity: 1, unit: "option", unit_price_cents: 0, kind: "option" },
+    ],
+  },
+  cleaning_services: {
+    label: "Cleaning",
+    intro: "Built for recurring cleanings, deep cleans, turnovers, and scope-sensitive visit pricing where trust comes from spelling out exactly what is included.",
+    scopePrompt: "Capture home size, bathrooms, pet hair, clutter level, first-visit condition, parking/access notes, and anything that changes labor time or visit cadence.",
+    solutionPrompt: "Separate the recurring clean, the deep-clean catch-up, and optional add-ons so the customer knows what happens every visit versus only once.",
+    photoPrompts: [
+      "Wide shot of main living spaces",
+      "Kitchen and bathroom condition",
+      "Heavy buildup, pet hair, or first-visit catch-up areas",
+      "Access, parking, stairs, or entry instructions",
+    ],
+    pricingPrompts: [
+      "Recurring visit price",
+      "First-visit or deep-clean catch-up",
+      "Optional inside appliances, windows, or add-ons",
+    ],
+    lineItems: [
+      { name: "Recurring cleaning visit", description: "Core cleaning scope for the agreed rooms, surfaces, and recurring cadence.", quantity: 1, unit: "visit", unit_price_cents: 0, kind: "base" },
+      { name: "First-visit catch-up allowance", description: "Allowance for extra labor, buildup, or reset work needed before the home settles into the recurring standard.", quantity: 1, unit: "allowance", unit_price_cents: 0, kind: "allowance" },
+      { name: "Optional add-on clean", description: "Inside appliances, interior windows, or another optional extra that the customer can approve separately.", quantity: 1, unit: "option", unit_price_cents: 0, kind: "option" },
+    ],
+    materials: "Consumables, vacuums, and specialty cleaners are staged from the documented home condition and the recurring scope agreed with the customer.",
+    unused: "Unused consumables stay in standard stock while the visit notes carry forward the real home condition for the next clean.",
+    exclusions: "Biohazard cleanup, excessive clutter organizing, mold remediation, and restoration work are excluded unless listed.",
+    warranty: "Service quality is reviewed against the agreed room list and the notes documented during the intake or walkthrough.",
+    terms: "Pricing assumes normal home access and the visible condition documented during the walkthrough. Heavy buildup or added rooms require approval.",
+    deliveryNote: "Attached is the cleaning proposal from the walkthrough, including the recurring scope, the first-visit reset work, and any optional add-ons.",
+    proposalPrompts: [
+      "Keep recurring work separate from first-visit catch-up so the ongoing price stays believable and easy to understand.",
+      "Spell out any condition factors like pet hair, buildup, or extra bathrooms before they turn into surprises.",
+      "Use optional add-ons instead of burying them in the base visit so the customer can choose the right level cleanly.",
+    ],
+    scopeStarters: [
+      { key: "recurring_cleaning_visit", name: "Recurring cleaning visit", description: "Routine cleaning for the agreed rooms and cadence once the home is at maintenance level.", quantity: 1, unit: "visit", unit_price_cents: 0, kind: "base" },
+      { key: "deep_clean_catchup", name: "Deep-clean catch-up", description: "One-time reset labor for first-visit buildup, neglected areas, or a turnover-level clean.", quantity: 1, unit: "job", unit_price_cents: 0, kind: "allowance" },
+      { key: "cleaning_add_on", name: "Cleaning add-on", description: "Inside oven, fridge, interior windows, or another optional extra the customer can approve separately.", quantity: 1, unit: "option", unit_price_cents: 0, kind: "option" },
+    ],
+  },
+  photography_sessions: {
+    label: "Photography",
+    intro: "Built for portrait, family, and brand sessions where the deliverables, timeline, and client expectations matter as much as the shoot itself.",
+    scopePrompt: "Capture session type, location, people count, wardrobe notes, deliverables, turnaround expectations, and any permits or travel factors.",
+    solutionPrompt: "Define the session coverage, editing deliverables, delivery timing, and any optional upgrades like prints, rush edits, or extra locations.",
+    photoPrompts: [
+      "Location overview or mood board reference",
+      "Lighting conditions and time-of-day note",
+      "Key backdrop, setup, or access constraint",
+      "Inspiration reference or must-have shot note",
+    ],
+    pricingPrompts: [
+      "Session coverage",
+      "Editing and delivery scope",
+      "Optional prints, rush turnaround, or extra coverage",
+    ],
+    lineItems: [
+      { name: "Session coverage", description: "Photography session time, planning, and on-site coverage for the agreed shoot.", quantity: 1, unit: "session", unit_price_cents: 0, kind: "base" },
+      { name: "Editing and delivery allowance", description: "Allowance for edit volume, retouch depth, travel, or file-delivery complexity beyond the base session.", quantity: 1, unit: "allowance", unit_price_cents: 0, kind: "allowance" },
+      { name: "Optional upgrade", description: "Optional print package, rush delivery, extra location, or extended coverage the client can approve separately.", quantity: 1, unit: "option", unit_price_cents: 0, kind: "option" },
+    ],
+    materials: "Session prep, gear, and delivery planning are staged from the location and deliverable notes captured before the shoot.",
+    unused: "Unused prep time or reserved deliverable capacity stays documented in the client record so the next session starts with the right context.",
+    exclusions: "Permit fees, studio rentals, specialty retouching, and extra travel outside the written scope are excluded unless listed.",
+    warranty: "Deliverables are reviewed against the agreed session scope, image count, and turnaround timeline documented in the proposal.",
+    terms: "Pricing assumes the planned location, people count, and session timeline match the intake notes. Added coverage or rush work requires approval.",
+    deliveryNote: "Attached is the session proposal, including the coverage plan, deliverables, and any optional upgrades we discussed.",
+    proposalPrompts: [
+      "Make the deliverables and turnaround timing as clear as the shoot itself.",
+      "Separate the session coverage from editing and extras so the package feels intentional instead of vague.",
+      "Use the proposal to reduce anxiety by confirming location, people count, and what the client gets at the end.",
+    ],
+    scopeStarters: [
+      { key: "session_coverage", name: "Session coverage", description: "Base portrait, family, or brand session coverage for the agreed time window and location.", quantity: 1, unit: "session", unit_price_cents: 0, kind: "base" },
+      { key: "editing_delivery", name: "Editing and delivery", description: "Editing time, gallery delivery, or travel complexity that needs to be visible in the package.", quantity: 1, unit: "allowance", unit_price_cents: 0, kind: "allowance" },
+      { key: "session_upgrade", name: "Session upgrade", description: "Extra location, rush turnaround, album, or print add-on the client can approve separately.", quantity: 1, unit: "option", unit_price_cents: 0, kind: "option" },
+    ],
+  },
+  pet_care_services: {
+    label: "Pet services",
+    intro: "Built for grooming, walking, and pet-care visits where the pet profile, behavior notes, and repeat-client trust all need to stay attached to the work.",
+    scopePrompt: "Capture pet name, breed, size, temperament, service history, home access notes, and any care instructions that need to follow every visit.",
+    solutionPrompt: "Spell out the core visit, pet-specific handling notes, and any optional upgrades like add-on grooming, extra walk time, or medication support.",
+    photoPrompts: [
+      "Pet profile reference photo",
+      "Coat condition, matting, or handling concerns",
+      "Home access, leash, crate, or entry instructions",
+      "Care setup like feeding station, yard, or medication notes",
+    ],
+    pricingPrompts: [
+      "Core visit or service",
+      "Behavior, coat, or time allowance",
+      "Optional add-on grooming or extra care",
+    ],
+    lineItems: [
+      { name: "Core pet-care visit", description: "Base grooming, walking, or in-home care visit tied to the pet profile and agreed service length.", quantity: 1, unit: "visit", unit_price_cents: 0, kind: "base" },
+      { name: "Pet-specific allowance", description: "Allowance for coat condition, handling complexity, extra walk time, or care instructions beyond the base visit.", quantity: 1, unit: "allowance", unit_price_cents: 0, kind: "allowance" },
+      { name: "Optional care add-on", description: "Optional add-on for nails, medication, extra play time, or another approved care upgrade.", quantity: 1, unit: "option", unit_price_cents: 0, kind: "option" },
+    ],
+    materials: "Visit supplies and handling prep are planned from the pet profile and service notes so repeat visits stay consistent and safe.",
+    unused: "Unused supplies return to stock while the pet-specific notes stay tied to the customer record for future visits.",
+    exclusions: "Aggression handling beyond the agreed scope, emergency vet care, and unscheduled additional pets are excluded unless listed.",
+    warranty: "Service quality is reviewed against the documented pet profile, agreed visit length, and care notes for that client.",
+    terms: "Pricing assumes the pet condition and handling needs match the documented notes. Additional behavior, coat, or care complexity requires approval.",
+    deliveryNote: "Attached is the pet-service proposal, including the visit plan, pet notes we are carrying forward, and any optional care add-ons.",
+    proposalPrompts: [
+      "Keep the pet profile visible in the proposal so the client feels understood, not processed.",
+      "Separate the standard visit from pet-specific complexity instead of hiding it in the base number.",
+      "Use repeat-visit language that makes future scheduling feel easy and trustworthy.",
+    ],
+    scopeStarters: [
+      { key: "core_pet_visit", name: "Core pet-care visit", description: "Base grooming, walking, or drop-in care visit tied to the pet's normal routine.", quantity: 1, unit: "visit", unit_price_cents: 0, kind: "base" },
+      { key: "pet_complexity_allowance", name: "Pet-specific allowance", description: "Allowance for matting, behavior, extra handling time, or home-access complexity beyond the base visit.", quantity: 1, unit: "allowance", unit_price_cents: 0, kind: "allowance" },
+      { key: "pet_add_on", name: "Optional care add-on", description: "Nail trim, extra walk time, medication support, or another add-on the client can approve separately.", quantity: 1, unit: "option", unit_price_cents: 0, kind: "option" },
+    ],
+  },
+  event_planning: {
+    label: "Events",
+    intro: "Built for event proposals where the client needs to see the production plan, inclusions, timeline, and optional upgrades without getting lost.",
+    scopePrompt: "Capture event type, guest count, venue, timeline, included services, vendor dependencies, and any decisions still pending.",
+    solutionPrompt: "Break the event into the base package, coordination or rental allowances, and optional upgrades the client can approve separately.",
+    photoPrompts: [
+      "Venue overview and layout notes",
+      "Key setup zones or decor inspiration",
+      "Access, loading, or timing constraints",
+      "Must-have elements, rentals, or staging references",
+    ],
+    pricingPrompts: [
+      "Base event package",
+      "Coordination or rental allowance",
+      "Optional upgrades or add-ons",
+    ],
+    lineItems: [
+      { name: "Base event package", description: "Core coordination, planning, or production scope tied to the event timeline and guest count.", quantity: 1, unit: "event", unit_price_cents: 0, kind: "base" },
+      { name: "Coordination / rental allowance", description: "Allowance for staffing, rentals, florals, or vendor-managed items that depend on final event details.", quantity: 1, unit: "allowance", unit_price_cents: 0, kind: "allowance" },
+      { name: "Optional event upgrade", description: "Optional decor, entertainment, extra coverage, or premium add-on the client can approve separately.", quantity: 1, unit: "option", unit_price_cents: 0, kind: "option" },
+    ],
+    materials: "Timeline planning, rental assumptions, and vendor support are staged from the event brief so execution feels organized before the date arrives.",
+    unused: "Unused rental or coordination capacity stays documented in the event record so changes can be handled without losing clarity.",
+    exclusions: "Venue fees, permits, taxes, third-party vendor contracts, and client-requested additions outside the written scope are excluded unless listed.",
+    warranty: "Execution is reviewed against the documented timeline, inclusions, and approvals tied to the booked event.",
+    terms: "Pricing assumes the guest count, venue, and event scope match the current brief. Added services or timeline changes require approval.",
+    deliveryNote: "Attached is the event proposal, including the package scope, timeline assumptions, and optional upgrades we discussed.",
+    proposalPrompts: [
+      "Make the timeline and inclusions as clear as the price so the client sees a plan, not just a number.",
+      "Separate base coordination from vendor or rental allowances so open items stay visible.",
+      "Use optional upgrades to protect the core package from getting muddy while still making upsells easy.",
+    ],
+    scopeStarters: [
+      { key: "base_event_package", name: "Base event package", description: "Core planning, coordination, or execution package for the event as currently scoped.", quantity: 1, unit: "event", unit_price_cents: 0, kind: "base" },
+      { key: "event_allowance", name: "Coordination or rental allowance", description: "Allowance for staffing, rentals, florals, or another event component not fully finalized yet.", quantity: 1, unit: "allowance", unit_price_cents: 0, kind: "allowance" },
+      { key: "event_upgrade", name: "Optional event upgrade", description: "Premium decor, entertainment, extra coverage, or another add-on the client can approve separately.", quantity: 1, unit: "option", unit_price_cents: 0, kind: "option" },
+    ],
+  },
+  handyman_punchlist: {
+    label: "Handyman",
+    intro: "Built for punch lists, mixed repairs, and small project visits where the customer needs to see what is included now, what may vary, and what can be added later.",
+    scopePrompt: "Document the punch-list items, access notes, existing-condition risks, materials likely needed, and any tasks that should be broken out as optional.",
+    solutionPrompt: "Group the work into the core visit, a material or hidden-condition allowance, and optional add-ons so the customer can approve it quickly.",
+    photoPrompts: [
+      "Wide shot of each repair zone",
+      "Close-up of damage, wear, or failure point",
+      "Access, ladder, parking, or furniture-move constraints",
+      "Materials, finishes, or match detail that affect the repair",
+    ],
+    pricingPrompts: [
+      "Core punch-list labor",
+      "Material or hidden-condition allowance",
+      "Optional extra tasks",
+    ],
+    lineItems: [
+      { name: "Core punch-list visit", description: "Base labor for the agreed repair or installation list captured during the walkthrough.", quantity: 1, unit: "visit", unit_price_cents: 0, kind: "base" },
+      { name: "Material / hidden-condition allowance", description: "Allowance for small materials, patching, or conditions that cannot be fully confirmed until the work starts.", quantity: 1, unit: "allowance", unit_price_cents: 0, kind: "allowance" },
+      { name: "Optional extra task", description: "Optional adjacent repair or upgrade the customer can approve without rebuilding the whole estimate.", quantity: 1, unit: "option", unit_price_cents: 0, kind: "option" },
+    ],
+    materials: "Truck stock, small hardware, and purchased materials are planned from the punch list and the site conditions documented during the walkthrough.",
+    unused: "Unused materials are returned to stock or tagged to the job record so follow-up work starts from the real condition instead of guesswork.",
+    exclusions: "Permit work, hidden structural issues, specialty trade repairs, and finish restoration outside the written scope are excluded unless listed.",
+    warranty: "Completed handyman work is reviewed against the documented punch list and the materials installed during the visit.",
+    terms: "Pricing assumes the visible conditions match the walkthrough. Hidden damage or added tasks require approval before extra charges are added.",
+    deliveryNote: "Attached is the handyman proposal from the walkthrough, including the core punch-list work, any allowances, and the optional extras we discussed.",
+  },
+  bakery_custom_orders: {
+    label: "Bakery / custom orders",
+    intro: "Built for custom cakes, dessert tables, and event baking where the proposal needs to make quantities, design assumptions, and delivery details feel easy to trust.",
+    scopePrompt: "Capture servings, flavors, design direction, pickup or delivery timing, allergy notes, and any event-specific setup details.",
+    solutionPrompt: "Separate the base order, design or setup allowances, and optional add-ons like cupcakes, toppers, or delivery support.",
+    photoPrompts: [
+      "Design inspiration or sample reference",
+      "Color palette or theme notes",
+      "Delivery, setup, or venue timing detail",
+      "Sizing, tier, or dessert-table quantity note",
+    ],
+    pricingPrompts: [
+      "Base baked order",
+      "Design or specialty allowance",
+      "Optional add-ons or delivery support",
+    ],
+    lineItems: [
+      { name: "Base custom order", description: "Core cake, dessert, or baked-good scope tied to the agreed servings and flavor direction.", quantity: 1, unit: "order", unit_price_cents: 0, kind: "base" },
+      { name: "Design or specialty allowance", description: "Allowance for specialty decoration, premium ingredients, or setup details that depend on final design.", quantity: 1, unit: "allowance", unit_price_cents: 0, kind: "allowance" },
+      { name: "Optional add-on", description: "Cupcakes, cookies, topper work, delivery, or another add-on the client can approve separately.", quantity: 1, unit: "option", unit_price_cents: 0, kind: "option" },
+    ],
+    materials: "Ingredient planning, production timing, and packaging are staged from the order brief so pickup or delivery stays predictable.",
+    unused: "Unused prep capacity and design notes stay tied to the order record for future repeats or event follow-up.",
+    exclusions: "Rush orders, major design changes, venue setup beyond the written scope, and allergy assurances outside the documented notes are excluded unless listed.",
+    warranty: "Order quality is reviewed against the confirmed flavor, design direction, and pickup or delivery details captured in the proposal.",
+    terms: "Pricing assumes the serving count, design complexity, and timing match the current order brief. Large design changes or rush timing require approval.",
+    deliveryNote: "Attached is the custom order proposal, including the servings, design assumptions, and any optional add-ons or delivery support.",
+  },
   hvac: {
     label: "HVAC",
     intro: "Designed for diagnostics, equipment replacements, maintenance agreements, and code-sensitive service bids where the proposal must inspire trust.",
@@ -3014,6 +3260,78 @@ const SERVICE_PRESET_LIBRARY = {
       { name: "Shrub trimming visit", category: "Enhancement", pricing_mode: "starts_at", starting_price_dollars: 125, unit_label: "visit", description: "Trim and shape shrubs or hedges with cleanup and haul-away priced from quantity and access.", notes: "Good add-on or standalone service that teaches simple upselling." },
     ],
   },
+  pressure_washing_southeast_michigan: {
+    label: "Pressure washing - Southeast Michigan",
+    summary: "Exterior-cleaning anchors for house washes, flatwork, stain treatment, and upgrade-friendly proposals.",
+    businessKeys: ["pressure_washing"],
+    items: [
+      { name: "House wash", category: "Residential", pricing_mode: "starts_at", starting_price_dollars: 195, unit_label: "job", description: "Soft-wash style exterior house cleaning priced from siding size, condition, and access.", notes: "Strong first anchor for residential wash work that still leaves room for square-foot and oxidation adjustments." },
+      { name: "Driveway and flatwork cleaning", category: "Flatwork", pricing_mode: "starts_at", starting_price_dollars: 145, unit_label: "section", description: "Pressure-clean driveway, sidewalk, or patio sections with pricing tied to measured surface area.", notes: "Clean anchor for concrete work without forcing full custom math every time." },
+      { name: "Deck or fence wash", category: "Add-on", pricing_mode: "starts_at", starting_price_dollars: 115, unit_label: "section", description: "Wash and brighten deck or fence surfaces when they are priced separately from the main house wash.", notes: "Easy add-on that helps the operator upsell visible adjacent work." },
+      { name: "Rust or stain treatment", category: "Special treatment", pricing_mode: "starts_at", starting_price_dollars: 95, unit_label: "area", description: "Targeted treatment for rust, oil, or deep staining that needs dedicated chemistry and extra passes.", notes: "Use when the wash price alone would understate the labor and chemistry involved." },
+      { name: "Commercial building wash", category: "Commercial", pricing_mode: "quote", unit_label: "job", description: "Quoted facade wash for larger buildings, commercial sites, or multi-unit work with more coordination.", notes: "Good quote-only line when access, water, and runoff controls need a more disciplined scope." },
+    ],
+  },
+  cleaning_southeast_michigan: {
+    label: "Cleaning - Southeast Michigan",
+    summary: "Starter pricing for recurring residential cleans, deep-clean resets, turnovers, and high-trust add-ons.",
+    businessKeys: ["cleaning"],
+    items: [
+      { name: "Recurring clean - small home", category: "Recurring", pricing_mode: "fixed", sell_price_dollars: 115, unit_label: "visit", description: "Routine cleaning visit for a smaller home or apartment on a recurring cadence.", notes: "Keeps the repeat visit simple enough for a customer to understand and a young operator to quote confidently." },
+      { name: "Recurring clean - standard home", category: "Recurring", pricing_mode: "fixed", sell_price_dollars: 155, unit_label: "visit", description: "Standard recurring clean for a typical multi-room home with bathrooms, kitchen, and common areas.", notes: "Good middle anchor before deep-clean or size complexity gets involved." },
+      { name: "First-visit deep clean", category: "Reset work", pricing_mode: "starts_at", starting_price_dollars: 245, unit_label: "job", description: "One-time deep clean or first-visit reset before the home settles into a recurring standard.", notes: "Helps separate ongoing pricing from catch-up labor and heavy buildup." },
+      { name: "Move-in / move-out clean", category: "Turnovers", pricing_mode: "starts_at", starting_price_dollars: 295, unit_label: "job", description: "Vacant-home turnover clean priced from size, condition, and appliance scope.", notes: "Useful anchor for empty-unit work where condition and timing are variable." },
+      { name: "Inside appliance add-on", category: "Add-on", pricing_mode: "fixed", sell_price_dollars: 45, unit_label: "appliance", description: "Inside oven or refrigerator add-on that can be approved separately from the base visit.", notes: "Simple optional extra that keeps the core visit price clean." },
+    ],
+  },
+  hvac_southeast_michigan: {
+    label: "HVAC - Southeast Michigan",
+    summary: "Service-call anchors for diagnostics, tune-ups, common repairs, and replacement-led proposals.",
+    businessKeys: ["hvac"],
+    items: [
+      { name: "Diagnostic service call", category: "Service", pricing_mode: "fixed", sell_price_dollars: 95, unit_label: "visit", description: "Dispatch and diagnostic visit for HVAC issues, credited toward same-visit repair when approved.", notes: "Foundational anchor for trust and cleaner repair conversations." },
+      { name: "Seasonal tune-up", category: "Maintenance", pricing_mode: "fixed", sell_price_dollars: 129, unit_label: "system", description: "Preventative maintenance visit for an AC or furnace system with standard inspection and test steps.", notes: "Good standard-price offer that supports repeat business and easier upsells." },
+      { name: "Common repair scope", category: "Repair", pricing_mode: "starts_at", starting_price_dollars: 165, unit_label: "repair", description: "Starting point for capacitor, contactor, thermostat, or similarly scoped repair work.", notes: "Keeps small repairs from turning into fully custom bids every time." },
+      { name: "Equipment replacement consult", category: "Replacement", pricing_mode: "quote", unit_label: "system", description: "Quoted equipment replacement scope for larger repairs or full-system swaps after diagnosis.", notes: "Use when the proposal needs more structure, equipment options, and code-sensitive language." },
+      { name: "Indoor air quality upgrade", category: "Add-on", pricing_mode: "starts_at", starting_price_dollars: 195, unit_label: "upgrade", description: "Optional IAQ upgrade like filtration, UV, or accessory work layered onto the main service proposal.", notes: "Helpful add-on line when the technician sees a real comfort or air-quality opportunity." },
+    ],
+  },
+  plumbing_southeast_michigan: {
+    label: "Plumbing - Southeast Michigan",
+    summary: "Service anchors for diagnostics, drain work, fixture replacements, and repair-plus-restoration proposals.",
+    businessKeys: ["plumbing"],
+    items: [
+      { name: "Service call / diagnostic", category: "Service", pricing_mode: "fixed", sell_price_dollars: 95, unit_label: "visit", description: "Dispatch and first-hour diagnostic for visible plumbing issues or troubleshooting.", notes: "Core trust-building anchor before the repair scope is finalized." },
+      { name: "Fixture repair or replace", category: "Repair", pricing_mode: "starts_at", starting_price_dollars: 145, unit_label: "fixture", description: "Starting point for faucet, toilet, disposal, or similar fixture repair and replacement work.", notes: "Useful middle anchor that covers a lot of common residential plumbing jobs." },
+      { name: "Drain cleaning", category: "Drain work", pricing_mode: "starts_at", starting_price_dollars: 165, unit_label: "line", description: "Starting point for sink, tub, or branch-line drain clearing before main-line complexity is involved.", notes: "Easy anchor that keeps drain work from feeling vague or improvised." },
+      { name: "Main-line or specialty repair", category: "Specialty", pricing_mode: "quote", unit_label: "job", description: "Quoted scope for larger line work, leak investigation, hidden damage, or more complex plumbing repairs.", notes: "Use when access, restoration, or code questions make a custom proposal the safer move." },
+      { name: "Finish restoration allowance", category: "Add-on", pricing_mode: "starts_at", starting_price_dollars: 125, unit_label: "allowance", description: "Allowance for patching, trim, or basic finish restoration that can be approved on top of the plumbing repair.", notes: "Keeps the repair scope separate from optional finish work." },
+    ],
+  },
+  photography_southeast_michigan: {
+    label: "Photography - Southeast Michigan",
+    summary: "Session anchors for portraits, families, branding, and add-on-heavy creative work.",
+    businessKeys: ["photography"],
+    items: [
+      { name: "Mini session", category: "Portrait", pricing_mode: "fixed", sell_price_dollars: 225, unit_label: "session", description: "Short portrait or seasonal mini session with a simple delivery package.", notes: "Great low-friction starter package that is easy to book and easy to explain." },
+      { name: "Standard portrait session", category: "Portrait", pricing_mode: "fixed", sell_price_dollars: 395, unit_label: "session", description: "Standard portrait or family session with a fuller gallery and more flexible timing.", notes: "Good core package for portrait work that balances price and substance." },
+      { name: "Brand or content session", category: "Branding", pricing_mode: "starts_at", starting_price_dollars: 495, unit_label: "session", description: "Business or content session priced from deliverables, locations, and coverage needs.", notes: "Useful when the operator needs room for scope and editing variation." },
+      { name: "Event coverage", category: "Events", pricing_mode: "quote", unit_label: "event", description: "Quoted event or milestone coverage where timeline, guest count, and deliverables vary more widely.", notes: "Keeps larger creative commitments disciplined instead of guessed." },
+      { name: "Album or rush-delivery add-on", category: "Add-on", pricing_mode: "starts_at", starting_price_dollars: 125, unit_label: "upgrade", description: "Optional print, album, or rush-edit upgrade the client can approve separately.", notes: "Simple extra that keeps the main package clean while opening a path to upsell." },
+    ],
+  },
+  events_southeast_michigan: {
+    label: "Events - Southeast Michigan",
+    summary: "Proposal anchors for coordination, rentals, decor, and event-day support with upgrade-friendly structure.",
+    businessKeys: ["events"],
+    items: [
+      { name: "Base event coordination", category: "Coordination", pricing_mode: "starts_at", starting_price_dollars: 795, unit_label: "event", description: "Coordination package priced from guest count, event length, and venue complexity.", notes: "Strong first anchor for event planning without pretending every event is identical." },
+      { name: "Day-of coordination", category: "Coordination", pricing_mode: "fixed", sell_price_dollars: 1195, unit_label: "event", description: "Event-day execution package focused on timeline control, vendor coordination, and guest-flow management.", notes: "Useful standard package when the main value is confidence on the day itself." },
+      { name: "Decor or rental allowance", category: "Allowances", pricing_mode: "starts_at", starting_price_dollars: 350, unit_label: "allowance", description: "Allowance for rentals, floral, tablescape, or setup details that depend on final selections.", notes: "Helps keep open vendor or rental decisions visible instead of buried." },
+      { name: "Entertainment or premium add-on", category: "Add-on", pricing_mode: "starts_at", starting_price_dollars: 425, unit_label: "upgrade", description: "Optional enhancement like photo booth, DJ support, upgraded decor, or another premium event layer.", notes: "Creates an easy way to upsell without muddying the base package." },
+      { name: "Full event production", category: "Full service", pricing_mode: "quote", unit_label: "event", description: "Quoted full-service production for higher-complexity events, multiple vendors, or larger execution needs.", notes: "Best fit when the event deserves a more detailed commercial structure." },
+    ],
+  },
   general_service_southeast_michigan: {
     label: "General service - Southeast Michigan",
     summary: "Broad service anchors for dispatch work, small jobs, half-day visits, emergency response, and materials handling.",
@@ -3031,6 +3349,12 @@ const SERVICE_PRESET_LIBRARY = {
 
 function servicePresetKeyForWorkspace() {
   const businessKey = String(currentWorkspaceBlueprint()?.business?.key || "").trim().toLowerCase();
+  if (businessKey === "pressure_washing") return "pressure_washing_southeast_michigan";
+  if (businessKey === "cleaning") return "cleaning_southeast_michigan";
+  if (businessKey === "hvac") return "hvac_southeast_michigan";
+  if (businessKey === "plumbing") return "plumbing_southeast_michigan";
+  if (businessKey === "photography") return "photography_southeast_michigan";
+  if (businessKey === "events") return "events_southeast_michigan";
   if (businessKey === "hydrovac") return "hydrovac_southeast_michigan";
   if (businessKey === "contractor") return "contractor_southeast_michigan";
   if (businessKey === "landscaping") return "landscaping_southeast_michigan";
@@ -3039,7 +3363,19 @@ function servicePresetKeyForWorkspace() {
 
 function servicePresetChoicesForWorkspace() {
   const primaryKey = servicePresetKeyForWorkspace();
-  const ordered = [primaryKey, "hydrovac_southeast_michigan", "contractor_southeast_michigan", "landscaping_southeast_michigan", "general_service_southeast_michigan"];
+  const ordered = [
+    primaryKey,
+    "hydrovac_southeast_michigan",
+    "pressure_washing_southeast_michigan",
+    "contractor_southeast_michigan",
+    "landscaping_southeast_michigan",
+    "cleaning_southeast_michigan",
+    "hvac_southeast_michigan",
+    "plumbing_southeast_michigan",
+    "photography_southeast_michigan",
+    "events_southeast_michigan",
+    "general_service_southeast_michigan",
+  ];
   return uniqList(ordered).map((key) => SERVICE_PRESET_LIBRARY[key]).filter(Boolean);
 }
 
@@ -10718,10 +11054,18 @@ function preferredBidProfile() {
     return normalizeBidProfile(Architecture.resolveBidProfileForBusinessType(raw));
   }
   const map = {
+    bakery: "bakery_custom_orders",
     contractor: "contractor_remodeling",
     contractor_remodeling: "contractor_remodeling",
+    cleaning: "cleaning_services",
+    events: "event_planning",
+    handyman: "handyman_punchlist",
     pressure_washing: "pressure_washing",
     hvac: "hvac",
+    landscaping: "landscaping_maintenance",
+    lawn_care: "landscaping_maintenance",
+    pet_services: "pet_care_services",
+    photography: "photography_sessions",
     plumbing: "plumbing",
     property_maintenance: "property_maintenance",
     hydrovac: "hydrovac_vactor",
