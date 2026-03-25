@@ -55,4 +55,22 @@ describe("netlify/functions/utils/email", () => {
     expect(result).toEqual({ skipped: true });
     expect(global.fetch).not.toHaveBeenCalled();
   });
+
+  test("customer-facing templates use business branding instead of application footer copy", async () => {
+    const { templates } = require(emailUtilsPath);
+
+    const email = templates.quoteReady({
+      customer_name: "Chris",
+      customer_email: "chris@example.com",
+      business_name: "Benkari Vacs",
+      title: "Hydrovac estimate",
+      amount_cents: 125000,
+      quote_url: "https://example.com/quote",
+    });
+
+    expect(email.html).toContain("<title>Benkari Vacs</title>");
+    expect(email.html).toContain("Benkari Vacs");
+    expect(email.html).toContain("Reply to this email if you need anything.");
+    expect(email.html).not.toContain("You received this because you applied to join ProofLink.");
+  });
 });

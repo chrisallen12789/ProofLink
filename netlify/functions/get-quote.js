@@ -19,6 +19,7 @@ const BID_SELECT = [
   'cover_note',
   'status',
   'customer_id',
+  'created_at',
 ].join(', ');
 
 exports.handler = async (event) => {
@@ -30,7 +31,8 @@ exports.handler = async (event) => {
     try { body = JSON.parse(event.body || '{}'); }
     catch { return respond(400, { error: 'Invalid JSON' }); }
 
-    const { action, bid_id } = body;
+    const { action } = body;
+    const bid_id = body.bid_id || body.token || body.id;
     if (action !== 'accept') return respond(400, { error: 'Invalid action' });
     if (!bid_id) return respond(400, { error: 'bid_id is required' });
 
@@ -129,7 +131,7 @@ exports.handler = async (event) => {
   // Fetch tenant branding
   const { data: tenant } = await supabase
     .from('tenants')
-    .select('name, logo_url, primary_color')
+    .select('name, logo_url, primary_color, email, notification_email, phone')
     .eq('id', bid.tenant_id)
     .maybeSingle();
 
@@ -152,13 +154,36 @@ exports.handler = async (event) => {
       project_summary: bid.project_summary,
       scope_of_work  : bid.scope_of_work,
       total_cents    : bid.total_cents,
+      total_amount   : bid.total_cents != null ? Number(bid.total_cents) / 100 : null,
       valid_until    : bid.valid_until,
       cover_note     : bid.cover_note,
       status         : bid.status,
+      created_at     : bid.created_at,
       customer_name  : customerName,
       business_name  : tenant?.name       || null,
       logo_url       : tenant?.logo_url   || null,
       primary_color  : tenant?.primary_color || null,
+      business_email : tenant?.notification_email || tenant?.email || null,
+      business_phone : tenant?.phone || null,
+      notes          : bid.cover_note || null,
+      terms          : bid.scope_of_work || null,
+      line_items     : [],
     },
+    id               : bid.id,
+    title            : bid.title,
+    total_cents      : bid.total_cents,
+    total_amount     : bid.total_cents != null ? Number(bid.total_cents) / 100 : null,
+    valid_until      : bid.valid_until,
+    cover_note       : bid.cover_note,
+    status           : bid.status,
+    created_at       : bid.created_at,
+    customer_name    : customerName,
+    business_name    : tenant?.name || null,
+    business_logo_url: tenant?.logo_url || null,
+    business_email   : tenant?.notification_email || tenant?.email || null,
+    business_phone   : tenant?.phone || null,
+    notes            : bid.cover_note || null,
+    terms            : bid.scope_of_work || null,
+    line_items       : [],
   });
 };

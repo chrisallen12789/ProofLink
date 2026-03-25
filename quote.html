@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Proposal — ProofLink</title>
+  <title>Estimate</title>
   <link rel="icon" href="/assets/favicon.png" />
   <link rel="manifest" href="/site.webmanifest" />
   <style>
@@ -245,21 +245,21 @@
 <!-- Loading state -->
 <div id="loadingView">
   <div class="spinner"></div>
-  <span>Loading proposal&hellip;</span>
+  <span>Loading estimate&hellip;</span>
 </div>
 
 <!-- Error state -->
 <div id="errorView" class="hidden">
   <div class="error-icon">&#x1F50D;</div>
-  <div class="error-title">Proposal not found</div>
-  <div class="error-sub">This proposal link may have expired or the token is invalid. Please contact the business directly.</div>
+  <div class="error-title">We could not open this estimate</div>
+  <div class="error-sub">This link may have expired or already been used. Please contact the business for a fresh one.</div>
 </div>
 
 <!-- Confirmation modal (hidden by default) -->
 <div id="confirmModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
   <div class="modal-box">
-    <div class="modal-title" id="modalTitle">Accept this proposal?</div>
-    <div class="modal-sub">Accepting this proposal from <strong id="modalBizName"></strong> will notify them you&rsquo;re ready to move forward.</div>
+    <div class="modal-title" id="modalTitle">Approve this estimate?</div>
+    <div class="modal-sub">Approving this estimate from <strong id="modalBizName"></strong> lets them know you are ready to move forward.</div>
     <div class="modal-actions">
       <button class="btn-modal-cancel" id="btnModalCancel" type="button">Go back</button>
       <button class="btn-modal-confirm" id="btnModalConfirm" type="button">Yes, accept</button>
@@ -276,13 +276,13 @@
       <div id="bizLogoWrap" class="biz-logo-wrap" aria-hidden="true">P</div>
       <div>
         <div class="biz-info-name" id="bizName">Business</div>
-        <div class="biz-info-sub">Proposal for services</div>
+        <div class="biz-info-sub">Estimate for your service</div>
       </div>
     </div>
 
     <!-- Proposal summary card -->
     <div class="card">
-      <div class="card-label">Proposal</div>
+      <div class="card-label">Estimate</div>
       <div class="proposal-title" id="proposalTitle">—</div>
       <div id="proposalCustomer" style="font-size:.875rem;color:rgba(255,255,255,.5);"></div>
       <div class="meta-grid">
@@ -324,7 +324,7 @@
 
     <!-- Notes / Terms card (hidden until populated) -->
     <div class="card hidden" id="notesCard">
-      <div class="card-label">Notes &amp; Terms</div>
+      <div class="card-label">Notes &amp; Details</div>
       <div class="notes-body" id="notesBody"></div>
     </div>
 
@@ -332,16 +332,14 @@
     <div class="card actions-card">
       <div id="acceptedState" class="accepted-state">
         <div class="check">&#x2705;</div>
-        <div class="atitle">Proposal accepted!</div>
+        <div class="atitle">Estimate approved</div>
         <div class="asub" id="acceptedMsg">The business has been notified and will follow up shortly.</div>
       </div>
-      <button class="btn-accept" id="btnAccept" type="button">Accept this proposal</button>
+      <button class="btn-accept" id="btnAccept" type="button">Approve estimate</button>
       <div class="contact-row" id="contactRow">
         Have questions? <span id="contactLinks">Contact us</span>
       </div>
     </div>
-
-    <div class="powered">Powered by <a href="https://prooflink.co" target="_blank">ProofLink</a></div>
 
   </div>
 </div>
@@ -378,7 +376,7 @@
   }
 
   var params = new URLSearchParams(location.search);
-  var token  = params.get('token');
+  var token  = params.get('token') || params.get('id');
   var BIZ_NAME = '';
 
   if (!token) {
@@ -393,7 +391,7 @@
       return r.json();
     })
     .then(function (data) {
-      renderProposal(data);
+      renderProposal(data.quote || data);
       hideEl('loadingView');
       showEl('proposalView');
     })
@@ -406,12 +404,12 @@
     // Business info
     BIZ_NAME = data.business_name || 'the business';
     document.getElementById('bizName').textContent = BIZ_NAME;
-    document.title = 'Proposal from ' + BIZ_NAME + ' \u2014 ProofLink';
+    document.title = 'Estimate from ' + BIZ_NAME;
 
     var logoWrap = document.getElementById('bizLogoWrap');
-    if (data.business_logo_url) {
+    if (data.business_logo_url || data.logo_url) {
       var img = document.createElement('img');
-      img.src = data.business_logo_url;
+      img.src = data.business_logo_url || data.logo_url;
       img.alt = escHtml(BIZ_NAME);
       img.className = 'biz-logo-img';
       logoWrap.innerHTML = '';
@@ -421,7 +419,7 @@
     }
 
     // Proposal meta
-    document.getElementById('proposalTitle').textContent = data.title || 'Proposal';
+    document.getElementById('proposalTitle').textContent = data.title || 'Estimate';
     if (data.customer_name) {
       document.getElementById('proposalCustomer').textContent = 'Prepared for ' + data.customer_name;
     }
@@ -440,7 +438,7 @@
         validUntilEl.textContent += ' (expired)';
       }
     } else {
-      validUntilEl.textContent = 'No expiry set';
+      validUntilEl.textContent = 'No expiration listed';
     }
 
     var statusMap = {
@@ -516,7 +514,7 @@
     }
 
     // Notes / Terms
-    var notes = data.notes || data.terms || '';
+    var notes = data.notes || data.cover_note || data.terms || data.scope_of_work || '';
     if (notes) {
       document.getElementById('notesBody').textContent = notes;
       showEl('notesCard');
@@ -532,6 +530,8 @@
     }
     if (contactParts.length > 0) {
       document.getElementById('contactLinks').innerHTML = contactParts.join(' or ');
+    } else {
+      document.getElementById('contactLinks').textContent = 'Contact ' + BIZ_NAME;
     }
 
     // Already accepted — hide accept button, show accepted state
@@ -566,14 +566,14 @@
   document.getElementById('btnModalConfirm').addEventListener('click', function () {
     var confirmBtn = document.getElementById('btnModalConfirm');
     confirmBtn.disabled = true;
-    confirmBtn.textContent = 'Accepting\u2026';
+    confirmBtn.textContent = 'Sending\u2026';
 
     // POST accept; succeed gracefully if the endpoint is not yet available
     var acceptReq = token
       ? fetch('/.netlify/functions/get-quote', {
           method : 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body   : JSON.stringify({ token: token, action: 'accept' }),
+          body   : JSON.stringify({ bid_id: token, token: token, action: 'accept' }),
         }).catch(function () { return { ok: true }; })
       : Promise.resolve({ ok: true });
 

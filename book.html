@@ -104,9 +104,9 @@
 </head>
 <body>
 <div class="card">
-  <div class="logo">ProofLink</div>
+  <div class="logo">Appointment request</div>
   <div class="biz-name" id="bizName">Loading…</div>
-  <div class="sub">Book an appointment below</div>
+  <div class="sub">Choose a preferred time and tell us what you need.</div>
 
   <div id="bookForm">
     <h2>Your info</h2>
@@ -126,13 +126,13 @@
       </div>
     </div>
 
-    <p class="repeat-note">Already a customer? Your history will be pre-loaded.</p>
+    <p class="repeat-note">Already a customer? Use the same email and we will match your past details when we can.</p>
 
     <hr class="divider" />
     <h2>Appointment details</h2>
 
     <div class="avail-notice">
-      Select your preferred date and time. We'll confirm availability within 24 hours.
+      Choose your preferred date and time. We will confirm the final appointment shortly.
     </div>
 
     <label>Service / reason *</label>
@@ -183,7 +183,7 @@
       <option value="Other">Other</option>
     </select>
 
-    <button class="btn" id="btnBook" type="button">Request Appointment</button>
+    <button class="btn" id="btnBook" type="button">Send request</button>
     <div class="msg" id="bookMsg"></div>
     <div id="pricingNote" style="display:none;margin-top:16px;padding:12px 14px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:8px;font-size:.8rem;color:rgba(255,255,255,.55);line-height:1.5;">
       Have questions about pricing? Contact us directly.<span id="pricingContact"></span>
@@ -192,11 +192,10 @@
 
   <div id="successView" class="hidden">
     <div class="check">✅</div>
-    <h2>You're booked!</h2>
+    <h2>Request received</h2>
     <p id="successDetail">Your appointment has been requested. You'll hear from us shortly to confirm.</p>
   </div>
 
-  <div class="powered">Powered by <a href="https://prooflink.co" target="_blank">ProofLink</a></div>
 </div>
 
 <script>
@@ -268,8 +267,13 @@
     fetch('/.netlify/functions/get-public-tenant-info?tenant_id=' + encodeURIComponent(tenantId))
       .then(function (r) { return r.json(); })
       .then(function (d) {
-        if (d && d.business_name) bizNameEl.textContent = d.business_name;
-        else bizNameEl.textContent = 'Schedule an appointment';
+        if (d && d.business_name) {
+          bizNameEl.textContent = d.business_name;
+          document.title = 'Book with ' + d.business_name;
+        } else {
+          bizNameEl.textContent = 'Schedule with us';
+          document.title = 'Send an appointment request';
+        }
         // Show pricing contact note if business has a phone or email on file
         var phone = d && (d.phone || d.business_phone);
         var email = d && (d.email || d.business_email);
@@ -285,9 +289,13 @@
           }
         }
       })
-      .catch(function () { bizNameEl.textContent = 'Schedule an appointment'; });
+      .catch(function () {
+        bizNameEl.textContent = 'Schedule with us';
+        document.title = 'Send an appointment request';
+      });
   } else {
-    bizNameEl.textContent = 'Schedule an appointment';
+    bizNameEl.textContent = 'Schedule with us';
+    document.title = 'Send an appointment request';
   }
 
   document.getElementById('btnBook').addEventListener('click', function () {
@@ -319,7 +327,7 @@
       return;
     }
     if (!tenantId) {
-      msg.textContent = 'Invalid booking link — missing tenant ID.';
+      msg.textContent = 'This booking page is missing business information. Please ask for a fresh link.';
       msg.className   = 'msg error';
       return;
     }
@@ -353,19 +361,19 @@
     })
       .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
       .then(function (res) {
-        if (!res.ok) throw new Error(res.d.error || 'Failed to submit booking');
+        if (!res.ok) throw new Error(res.d.error || 'We could not send your request.');
         document.getElementById('bookForm').classList.add('hidden');
         document.getElementById('successView').classList.remove('hidden');
         const start = new Date(startsAt);
         document.getElementById('successDetail').textContent =
-          'Appointment requested for ' + start.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' }) +
-          ' at ' + start.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) + '. We\'ll confirm shortly!';
+          'We received your request for ' + start.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' }) +
+          ' at ' + start.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) + '. We will confirm the final time shortly.';
       })
       .catch(function (err) {
-        msg.textContent = err.message || 'Something went wrong. Please try again.';
+        msg.textContent = err.message || 'Something went wrong. Please try again or contact the business directly.';
         msg.className   = 'msg error';
         btn.disabled    = false;
-        btn.textContent = 'Request Appointment';
+        btn.textContent = 'Send request';
       });
   });
 })();

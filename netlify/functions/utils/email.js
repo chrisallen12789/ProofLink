@@ -17,6 +17,18 @@ function getSiteUrl() {
   return getConfiguredSiteUrl();
 }
 
+function businessLayout(content, { preheader='', business_name='', logo_url='' } = {}) {
+  const rendered = layout(content, { preheader, logo_url });
+  const footerName = business_name || 'Your service team';
+  return rendered
+    .replace('<title>ProofLink</title>', `<title>${footerName}</title>`)
+    .replace(
+      /<p style="margin:0 0 6px;font-size:12px;color:[^"]*">[\s\S]*?<\/p>/,
+      `<p style="margin:0 0 6px;font-size:12px;color:${T.hint};">${footerName}</p>`
+    )
+    .replace('You received this because you applied to join ProofLink.', 'Reply to this email if you need anything.');
+}
+
 const SITE_URL = {
   toString() {
     return getSiteUrl();
@@ -293,7 +305,7 @@ function buildChecklistSection(businessType, loginHref) {
           <div style="background:${T.bg};border:1px dashed ${T.border};border-radius:6px;width:44px;height:44px;text-align:center;line-height:44px;font-size:18px;">&#128247;</div>
         </td>
         <td>
-          <p style="margin:0 0 2px;font-size:14px;font-weight:600;color:${T.ink};">${item.label} <span style="font-size:11px;font-weight:400;color:${T.hint};background:${T.bg};border:1px solid ${T.border};border-radius:3px;padding:1px 6px;margin-left:4px;">slot: ${item.slot}</span></p>
+          <p style="margin:0 0 2px;font-size:14px;font-weight:600;color:${T.ink};">${item.label} <span style="font-size:11px;font-weight:400;color:${T.hint};background:${T.bg};border:1px solid ${T.border};border-radius:3px;padding:1px 6px;margin-left:4px;">Use for ${item.slot.replace(/_/g, ' ')}</span></p>
           <p style="margin:0;font-size:13px;color:${T.hint};line-height:1.5;">${item.hint}</p>
         </td>
       </tr></table>
@@ -303,7 +315,7 @@ function buildChecklistSection(businessType, loginHref) {
     <div style="background:${T.bg};border:1px solid ${T.border};border-radius:8px;overflow:hidden;margin:0 0 28px;">
       <div style="padding:14px 20px;border-bottom:1px solid ${T.border};background:${T.card};">
         <p style="margin:0;font-size:12px;font-weight:700;color:${T.ink};letter-spacing:.05em;text-transform:uppercase;">Business information needed</p>
-        <p style="margin:3px 0 0;font-size:12px;color:${T.hint};">Reply to this email with these details or update them in your dashboard.</p>
+        <p style="margin:3px 0 0;font-size:12px;color:${T.hint};">Reply to this email with these details or update them in your account.</p>
       </div>
       <table cellpadding="0" cellspacing="0" style="width:100%;padding:4px 20px 4px;">${infoRows}</table>
       <div style="padding:14px 20px;border-top:1px solid ${T.border};border-bottom:1px solid ${T.border};background:${T.card};margin-top:4px;">
@@ -413,7 +425,7 @@ const templates = {
     return {
       to     : customer_email,
       subject: `Appointment confirmed — ${business_name}`,
-      html   : layout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.green)}${bodyWrap(`
+      html   : businessLayout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.green)}${bodyWrap(`
         ${h1(`You're booked, ${customer_name}!`)}
         ${sub(`${business_name} has confirmed your appointment.`)}
         ${infoBox([
@@ -426,7 +438,7 @@ const templates = {
         ${portal_url ? `<div style="text-align:center;margin:0 0 28px;">${cta('View my history →', portal_url, T.red)}</div>` : ''}
         ${divider()}
         ${p(`<span style="color:${T.hint};">Need to reschedule? Reply to this email and we'll find a new time. Late cancellations (less than 24 hours) may be subject to a cancellation fee per our policy.</span>`)}
-      `)}</table>`, { preheader: `Your appointment with ${business_name} is confirmed.` }),
+      `)}</table>`, { preheader: `Your appointment with ${business_name} is confirmed.`, business_name }),
     };
   },
 
@@ -449,7 +461,7 @@ const templates = {
     return {
       to     : customer_email,
       subject: `Order update from ${business_name}`,
-      html   : layout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.amber)}${bodyWrap(`
+      html   : businessLayout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.amber)}${bodyWrap(`
         ${badge('Order update', T.amberLt, T.amber, T.amberBd)}<br/><br/>
         ${h1(`Hi ${customer_name},`)}
         ${sub(`Your order with ${business_name} has been updated.`)}
@@ -457,7 +469,7 @@ const templates = {
         ${portal_url ? `<div style="text-align:center;margin:0 0 28px;">${cta('View your order →', portal_url, T.red)}</div>` : ''}
         ${divider()}
         ${p(`<span style="color:${T.hint};">Questions? Reply to this email and we'll be happy to help.</span>`)}
-      `)}</table>`, { preheader: `Your order with ${business_name} is now: ${statusLabel}.` }),
+      `)}</table>`, { preheader: `Your order with ${business_name} is now: ${statusLabel}.`, business_name }),
     };
   },
 
@@ -469,7 +481,7 @@ const templates = {
     return {
       to     : customer_email,
       subject: `Payment reminder from ${business_name}`,
-      html   : layout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.red)}${bodyWrap(`
+      html   : businessLayout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.red)}${bodyWrap(`
         ${badge('Payment due', T.redLight, T.red, T.redBorder)}<br/><br/>
         ${h1(`Hi ${customer_name},`)}
         ${sub(`This is a friendly reminder that a payment is due to ${business_name}.`)}
@@ -477,7 +489,7 @@ const templates = {
         ${portal_url ? `<div style="text-align:center;margin:0 0 28px;">${cta('View & pay →', portal_url, T.red)}</div>` : ''}
         ${divider()}
         ${p(`<span style="color:${T.hint};">If you have already paid, please disregard this email. Questions? Just reply and we'll sort it out.</span>`)}
-      `)}</table>`, { preheader: `Friendly reminder: payment of ${formattedAmount} is due to ${business_name}.` }),
+      `)}</table>`, { preheader: `Friendly reminder: payment of ${formattedAmount} is due to ${business_name}.`, business_name }),
     };
   },
 
@@ -491,7 +503,7 @@ const templates = {
     return {
       to     : customer_email,
       subject: `Your quote from ${business_name}`,
-      html   : layout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.green)}${bodyWrap(`
+      html   : businessLayout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.green)}${bodyWrap(`
         ${badge('Quote ready', T.greenLt, T.green, T.greenBd)}<br/><br/>
         ${h1(`Hi ${customer_name},`)}
         ${sub(`${business_name} has prepared a quote for you. Review the details below and click the button to accept.`)}
@@ -499,7 +511,7 @@ const templates = {
         <div style="text-align:center;margin:0 0 28px;">${cta('Review & accept quote →', quote_url, T.red)}</div>
         ${divider()}
         ${p(`<span style="color:${T.hint};">Questions about this quote? Just reply to this email.</span>`)}
-      `)}</table>`, { preheader: `${business_name} has sent you a quote for ${title}.` }),
+      `)}</table>`, { preheader: `${business_name} has sent you a quote for ${title}.`, business_name }),
     };
   },
 
@@ -512,7 +524,7 @@ const templates = {
     return {
       to     : customer_email,
       subject: `Quote accepted — ${business_name}`,
-      html   : layout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.green)}${bodyWrap(`
+      html   : businessLayout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.green)}${bodyWrap(`
         ${badge('Quote accepted ✓', T.greenLt, T.green, T.greenBd)}<br/><br/>
         ${h1(`You're all set, ${customer_name}!`)}
         ${sub(`Thanks for accepting the quote from ${business_name}. Your order has been confirmed and the team will be in touch.`)}
@@ -520,7 +532,7 @@ const templates = {
         ${portal_url ? `<div style="text-align:center;margin:0 0 28px;">${cta('View your order →', portal_url, T.red)}</div>` : ''}
         ${divider()}
         ${p(`<span style="color:${T.hint};">Questions? Just reply to this email and we'll take care of you.</span>`)}
-      `)}</table>`, { preheader: `Your quote from ${business_name} has been accepted. Order confirmed.` }),
+      `)}</table>`, { preheader: `Your quote from ${business_name} has been accepted. Order confirmed.`, business_name }),
     };
   },
 
@@ -528,7 +540,7 @@ const templates = {
     return {
       to     : customer_email,
       subject: `Appointment cancelled — ${business_name}`,
-      html   : layout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.red)}${bodyWrap(`
+      html   : businessLayout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.red)}${bodyWrap(`
         ${badge('Cancelled', T.redLight, T.red, T.redBorder)}<br/><br/>
         ${h1(`Hi ${customer_name},`)}
         ${sub(`Your appointment with ${business_name} has been cancelled.`)}
@@ -536,7 +548,7 @@ const templates = {
         ${(rebook_url || portal_url) ? `<div style="text-align:center;margin:0 0 28px;">${cta('Book another appointment →', rebook_url || portal_url, T.red)}</div>` : ''}
         ${divider()}
         ${p(`<span style="color:${T.hint};">Need to reschedule? Reply to this email and we\u2019ll find a time that works.</span>`)}
-      `)}</table>`, { preheader: `Your appointment with ${business_name} has been cancelled.` }),
+      `)}</table>`, { preheader: `Your appointment with ${business_name} has been cancelled.`, business_name }),
     };
   },
 
@@ -544,7 +556,7 @@ const templates = {
     return {
       to     : customer_email,
       subject: `Reminder: appointment tomorrow — ${business_name}`,
-      html   : layout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.amber)}${bodyWrap(`
+      html   : businessLayout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.amber)}${bodyWrap(`
         ${badge('Reminder', T.amberLt, T.amber, T.amberBd)}<br/><br/>
         ${h1(`See you tomorrow, ${customer_name}!`)}
         ${sub(`This is a reminder of your upcoming appointment with ${business_name}.`)}
@@ -552,7 +564,7 @@ const templates = {
         ${portal_url ? `<div style="text-align:center;margin:0 0 28px;">${cta('View details →', portal_url, T.red)}</div>` : ''}
         ${divider()}
         ${p(`<span style="color:${T.hint};">Need to reschedule? Reply to this email and we\u2019ll sort it out.</span>`)}
-      `)}</table>`, { preheader: `Reminder: your appointment with ${business_name} is tomorrow.` }),
+      `)}</table>`, { preheader: `Reminder: your appointment with ${business_name} is tomorrow.`, business_name }),
     };
   },
 
@@ -564,7 +576,7 @@ const templates = {
     return {
       to     : customer_email,
       subject: `Proposal from ${business_name} — ${title}`,
-      html   : layout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.red)}${bodyWrap(`
+      html   : businessLayout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.red)}${bodyWrap(`
         ${badge('Proposal ready', T.redLight, T.red, T.redBorder)}<br/><br/>
         ${h1(`Hi ${customer_name},`)}
         ${sub(`${business_name} has prepared a proposal for you.`)}
@@ -614,7 +626,7 @@ const templates = {
     return {
       to     : customer_email,
       subject: `Invoice from ${business_name}${fmt ? ' — ' + fmt + ' due' : ''}`,
-      html   : layout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.red)}${bodyWrap(`
+      html   : businessLayout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.red)}${bodyWrap(`
         ${badge('Invoice', T.redLight, T.red, T.redBorder)}<br/><br/>
         ${h1(`Invoice from ${business_name}`)}
         ${infoBox([
@@ -647,7 +659,7 @@ const templates = {
     return {
       to     : customer_email,
       subject: `Your ${package_title} package is confirmed`,
-      html   : layout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.green)}${bodyWrap(`
+      html   : businessLayout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.green)}${bodyWrap(`
         ${badge('Package confirmed ✓', T.greenLt, T.green, T.greenBd)}<br/><br/>
         ${h1(`You're all set, ${customer_name}!`)}
         ${sub(`Hi ${customer_name}, your session package is active and ready to use.`)}
@@ -677,7 +689,7 @@ const templates = {
     return {
       to     : customer_email,
       subject: `${retainer_title} — ${period_label} Invoice`,
-      html   : layout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.red)}${bodyWrap(`
+      html   : businessLayout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.red)}${bodyWrap(`
         ${badge('Retainer invoice', T.redLight, T.red, T.redBorder)}<br/><br/>
         ${h1(`${retainer_title} — ${period_label}`)}
         ${sub(`Hi ${customer_name}, your ${retainer_title} invoice for ${period_label} is ready.`)}
@@ -698,7 +710,7 @@ const templates = {
     return {
       to     : customer_email,
       subject: `Reply from ${business_name}`,
-      html   : layout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.green)}${bodyWrap(`
+      html   : businessLayout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.green)}${bodyWrap(`
         ${h1(`Hi ${customer_name},`)}
         ${sub(`${business_name} replied to your message.`)}
         ${callout(reply_text, T.bg, T.border, T.ink)}
@@ -732,7 +744,7 @@ module.exports.buildInvoiceHtml = function buildInvoiceHtml({
     ? new Date(created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
     : new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
   const statusLabel = String(status || 'new').replace(/_/g, ' ').replace(/\b\w/g, (m) => m.toUpperCase());
-  return layout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.red)}${bodyWrap(`
+  return businessLayout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.red)}${bodyWrap(`
     ${badge('Invoice', T.redLight, T.red, T.redBorder)}<br/><br/>
     ${h1(`Invoice from ${business_name}`)}
     ${infoBox([

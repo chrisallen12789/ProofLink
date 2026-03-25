@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Customer Portal</title>
+  <title>Your Account</title>
   <link rel="icon" href="/assets/favicon.png" />
   <link rel="manifest" href="/site.webmanifest" />
   <style>
@@ -143,16 +143,16 @@
 </head>
 <body>
 <div class="wrap">
-  <div class="logo">ProofLink</div>
-  <div class="biz-name" id="bizName">Customer Portal</div>
-  <div class="sub" id="bizSub">View your order history and upcoming appointments.</div>
+  <div class="logo">Your account</div>
+  <div class="biz-name" id="bizName">Loadingâ€¦</div>
+  <div class="sub" id="bizSub">View appointments, orders, estimates, and messages in one place.</div>
 
   <!-- Login form -->
   <div class="card" id="loginCard">
-    <div class="card-hd">Enter your email to continue</div>
+    <div class="card-hd">Enter the email you use with us</div>
     <label>Email address</label>
     <input type="email" id="portalEmail" placeholder="you@example.com" autocomplete="email" />
-    <button class="btn" id="btnPortalLookup" type="button">View my history</button>
+    <button class="btn" id="btnPortalLookup" type="button">Continue</button>
     <div class="msg" id="loginMsg"></div>
   </div>
 
@@ -161,7 +161,7 @@
     <div class="tabs">
       <button class="tab-btn active" data-tab="orders" type="button">Orders</button>
       <button class="tab-btn" data-tab="bookings" type="button">Appointments</button>
-      <button class="tab-btn" data-tab="quotes" type="button">Quotes</button>
+      <button class="tab-btn" data-tab="quotes" type="button">Estimates</button>
       <button class="tab-btn" data-tab="contact" type="button">Contact</button>
     </div>
 
@@ -198,7 +198,7 @@
         <input type="text" id="contactName" placeholder="Your full name" autocomplete="name" />
         <label>Message</label>
         <textarea id="contactMessage" placeholder="How can we help you?"></textarea>
-        <button class="btn" id="btnSendContact" type="button">Send Message</button>
+        <button class="btn" id="btnSendContact" type="button">Send message</button>
         <div class="msg" id="contactMsg"></div>
       </div>
     </div>
@@ -206,7 +206,6 @@
     <button class="btn btn-ghost" id="btnPortalBack" type="button" style="margin-top:12px;">← Use a different email</button>
   </div>
 
-  <div class="powered">Powered by <a href="https://prooflink.co" target="_blank">ProofLink</a></div>
 </div>
 
 <script>
@@ -225,6 +224,8 @@
   var ALL_BOOKINGS = [];
 
   if (prefill) document.getElementById('portalEmail').value = prefill;
+  document.getElementById('newBookingLink').textContent = '+ Schedule another appointment';
+  document.getElementById('btnPortalBack').textContent = 'Use another email';
 
   // Tab switching
   document.querySelectorAll('.tab-btn').forEach(function (btn) {
@@ -244,7 +245,8 @@
       .then(function (d) {
         if (d && d.business_name) {
           document.getElementById('bizName').textContent = d.business_name;
-          document.getElementById('bizSub').textContent = 'View your order history with ' + d.business_name + '.';
+          document.getElementById('bizSub').textContent = 'View appointments, orders, estimates, and messages with ' + d.business_name + '.';
+          document.title = d.business_name + ' customer account';
         }
       })
       .catch(function () {});
@@ -295,7 +297,7 @@
   function renderOrders(orders) {
     var el = document.getElementById('ordersList');
     if (!orders || !orders.length) {
-      el.innerHTML = '<p class="empty">No orders yet. When your provider creates an order for you, it will appear here.</p>';
+      el.innerHTML = '<p class="empty">No orders yet. When the business sends one, it will appear here.</p>';
       return;
     }
     el.innerHTML = orders.map(function (o) {
@@ -360,7 +362,7 @@
   function renderBookings(bookings) {
     var el = document.getElementById('bookingsList');
     if (!bookings || !bookings.length) {
-      el.innerHTML = '<p class="empty">No appointments yet. Booked appointments will appear here.</p>';
+      el.innerHTML = '<p class="empty">No appointments yet. Confirmed appointments will appear here.</p>';
       return;
     }
     el.innerHTML = bookings.map(function (b) {
@@ -410,7 +412,7 @@
     var el = document.getElementById('quotesList');
     if (!el) return;
     if (!quotes || !quotes.length) {
-      el.innerHTML = '<p class="empty">No quotes yet. Estimates sent to you will appear here.</p>';
+      el.innerHTML = '<p class="empty">No estimates yet. When the business sends one, it will appear here.</p>';
       return;
     }
     var fmt = function(cents) { return cents ? '$' + (cents / 100).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',') : ''; };
@@ -419,13 +421,13 @@
       return '<div class="order-row" style="flex-direction:column;align-items:flex-start;gap:6px;">' +
         '<div style="display:flex;align-items:center;gap:10px;width:100%;">' +
           '<div style="flex:1;min-width:0;">' +
-            '<div class="order-title">' + escHtml(q.title || 'Quote') + '</div>' +
+            '<div class="order-title">' + escHtml(q.title || 'Estimate') + '</div>' +
             '<div class="order-meta">' + fmtDate(q.created_at) + (q.valid_until ? ' · Valid until ' + fmtDate(q.valid_until) : '') + '</div>' +
           '</div>' +
           statusBadge(q.status) +
           (q.amount_cents ? '<div class="amount">' + fmt(q.amount_cents) + '</div>' : '') +
         '</div>' +
-        (isPending ? '<a href="/quote.html?id=' + encodeURIComponent(q.id) + '" style="font-size:.82rem;color:#c84b2f;text-decoration:none;font-weight:600;">Review &amp; accept quote →</a>' : '') +
+        (isPending ? '<a href="/quote.html?token=' + encodeURIComponent(q.id) + '" style="font-size:.82rem;color:#c84b2f;text-decoration:none;font-weight:600;">Review estimate</a>' : '') +
       '</div>';
     }).join('');
   }
@@ -447,13 +449,13 @@
       return;
     }
     if (!tenantId) {
-      msg.textContent = 'Invalid portal link — missing business ID.';
+      msg.textContent = 'This customer page is missing business information. Please ask for a fresh link.';
       msg.className = 'msg error';
       return;
     }
 
     btn.disabled = true;
-    btn.textContent = 'Looking up…';
+    btn.textContent = 'Loading...';
 
     fetch('/.netlify/functions/get-customer-portal', {
       method : 'POST',
@@ -463,12 +465,13 @@
       .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
       .then(function (res) {
         btn.disabled = false;
-        btn.textContent = 'View my history';
+        btn.textContent = 'Continue';
         if (!res.ok) throw new Error(res.d.error || 'Not found');
         var d = res.d;
         if (d.business_name) {
           document.getElementById('bizName').textContent = d.business_name;
-          document.getElementById('bizSub').textContent = 'Welcome back! Here\'s your history with ' + d.business_name + '.';
+          document.getElementById('bizSub').textContent = 'Welcome back. Here is everything with ' + d.business_name + '.';
+          document.title = d.business_name + ' customer account';
         }
         ALL_ORDERS   = d.orders   || [];
         ALL_BOOKINGS = d.bookings || [];
@@ -489,8 +492,10 @@
       })
       .catch(function (err) {
         btn.disabled = false;
-        btn.textContent = 'View my history';
-        msg.textContent = err.message || 'Something went wrong. Please try again.';
+        btn.textContent = 'Continue';
+        msg.textContent = (err.message === 'Not found')
+          ? 'We could not find anything for that email yet. Try the email you use with the business.'
+          : (err.message || 'Something went wrong. Please try again.');
         msg.className = 'msg error';
       });
   });
@@ -553,7 +558,7 @@
       .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
       .then(function (res) {
         btn.disabled = false;
-        btn.textContent = 'Send Message';
+        btn.textContent = 'Send message';
         if (!res.ok) throw new Error(res.d.error || 'Failed to send message');
         msgEl.textContent = 'Your message has been sent. We\u2019ll be in touch shortly.';
         msgEl.className = 'msg success';
@@ -561,7 +566,7 @@
       })
       .catch(function (err) {
         btn.disabled = false;
-        btn.textContent = 'Send Message';
+        btn.textContent = 'Send message';
         msgEl.textContent = err.message || 'Something went wrong. Please try again.';
         msgEl.className = 'msg error';
       });
