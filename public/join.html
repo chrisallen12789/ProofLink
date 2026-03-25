@@ -497,14 +497,14 @@
       <span class="eyebrow">Free application</span>
       <h1 class="left-heading">Join<br />ProofLink.</h1>
       <p class="left-sub">
-        Get your business online in minutes. Fill out the short form and our team will have your store ready within 24 hours.
+        Get your business online in minutes. Fill out the short form and our team will have your account ready within 24 hours.
       </p>
 
       <ul class="checklist">
         <li><span class="check-icon">✓</span>Takes about 5 minutes to apply</li>
         <li><span class="check-icon">✓</span>No credit card required to start</li>
         <li><span class="check-icon">✓</span>Approved businesses get a personal onboarding link</li>
-        <li><span class="check-icon">✓</span>Your store goes live the same day you complete setup</li>
+        <li><span class="check-icon">✓</span>Your website can go live the same day you complete setup</li>
         <li><span class="check-icon">✓</span>Direct payouts via Stripe — no holds</li>
       </ul>
 
@@ -571,7 +571,7 @@
 
         <div class="field-group full" style="margin-bottom:1rem;">
           <div class="field">
-            <label for="requested_subdomain">Preferred store URL <span class="optional">(optional)</span></label>
+            <label for="requested_subdomain">Preferred website address <span class="optional">(optional)</span></label>
             <input
               type="text"
               id="requested_subdomain"
@@ -579,7 +579,7 @@
               placeholder="e.g. sarahs-sourdough"
               autocomplete="off"
             />
-            <span class="slug-preview" id="slug-preview">prooflink.co/your-store-name</span>
+            <span class="slug-preview" id="slug-preview">prooflink.co/your-business-name</span>
           </div>
         </div>
 
@@ -601,7 +601,7 @@
           <div class="field">
             <label for="owner_email">Email address <span class="req">*</span></label>
             <input type="email" id="owner_email" name="owner_email" placeholder="you@yourbusiness.com" autocomplete="email" required />
-            <span class="field-hint">This will be your login for the operator dashboard.</span>
+            <span class="field-hint">We will use this email for your setup updates and sign-in steps.</span>
           </div>
         </div>
 
@@ -618,25 +618,19 @@
         <div class="success-icon">🎉</div>
         <div class="success-title">Application submitted!</div>
         <p class="success-message">
-          Thanks for applying to ProofLink! We saved your application and sent a secure login link to your email.
+          Thanks for applying to ProofLink. We saved your application and sent the next-step details to your email.
         </p>
         <div class="success-steps">
-          <div class="success-step"><span class="ss-num">1</span>Check your inbox for your secure ProofLink sign-in email.</div>
-          <div class="success-step"><span class="ss-num">2</span>Click the magic link to access your dashboard.</div>
-          <div class="success-step"><span class="ss-num">3</span>We review your application and guide you through setup.</div>
+          <div class="success-step"><span class="ss-num">1</span>Check your inbox for your confirmation email from ProofLink.</div>
+          <div class="success-step"><span class="ss-num">2</span>Follow the password setup or sign-in instructions in that email.</div>
+          <div class="success-step"><span class="ss-num">3</span>We will keep you posted on approval and the next setup step.</div>
         </div>
       </div>
     </div>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
     const FUNCTION_URL = '/.netlify/functions/submit-onboarding-request';
-
-    const SUPABASE_URL = 'https://ygfpawksbqfbgohztisv.supabase.co';
-    const SUPABASE_ANON_KEY = 'sb_publishable_bcILNxLX87f-G2zq_SbDGA_Vvs62biB';
-
-    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     const slugInput = document.getElementById('requested_subdomain');
     const businessInput = document.getElementById('business_name');
@@ -652,7 +646,7 @@
 
     function updateSlugPreview() {
       const val = slugInput.value.trim() || businessInput.value.trim();
-      const slug = val ? slugify(val) : 'your-store-name';
+      const slug = val ? slugify(val) : 'your-business-name';
       slugPreview.textContent = `prooflink.co/${slug}`;
     }
 
@@ -699,17 +693,6 @@
 
         if (!res.ok) {
           throw new Error(data.error || 'Something went wrong submitting your application.');
-        }
-
-        const { error: authError } = await supabase.auth.signInWithOtp({
-        email: payload.owner_email,
-        options: {
-          emailRedirectTo: window.location.origin + '/operator/'
-        }
-      });
-
-        if (authError) {
-          throw new Error(authError.message || 'Application saved, but login email could not be sent.');
         }
 
         document.getElementById('form-wrapper').style.display = 'none';

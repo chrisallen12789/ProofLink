@@ -6,10 +6,10 @@
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
   <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;600;700;800&family=Google+Sans+Text:wght@400;500;600;700&display=swap" rel="stylesheet"/>
-  <title>Create Your ProofLink Workspace</title>
+  <title>Start Your ProofLink Account</title>
   <meta
     name="description"
-    content="Choose a ProofLink plan, start your workspace, and decide whether you want self-serve setup or hands-on help."
+    content="Choose a ProofLink plan, start your account, and decide whether you want self-serve setup or hands-on help."
   />
   <link rel="stylesheet" href="/join-page.css" />
   <link rel="manifest" href="/manifest.webmanifest" />
@@ -24,12 +24,12 @@
 
   <main class="page">
     <header class="page-header">
-      <span class="eyebrow">Customer setup</span>
-      <h1>Choose your plan, start the workspace, and get the business moving.</h1>
+      <span class="eyebrow">Business setup</span>
+      <h1>Choose your plan, start your account, and get the business moving.</h1>
       <p>
         Starter and Growth can start right away. If you want hands-on help, or if you need
         Enterprise, we can still guide the setup for you. Either way, this is where ProofLink
-        becomes the operating system and website foundation for the business.
+        becomes the business system and website foundation for the company.
       </p>
     </header>
 
@@ -45,7 +45,7 @@
       <div class="plan-choice-grid" id="planChoiceGrid" role="radiogroup" aria-label="Choose a ProofLink plan"></div>
 
       <div class="plan-context-note" id="planIntentNote">
-        Starter and Growth can create the workspace immediately. Enterprise moves into a guided
+        Starter and Growth can create the account immediately. Enterprise moves into a guided
         rollout before billing begins.
       </div>
     </section>
@@ -120,9 +120,9 @@
       </div>
 
       <div class="form-section" id="section-2">
-        <h2 class="form-section-title">What should the workspace be called?</h2>
+        <h2 class="form-section-title">What should the business be called online?</h2>
         <p class="form-section-sub">
-          This becomes the business name and URL your team works from inside ProofLink.
+          This becomes the business name and website address customers and your team will use.
         </p>
 
         <div class="field-row single">
@@ -140,11 +140,11 @@
             <p class="hint">Used to set regional context and location defaults.</p>
           </div>
           <div class="field">
-            <label for="requested_subdomain">Preferred workspace URL</label>
+            <label for="requested_subdomain">Preferred website address</label>
             <input type="text" id="requested_subdomain" placeholder="e.g. honest-to-crust" autocomplete="off" />
             <div id="slug-status" class="hint" style="min-height:1.2rem;"></div>
             <p class="hint">
-              Proposed workspace URL:
+              Proposed website address:
               <span id="slug-preview-text" style="font-family:monospace;color:var(--ink);">prooflink.co/your-handle</span>
             </p>
           </div>
@@ -157,7 +157,7 @@
       </div>
 
       <div class="form-section" id="section-3">
-        <h2 class="form-section-title">Who should own the workspace and setup?</h2>
+        <h2 class="form-section-title">Who should own the account and setup?</h2>
         <p class="form-section-sub">
           This person gets the first secure login and chooses whether setup stays self-serve or
           gets hands-on help.
@@ -173,7 +173,7 @@
               <label for="phone">Phone number</label>
               <input type="tel" id="phone" placeholder="(555) 000-0000" autocomplete="tel" />
               <p class="hint">Best contact number if we need to unblock setup quickly.</p>
-              <p class="field-error" id="err-phone">A phone number is required for instant workspace setup.</p>
+              <p class="field-error" id="err-phone">A phone number is required for instant account setup.</p>
             </div>
           </div>
 
@@ -197,12 +197,12 @@
           <button class="setup-mode-card selected" type="button" data-setup-mode="self_serve">
             <span class="setup-mode-card__eyebrow">Recommended</span>
             <strong>Set it up myself</strong>
-            <p>Create the workspace now, then customize the website, branding, and business settings inside ProofLink without waiting on manual approval.</p>
+            <p>Create the account now, then customize the website, branding, and business settings inside ProofLink without waiting on manual approval.</p>
           </button>
           <button class="setup-mode-card" type="button" data-setup-mode="guided">
             <span class="setup-mode-card__eyebrow">Hands-on help</span>
             <strong>I want help setting it up</strong>
-            <p>Use this if you want ProofLink to help shape the workspace, website, or rollout before you go live.</p>
+            <p>Use this if you want ProofLink to help shape the account, website, or rollout before you go live.</p>
           </button>
         </div>
         <p class="hint" id="setupModeNote">
@@ -216,9 +216,9 @@
       </div>
 
       <div class="form-section" id="section-4">
-        <h2 class="form-section-title">Review before we start the workspace</h2>
+        <h2 class="form-section-title">Review before we get started</h2>
         <p class="form-section-sub">
-          We use this info to start the workspace and route the setup the right way.
+          We use this info to start the account and route setup the right way.
         </p>
 
         <table class="review-table" id="review-table">
@@ -240,13 +240,13 @@
 
         <div class="form-nav">
           <button class="btn btn-ghost" type="button" id="backFromStep4">Back</button>
-          <button class="btn btn-solid" type="button" id="submit-btn">Start workspace</button>
+          <button class="btn btn-solid" type="button" id="submit-btn">Start account</button>
         </div>
       </div>
 
       <section id="success-screen" aria-live="polite">
         <div class="success-icon">&#10003;</div>
-        <h2 id="successTitle">Workspace request received</h2>
+        <h2 id="successTitle">Request received</h2>
         <p id="successLead">
           We saved your business details and locked in your selected plan.
         </p>

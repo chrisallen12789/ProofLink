@@ -104,7 +104,7 @@ const CHECKLIST_BY_TYPE = {
   default:{
     info:[
       {label:'Business tagline',key:'tagline',hint:'One sentence that describes what you do.'},
-      {label:'Phone number',key:'phone',hint:'Displayed on your storefront for customer contact.'},
+      {label:'Phone number',key:'phone',hint:'Displayed on your website for customer contact.'},
       {label:'City & state',key:'city_state',hint:'Where you are based. E.g. "Detroit, MI"'},
       {label:'Accent color',key:'accent_color',hint:'A hex color for your brand. E.g. #C84B2F'},
     ],
@@ -320,7 +320,7 @@ function buildChecklistSection(businessType, loginHref) {
       <table cellpadding="0" cellspacing="0" style="width:100%;padding:4px 20px 4px;">${infoRows}</table>
       <div style="padding:14px 20px;border-top:1px solid ${T.border};border-bottom:1px solid ${T.border};background:${T.card};margin-top:4px;">
         <p style="margin:0;font-size:12px;font-weight:700;color:${T.ink};letter-spacing:.05em;text-transform:uppercase;">Images & media needed</p>
-        <p style="margin:3px 0 0;font-size:12px;color:${T.hint};">Upload in your dashboard under Settings → Branding. Each slot is labeled.</p>
+        <p style="margin:3px 0 0;font-size:12px;color:${T.hint};">Upload these in your account under Settings -> Branding. Each slot is labeled.</p>
       </div>
       <table cellpadding="0" cellspacing="0" style="width:100%;padding:4px 20px 4px;">${imgRows}</table>
       <div style="padding:14px 20px;border-top:1px solid ${T.border};">
@@ -330,7 +330,7 @@ function buildChecklistSection(businessType, loginHref) {
         </p>
       </div>
     </div>
-    <div style="text-align:center;margin:0 0 8px;">${cta('Upload images in dashboard →', uploadUrl)}</div>`;
+    <div style="text-align:center;margin:0 0 8px;">${cta('Upload images in your account →', uploadUrl)}</div>`;
 }
 
 // ── Templates ─────────────────────────────────────────────────────────────────
@@ -345,9 +345,9 @@ const templates = {
         ${badge('Application received',T.greenLt,T.green,T.greenBd)}<br/><br/>
         ${h1(`Hey ${owner_name}, you're in the queue.`)}
         ${sub('Thanks for applying to ProofLink. We review every application and will be in touch within 24 hours.')}
-        ${infoBox([['Business',business_name],['Selected plan',selected_plan ? String(selected_plan).replace(/\b\w/g, (m) => m.toUpperCase()) : 'Starter'],['Store URL',`${getSiteUrl()}/${business_slug||'...'}`],['Email',owner_email],['Review time','Within 24 hours']])}
+        ${infoBox([['Business',business_name],['Selected plan',selected_plan ? String(selected_plan).replace(/\b\w/g, (m) => m.toUpperCase()) : 'Starter'],['Website address',`${getSiteUrl()}/${business_slug||'...'}`],['Email',owner_email],['Review time','Within 24 hours']])}
         ${divider()}
-        ${p("You don't need to do anything else right now. When your application is approved we'll send you a link to set up your store.")}
+        ${p("You don't need to do anything else right now. When your application is approved we'll send you the next steps to finish setup.")}
         ${p(`<span style="color:${T.hint};">Questions? Just reply to this email.</span>`)}
       `)}</table>`, { preheader: `Your ProofLink application for ${business_name} is in review.` }),
     };
@@ -360,10 +360,10 @@ const templates = {
       html: layout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.green)}${bodyWrap(`
         ${badge('Approved ✓',T.greenLt,T.green,T.greenBd)}<br/><br/>
         ${h1(`Good news, ${owner_name}.`)}
-        ${sub(`Your application for ${business_name} has been approved. We're setting up your store now.`)}
-        ${callout(`<strong style="color:${T.ink};">What's next:</strong><br/>You'll receive one more email in the next few minutes with your login link to access your dashboard and go live.`,T.amberLt,T.amberBd,T.amber)}
+        ${sub(`Your application for ${business_name} has been approved. We're setting up your account now.`)}
+        ${callout(`<strong style="color:${T.ink};">What's next:</strong><br/>You'll receive one more email in the next few minutes with your password setup link so you can sign in and finish setup.`,T.amberLt,T.amberBd,T.amber)}
         ${divider()}
-        ${p(`<strong style="color:${T.ink};">Quick start once you're in:</strong><br/>1. Set your password and log in<br/>2. Add your products and services<br/>3. Connect Stripe to accept payments<br/>4. Share your storefront link`)}
+        ${p(`<strong style="color:${T.ink};">Quick start once you're in:</strong><br/>1. Set your password and sign in<br/>2. Add your products and services<br/>3. Connect Stripe to accept payments<br/>4. Share your website link`)}
       `)}</table>`, { preheader: `${business_name} has been approved on ProofLink.` }),
     };
   },
@@ -372,20 +372,20 @@ const templates = {
     const loginHref = login_url || `${SITE_URL}/operator/`;
     return {
       to: owner_email,
-      subject: `Your ProofLink store is ready — ${business_name}`,
+      subject: `Your ProofLink account is ready — ${business_name}`,
       html: layout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.red)}${bodyWrap(`
-        ${badge('Store ready',T.redLight,T.red,T.redBorder)}<br/><br/>
-        ${h1(`Your store is live, ${owner_name}.`)}
-        ${sub(`${business_name} is set up on ProofLink. Click below to set your password and open your dashboard.`)}
+        ${badge('Account ready',T.redLight,T.red,T.redBorder)}<br/><br/>
+        ${h1(`Your account is ready, ${owner_name}.`)}
+        ${sub(`${business_name} is set up on ProofLink. Click below to set your password and open your account.`)}
         <div style="text-align:center;margin:0 0 32px;">${cta('Set my password →', loginHref)}</div>
-        ${infoBox([...(store_slug?[['Your store URL',`${getSiteUrl()}/${store_slug}`]]:[]),['Dashboard',`${SITE_URL}/operator/`]])}
+        ${infoBox([...(store_slug?[['Your website',`${getSiteUrl()}/${store_slug}`]]:[]),['Sign-in page',`${SITE_URL}/operator/`]])}
         ${divider()}
-        <p style="margin:0 0 20px;font-size:15px;font-weight:700;color:${T.ink};">Complete your store setup</p>
-        ${p('Your store is live but needs your branding, photos, and business details to look its best. Here is exactly what to gather.')}
+        <p style="margin:0 0 20px;font-size:15px;font-weight:700;color:${T.ink};">Complete your business setup</p>
+        ${p('Your website is ready but still needs your branding, photos, and business details to look its best. Here is exactly what to gather.')}
         ${buildChecklistSection(business_type, loginHref)}
         ${divider()}
         ${p(`<span style="color:${T.hint};">Need help? Reply to this email and we'll walk you through setup personally.</span>`)}
-      `)}</table>`, { preheader: `Your ProofLink store for ${business_name} is ready. Set your password to get started.` }),
+      `)}</table>`, { preheader: `Your ProofLink account for ${business_name} is ready. Set your password to get started.` }),
     };
   },
 
@@ -435,7 +435,7 @@ const templates = {
           ...(location ? [['Location', location]] : []),
           ...(notes ? [['Notes', notes]] : []),
         ])}
-        ${portal_url ? `<div style="text-align:center;margin:0 0 28px;">${cta('View my history →', portal_url, T.red)}</div>` : ''}
+        ${portal_url ? `<div style="text-align:center;margin:0 0 28px;">${cta('View my account →', portal_url, T.red)}</div>` : ''}
         ${divider()}
         ${p(`<span style="color:${T.hint};">Need to reschedule? Reply to this email and we'll find a new time. Late cancellations (less than 24 hours) may be subject to a cancellation fee per our policy.</span>`)}
       `)}</table>`, { preheader: `Your appointment with ${business_name} is confirmed.`, business_name }),
@@ -451,7 +451,7 @@ const templates = {
         ${h1('New business application')}
         ${sub('A business just applied to join ProofLink.')}
         ${infoBox([['Business',business_name],['Owner',owner_name],['Email',owner_email],['Plan',selected_plan ? String(selected_plan).replace(/\b\w/g, (m) => m.toUpperCase()) : 'Starter'],['Type',business_type||'—'],['Location',city_state||'—']])}
-        <div style="text-align:left;">${cta('Review in admin dashboard →',`${SITE_URL}/admin/`)}</div>
+        <div style="text-align:left;">${cta('Review in admin →',`${SITE_URL}/admin/`)}</div>
       `)}</table>`, { preheader: `${business_name} just applied to join ProofLink.` }),
     };
   },
@@ -466,7 +466,7 @@ const templates = {
         ${h1(`Hi ${customer_name},`)}
         ${sub(`Your order with ${business_name} has been updated.`)}
         ${infoBox([['Order', order_title || 'Your order'], ['Status', statusLabel]])}
-        ${portal_url ? `<div style="text-align:center;margin:0 0 28px;">${cta('View your order →', portal_url, T.red)}</div>` : ''}
+        ${portal_url ? `<div style="text-align:center;margin:0 0 28px;">${cta('View order details →', portal_url, T.red)}</div>` : ''}
         ${divider()}
         ${p(`<span style="color:${T.hint};">Questions? Reply to this email and we'll be happy to help.</span>`)}
       `)}</table>`, { preheader: `Your order with ${business_name} is now: ${statusLabel}.`, business_name }),
@@ -486,7 +486,7 @@ const templates = {
         ${h1(`Hi ${customer_name},`)}
         ${sub(`This is a friendly reminder that a payment is due to ${business_name}.`)}
         ${infoBox([['Amount due', formattedAmount], ['Order date', dateStr], ['Status', String(status || 'pending').replace(/_/g, ' ').replace(/\b\w/g, (m) => m.toUpperCase())]])}
-        ${portal_url ? `<div style="text-align:center;margin:0 0 28px;">${cta('View & pay →', portal_url, T.red)}</div>` : ''}
+        ${portal_url ? `<div style="text-align:center;margin:0 0 28px;">${cta('Review and pay →', portal_url, T.red)}</div>` : ''}
         ${divider()}
         ${p(`<span style="color:${T.hint};">If you have already paid, please disregard this email. Questions? Just reply and we'll sort it out.</span>`)}
       `)}</table>`, { preheader: `Friendly reminder: payment of ${formattedAmount} is due to ${business_name}.`, business_name }),
@@ -508,7 +508,7 @@ const templates = {
         ${h1(`Hi ${customer_name},`)}
         ${sub(`${business_name} has prepared a quote for you. Review the details below and click the button to accept.`)}
         ${infoBox([['Service', title], ...(description ? [['Details', description]] : []), ['Quote total', formattedAmount], ...(validStr ? [['Valid until', validStr]] : [])])}
-        <div style="text-align:center;margin:0 0 28px;">${cta('Review & accept quote →', quote_url, T.red)}</div>
+        <div style="text-align:center;margin:0 0 28px;">${cta('Review estimate →', quote_url, T.red)}</div>
         ${divider()}
         ${p(`<span style="color:${T.hint};">Questions about this quote? Just reply to this email.</span>`)}
       `)}</table>`, { preheader: `${business_name} has sent you a quote for ${title}.`, business_name }),
@@ -529,7 +529,7 @@ const templates = {
         ${h1(`You're all set, ${customer_name}!`)}
         ${sub(`Thanks for accepting the quote from ${business_name}. Your order has been confirmed and the team will be in touch.`)}
         ${infoBox(infoRows)}
-        ${portal_url ? `<div style="text-align:center;margin:0 0 28px;">${cta('View your order →', portal_url, T.red)}</div>` : ''}
+        ${portal_url ? `<div style="text-align:center;margin:0 0 28px;">${cta('View order details →', portal_url, T.red)}</div>` : ''}
         ${divider()}
         ${p(`<span style="color:${T.hint};">Questions? Just reply to this email and we'll take care of you.</span>`)}
       `)}</table>`, { preheader: `Your quote from ${business_name} has been accepted. Order confirmed.`, business_name }),
@@ -561,7 +561,7 @@ const templates = {
         ${h1(`See you tomorrow, ${customer_name}!`)}
         ${sub(`This is a reminder of your upcoming appointment with ${business_name}.`)}
         ${infoBox([['Service', title || 'Appointment'], ['Date', date_str || '—'], ['Time', time_str || '—'], ...(location ? [['Location', location]] : [])])}
-        ${portal_url ? `<div style="text-align:center;margin:0 0 28px;">${cta('View details →', portal_url, T.red)}</div>` : ''}
+        ${portal_url ? `<div style="text-align:center;margin:0 0 28px;">${cta('View appointment details →', portal_url, T.red)}</div>` : ''}
         ${divider()}
         ${p(`<span style="color:${T.hint};">Need to reschedule? Reply to this email and we\u2019ll sort it out.</span>`)}
       `)}</table>`, { preheader: `Reminder: your appointment with ${business_name} is tomorrow.`, business_name }),
@@ -715,7 +715,7 @@ const templates = {
         ${sub(`${business_name} replied to your message.`)}
         ${callout(reply_text, T.bg, T.border, T.ink)}
         ${original_message ? `${divider()}${p(`<strong style="color:${T.hint};">Your original message:</strong><br/>${original_message}`)}` : ''}
-        ${portal_url ? `<div style="text-align:center;margin:0 0 8px;">${cta('Open customer portal →', portal_url, T.red)}</div>` : ''}
+        ${portal_url ? `<div style="text-align:center;margin:0 0 8px;">${cta('View your account →', portal_url, T.red)}</div>` : ''}
         ${divider()}
         ${p(`<span style="color:${T.hint};">Reply to this email to continue the conversation.</span>`)}
       `)}</table>`, { preheader: `${business_name} replied to your message.` }),
@@ -755,7 +755,7 @@ module.exports.buildInvoiceHtml = function buildInvoiceHtml({
       ['Amount due', fmt()],
     ])}
     ${description ? `${p(`<em>${description}</em>`)}` : ''}
-    ${portal_url ? `<div style="text-align:center;margin:0 0 28px;">${cta('View in portal →', portal_url, T.red)}</div>` : ''}
+    ${portal_url ? `<div style="text-align:center;margin:0 0 28px;">${cta('View invoice details →', portal_url, T.red)}</div>` : ''}
     ${divider()}
     ${p(`<span style="color:${T.hint};">Questions about this invoice? Just reply to this email.</span>`)}
   `)}</table>`, { preheader: `Invoice from ${business_name} — ${fmt()} due.` });

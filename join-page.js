@@ -117,17 +117,17 @@
   }
 
   function setupModeLabel() {
-    return resolvedSetupMode() === "guided" ? "Guided setup with help" : "Self-serve workspace start";
+    return resolvedSetupMode() === "guided" ? "Guided setup with help" : "Start it myself now";
   }
 
   function planSubmissionNote(plan) {
     if (plan.key === "enterprise") {
-      return "Enterprise starts with a guided rollout. We help shape the workspace, controls, and website before the account goes live.";
+      return "Enterprise starts with a guided rollout. We help shape the account, controls, and website before it goes live.";
     }
     if (resolvedSetupMode() === "guided") {
-      return `${plan.name} can start instantly, but you asked for help. We will hold the setup in guided mode so the workspace and website can be shaped with you first.`;
+      return `${plan.name} can start instantly, but you asked for help. We will hold the setup in guided mode so the account and website can be shaped with you first.`;
     }
-    return `${plan.name} can create the workspace now. You will go straight into setup, branding, and website configuration so you can launch without waiting on a review queue.`;
+    return `${plan.name} can create your account now. You will go straight into setup, branding, and website configuration so you can launch without waiting on a review queue.`;
   }
 
   function syncQueryString() {
@@ -204,11 +204,11 @@
 
     if (note) {
       if (forcedGuided) {
-        note.textContent = "Enterprise always moves through guided setup so the workspace, controls, and website can be finalized with you before launch.";
+        note.textContent = "Enterprise always moves through guided setup so the account, controls, and website can be finalized with you before launch.";
       } else if (resolvedSetupMode() === "guided") {
-        note.textContent = "Guided setup keeps the request in a human-assisted path. Use this if you want help shaping the workspace or website before it goes live.";
+        note.textContent = "Guided setup keeps the request in a human-assisted path. Use this if you want help shaping the account or website before it goes live.";
       } else {
-        note.textContent = "Self-serve creates the workspace now and takes you straight into branding, website setup, and publish controls.";
+        note.textContent = "Self-serve creates the account now and takes you straight into branding, website setup, and publish controls.";
       }
     }
   }
@@ -229,7 +229,7 @@
         ? "Request guided rollout"
         : setupMode === "guided"
           ? `Request guided ${plan.name} setup`
-          : `Start ${plan.name} workspace`;
+          : `Start ${plan.name} account`;
     }
   }
 
@@ -411,7 +411,7 @@
 
       if (selfServe) {
         persistStartContext(data);
-        showNotify("Workspace created. Redirecting you into setup...", "success");
+        showNotify("Account created. Opening setup...", "success");
         window.location.href = data.login_url || data.onboarding_url || "/operator/onboarding.html";
         return;
       }
@@ -425,8 +425,8 @@
       $("success-screen").style.display = "block";
       $("success-email").textContent = state.ownerEmail;
       $("successPlanText").textContent = plan.key === "enterprise"
-        ? "Your Enterprise request is queued for a guided rollout before the workspace goes live."
-        : "Your request is in the guided setup queue. We will follow up with the next setup step and help shape the workspace and website.";
+        ? "Your Enterprise request is queued for a guided rollout before the account goes live."
+        : "Your request is in the guided setup queue. We will follow up with the next step and help shape the account and website.";
       if (data.request_id) $("success-ref").textContent = `Reference ID: ${data.request_id}`;
     } catch (error) {
       showNotify(`Something went wrong: ${error.message}`, "error");

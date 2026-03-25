@@ -73,4 +73,24 @@ describe("netlify/functions/utils/email", () => {
     expect(email.html).toContain("Reply to this email if you need anything.");
     expect(email.html).not.toContain("You received this because you applied to join ProofLink.");
   });
+
+  test("owner onboarding emails use password setup language instead of dashboard or store jargon", async () => {
+    const { templates } = require(emailUtilsPath);
+
+    const email = templates.provisioned({
+      owner_name: "Chris",
+      owner_email: "chris@example.com",
+      business_name: "Benkari Vacs",
+      login_url: "https://example.com/set-password",
+      store_slug: "benkari-vacs",
+      business_type: "hydrovac",
+    });
+
+    expect(email.subject).toContain("account is ready");
+    expect(email.html).toContain("Set my password");
+    expect(email.html).toContain("Sign-in page");
+    expect(email.html).toContain("Your website");
+    expect(email.html).not.toContain("dashboard");
+    expect(email.html).not.toContain("Your store is live");
+  });
 });
