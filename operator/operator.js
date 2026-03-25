@@ -160,6 +160,7 @@ async function fetchDashboardLaunchChecklist() {
 
 const $ = (id) => document.getElementById(id);
 const sectionNav = document.querySelector('.nav[aria-label="Sections"]');
+sectionNav?.querySelector('.tab[data-tab="ai"]')?.setAttribute("hidden", "hidden");
 const viewLogin = $("viewLogin");
 const viewApp = $("viewApp");
 const btnSignOut = $("btnSignOut");
@@ -181,6 +182,8 @@ const brandProductName = $("brandProductName");
 const platformLogo = $("platformLogo");
 const startupChecklist = $("startupChecklist");
 const operatorFooterText = $("operatorFooterText");
+startupChecklist?.closest(".side-card")?.setAttribute("hidden", "hidden");
+document.querySelector(".side-copy")?.closest(".side-card")?.setAttribute("hidden", "hidden");
 
 const dashboardWrap = $("dashboardWrap");
 const btnRefreshDashboard = $("btnRefreshDashboard");
@@ -2219,7 +2222,7 @@ function workspaceTabLabel(tab, blueprint = currentWorkspaceBlueprint()) {
     case "leads":
       return "Requests";
     case "orders":
-      return isServiceWorkspace(blueprint) ? "Pipeline" : workspaceQuotedBookedLabel(blueprint);
+      return isServiceWorkspace(blueprint) ? "Work" : workspaceQuotedBookedLabel(blueprint);
     case "bids":
       return workspaceBidLabel(blueprint);
     case "jobs":
@@ -2248,6 +2251,10 @@ function workspaceTabLabel(tab, blueprint = currentWorkspaceBlueprint()) {
         : "Availability";
     case "money":
       return "Insights";
+    case "setup":
+      return "Website";
+    case "guidance":
+      return "Operations";
     case "facilities":
       return "Facilities";
     case "manifests":
@@ -2277,9 +2284,9 @@ function workspacePanelCopy(tab, blueprint = currentWorkspaceBlueprint()) {
       };
     case "orders":
       return {
-        title: isServiceWorkspace(blueprint) ? "Pipeline" : workspaceOrderLabel(blueprint),
+        title: isServiceWorkspace(blueprint) ? "Work" : workspaceOrderLabel(blueprint),
         subtitle: isServiceWorkspace(blueprint)
-          ? "Work the request, proposal, booked-work, and active-job stages from one pipeline workspace instead of bouncing across separate menus."
+          ? "Run the request, proposal, approved, and active-job stages from one workspace so the next step is always close by."
           : `Review live ${orderLower}, intake details, and what needs to happen next.`,
       };
     case "bids":
@@ -2375,13 +2382,13 @@ function workspacePanelCopy(tab, blueprint = currentWorkspaceBlueprint()) {
         };
       case "guidance":
         return {
-          title: "Guidance",
-          subtitle: `Operator advice shaped around how ${businessLabel} actually sells and delivers work.`,
+          title: "Operations",
+          subtitle: `Reach the specialized tools for ${businessLabel} without crowding the daily navigation.`,
         };
     case "setup":
       return {
-        title: "Business Setup",
-        subtitle: "Branding, public business profile, and customer-facing details stay editable here.",
+        title: "Website",
+        subtitle: "Shape the customer-facing website, preview the pages, and publish when it feels right.",
       };
     default:
       return {
@@ -2543,6 +2550,54 @@ function workspaceSummaryData(blueprint = currentWorkspaceBlueprint()) {
     priorityOutcomes: blueprint?.tier?.priorityOutcomes || [],
   };
 }
+function ensureWebsiteQuickLinks() {
+  const setupPanel = document.querySelector('.panel[data-panel="setup"]');
+  const panelHead = setupPanel?.querySelector(".panel-head");
+  if (!setupPanel || !panelHead) return;
+  let links = setupPanel.querySelector(".setup-quick-links");
+  if (!links) {
+    links = document.createElement("div");
+    links.className = "setup-quick-links";
+    links.setAttribute("aria-label", "Website shortcuts");
+    links.innerHTML = `
+      <button class="btn btn-ghost btn-sm" type="button" data-setup-shortcut="products">Open services</button>
+      <button class="btn btn-ghost btn-sm" type="button" data-setup-shortcut="pricing">Open pricing</button>
+      <button class="btn btn-ghost btn-sm" type="button" data-setup-shortcut="domains">Open domains</button>
+      <button class="btn btn-ghost btn-sm" type="button" data-setup-shortcut="import">Open import</button>
+    `;
+    panelHead.insertAdjacentElement("afterend", links);
+    links.querySelectorAll("[data-setup-shortcut]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const tab = button.getAttribute("data-setup-shortcut") || "setup";
+        switchTab(tab);
+      });
+    });
+  }
+}
+function syncOperatorShellLayout(blueprint = currentWorkspaceBlueprint()) {
+  startupChecklist?.closest(".side-card")?.setAttribute("hidden", "hidden");
+  document.querySelector(".side-copy")?.closest(".side-card")?.setAttribute("hidden", "hidden");
+  sectionNav?.querySelector('.tab[data-tab="ai"]')?.setAttribute("hidden", "hidden");
+  const more = $("sidebarMore");
+  const moreButton = $("btnSidebarMore");
+  const allowedSecondaryTabs = new Set(["setup", "guidance", "import"]);
+  more?.querySelectorAll(".tab[data-tab]").forEach((button) => {
+    const tab = button.dataset.tab || "";
+    button.hidden = !allowedSecondaryTabs.has(tab);
+  });
+  const setupButton = more?.querySelector('.tab[data-tab="setup"]');
+  const guidanceButton = more?.querySelector('.tab[data-tab="guidance"]');
+  const importButton = more?.querySelector('.tab[data-tab="import"]');
+  if (setupButton) setupButton.textContent = workspaceTabLabel("setup", blueprint);
+  if (guidanceButton) guidanceButton.textContent = workspaceTabLabel("guidance", blueprint);
+  if (importButton) importButton.textContent = workspaceTabLabel("import", blueprint);
+  if (moreButton) moreButton.textContent = more && more.style.display !== "none" ? "Hide tools" : "Tools";
+  const mobileWorkLabel = document.querySelector('.mbn-item[data-mbn-tab="orders"] span');
+  if (mobileWorkLabel) mobileWorkLabel.textContent = workspaceTabLabel("orders", blueprint);
+  const mobileMenuLabel = document.querySelector('#mbnMenuBtn span');
+  if (mobileMenuLabel) mobileMenuLabel.textContent = "Tools";
+  ensureWebsiteQuickLinks();
+}
 function hasPricedBidDraft() {
   return (BIDS_CACHE || []).some((row) => calculateBidTotals(row).total > 0);
 }
@@ -2581,6 +2636,7 @@ function applyWorkspaceBlueprint() {
   }
 
   renderServicePresetPicker();
+  syncOperatorShellLayout(blueprint);
   renderPanelBackButtons();
   renderWorkspaceHub();
   const activeTab = currentPanel();
@@ -16843,35 +16899,115 @@ function renderOrders() {
 function renderGuidance() {
   if (!guidanceWrap) return;
   const blueprint = currentWorkspaceBlueprint();
-  const summary = workspaceSummaryData(blueprint);
-  const notes = [];
-  notes.push(["Workspace blueprint", `${summary.businessLabel} is running in ${summary.workspaceModeLabel}. Keep the team living inside ${(summary.focusTabs.length ? summary.focusTabs : ["Customers", workspaceTabLabel("orders", blueprint), "Payments"]).join(", ")}.`]);
-  notes.push(["How this should feel", summary.operatorNeeds[0] ? `${summary.operatorNeeds[0]}. ${summary.promise}` : summary.promise]);
-  notes.push(["Request pipeline", LEADS_CACHE.length ? `You have ${LEADS_CACHE.length} request record(s). Work them forward instead of letting website requests or phone notes die in memory.` : "No requests exist yet. As service intake starts landing here, the pipeline becomes much easier to trust."]);
-  notes.push(["CRM foundation", CUSTOMERS_CACHE.length ? `You now have ${CUSTOMERS_CACHE.length} customer record(s). Start ranking by lifetime value and following up based on real history.` : "No customers are in CRM yet. The next win is building customer memory that does not live in texts or somebody's head."]);
-  notes.push(["Execution", JOBS_CACHE.length ? `You have ${JOBS_CACHE.length} tracked job record(s). That means work no longer has to live only inside the order list.` : "No jobs are tracked yet. Convert booked work into jobs so schedule, proof, and collection all stay visible."]);
-  if (isTabVisibleInWorkspace("plans", blueprint)) {
-    notes.push(["Recurring work", SERVICE_PLANS_CACHE.length ? `You have ${SERVICE_PLANS_CACHE.length} recurring plan(s). That keeps repeat revenue from depending on manual memory and calendar juggling.` : "No recurring plans exist yet. Build one from a real order when the same customer is likely to need the work again."]);
+  const groups = [
+    {
+      title: "Keep work moving",
+      copy: "Everything tied to the active customer workflow lives here.",
+      actions: [
+        { tab: "leads", label: "Requests" },
+        { tab: "bids", label: workspaceBidLabel(blueprint) },
+        { tab: "orders", label: workspaceTabLabel("orders", blueprint) },
+        { tab: "jobs", label: workspaceJobsNavLabel(blueprint) },
+        { tab: "plans", label: "Recurring Plans" },
+      ],
+    },
+    {
+      title: "Money and follow-through",
+      copy: "Collect, review margin, and close the loop without leaving the customer story behind.",
+      actions: [
+        { tab: "payments", label: workspaceTabLabel("payments", blueprint) },
+        { tab: "expenses", label: "Expenses" },
+        { tab: "money", label: workspaceTabLabel("money", blueprint) },
+        { tab: "reviews", label: "Reviews" },
+      ],
+    },
+    {
+      title: "Website and launch",
+      copy: "Change what customers see, what they can request, and how the business presents itself.",
+      actions: [
+        { tab: "setup", label: workspaceTabLabel("setup", blueprint) },
+        { tab: "products", label: workspaceCatalogLabel(blueprint) },
+        { tab: "pricing", label: workspaceTabLabel("pricing", blueprint) },
+        { tab: "availability", label: workspaceTabLabel("availability", blueprint) },
+        { tab: "domains", label: "Domains" },
+        { tab: "import", label: workspaceTabLabel("import", blueprint) },
+      ],
+    },
+    {
+      title: "Operations and support",
+      copy: "Reach the back-office tools without forcing them into the daily sidebar.",
+      actions: [
+        { tab: "vendors", label: "Vendors" },
+        { tab: "inventory", label: "Inventory" },
+        { tab: "contracts", label: "Contracts" },
+        { tab: "equipment", label: "Equipment" },
+        { tab: "team", label: "Team" },
+      ],
+    },
+  ];
+  if (isHydrovacWorkspace(blueprint)) {
+    groups.splice(3, 0, {
+      title: "Hydrovac operations",
+      copy: "Daily truck, disposal, locate, and compliance tools stay grouped here.",
+      actions: [
+        { tab: "facilities", label: "Facilities" },
+        { tab: "manifests", label: "Loads & Manifests" },
+        { tab: "locates", label: "Locate Tickets" },
+        { tab: "compliance", label: "Compliance" },
+      ],
+    });
   }
-  notes.push(["Payments", PAYMENTS_CACHE.length ? "Payments are flowing into the operator record. Online and offline collection can now sit on the same customer and work history." : "Payments table is empty. Start by logging real deposits and collections so the business history becomes trustworthy."]);
-  if (isTabVisibleInWorkspace("bids", blueprint)) {
-    notes.push(["Bids and sales flow", BIDS_CACHE.length ? `You have ${BIDS_CACHE.length} saved bid draft(s). Keep using the walkthrough record so scope, photos, and pricing stay together.` : "No professional bid drafts exist yet. The fastest upgrade is turning site visits into structured proposals instead of memory-based follow-up."]);
-  }
-  notes.push([workspaceTabLabel("orders", blueprint), CRM_ORDERS_CACHE.length ? `You have ${CRM_ORDERS_CACHE.length} tracked ${workspaceOrderLabelLower(blueprint)}. This is the operating backbone for accountability and customer value.` : `No tracked ${workspaceOrderLabelLower(blueprint)} exist yet. Once work starts landing here, operator visibility gets much stronger.`]);
-  if (summary.deferredLabels.length) {
-    notes.push(["Later unlocks", `When the business is ready for more depth, layer in ${summary.deferredLabels.join(", ")} without changing the core operating habits.`]);
-  }
-
+  const visibleGroups = groups
+    .map((group) => ({
+      ...group,
+      actions: group.actions.filter((item) => isTabVisibleInWorkspace(item.tab, blueprint)),
+    }))
+    .filter((group) => group.actions.length);
+  const noteCards = [
+    {
+      title: "Daily shell",
+      copy: `Use Today, ${workspaceTabLabel("orders", blueprint)}, Customers, Calendar, and ${workspaceTabLabel("payments", blueprint)} as the main operating rhythm.`,
+    },
+    {
+      title: "Current pressure",
+      copy: LEADS_CACHE.length || CRM_ORDERS_CACHE.length || JOBS_CACHE.length
+        ? `You have ${LEADS_CACHE.length} request(s), ${BIDS_CACHE.length} proposal(s), ${CRM_ORDERS_CACHE.length} approved-work record(s), and ${JOBS_CACHE.length} active job(s) in play.`
+        : "Start with one customer and one real request. The flow gets easier once live work is moving through it.",
+    },
+  ];
   guidanceWrap.innerHTML = `
-    <div class="guidance-grid">
-      ${notes.map(([title, copy]) => `
-        <div class="guidance-card">
-          <div class="kicker">${escapeHtml(title)}</div>
-          <div class="guidance-copy">${escapeHtml(copy)}</div>
-        </div>
+    <div class="operations-hub">
+      ${visibleGroups.map((group) => `
+        <section class="operations-group">
+          <div class="operations-group__head">
+            <div class="kicker">${escapeHtml(group.title)}</div>
+            <div class="guidance-copy">${escapeHtml(group.copy)}</div>
+          </div>
+          <div class="operations-actions">
+            ${group.actions.map((action) => `
+              <button class="btn btn-ghost btn-sm operations-action" type="button" data-ops-tab="${escapeAttr(action.tab)}">
+                ${escapeHtml(action.label)}
+              </button>
+            `).join("")}
+          </div>
+        </section>
       `).join("")}
+      <div class="guidance-grid">
+        ${noteCards.map((card) => `
+          <div class="guidance-card">
+            <div class="kicker">${escapeHtml(card.title)}</div>
+            <div class="guidance-copy">${escapeHtml(card.copy)}</div>
+          </div>
+        `).join("")}
+      </div>
     </div>
   `;
+  guidanceWrap.querySelectorAll("[data-ops-tab]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const tab = button.getAttribute("data-ops-tab") || "dashboard";
+      switchTab(tab);
+    });
+  });
 }
 btnRefreshDashboard?.addEventListener("click", async () => {
   await Promise.allSettled([fetchLeads(), fetchCrmOrders(), fetchPayments(), fetchJobs(), fetchServicePlans(), fetchDashboardLaunchChecklist(), fetchDashboardPaymentState(), loadPersistedBids()]);
@@ -18146,7 +18282,7 @@ $("btnCopyBookingLink")?.addEventListener("click", async () => {
 });
 
 // ── Sidebar More toggle ────────────────────────────────────────────────────────
-const SECONDARY_TABS = new Set(['leads','bids','jobs','quotes','plans','reviews','expenses','money','guidance','products','pricing','availability','setup','domains','import','team','vendors','inventory','contracts','equipment','messages','ai']);
+const SECONDARY_TABS = new Set(['setup','guidance','import']);
 
 $("btnSidebarMore")?.addEventListener("click", () => {
   const more = $("sidebarMore");
@@ -18154,7 +18290,7 @@ $("btnSidebarMore")?.addEventListener("click", () => {
   const isOpen = more.style.display !== 'none';
   more.style.display = isOpen ? 'none' : 'block';
   const btn = $("btnSidebarMore");
-  if (btn) btn.textContent = isOpen ? 'More' : 'Less';
+  if (btn) btn.textContent = isOpen ? 'Tools' : 'Hide tools';
   try { localStorage.setItem('pl_sidebar_simple', isOpen ? '1' : '0'); } catch {}
 });
 
@@ -18165,7 +18301,7 @@ function ensureSecondaryTabVisible(tab) {
   const btn  = $("btnSidebarMore");
   if (more && more.style.display === 'none') {
     more.style.display = 'block';
-    if (btn) btn.textContent = 'Less';
+    if (btn) btn.textContent = 'Hide tools';
   }
 }
 
@@ -18455,6 +18591,9 @@ try {
     const more = $("sidebarMore");
     if (more) more.style.display = 'none';
   }
+  const btn = $("btnSidebarMore");
+  const more = $("sidebarMore");
+  if (btn) btn.textContent = more && more.style.display !== 'none' ? 'Hide tools' : 'Tools';
 } catch {}
 
 boot().catch((err) => {

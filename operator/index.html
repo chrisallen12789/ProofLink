@@ -69,13 +69,13 @@
       <div class="nav" aria-label="Sections" data-tour="sidebar-nav">
         <!-- Primary tabs — always visible -->
         <button class="tab active" data-tab="dashboard" data-tour-tab="dashboard" type="button">Today</button>
-        <button class="tab" data-tab="orders" data-tour-tab="orders" type="button">Pipeline</button>
+        <button class="tab" data-tab="orders" data-tour-tab="orders" type="button">Work</button>
         <button class="tab" data-tab="customers" data-tour-tab="customers" type="button">Customers</button>
         <button class="tab" data-tab="bookings" data-tour-tab="bookings" type="button">Calendar</button>
         <button class="tab" data-tab="payments" data-tour-tab="payments" type="button">Money</button>
         <button class="tab" data-tab="ai" type="button">✦ AI</button>
         <!-- More toggle -->
-        <button class="tab tab--more" id="btnSidebarMore" type="button" style="color:rgba(255,255,255,.4);font-size:.8rem;letter-spacing:.04em;" title="Toggle to show/hide advanced tabs. ProofLink remembers your preference.">More ▾</button>
+        <button class="tab tab--more" id="btnSidebarMore" type="button" style="color:rgba(255,255,255,.4);font-size:.8rem;letter-spacing:.04em;" title="Show or hide secondary setup tools. ProofLink remembers your preference.">Tools</button>
         <!-- Secondary tabs — hidden until "More" is clicked -->
         <div id="sidebarMore" style="display:none;">
           <button class="tab" data-tab="leads" data-tour-tab="leads" type="button">Requests</button>
@@ -86,11 +86,11 @@
           <button class="tab" data-tab="reviews" data-tour-tab="reviews" type="button">Reviews</button>
           <button class="tab" data-tab="expenses" data-tour-tab="expenses" type="button">Expenses</button>
           <button class="tab" data-tab="money" data-tour-tab="money" type="button">Money</button>
-          <button class="tab" data-tab="guidance" data-tour-tab="guidance" type="button">Guidance</button>
+          <button class="tab" data-tab="guidance" data-tour-tab="guidance" type="button">Operations</button>
           <button class="tab" data-tab="products" data-tour-tab="products" type="button">Products</button>
           <button class="tab" data-tab="pricing" data-tour-tab="pricing" type="button">Pricing</button>
           <button class="tab" data-tab="availability" data-tour-tab="availability" type="button">Availability</button>
-          <button class="tab" data-tab="setup" data-tour-tab="setup" type="button">Business Setup</button>
+          <button class="tab" data-tab="setup" data-tour-tab="setup" type="button">Website</button>
           <button class="tab" data-tab="domains" data-tour-tab="domains" type="button">Domains</button>
           <button class="tab" data-tab="import" data-tour-tab="import" type="button">Switch &amp; Import</button>
             <button class="tab" data-tab="vendors" type="button">Vendors <span style="font-size:.7rem;color:rgba(255,255,255,.35);display:block;font-weight:400;">Subs &amp; suppliers</span></button>
@@ -134,10 +134,10 @@
       <header class="topbar">
         <div>
           <h1>Operator Console</h1>
-          <div class="sub">CRM, orders, scheduling, products, expenses, and operator guidance in one place.</div>
+          <div class="sub">Customers, work, scheduling, money, and operations in one place.</div>
         </div>
         <div class="top-actions">
-          <input id="globalSearch" type="search" class="input" placeholder="Search orders, customers, bookings…" style="width:240px;" />
+          <input id="globalSearch" type="search" class="input" placeholder="Search work, customers, money…" style="width:240px;" />
           <button id="btnDarkMode" class="btn btn-ghost" type="button" title="Toggle light/dark mode">☀</button>
           <button id="btnStartTour" class="btn btn-ghost hidden" type="button">Start tour</button>
           <button id="btnSignOut" class="btn btn-ghost hidden" type="button">Sign out</button>
@@ -425,8 +425,8 @@
           <section class="panel hidden" data-panel="orders">
             <div class="panel-head">
               <div>
-                <h2>Pipeline</h2>
-                <div class="muted">Keep requests, proposals, quoted work, and active jobs moving without bouncing around the app.</div>
+                <h2>Work</h2>
+                <div class="muted">Keep requests, proposals, approved work, and active jobs moving without bouncing around the app.</div>
               </div>
               <div class="panel-actions">
                 <button id="btnRefreshOrders" class="btn btn-ghost" type="button">Refresh</button>
@@ -1591,8 +1591,8 @@
           <section class="panel hidden" data-panel="setup">
             <div class="panel-head">
               <div>
-                <h2>Business Setup</h2>
-                <div class="muted">Set up the customer-facing website, adjust the brand, and publish when it feels ready. Protected account-record fields stay locked.</div>
+                <h2>Website</h2>
+                <div class="muted">Shape the customer-facing website, preview the pages, and publish when it feels right. Protected account-record fields stay locked.</div>
                 </div>
                 <div class="panel-actions">
                   <button id="btnRefreshSetup" class="btn btn-ghost" type="button">Refresh</button>
@@ -2953,8 +2953,8 @@
           <section class="panel hidden" data-panel="guidance">
             <div class="panel-head">
               <div>
-                <h2>Guidance</h2>
-                <div class="muted">Operator advice tied to your actual data.</div>
+                <h2>Operations</h2>
+                <div class="muted">Reach the specialized tools without cluttering the daily workspace.</div>
               </div>
               <div class="panel-actions">
                 <button id="btnRefreshGuidance" class="btn btn-ghost" type="button">Refresh</button>
@@ -3000,7 +3000,7 @@
 
   <!-- ═══════════════════════════════════════════════════
        FIRST-LOGIN WALKTHROUGH MODAL
-       Auto-shows once per browser. Replay from Guidance tab.
+       Auto-shows once per browser. Replay from Operations.
   ════════════════════════════════════════════════════════ -->
   <div id="tourModal" class="tour-modal" role="dialog" aria-modal="true" aria-labelledby="tour-title" style="display:none">
     <div class="tour-backdrop"></div>
@@ -3017,7 +3017,7 @@
       <div class="tour-step active" id="tour-step-1">
         <div class="tour-icon">🎉</div>
         <h2 class="tour-title" id="tour-title">Your workspace is ready.</h2>
-        <p class="tour-body">Welcome to ProofLink. This is where you run your entire business — orders, customers, products, schedule, and money in one place.</p>
+        <p class="tour-body">Welcome to ProofLink. This is where you run customers, work, scheduling, money, and the website from one place.</p>
         <div class="tour-actions">
           <button class="tour-btn" onclick="tourNext()">Show me around →</button>
         </div>
@@ -3028,13 +3028,12 @@
         <div class="tour-icon">🧭</div>
         <h2 class="tour-title">Here's what each section does</h2>
         <ul class="tour-list">
-          <li><strong>Dashboard</strong> — Your daily snapshot. Jobs in, money out, what needs attention.</li>
-          <li><strong>Orders</strong> — Every request that comes in. Tap one to review and update it.</li>
+          <li><strong>Today</strong> — Your daily snapshot. What is moving, what is blocked, and what needs attention.</li>
+          <li><strong>Work</strong> — Requests, proposals, approved work, and active jobs in one flow.</li>
           <li><strong>Customers</strong> — Who ordered, how much they've spent, your notes on them.</li>
-          <li><strong>Products</strong> — Add or edit the things you sell. Turn items on or off.</li>
-          <li><strong>Availability</strong> — Set which days and hours customers can book you.</li>
-          <li><strong>Expenses</strong> — Log costs so you can see your real profit.</li>
-          <li><strong>Guidance</strong> — Plain-language advice based on your actual data.</li>
+          <li><strong>Calendar</strong> — Scheduling, dispatch, recurring work, and route pressure.</li>
+          <li><strong>Money</strong> — Deposits, payments, overdue balances, and profit clues.</li>
+          <li><strong>Tools</strong> — Website, import, and specialist operations pages when you need them.</li>
         </ul>
         <div class="tour-actions">
           <button class="tour-btn-ghost" onclick="tourBack()">← Back</button>
@@ -3058,7 +3057,7 @@
             <span class="tour-num">2</span>
             <div>
               <strong>Add products or services</strong>
-              <p>Go to <em>Products</em> and add at least one thing you sell. Keep it simple to start.</p>
+              <p>Go to <em>Website</em> or <em>Tools</em>, open your services, and add at least one thing you sell. Keep it simple to start.</p>
             </div>
           </li>
           <li>
@@ -3080,7 +3079,7 @@
         <div class="tour-icon">🚀</div>
         <h2 class="tour-title">You're set — go make money.</h2>
         <p class="tour-body">Start by adding your first product or service. It only takes a minute.</p>
-        <p class="tour-hint">You can replay this tour anytime from the <strong>Guidance</strong> tab.</p>
+        <p class="tour-hint">You can replay this tour anytime from <strong>Operations</strong>.</p>
         <div class="tour-actions">
           <button class="tour-btn-ghost" onclick="tourBack()">← Back</button>
           <button class="tour-btn" onclick="tourFinish()">Go to my dashboard →</button>
@@ -3234,7 +3233,7 @@
   </button>
   <button class="mbn-item" data-mbn-tab="orders" type="button">
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-    <span>Pipeline</span>
+    <span>Work</span>
   </button>
   <button class="mbn-item" data-mbn-tab="customers" type="button">
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
@@ -3250,7 +3249,7 @@
   </button>
   <button class="mbn-item" data-mbn-tab="__menu" type="button" id="mbnMenuBtn">
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-    <span>More</span>
+    <span>Tools</span>
   </button>
 </nav>
 

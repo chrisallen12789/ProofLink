@@ -2053,6 +2053,29 @@ input:focus, textarea:focus, select:focus{
   display:grid;
   gap:14px;
 }
+.operations-hub{
+  display:grid;
+  gap:16px;
+}
+.operations-group{
+  border:1px solid var(--border);
+  background:rgba(255,255,255,.02);
+  border-radius:16px;
+  padding:16px;
+}
+.operations-group__head{
+  display:grid;
+  gap:6px;
+  margin-bottom:12px;
+}
+.operations-actions{
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+}
+.operations-action{
+  min-width:140px;
+}
 .metric-grid { grid-template-columns: repeat(auto-fit,minmax(160px,1fr)); margin-bottom:14px; }
 .alert-grid,
 .guidance-grid { grid-template-columns: repeat(auto-fit,minmax(220px,1fr)); margin-top:14px; }
@@ -2413,6 +2436,12 @@ input:focus, textarea:focus, select:focus{
   font-size:13px;
 }
 .setup-builder-nav{
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+  margin:0 0 12px;
+}
+.setup-quick-links{
   display:flex;
   flex-wrap:wrap;
   gap:10px;
