@@ -30,6 +30,7 @@
     events: "Events",
     handyman: "Handyman",
     hvac: "HVAC",
+    landscaping: "Landscaping",
     lawn_care: "Lawn Care",
     other: "Other",
     pet_services: "Pet Services",

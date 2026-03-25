@@ -451,6 +451,8 @@
     contractor_remodeling: "contractor",
     general_service: "service_business",
     service: "service_business",
+    landscape: "lawn_care",
+    landscaping: "lawn_care",
     vactor: "hydrovac",
   };
 
