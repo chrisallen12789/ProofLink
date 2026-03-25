@@ -1,4 +1,9 @@
 const { clean, json, readJson, requireOperatorContext, supabaseAdmin } = require('./_prooflink_payments');
+const { getAdminClient } = require("./utils/auth");
+const {
+  isMissingCreateTenantBundleRpcError,
+  provisionTenantBundle,
+} = require("./lib/provision-tenant-bundle");
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return json(200, { ok: true });
@@ -7,7 +12,8 @@ exports.handler = async (event) => {
   }
 
   try {
-    await requireOperatorContext(event);
+    const ctx = await requireOperatorContext(event);
+    const supabase = getAdminClient();
 
     const body = readJson(event);
 
@@ -34,7 +40,22 @@ exports.handler = async (event) => {
     if (!payload.phone) throw Object.assign(new Error('phone is required.'), { statusCode: 400 });
     if (!payload.business_category) throw Object.assign(new Error('business_category is required.'), { statusCode: 400 });
 
-    const result = await supabaseAdmin('/rest/v1/rpc/create_tenant_bundle', 'POST', payload);
+    let result;
+    try {
+      result = await supabaseAdmin('/rest/v1/rpc/create_tenant_bundle', 'POST', payload);
+    } catch (error) {
+      if (!isMissingCreateTenantBundleRpcError(error)) throw error;
+
+      result = await provisionTenantBundle({
+        supabase,
+        payload: {
+          ...payload,
+          owner_email: payload.email,
+          business_type: payload.business_category,
+        },
+        invitedByOperatorId: ctx.operatorId,
+      });
+    }
 
     return json(200, {
       ok: true,

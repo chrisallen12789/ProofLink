@@ -4,6 +4,10 @@ const { getConfiguredSiteUrl } = require('./utils/runtime-config');
 const { slugify } = require('./utils/slugify');
 const { checkRateLimit, rateLimitResponse, getClientIP } = require('./utils/rate-limit');
 const { supabaseAdmin } = require('./_prooflink_payments');
+const {
+  isMissingCreateTenantBundleRpcError,
+  provisionTenantBundle,
+} = require('./lib/provision-tenant-bundle');
 
 function clean(value) {
   return String(value || '').trim();
@@ -127,9 +131,10 @@ exports.handler = async (event) => {
   try {
     const payload = normalizePayload(body);
     validatePayload(payload);
+    const supabase = getAdminClient();
 
     const subdomain = payload.requested_subdomain || slugify(payload.business_name);
-    const result = await supabaseAdmin('/rest/v1/rpc/create_tenant_bundle', 'POST', {
+    const rpcPayload = {
       business_name: payload.business_name,
       owner_name: payload.owner_name,
       email: payload.owner_email,
@@ -143,7 +148,26 @@ exports.handler = async (event) => {
       subdomain_preference: subdomain,
       platform_name: 'ProofLink',
       notes: 'Self-serve join flow',
-    });
+    };
+    let result;
+    try {
+      result = await supabaseAdmin('/rest/v1/rpc/create_tenant_bundle', 'POST', rpcPayload);
+    } catch (error) {
+      if (!isMissingCreateTenantBundleRpcError(error)) throw error;
+
+      result = await provisionTenantBundle({
+        supabase,
+        payload: {
+          ...payload,
+          requested_subdomain: subdomain,
+          business_category: payload.business_type,
+          service_area: payload.city_state,
+          brand_color: '',
+          logo_url: '',
+          notes: 'Self-serve join flow',
+        },
+      });
+    }
 
     const tenantId = clean(result?.tenant_id || result?.tenantId);
     const tenantSlug = clean(result?.tenant_slug || result?.tenantSlug || subdomain);
@@ -156,7 +180,6 @@ exports.handler = async (event) => {
 
     const siteUrl = getConfiguredSiteUrl();
     const onboardingUrl = `${siteUrl}/operator/onboarding.html?tenant=${encodeURIComponent(tenantSlug)}&plan=${encodeURIComponent(payload.selected_plan)}&selfServe=1`;
-    const supabase = getAdminClient();
     const authUser = await findOrCreateAuthUser(supabase, payload.owner_email);
 
     if (authUser?.id && tenantId && operatorId) {
