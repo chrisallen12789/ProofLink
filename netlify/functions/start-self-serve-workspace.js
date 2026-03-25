@@ -3,6 +3,7 @@ const { sendEmail, templates } = require('./utils/email');
 const { getConfiguredSiteUrl } = require('./utils/runtime-config');
 const { slugify } = require('./utils/slugify');
 const { checkRateLimit, rateLimitResponse, getClientIP } = require('./utils/rate-limit');
+const { buildMagicLinkUrl, buildPasswordSetupUrl } = require('./utils/auth-links');
 const { supabaseAdmin } = require('./_prooflink_payments');
 const {
   isMissingCreateTenantBundleRpcError,
@@ -76,16 +77,6 @@ async function findOrCreateAuthUser(supabase, email) {
   });
   if (error) throw error;
   return data?.user || null;
-}
-
-async function buildLoginUrl(supabase, email, redirectTo) {
-  const { data, error } = await supabase.auth.admin.generateLink({
-    type: 'magiclink',
-    email,
-    options: { redirectTo },
-  });
-  if (error) throw error;
-  return data?.properties?.action_link || redirectTo;
 }
 
 async function recordProvisionedRequest(supabase, payload, tenantSlug) {
@@ -194,10 +185,16 @@ exports.handler = async (event) => {
     }
 
     let loginUrl = onboardingUrl;
+    let passwordSetupUrl = `${siteUrl}/operator/`;
     try {
-      loginUrl = await buildLoginUrl(supabase, payload.owner_email, onboardingUrl);
+      loginUrl = await buildMagicLinkUrl(supabase, payload.owner_email, onboardingUrl);
     } catch (error) {
       console.warn('[start-self-serve-workspace] magic link generation non-fatal:', error.message);
+    }
+    try {
+      passwordSetupUrl = await buildPasswordSetupUrl(supabase, payload.owner_email, `${siteUrl}/operator/`);
+    } catch (error) {
+      console.warn('[start-self-serve-workspace] password setup link generation non-fatal:', error.message);
     }
 
     await recordProvisionedRequest(supabase, payload, tenantSlug);
@@ -206,7 +203,7 @@ exports.handler = async (event) => {
       owner_name: payload.owner_name,
       business_name: payload.business_name,
       owner_email: payload.owner_email,
-      login_url: loginUrl,
+      login_url: passwordSetupUrl || loginUrl,
       store_slug: tenantSlug,
       business_type: payload.business_type || null,
     })).catch((error) => console.warn('[start-self-serve-workspace] email failed:', error.message));

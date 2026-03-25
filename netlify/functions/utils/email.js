@@ -364,8 +364,8 @@ const templates = {
       html: layout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.red)}${bodyWrap(`
         ${badge('Store ready',T.redLight,T.red,T.redBorder)}<br/><br/>
         ${h1(`Your store is live, ${owner_name}.`)}
-        ${sub(`${business_name} is set up on ProofLink. Click below to log in and start building.`)}
-        <div style="text-align:center;margin:0 0 32px;">${cta('Log in to my dashboard →', loginHref)}</div>
+        ${sub(`${business_name} is set up on ProofLink. Click below to set your password and open your dashboard.`)}
+        <div style="text-align:center;margin:0 0 32px;">${cta('Set my password →', loginHref)}</div>
         ${infoBox([...(store_slug?[['Your store URL',`${getSiteUrl()}/${store_slug}`]]:[]),['Dashboard',`${SITE_URL}/operator/`]])}
         ${divider()}
         <p style="margin:0 0 20px;font-size:15px;font-weight:700;color:${T.ink};">Complete your store setup</p>
@@ -373,7 +373,7 @@ const templates = {
         ${buildChecklistSection(business_type, loginHref)}
         ${divider()}
         ${p(`<span style="color:${T.hint};">Need help? Reply to this email and we'll walk you through setup personally.</span>`)}
-      `)}</table>`, { preheader: `Your ProofLink store for ${business_name} is ready. Log in to get started.` }),
+      `)}</table>`, { preheader: `Your ProofLink store for ${business_name} is ready. Set your password to get started.` }),
     };
   },
 

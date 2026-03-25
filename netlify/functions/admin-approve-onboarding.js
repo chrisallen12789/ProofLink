@@ -28,6 +28,7 @@ const { sendEmail, templates }            = require('./utils/email');
 const { uniqueTenantSlug }               = require('./utils/slugify');
 const { seedTemplateForTenant }          = require('./lib/seed-templates');
 const { getConfiguredSiteUrl }           = require('./utils/runtime-config');
+const { buildPasswordSetupUrl }          = require('./utils/auth-links');
 
 // ── Seed branding + contact into tenant_settings ────────────────────────────
 async function seedTenantSettings(supabase, tenantId, req) {
@@ -254,16 +255,9 @@ exports.handler = async (event) => {
 
   if (authUserId) {
     try {
-      const { data: linkData, error: linkErr } = await supabase.auth.admin.generateLink({
-        type: 'magiclink',
-        email: req.owner_email,
-        options: { redirectTo },
-      });
-      if (!linkErr && linkData?.properties?.action_link) {
-        loginUrl = linkData.properties.action_link;
-      }
+      loginUrl = await buildPasswordSetupUrl(supabase, req.owner_email, redirectTo);
     } catch (e) {
-      console.warn('[admin-approve] generateLink non-fatal:', e.message);
+      console.warn('[admin-approve] password setup link non-fatal:', e.message);
     }
   }
 

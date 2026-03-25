@@ -3,6 +3,7 @@ const { sendEmail, templates } = require('./utils/email');
 const { uniqueTenantSlug } = require('./utils/slugify');
 const { seedTemplateForTenant } = require('./lib/seed-templates');
 const { getConfiguredSiteUrl } = require('./utils/runtime-config');
+const { buildPasswordSetupUrl } = require('./utils/auth-links');
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return respond(200, {});
@@ -199,16 +200,9 @@ exports.handler = async (event) => {
   let loginUrl = redirectTo;
   if (authUserId) {
     try {
-      const { data: linkData, error: linkErr } = await supabase.auth.admin.generateLink({
-        type: 'magiclink',
-        email: req.owner_email,
-        options: { redirectTo },
-      });
-      if (!linkErr && linkData?.properties?.action_link) {
-        loginUrl = linkData.properties.action_link;
-      }
+      loginUrl = await buildPasswordSetupUrl(supabase, req.owner_email, `${siteUrl}/operator/`);
     } catch (err) {
-      console.warn('[provision] generateLink non-fatal:', err.message);
+      console.warn('[provision] password setup link non-fatal:', err.message);
     }
   }
 
