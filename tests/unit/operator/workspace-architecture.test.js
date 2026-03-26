@@ -60,4 +60,21 @@ describe("prooflink workspace architecture", () => {
     expect(hvacBlueprint.business.recordFocus).toContain("Equipment model, serial, and system history");
     expect(plumbingBlueprint.business.recordFocus).toContain("Emergency level, shutoff status, and fixture context");
   });
+
+  test("resolveWorkspaceBlueprint tolerates incomplete business profiles", () => {
+    const architecture = loadWorkspaceArchitecture();
+    architecture.BUSINESS_PROFILES.partial_profile = {
+      key: "partial_profile",
+      label: "Partial Profile",
+      family: "field_service",
+    };
+
+    const blueprint = architecture.resolveWorkspaceBlueprint("starter", "partial_profile");
+
+    expect(blueprint.business.key).toBe("partial_profile");
+    expect(Array.isArray(blueprint.enabledFeatures)).toBe(true);
+    expect(Array.isArray(blueprint.deferredFeatures)).toBe(true);
+    expect(Array.isArray(blueprint.priorityViews)).toBe(true);
+    expect(Array.isArray(blueprint.hiddenByDefault)).toBe(true);
+  });
 });

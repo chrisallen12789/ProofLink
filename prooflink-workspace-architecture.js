@@ -614,8 +614,51 @@
     return TIER_CAPABILITIES[sanitizeTier(planKey)];
   }
 
+  function asArray(value) {
+    return Array.isArray(value) ? value : [];
+  }
+
+  function getFallbackBusinessProfile() {
+    return BUSINESS_PROFILES.other || {
+      key: "other",
+      label: "Other",
+      family: "general_business",
+      workspaceMode: "guided_generalist",
+      pricingModel: "depends on profile setup",
+      inventoryModel: "depends on profile setup",
+      proofModel: "depends on the business process being loaded",
+      bidProfile: "general_service",
+      priorityViews: ["crm", "orders_jobs", "payments", "reporting"],
+      hiddenByDefault: [],
+      defaultFeatures: [],
+      advancedFeatures: ["custom_fields"],
+      operatorNeeds: [],
+      recordFocus: [],
+    };
+  }
+
   function getBusinessProfile(businessType) {
-    return BUSINESS_PROFILES[sanitizeBusinessType(businessType)];
+    const key = sanitizeBusinessType(businessType);
+    const fallback = getFallbackBusinessProfile();
+    const raw = BUSINESS_PROFILES[key] || fallback;
+    return {
+      ...fallback,
+      ...raw,
+      key: raw?.key || key,
+      label: raw?.label || fallback.label,
+      family: raw?.family || fallback.family,
+      workspaceMode: raw?.workspaceMode || fallback.workspaceMode,
+      pricingModel: raw?.pricingModel || fallback.pricingModel,
+      inventoryModel: raw?.inventoryModel || fallback.inventoryModel,
+      proofModel: raw?.proofModel || fallback.proofModel,
+      bidProfile: raw?.bidProfile || fallback.bidProfile,
+      priorityViews: asArray(raw?.priorityViews ?? fallback.priorityViews),
+      hiddenByDefault: asArray(raw?.hiddenByDefault ?? fallback.hiddenByDefault),
+      defaultFeatures: asArray(raw?.defaultFeatures ?? fallback.defaultFeatures),
+      advancedFeatures: asArray(raw?.advancedFeatures ?? fallback.advancedFeatures),
+      operatorNeeds: asArray(raw?.operatorNeeds ?? fallback.operatorNeeds),
+      recordFocus: asArray(raw?.recordFocus ?? fallback.recordFocus),
+    };
   }
 
   function resolveBidProfileForBusinessType(businessType) {
