@@ -137,6 +137,21 @@
     el.className = tone ? `msg ${tone}` : "msg";
   }
 
+  function downloadCsv(filename, headers, rows) {
+    const escape = (value) => {
+      const text = String(value ?? "").replace(/"/g, '""');
+      return /[,"\n\r]/.test(text) ? `"${text}"` : text;
+    };
+    const lines = [headers.map(escape).join(","), ...rows.map((row) => row.map(escape).join(","))];
+    const blob = new Blob([lines.join("\n")], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${filename}-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
   async function getCurrentPositionSafe(options = {}) {
     if (!("geolocation" in navigator)) return null;
     return new Promise((resolve) => {
@@ -178,6 +193,7 @@
     formatTime12,
     showConfirmModal,
     setInlineMessage,
+    downloadCsv,
     getCurrentPositionSafe,
   };
 

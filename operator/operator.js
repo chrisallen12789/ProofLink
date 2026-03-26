@@ -17012,13 +17012,8 @@ btnRefreshDashboard?.addEventListener("click", async () => {
   renderGuidance();
 });
 // ── Create Order Modal (with session package support) ────────────────────────
-function openCreateOrderModal() {
-  const existing = document.getElementById("createOrderModal");
-  if (existing) { existing.remove(); return; }
-  const modal = document.createElement("div");
-  modal.id = "createOrderModal";
-  modal.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:10000;display:flex;align-items:center;justify-content:center;padding:16px;";
-  modal.innerHTML = `
+function openCreateOrderModal() {}
+/*
     <div style="background:#1a1d27;border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:28px;max-width:500px;width:100%;max-height:90vh;overflow-y:auto;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
         <strong style="font-size:1rem;">New order</strong>
@@ -17124,43 +17119,7 @@ function openCreateOrderModal() {
       saveBtn.textContent = "Create order";
     }
   };
-}
-
-// Wire up any "New order" button in the panel-actions
-$("btnNewOrderManual")?.addEventListener("click", openCreateOrderModal);
-
-btnRefreshOrders?.addEventListener("click", async () => {
-  try {
-    await Promise.all([fetchCrmOrders(), fetchJobs(), fetchServicePlans()]);
-    renderOrders();
-    renderJobs(jobSearch?.value || "");
-    renderPlans(planSearch?.value || "");
-    renderDashboard();
-    renderGuidance();
-  } catch (err) {
-    notifyOperator(err.message || String(err));
-  }
-});
-btnRefreshGuidance?.addEventListener("click", () => {
-  renderGuidance();
-  renderDashboard();
-});
-btnExportOrders?.addEventListener("click", () => {
-  const blob = new Blob([JSON.stringify(CRM_ORDERS_CACHE || [], null, 2)], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `operator-orders-${new Date().toISOString().slice(0, 10)}.json`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-});
-if (btnImportBridgeOrders) {
-  btnImportBridgeOrders.hidden = true;
-  btnImportBridgeOrders.disabled = true;
-}
-
+*/
 btnRefreshMoney?.addEventListener("click", () => renderMoney().catch(console.error));
 $('btnExportPaymentsCsv')?.addEventListener('click', () => {
   const rows = [['Order ID','Customer','Date Paid','Amount','Method','Status']];
@@ -18046,28 +18005,6 @@ $("btnDarkMode")?.addEventListener("click", () => {
 
 // ── CSV Export ────────────────────────────────────────────────────────────────
 
-function downloadCsv(filename, headers, rows) {
-  const escape = (v) => {
-    const s = String(v ?? "").replace(/"/g, '""');
-    return /[,"\n\r]/.test(s) ? `"${s}"` : s;
-  };
-  const lines = [headers.map(escape).join(","), ...rows.map((r) => r.map(escape).join(","))];
-  const blob = new Blob([lines.join("\n")], { type: "text/csv" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `${filename}-${new Date().toISOString().slice(0, 10)}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
-$("btnExportOrdersCsv")?.addEventListener("click", () => {
-  const rows = CRM_ORDERS_CACHE;
-  if (!rows.length) { notifyOperator("There are no work records to export yet."); return; }
-  const headers = ["id", "customer_name", "email", "phone", "status", "fulfillment", "scheduled_date", "total_cents", "total_amount", "source_type", "created_at", "updated_at"];
-  downloadCsv("orders", headers, rows.map((r) => headers.map((h) => r[h] ?? "")));
-});
-
 $("btnExportCustomersCsv")?.addEventListener("click", () => {
   const rows = [['Name','Email','Phone','City','State','Created']];
   (CUSTOMERS_CACHE || []).forEach(c => {
@@ -18461,15 +18398,9 @@ $("btnCloseDraft")?.addEventListener("click", () => {
 
 // ── Bulk Order Status Update ───────────────────────────────────────────────────
 
-function updateBulkBar() {
-  const bar = $("bulkStatusBar");
-  const countEl = $("bulkSelectedCount");
-  if (!bar) return;
-  const count = BULK_SELECTED_ORDER_IDS.size;
-  bar.style.display = count > 0 ? "flex" : "none";
-  if (countEl) countEl.textContent = `${count} selected`;
-}
+function updateBulkBar() {}
 
+/*
 $("btnBulkStatusApply")?.addEventListener("click", async () => {
   const status = $("bulkStatusSelect")?.value;
   if (!status) { setInlineMessage($("bulkMsg"), "Choose a status first.", "error"); return; }
@@ -18503,6 +18434,7 @@ $("btnBulkClear")?.addEventListener("click", () => {
 
 // ── Realtime ──────────────────────────────────────────────────────────────────
 
+*/
 let _realtimeChannel = null;
 
 function stopRealtime() {
