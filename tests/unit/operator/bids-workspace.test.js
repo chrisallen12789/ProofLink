@@ -1,0 +1,224 @@
+"use strict";
+
+const fs = require("fs");
+const path = require("path");
+const vm = require("vm");
+
+function makeField() {
+  return {
+    value: "",
+    innerHTML: "",
+    textContent: "",
+    hidden: false,
+    files: [],
+    parentElement: {
+      querySelector: vi.fn(() => null),
+      insertBefore: vi.fn(),
+    },
+    setAttribute: vi.fn(),
+    addEventListener: vi.fn(),
+    focus: vi.fn(),
+  };
+}
+
+function loadBidsWorkspace(overrides = {}) {
+  const source = fs.readFileSync(
+    path.resolve(process.cwd(), "operator/operator-bids-workspace.js"),
+    "utf8"
+  );
+
+  const context = {
+    console,
+    window: { localStorage: { setItem: vi.fn(), getItem: vi.fn(() => "[]") } },
+    document: {
+      createElement: vi.fn(() => ({
+        id: "",
+        className: "",
+        style: {},
+        hidden: false,
+        textContent: "",
+        setAttribute: vi.fn(),
+      })),
+      body: { appendChild: vi.fn() },
+    },
+    BIDS_CACHE: [],
+    CUSTOMERS_CACHE: [],
+    ACTIVE_BID_ID: "",
+    BID_QUICK_CUSTOMER_OPEN: false,
+    BID_WORKSPACE_BOOTSTRAPPING: false,
+    bidMsg: {},
+    bidSearch: makeField(),
+    btnNewBid: makeField(),
+    btnDuplicateBid: makeField(),
+    btnApplyBidProfile: makeField(),
+    btnToggleBidQuickCustomer: makeField(),
+    btnCancelBidQuickCustomer: makeField(),
+    btnSaveBidQuickCustomer: makeField(),
+    btnConvertBidToOrder: makeField(),
+    bidForm: makeField(),
+    bidTitle: makeField(),
+    bidCustomerId: makeField(),
+    bidProfile: makeField(),
+    bidStatus: makeField(),
+    bidWalkthroughAt: makeField(),
+    bidValidUntil: makeField(),
+    bidServiceAddress: makeField(),
+    bidSiteContact: makeField(),
+    bidScheduleWindow: makeField(),
+    bidProjectSummary: makeField(),
+    bidScopeOfWork: makeField(),
+    bidProposedSolution: makeField(),
+    bidMaterialsPlan: makeField(),
+    bidUnusedMaterialsPlan: makeField(),
+    bidExclusions: makeField(),
+    bidWarranty: makeField(),
+    bidCoverNote: makeField(),
+    bidInternalNotes: makeField(),
+    bidDepositPercent: makeField(),
+    bidDepositAmount: makeField(),
+    bidTerms: makeField(),
+    bidQuickCustomerCard: { classList: { toggle: vi.fn() } },
+    bidQuickCustomerForm: { classList: { toggle: vi.fn() } },
+    bidQuickCustomerHeading: { textContent: "" },
+    bidQuickCustomerSummary: { textContent: "" },
+    bidQuickCustomerName: makeField(),
+    bidQuickCustomerEmail: makeField(),
+    bidQuickCustomerPhone: makeField(),
+    bidQuickCustomerPreferredContact: makeField(),
+    bidQuickCustomerNote: makeField(),
+    bidQuickCustomerMsg: {},
+    bidLineItemId: makeField(),
+    bidLineItemName: makeField(),
+    bidLineItemKind: makeField(),
+    bidLineItemDescription: makeField(),
+    bidLineItemQuantity: makeField(),
+    bidLineItemUnit: makeField(),
+    bidLineItemUnitPrice: makeField(),
+    bidLineItemMsg: {},
+    bidPhotoFile: makeField(),
+    bidPhotoName: makeField(),
+    bidPhotoCategory: makeField(),
+    bidPhotoNote: makeField(),
+    bidPhotoMsg: {},
+    bidFormTitle: { textContent: "" },
+    btnClearBidLineItem: makeField(),
+    bidPhotoForm: makeField(),
+    bidLineItemForm: makeField(),
+    btnPrintBidProposal: makeField(),
+    btnCopyBidEmail: makeField(),
+    btnExportBidJson: makeField(),
+    bidGuideFlow: { innerHTML: "" },
+    proposalStageStrip: { innerHTML: "" },
+    proposalActionBar: { innerHTML: "", querySelectorAll: vi.fn(() => []) },
+    bidsList: { innerHTML: "", querySelectorAll: vi.fn(() => []) },
+    bidProfileGuide: { innerHTML: "" },
+    bidStatsWrap: { innerHTML: "" },
+    bidDeliveryWrap: { innerHTML: "" },
+    bidPhotoGuide: { innerHTML: "" },
+    bidPhotosList: { innerHTML: "", querySelectorAll: vi.fn(() => []) },
+    bidScopeStarters: { innerHTML: "", querySelectorAll: vi.fn(() => []) },
+    bidCatalogStarters: { innerHTML: "", querySelectorAll: vi.fn(() => []) },
+    bidLineItemsList: { innerHTML: "", querySelectorAll: vi.fn(() => []) },
+    bidProposalPreview: { innerHTML: "" },
+    $: vi.fn(() => makeField()),
+    debounce: (fn) => fn,
+    currentBid: vi.fn(() => null),
+    preferredBidProfile: vi.fn(() => "default"),
+    bidStorageKey: vi.fn(() => "prooflink.bid"),
+    setInlineMessage: vi.fn(),
+    mergeBidDraftCollections: vi.fn((localRows) => localRows),
+    fetchPersistedBids: vi.fn(() => Promise.resolve([])),
+    draftFromBidRow: vi.fn((row) => row),
+    bidRowFromDraft: vi.fn((draft) => draft),
+    bidRecordId: vi.fn((row) => row.record_id || row.id),
+    bidProfileConfig: vi.fn(() => ({ label: "Default proposal" })),
+    findBidCustomer: vi.fn(() => null),
+    sortedCustomers: vi.fn((rows) => rows),
+    escapeHtml: (value) => String(value),
+    escapeAttr: (value) => String(value),
+    cloneJson: (value, fallback = null) => (value == null ? fallback : JSON.parse(JSON.stringify(value))),
+    money: (value) => Number(value || 0).toFixed(2),
+    toCents: (value) => Math.round(Number(value || 0) * 100),
+    opId: vi.fn(() => "operator_1"),
+    sb: {
+      from: vi.fn(() => ({
+        update: vi.fn().mockReturnThis(),
+        insert: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        select: vi.fn().mockReturnThis(),
+        single: vi.fn(async () => ({ data: { id: "bid_1" }, error: null })),
+      })),
+      storage: {
+        from: vi.fn(() => ({
+          upload: vi.fn(async () => ({ error: null })),
+          getPublicUrl: vi.fn(() => ({ data: { publicUrl: "https://cdn.example/proposal.jpg" } })),
+        })),
+      },
+    },
+    TENANT_ID: "tenant_1",
+    TENANT_COLUMN: "tenant_id",
+    OPERATOR_COLUMN: "operator_id",
+    currentWorkspaceBlueprint: vi.fn(() => ({})),
+    isServiceWorkspace: vi.fn(() => true),
+    showConfirmModal: vi.fn(() => Promise.resolve(true)),
+    saveCustomerRecord: vi.fn(() => Promise.resolve({ id: "customer_1", name: "Logan" })),
+    renderOrders: vi.fn(),
+    switchTab: vi.fn(),
+    markWorkspaceClean: vi.fn(),
+    loadPersistedBids: vi.fn(() => Promise.resolve()),
+    renderBids: vi.fn(),
+    renderBidWorkspace: vi.fn(),
+    renderBidList: vi.fn(),
+    convertBidToTrackedOrder: vi.fn(() => Promise.resolve({ existed: false })),
+    getAccessToken: vi.fn(() => Promise.resolve("token")),
+    fetch: vi.fn(async () => ({ ok: true, json: async () => ({}) })),
+    uploadBidPhotoAsset: vi.fn(() => Promise.resolve({ url: "https://cdn.example/photo.jpg", storage_mode: "cloud" })),
+    mergeBidLineItem: vi.fn((existing, next) => ({ ...existing, ...next })),
+    createLocalId: vi.fn((prefix) => `${prefix}_1`),
+    defaultBidTitleFromDraft: vi.fn(() => "Walkthrough proposal"),
+    hydrateBidPhotoCategoryOptions: vi.fn(),
+    calculateBidTotals: vi.fn(() => ({ total: 0 })),
+    bidIncludedLineItemsForOrder: vi.fn(() => []),
+    formatBidStatus: vi.fn((value) => value),
+    slugify: (value) => String(value || "").toLowerCase().replace(/\s+/g, "-"),
+    fileToDataUrl: vi.fn(() => Promise.resolve("data:image/png;base64,abc")),
+    URL: { createObjectURL: vi.fn(() => "blob:url"), revokeObjectURL: vi.fn() },
+    Blob,
+    ...overrides,
+  };
+
+  vm.createContext(context);
+  vm.runInContext(source, context);
+  return context;
+}
+
+describe("operator bids workspace", () => {
+  test("sortedBids filters by customer and proposal label text", () => {
+    const context = loadBidsWorkspace({
+      BIDS_CACHE: [
+        { id: "bid_1", title: "Front yard cleanup", customer_id: "customer_1", profile: "landscaping", updated_at: "2026-03-26T10:00:00Z" },
+        { id: "bid_2", title: "Truck dispatch", customer_id: "customer_2", profile: "hydrovac", updated_at: "2026-03-25T10:00:00Z" },
+      ],
+      bidProfileConfig: vi.fn((value) => ({ label: value === "landscaping" ? "Landscape proposal" : "Hydrovac proposal" })),
+      findBidCustomer: vi.fn((id) => (id === "customer_1" ? { name: "Logan's Lawn Care" } : { name: "Benkari" })),
+    });
+
+    const rows = context.window.sortedBids("logan");
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0].id).toBe("bid_1");
+  });
+
+  test("initBidWorkspaceBindings only wires listeners once", () => {
+    const context = loadBidsWorkspace();
+
+    context.window.initBidWorkspaceBindings();
+    context.window.initBidWorkspaceBindings();
+
+    expect(context.bidSearch.addEventListener).toHaveBeenCalledTimes(1);
+    expect(context.btnNewBid.addEventListener).toHaveBeenCalledTimes(1);
+    expect(context.bidForm.addEventListener).toHaveBeenCalledTimes(1);
+    expect(context.bidPhotoForm.addEventListener).toHaveBeenCalledTimes(1);
+    expect(context.btnExportBidJson.addEventListener).toHaveBeenCalledTimes(1);
+  });
+});

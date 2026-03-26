@@ -1,4 +1,4 @@
-﻿// /operator/operator.js
+// /operator/operator.js
 // ProofLink Operator v3 CRM pass
 
 const OPERATOR_CONFIG = window.COTTAGELINK_OPERATOR_CONFIG || {};
@@ -1935,7 +1935,7 @@ function trackedJobExpenses(job, order = linkedOrderForJob(job)) {
       return true;
     });
 }
-// â”€â”€ Hydrovac revenue calculation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Hydrovac revenue calculation ───────────────────────────────────────────────
 function calcHydrovacRevenueCents(job) {
   const bh       = Math.max(parseFloat(job.billable_hours) || 0, parseFloat(job.minimum_hours) || 2);
   const mult     = parseFloat(job.after_hours_multiplier) || 1.0;
@@ -1943,7 +1943,7 @@ function calcHydrovacRevenueCents(job) {
   const opR      = parseInt(job.hourly_operator_rate_cents) || 0;
   const mobFee   = parseInt(job.mobilization_fee_cents)     || 0;
   const disposal = parseInt(job.disposal_cost_cents)        || 0;
-  if (!truckR && !opR) return null; // rates not set â€” not a hydrovac job
+  if (!truckR && !opR) return null; // rates not set — not a hydrovac job
   return Math.round(bh * mult * (truckR + opR)) + mobFee + disposal;
 }
 
@@ -1957,10 +1957,10 @@ function hydrovacRevenueBreakdownHtml(job) {
   const rate   = truckR + opR;
   const laborRev = Math.round(bh * mult * rate);
   const total  = laborRev + mob + disp;
-  const multLabel = mult !== 1.0 ? ` Ã— ${mult}Ã— after-hours` : '';
+  const multLabel = mult !== 1.0 ? ` × ${mult}× after-hours` : '';
   return {
     html: `
-      <div>${bh.toFixed(2)} hrs Ã— $${(rate/100).toFixed(2)}/hr${multLabel} = <strong>$${(laborRev/100).toFixed(2)}</strong></div>
+      <div>${bh.toFixed(2)} hrs × $${(rate/100).toFixed(2)}/hr${multLabel} = <strong>$${(laborRev/100).toFixed(2)}</strong></div>
       ${mob  ? `<div>Mobilization: <strong>$${(mob/100).toFixed(2)}</strong></div>` : ''}
       ${disp ? `<div>Disposal: <strong>$${(disp/100).toFixed(2)}</strong></div>` : ''}
     `,
@@ -1985,11 +1985,11 @@ function toggleHydrovacFields(value) {
 
 function renderEquipmentOptions(selectedId = '') {
   if (!jobEquipmentId) return;
-  jobEquipmentId.innerHTML = '<option value="">â€” Unassigned â€”</option>'
+  jobEquipmentId.innerHTML = '<option value="">— Unassigned —</option>'
     + (EQUIPMENT_CACHE || [])
       .filter(e => e.is_active)
       .map(e => `<option value="${escapeAttr(e.id)}"${e.id === selectedId ? ' selected' : ''}>
-        ${escapeHtml(e.unit_number ? `${e.unit_number} â€” ${e.name}` : e.name)}
+        ${escapeHtml(e.unit_number ? `${e.unit_number} — ${e.name}` : e.name)}
         ${e.hourly_rate_cents ? ` ($${(e.hourly_rate_cents/100).toFixed(0)}/hr)` : ''}
       </option>`)
       .join('');
@@ -3735,7 +3735,7 @@ function renderPanelBackButtons() {
     }
 
     button.classList.remove("hidden");
-    button.textContent = `â† ${workspaceTabLabel(previousTab, blueprint)}`;
+    button.textContent = `← ${workspaceTabLabel(previousTab, blueprint)}`;
     button.textContent = `Back to ${workspaceTabLabel(previousTab, blueprint)}`;
     button.onclick = () => switchTab(previousTab);
   });
@@ -4215,7 +4215,7 @@ async function requireOperatorContext() {
 
   function syncThemeButton() {
     const activeTheme = root.getAttribute("data-theme") || "light";
-    replacementButton.textContent = activeTheme === "light" ? "â—" : "â˜€";
+    replacementButton.textContent = activeTheme === "light" ? "◐" : "☀";
     replacementButton.title = activeTheme === "light" ? "Switch to dark mode" : "Switch to light mode";
   }
 
@@ -4234,6 +4234,7 @@ window.initCatalogWorkspaceBindings?.();
 window.initMoneyWorkspaceBindings?.();
 window.initTeamWorkspaceBindings?.();
 window.initDispatchWorkspaceBindings?.();
+window.initBidWorkspaceBindings?.();
 window.initLeadPlanWorkspaceBindings?.();
 
 const AVAILABILITY_TIMEZONES = [
@@ -4526,7 +4527,7 @@ function renderContracts() {
     expiringEl.innerHTML = expiring.length
       ? expiring.map(c => `<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.06);">
           <div><div style="font-weight:500;color:#e8e9eb;">${escapeHtml(c.title)}</div>
-          <div style="font-size:.78rem;color:rgba(255,255,255,.4);">${escapeHtml(c.contract_type || 'warranty')} Â· expires ${new Date(c.expires_at).toLocaleDateString()}</div></div>
+          <div style="font-size:.78rem;color:rgba(255,255,255,.4);">${escapeHtml(c.contract_type || 'warranty')} · expires ${new Date(c.expires_at).toLocaleDateString()}</div></div>
           <span style="color:#fbbf24;font-size:.78rem;font-weight:600;">${Math.ceil((new Date(c.expires_at)-now)/86400000)} days</span>
         </div>`).join('')
       : '<div class="muted" style="font-size:.82rem;">No contracts expiring in next 60 days.</div>';
@@ -4540,8 +4541,8 @@ function renderContracts() {
     <div style="display:flex;justify-content:space-between;align-items:flex-start;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.06);">
       <div>
         <div style="font-weight:500;color:#e8e9eb;">${escapeHtml(c.title)}</div>
-        <div style="font-size:.78rem;color:rgba(255,255,255,.4);">${escapeHtml(c.contract_type || 'warranty')}${c.starts_at ? ' Â· starts ' + new Date(c.starts_at).toLocaleDateString() : ''}${c.expires_at ? ' Â· expires ' + new Date(c.expires_at).toLocaleDateString() : ''}</div>
-        ${c.terms ? `<div style="font-size:.75rem;color:rgba(255,255,255,.3);margin-top:2px;">${escapeHtml(c.terms.slice(0,80))}${c.terms.length>80?'â€¦':''}</div>` : ''}
+        <div style="font-size:.78rem;color:rgba(255,255,255,.4);">${escapeHtml(c.contract_type || 'warranty')}${c.starts_at ? ' · starts ' + new Date(c.starts_at).toLocaleDateString() : ''}${c.expires_at ? ' · expires ' + new Date(c.expires_at).toLocaleDateString() : ''}</div>
+        ${c.terms ? `<div style="font-size:.75rem;color:rgba(255,255,255,.3);margin-top:2px;">${escapeHtml(c.terms.slice(0,80))}${c.terms.length>80?'…':''}</div>` : ''}
       </div>
       <button class="btn btn-ghost btn-sm" style="font-size:.72rem;" onclick="openEditContractModal(CONTRACTS_CACHE.find(x=>x.id==='${escapeAttr(c.id)}'))">Edit</button>
       <button class="btn btn-ghost" style="font-size:.72rem;" onclick="deleteContract('${escapeAttr(c.id)}')">Remove</button>
@@ -4602,7 +4603,7 @@ function openEditContractModal(contract) {
   document.getElementById('ecSave').onclick = async () => {
     const title = (document.getElementById('ecTitle')?.value || '').trim();
     if (!title) { notifyOperator("Add a title first."); return; }
-    const btn = document.getElementById('ecSave'); btn.disabled = true; btn.textContent = 'Savingâ€¦';
+    const btn = document.getElementById('ecSave'); btn.disabled = true; btn.textContent = 'Saving…';
     try {
       const tok = await getAccessToken();
       const res = await fetch('/.netlify/functions/manage-service-contracts', {
@@ -4672,7 +4673,7 @@ function openAddContractModal(customerId, orderId) {
   document.getElementById('ctSave').onclick = async () => {
     const title = ($('ctTitle')?.value || '').trim();
     if (!title) { notifyOperator("Add a title first."); return; }
-    const btn = $('ctSave'); btn.disabled = true; btn.textContent = 'Savingâ€¦';
+    const btn = $('ctSave'); btn.disabled = true; btn.textContent = 'Saving…';
     try {
       const tok = await getAccessToken();
       const res = await fetch('/.netlify/functions/manage-service-contracts', {
@@ -4725,7 +4726,7 @@ function renderInventory(filter = '') {
   const lowStockEl = $('inventoryLowStock');
   const totalValueEl = $('inventoryTotalValue');
   if (totalItemsEl) totalItemsEl.textContent = totalItems;
-  if (lowStockEl) lowStockEl.textContent = lowStock || 'â€”';
+  if (lowStockEl) lowStockEl.textContent = lowStock || '—';
   if (totalValueEl) totalValueEl.textContent = formatUsd(totalValue);
 
   const items = filter
@@ -4749,8 +4750,8 @@ function renderInventory(filter = '') {
     <tbody>${items.map(i => {
       const isLow = i.reorder_point > 0 && Number(i.quantity_on_hand) <= Number(i.reorder_point);
       return `<tr style="border-bottom:1px solid rgba(255,255,255,.05);">
-        <td style="padding:7px 8px;font-weight:500;color:#e8e9eb;">${escapeHtml(i.name)}${isLow ? ' <span style="color:#fbbf24;font-size:.72rem;">âš  Low</span>' : ''}</td>
-        <td style="padding:7px 8px;color:rgba(255,255,255,.45);">${escapeHtml(i.category || 'â€”')}</td>
+        <td style="padding:7px 8px;font-weight:500;color:#e8e9eb;">${escapeHtml(i.name)}${isLow ? ' <span style="color:#fbbf24;font-size:.72rem;">⚠ Low</span>' : ''}</td>
+        <td style="padding:7px 8px;color:rgba(255,255,255,.45);">${escapeHtml(i.category || '—')}</td>
         <td style="text-align:right;padding:7px 8px;">${Number(i.quantity_on_hand)} ${escapeHtml(i.unit || '')}</td>
         <td style="text-align:right;padding:7px 8px;color:rgba(255,255,255,.45);">${formatUsd(i.cost_cents)}</td>
         <td style="text-align:right;padding:7px 8px;">${formatUsd(i.price_cents)}</td>
@@ -4822,7 +4823,7 @@ function openAddInventoryModal() {
     const name = ($('invName')?.value || '').trim();
     if (!name) { notifyOperator("Add an item name first."); return; }
     const btn = $('invSaveBtn');
-    btn.disabled = true; btn.textContent = 'Savingâ€¦';
+    btn.disabled = true; btn.textContent = 'Saving…';
     try {
       const tok = await getAccessToken();
       const res = await fetch('/.netlify/functions/manage-inventory', {
@@ -4863,7 +4864,7 @@ function openLogUsageModal(itemId, itemName) {
   modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10000;display:flex;align-items:center;justify-content:center;';
   modal.innerHTML = `
     <div style="background:#1e2029;border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:24px 28px;max-width:400px;width:90%;box-shadow:0 8px 40px rgba(0,0,0,.5);">
-      <h3 style="margin:0 0 16px;font-size:1rem;color:#e8e9eb;">Log usage â€” ${escapeHtml(itemName)}</h3>
+      <h3 style="margin:0 0 16px;font-size:1rem;color:#e8e9eb;">Log usage — ${escapeHtml(itemName)}</h3>
       <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:18px;">
         <div style="display:flex;gap:8px;">
           <div style="flex:1;">
@@ -4889,7 +4890,7 @@ function openLogUsageModal(itemId, itemName) {
   document.getElementById('logUsageSave').onclick = async () => {
     const qty = parseFloat($('usageQty')?.value || 1);
     const btn = $('logUsageSave');
-    btn.disabled = true; btn.textContent = 'Savingâ€¦';
+    btn.disabled = true; btn.textContent = 'Saving…';
     try {
       const tok = await getAccessToken();
       const res = await fetch('/.netlify/functions/manage-inventory', {
@@ -4925,7 +4926,7 @@ function openEditInventoryModal(itemId) {
   modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10000;display:flex;align-items:center;justify-content:center;';
   modal.innerHTML = `
     <div style="background:#1e2029;border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:24px 28px;max-width:420px;width:90%;box-shadow:0 8px 40px rgba(0,0,0,.5);">
-      <h3 style="margin:0 0 16px;font-size:1rem;color:#e8e9eb;">Edit â€” ${escapeHtml(item.name)}</h3>
+      <h3 style="margin:0 0 16px;font-size:1rem;color:#e8e9eb;">Edit — ${escapeHtml(item.name)}</h3>
       <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:18px;">
         <div style="display:flex;gap:8px;">
           <div style="flex:1;"><label style="font-size:.75rem;color:rgba(255,255,255,.35);display:block;margin-bottom:2px;">Qty on hand</label>
@@ -4944,7 +4945,7 @@ function openEditInventoryModal(itemId) {
   document.body.appendChild(modal);
   document.getElementById('eiSave').onclick = async () => {
     const btn = $('eiSave');
-    btn.disabled = true; btn.textContent = 'Savingâ€¦';
+    btn.disabled = true; btn.textContent = 'Saving…';
     try {
       const tok = await getAccessToken();
       const res = await fetch('/.netlify/functions/manage-inventory', {
@@ -4992,8 +4993,8 @@ function renderVendors() {
     <div class="li" style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.06);">
       <div style="flex:1;">
         <div style="font-weight:600;color:#e8e9eb;">${escapeHtml(v.name)}</div>
-        <div style="font-size:.8rem;color:rgba(255,255,255,.4);">${escapeHtml(v.company || "")}${v.company && v.trade ? " Â· " : ""}${escapeHtml(v.trade || "")}</div>
-        <div style="font-size:.78rem;color:rgba(255,255,255,.35);">${escapeHtml(v.email || "")}${v.email && v.phone ? " Â· " : ""}${escapeHtml(v.phone || "")}</div>
+        <div style="font-size:.8rem;color:rgba(255,255,255,.4);">${escapeHtml(v.company || "")}${v.company && v.trade ? " · " : ""}${escapeHtml(v.trade || "")}</div>
+        <div style="font-size:.78rem;color:rgba(255,255,255,.35);">${escapeHtml(v.email || "")}${v.email && v.phone ? " · " : ""}${escapeHtml(v.phone || "")}</div>
       </div>
       <button class="btn btn-ghost btn-sm" style="font-size:.75rem;" onclick="openEditVendorModal(VENDORS_CACHE.find(x=>x.id==='${escapeAttr(v.id)}'))">Edit</button>
       <button class="btn btn-ghost" style="font-size:.75rem;" onclick="deleteVendor('${escapeAttr(v.id)}')">Remove</button>
@@ -5038,7 +5039,7 @@ function openEditVendorModal(vendor) {
   document.getElementById('evSave').onclick = async () => {
     const name = (document.getElementById('evName')?.value || '').trim();
     if (!name) { notifyOperator("Add a name first."); return; }
-    const btn = document.getElementById('evSave'); btn.disabled = true; btn.textContent = 'Savingâ€¦';
+    const btn = document.getElementById('evSave'); btn.disabled = true; btn.textContent = 'Saving…';
     try {
       const tok = await getAccessToken();
       const res = await fetch('/.netlify/functions/manage-vendors', {
@@ -5066,7 +5067,7 @@ function openEditVendorModal(vendor) {
   };
 }
 
-// â”€â”€ Equipment management â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Equipment management ────────────────────────────────────────────────────────
 async function fetchEquipment() {
   const token = (await sb.auth.getSession()).data.session?.access_token;
   const res = await fetch('/.netlify/functions/manage-equipment', { headers: { Authorization: 'Bearer ' + token } });
@@ -5093,9 +5094,9 @@ function renderEquipment() {
     </tr></thead>
     <tbody>
       ${EQUIPMENT_CACHE.map(e => `<tr>
-        <td style="padding:8px;color:#e8e9eb;">${escapeHtml(e.unit_number ? `${e.unit_number} â€” ${e.name}` : e.name)}<br><span style="font-size:.75rem;color:rgba(255,255,255,.35);">${escapeHtml([e.year, e.make, e.model].filter(Boolean).join(' '))}</span></td>
-        <td style="padding:8px;color:rgba(255,255,255,.55);">${escapeHtml(e.equipment_type || 'â€”')}</td>
-        <td style="padding:8px;color:rgba(255,255,255,.55);">${e.hourly_rate_cents ? '$' + (e.hourly_rate_cents/100).toFixed(0) + '/hr' : 'â€”'}</td>
+        <td style="padding:8px;color:#e8e9eb;">${escapeHtml(e.unit_number ? `${e.unit_number} — ${e.name}` : e.name)}<br><span style="font-size:.75rem;color:rgba(255,255,255,.35);">${escapeHtml([e.year, e.make, e.model].filter(Boolean).join(' '))}</span></td>
+        <td style="padding:8px;color:rgba(255,255,255,.55);">${escapeHtml(e.equipment_type || '—')}</td>
+        <td style="padding:8px;color:rgba(255,255,255,.55);">${e.hourly_rate_cents ? '$' + (e.hourly_rate_cents/100).toFixed(0) + '/hr' : '—'}</td>
         <td style="padding:8px;"><span style="font-size:.75rem;font-weight:600;color:${statusColor[e.status] || '#fff'};">${e.status || 'active'}</span></td>
         <td style="padding:8px;text-align:right;display:flex;gap:6px;justify-content:flex-end;">
           <button class="btn btn-ghost" style="font-size:.72rem;" onclick="openEditEquipmentModal('${escapeAttr(e.id)}')">Edit</button>
@@ -6295,7 +6296,7 @@ function renderHydrovacAssetsWorkspace() {
       <label style="margin-top:12px;">Notes
         <textarea id="assetNotes" rows="3" placeholder="Condition notes, site access, or municipal context.">${escapeHtml(active?.notes || "")}</textarea>
       </label>
-      <div class="detail-copy" style="margin-top:12px;">Service count: ${escapeHtml(String(active?.service_count_total || 0))} total â€¢ Last serviced ${escapeHtml(active?.last_service_date || "Not yet recorded")}</div>
+      <div class="detail-copy" style="margin-top:12px;">Service count: ${escapeHtml(String(active?.service_count_total || 0))} total • Last serviced ${escapeHtml(active?.last_service_date || "Not yet recorded")}</div>
       <div class="row" style="margin-top:12px;">
         <button id="btnSaveAsset" class="btn btn-primary" type="button">${active ? "Save asset" : "Create asset"}</button>
         ${active?.customer_id ? `<button id="btnOpenAssetCustomer" class="btn btn-ghost" type="button">Open customer</button>` : ""}
@@ -6484,7 +6485,7 @@ $("btnMyBookings")?.addEventListener("click", () => {
   renderBookings();
 });
 
-// â”€â”€ Walk-in booking â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Walk-in booking ─────────────────────────────────────────────────────────
 $("btnWalkIn")?.addEventListener("click", () => {
   const existing = document.getElementById("walkInModal");
   if (existing) { existing.remove(); return; }
@@ -6496,7 +6497,7 @@ $("btnWalkIn")?.addEventListener("click", () => {
   ).join("");
   modal.innerHTML = `
     <div style="background:#1e2029;border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:28px 32px;max-width:420px;width:90%;box-shadow:0 8px 40px rgba(0,0,0,.5);">
-      <h3 style="margin:0 0 18px;font-size:1rem;color:#e8e9eb;">âš¡ Walk-in booking</h3>
+      <h3 style="margin:0 0 18px;font-size:1rem;color:#e8e9eb;">⚡ Walk-in booking</h3>
       <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px;">
         <div>
           <label style="font-size:.78rem;color:rgba(255,255,255,.45);display:block;margin-bottom:3px;">Customer</label>
@@ -6542,7 +6543,7 @@ $("btnWalkIn")?.addEventListener("click", () => {
     const notes = (document.getElementById("wiNotes").value || "").trim();
     if (!service) { notifyOperator("Add a service name first."); return; }
     const btn = document.getElementById("wiSave");
-    btn.disabled = true; btn.textContent = "Creatingâ€¦";
+    btn.disabled = true; btn.textContent = "Creating…";
     try {
       const tok = await getAccessToken();
       const now = new Date().toISOString();
@@ -6598,7 +6599,7 @@ $("btnLogTime")?.addEventListener("click", () => {
 
   // Build open-orders list for the dropdown
   const openOrders = CRM_ORDERS_CACHE.filter((o) => !["paid","cancelled"].includes(String(o.status || "").toLowerCase()));
-  const orderOptions = openOrders.map((o) => `<option value="${escapeAttr(o.id)}">${escapeHtml(o.customer_name || o.name || "Order")} â€” ${escapeHtml(o.title || o.id)}</option>`).join("");
+  const orderOptions = openOrders.map((o) => `<option value="${escapeAttr(o.id)}">${escapeHtml(o.customer_name || o.name || "Order")} — ${escapeHtml(o.title || o.id)}</option>`).join("");
 
   modal.innerHTML = `
     <div style="background:#1e2029;border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:28px 32px;max-width:440px;width:90%;box-shadow:0 8px 40px rgba(0,0,0,.5);">
@@ -6663,7 +6664,7 @@ $("btnLogTime")?.addEventListener("click", () => {
       const d = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(d.error || "Failed to save time entry");
       if (d.entry) TIME_ENTRIES_CACHE = [...TIME_ENTRIES_CACHE, d.entry];
-      msgEl.textContent = `âœ“ Logged ${hours}h${billable && rate ? ` = $${(amountCents / 100).toFixed(2)} billable` : ''}`;
+      msgEl.textContent = `✓ Logged ${hours}h${billable && rate ? ` = $${(amountCents / 100).toFixed(2)} billable` : ''}`;
       msgEl.style.color = "#4ade80";
       setTimeout(() => modal.remove(), 1500);
     } catch (err) {
@@ -6676,7 +6677,7 @@ $("btnLogTime")?.addEventListener("click", () => {
 
 $("btnCopyBookingLink")?.addEventListener("click", () => {
   const link = $("bookingLinkDisplay")?.textContent?.trim();
-  if (!link || link === "â€”") return;
+  if (!link || link === "—") return;
   navigator.clipboard.writeText(link).then(() => {
     const btn = $("btnCopyBookingLink");
     if (btn) { btn.textContent = "Copied!"; setTimeout(() => { btn.textContent = "Copy link"; }, 2000); }
@@ -6705,9 +6706,9 @@ $("btnBkNext")?.addEventListener("click", async () => {
   function computeRecurrenceCount() {
     const rule = ruleEl.value;
     const endDate = endEl?.value;
-    if (!rule || !endDate) { if (cntEl) cntEl.textContent = "â€”"; return; }
+    if (!rule || !endDate) { if (cntEl) cntEl.textContent = "—"; return; }
     const baseDate = $("bkDate")?.value;
-    if (!baseDate) { if (cntEl) cntEl.textContent = "â€”"; return; }
+    if (!baseDate) { if (cntEl) cntEl.textContent = "—"; return; }
     const start = new Date(baseDate + "T00:00:00");
     const end   = new Date(endDate + "T00:00:00");
     if (end <= start) { if (cntEl) cntEl.textContent = "End date must be after start date."; return; }
@@ -6749,7 +6750,7 @@ $("btnSaveBooking")?.addEventListener("click", async () => {
   const endsAt   = new Date(new Date(startsAt).getTime() + dur * 60000).toISOString();
 
   btn.disabled = true;
-  if (msg) { msg.textContent = "Savingâ€¦"; msg.className = "msg"; }
+  if (msg) { msg.textContent = "Saving…"; msg.className = "msg"; }
   try {
     const tok = await getAccessToken();
     const payload = { customer_name: name, customer_email: email || undefined, title, starts_at: startsAt, ends_at: endsAt, notes: notes || undefined };
@@ -6772,13 +6773,13 @@ $("btnSaveBooking")?.addEventListener("click", async () => {
         });
         const rData = await rRes.json().catch(() => ({}));
         const n = rData.count || 0;
-        if (msg) { msg.textContent = `âœ“ Booked + ${n} recurring instance${n === 1 ? "" : "s"} created.`; msg.className = "msg success"; }
+        if (msg) { msg.textContent = `✓ Booked + ${n} recurring instance${n === 1 ? "" : "s"} created.`; msg.className = "msg success"; }
         showToast(`Booked + ${n} recurring instance${n === 1 ? "" : "s"} created.`);
       } catch (_) {
-        if (msg) { msg.textContent = "âœ“ Booking saved! (Recurring instances may have failed.)"; msg.className = "msg success"; }
+        if (msg) { msg.textContent = "✓ Booking saved! (Recurring instances may have failed.)"; msg.className = "msg success"; }
       }
     } else {
-      if (msg) { msg.textContent = "âœ“ Booking saved!"; msg.className = "msg success"; }
+      if (msg) { msg.textContent = "✓ Booking saved!"; msg.className = "msg success"; }
     }
 
     // Reset form
@@ -6795,7 +6796,7 @@ $("btnSaveBooking")?.addEventListener("click", async () => {
   }
 });
 
-// â”€â”€ End Bookings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── End Bookings ─────────────────────────────────────────────────────────────
 
 async function fetchCrmOrders() {
   if (FETCHING.has('orders')) return;
@@ -7409,1775 +7410,6 @@ function mergeBidDraftCollections(localRows = [], remoteRows = []) {
   });
   return [...merged.values()].sort((a, b) => new Date(b.updated_at || 0).getTime() - new Date(a.updated_at || 0).getTime());
 }
-function persistBidDrafts() {
-  try {
-    window.localStorage.setItem(bidStorageKey(), JSON.stringify(BIDS_CACHE || []));
-    return true;
-  } catch (err) {
-    setInlineMessage(bidMsg, err.message || "Bid drafts could not be saved in this browser.", "error");
-    return false;
-  }
-}
-function setBidWorkspaceBootstrapping(pending, message = "") {
-  BID_WORKSPACE_BOOTSTRAPPING = !!pending;
-  if (bidForm) {
-    bidForm.hidden = !!pending;
-    bidForm.setAttribute("aria-busy", pending ? "true" : "false");
-  }
-  const host = bidForm?.parentElement;
-  if (!host) return;
-  let state = host.querySelector("#bidWorkspaceBootstrappingState");
-  if (!state) {
-    state = document.createElement("div");
-    state.id = "bidWorkspaceBootstrappingState";
-    state.className = "detail-copy";
-    state.style.marginBottom = "14px";
-    host.insertBefore(state, bidForm || null);
-  }
-  state.hidden = !pending;
-  state.textContent = pending ? (message || "Opening proposal workspace...") : "";
-}
-function loadBidDrafts() {
-  try {
-    const raw = window.localStorage.getItem(bidStorageKey());
-    const parsed = raw ? JSON.parse(raw) : [];
-    BIDS_CACHE = Array.isArray(parsed) ? parsed : [];
-  } catch (_) {
-    BIDS_CACHE = [];
-  }
-  ACTIVE_BID_ID = BIDS_CACHE[0]?.id || null;
-}
-async function loadPersistedBids() {
-  const remoteRows = await fetchPersistedBids();
-  const remoteDrafts = remoteRows.map(draftFromBidRow);
-  BIDS_CACHE = mergeBidDraftCollections(BIDS_CACHE, remoteDrafts);
-  persistBidDrafts();
-  ACTIVE_BID_ID = ACTIVE_BID_ID && BIDS_CACHE.some((row) => row.id === ACTIVE_BID_ID)
-    ? ACTIVE_BID_ID
-    : (BIDS_CACHE[0]?.id || null);
-  return BIDS_CACHE;
-}
-async function flushBidDraftSync(options = {}) {
-  if (BID_SYNC_PROMISE) {
-    try {
-      await BID_SYNC_PROMISE;
-    } catch (err) {
-      if (options.throwOnError) throw err;
-      return null;
-    }
-  }
-
-  const runSync = async () => {
-    let lastSyncedDraft = null;
-    while (true) {
-      const active = currentBid();
-      if (!active || !CURRENT_OPERATOR?.operator_id) return lastSyncedDraft;
-
-      const activeUpdatedAt = String(active.updated_at || "");
-      const rowPayload = bidRowFromDraft(active);
-      const recordId = bidRecordId(active);
-      const query = recordId
-        ? sb.from("bids").update(rowPayload).eq("id", recordId).eq(OPERATOR_COLUMN, opId()).eq(TENANT_COLUMN, TENANT_ID)
-        : sb.from("bids").insert({ ...rowPayload, created_at: active.created_at || new Date().toISOString() });
-      const { data, error } = await query.select("*").single();
-      if (error) throw error;
-
-      const remoteDraft = draftFromBidRow(data);
-      const latestDraft = BIDS_CACHE.find((row) => row.id === active.id) || active;
-      const changedWhileSyncing = String(latestDraft.updated_at || "") !== activeUpdatedAt;
-      const baseDraft = changedWhileSyncing ? latestDraft : active;
-      const nextDraft = changedWhileSyncing
-        ? {
-            ...baseDraft,
-            record_id: data.id,
-            metadata: {
-              ...(remoteDraft.metadata || {}),
-              ...(baseDraft.metadata || {}),
-              local_draft_id: baseDraft.id,
-            },
-          }
-        : {
-            ...baseDraft,
-            ...remoteDraft,
-            id: baseDraft.id,
-            record_id: data.id,
-            metadata: {
-              ...(remoteDraft.metadata || {}),
-              ...(baseDraft.metadata || {}),
-              local_draft_id: baseDraft.id,
-            },
-          };
-
-      BIDS_CACHE = BIDS_CACHE.map((row) => row.id === baseDraft.id ? nextDraft : row);
-      ACTIVE_BID_ID = nextDraft.id;
-      persistBidDrafts();
-      lastSyncedDraft = nextDraft;
-
-      if (!changedWhileSyncing) return lastSyncedDraft;
-    }
-  };
-
-  BID_SYNC_IN_FLIGHT = true;
-  BID_SYNC_PROMISE = runSync();
-  try {
-    return await BID_SYNC_PROMISE;
-  } catch (err) {
-    console.error("[bids] sync failed", err);
-    if (options.throwOnError) throw err;
-  } finally {
-    BID_SYNC_IN_FLIGHT = false;
-    BID_SYNC_PROMISE = null;
-  }
-  return null;
-}
-function queueBidDraftSync(delayMs = 500) {
-  if (BID_SYNC_TIMER) window.clearTimeout(BID_SYNC_TIMER);
-  BID_SYNC_TIMER = window.setTimeout(() => {
-    flushBidDraftSync().catch(console.error);
-  }, delayMs);
-}
-function replaceBidDraft(nextDraft) {
-  BIDS_CACHE = [...(BIDS_CACHE || []).filter((row) => row.id !== nextDraft.id), nextDraft]
-    .sort((a, b) => new Date(b.updated_at || 0).getTime() - new Date(a.updated_at || 0).getTime());
-  ACTIVE_BID_ID = nextDraft.id;
-  persistBidDrafts();
-  queueBidDraftSync();
-  return nextDraft;
-}
-function sortedBids(filter = "") {
-  const needle = String(filter || "").trim().toLowerCase();
-  const rows = [...(BIDS_CACHE || [])].sort((a, b) => new Date(b.updated_at || 0).getTime() - new Date(a.updated_at || 0).getTime());
-  if (!needle) return rows;
-  return rows.filter((row) => {
-    const customer = findBidCustomer(row.customer_id);
-    const haystack = [
-      row.title,
-      customer?.name,
-      row.service_address,
-      row.status,
-      bidProfileConfig(row.profile).label,
-      row.project_summary,
-    ].join(" ").toLowerCase();
-    return haystack.includes(needle);
-  });
-}
-function renderBidCustomerOptions(selected = "") {
-  if (!bidCustomerId) return;
-  const options = sortedCustomers(CUSTOMERS_CACHE);
-  bidCustomerId.innerHTML = [
-    `<option value="">Link customer later</option>`,
-    ...options.map((customer) => `<option value="${escapeAttr(customer.id)}" ${customer.id === selected ? "selected" : ""}>${escapeHtml(customer.name || "Unnamed customer")}</option>`),
-  ].join("");
-}
-function clearBidQuickCustomerForm() {
-  if (bidQuickCustomerName) bidQuickCustomerName.value = "";
-  if (bidQuickCustomerEmail) bidQuickCustomerEmail.value = "";
-  if (bidQuickCustomerPhone) bidQuickCustomerPhone.value = "";
-  if (bidQuickCustomerPreferredContact) bidQuickCustomerPreferredContact.value = "email";
-  if (bidQuickCustomerNote) bidQuickCustomerNote.value = "";
-  setInlineMessage(bidQuickCustomerMsg, "");
-}
-function setBidQuickCustomerOpen(nextOpen, opts = {}) {
-  BID_QUICK_CUSTOMER_OPEN = !!nextOpen;
-  if (bidQuickCustomerCard) bidQuickCustomerCard.classList.toggle("is-open", BID_QUICK_CUSTOMER_OPEN);
-  if (bidQuickCustomerForm) bidQuickCustomerForm.classList.toggle("hidden", !BID_QUICK_CUSTOMER_OPEN);
-  if (!BID_QUICK_CUSTOMER_OPEN && opts.keepValues !== true) clearBidQuickCustomerForm();
-}
-function renderBidQuickCustomerCard(draft) {
-  if (!bidQuickCustomerCard) return;
-  const linkedCustomer = findBidCustomer(draft?.customer_id || "");
-  const hasCustomers = CUSTOMERS_CACHE.length > 0;
-  const forceOpen = !linkedCustomer && !hasCustomers;
-  const nextOpen = forceOpen || BID_QUICK_CUSTOMER_OPEN;
-
-  if (bidQuickCustomerHeading) {
-    bidQuickCustomerHeading.textContent = linkedCustomer
-      ? "Customer record linked"
-      : (!hasCustomers ? "No customers in CRM yet" : "Need a new customer?");
-  }
-  if (bidQuickCustomerSummary) {
-    bidQuickCustomerSummary.textContent = linkedCustomer
-      ? `${linkedCustomer.name || "This customer"} is attached to the bid. Create another customer here only if this walkthrough belongs to someone else.`
-      : (!hasCustomers
-          ? "Capture the first customer here without leaving the walkthrough. A name plus email or phone is enough to keep moving."
-          : "Link an existing customer above, or capture a brand-new one here without leaving the walkthrough.");
-  }
-  if (btnToggleBidQuickCustomer) {
-    btnToggleBidQuickCustomer.textContent = forceOpen
-      ? "Customer details below"
-      : (nextOpen ? "Hide quick customer" : "Create customer here");
-    btnToggleBidQuickCustomer.disabled = forceOpen;
-  }
-  setBidQuickCustomerOpen(nextOpen, { keepValues: true });
-}
-function attachCustomerToCurrentBid(customer) {
-  if (!customer?.id) return null;
-  const active = updateCurrentBidFromForm({ allowCreate: true }) || currentBid();
-  if (!active) return null;
-  const currentTitle = String(active.title || "").trim();
-  const previousDefaultTitle = defaultBidTitleFromDraft(active);
-  const nextDraft = {
-    ...active,
-    customer_id: customer.id,
-    updated_at: new Date().toISOString(),
-  };
-  if (!currentTitle || currentTitle === previousDefaultTitle) {
-    nextDraft.title = defaultBidTitleFromDraft(nextDraft);
-  }
-  replaceBidDraft(nextDraft);
-  return nextDraft;
-}
-function clearBidLineItemForm() {
-  ACTIVE_BID_LINE_ITEM_ID = null;
-  if (bidLineItemId) bidLineItemId.value = "";
-  if (bidLineItemName) bidLineItemName.value = "";
-  if (bidLineItemKind) bidLineItemKind.value = "base";
-  if (bidLineItemDescription) bidLineItemDescription.value = "";
-  if (bidLineItemQuantity) bidLineItemQuantity.value = "1";
-  if (bidLineItemUnit) bidLineItemUnit.value = "job";
-  if (bidLineItemUnitPrice) bidLineItemUnitPrice.value = "0.00";
-  setInlineMessage(bidLineItemMsg, "");
-}
-function populateBidLineItemForm(item) {
-  ACTIVE_BID_LINE_ITEM_ID = item?.id || null;
-  if (bidLineItemId) bidLineItemId.value = item?.id || "";
-  if (bidLineItemName) bidLineItemName.value = item?.name || "";
-  if (bidLineItemKind) bidLineItemKind.value = String(item?.kind || "base");
-  if (bidLineItemDescription) bidLineItemDescription.value = item?.description || "";
-  if (bidLineItemQuantity) bidLineItemQuantity.value = String(item?.quantity ?? 1);
-  if (bidLineItemUnit) bidLineItemUnit.value = item?.unit || "job";
-  if (bidLineItemUnitPrice) bidLineItemUnitPrice.value = money(item?.unit_price_cents || 0);
-}
-function clearBidPhotoForm() {
-  hydrateBidPhotoCategoryOptions(currentBid()?.profile || bidProfile?.value || preferredBidProfile(), bidPhotoCategory?.value || "");
-  if (bidPhotoFile) bidPhotoFile.value = "";
-  if (bidPhotoName) bidPhotoName.value = "";
-  if (bidPhotoCategory && !bidPhotoCategory.value) bidPhotoCategory.value = "overview";
-  if (bidPhotoNote) bidPhotoNote.value = "";
-  setInlineMessage(bidPhotoMsg, "");
-}
-function collectBidFormDraft() {
-  const active = currentBid();
-  const profileKey = normalizeBidProfile(bidProfile?.value || active?.profile || preferredBidProfile());
-  const draft = {
-    ...(active || emptyBidDraft(profileKey)),
-    id: bidId?.value || active?.id || createLocalId("bid"),
-    record_id: active?.record_id || "",
-    lead_id: active?.lead_id || "",
-    title: bidTitle?.value?.trim() || "",
-    customer_id: bidCustomerId?.value || "",
-    profile: profileKey,
-    status: String(bidStatus?.value || "draft"),
-    walkthrough_at: toIsoDateTime(bidWalkthroughAt?.value) || active?.walkthrough_at || null,
-    valid_until: bidValidUntil?.value || "",
-    service_address: bidServiceAddress?.value?.trim() || "",
-    site_contact: bidSiteContact?.value?.trim() || "",
-    schedule_window: bidScheduleWindow?.value?.trim() || "",
-    project_summary: bidProjectSummary?.value?.trim() || "",
-    scope_of_work: bidScopeOfWork?.value?.trim() || "",
-    proposed_solution: bidProposedSolution?.value?.trim() || "",
-    materials_plan: bidMaterialsPlan?.value?.trim() || "",
-    unused_materials_plan: bidUnusedMaterialsPlan?.value?.trim() || "",
-    exclusions: bidExclusions?.value?.trim() || "",
-    warranty: bidWarranty?.value?.trim() || "",
-    cover_note: bidCoverNote?.value?.trim() || "",
-    internal_notes: bidInternalNotes?.value?.trim() || "",
-    deposit_percent: Number(bidDepositPercent?.value || 0),
-    deposit_amount_cents: toCents(bidDepositAmount?.value || 0),
-    terms: bidTerms?.value?.trim() || "",
-    line_items: cloneJson(active?.line_items || [], []),
-    photos: cloneJson(active?.photos || [], []),
-    updated_at: new Date().toISOString(),
-  };
-  if (!draft.title) draft.title = defaultBidTitleFromDraft(draft);
-  return draft;
-}
-function updateCurrentBidFromForm(opts = {}) {
-  const active = currentBid();
-  if (!active && opts.allowCreate !== true) return null;
-  const nextDraft = collectBidFormDraft();
-  replaceBidDraft(nextDraft);
-  if (opts.showMessage) setInlineMessage(bidMsg, "Bid saved.", "ok");
-  return nextDraft;
-}
-let bidAutosaveTimer = null;
-function scheduleBidAutosave() {
-  if (!currentBid()) return;
-  clearTimeout(bidAutosaveTimer);
-  bidAutosaveTimer = setTimeout(() => {
-    const nextDraft = updateCurrentBidFromForm();
-    if (nextDraft) renderBidWorkspace(nextDraft, { preserveForm: true });
-    renderBidList(bidSearch?.value || "");
-  }, 250);
-}
-async function applyBidProfileStructure(force = false) {
-  const active = currentBid();
-  if (!active) return null;
-  const profile = bidProfileConfig(bidProfile?.value || active.profile);
-  const hasCustomLineItems = Array.isArray(active.line_items) && active.line_items.length > 0;
-  if (force && hasCustomLineItems && !(await showConfirmModal("Replace the current line items with the starter service structure?", "Replace items", "Keep current items"))) {
-    return active;
-  }
-  const nextDraft = {
-    ...collectBidFormDraft(),
-    profile: normalizeBidProfile(bidProfile?.value || active.profile),
-    scope_of_work: force || !String(active.scope_of_work || "").trim() ? (profile.scopePrompt || "") : active.scope_of_work,
-    proposed_solution: force || !String(active.proposed_solution || "").trim() ? (profile.solutionPrompt || "") : active.proposed_solution,
-    materials_plan: force || !String(active.materials_plan || "").trim() ? (profile.materials || "") : active.materials_plan,
-    unused_materials_plan: force || !String(active.unused_materials_plan || "").trim() ? (profile.unused || "") : active.unused_materials_plan,
-    exclusions: force || !String(active.exclusions || "").trim() ? (profile.exclusions || "") : active.exclusions,
-    warranty: force || !String(active.warranty || "").trim() ? (profile.warranty || "") : active.warranty,
-    cover_note: force || !String(active.cover_note || "").trim() ? (profile.deliveryNote || "") : active.cover_note,
-    terms: force || !String(active.terms || "").trim() ? (profile.terms || "") : active.terms,
-    line_items: (force || !hasCustomLineItems)
-      ? (profile.lineItems || []).map((item) => ({
-          id: createLocalId("line"),
-          name: item.name || "",
-          description: item.description || "",
-          quantity: Number(item.quantity || 1),
-          unit: item.unit || "job",
-          unit_price_cents: Number(item.unit_price_cents || 0),
-          kind: String(item.kind || "base"),
-        }))
-      : cloneJson(active.line_items || [], []),
-    updated_at: new Date().toISOString(),
-  };
-  replaceBidDraft(nextDraft);
-  renderBids(bidSearch?.value || "");
-  setInlineMessage(bidMsg, "Service profile guidance applied.", "ok");
-  return nextDraft;
-}
-function populateBidForm(draft) {
-  renderBidCustomerOptions(draft?.customer_id || "");
-  if (bidId) bidId.value = draft?.id || "";
-  if (bidTitle) bidTitle.value = draft?.title || "";
-  if (bidProfile) bidProfile.value = normalizeBidProfile(draft?.profile);
-  hydrateBidPhotoCategoryOptions(draft?.profile, bidPhotoCategory?.value || "");
-  if (bidStatus) bidStatus.value = String(draft?.status || "draft");
-  if (bidWalkthroughAt) bidWalkthroughAt.value = toDateTimeLocalValue(draft?.walkthrough_at);
-  if (bidValidUntil) bidValidUntil.value = draft?.valid_until || "";
-  if (bidServiceAddress) bidServiceAddress.value = draft?.service_address || "";
-  if (bidSiteContact) bidSiteContact.value = draft?.site_contact || "";
-  if (bidScheduleWindow) bidScheduleWindow.value = draft?.schedule_window || "";
-  if (bidProjectSummary) bidProjectSummary.value = draft?.project_summary || "";
-  if (bidScopeOfWork) bidScopeOfWork.value = draft?.scope_of_work || "";
-  if (bidProposedSolution) bidProposedSolution.value = draft?.proposed_solution || "";
-  if (bidMaterialsPlan) bidMaterialsPlan.value = draft?.materials_plan || "";
-  if (bidUnusedMaterialsPlan) bidUnusedMaterialsPlan.value = draft?.unused_materials_plan || "";
-  if (bidExclusions) bidExclusions.value = draft?.exclusions || "";
-  if (bidWarranty) bidWarranty.value = draft?.warranty || "";
-  if (bidCoverNote) bidCoverNote.value = draft?.cover_note || "";
-  if (bidInternalNotes) bidInternalNotes.value = draft?.internal_notes || "";
-  if (bidDepositPercent) bidDepositPercent.value = String(draft?.deposit_percent ?? 0);
-  if (bidDepositAmount) bidDepositAmount.value = money(draft?.deposit_amount_cents || 0);
-  if (bidTerms) bidTerms.value = draft?.terms || "";
-  if (bidFormTitle) bidFormTitle.textContent = draft?.title || "Walkthrough workspace";
-}
-function clearBidForm() {
-  renderBidCustomerOptions("");
-  if (bidId) bidId.value = "";
-  if (bidTitle) bidTitle.value = "";
-  if (bidProfile) bidProfile.value = preferredBidProfile();
-  hydrateBidPhotoCategoryOptions(preferredBidProfile(), bidPhotoCategory?.value || "");
-  if (bidStatus) bidStatus.value = "draft";
-  if (bidWalkthroughAt) bidWalkthroughAt.value = "";
-  if (bidValidUntil) bidValidUntil.value = "";
-  if (bidServiceAddress) bidServiceAddress.value = "";
-  if (bidSiteContact) bidSiteContact.value = "";
-  if (bidScheduleWindow) bidScheduleWindow.value = "";
-  if (bidProjectSummary) bidProjectSummary.value = "";
-  if (bidScopeOfWork) bidScopeOfWork.value = "";
-  if (bidProposedSolution) bidProposedSolution.value = "";
-  if (bidMaterialsPlan) bidMaterialsPlan.value = "";
-  if (bidUnusedMaterialsPlan) bidUnusedMaterialsPlan.value = "";
-  if (bidExclusions) bidExclusions.value = "";
-  if (bidWarranty) bidWarranty.value = "";
-  if (bidCoverNote) bidCoverNote.value = "";
-  if (bidInternalNotes) bidInternalNotes.value = "";
-  if (bidDepositPercent) bidDepositPercent.value = "0";
-  if (bidDepositAmount) bidDepositAmount.value = "0.00";
-  if (bidTerms) bidTerms.value = "";
-  if (bidFormTitle) bidFormTitle.textContent = "Walkthrough workspace";
-  clearBidLineItemForm();
-  clearBidPhotoForm();
-}
-function bidGuidedSteps(draft) {
-  const totals = calculateBidTotals(draft || {});
-  const hasPricedBaseScope = bidIncludedLineItemsForOrder(draft).some((item) => bidLineItemTotalCents(item) > 0);
-  const readyStatuses = ["ready_to_send", "sent", "approved"];
-  const hasCustomers = CUSTOMERS_CACHE.length > 0;
-  return [
-    {
-      id: "client_site",
-      title: "Anchor the bid to a real client and place",
-      copy: "Link the customer record and add the service address so this proposal belongs to a real job, not just a note.",
-      done: !!draft?.customer_id && !!String(draft?.service_address || "").trim(),
-      actionLabel: !draft?.customer_id ? (hasCustomers ? "Link customer" : "Create customer") : "Add address",
-      targetId: !draft?.customer_id ? (hasCustomers ? "bidCustomerId" : "btnToggleBidQuickCustomer") : "bidServiceAddress",
-    },
-    {
-      id: "problem",
-      title: "Describe the problem in plain English",
-      copy: "Write what the customer needs solved, then make sure the base scope explains what is actually included.",
-      done: !!String(draft?.project_summary || "").trim() && !!String(draft?.scope_of_work || "").trim(),
-      actionLabel: !String(draft?.project_summary || "").trim() ? "Write summary" : "Review scope",
-      targetId: !String(draft?.project_summary || "").trim() ? "bidProjectSummary" : "bidScopeOfWork",
-    },
-    {
-      id: "pricing",
-      title: "Put real money on the scope",
-      copy: "A bid becomes usable when the line items carry actual pricing, not placeholders. Price the base work before polishing the proposal.",
-      done: hasPricedBaseScope && totals.total > 0,
-      actionLabel: "Price scope",
-      targetId: "bidLineItemUnitPrice",
-    },
-    {
-      id: "proof",
-      title: "Capture field proof",
-      copy: "Photos reduce memory errors, justify pricing, and give the client visible confidence in what you saw during the walkthrough.",
-      done: Array.isArray(draft?.photos) && draft.photos.length > 0,
-      actionLabel: "Add photo",
-      targetId: "bidPhotoFile",
-    },
-    {
-      id: "delivery",
-      title: "Package it so it is ready to send",
-      copy: "Finish the client note, confirm the validity window, and mark the bid ready so anyone on the team knows it can go out professionally.",
-      done: !!String(draft?.cover_note || "").trim() && !!String(draft?.valid_until || "").trim() && readyStatuses.includes(String(draft?.status || "").toLowerCase()),
-      actionLabel: !String(draft?.cover_note || "").trim() ? "Write delivery note" : (!String(draft?.valid_until || "").trim() ? "Set validity" : "Set ready status"),
-      targetId: !String(draft?.cover_note || "").trim() ? "bidCoverNote" : (!String(draft?.valid_until || "").trim() ? "bidValidUntil" : "bidStatus"),
-    },
-    {
-      id: "operations",
-      title: "Push the bid into live work",
-      copy: isServiceWorkspace(currentWorkspaceBlueprint())
-        ? "Once the proposal is real, move it into quoted / booked work so the rest of the business can manage it without relying on memory."
-        : "Once the proposal is real, convert it into a tracked order so the rest of the business can manage it without relying on memory.",
-      done: !!draft?.converted_order_id,
-      actionLabel: draft?.converted_order_id
-        ? (isServiceWorkspace(currentWorkspaceBlueprint()) ? "Open quoted / booked" : "Open order")
-        : (isServiceWorkspace(currentWorkspaceBlueprint()) ? "Move to quoted / booked" : "Create tracked order"),
-      targetId: "btnConvertBidToOrder",
-    },
-  ];
-}
-function focusBidFieldForStep(step) {
-  const targetId = step?.targetId;
-  if (!targetId) return;
-  const target = $(targetId);
-  if (!target) return;
-  if (targetId === "btnToggleBidQuickCustomer") {
-    if (!BID_QUICK_CUSTOMER_OPEN) setBidQuickCustomerOpen(true, { keepValues: true });
-    renderBidQuickCustomerCard(currentBid());
-    target.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
-    if (typeof target.click === "function") target.click();
-    window.setTimeout(() => bidQuickCustomerName?.focus({ preventScroll: true }), 80);
-    return;
-  }
-  target.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
-  if (targetId === "bidPhotoFile") {
-    try {
-      target.click();
-      return;
-    } catch (_) {
-      // Fall through to focus.
-    }
-  }
-  if (typeof target.focus === "function") target.focus({ preventScroll: true });
-}
-function renderBidGuideFlow(draft) {
-  if (!bidGuideFlow) return;
-  if (!draft) {
-    bidGuideFlow.innerHTML = `<div class="muted">Start a bid to see the next-best action and guided workflow.</div>`;
-    return;
-  }
-
-  const steps = bidGuidedSteps(draft);
-  const completed = steps.filter((step) => step.done).length;
-  const percent = Math.round((completed / steps.length) * 100);
-  const nextStep = steps.find((step) => !step.done) || null;
-
-  bidGuideFlow.innerHTML = `
-    <div class="bid-guide-flow">
-      <div class="bid-guide-flow__top">
-        <div class="bid-guide-flow__progress">
-          <strong>${completed}/${steps.length}</strong>
-          <span>guided steps complete</span>
-          <div class="bid-progress-bar"><span style="width:${percent}%;"></span></div>
-        </div>
-        <div class="bid-guide-flow__copy">
-          This bid follows a teach-through flow so an operator does not need to be naturally organized to build a strong proposal.
-          ${nextStep ? `<br><br><strong>Next best action:</strong> ${escapeHtml(nextStep.title)}.` : `<br><br><strong>Ready:</strong> this proposal has the core pieces in place and can move into delivery.`}
-        </div>
-        ${nextStep ? `<button class="btn btn-primary" type="button" data-bid-guide-next="${escapeAttr(nextStep.id)}">${escapeHtml(nextStep.actionLabel)}</button>` : `<span class="pill pill-on">Client-ready structure</span>`}
-      </div>
-      <div class="bid-step-list">
-        ${steps.map((step, index) => `
-          <div class="bid-step ${step.done ? "is-done" : ""}">
-            <div class="bid-step__left">
-              <div class="bid-step__num">${step.done ? "OK" : index + 1}</div>
-              <div>
-                <div class="bid-step__title">${escapeHtml(step.title)}</div>
-                <div class="bid-step__copy">${escapeHtml(step.copy)}</div>
-              </div>
-            </div>
-            <div class="bid-step__meta">
-              <span class="pill ${step.done ? "pill-on" : ""}">${step.done ? "Done" : "Pending"}</span>
-              <button class="btn btn-ghost btn-sm" type="button" data-bid-guide-step="${escapeAttr(step.id)}">${escapeHtml(step.done ? "Review" : step.actionLabel)}</button>
-            </div>
-          </div>
-        `).join("")}
-      </div>
-    </div>
-  `;
-
-  bidGuideFlow.querySelectorAll("[data-bid-guide-step]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const step = steps.find((entry) => entry.id === btn.getAttribute("data-bid-guide-step"));
-      if (step) focusBidFieldForStep(step);
-    });
-  });
-  bidGuideFlow.querySelectorAll("[data-bid-guide-next]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const step = steps.find((entry) => entry.id === btn.getAttribute("data-bid-guide-next"));
-      if (step) focusBidFieldForStep(step);
-    });
-  });
-}
-function renderBidProfileGuideCard(draft) {
-  if (!bidProfileGuide) return;
-  if (!draft) {
-    bidProfileGuide.innerHTML = `<div class="muted">Choose a service profile to load walkthrough prompts.</div>`;
-    return;
-  }
-  const profile = bidProfileConfig(draft.profile);
-  const proposalTips = bidProposalPrompts(draft.profile);
-  bidProfileGuide.innerHTML = `
-    <div class="bid-stack">
-      <div>
-        <div class="kicker">${escapeHtml(profile.label)}</div>
-        <div class="detail-copy">${escapeHtml(profile.intro)}</div>
-      </div>
-      <div>
-        <strong>What to capture</strong>
-        <ul class="bid-guide-list">
-          ${profile.photoPrompts.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
-        </ul>
-      </div>
-      <div>
-        <strong>How to price it</strong>
-        <ul class="bid-guide-list">
-          ${profile.pricingPrompts.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
-        </ul>
-      </div>
-      <div>
-        <strong>How to make it feel professional</strong>
-        <ul class="bid-guide-list">
-          ${proposalTips.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
-        </ul>
-      </div>
-    </div>
-  `;
-}
-function applyBidPhotoPreset(categoryValue) {
-  const profileKey = normalizeBidProfile(bidProfile?.value || currentBid()?.profile || preferredBidProfile());
-  const category = bidPhotoCategoryByValue(profileKey, categoryValue);
-  if (!category) return;
-  hydrateBidPhotoCategoryOptions(profileKey, category.value);
-  if (bidPhotoName && bidPhotoPresetNeedsName(bidPhotoName.value)) bidPhotoName.value = category.name || category.label || "";
-  if (bidPhotoNote && !String(bidPhotoNote.value || "").trim()) bidPhotoNote.value = category.note || "";
-  setInlineMessage(bidPhotoMsg, `${category.label} preset loaded. Capture the photo and save it to the bid.`, "");
-  if (bidPhotoFile) bidPhotoFile.focus();
-}
-function renderBidPhotoGuide(draft) {
-  if (!bidPhotoGuide) return;
-  const profileKey = normalizeBidProfile(draft?.profile || bidProfile?.value || preferredBidProfile());
-  const profile = bidProfileConfig(profileKey);
-  const categories = bidPhotoCategories(profileKey);
-  if (!categories.length) {
-    bidPhotoGuide.innerHTML = `<div class="muted">No photo prompts are configured for this service profile yet.</div>`;
-    return;
-  }
-  bidPhotoGuide.innerHTML = `
-    <div class="bid-template-panel__top">
-      <div>
-        <strong>${escapeHtml(profile.label)} shot list</strong>
-        <div class="bid-template-panel__copy">Tap a photo prompt to load the category, a suggested name, and the note starter before you capture the image.</div>
-      </div>
-    </div>
-    <div class="bid-chip-row">
-      ${categories.map((item) => `
-        <button class="btn btn-ghost btn-sm" type="button" data-bid-photo-preset="${escapeAttr(item.value)}">${escapeHtml(item.label)}</button>
-      `).join("")}
-    </div>
-  `;
-  bidPhotoGuide.querySelectorAll("[data-bid-photo-preset]").forEach((btn) => {
-    btn.addEventListener("click", () => applyBidPhotoPreset(btn.getAttribute("data-bid-photo-preset")));
-  });
-}
-function addBidScopeStarter(starterKey) {
-  let active = updateCurrentBidFromForm({ allowCreate: true }) || currentBid();
-  if (!active) active = startNewBid(preferredBidProfile());
-  const starter = bidScopeStarterLibrary(active.profile).find((item) => item.key === starterKey);
-  if (!starter) return null;
-  const existing = (active.line_items || []).find((item) => item.template_key === starter.key);
-  if (existing) {
-    populateBidLineItemForm(existing);
-    setInlineMessage(bidLineItemMsg, `${starter.name} is already on this bid. Edit pricing or wording below.`, "ok");
-    bidLineItemUnitPrice?.focus();
-    return existing;
-  }
-  const nextItem = mergeBidLineItem({}, {
-    ...starter,
-    template_key: starter.key,
-  });
-  const nextDraft = {
-    ...active,
-    line_items: [...(active.line_items || []), nextItem],
-    updated_at: new Date().toISOString(),
-  };
-  replaceBidDraft(nextDraft);
-  renderBidWorkspace(nextDraft, { preserveForm: true });
-  renderBidList(bidSearch?.value || "");
-  populateBidLineItemForm(nextItem);
-  setInlineMessage(bidLineItemMsg, `${starter.name} added. Price it and tighten the wording below.`, "ok");
-  bidLineItemUnitPrice?.focus();
-  return nextItem;
-}
-function renderBidScopeStarters(draft) {
-  if (!bidScopeStarters) return;
-  const profileKey = normalizeBidProfile(draft?.profile || bidProfile?.value || preferredBidProfile());
-  const profile = bidProfileConfig(profileKey);
-  const starters = bidScopeStarterLibrary(profileKey);
-  if (!starters.length) {
-    bidScopeStarters.innerHTML = `<div class="muted">No scope starters are configured for this service profile yet.</div>`;
-    return;
-  }
-  const activeKeys = new Set((draft?.line_items || []).map((item) => item.template_key).filter(Boolean));
-  bidScopeStarters.innerHTML = `
-    <div class="bid-template-panel__top">
-      <div>
-        <strong>${escapeHtml(profile.label)} scope starters</strong>
-        <div class="bid-template-panel__copy">Tap a starter to drop a professional line item into the bid instead of building every wash scope from scratch.</div>
-      </div>
-    </div>
-    <div class="bid-template-grid">
-      ${starters.map((item) => `
-        <button class="bid-template-card ${activeKeys.has(item.key) ? "is-added" : ""}" type="button" data-bid-scope-starter="${escapeAttr(item.key)}">
-          <div class="bid-template-card__kicker">${escapeHtml(formatBidLineItemKind(item.kind))}</div>
-          <div class="bid-template-card__title">${escapeHtml(item.name)}</div>
-          <div class="bid-template-card__copy">${escapeHtml(item.description || "")}</div>
-          <div class="bid-template-card__meta">
-            <span class="pill">${escapeHtml(String(item.quantity || 1))} ${escapeHtml(item.unit || "job")}</span>
-            <span class="pill ${activeKeys.has(item.key) ? "pill-on" : ""}">${activeKeys.has(item.key) ? "Added" : "Add starter"}</span>
-          </div>
-        </button>
-      `).join("")}
-    </div>
-  `;
-  bidScopeStarters.querySelectorAll("[data-bid-scope-starter]").forEach((btn) => {
-    btn.addEventListener("click", () => addBidScopeStarter(btn.getAttribute("data-bid-scope-starter")));
-  });
-}
-function addBidCatalogStarter(productId) {
-  let active = updateCurrentBidFromForm({ allowCreate: true }) || currentBid();
-  if (!active) active = startNewBid(preferredBidProfile());
-  const product = PRODUCTS_CACHE.find((row) => row.id === productId);
-  const pricingRow = currentPricingRow(productId);
-  if (!product) return null;
-
-  const existing = (active.line_items || []).find((item) => item.product_id === productId);
-  if (existing) {
-    populateBidLineItemForm(existing);
-    setInlineMessage(bidLineItemMsg, `${product.name} is already on this bid. Adjust the company-standard price if this job needs a custom number.`, "ok");
-    bidLineItemUnitPrice?.focus();
-    return existing;
-  }
-
-  const mode = normalizePricingModeForUi(pricingRow || product);
-  const nextItem = mergeBidLineItem({}, {
-    name: product.name || "Service line item",
-    description: product.description || "",
-    quantity: 1,
-    unit: pricingRow?.unit_label || "job",
-    unit_price_cents: mode === "quote" ? 0 : pricingAmountForUi(pricingRow || product),
-    kind: "base",
-    template_key: `catalog:${productId}`,
-    product_id: productId,
-    pricing_source: "company_standard",
-  });
-
-  const nextDraft = {
-    ...active,
-    line_items: [...(active.line_items || []), nextItem],
-    updated_at: new Date().toISOString(),
-  };
-  replaceBidDraft(nextDraft);
-  renderBidWorkspace(nextDraft, { preserveForm: true });
-  renderBidList(bidSearch?.value || "");
-  populateBidLineItemForm(nextItem);
-  setInlineMessage(bidLineItemMsg, `${product.name} loaded from company-standard pricing. Adjust the number if this specific job needs a custom price.`, "ok");
-  bidLineItemUnitPrice?.focus();
-  return nextItem;
-}
-function renderBidCatalogStarters(draft) {
-  if (!bidCatalogStarters) return;
-  const activeServices = PRODUCTS_CACHE
-    .filter((row) => !!row.is_active && !!row.is_available)
-    .map((row) => ({
-      product: row,
-      pricing: currentPricingRow(row.id),
-    }))
-    .filter(({ product, pricing }) => !!product && (!!pricing || ["fixed", "starts_at", "quote"].includes(String(product.pricing_mode || "").toLowerCase())))
-    .slice(0, 16);
-
-  if (!activeServices.length) {
-    bidCatalogStarters.innerHTML = `<div class="muted">Company-standard services will appear here once the service catalog has live offerings.</div>`;
-    return;
-  }
-
-  const activeProductIds = new Set((draft?.line_items || []).map((item) => item.product_id).filter(Boolean));
-  bidCatalogStarters.innerHTML = `
-    <div class="bid-template-panel__top">
-      <div>
-        <strong>Company-standard pricing</strong>
-        <div class="bid-template-panel__copy">Tap a live service to drop your standard pricing into this bid, then tighten it for the specific job without rebuilding the line item from scratch.</div>
-      </div>
-    </div>
-    <div class="bid-template-grid">
-      ${activeServices.map(({ product, pricing }) => `
-        <button class="bid-template-card ${activeProductIds.has(product.id) ? "is-added" : ""}" type="button" data-bid-catalog-starter="${escapeAttr(product.id)}">
-          <div class="bid-template-card__kicker">${escapeHtml(product.category || "Service")}</div>
-          <div class="bid-template-card__title">${escapeHtml(product.name || "Service")}</div>
-          <div class="bid-template-card__copy">${escapeHtml(pricingSummaryForRow(pricing || product))}</div>
-          <div class="bid-template-card__meta">
-            <span class="pill">${escapeHtml((pricing?.unit_label || "job").toString())}</span>
-            <span class="pill ${activeProductIds.has(product.id) ? "pill-on" : ""}">${activeProductIds.has(product.id) ? "Added" : "Use standard"}</span>
-          </div>
-        </button>
-      `).join("")}
-    </div>
-  `;
-  bidCatalogStarters.querySelectorAll("[data-bid-catalog-starter]").forEach((btn) => {
-    btn.addEventListener("click", () => addBidCatalogStarter(btn.getAttribute("data-bid-catalog-starter")));
-  });
-}
-function renderBidStatsCard(draft) {
-  if (!bidStatsWrap) return;
-  if (!draft) {
-    bidStatsWrap.innerHTML = `<div class="muted">No walkthrough bid selected yet.</div>`;
-    return;
-  }
-  const totals = calculateBidTotals(draft);
-  bidStatsWrap.innerHTML = `
-    <div class="bid-status-grid">
-      <div class="bid-stat">
-        <div class="bid-stat__label">Base investment</div>
-        <div class="bid-stat__value">${formatUsd(totals.total)}</div>
-      </div>
-      <div class="bid-stat">
-        <div class="bid-stat__label">Optional upsells</div>
-        <div class="bid-stat__value">${formatUsd(totals.options)}</div>
-      </div>
-      <div class="bid-stat">
-        <div class="bid-stat__label">Walkthrough photos</div>
-        <div class="bid-stat__value">${String(draft.photos?.length || 0)}</div>
-      </div>
-      <div class="bid-stat">
-        <div class="bid-stat__label">Last saved</div>
-        <div class="bid-stat__value" style="font-size:14px;">${escapeHtml(formatDateTime(draft.updated_at || draft.created_at))}</div>
-      </div>
-      <div class="bid-stat">
-        <div class="bid-stat__label">${escapeHtml(isServiceWorkspace(currentWorkspaceBlueprint()) ? "Quoted / booked work" : "Tracked order")}</div>
-        <div class="bid-stat__value" style="font-size:14px;">${escapeHtml(draft.converted_order_id ? "Created" : "Not yet")}</div>
-      </div>
-    </div>
-  `;
-}
-function renderBidDeliveryCard(draft) {
-  if (!bidDeliveryWrap) return;
-  if (!draft) {
-    bidDeliveryWrap.innerHTML = `<div class="muted">The proposal checklist will appear here once a draft is active.</div>`;
-    return;
-  }
-  const items = [];
-  if (!draft.customer_id) items.push(CUSTOMERS_CACHE.length ? "Link the bid to a customer record." : "Create the first customer record and link this bid to it.");
-  if (!String(draft.service_address || "").trim()) items.push("Add the service address.");
-  if (!String(draft.project_summary || "").trim()) items.push("Write the problem summary in plain English.");
-  if (!bidIncludedLineItemsForOrder(draft).some((item) => bidLineItemTotalCents(item) > 0)) items.push("Add at least one priced base-scope line item.");
-  if (!Array.isArray(draft.photos) || !draft.photos.length) items.push("Capture walkthrough photos from the site.");
-  if (!String(draft.cover_note || "").trim()) items.push("Write the client delivery note.");
-  if (!String(draft.valid_until || "").trim()) items.push("Set the proposal validity window.");
-  if (!draft.converted_order_id) items.push("Convert the bid into tracked work when it is ready to move into operations.");
-  bidDeliveryWrap.innerHTML = items.length
-    ? `<ul class="bid-readiness-list">${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`
-    : `<div class="note-item"><strong>Ready to deliver</strong><div class="muted">This draft has the essentials for a professional client proposal.</div></div>`;
-}
-function renderBidList(filter = "") {
-  if (!bidsList) return;
-  const rows = sortedBids(filter);
-  if (!rows.length) {
-  bidsList.innerHTML = `<div class="muted">${BIDS_CACHE.length ? "No walkthrough bids match this search." : "No walkthrough bids yet. Click New quote to start the first one."}</div>`;
-    if (!BIDS_CACHE.length) ACTIVE_BID_ID = null;
-    return;
-  }
-  if (!rows.find((row) => row.id === ACTIVE_BID_ID)) ACTIVE_BID_ID = rows[0].id;
-  bidsList.innerHTML = rows.map((row) => {
-    const customer = findBidCustomer(row.customer_id);
-    const totals = calculateBidTotals(row);
-    return `
-      <button type="button" class="list-item ${row.id === ACTIVE_BID_ID ? "is-active" : ""}" data-bid-id="${escapeAttr(row.id)}">
-        <div class="li-main">
-          <div class="li-title">${escapeHtml(row.title || defaultBidTitleFromDraft(row))}</div>
-          <div class="li-sub muted">${escapeHtml(customer?.name || "Unlinked customer")} &middot; ${escapeHtml(bidProfileConfig(row.profile).label)}</div>
-          <div class="li-sub muted">${escapeHtml(row.service_address || "No service address")} &middot; ${escapeHtml(formatDateTime(row.updated_at || row.created_at))}</div>
-        </div>
-        <div class="li-meta">
-          <span class="pill">${escapeHtml(formatBidStatus(row.status))}</span>
-          ${row.converted_order_id ? `<span class="pill pill-on">${escapeHtml(isServiceWorkspace(currentWorkspaceBlueprint()) ? "Quoted / booked" : "Tracked order")}</span>` : ""}
-          <span class="pill">${formatUsd(totals.total)}</span>
-        </div>
-      </button>
-    `;
-  }).join("");
-  bidsList.querySelectorAll("[data-bid-id]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      ACTIVE_BID_ID = btn.getAttribute("data-bid-id");
-      renderBids(bidSearch?.value || "");
-    });
-  });
-}
-function renderBidPhotos(draft) {
-  if (!bidPhotosList) return;
-  const photos = Array.isArray(draft?.photos) ? draft.photos : [];
-  if (!photos.length) {
-    bidPhotosList.innerHTML = `<div class="muted">No walkthrough photos saved yet.</div>`;
-    return;
-  }
-  bidPhotosList.innerHTML = photos.map((photo) => `
-    <div class="photo-card">
-      <img src="${escapeAttr(photo.url || "")}" alt="${escapeAttr(photo.name || "Walkthrough photo")}" />
-      <div class="photo-card__body">
-        <div class="row" style="justify-content:space-between;">
-          <div class="photo-card__title">${escapeHtml(photo.name || "Walkthrough photo")}</div>
-          <span class="pill">${escapeHtml(bidPhotoCategoryByValue(draft?.profile, photo.category)?.label || photo.category || "overview")}</span>
-        </div>
-        <div class="photo-card__copy">${escapeParagraphs(photo.note || "")}</div>
-        <div class="photo-card__copy">Saved ${escapeHtml(formatDateTime(photo.captured_at || draft.updated_at || draft.created_at))}</div>
-        <div class="photo-card__actions">
-          <button class="btn btn-ghost btn-sm" type="button" data-remove-photo-id="${escapeAttr(photo.id)}">Remove</button>
-        </div>
-      </div>
-    </div>
-  `).join("");
-  bidPhotosList.querySelectorAll("[data-remove-photo-id]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const active = currentBid();
-      if (!active) return;
-      const photoId = btn.getAttribute("data-remove-photo-id");
-      const nextDraft = {
-        ...active,
-        photos: (active.photos || []).filter((photo) => photo.id !== photoId),
-        updated_at: new Date().toISOString(),
-      };
-      replaceBidDraft(nextDraft);
-      renderBidWorkspace(nextDraft, { preserveForm: true });
-      renderBidList(bidSearch?.value || "");
-      setInlineMessage(bidPhotoMsg, "Photo removed from the bid.", "ok");
-    });
-  });
-}
-function renderBidLineItems(draft) {
-  if (!bidLineItemsList) return;
-  const rows = Array.isArray(draft?.line_items) ? draft.line_items : [];
-  if (!rows.length) {
-    bidLineItemsList.innerHTML = `<div class="muted">No line items added yet.</div>`;
-    return;
-  }
-  bidLineItemsList.innerHTML = rows.map((item) => `
-    <div class="line-item-card">
-      <div class="line-item-card__top">
-        <div>
-          <div class="line-item-card__title">${escapeHtml(item.name || "Line item")}</div>
-          <div class="line-item-card__copy">${escapeParagraphs(item.description || "")}</div>
-        </div>
-        <div class="inline">
-          <span class="pill pill-on">${escapeHtml(formatBidLineItemKind(item.kind))}</span>
-          <span class="pill ${item.pricing_source === "company_standard" ? "pill-on" : "pill-muted"}">${item.pricing_source === "company_standard" ? "Company standard" : "Job specific"}</span>
-        </div>
-      </div>
-      <div class="line-item-card__meta">
-        <span class="pill">${escapeHtml(String(item.quantity || 0))} ${escapeHtml(item.unit || "unit")}</span>
-        <span class="pill">${formatUsd(Number(item.unit_price_cents || 0))} each</span>
-        <span class="pill pill-on">${formatUsd(bidLineItemTotalCents(item))}</span>
-      </div>
-      <div class="line-item-actions">
-        <button class="btn btn-ghost btn-sm" type="button" data-edit-line-id="${escapeAttr(item.id)}">Edit</button>
-        <button class="btn btn-ghost btn-sm" type="button" data-remove-line-id="${escapeAttr(item.id)}">Remove</button>
-      </div>
-    </div>
-  `).join("");
-  bidLineItemsList.querySelectorAll("[data-edit-line-id]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const active = currentBid();
-      const item = active?.line_items?.find((row) => row.id === btn.getAttribute("data-edit-line-id"));
-      if (item) populateBidLineItemForm(item);
-    });
-  });
-  bidLineItemsList.querySelectorAll("[data-remove-line-id]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const active = currentBid();
-      if (!active) return;
-      const lineId = btn.getAttribute("data-remove-line-id");
-      const nextDraft = {
-        ...active,
-        line_items: (active.line_items || []).filter((item) => item.id !== lineId),
-        updated_at: new Date().toISOString(),
-      };
-      replaceBidDraft(nextDraft);
-      clearBidLineItemForm();
-      renderBidWorkspace(nextDraft, { preserveForm: true });
-      renderBidList(bidSearch?.value || "");
-      setInlineMessage(bidLineItemMsg, "Line item removed.", "ok");
-    });
-  });
-}
-function renderBidWorkspace(draft, opts = {}) {
-  renderProposalWorkspace();
-  if (!BID_WORKSPACE_BOOTSTRAPPING) setBidWorkspaceBootstrapping(false);
-  if (!draft) {
-    clearBidForm();
-    if (btnConvertBidToOrder) {
-      btnConvertBidToOrder.textContent = isServiceWorkspace(currentWorkspaceBlueprint()) ? "Move to quoted / booked work" : "Create tracked order";
-      btnConvertBidToOrder.disabled = true;
-    }
-    renderBidQuickCustomerCard(null);
-    renderBidGuideFlow(null);
-    renderBidProfileGuideCard(null);
-    renderBidPhotoGuide(null);
-    renderBidScopeStarters(null);
-    renderBidCatalogStarters(null);
-    renderBidStatsCard(null);
-    renderBidDeliveryCard(null);
-    if (bidPhotosList) bidPhotosList.innerHTML = `<div class="muted">No walkthrough photos saved yet.</div>`;
-    if (bidLineItemsList) bidLineItemsList.innerHTML = `<div class="muted">No line items added yet.</div>`;
-    renderBidProposalPreview(null);
-    return;
-  }
-  if (!opts.preserveForm) populateBidForm(draft);
-  if (btnConvertBidToOrder) {
-    const linkedOrder = currentBidOrder(draft);
-    btnConvertBidToOrder.disabled = false;
-    btnConvertBidToOrder.textContent = linkedOrder
-      ? (isServiceWorkspace(currentWorkspaceBlueprint()) ? "Open quoted / booked work" : "Open tracked order")
-      : (isServiceWorkspace(currentWorkspaceBlueprint()) ? "Move to quoted / booked work" : "Create tracked order");
-  }
-  renderBidQuickCustomerCard(draft);
-  renderBidGuideFlow(draft);
-  renderBidProfileGuideCard(draft);
-  renderBidPhotoGuide(draft);
-  renderBidScopeStarters(draft);
-  renderBidCatalogStarters(draft);
-  renderBidStatsCard(draft);
-  renderBidDeliveryCard(draft);
-  renderBidPhotos(draft);
-  renderBidLineItems(draft);
-  renderBidProposalPreview(draft);
-}
-function renderBids(filter = "", opts = {}) {
-  const active = currentBid();
-  renderBidList(filter);
-  renderBidWorkspace(active, opts);
-}
-function startNewBid(profileKey = preferredBidProfile()) {
-  const draft = emptyBidDraft(profileKey);
-  BIDS_CACHE = [draft, ...(BIDS_CACHE || [])];
-  ACTIVE_BID_ID = draft.id;
-  persistBidDrafts();
-  clearBidLineItemForm();
-  clearBidPhotoForm();
-  renderBids(bidSearch?.value || "");
-  setInlineMessage(bidMsg, "New walkthrough bid ready.", "ok");
-  return draft;
-}
-function duplicateCurrentBid() {
-  const active = currentBid();
-  if (!active) return startNewBid(preferredBidProfile());
-  const copy = {
-    ...cloneJson(active, {}),
-    id: createLocalId("bid"),
-    title: `${active.title || defaultBidTitleFromDraft(active)} copy`,
-    status: "draft",
-    line_items: (active.line_items || []).map((item) => ({ ...item, id: createLocalId("line") })),
-    photos: (active.photos || []).map((photo) => ({ ...photo, id: createLocalId("photo") })),
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  };
-  replaceBidDraft(copy);
-  clearBidLineItemForm();
-  clearBidPhotoForm();
-  renderBids(bidSearch?.value || "");
-  setInlineMessage(bidMsg, "Bid duplicated into a fresh draft.", "ok");
-  return copy;
-}
-function bidBrandContext() {
-  return {
-    accent: getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#c84b2f",
-    tenantName: brandTenant?.textContent?.trim() || "ProofLink",
-    logoUrl: brandLogo?.getAttribute("src") || "",
-    tagline: SETUP_STATE?.config?.tagline || "Professional service proposal",
-    contactEmail: SETUP_STATE?.config?.public_contact_email || "",
-    phone: SETUP_STATE?.config?.public_business_phone || "",
-  };
-}
-function renderProposalLineItemRows(items) {
-  if (!items.length) return `<div class="muted">No items yet.</div>`;
-  return items.map((item) => `
-    <div class="proposal-line-item">
-      <div>
-        <div class="proposal-line-item__title">${escapeHtml(item.name || "Line item")}</div>
-        <div class="proposal-line-item__copy">${escapeParagraphs(item.description || "")}</div>
-      </div>
-      <div class="proposal-line-item__right">
-        <div>${escapeHtml(String(item.quantity || 0))} ${escapeHtml(item.unit || "unit")}</div>
-        <div class="proposal-line-item__copy">${escapeHtml(formatBidLineItemKind(item.kind))}</div>
-      </div>
-      <div class="proposal-line-item__right">
-        <div>${formatUsd(Number(item.unit_price_cents || 0))}</div>
-        <div class="proposal-line-item__copy">${formatUsd(bidLineItemTotalCents(item))}</div>
-      </div>
-    </div>
-  `).join("");
-}
-function buildBidProposalMarkup(draft) {
-  if (!draft) return `<div class="muted">Create a walkthrough bid or select one from the list to preview the proposal.</div>`;
-  const brand = bidBrandContext();
-  const customer = findBidCustomer(draft.customer_id);
-  const profile = bidProfileConfig(draft.profile);
-  const totals = calculateBidTotals(draft);
-  const depositNote = totals.deposit > 0 ? `${formatUsd(totals.deposit)} deposit requested to schedule.` : "No deposit requested on this proposal.";
-  const baseItems = (draft.line_items || []).filter((item) => String(item.kind || "base").toLowerCase() !== "option");
-  const optionItems = (draft.line_items || []).filter((item) => String(item.kind || "").toLowerCase() === "option");
-
-  return `
-    <div class="proposal-shell">
-      <div class="proposal-hero">
-        <div>
-          <div class="proposal-brand">
-            <div class="proposal-brand__logo">${brand.logoUrl ? `<img src="${escapeAttr(brand.logoUrl)}" alt="${escapeAttr(brand.tenantName)} logo" />` : ""}</div>
-            <div>
-              <div class="proposal-kicker">${escapeHtml(profile.label)} proposal</div>
-              <div class="proposal-title">${escapeHtml(draft.title || defaultBidTitleFromDraft(draft))}</div>
-              <div class="proposal-copy">${escapeHtml(brand.tagline)}</div>
-            </div>
-          </div>
-          <div class="proposal-copy">${escapeParagraphs(draft.cover_note || profile.deliveryNote || "")}</div>
-        </div>
-        <div class="bid-stack">
-          <div class="proposal-box">
-            <div class="proposal-box__label">Prepared for</div>
-            <div class="proposal-box__value">${escapeHtml(customer?.name || draft.site_contact || "Client to be confirmed")}</div>
-            <div class="proposal-copy">${escapeHtml(customer?.email || "")}${customer?.email && customer?.phone ? "<br>" : ""}${escapeHtml(customer?.phone || "")}</div>
-          </div>
-          <div class="proposal-box">
-            <div class="proposal-box__label">Service address</div>
-            <div class="proposal-box__value">${escapeHtml(draft.service_address || "To be confirmed")}</div>
-          </div>
-          <div class="proposal-box">
-            <div class="proposal-box__label">Investment</div>
-            <div class="proposal-box__value"><strong>${formatUsd(totals.total)}</strong></div>
-            <div class="proposal-copy">${escapeHtml(depositNote)}${draft.valid_until ? `<br>Valid through ${escapeHtml(formatDateOnly(draft.valid_until))}.` : ""}</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="proposal-grid three">
-        <div class="proposal-box">
-          <div class="proposal-box__label">Problem to solve</div>
-          <div class="proposal-box__value">${escapeParagraphs(draft.project_summary || "")}</div>
-        </div>
-        <div class="proposal-box">
-          <div class="proposal-box__label">Walkthrough date</div>
-          <div class="proposal-box__value">${escapeHtml(draft.walkthrough_at ? formatDateTime(draft.walkthrough_at) : "Not recorded")}</div>
-        </div>
-        <div class="proposal-box">
-          <div class="proposal-box__label">Schedule window</div>
-          <div class="proposal-box__value">${escapeHtml(draft.schedule_window || "To be scheduled with client")}</div>
-        </div>
-      </div>
-
-      <div class="proposal-grid">
-        <div class="proposal-section proposal-box">
-          <div class="proposal-box__label">Scope of work</div>
-          <div class="proposal-box__value">${escapeParagraphs(draft.scope_of_work || "")}</div>
-        </div>
-        <div class="proposal-section proposal-box">
-          <div class="proposal-box__label">Recommended solution</div>
-          <div class="proposal-box__value">${escapeParagraphs(draft.proposed_solution || "")}</div>
-        </div>
-      </div>
-
-      <div class="proposal-section proposal-box">
-        <div class="proposal-box__label">Base scope and investment</div>
-        ${renderProposalLineItemRows(baseItems)}
-        <div class="proposal-total-row">
-          <span>Total base investment</span>
-          <strong>${formatUsd(totals.total)}</strong>
-        </div>
-      </div>
-
-      ${optionItems.length ? `
-        <div class="proposal-section proposal-box">
-          <div class="proposal-box__label">Optional add-ons</div>
-          ${renderProposalLineItemRows(optionItems)}
-          <div class="proposal-total-row">
-            <span>Optional work if approved</span>
-            <strong>${formatUsd(totals.options)}</strong>
-          </div>
-        </div>
-      ` : ""}
-
-      ${(draft.photos || []).length ? `
-        <div class="proposal-section">
-          <h3>Walkthrough photo record</h3>
-          <div class="proposal-photo-grid">
-            ${(draft.photos || []).map((photo) => `
-              <div class="proposal-photo">
-                <img src="${escapeAttr(photo.url || "")}" alt="${escapeAttr(photo.name || "Walkthrough photo")}" />
-                <div class="proposal-photo__body">
-                  <div class="proposal-photo__title">${escapeHtml(photo.name || "Walkthrough photo")}</div>
-                  <div class="proposal-photo__meta"><span class="pill">${escapeHtml(bidPhotoCategoryByValue(draft?.profile, photo.category)?.label || photo.category || "Overview")}</span></div>
-                  <div class="proposal-photo__copy">${escapeParagraphs(photo.note || "")}</div>
-                </div>
-              </div>
-            `).join("")}
-          </div>
-        </div>
-      ` : ""}
-
-      <div class="proposal-grid">
-        <div class="proposal-box">
-          <div class="proposal-box__label">Materials plan</div>
-          <div class="proposal-box__value">${escapeParagraphs(draft.materials_plan || "")}</div>
-        </div>
-        <div class="proposal-box">
-          <div class="proposal-box__label">Unused / overage handling</div>
-          <div class="proposal-box__value">${escapeParagraphs(draft.unused_materials_plan || "")}</div>
-        </div>
-        <div class="proposal-box">
-          <div class="proposal-box__label">Exclusions / assumptions</div>
-          <div class="proposal-box__value">${escapeParagraphs(draft.exclusions || "")}</div>
-        </div>
-        <div class="proposal-box">
-          <div class="proposal-box__label">Warranty</div>
-          <div class="proposal-box__value">${escapeParagraphs(draft.warranty || "")}</div>
-        </div>
-      </div>
-
-      <div class="proposal-grid">
-        <div class="proposal-box">
-          <div class="proposal-box__label">Commercial terms</div>
-          <div class="proposal-box__value">${escapeParagraphs(draft.terms || "")}</div>
-        </div>
-        <div class="proposal-box">
-          <div class="proposal-box__label">Next step</div>
-          <div class="proposal-box__value">${escapeHtml(depositNote)}</div>
-          <div class="proposal-copy">Reply with approval, or send back revisions before ${escapeHtml(draft.valid_until ? formatDateOnly(draft.valid_until) : "the stated validity date")}.</div>
-          ${brand.contactEmail || brand.phone ? `<div class="proposal-copy">${escapeHtml(brand.contactEmail || "")}${brand.contactEmail && brand.phone ? "<br>" : ""}${escapeHtml(brand.phone || "")}</div>` : ""}
-        </div>
-      </div>
-    </div>
-  `;
-}
-function renderBidProposalPreview(draft) {
-  if (!bidProposalPreview) return;
-  bidProposalPreview.innerHTML = buildBidProposalMarkup(draft);
-}
-function bidDocumentHtml(draft) {
-  const accent = bidBrandContext().accent;
-  const body = buildBidProposalMarkup(draft);
-  return `<!doctype html>
-  <html lang="en">
-    <head>
-      <meta charset="utf-8" />
-      <title>${escapeHtml(draft?.title || "ProofLink proposal")}</title>
-      <style>
-        body{margin:0;padding:32px;font-family:Arial,sans-serif;background:#faf8f5;color:#151515;}
-        .proposal-shell{display:flex;flex-direction:column;gap:18px;}
-        .proposal-hero{display:grid;grid-template-columns:1.2fr .8fr;gap:16px;padding-bottom:18px;border-bottom:1px solid #ddd;}
-        .proposal-brand{display:flex;align-items:flex-start;gap:14px;}
-        .proposal-brand__logo{width:56px;height:56px;border-radius:18px;overflow:hidden;border:1px solid #ddd;background:#fff;}
-        .proposal-brand__logo img{width:100%;height:100%;object-fit:cover;}
-        .proposal-kicker{color:${accent};font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;}
-        .proposal-title{font-size:30px;line-height:1.05;font-weight:800;margin-top:6px;}
-        .proposal-copy{color:#555;line-height:1.65;margin-top:8px;}
-        .proposal-box{border:1px solid #ddd;border-radius:18px;padding:14px;background:#fff;}
-        .proposal-box__label{color:#666;font-size:12px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;}
-        .proposal-box__value{font-size:15px;line-height:1.55;}
-        .proposal-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;}
-        .proposal-grid.three{grid-template-columns:repeat(3,minmax(0,1fr));}
-        .proposal-line-item{display:grid;grid-template-columns:1.5fr .7fr .7fr;gap:12px;align-items:start;padding:12px 0;border-top:1px solid #ddd;}
-        .proposal-line-item:first-child{border-top:none;padding-top:0;}
-        .proposal-line-item__title{font-weight:700;}
-        .proposal-line-item__copy{color:#555;font-size:12px;line-height:1.5;margin-top:6px;}
-        .proposal-line-item__right{text-align:right;}
-        .proposal-total-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-top:12px;margin-top:12px;border-top:1px solid #ddd;}
-        .proposal-total-row strong{font-size:18px;}
-        .proposal-photo-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;}
-        .proposal-photo{border:1px solid #ddd;border-radius:18px;overflow:hidden;background:#fff;}
-        .proposal-photo img{width:100%;height:160px;object-fit:cover;display:block;}
-        .proposal-photo__body{padding:12px;}
-        .proposal-photo__title{font-weight:700;}
-        .proposal-photo__meta{margin-top:8px;}
-        .proposal-photo__copy{color:#555;font-size:12px;line-height:1.5;margin-top:6px;}
-        .proposal-section h3{margin:0 0 10px;font-size:14px;}
-        .pill{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border:1px solid #ddd;border-radius:999px;font-size:11px;font-weight:700;background:#fff;}
-        @media print{body{padding:18px;}}
-      </style>
-    </head>
-    <body>${body}</body>
-  </html>`;
-}
-async function copyTextValue(text) {
-  try {
-    await navigator.clipboard.writeText(text);
-    return true;
-  } catch (_) {
-    const area = document.createElement("textarea");
-    area.value = text;
-    document.body.appendChild(area);
-    area.select();
-    document.execCommand("copy");
-    area.remove();
-    return true;
-  }
-}
-function buildBidClientEmail(draft) {
-  const customer = findBidCustomer(draft?.customer_id);
-  const profile = bidProfileConfig(draft?.profile);
-  const totals = calculateBidTotals(draft);
-  const baseItems = (draft?.line_items || []).filter((item) => String(item.kind || "base").toLowerCase() !== "option");
-  const bulletLines = baseItems.slice(0, 4).map((item) => `- ${item.name}: ${item.description || `${item.quantity} ${item.unit}`}`.trim());
-  return [
-    `Hi ${customer?.name || "there"},`,
-    ``,
-    `Thanks again for walking the project with us at ${draft?.service_address || "the site"}.`,
-    ``,
-    `${draft?.cover_note || profile.deliveryNote || "Attached is the proposal we prepared from the walkthrough."}`,
-    ``,
-    `Included in this proposal:`,
-    ...(bulletLines.length ? bulletLines : ["- Scope and pricing are attached in the proposal document."]),
-    ``,
-    `Base investment: ${formatUsd(totals.total)}`,
-    totals.options > 0 ? `Optional add-ons available: ${formatUsd(totals.options)}` : null,
-    totals.deposit > 0 ? `Requested deposit: ${formatUsd(totals.deposit)}` : null,
-    draft?.valid_until ? `Proposal valid through: ${formatDateOnly(draft.valid_until)}` : null,
-    ``,
-    `Reply with approval, questions, or requested revisions and we will get the next step moving.`,
-    ``,
-    `${bidBrandContext().tenantName}`,
-    bidBrandContext().contactEmail || null,
-    bidBrandContext().phone || null,
-  ].filter(Boolean).join("\n");
-}
-function currentBidOrder(draft) {
-  if (!draft) return null;
-  return CRM_ORDERS_CACHE.find((row) => row.id === draft.converted_order_id)
-    || CRM_ORDERS_CACHE.find((row) => row.bid_id && row.bid_id === bidRecordId(draft))
-    || CRM_ORDERS_CACHE.find((row) => ["walkthrough_bid", "service_bid"].includes(String(row.source_type || "").toLowerCase()) && [draft.id, bidRecordId(draft)].includes(String(row.source_ref || "")))
-    || null;
-}
-function buildOrderNotesFromBid(draft) {
-  const sections = [
-    draft.project_summary ? `Problem summary:\n${draft.project_summary}` : "",
-    draft.scope_of_work ? `Scope of work:\n${draft.scope_of_work}` : "",
-    draft.proposed_solution ? `Recommended solution:\n${draft.proposed_solution}` : "",
-    draft.materials_plan ? `Materials plan:\n${draft.materials_plan}` : "",
-    draft.unused_materials_plan ? `Unused / overage handling:\n${draft.unused_materials_plan}` : "",
-    draft.exclusions ? `Exclusions / assumptions:\n${draft.exclusions}` : "",
-    draft.terms ? `Commercial terms:\n${draft.terms}` : "",
-  ].filter(Boolean);
-  const optionalItems = bidOptionalLineItems(draft);
-  if (optionalItems.length) {
-    sections.push(`Optional add-ons:\n${optionalItems.map((item) => `- ${item.name}: ${formatUsd(bidLineItemTotalCents(item))}`).join("\n")}`);
-  }
-  if (draft.photos?.length) {
-    sections.push(`Walkthrough photo count: ${draft.photos.length}`);
-  }
-  return sections.join("\n\n");
-}
-async function existingOrderForBidId(bidIdValue) {
-  const key = String(bidIdValue || "").trim();
-  if (!key) return null;
-  if (isUuidLike(key)) {
-    const byBid = await scopeQuery(sb
-      .from("orders")
-      .select("*"))
-      .eq("bid_id", key)
-      .limit(1);
-    if (byBid.error) throw byBid.error;
-    if (Array.isArray(byBid.data) && byBid.data.length) return byBid.data[0];
-  }
-  const { data, error } = await scopeQuery(sb
-    .from("orders")
-    .select("*"))
-    .eq("source_ref", key)
-    .limit(1);
-  if (error) throw error;
-  return Array.isArray(data) && data.length ? data[0] : null;
-}
-async function convertBidToTrackedOrder() {
-  let baseDraft = updateCurrentBidFromForm({ allowCreate: true }) || currentBid();
-  if (!baseDraft) throw new Error("Create a bid first.");
-  if (!baseDraft.customer_id) throw new Error("Link the bid to a customer before converting it into tracked work.");
-  const customer = findBidCustomer(baseDraft.customer_id);
-  if (!customer) throw new Error("The linked customer record could not be found. Refresh customers and try again.");
-  await flushBidDraftSync({ throwOnError: true });
-  baseDraft = currentBid() || baseDraft;
-  const recordId = bidRecordId(baseDraft);
-
-  const existing = currentBidOrder(baseDraft) || await existingOrderForBidId(recordId || baseDraft.id);
-  if (existing) {
-    ACTIVE_ORDER_ID = existing.id;
-    const nextDraft = {
-      ...baseDraft,
-      converted_order_id: existing.id,
-      converted_at: baseDraft.converted_at || new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-    replaceBidDraft(nextDraft);
-    await fetchCrmOrders();
-    renderOrders();
-    renderDashboard();
-    renderGuidance();
-    renderMoney().catch(console.error);
-    return { order: existing, draft: nextDraft, existed: true };
-  }
-
-  const items = bidIncludedLineItemsForOrder(baseDraft).map((item) => ({
-    name: item.name,
-    description: item.description || "",
-    quantity: Number(item.quantity || 0),
-    unit: item.unit || "job",
-    kind: item.kind || "base",
-    unitPriceCents: Number(item.unit_price_cents || 0),
-    totalCents: bidLineItemTotalCents(item),
-  }));
-  if (!items.length) throw new Error("Add at least one non-optional line item before converting the bid.");
-
-  const totals = calculateBidTotals(baseDraft);
-  const status = String(baseDraft.status || "").toLowerCase() === "approved" ? "confirmed" : "quoted";
-  const nowIso = new Date().toISOString();
-  if (recordId) {
-    const { data, error } = await sb.rpc("create_order_from_bid", { p_bid_id: recordId });
-    if (!error) {
-      await Promise.all([fetchCrmOrders(), fetchCustomers(), fetchPayments(), fetchLeads(), fetchJobs(), loadPersistedBids()]);
-      let order = CRM_ORDERS_CACHE.find((row) => row.id === data?.order_id) || await existingOrderForBidId(recordId);
-      if (!order) throw new Error("The bid converted, but the tracked order could not be reloaded.");
-      order = await seedOrderDepositDefaults(order, {
-        depositRequiredCents: totals.deposit,
-        depositPolicy: totals.deposit > 0 ? "required_before_job" : "optional",
-        depositDueDate: baseDraft.valid_until || order.payment_due_date || null,
-      });
-      ACTIVE_ORDER_ID = order.id;
-      const refreshedDraft = findBidRecordById(recordId) || currentBid() || baseDraft;
-      renderOrders();
-      renderCustomersList(customerSearch?.value || "");
-      renderDashboard();
-      renderGuidance();
-      renderMoney().catch(console.error);
-      return { order, draft: refreshedDraft, existed: !!data?.existing };
-    }
-    if (!isMissingDatabaseFeatureError(error, ["create_order_from_bid"])) throw error;
-  }
-  const payload = withTenantScope({
-    operator_id: opId(),
-    customer_id: customer.id,
-    lead_id: baseDraft.lead_id || null,
-    bid_id: recordId || null,
-    status,
-    fulfillment: "service",
-    scheduled_date: null,
-    scheduled_time: baseDraft.schedule_window || null,
-    items,
-    subtotal_cents: totals.total,
-    total_cents: totals.total,
-    estimated_total_cents: totals.total + totals.options,
-    item_count: items.length,
-    unpriced_count: items.filter((item) => !Number(item.unitPriceCents || 0)).length,
-    cart_summary: baseDraft.project_summary || baseDraft.title || "",
-    notes: buildOrderNotesFromBid(baseDraft),
-    customer_name: customer.name || "",
-    email: customer.email || null,
-    phone: customer.phone || null,
-    preferred_contact: customer.preferred_contact || "email",
-    payment_due_date: baseDraft.valid_until || null,
-    deposit_required_cents: totals.deposit,
-    source_type: "walkthrough_bid",
-    source_ref: recordId || baseDraft.id,
-    created_at: nowIso,
-    updated_at: nowIso,
-  });
-  const { data, error } = await sb.from("orders").insert(payload).select("*").single();
-  if (error) throw error;
-  const orderWithDepositDefaults = await seedOrderDepositDefaults(data, {
-    depositRequiredCents: totals.deposit,
-    depositPolicy: totals.deposit > 0 ? "required_before_job" : "optional",
-    depositDueDate: baseDraft.valid_until || null,
-  });
-
-  await sb.from("customer_interactions").insert(withTenantScope({
-    operator_id: opId(),
-    customer_id: customer.id,
-    type: "bid_converted",
-    summary: `Converted walkthrough bid into tracked order for ${formatUsd(totals.total)}`,
-    metadata: {
-      bid_id: baseDraft.id,
-      order_id: orderWithDepositDefaults.id,
-      status,
-      service_address: baseDraft.service_address || null,
-    },
-    created_at: nowIso,
-  }));
-
-  ACTIVE_ORDER_ID = orderWithDepositDefaults.id;
-  if (recordId) {
-    await Promise.allSettled([
-      sb.from("bids")
-        .update({
-          converted_order_id: orderWithDepositDefaults.id,
-          converted_at: nowIso,
-          status: String(baseDraft.status || "").toLowerCase() === "approved" ? "converted" : (baseDraft.status || "draft"),
-          updated_at: nowIso,
-        })
-        .eq("id", recordId)
-        .eq(OPERATOR_COLUMN, opId())
-        .eq(TENANT_COLUMN, TENANT_ID),
-      baseDraft.lead_id
-        ? sb.from("leads")
-          .update({
-            converted_order_id: orderWithDepositDefaults.id,
-            status: "converted",
-            last_activity_at: nowIso,
-            updated_at: nowIso,
-          })
-          .eq("id", baseDraft.lead_id)
-          .eq(OPERATOR_COLUMN, opId())
-          .eq(TENANT_COLUMN, TENANT_ID)
-        : Promise.resolve(),
-    ]);
-  }
-  const nextDraft = {
-    ...baseDraft,
-    converted_order_id: orderWithDepositDefaults.id,
-    converted_at: nowIso,
-    updated_at: nowIso,
-  };
-  replaceBidDraft(nextDraft);
-  await Promise.all([fetchCrmOrders(), fetchCustomers(), fetchPayments(), fetchLeads(), fetchJobs(), loadPersistedBids()]);
-  renderOrders();
-  renderCustomersList(customerSearch?.value || "");
-  renderDashboard();
-  renderGuidance();
-  renderMoney().catch(console.error);
-  return { order: orderWithDepositDefaults, draft: nextDraft, existed: false };
-}
-function fileToDataUrl(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result || ""));
-    reader.onerror = () => reject(reader.error || new Error("Failed to read image."));
-    reader.readAsDataURL(file);
-  });
-}
-async function uploadBidPhotoAsset(file, bidDraft) {
-  const key = `walkthrough-bids/${TENANT_ID}/${opId()}/${bidDraft.id}/${Date.now()}_${safeFilename(file.name || "photo.jpg")}`;
-  try {
-    const { error } = await sb.storage.from("product-images").upload(key, file, {
-      cacheControl: "3600",
-      upsert: false,
-      contentType: file.type || "image/jpeg",
-    });
-    if (error) throw error;
-    const { data } = sb.storage.from("product-images").getPublicUrl(key);
-    if (!data?.publicUrl) throw new Error("Photo uploaded but no public URL returned.");
-    return { url: data.publicUrl, storage_mode: "cloud" };
-  } catch (err) {
-    return {
-      url: await fileToDataUrl(file),
-      storage_mode: "local",
-      warning: err.message || String(err),
-    };
-  }
-}
-bidSearch?.addEventListener("input", debounce(() => renderBids(bidSearch.value, { preserveForm: true })));
-btnNewBid?.addEventListener("click", () => startNewBid(preferredBidProfile()));
-btnDuplicateBid?.addEventListener("click", () => duplicateCurrentBid());
-btnApplyBidProfile?.addEventListener("click", () => applyBidProfileStructure(false));
-btnToggleBidQuickCustomer?.addEventListener("click", () => {
-  setBidQuickCustomerOpen(!BID_QUICK_CUSTOMER_OPEN, { keepValues: BID_QUICK_CUSTOMER_OPEN });
-  renderBidQuickCustomerCard(currentBid());
-  if (BID_QUICK_CUSTOMER_OPEN) bidQuickCustomerName?.focus();
-});
-btnCancelBidQuickCustomer?.addEventListener("click", () => {
-  setBidQuickCustomerOpen(false);
-  renderBidQuickCustomerCard(currentBid());
-});
-btnSaveBidQuickCustomer?.addEventListener("click", async () => {
-  const active = updateCurrentBidFromForm({ allowCreate: true }) || currentBid();
-  if (!active) {
-    setInlineMessage(bidQuickCustomerMsg, "Create a bid first so there is something to link.", "error");
-    return;
-  }
-  const hasIdentity = [bidQuickCustomerName?.value, bidQuickCustomerEmail?.value, bidQuickCustomerPhone?.value]
-    .some((value) => String(value || "").trim());
-  if (!hasIdentity) {
-    setInlineMessage(bidQuickCustomerMsg, "Add at least a name, email, or phone so the customer record is usable.", "error");
-    bidQuickCustomerName?.focus();
-    return;
-  }
-
-  setInlineMessage(bidQuickCustomerMsg, "Saving and linking customer...");
-  try {
-    const customer = await saveCustomerRecord({
-      name: bidQuickCustomerName?.value,
-      email: bidQuickCustomerEmail?.value,
-      phone: bidQuickCustomerPhone?.value,
-      preferred_contact: bidQuickCustomerPreferredContact?.value,
-      notes: bidQuickCustomerNote?.value,
-    });
-    const nextDraft = attachCustomerToCurrentBid(customer) || currentBid();
-    setBidQuickCustomerOpen(false);
-    renderBids(bidSearch?.value || "");
-    setInlineMessage(bidMsg, `${customer.name || "Customer"} saved and linked to this bid.`, "ok");
-    if (nextDraft?.service_address) return;
-    bidServiceAddress?.focus();
-  } catch (err) {
-    setInlineMessage(bidQuickCustomerMsg, err.message || String(err), "error");
-  }
-});
-btnConvertBidToOrder?.addEventListener("click", async () => {
-  const draft = currentBid();
-  if (!draft) {
-    setInlineMessage(bidMsg, "Create a bid first so there is something to convert.", "error");
-    return;
-  }
-  const existing = currentBidOrder(draft);
-  if (existing) {
-    ACTIVE_ORDER_ID = existing.id;
-    switchTab("orders");
-    renderOrders();
-    return;
-  }
-  setInlineMessage(bidMsg, isServiceWorkspace(currentWorkspaceBlueprint()) ? "Moving quote into quoted / booked work..." : "Creating tracked order...");
-  try {
-    const result = await convertBidToTrackedOrder();
-    renderBids(bidSearch?.value || "", { preserveForm: true });
-    setInlineMessage(
-      bidMsg,
-      result.existed
-        ? (isServiceWorkspace(currentWorkspaceBlueprint()) ? "Quoted / booked work already existed. Opening it next." : "Tracked order already existed. Opening Orders next.")
-        : (isServiceWorkspace(currentWorkspaceBlueprint()) ? "Quote moved into quoted / booked work. Opening it next." : "Tracked order created. Opening Orders next."),
-      "ok",
-    );
-    switchTab("orders");
-    renderOrders();
-  } catch (err) {
-    setInlineMessage(bidMsg, err.message || String(err), "error");
-  }
-});
-bidForm?.addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const nextDraft = updateCurrentBidFromForm({ allowCreate: true }) || startNewBid(preferredBidProfile());
-  renderBidWorkspace(nextDraft, { preserveForm: true });
-  renderBidList(bidSearch?.value || "");
-  setInlineMessage(bidMsg, "Bid saved locally. Syncing...", "ok");
-  if (BID_SYNC_TIMER) {
-    window.clearTimeout(BID_SYNC_TIMER);
-    BID_SYNC_TIMER = null;
-  }
-  try {
-    const syncedDraft = await flushBidDraftSync({ throwOnError: true });
-      if (syncedDraft) {
-        await loadPersistedBids();
-        const refreshed = currentBid() || syncedDraft;
-        renderBidWorkspace(refreshed, { preserveForm: true });
-        renderBidList(bidSearch?.value || "");
-      }
-      markWorkspaceClean("bids");
-      setInlineMessage(bidMsg, "Bid saved.", "ok");
-    } catch (err) {
-    setInlineMessage(bidMsg, err.message || String(err), "error");
-  }
-});
-[bidTitle, bidCustomerId, bidProfile, bidStatus, bidWalkthroughAt, bidValidUntil, bidServiceAddress, bidSiteContact, bidScheduleWindow, bidProjectSummary, bidScopeOfWork, bidProposedSolution, bidMaterialsPlan, bidUnusedMaterialsPlan, bidExclusions, bidWarranty, bidCoverNote, bidInternalNotes, bidDepositPercent, bidDepositAmount, bidTerms].forEach((el) => {
-  el?.addEventListener("input", scheduleBidAutosave);
-  el?.addEventListener("change", () => {
-    scheduleBidAutosave();
-    if (el === bidProfile) {
-      const draft = collectBidFormDraft();
-      hydrateBidPhotoCategoryOptions(draft.profile, bidPhotoCategory?.value || "");
-      renderBidProfileGuideCard(draft);
-      renderBidPhotoGuide(draft);
-      renderBidScopeStarters(draft);
-    }
-    if (el === bidCustomerId) {
-      if (bidCustomerId?.value) setBidQuickCustomerOpen(false);
-      renderBidQuickCustomerCard(collectBidFormDraft());
-    }
-  });
-});
-bidPhotoForm?.addEventListener("submit", async (e) => {
-  e.preventDefault();
-  let active = currentBid();
-  if (!active) active = startNewBid(preferredBidProfile());
-  const file = bidPhotoFile?.files?.[0];
-  if (!file) {
-    setInlineMessage(bidPhotoMsg, "Choose or capture a photo first.", "error");
-    return;
-  }
-  const photoName = bidPhotoName?.value?.trim() || file.name || "Walkthrough photo";
-  setInlineMessage(bidPhotoMsg, "Saving photo...", "");
-  try {
-    const upload = await uploadBidPhotoAsset(file, active);
-    const baseDraft = updateCurrentBidFromForm({ allowCreate: true }) || active;
-    const nextDraft = {
-      ...baseDraft,
-      photos: [
-        {
-          id: createLocalId("photo"),
-          name: photoName,
-          category: bidPhotoCategory?.value || "overview",
-          note: bidPhotoNote?.value?.trim() || "",
-          url: upload.url,
-          storage_mode: upload.storage_mode,
-          captured_at: new Date().toISOString(),
-        },
-        ...(baseDraft.photos || []),
-      ],
-      updated_at: new Date().toISOString(),
-    };
-    replaceBidDraft(nextDraft);
-    clearBidPhotoForm();
-    renderBidWorkspace(nextDraft, { preserveForm: true });
-    renderBidList(bidSearch?.value || "");
-    setInlineMessage(bidPhotoMsg, upload.warning ? `Photo saved locally in this browser. ${upload.warning}` : "Photo saved to the bid.", "ok");
-  } catch (err) {
-    setInlineMessage(bidPhotoMsg, err.message || String(err), "error");
-  }
-});
-btnClearBidLineItem?.addEventListener("click", clearBidLineItemForm);
-bidLineItemForm?.addEventListener("submit", (e) => {
-  e.preventDefault();
-  let active = currentBid();
-  if (!active) active = startNewBid(preferredBidProfile());
-  const itemName = bidLineItemName?.value?.trim() || "";
-  if (!itemName) {
-    setInlineMessage(bidLineItemMsg, "Line item name is required.", "error");
-    return;
-  }
-  const existingItem = (active.line_items || []).find((row) => row.id === (bidLineItemId?.value || ACTIVE_BID_LINE_ITEM_ID));
-  const item = mergeBidLineItem(existingItem, {
-    id: bidLineItemId?.value || createLocalId("line"),
-    name: itemName,
-    description: bidLineItemDescription?.value?.trim() || "",
-    quantity: Number(bidLineItemQuantity?.value || 0),
-    unit: bidLineItemUnit?.value?.trim() || "job",
-    unit_price_cents: toCents(bidLineItemUnitPrice?.value || 0),
-    kind: String(bidLineItemKind?.value || "base"),
-  });
-  const baseDraft = updateCurrentBidFromForm({ allowCreate: true }) || active;
-  const nextDraft = {
-    ...baseDraft,
-    line_items: [
-      ...(baseDraft.line_items || []).filter((row) => row.id !== item.id),
-      item,
-    ].sort((a, b) => a.name.localeCompare(b.name)),
-    updated_at: new Date().toISOString(),
-  };
-  replaceBidDraft(nextDraft);
-  clearBidLineItemForm();
-  renderBidWorkspace(nextDraft, { preserveForm: true });
-  renderBidList(bidSearch?.value || "");
-  setInlineMessage(bidLineItemMsg, "Line item saved.", "ok");
-});
-btnPrintBidProposal?.addEventListener("click", () => {
-  const active = updateCurrentBidFromForm({ allowCreate: true }) || currentBid();
-  if (!active) {
-    setInlineMessage(bidMsg, "Create a bid first so there is something to print.", "error");
-    return;
-  }
-  const win = window.open("", "_blank", "noopener,noreferrer");
-  if (!win) {
-    setInlineMessage(bidMsg, "Allow popups to print the proposal.", "error");
-    return;
-  }
-  win.document.open();
-  win.document.write(bidDocumentHtml(active));
-  win.document.close();
-  win.focus();
-  setTimeout(() => win.print(), 350);
-});
-$("btnEmailBidToCustomer")?.addEventListener("click", async () => {
-  const active = updateCurrentBidFromForm({ allowCreate: true }) || currentBid();
-  if (!active) {
-    setInlineMessage(bidMsg, "Create a bid first.", "error");
-    return;
-  }
-  const customer = findBidCustomer(active.customer_id);
-  if (!customer?.email) {
-    setInlineMessage(bidMsg, "Add a customer with an email address before sending.", "error");
-    return;
-  }
-  const btn = $("btnEmailBidToCustomer");
-  if (btn) btn.disabled = true;
-  setInlineMessage(bidMsg, "Sendingâ€¦", "ok");
-  try {
-    const tok = await getAccessToken();
-    const res = await fetch("/.netlify/functions/send-bid-email", {
-      method : "POST",
-      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${tok}` },
-      body   : JSON.stringify({ bid_id: active.id }),
-    });
-    const d = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(d.error || "Failed to send");
-    setInlineMessage(bidMsg, `âœ“ Proposal emailed to ${customer.email}`, "ok");
-    // Update local cache status
-    const idx = BIDS_CACHE.findIndex((r) => r.id === active.id);
-    if (idx >= 0) BIDS_CACHE[idx] = { ...BIDS_CACHE[idx], status: "sent" };
-    renderBids(bidSearch?.value || "");
-  } catch (err) {
-    setInlineMessage(bidMsg, err.message || "Error sending.", "error");
-  }
-  if (btn) btn.disabled = false;
-});
-
-btnCopyBidEmail?.addEventListener("click", async () => {
-  const active = updateCurrentBidFromForm({ allowCreate: true }) || currentBid();
-  if (!active) {
-    setInlineMessage(bidMsg, "Create a bid first so there is a message to copy.", "error");
-    return;
-  }
-  await copyTextValue(buildBidClientEmail(active));
-  setInlineMessage(bidMsg, "Client email copy is on the clipboard.", "ok");
-});
-btnExportBidJson?.addEventListener("click", () => {
-  const active = updateCurrentBidFromForm({ allowCreate: true }) || currentBid();
-  if (!active) {
-    setInlineMessage(bidMsg, "Create a bid first so there is something to export.", "error");
-    return;
-  }
-  const blob = new Blob([JSON.stringify(active, null, 2)], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `${slugify(active.title || "walkthrough-bid") || "walkthrough-bid"}.json`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-});
-
 function currentMonthExpenseCents() {
   const mk = yyyymm(new Date());
   return EXPENSES_CACHE.filter((row) => monthKeyFromDate(row.date) === mk)
@@ -10373,7 +8605,7 @@ function maybeLogJobHours(job) {
         <input type="number" id="jobHoursInput" class="input" value="${escapeAttr(String(defaultHrs))}" min="0" max="24" step="0.25" placeholder="e.g. 2.5" style="margin-top:4px;" />
         ${hint ? `<div class="muted" style="font-size:.78rem;margin-top:4px;">${escapeHtml(hint)}</div>` : ''}
         <label class="check" style="margin-top:14px;">
-          <input type="checkbox" id="jobHoursBillable" checked /> Billable â€” include in payroll
+          <input type="checkbox" id="jobHoursBillable" checked /> Billable — include in payroll
         </label>
         <div id="jobHoursLogMsg" class="msg" style="margin-top:10px;"></div>
       </div>
@@ -10414,7 +8646,7 @@ function maybeLogJobHours(job) {
           job_id           : job.id,
           customer_id      : job.customer_id || null,
           order_id         : job.order_id   || null,
-          description      : `${job.title || 'Job'} â€” ${memberName}`,
+          description      : `${job.title || 'Job'} — ${memberName}`,
           started_at       : startedAt,
           duration_minutes : durationMinutes,
           billable,
@@ -10483,7 +8715,7 @@ async function saveJobRecord(fields = {}) {
   renderGuidance();
   // Notify the operator when a job has just been dispatched to a crew member
   if (String(data.status || "").toLowerCase() === "dispatched" && data.assigned_operator_id) {
-    showToast("Job dispatched â€” crew member will be notified");
+    showToast("Job dispatched — crew member will be notified");
   }
   // Prompt to log hours when a job is marked complete and has an assigned crew member
   if (String(data.status || "").toLowerCase() === "completed" && data.assigned_operator_id) {
@@ -11006,7 +9238,7 @@ function renderHydrovacInvoiceWorkbench() {
       });
     });
   }
-  hydrovacInvoiceJobSelect.innerHTML = `<option value="">Select a hydrovac job</option>${hydrovacJobs.map((job) => `<option value="${escapeAttr(job.id)}"${job.id === ACTIVE_JOB_ID ? " selected" : ""}>${escapeHtml(job.title || job.customer_name || "Untitled job")} â€” ${escapeHtml(job.scheduled_date || "No date")}</option>`).join("")}`;
+  hydrovacInvoiceJobSelect.innerHTML = `<option value="">Select a hydrovac job</option>${hydrovacJobs.map((job) => `<option value="${escapeAttr(job.id)}"${job.id === ACTIVE_JOB_ID ? " selected" : ""}>${escapeHtml(job.title || job.customer_name || "Untitled job")} — ${escapeHtml(job.scheduled_date || "No date")}</option>`).join("")}`;
   hydrovacInvoicePreview.innerHTML = hydrovacInvoicePreviewHtml(hydrovacInvoiceJobSelect?.value || ACTIVE_JOB_ID || "");
 }
 async function maybeShowSetupWizard() {
@@ -11025,7 +9257,7 @@ function showSetupWizard() {
   modal.id = 'setupWizardModal';
   modal.className = 'modal-overlay';
   modal.innerHTML = `<div class="modal-box" style="max-width:480px;">
-    <h2 style="margin:0 0 8px;font-size:1.2rem;">Welcome to ProofLink! ðŸ‘‹</h2>
+    <h2 style="margin:0 0 8px;font-size:1.2rem;">Welcome to ProofLink! 👋</h2>
     <p style="color:rgba(255,255,255,.65);margin:0 0 20px;font-size:.9rem;">Let's get your business set up in 3 quick steps so you can start taking bookings.</p>
     <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:20px;">
       <button class="btn btn-primary" onclick="document.getElementById('setupWizardModal')?.remove(); switchTab('setup');" style="text-align:left;padding:14px 16px;">
@@ -11043,7 +9275,7 @@ function showSetupWizard() {
     </div>
     <div style="display:flex;justify-content:space-between;align-items:center;">
       <button class="btn btn-ghost" style="font-size:.8rem;" onclick="localStorage.setItem('pl_wizard_dismissed','1');document.getElementById('setupWizardModal')?.remove();">Skip setup</button>
-      <button class="btn btn-primary" onclick="document.getElementById('setupWizardModal')?.remove(); switchTab('setup');">Get started â†’</button>
+      <button class="btn btn-primary" onclick="document.getElementById('setupWizardModal')?.remove(); switchTab('setup');">Get started →</button>
     </div>
   </div>`;
   document.body.appendChild(modal);
@@ -11138,7 +9370,7 @@ async function boot() {
   }
 }
 
-// â”€â”€ Push Notifications â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Push Notifications ────────────────────────────────────────────────────────
 
 const VAPID_PUBLIC_KEY = "BPB-zAeBzP3xUdVT7F_zML4A3Oq0f_LE24o2oM38has6FhsIRDE6V14vNDkDZr_co2VP0HJVWkYaxr7tdAD5ARA";
 
@@ -11179,7 +9411,7 @@ async function registerPushNotifications() {
   }
 }
 
-// â”€â”€ Invoice PDF â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Invoice PDF ───────────────────────────────────────────────────────────────
 
 function generateInvoicePDF(order) {
   const jsPDF = window.jspdf?.jsPDF;
@@ -11191,7 +9423,7 @@ function generateInvoicePDF(order) {
   const dark = [26, 26, 26];
   const grey = [100, 100, 100];
 
-  const fmt  = (v) => isNaN(Number(v)) ? "â€”" : "$" + Number(v).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  const fmt  = (v) => isNaN(Number(v)) ? "—" : "$" + Number(v).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   const now  = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
 
   // Header bar
@@ -11225,7 +9457,7 @@ function generateInvoicePDF(order) {
   doc.setFont("helvetica", "bold");
   doc.text("Bill To", W - 200, 80);
   doc.setFont("helvetica", "normal");
-  doc.text(String(order.customer_name || "â€”"), W - 200, 96);
+  doc.text(String(order.customer_name || "—"), W - 200, 96);
   if (order.customer_email) doc.text(order.customer_email, W - 200, 112);
 
   // Divider
@@ -11298,13 +9530,13 @@ function generateInvoicePDF(order) {
   doc.setTextColor(...grey);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8);
-  doc.text("Generated by ProofLink Â· prooflink.co", W / 2, doc.internal.pageSize.getHeight() - 24, { align: "center" });
+  doc.text("Generated by ProofLink · prooflink.co", W / 2, doc.internal.pageSize.getHeight() - 24, { align: "center" });
 
   const filename = `invoice-${String(order.id || "order").slice(0, 8)}-${now.replace(/\s/g, "-")}.pdf`;
   doc.save(filename);
 }
 
-// â”€â”€ Reviews â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Reviews ───────────────────────────────────────────────────────────────────
 
 $("btnExportReviewsCsv")?.addEventListener("click", () => {
   const rows = REVIEWS_CACHE;
@@ -11313,7 +9545,7 @@ $("btnExportReviewsCsv")?.addEventListener("click", () => {
   downloadCsv("reviews", headers, rows.map((r) => headers.map((h) => r[h] ?? "")));
 });
 
-// â”€â”€ Quotes Panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Quotes Panel ──────────────────────────────────────────────────────────────
 
 async function fetchQuotes(status) {
   if (FETCHING.has('quotes')) return;
@@ -11349,7 +9581,7 @@ function renderQuotesList() {
   }
 
   const statusColor = { pending: "#93c5fd", accepted: "#4ade80", declined: "#f87171", expired: "rgba(255,255,255,.35)" };
-  const fmtMoney = (cents) => cents != null ? "$" + (cents / 100).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",") : "â€”";
+  const fmtMoney = (cents) => cents != null ? "$" + (cents / 100).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",") : "—";
 
   el.innerHTML = `
     <div class="list">
@@ -11362,13 +9594,13 @@ function renderQuotesList() {
           <div style="display:flex;align-items:center;gap:10px;width:100%;">
             <div style="flex:1;min-width:0;">
               <div style="font-weight:600;font-size:.9rem;">${escapeHtml(q.title || "Quote")}</div>
-              <div class="muted" style="font-size:.78rem;">${escapeHtml(q.customer_name || "")}${q.customer_email ? ` Â· ${escapeHtml(q.customer_email)}` : ""} Â· ${formatDateOnly(q.created_at)}</div>
+              <div class="muted" style="font-size:.78rem;">${escapeHtml(q.customer_name || "")}${q.customer_email ? ` · ${escapeHtml(q.customer_email)}` : ""} · ${formatDateOnly(q.created_at)}</div>
             </div>
             <span style="font-size:.75rem;padding:3px 9px;background:rgba(255,255,255,.06);border-radius:12px;color:${color};white-space:nowrap;">${escapeHtml(q.status || "pending")}</span>
             <span style="font-size:.85rem;font-weight:700;color:var(--text);white-space:nowrap;">${fmtMoney(q.amount_cents)}</span>
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;">
-            <a href="${escapeHtml(quoteUrl)}" target="_blank" style="font-size:.78rem;color:var(--accent);text-decoration:none;">View quote page â†’</a>
+            <a href="${escapeHtml(quoteUrl)}" target="_blank" style="font-size:.78rem;color:var(--accent);text-decoration:none;">View quote page →</a>
             ${isPending ? `<button class="btn btn-ghost btn-sm qt-resend-btn" data-email="${escapeHtml(q.customer_email || "")}" data-url="${escapeHtml(quoteUrl)}" data-name="${escapeHtml(q.customer_name || "")}" type="button" style="font-size:.75rem;padding:2px 8px;">Copy link</button>` : ""}
             ${q.accepted_at ? `<span class="muted" style="font-size:.75rem;">Accepted ${formatDateOnly(q.accepted_at)}</span>` : ""}
             ${q.declined_at ? `<span class="muted" style="font-size:.75rem;">Declined ${formatDateOnly(q.declined_at)}</span>` : ""}
@@ -11413,7 +9645,7 @@ $("btnExportQuotesCsv")?.addEventListener("click", () => {
   downloadCsv("quotes", headers, QUOTES_CACHE.map((q) => headers.map((h) => q[h] ?? "")));
 });
 
-// â”€â”€ Global Search â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Global Search ─────────────────────────────────────────────────────────────
 
 const globalSearch = $("globalSearch");
 const globalSearchOverlay = $("globalSearchOverlay");
@@ -11422,7 +9654,7 @@ const globalSearchResults = $("globalSearchResults");
 function runGlobalSearch(q) {
   if (!CRM_ORDERS_CACHE?.length && !CUSTOMERS_CACHE?.length && !BOOKINGS_CACHE?.length) {
     const overlay = $("globalSearchOverlay");
-    if (overlay) overlay.innerHTML = '<div style="padding:20px;text-align:center;color:rgba(255,255,255,.4);font-size:.85rem;">Loading dataâ€¦ try again in a moment.</div>';
+    if (overlay) overlay.innerHTML = '<div style="padding:20px;text-align:center;color:rgba(255,255,255,.4);font-size:.85rem;">Loading data… try again in a moment.</div>';
     return;
   }
   if (!q || q.length < 2) { if (globalSearchOverlay) globalSearchOverlay.style.display = "none"; return; }
@@ -11505,7 +9737,7 @@ document.addEventListener("click", (e) => {
   }
 });
 
-// â”€â”€ Dark / Light mode toggle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Dark / Light mode toggle ───────────────────────────────────────────────────
 
 (function () {
   const saved = localStorage.getItem("pl_theme");
@@ -11519,10 +9751,10 @@ $("btnDarkMode")?.addEventListener("click", () => {
   document.documentElement.setAttribute("data-theme", next);
   localStorage.setItem("pl_theme", next);
   const btn = $("btnDarkMode");
-  if (btn) btn.textContent = next === "light" ? "â˜¾" : "â˜€";
+  if (btn) btn.textContent = next === "light" ? "☾" : "☀";
 });
 
-// â”€â”€ CSV Export â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── CSV Export ────────────────────────────────────────────────────────────────
 
 $("btnExportCustomersCsv")?.addEventListener("click", () => {
   const rows = [['Name','Email','Phone','City','State','Created']];
@@ -11535,7 +9767,7 @@ $("btnExportCustomersCsv")?.addEventListener("click", () => {
   a.download = 'customers.csv'; a.click();
 });
 
-// â”€â”€ Bulk Customer Import â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Bulk Customer Import ──────────────────────────────────────────────────────
 $("btnImportCustomers")?.addEventListener("click", () => {
   const existing = document.getElementById("importCustomersModal");
   if (existing) { existing.remove(); return; }
@@ -11546,7 +9778,7 @@ $("btnImportCustomers")?.addEventListener("click", () => {
     <div style="background:#1a1d27;border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:28px;max-width:560px;width:100%;max-height:90vh;overflow-y:auto;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
         <strong style="font-size:1rem;">Import customers from CSV</strong>
-        <button id="importCustClose" type="button" style="background:none;border:none;color:rgba(255,255,255,.5);font-size:1.2rem;cursor:pointer;">âœ•</button>
+        <button id="importCustClose" type="button" style="background:none;border:none;color:rgba(255,255,255,.5);font-size:1.2rem;cursor:pointer;">✕</button>
       </div>
       <div style="font-size:.78rem;color:rgba(255,255,255,.4);margin-bottom:10px;">Expected format (one per line):<br /><code style="font-size:.75rem;">Name, Email, Phone, Address, City, State, Zip</code></div>
       <textarea id="importCsvData" class="input" rows="8" style="width:100%;font-family:monospace;font-size:.8rem;resize:vertical;" placeholder="Jane Smith, jane@example.com, 555-1234, 123 Main St, Springfield, IL, 62701&#10;John Doe, john@example.com, 555-9999"></textarea>
@@ -11594,7 +9826,7 @@ $("btnImportCustomers")?.addEventListener("click", () => {
     const msgEl     = modal.querySelector("#importCsvMsg");
     if (!parsedRows.length) { msgEl.textContent = "No rows to import."; return; }
     submitBtn.disabled = true;
-    submitBtn.textContent = "Importingâ€¦";
+    submitBtn.textContent = "Importing…";
     try {
       const tok = await getAccessToken();
       const customers = parsedRows.map(([name, email, phone, address, city, state, zip]) => ({
@@ -11625,12 +9857,12 @@ $("btnImportCustomers")?.addEventListener("click", () => {
   };
 });
 
-// â”€â”€ Customer Messages â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Customer Messages ─────────────────────────────────────────────────────────
 
 async function fetchAndRenderMessages() {
   const list = $("messagesList");
   if (!list) return;
-  list.innerHTML = `<p class="muted" style="padding:12px 0;">Loadingâ€¦</p>`;
+  list.innerHTML = `<p class="muted" style="padding:12px 0;">Loading…</p>`;
   try {
     const { data, error } = await sb
       .from("customer_messages")
@@ -11646,7 +9878,7 @@ async function fetchAndRenderMessages() {
     }
 
     list.innerHTML = data.map((msg) => {
-      const date = msg.created_at ? new Date(msg.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "â€”";
+      const date = msg.created_at ? new Date(msg.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "—";
       return `<div style="padding:14px 0;border-bottom:1px solid rgba(255,255,255,.06);">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
           <div style="font-weight:600;font-size:.88rem;">${escapeHtml(msg.customer_name || "Customer")}</div>
@@ -11657,7 +9889,7 @@ async function fetchAndRenderMessages() {
         ${msg.reply_text ? `<div style="background:rgba(200,75,47,.08);border-left:3px solid #c84b2f;padding:8px 12px;font-size:.82rem;color:rgba(255,255,255,.6);margin-bottom:8px;"><span style="font-size:.75rem;color:#c84b2f;font-weight:600;display:block;margin-bottom:4px;">Your reply</span>${escapeHtml(msg.reply_text)}</div>` : ""}
         ${!msg.reply_text ? `<div style="margin-top:6px;">
           <div class="msg-reply-form" data-id="${escapeAttr(msg.id)}" data-name="${escapeAttr(msg.customer_name || "")}" style="display:none;">
-            <textarea class="msg-reply-input" rows="3" placeholder="Type your replyâ€¦" style="width:100%;background:#0f1117;border:1px solid rgba(255,255,255,.15);border-radius:6px;color:#e8e9eb;padding:8px 10px;font-size:.85rem;resize:vertical;margin-bottom:6px;font-family:inherit;outline:none;"></textarea>
+            <textarea class="msg-reply-input" rows="3" placeholder="Type your reply…" style="width:100%;background:#0f1117;border:1px solid rgba(255,255,255,.15);border-radius:6px;color:#e8e9eb;padding:8px 10px;font-size:.85rem;resize:vertical;margin-bottom:6px;font-family:inherit;outline:none;"></textarea>
             <div style="display:flex;gap:8px;">
               <button class="btn btn-primary btn-sm msg-send-reply" type="button">Send reply</button>
               <button class="btn btn-ghost btn-sm msg-cancel-reply" type="button">Cancel</button>
@@ -11691,7 +9923,7 @@ async function fetchAndRenderMessages() {
         const resultEl  = form.querySelector(".msg-reply-result");
         const reply     = textarea.value.trim();
         if (!reply) { resultEl.textContent = "Please enter a reply."; resultEl.style.color = "#f87171"; return; }
-        btn.disabled = true; btn.textContent = "Sendingâ€¦";
+        btn.disabled = true; btn.textContent = "Sending…";
         try {
           const tok = await getAccessToken();
           const res = await fetch("/.netlify/functions/reply-customer-message", {
@@ -11701,7 +9933,7 @@ async function fetchAndRenderMessages() {
           });
           const d = await res.json().catch(() => ({}));
           if (!res.ok) throw new Error(d.error || "Failed to send reply");
-          resultEl.textContent = "Reply sent âœ“";
+          resultEl.textContent = "Reply sent ✓";
           resultEl.style.color = "#4ade80";
           setTimeout(() => fetchAndRenderMessages().catch(console.error), 1500);
         } catch (err) {
@@ -11726,13 +9958,13 @@ $("btnCopyBookingLink")?.addEventListener("click", async () => {
   try {
     await navigator.clipboard.writeText(link);
     const btn = $("btnCopyBookingLink");
-    if (btn) { const t = btn.textContent; btn.textContent = "âœ“ Copied!"; setTimeout(() => { btn.textContent = t; }, 2000); }
+    if (btn) { const t = btn.textContent; btn.textContent = "✓ Copied!"; setTimeout(() => { btn.textContent = t; }, 2000); }
   } catch {
     showCopyModal("Copy this booking link.", link).catch(() => {});
   }
 });
 
-// â”€â”€ Sidebar More toggle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Sidebar More toggle ────────────────────────────────────────────────────────
 $("btnSidebarMore")?.addEventListener("click", () => {
   const more = $("sidebarMore");
   if (!more) return;
@@ -11754,7 +9986,7 @@ function ensureSecondaryTabVisible(tab) {
   }
 }
 
-// â”€â”€ AI Copilot Panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── AI Copilot Panel ──────────────────────────────────────────────────────────
 
 let AI_PANEL_LOADED = false;
 
@@ -11769,7 +10001,7 @@ async function loadAIBriefing() {
   const statusEl  = $("aiBriefStatus");
   const chipsEl   = $("aiContextChips");
   if (!briefEl) return;
-  if (statusEl) { statusEl.textContent = "Loadingâ€¦"; statusEl.style.display = "block"; }
+  if (statusEl) { statusEl.textContent = "Loading…"; statusEl.style.display = "block"; }
   briefEl.style.display = "none";
   try {
     const tok = await getAccessToken();
@@ -11818,7 +10050,7 @@ async function aiAskQuestion(question) {
   if (btn) btn.disabled = true;
   if (errorEl) errorEl.style.display = "none";
   answerEl.style.display = "block";
-  answerEl.textContent = "Thinkingâ€¦";
+  answerEl.textContent = "Thinking…";
   try {
     const tok = await getAccessToken();
     const res = await fetch("/.netlify/functions/ai-copilot", {
@@ -11883,7 +10115,7 @@ async function requestAIDraft(draft_type) {
   if (!outputEl) return;
   if (areaEl) areaEl.style.display = "block";
   if (copyBtn) copyBtn.style.display = "none";
-  outputEl.textContent = "Draftingâ€¦";
+  outputEl.textContent = "Drafting…";
   try {
     const tok = await getAccessToken();
     const res = await fetch("/.netlify/functions/ai-copilot", {
@@ -12006,7 +10238,7 @@ boot().catch((err) => {
   showLogin(err?.message || String(err));
 });
 
-// â”€â”€ Availability blocks â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Availability blocks ────────────────────────────────────────────────────────
 let AVAILABILITY_BLOCKS_CACHE = [];
 
 async function loadAvailabilityBlocks() {
@@ -12033,8 +10265,8 @@ function renderAvailabilityBlocks() {
       <div>
         <div style="font-weight:500;color:#e8e9eb;">${escapeHtml(b.title || 'Unavailable')}</div>
         <div style="font-size:.78rem;color:rgba(255,255,255,.4);">
-          ${new Date(b.starts_at).toLocaleDateString()} â€“ ${new Date(b.ends_at).toLocaleDateString()}
-          ${b.block_bookings ? ' Â· <span style="color:#fbbf24;">Blocks new bookings</span>' : ''}
+          ${new Date(b.starts_at).toLocaleDateString()} – ${new Date(b.ends_at).toLocaleDateString()}
+          ${b.block_bookings ? ' · <span style="color:#fbbf24;">Blocks new bookings</span>' : ''}
         </div>
       </div>
       <button class="btn btn-ghost" style="font-size:.72rem;" onclick="deleteAvailBlock('${escapeAttr(b.id)}')">Delete</button>
@@ -12082,7 +10314,7 @@ $('btnAddAvailBlock')?.addEventListener('click', () => {
     const ends = $('abEnd')?.value;
     if (!starts || !ends) { notifyOperator("Add both a start and end date."); return; }
     if (starts > ends) { notifyOperator("The start date needs to come before the end date."); return; }
-    const btn = $('abSave'); btn.disabled = true; btn.textContent = 'Savingâ€¦';
+    const btn = $('abSave'); btn.disabled = true; btn.textContent = 'Saving…';
     try {
       const tok = await getAccessToken();
       const res = await fetch('/.netlify/functions/manage-availability-blocks', {
@@ -12106,7 +10338,7 @@ $('btnAddAvailBlock')?.addEventListener('click', () => {
   };
 });
 
-// â”€â”€ Package sessions summary â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Package sessions summary ──────────────────────────────────────────────────
 function renderPackagesSummary() {
   const card = $('packagesSummaryCard');
   const list = $('packagesSummaryList');
@@ -12119,7 +10351,7 @@ function renderPackagesSummary() {
     const total = Number(p.package_sessions_total || 0);
     const remaining = Math.max(0, total - used);
     const pct = total > 0 ? Math.round(remaining / total * 100) : 0;
-    const expiry = p.package_valid_until ? ` Â· expires ${new Date(p.package_valid_until).toLocaleDateString()}` : '';
+    const expiry = p.package_valid_until ? ` · expires ${new Date(p.package_valid_until).toLocaleDateString()}` : '';
     const custName = p.customer_name || p.email || 'Unknown';
     return `<div style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,.06);">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
@@ -12134,7 +10366,7 @@ function renderPackagesSummary() {
   }).join('');
 }
 
-// â”€â”€ Project phases â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Project phases ────────────────────────────────────────────────────────────
 async function loadPhasesIntoEl(orderId, bodyEl) {
   try {
     const tok = await getAccessToken();
@@ -12157,7 +10389,7 @@ async function loadPhasesIntoEl(orderId, bodyEl) {
           <div style="flex:1;">
             <div style="font-weight:500;color:#e8e9eb;">${escapeHtml(p.title)}</div>
             ${p.description ? `<div style="font-size:.75rem;color:rgba(255,255,255,.4);">${escapeHtml(p.description)}</div>` : ''}
-            <div style="font-size:.75rem;color:rgba(255,255,255,.35);">${formatUsd(p.amount_cents)}${p.due_date ? ' Â· due ' + new Date(p.due_date).toLocaleDateString() : ''}</div>
+            <div style="font-size:.75rem;color:rgba(255,255,255,.35);">${formatUsd(p.amount_cents)}${p.due_date ? ' · due ' + new Date(p.due_date).toLocaleDateString() : ''}</div>
           </div>
           <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;">
             <span style="font-size:.7rem;font-weight:600;color:${statusColor};text-transform:uppercase;">${p.status}</span>
@@ -12212,7 +10444,7 @@ function openAddPhaseModal(orderId) {
   document.getElementById('phSave').onclick = async () => {
     const title = ($('phTitle')?.value || '').trim();
     if (!title) { notifyOperator("Add a phase name first."); return; }
-    const btn = $('phSave'); btn.disabled = true; btn.textContent = 'Savingâ€¦';
+    const btn = $('phSave'); btn.disabled = true; btn.textContent = 'Saving…';
     try {
       const tok = await getAccessToken();
       const res = await fetch('/.netlify/functions/manage-project-phases', {
@@ -12239,12 +10471,12 @@ function openAddPhaseModal(orderId) {
   };
 }
 
-// â”€â”€ Time entry logging â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Time entry logging ─────────────────────────────────────────────────────────
 
 async function renderTimeEntries(orderId) {
   const body = document.getElementById("timeLoggedBody");
   if (!body || body.style.display === "none") return;
-  body.innerHTML = `<div class="muted" style="font-size:.82rem;">Loadingâ€¦</div>`;
+  body.innerHTML = `<div class="muted" style="font-size:.82rem;">Loading…</div>`;
   const entries = await fetchTimeEntries(orderId);
   if (!entries.length) {
     body.innerHTML = `<div class="muted" style="font-size:.82rem;">No time entries for this order.</div>`;
@@ -12272,7 +10504,7 @@ async function renderTimeEntries(orderId) {
           <td style="padding:3px 6px;border-bottom:1px solid rgba(255,255,255,.05);">${escapeHtml(e.description || "")}</td>
           <td style="text-align:right;padding:3px 6px;border-bottom:1px solid rgba(255,255,255,.05);">${dur}</td>
           <td style="text-align:right;padding:3px 6px;border-bottom:1px solid rgba(255,255,255,.05);">${e.billable ? "Yes" : "No"}</td>
-          <td style="text-align:right;padding:3px 6px;border-bottom:1px solid rgba(255,255,255,.05);">${e.billable && e.amount_cents ? formatUsd(e.amount_cents) : "â€”"}</td>
+          <td style="text-align:right;padding:3px 6px;border-bottom:1px solid rgba(255,255,255,.05);">${e.billable && e.amount_cents ? formatUsd(e.amount_cents) : "—"}</td>
         </tr>`;
       }).join("")}
       </tbody>
@@ -12280,10 +10512,10 @@ async function renderTimeEntries(orderId) {
         <td colspan="2" style="padding:6px 6px 2px;">Total</td>
         <td style="text-align:right;padding:6px 6px 2px;">${(totalMins / 60).toFixed(2)} hrs</td>
         <td></td>
-        <td style="text-align:right;padding:6px 6px 2px;">${totalBillable ? formatUsd(totalBillable) : "â€”"}</td>
+        <td style="text-align:right;padding:6px 6px 2px;">${totalBillable ? formatUsd(totalBillable) : "—"}</td>
       </tr></tfoot>
     </table>
-    <button id="btnTimeToInvoice" class="btn btn-ghost" style="margin-top:8px;font-size:.78rem;">âš¡ Add uninvoiced hours to invoice</button>`;
+    <button id="btnTimeToInvoice" class="btn btn-ghost" style="margin-top:8px;font-size:.78rem;">⚡ Add uninvoiced hours to invoice</button>`;
 }
 
 function openLogTimeModal(orderId) {
@@ -12315,7 +10547,7 @@ function openLogTimeModal(orderId) {
             <input id="ltDurationMins" type="number" min="1" step="1" placeholder="e.g. 60" class="input" style="width:100%;" />
           </div>
           <div style="flex:1;">
-            <label style="font-size:.72rem;color:rgba(255,255,255,.35);display:block;margin-bottom:2px;">â€” or â€” Ended at</label>
+            <label style="font-size:.72rem;color:rgba(255,255,255,.35);display:block;margin-bottom:2px;">— or — Ended at</label>
             <input id="ltEndedAt" type="datetime-local" class="input" style="width:100%;" />
           </div>
         </div>
@@ -12353,7 +10585,7 @@ function openLogTimeModal(orderId) {
 
     const btn = document.getElementById("ltSave");
     btn.disabled = true;
-    btn.textContent = "Savingâ€¦";
+    btn.textContent = "Saving…";
 
     try {
       const tok = await getAccessToken();
@@ -12389,7 +10621,7 @@ function openLogTimeModal(orderId) {
       const span = document.getElementById("timeLoggedToggle")?.querySelector("span");
       if (body) {
         body.style.display = "block";
-        if (span) span.textContent = "Time logged â–¾";
+        if (span) span.textContent = "Time logged ▾";
         await renderTimeEntries(orderId);
       }
     } catch (err) {
@@ -12400,7 +10632,7 @@ function openLogTimeModal(orderId) {
   };
 }
 
-// â”€â”€ Session idle timeout â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Session idle timeout ───────────────────────────────────────────────────────
 (function initIdleTimer() {
   const WARN_MS   = 25 * 60 * 1000; // warn after 25 min idle
   const LOGOUT_MS = 30 * 60 * 1000; // logout after 30 min idle
@@ -12433,7 +10665,7 @@ function openLogTimeModal(orderId) {
   reset();
 })();
 
-// â”€â”€ Vendor handlers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Vendor handlers ────────────────────────────────────────────────────────────
 $("btnRefreshVendors")?.addEventListener("click", async () => {
   await fetchVendors();
   renderVendors();
@@ -12469,7 +10701,7 @@ $("btnAddVendor")?.addEventListener("click", () => {
     const name = (document.getElementById("vName").value || "").trim();
     if (!name) { notifyOperator("Add a name first."); return; }
     const btn = document.getElementById("avSave");
-    btn.disabled = true; btn.textContent = "Savingâ€¦";
+    btn.disabled = true; btn.textContent = "Saving…";
     try {
       const tok = await getAccessToken();
       const res = await fetch("/.netlify/functions/manage-vendors", {
