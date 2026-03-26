@@ -1220,12 +1220,13 @@ function customerLifetimeValueCents(customer) {
   const stored = Number(customer?.lifetime_value_cents || 0);
   const paid = PAYMENTS_CACHE
     .filter((row) => row.customer_id === customer?.id)
-    .reduce((sum, row) => sum + Math.max(0, paymentRevenueContributionCents(row)), 0);
+    .reduce((sum, row) => sum + paymentRevenueContributionCents(row), 0);
   // Always prefer the computed value from local payment records; only fall back to the
   // stored value if no payments exist in the local cache (paid === 0), which can happen
   // before the cache is populated. Using Math.max() here was wrong: a stale stored value
   // higher than the computed total would silently win.
-  return paid > 0 ? paid : stored;
+  const hasPayments = PAYMENTS_CACHE.some((row) => row.customer_id === customer?.id);
+  return hasPayments ? paid : stored;
 }
 function paymentSortTimestamp(row) {
   return new Date(row?.paid_at || row?.created_at || row?.updated_at || 0).getTime() || 0;
