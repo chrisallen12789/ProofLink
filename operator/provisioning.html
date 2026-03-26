@@ -215,7 +215,7 @@
   <div style="margin-left:auto;display:flex;gap:1.25rem;align-items:center;">
     <a href="/operator/analytics.html" class="top-nav-back">Analytics</a>
     <a href="/operator/tenants.html" class="top-nav-back">Tenants</a>
-    <a href="/operator/" class="top-nav-back">← Dashboard</a>
+    <a href="/operator/" class="top-nav-back">← Business Hub</a>
   </div>
 </nav>
 
@@ -246,7 +246,7 @@
     <div class="page-header">
       <div>
         <h1>Onboarding Queue</h1>
-        <p>Review, approve, and provision businesses onto ProofLink.</p>
+        <p>Review signups, approve new owners, and activate businesses on ProofLink.</p>
       </div>
       <button class="btn-refresh" onclick="loadRequests()">
         ↻ Refresh
@@ -404,7 +404,7 @@
   function renderTable(rows) {
     const tbody = document.getElementById('requests-tbody');
     if (!rows.length) {
-      tbody.innerHTML = '<tr><td colspan="6"><div class="empty-state"><p>No onboarding requests found.</p></div></td></tr>';
+      tbody.innerHTML = '<tr><td colspan="6"><div class="empty-state"><p>No signups are waiting right now.</p></div></td></tr>';
       return;
     }
 
@@ -442,10 +442,10 @@
 
     if (r.status === 'submitted' || r.status === 'needs_review') {
       html.push(`<button class="btn btn-approve" onclick="approveRequest('${r.id}')">Approve</button>`);
-      html.push(`<button class="btn btn-retry" onclick="openRejectModal(event,'${r.id}')" style="background:#fee2e2;color:var(--danger)">Reject</button>`);
+      html.push(`<button class="btn btn-retry" onclick="openRejectModal(event,'${r.id}')" style="background:#fee2e2;color:var(--danger)">Decline</button>`);
     }
     if (r.status === 'failed') {
-      html.push(`<button class="btn btn-approve" onclick="approveRequest('${r.id}')">Re-approve</button>`);
+      html.push(`<button class="btn btn-approve" onclick="approveRequest('${r.id}')">Approve again</button>`);
       html.push(`<button class="btn btn-retry" onclick="provisionTenant('${r.id}', this)">↻ Retry</button>`);
     }
     if (r.status === 'approved') {
@@ -471,7 +471,7 @@
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Approval failed');
-      toast('Request approved', 'success');
+      toast('Signup approved', 'success');
       await loadRequests();
     } catch (err) {
       toast('Something went wrong. Please try again.', 'error');
@@ -545,7 +545,7 @@
 <div id="detail-modal-overlay" style="display:none;position:fixed;inset:0;background:rgba(13,13,13,0.5);z-index:1000;align-items:center;justify-content:center;padding:1rem;">
   <div style="background:#fff;border:1px solid var(--border);border-radius:8px;width:100%;max-width:540px;max-height:88vh;overflow-y:auto;box-shadow:0 24px 80px rgba(0,0,0,0.15);">
     <div style="display:flex;align-items:center;justify-content:space-between;padding:1.25rem 1.5rem;border-bottom:1px solid var(--border);position:sticky;top:0;background:#fff;z-index:1;">
-      <span style="font-weight:700;font-size:1rem;" id="dm-title">Application Detail</span>
+      <span style="font-weight:700;font-size:1rem;" id="dm-title">Signup detail</span>
       <button onclick="closeDetailModal()" style="background:none;border:none;cursor:pointer;font-size:1.2rem;color:var(--muted);padding:0.2rem 0.4rem;border-radius:3px;">✕</button>
     </div>
     <div style="padding:1.5rem;" id="dm-body"></div>
@@ -557,18 +557,18 @@
 <div id="reject-modal-overlay" style="display:none;position:fixed;inset:0;background:rgba(13,13,13,0.5);z-index:1000;align-items:center;justify-content:center;padding:1rem;">
   <div style="background:#fff;border:1px solid var(--border);border-radius:8px;width:100%;max-width:440px;box-shadow:0 24px 80px rgba(0,0,0,0.15);">
     <div style="display:flex;align-items:center;justify-content:space-between;padding:1.25rem 1.5rem;border-bottom:1px solid var(--border);">
-      <span style="font-weight:700;font-size:1rem;">Reject Application</span>
+      <span style="font-weight:700;font-size:1rem;">Decline signup</span>
       <button onclick="closeRejectModal()" style="background:none;border:none;cursor:pointer;font-size:1.2rem;color:var(--muted);padding:0.2rem 0.4rem;">✕</button>
     </div>
     <div style="padding:1.5rem;">
-      <p style="font-size:0.85rem;color:var(--muted);margin-bottom:1rem;">Rejecting this application will notify the applicant by email. Provide a reason (optional but recommended).</p>
+      <p style="font-size:0.85rem;color:var(--muted);margin-bottom:1rem;">Declining this signup will notify the owner by email. Provide a reason (optional but recommended).</p>
       <div id="rm-business" style="font-weight:600;font-size:0.9rem;margin-bottom:1rem;"></div>
-      <label style="font-size:0.75rem;font-weight:600;display:block;margin-bottom:0.35rem;">Reason for rejection <span style="color:var(--muted);font-weight:400">(optional)</span></label>
+      <label style="font-size:0.75rem;font-weight:600;display:block;margin-bottom:0.35rem;">Reason for decline <span style="color:var(--muted);font-weight:400">(optional)</span></label>
       <textarea id="rm-reason" rows="3" style="width:100%;background:#f5f2eb;border:1px solid var(--border);border-radius:4px;padding:0.6rem 0.75rem;font-size:0.85rem;font-family:inherit;outline:none;resize:vertical;" placeholder="e.g. We're currently only accepting businesses in Michigan."></textarea>
     </div>
     <div style="padding:1rem 1.5rem;border-top:1px solid var(--border);display:flex;gap:0.75rem;justify-content:flex-end;">
       <button onclick="closeRejectModal()" style="padding:0.5rem 1rem;border:1px solid var(--border);background:#fff;border-radius:4px;cursor:pointer;font-size:0.82rem;">Cancel</button>
-      <button id="rm-confirm-btn" onclick="confirmReject()" style="padding:0.5rem 1.25rem;background:#c62828;color:#fff;border:none;border-radius:4px;cursor:pointer;font-weight:700;font-size:0.82rem;font-family:inherit;">Reject & Notify</button>
+      <button id="rm-confirm-btn" onclick="confirmReject()" style="padding:0.5rem 1.25rem;background:#c62828;color:#fff;border:none;border-radius:4px;cursor:pointer;font-weight:700;font-size:0.82rem;font-family:inherit;">Decline & Notify</button>
     </div>
   </div>
 </div>
@@ -623,7 +623,7 @@ function openDetailModal(e, id) {
     let footerHtml = `<button onclick="closeDetailModal()" style="padding:0.5rem 1rem;border:1px solid var(--border);background:#fff;border-radius:4px;cursor:pointer;font-size:0.82rem;">Close</button>`;
     if (req.status === 'submitted') {
       footerHtml += `<button onclick="closeDetailModal();approveRequest('${id}')" style="padding:0.5rem 1rem;background:#d4a843;color:#fff;border:none;border-radius:4px;cursor:pointer;font-weight:700;font-size:0.82rem;">Approve</button>`;
-      footerHtml += `<button onclick="closeDetailModal();openRejectModal(new Event(''),'${id}')" style="padding:0.5rem 1rem;background:#c62828;color:#fff;border:none;border-radius:4px;cursor:pointer;font-weight:700;font-size:0.82rem;">Reject</button>`;
+      footerHtml += `<button onclick="closeDetailModal();openRejectModal(new Event(''),'${id}')" style="padding:0.5rem 1rem;background:#c62828;color:#fff;border:none;border-radius:4px;cursor:pointer;font-weight:700;font-size:0.82rem;">Decline</button>`;
     }
     if (req.status === 'approved') {
       footerHtml += `<button onclick="closeDetailModal();provisionTenant('${id}',null)" style="padding:0.5rem 1rem;background:#15803d;color:#fff;border:none;border-radius:4px;cursor:pointer;font-weight:700;font-size:0.82rem;">▶ Provision</button>`;
@@ -680,7 +680,7 @@ async function confirmReject() {
   if (!_rejectTargetId) return;
   const btn = document.getElementById('rm-confirm-btn');
   const reason = document.getElementById('rm-reason').value.trim();
-  btn.disabled = true; btn.textContent = 'Rejecting…';
+  btn.disabled = true; btn.textContent = 'Declining…';
   try {
     const authToken = accessToken || sessionStorage.getItem('op_token') || '';
     const res = await fetch('/.netlify/functions/reject-onboarding-request', {
@@ -689,12 +689,12 @@ async function confirmReject() {
       body   : JSON.stringify({ id: _rejectTargetId, rejection_reason: reason || null }),
     });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Rejection failed');
+    if (!res.ok) throw new Error(data.error || 'Decline failed');
     closeRejectModal();
-    toast('Application rejected and applicant notified.', 'success');
+    toast('Signup declined and owner notified.', 'success');
     loadRequests();
   } catch (err) {
-    btn.disabled = false; btn.textContent = 'Reject & Notify';
+    btn.disabled = false; btn.textContent = 'Decline & Notify';
     toast('Error: ' + err.message, 'error');
   }
 }

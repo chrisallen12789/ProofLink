@@ -381,6 +381,11 @@
         "Track property-specific notes without office clutter",
         "Help a young operator learn sales, follow-up, and payment flow",
       ],
+      recordFocus: [
+        "Property profile and gate or access notes",
+        "Route cadence and recurring service memory",
+        "Seasonal upsells and cleanup opportunities",
+      ],
     },
     cleaning: {
       key: "cleaning",
@@ -399,6 +404,11 @@
         "Handle recurring and one-time work in one system",
         "Keep scope and extras clear before disputes happen",
         "Make payment follow-up easy for the office",
+      ],
+      recordFocus: [
+        "Scope checklist and room-by-room expectations",
+        "Access instructions, alarm notes, and entry details",
+        "Recurring cadence, add-ons, and completion proof",
       ],
     },
     photography: {
@@ -495,6 +505,11 @@
         "Quote repairs or replacements professionally",
         "Track parts, labor, and follow-up cleanly",
       ],
+      recordFocus: [
+        "Equipment model, serial, and system history",
+        "Failure symptoms, findings, and diagnostic notes",
+        "Maintenance-plan context and parts follow-up",
+      ],
     },
     plumbing: {
       key: "plumbing",
@@ -513,6 +528,11 @@
         "Record the real condition before opening walls or fixtures",
         "Separate the repair from optional restoration",
         "Track material usage and leftovers against the job",
+      ],
+      recordFocus: [
+        "Emergency level, shutoff status, and fixture context",
+        "Repair approval, restoration risk, and hidden-condition notes",
+        "Material usage, leftovers, and return-visit risk",
       ],
     },
     hydrovac: {

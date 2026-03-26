@@ -39,6 +39,10 @@ describe("prooflink workspace architecture", () => {
     const petBlueprint = architecture.resolveWorkspaceBlueprint("starter", "pet_services");
     const bakeryBlueprint = architecture.resolveWorkspaceBlueprint("starter", "bakery");
     const eventsBlueprint = architecture.resolveWorkspaceBlueprint("growth", "events");
+    const landscapingBlueprint = architecture.resolveWorkspaceBlueprint("starter", "landscaping");
+    const cleaningBlueprint = architecture.resolveWorkspaceBlueprint("starter", "cleaning");
+    const hvacBlueprint = architecture.resolveWorkspaceBlueprint("growth", "hvac");
+    const plumbingBlueprint = architecture.resolveWorkspaceBlueprint("growth", "plumbing");
 
     expect(petBlueprint.bidProfile).toBe("pet_care_services");
     expect(petBlueprint.hiddenByDefault).toContain("bids");
@@ -51,5 +55,9 @@ describe("prooflink workspace architecture", () => {
     expect(eventsBlueprint.workflowRubric.scheduling).toContain("deposits");
     expect(bakeryBlueprint.workflowRubric.scheduling).toContain("pickup");
     expect(petBlueprint.workflowRubric.intake).toContain("care");
+    expect(landscapingBlueprint.business.recordFocus).toContain("Property profile and gate or access notes");
+    expect(cleaningBlueprint.business.recordFocus).toContain("Access instructions, alarm notes, and entry details");
+    expect(hvacBlueprint.business.recordFocus).toContain("Equipment model, serial, and system history");
+    expect(plumbingBlueprint.business.recordFocus).toContain("Emergency level, shutoff status, and fixture context");
   });
 });

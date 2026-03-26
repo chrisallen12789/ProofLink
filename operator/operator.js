@@ -2493,7 +2493,7 @@ function workspacePanelCopy(tab, blueprint = currentWorkspaceBlueprint()) {
       return {
         title: isServiceWorkspace(blueprint) ? "Work" : workspaceOrderLabel(blueprint),
         subtitle: isServiceWorkspace(blueprint)
-          ? "Run the request, proposal, approved, and active-job stages from one workspace so the next step is always close by."
+          ? "Run the request, proposal, approved, and active-job stages from one clear flow so the next step is always close by."
           : `Review live ${orderLower}, intake details, and what needs to happen next.`,
       };
     case "bids":
@@ -2838,7 +2838,7 @@ function applyWorkspaceBlueprint() {
   const topbarSub = document.querySelector(".topbar .sub");
   if (topbarSub) {
     const focus = workspaceSummaryData(blueprint).focusTabs.slice(0, 3).join(", ");
-    topbarSub.textContent = `${workspaceSummaryData(blueprint).businessLabel} workspace on ${workspaceSummaryData(blueprint).tierLabel}. ${focus ? `Priority views: ${focus}.` : blueprint.tier.promise}`;
+    topbarSub.textContent = `${workspaceSummaryData(blueprint).businessLabel} on ${workspaceSummaryData(blueprint).tierLabel}. ${focus ? `Priority views: ${focus}.` : blueprint.tier.promise}`;
   }
 
   const sideCopy = document.querySelector(".side-copy");
@@ -3522,95 +3522,6 @@ function setWorkspaceCollapsed(tab, collapsed) {
   updateWorkspaceWindowControls(tab);
   renderWorkspaceHub();
 }
-function workspaceContextTabsFor(tab, blueprint = currentWorkspaceBlueprint()) {
-  const group = WORKSPACE_CONTEXT_GROUPS[tab] || [tab];
-  const seenLabels = new Set();
-  return uniqList(group.filter((candidate) => {
-    if (!isTabVisibleInWorkspace(candidate, blueprint)) return false;
-    const labelKey = String(workspaceTabLabel(candidate, blueprint) || "").trim().toLowerCase();
-    if (!labelKey) return false;
-    if (seenLabels.has(labelKey)) return false;
-    seenLabels.add(labelKey);
-    return true;
-  }));
-}
-function renderWorkspaceContextTabs() {
-  const blueprint = currentWorkspaceBlueprint();
-  const activeTab = document.querySelector(".tab.active")?.dataset.tab || "dashboard";
-  workspacePanels().forEach((panel) => {
-    const tab = panel.dataset.panel || "";
-    if (!tab) return;
-    const head = panel.querySelector(".panel-head");
-    if (!head) return;
-    let nav = panel.querySelector(".workspace-context-nav");
-    if (!nav) {
-      nav = document.createElement("div");
-      nav.className = "workspace-context-nav";
-      head.insertAdjacentElement("afterend", nav);
-    }
-    const tabs = tab === "dashboard" ? [tab] : workspaceContextTabsFor(tab, blueprint);
-    if (tabs.length <= 1) {
-      nav.innerHTML = "";
-      nav.classList.add("hidden");
-      return;
-    }
-    nav.classList.remove("hidden");
-    nav.innerHTML = `
-      <div class="workspace-context-nav__label">Related views</div>
-      <div class="workspace-context-nav__tabs">
-        ${tabs.map((relatedTab) => `
-          <button
-            class="workspace-context-tab ${relatedTab === activeTab ? "is-active" : ""}"
-            type="button"
-            data-context-tab="${escapeAttr(relatedTab)}"
-          >
-            ${escapeHtml(workspaceTabLabel(relatedTab, blueprint))}
-          </button>
-        `).join("")}
-      </div>
-    `;
-    nav.querySelectorAll("[data-context-tab]").forEach((button) => {
-      button.addEventListener("click", () => switchTab(button.getAttribute("data-context-tab") || "dashboard"));
-    });
-  });
-}
-function ensureWorkspaceWindowShell() {
-  workspacePanels().forEach((panel) => {
-    panel.classList.add("workspace-window");
-    const head = panel.querySelector(".panel-head");
-    if (!head) return;
-    if (!panel.querySelector(".workspace-window-body")) {
-      const body = document.createElement("div");
-      body.className = "workspace-window-body";
-      Array.from(panel.children)
-        .filter((child) => child !== head)
-        .forEach((child) => body.appendChild(child));
-      panel.appendChild(body);
-    }
-    let actions = head.querySelector(".panel-actions");
-    if (!actions) {
-      actions = document.createElement("div");
-      actions.className = "panel-actions";
-      head.appendChild(actions);
-    }
-    if (!actions.querySelector(".workspace-window-controls")) {
-      const controls = document.createElement("div");
-      controls.className = "workspace-window-controls";
-      controls.innerHTML = `
-        <button class="workspace-window-btn" type="button" data-workspace-action="collapse">Collapse</button>
-        <button class="workspace-window-btn is-close" type="button" data-workspace-action="close">Close</button>
-      `;
-      actions.appendChild(controls);
-      controls.querySelector('[data-workspace-action="collapse"]')?.addEventListener("click", () => {
-        setWorkspaceCollapsed(panel.dataset.panel, !panel.classList.contains("is-collapsed"));
-      });
-      controls.querySelector('[data-workspace-action="close"]')?.addEventListener("click", () => {
-        switchTab("dashboard");
-      });
-    }
-    updateWorkspaceWindowControls(panel.dataset.panel);
-  });
-}
 function bindWorkspaceDirtyTracking() {
   if (!viewApp || viewApp.dataset.workspaceDirtyBound === "1") return;
   viewApp.dataset.workspaceDirtyBound = "1";
@@ -3627,10 +3538,6 @@ function bindWorkspaceDirtyTracking() {
     event.preventDefault();
     event.returnValue = "";
   });
-}
-function renderWorkspaceHub() {
-  ensureWorkspaceWindowShell();
-  renderWorkspaceContextTabs();
 }
 
 function normalizePanel(panel) {
@@ -3652,39 +3559,6 @@ function syncPanelHash(tab) {
 }
 function currentPanel() {
   return panelFromLocation();
-}
-function renderPanelBackButtons() {
-  const blueprint = currentWorkspaceBlueprint();
-  document.querySelectorAll(".panel").forEach((panel) => {
-    const panelTab = panel.dataset.panel;
-    const actions = panel.querySelector(".panel-actions");
-    if (!actions) return;
-
-    let button = actions.querySelector("[data-panel-back]");
-    if (!button) {
-      button = document.createElement("button");
-      button.type = "button";
-      button.className = "btn btn-ghost hidden";
-      button.setAttribute("data-panel-back", panelTab);
-      button.title = "Go back to the previous workspace";
-      actions.prepend(button);
-    }
-
-    const previousTab = PREVIOUS_PANEL_TAB && PREVIOUS_PANEL_TAB !== panelTab && panelTab !== "dashboard"
-      ? PREVIOUS_PANEL_TAB
-      : "";
-
-    if (!previousTab) {
-      button.classList.add("hidden");
-      button.textContent = "";
-      return;
-    }
-
-    button.classList.remove("hidden");
-    button.textContent = `← ${workspaceTabLabel(previousTab, blueprint)}`;
-    button.textContent = `Back to ${workspaceTabLabel(previousTab, blueprint)}`;
-    button.onclick = () => switchTab(previousTab);
-  });
 }
 async function switchTab(tab, opts = {}) {
   if (_tabAbortController) { _tabAbortController.abort(); }
@@ -3865,7 +3739,7 @@ async function showPasswordSetup(mode) {
   if (desc)    desc.textContent    = isReset
     ? "Enter a new password for your account."
     : "Your email is confirmed. Create a password so you can log back in directly next time.";
-  if (btnSetPassword) btnSetPassword.textContent = isReset ? "Update password and sign in" : "Set password and open dashboard";
+  if (btnSetPassword) btnSetPassword.textContent = isReset ? "Update password and sign in" : "Set password and open business hub";
 
   // Populate email address from the active Supabase session
   if (emailEl) {
@@ -3939,7 +3813,7 @@ btnSetPassword?.addEventListener("click", async () => {
   const isReset = passwordSetupMode === "reset";
   passwordSetupMode = null;
 
-  if (passwordSetupMsg) { passwordSetupMsg.textContent = isReset ? "Password updated. Loading your dashboard..." : "Password set. Loading your dashboard..."; passwordSetupMsg.className = "msg ok"; }
+  if (passwordSetupMsg) { passwordSetupMsg.textContent = isReset ? "Password updated. Loading your business hub..." : "Password set. Loading your business hub..."; passwordSetupMsg.className = "msg ok"; }
 
   setTimeout(() => {
     window.PROOFLINK_BOOT_READY = false;

@@ -28,6 +28,35 @@
       .sort((a, b) => new Date(b.updated_at || b.created_at || 0).getTime() - new Date(a.updated_at || a.created_at || 0).getTime());
   }
 
+  function customerTemplateRecordFocus() {
+    const blueprint = typeof currentWorkspaceBlueprint === "function"
+      ? currentWorkspaceBlueprint()
+      : { business: { recordFocus: [] } };
+    return Array.isArray(blueprint?.business?.recordFocus)
+      ? blueprint.business.recordFocus.filter(Boolean).slice(0, 3)
+      : [];
+  }
+
+  function renderCustomerRecordFocusCard() {
+    const focus = customerTemplateRecordFocus();
+    if (!focus.length) return "";
+    return `
+      <div class="detail-card" style="margin-top:14px;">
+        <div class="kicker">Relationship memory</div>
+        <div><strong>Keep the details this business lives on</strong></div>
+        <div class="detail-copy">Use this customer record to hold the repeat details the team should not have to relearn on every visit.</div>
+        <div style="margin-top:10px;display:grid;gap:8px;">
+          ${focus.map((item, index) => `
+            <div style="padding:10px 12px;border:1px solid rgba(255,255,255,.08);border-radius:10px;background:rgba(255,255,255,.03);">
+              <div style="font-weight:700;">${escapeHtml(`Focus ${index + 1}`)}</div>
+              <div class="detail-copy" style="margin-top:4px;">${escapeHtml(item)}</div>
+            </div>
+          `).join("")}
+        </div>
+      </div>
+    `;
+  }
+
   function openCustomerRequestDraft(customer) {
     if (!customer) return;
     switchTab("leads");
@@ -203,6 +232,7 @@
         description: "Start the next piece of work, collect money, or capture what just happened without leaving this customer record.",
         actions: customerQuickActions,
       })}
+      ${renderCustomerRecordFocusCard()}
 
       <div class="customer-flow-grid">
         <div class="customer-flow-card">

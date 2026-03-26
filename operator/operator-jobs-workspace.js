@@ -1,5 +1,222 @@
 // Jobs workspace extracted from operator.js so field execution, linked records,
 // and crew-side follow-through stay together in one domain module.
+function jobsWorkspaceBlueprint() {
+  if (typeof currentWorkspaceBlueprint === "function") return currentWorkspaceBlueprint();
+  return { business: { key: "other", label: "Business", recordFocus: [] } };
+}
+
+function jobTemplateRecordFocus(blueprint = jobsWorkspaceBlueprint()) {
+  const focus = Array.isArray(blueprint?.business?.recordFocus) ? blueprint.business.recordFocus : [];
+  return focus.filter(Boolean).slice(0, 3);
+}
+
+function hydrovacAlertsForJob(jobIdValue) {
+  return Array.isArray(HYDROVAC_ALERTS_CACHE)
+    ? HYDROVAC_ALERTS_CACHE.filter((alert) => (
+      alert
+      && alert.resolved !== true
+      && String(alert.reference_type || "job").toLowerCase() === "job"
+      && String(alert.reference_id || "") === String(jobIdValue || "")
+    ))
+    : [];
+}
+
+function hydrovacManifestNeedsCloseout(job) {
+  return (
+    Number(job?.total_loads_hauled || 0) > 0
+    || Number(job?.total_disposal_cost_cents || 0) > 0
+    || Number(job?.disposal_cost_cents || 0) > 0
+    || !!String(job?.disposal_site || "").trim()
+    || !!String(job?.disposal_manifest_number || "").trim()
+  );
+}
+
+function buildJobReadinessSummary(job, order, linkedCustomer, hydrovacState = null, blueprint = jobsWorkspaceBlueprint()) {
+  const items = [];
+  const addItem = (label, ready, note, options = {}) => {
+    items.push({
+      label,
+      ready: !!ready,
+      note: note || "",
+      blocker: options.blocker !== false,
+    });
+  };
+
+  const hasCustomer = !!(linkedCustomer?.id || job?.customer_id || order?.customer_id);
+  const hasAddress = !!String(job?.service_address || order?.service_address || "").trim();
+  const hasCrew = !!String(job?.assigned_member_id || job?.assigned_operator_id || "").trim();
+  const hasSchedule = !!String(job?.scheduled_date || "").trim();
+  const hydrovac = !!(job && typeof isHydrovacJob === "function" && isHydrovacJob(job, blueprint));
+
+  addItem(
+    "Customer linked",
+    hasCustomer,
+    hasCustomer
+      ? `${linkedCustomer?.name || order?.customer_name || "Customer"} is tied to this work.`
+      : "Link a customer so history, money, and follow-up stay in one record."
+  );
+  addItem(
+    "Service address",
+    hasAddress,
+    hasAddress
+      ? String(job?.service_address || order?.service_address || "")
+      : "Add the service address before dispatch or field work starts."
+  );
+  addItem(
+    "Scheduled time",
+    hasSchedule,
+    hasSchedule
+      ? `${String(job?.scheduled_date || "")}${job?.scheduled_time ? ` at ${job.scheduled_time}` : ""}`
+      : "Pick the service date so the office and crew are aligned."
+  );
+  addItem(
+    "Assigned crew",
+    hasCrew,
+    hasCrew
+      ? "A crew member is already attached to this job."
+      : "Assign the crew member who will own the field update and closeout."
+  );
+
+  if (hydrovac) {
+    const tickets = Array.isArray(hydrovacState?.tickets) ? hydrovacState.tickets : [];
+    const permits = Array.isArray(HYDROVAC_PERMITS_CACHE) ? HYDROVAC_PERMITS_CACHE.filter((permit) => permit.job_id === job.id) : [];
+    const openAlerts = hydrovacAlertsForJob(job.id);
+    const manifests = Array.isArray(hydrovacState?.manifests)
+      ? hydrovacState.manifests
+      : (typeof hydrovacJobManifestSnapshot === "function" ? hydrovacJobManifestSnapshot(job.id).manifests : []);
+    const manifestSnapshot = typeof hydrovacJobManifestSnapshot === "function"
+      ? hydrovacJobManifestSnapshot(job.id)
+      : { openLoads: 0, confirmedUnbilled: 0, manifests };
+    const now = Date.now();
+    const hasValidLocate = tickets.some((ticket) => {
+      const status = normalizeWorkflowStatusValue(ticket?.status || "");
+      const until = Date.parse(ticket?.extended_until || ticket?.valid_until || "");
+      return ["active", "extended"].includes(status) && (!Number.isFinite(until) || until > now);
+    });
+    const hasValidPermit = permits.some((permit) => {
+      const status = normalizeWorkflowStatusValue(permit?.status || "");
+      const until = Date.parse(permit?.permit_valid_until || "");
+      return status === "open" && (!Number.isFinite(until) || until > now);
+    });
+    const manifestIssues = manifests.flatMap((manifest) => {
+      const problems = [];
+      const number = manifest?.manifest_number || manifest?.id || "load";
+      if (normalizeWorkflowStatusValue(manifest?.status || "") !== "confirmed") {
+        problems.push(`Confirm ${number}`);
+      }
+      if (!String(manifest?.disposal_facility_id || manifest?.disposal_facility_name || "").trim()) {
+        problems.push(`add the disposal facility for ${number}`);
+      }
+      if (!String(manifest?.disposal_ticket_number || "").trim()) {
+        problems.push(`add the disposal ticket for ${number}`);
+      }
+      if (manifest?.quantity_actual == null && manifest?.quantity_estimated == null) {
+        problems.push(`add hauled quantity for ${number}`);
+      }
+      return problems;
+    });
+
+    if (typeof hydrovacJobNeedsLocate === "function" && hydrovacJobNeedsLocate(job)) {
+      addItem(
+        "Locate ticket",
+        hasValidLocate,
+        hasValidLocate
+          ? "Active locate coverage is on file for this excavation work."
+          : "This hydrovac job needs an active locate ticket before work can start."
+      );
+    }
+    if (typeof hydrovacJobNeedsPermit === "function" && hydrovacJobNeedsPermit(job)) {
+      addItem(
+        "Confined-space permit",
+        hasValidPermit,
+        hasValidPermit
+          ? "An open confined-space permit is on file."
+          : "This job needs an open confined-space permit before the crew can begin."
+      );
+    }
+    addItem(
+      "Compliance alerts",
+      openAlerts.length === 0,
+      openAlerts.length
+        ? openAlerts.map((alert) => alert.message || titleCaseWords(String(alert.alert_type || "alert").replace(/_/g, " "))).slice(0, 2).join(" ")
+        : "No unresolved hydrovac compliance alerts are open on this job."
+    );
+    if (hydrovacManifestNeedsCloseout(job) || manifests.length) {
+      addItem(
+        "Loads ready for closeout",
+        manifestSnapshot.openLoads === 0 && manifestIssues.length === 0,
+        manifestSnapshot.openLoads > 0
+          ? `${manifestSnapshot.openLoads} hauled load${manifestSnapshot.openLoads === 1 ? "" : "s"} still need confirmation before closeout.`
+          : (manifestIssues[0] || "Manifest details are ready for closeout."),
+      );
+    }
+  }
+
+  const blockers = items.filter((item) => item.blocker && !item.ready);
+  const readyCount = items.filter((item) => item.ready).length;
+  const nextStep = blockers[0]?.note
+    || "This job has the key details in place, so the office and crew can keep moving without guesswork.";
+
+  return {
+    items,
+    blockers,
+    readyCount,
+    totalCount: items.length,
+    title: blockers.length
+      ? `${blockers.length} blocker${blockers.length === 1 ? "" : "s"} to clear`
+      : "Ready for the next move",
+    description: blockers.length
+      ? "Clear these items before dispatch, start, or closeout so the crew does not find out the hard way."
+      : "The essentials are in place. Use the field updates below to keep execution, proof, and money moving together.",
+    nextStep,
+  };
+}
+
+function renderJobReadinessCard(summary) {
+  if (!summary) return "";
+  const blockerItems = summary.blockers.length ? summary.blockers : summary.items.filter((item) => item.ready).slice(0, 3);
+  return `
+    <div class="detail-card" style="margin-top:14px;">
+      <div class="kicker">Readiness</div>
+      <div><strong>${escapeHtml(summary.title)}</strong></div>
+      <div class="detail-copy">${escapeHtml(summary.description)}</div>
+      <div class="workspace-chip-row" style="margin-top:10px;">
+        <span class="pill ${summary.blockers.length ? "pill-bad" : "pill-good"}">${escapeHtml(`${summary.readyCount}/${summary.totalCount} checks ready`)}</span>
+        <span class="pill">${escapeHtml(summary.blockers.length ? `${summary.blockers.length} blocker${summary.blockers.length === 1 ? "" : "s"}` : "No blockers open")}</span>
+      </div>
+      <div class="detail-copy" style="margin-top:10px;"><strong>Next step:</strong> ${escapeHtml(summary.nextStep)}</div>
+      <div style="margin-top:10px;display:grid;gap:8px;">
+        ${blockerItems.map((item) => `
+          <div style="padding:10px 12px;border:1px solid rgba(255,255,255,.08);border-radius:10px;background:${item.ready ? "rgba(46,125,50,.10)" : "rgba(200,75,47,.08)"};">
+            <div style="font-weight:700;">${escapeHtml(item.ready ? `Ready: ${item.label}` : `Needs attention: ${item.label}`)}</div>
+            <div class="detail-copy" style="margin-top:4px;">${escapeHtml(item.note || "")}</div>
+          </div>
+        `).join("")}
+      </div>
+    </div>
+  `;
+}
+
+function renderTemplateRecordFocusCard(blueprint = jobsWorkspaceBlueprint()) {
+  const focus = jobTemplateRecordFocus(blueprint);
+  if (!focus.length) return "";
+  return `
+    <div class="detail-card" style="margin-top:14px;">
+      <div class="kicker">Template record focus</div>
+      <div><strong>What matters most on this record</strong></div>
+      <div class="detail-copy">Capture the details this business type depends on so future work feels easier, not more generic.</div>
+      <div style="margin-top:10px;display:grid;gap:8px;">
+        ${focus.map((item, index) => `
+          <div style="padding:10px 12px;border:1px solid rgba(255,255,255,.08);border-radius:10px;background:rgba(255,255,255,.03);">
+            <div style="font-weight:700;">${escapeHtml(`Focus ${index + 1}`)}</div>
+            <div class="detail-copy" style="margin-top:4px;">${escapeHtml(item)}</div>
+          </div>
+        `).join("")}
+      </div>
+    </div>
+  `;
+}
+
 async function renderJobDetail(jobIdValue) {
   if (!jobDetailWrap) return;
   const job = JOBS_CACHE.find((row) => row.id === jobIdValue) || null;
@@ -14,6 +231,7 @@ async function renderJobDetail(jobIdValue) {
   const linkedLead = linkedLeadForOrder(order);
   const linkedBid = linkedBidForOrder(order);
   const linkedCustomer = CUSTOMERS_CACHE.find((row) => row.id === job.customer_id) || null;
+  const blueprint = jobsWorkspaceBlueprint();
   const depositStatus = orderDepositStatus(order);
   const revenueCents = jobRevenueCents(job, order);
   const costCents = jobTrackedCostCents(job, order);
@@ -32,6 +250,7 @@ async function renderJobDetail(jobIdValue) {
   const hvRev = calcHydrovacRevenueCents(job);
   const hvBreakdown = hvRev !== null ? hydrovacRevenueBreakdownHtml(job) : null;
   const hydrovacState = isHydrovacJob(job) ? hydrovacJobDetailState(job.id) : null;
+  const readiness = buildJobReadinessSummary(job, order, linkedCustomer, hydrovacState, blueprint);
   const fieldActualMins = job.actual_start_at && job.actual_end_at
     ? Math.round((new Date(job.actual_end_at) - new Date(job.actual_start_at)) / 60000)
     : null;
@@ -83,6 +302,8 @@ async function renderJobDetail(jobIdValue) {
         : "Use this job to stay anchored in field execution, then move to the customer or money follow-through without hunting around.",
       actions: jobActionButtons,
     })}
+    ${renderJobReadinessCard(readiness)}
+    ${renderTemplateRecordFocusCard(blueprint)}
     ${renderRecordFollowThroughCard({
       eyebrow: "Field updates",
       title: "Handle the on-site moves fast",
@@ -523,6 +744,7 @@ function renderJobs(filter = "") {
 }
 
 const JOBS_WORKSPACE_HELPERS = {
+  buildJobReadinessSummary,
   renderJobDetail,
   renderJobs,
 };

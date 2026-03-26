@@ -1,0 +1,86 @@
+"use strict";
+
+const fs = require("fs");
+const path = require("path");
+const vm = require("vm");
+
+function loadCrew(overrides = {}) {
+  const source = fs.readFileSync(
+    path.resolve(process.cwd(), "crew/crew.js"),
+    "utf8"
+  );
+
+  const elements = new Map();
+  const ensureElement = (id) => {
+    if (!elements.has(id)) {
+      elements.set(id, {
+        id,
+        innerHTML: "",
+        textContent: "",
+        value: "",
+        style: {},
+        className: "",
+        dataset: {},
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        querySelector: vi.fn(() => null),
+        querySelectorAll: vi.fn(() => []),
+        closest: vi.fn(() => null),
+        focus: vi.fn(),
+      });
+    }
+    return elements.get(id);
+  };
+
+  const document = {
+    getElementById: vi.fn((id) => ensureElement(id)),
+    addEventListener: vi.fn(),
+    createElement: vi.fn(() => ({
+      style: {},
+      addEventListener: vi.fn(),
+      click: vi.fn(),
+      remove: vi.fn(),
+      setAttribute: vi.fn(),
+    })),
+    body: { appendChild: vi.fn() },
+    head: { appendChild: vi.fn() },
+    querySelector: vi.fn(() => null),
+    querySelectorAll: vi.fn(() => []),
+  };
+
+  const context = {
+    console,
+    window: {},
+    document,
+    navigator: { onLine: true, geolocation: { getCurrentPosition: vi.fn() } },
+    indexedDB: { open: vi.fn() },
+    fetch: vi.fn(),
+    localStorage: { getItem: vi.fn(() => null), setItem: vi.fn(), removeItem: vi.fn() },
+    sessionStorage: { getItem: vi.fn(() => null), setItem: vi.fn(), removeItem: vi.fn() },
+    setTimeout,
+    clearTimeout,
+    setInterval,
+    clearInterval,
+    Date,
+    Promise,
+    ...overrides,
+  };
+
+  vm.createContext(context);
+  vm.runInContext(source, context);
+  return { context, elements, ensureElement };
+}
+
+describe("crew job actions", () => {
+  test("renderJobActions surfaces compliance blockers ahead of field actions", () => {
+    const { context, ensureElement } = loadCrew();
+    ensureElement("jobActions");
+    vm.runInContext("ACTIVE_JOB = { compliance_message: 'Locate ticket is required before work can start.' };", context);
+
+    context.renderJobActions("scheduled");
+
+    expect(ensureElement("jobActions").innerHTML).toContain("Locate ticket is required before work can start.");
+    expect(ensureElement("jobActions").innerHTML).toContain("Clock In");
+    expect(ensureElement("jobActions").innerHTML).toContain("Report Issue");
+  });
+});

@@ -662,7 +662,7 @@ async function openJob(job) {
   }
 
   // Action buttons
-  renderJobActions(job.status);
+  renderJobActions(job.status, job);
 
   // Photos
   const photos = job.photos || [];
@@ -685,28 +685,43 @@ function setText(id, value) {
   if (el) el.textContent = value || '—';
 }
 
-function renderJobActions(status) {
+function renderJobActions(status, job = ACTIVE_JOB) {
   const container = document.getElementById('jobActions');
   if (!container) return;
 
-  let html = '';
+  const blockerNote = String(job?.blocker_note || '').trim();
+  const complianceMessage = String(job?.compliance_message || '').trim();
+  let noteHtml = '';
+  if (complianceMessage) {
+    noteHtml = `<div class="status-note" style="margin-bottom:10px;">${escHtml(complianceMessage)}</div>`;
+  } else if (blockerNote) {
+    noteHtml = `<div class="status-note" style="margin-bottom:10px;">Blocker: ${escHtml(blockerNote)}</div>`;
+  } else if (status === 'scheduled' || status === 'dispatched') {
+    noteHtml = `<div class="status-note" style="margin-bottom:10px;">Clock in when you are on site. If access, scope, safety, or compliance is not ready, report the issue first.</div>`;
+  } else if (status === 'in_progress') {
+    noteHtml = `<div class="status-note" style="margin-bottom:10px;">Keep notes and proof current so closeout is fast when the work is done.</div>`;
+  } else if (status === 'blocked') {
+    noteHtml = `<div class="status-note" style="margin-bottom:10px;">Tell the office exactly what is stopping the work so they can clear it without a second trip.</div>`;
+  }
+
+  let html = noteHtml;
 
   if (status === 'scheduled' || status === 'dispatched') {
-    html = `
+    html += `
       <button class="btn btn-primary" data-action="clock-in">Clock In</button>
       <button class="btn btn-ghost"   data-action="report-blocker">Report Issue</button>`;
   } else if (status === 'in_progress') {
-    html = `
+    html += `
       <button class="btn btn-success" data-action="complete-job">Complete Job</button>
       <button class="btn btn-ghost"   data-action="report-blocker">Report Issue</button>`;
   } else if (status === 'blocked') {
-    html = `
+    html += `
       <button class="btn btn-primary" data-action="clock-in">Resume Job</button>
       <button class="btn btn-success" data-action="complete-job">Complete Job</button>`;
   } else if (status === 'completed') {
-    html = `<div class="completion-badge">✓ Job Completed</div>`;
+    html += `<div class="completion-badge">✓ Job Completed</div>`;
   } else if (status === 'cancelled') {
-    html = `<div class="status-note">This job has been cancelled.</div>`;
+    html += `<div class="status-note">This job has been cancelled.</div>`;
   }
 
   container.innerHTML = html;
@@ -722,11 +737,15 @@ async function updateJobStatus(jobId, status, extraFields = {}) {
     await persistQueue();
     updateJobCache(jobId, patch);
     showToast('Saved offline — will sync when connected', 'info');
-    return;
+    if (ACTIVE_JOB && ACTIVE_JOB.id === jobId) {
+      ACTIVE_JOB = { ...ACTIVE_JOB, ...patch, compliance_message: '' };
+      renderJobActions(ACTIVE_JOB.status, ACTIVE_JOB);
+    }
+    return true;
   }
 
   const token = await getToken();
-  if (!token) { showToast('Not authenticated', 'error'); return; }
+  if (!token) { showToast('Not authenticated', 'error'); return false; }
 
   try {
     const res = await fetch('/.netlify/functions/update-crew-job', {
@@ -748,25 +767,35 @@ async function updateJobStatus(jobId, status, extraFields = {}) {
     updateJobCache(jobId, updated);
 
     if (ACTIVE_JOB && ACTIVE_JOB.id === jobId) {
-      ACTIVE_JOB = { ...ACTIVE_JOB, ...updated };
-      renderJobActions(ACTIVE_JOB.status);
+      ACTIVE_JOB = { ...ACTIVE_JOB, ...updated, compliance_message: '' };
+      renderJobActions(ACTIVE_JOB.status, ACTIVE_JOB);
       const pill = document.getElementById('jobDetailStatusPill');
       if (pill) {
         pill.textContent = statusLabel(ACTIVE_JOB.status);
         pill.className   = 'status-pill ' + statusClass(ACTIVE_JOB.status);
       }
     }
+    return true;
   } catch (err) {
     console.error('[updateJobStatus]', err);
     const detail = String(err.message || '').toLowerCase();
     if (detail.includes('compliance') || detail.includes('permit') || detail.includes('locate') || detail.includes('manifest')) {
+      if (ACTIVE_JOB && ACTIVE_JOB.id === jobId) {
+        ACTIVE_JOB = { ...ACTIVE_JOB, compliance_message: err.message || 'This job is blocked until the required compliance item is handled.' };
+        renderJobActions(ACTIVE_JOB.status, ACTIVE_JOB);
+      }
       showToast(err.message || 'This job is blocked until the required compliance item is handled.', 'error');
-      return;
+      return false;
     }
     OFFLINE_QUEUE.push({ type: 'status', jobId, patch, timestamp: Date.now() });
     await persistQueue();
     updateJobCache(jobId, patch);
     showToast('Update queued — will sync when connected', 'info');
+    if (ACTIVE_JOB && ACTIVE_JOB.id === jobId) {
+      ACTIVE_JOB = { ...ACTIVE_JOB, ...patch, compliance_message: '' };
+      renderJobActions(ACTIVE_JOB.status, ACTIVE_JOB);
+    }
+    return true;
   }
 }
 
@@ -793,7 +822,8 @@ async function clockIn(jobId) {
     }
   } catch { /* geolocation optional */ }
 
-  await updateJobStatus(jobId, 'in_progress', fields);
+  const updated = await updateJobStatus(jobId, 'in_progress', fields);
+  if (!updated) return;
   showToast('Clocked in', 'success');
 
   // Start timer
@@ -805,7 +835,8 @@ async function clockIn(jobId) {
   // Refresh action buttons
   if (ACTIVE_JOB) {
     ACTIVE_JOB.status = 'in_progress';
-    renderJobActions('in_progress');
+    ACTIVE_JOB.compliance_message = '';
+    renderJobActions('in_progress', ACTIVE_JOB);
   }
 }
 
@@ -1183,7 +1214,10 @@ async function submitCompletion() {
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
         uploaded = true;
-        if (data.job) updateJobCache(ACTIVE_JOB.id, data.job);
+        if (data.job) {
+          updateJobCache(ACTIVE_JOB.id, data.job);
+          ACTIVE_JOB = { ...ACTIVE_JOB, ...data.job, compliance_message: '' };
+        }
       } else if (res.status === 409) {
         const error = new Error(complianceIssueMessage(data, 'This job cannot be completed until the required compliance item is handled.'));
         error.stopFallback = true;
@@ -1209,7 +1243,10 @@ async function submitCompletion() {
         if (res.status === 409) throw new Error(complianceIssueMessage(data, 'This job cannot be completed until the required compliance item is handled.'));
         throw new Error(data.error || `HTTP ${res.status}`);
       }
-      if (data.job) updateJobCache(ACTIVE_JOB.id, data.job);
+      if (data.job) {
+        updateJobCache(ACTIVE_JOB.id, data.job);
+        ACTIVE_JOB = { ...ACTIVE_JOB, ...data.job, compliance_message: '' };
+      }
     }
 
     // If we have a signature and couldn't send it via complete-crew-job, upload as photo
@@ -1239,6 +1276,10 @@ async function submitCompletion() {
 
   } catch (err) {
     console.error('[submitCompletion]', err);
+    if (ACTIVE_JOB) {
+      ACTIVE_JOB = { ...ACTIVE_JOB, compliance_message: err.message || '' };
+      renderJobActions(ACTIVE_JOB.status, ACTIVE_JOB);
+    }
     showToast(err.message || 'Could not complete job. Please try again.', 'error');
   } finally {
     setButtonLoading(btn, false, 'Complete Job');
@@ -1349,13 +1390,16 @@ async function submitBlocker() {
   setButtonLoading(btn, true, 'Reporting…');
 
   try {
-    await updateJobStatus(ACTIVE_JOB.id, 'blocked', { blocker_note: note });
+    const updated = await updateJobStatus(ACTIVE_JOB.id, 'blocked', { blocker_note: note });
+    if (!updated) return;
     hideBlockerModal();
     showToast('Issue reported', 'success');
 
     if (ACTIVE_JOB) {
       ACTIVE_JOB.status = 'blocked';
-      renderJobActions('blocked');
+      ACTIVE_JOB.blocker_note = note;
+      ACTIVE_JOB.compliance_message = '';
+      renderJobActions('blocked', ACTIVE_JOB);
     }
   } catch (err) {
     showToast('Failed to report issue', 'error');
