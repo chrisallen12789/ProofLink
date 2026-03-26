@@ -50,7 +50,8 @@ exports.handler = async (event) => {
   const { error: updateErr } = await supabase
     .from('bookings')
     .update({ status: 'cancelled', updated_at: new Date().toISOString() })
-    .eq('id', booking_id);
+    .eq('id', booking_id)
+    .eq('tenant_id', booking.tenant_id);
 
   if (updateErr) { console.error('[cancel-booking] update:', updateErr); return respond(500, { error: 'Failed to cancel booking' }); }
 

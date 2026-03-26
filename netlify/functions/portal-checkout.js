@@ -98,6 +98,10 @@ exports.handler = async (event) => {
     }
 
     const tenant = Array.isArray(tenantRows) ? tenantRows[0] : null;
+    if (!tenant) {
+      console.error('[portal-checkout] tenant not found for order tenant_id:', order.tenant_id);
+      return respond(404, { ok: false, error: 'Provider not found' });
+    }
     const stripeAccountId = (
       tenant?.stripe_connect_account_id ||
       tenant?.stripe_account_id         ||

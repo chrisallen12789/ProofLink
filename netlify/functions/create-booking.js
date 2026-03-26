@@ -70,11 +70,14 @@ exports.handler = async (event) => {
       updated_at    : new Date().toISOString(),
     })
     .select()
-    .single();
+    .maybeSingle();
 
   if (error) {
     console.error('[create-booking]', error);
     return respond(500, { error: 'Failed to create booking' });
+  }
+  if (!data) {
+    return respond(500, { error: 'Failed to create booking: no record returned' });
   }
 
   // Send confirmation email (non-fatal)
@@ -106,6 +109,35 @@ exports.handler = async (event) => {
       })).catch((e) => console.warn('[create-booking] email failed:', e.message));
     } catch (e) {
       console.warn('[create-booking] email setup failed:', e.message);
+    }
+  }
+
+  // Send operator notification email (non-fatal)
+  if (resolvedOperatorId) {
+    try {
+      const { data: operatorRow } = await supabase
+        .from('operators')
+        .select('email, name')
+        .eq('id', resolvedOperatorId)
+        .maybeSingle();
+
+      if (operatorRow?.email) {
+        const siteUrl = getConfiguredSiteUrl();
+        const { data: tenantRow } = await supabase
+          .from('tenants').select('name').eq('id', resolvedTenantId).maybeSingle();
+        await sendEmail(templates.newBookingOperator({
+          operator_email: operatorRow.email,
+          operator_name: operatorRow.name || 'there',
+          business_name: tenantRow?.name || 'Your Business',
+          customer_name,
+          service_title: title,
+          starts_at,
+          notes: notes || '',
+          booking_url: `${siteUrl}/operator/`,
+        })).catch((e) => console.warn('[create-booking] operator notification failed:', e.message));
+      }
+    } catch (e) {
+      console.warn('[create-booking] operator notification setup failed:', e.message);
     }
   }
 

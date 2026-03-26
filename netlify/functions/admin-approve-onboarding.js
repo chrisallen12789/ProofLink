@@ -93,7 +93,7 @@ exports.handler = async (event) => {
     .from('tenant_onboarding_requests')
     .select('*')
     .eq('id', id)
-    .single();
+    .maybeSingle();
 
   if (fetchErr || !req) {
     return respond(404, { error: 'Onboarding request not found' });
@@ -174,10 +174,13 @@ exports.handler = async (event) => {
       active               : true,
     }])
     .select('id, slug, name')
-    .single();
+    .maybeSingle();
 
   if (tenantErr) {
     return failProvision(`Tenant creation failed: ${tenantErr.message}`);
+  }
+  if (!tenant) {
+    return failProvision('Tenant creation failed: no record returned after insert');
   }
 
   const tenantId = tenant.id;
@@ -192,10 +195,13 @@ exports.handler = async (event) => {
       tenant_id: tenantId,
     }], { onConflict: 'email' })
     .select('id')
-    .single();
+    .maybeSingle();
 
   if (opErr) {
     return failProvision(`Operator creation failed: ${opErr.message}`);
+  }
+  if (!operator) {
+    return failProvision('Operator creation failed: no record returned after upsert');
   }
 
   const newOperatorId = operator.id;

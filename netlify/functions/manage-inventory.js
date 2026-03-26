@@ -148,11 +148,14 @@ exports.handler = async (event) => {
         .from('inventory_usage')
         .insert(usageRecord)
         .select()
-        .single();
+        .maybeSingle();
 
       if (usageErr) {
         console.error('[manage-inventory] POST log_usage insert', usageErr);
         return respond(500, { error: 'Failed to log inventory usage' });
+      }
+      if (!usageRow) {
+        return respond(500, { error: 'Failed to log inventory usage: no record returned' });
       }
 
       // Decrement quantity_on_hand
@@ -198,11 +201,14 @@ exports.handler = async (event) => {
       .from('inventory_items')
       .insert(record)
       .select()
-      .single();
+      .maybeSingle();
 
     if (error) {
       console.error('[manage-inventory] POST create', error);
       return respond(500, { error: 'Failed to create inventory item' });
+    }
+    if (!item) {
+      return respond(500, { error: 'Failed to create inventory item: no record returned' });
     }
 
     return respond(201, { item });

@@ -404,7 +404,7 @@ exports.handler = async function (event) {
     .from('tenant_onboarding_requests')
     .select('*')
     .eq('id', request_id)
-    .single();
+    .maybeSingle();
 
   if (fetchErr || !req) {
     return { statusCode: 404, body: JSON.stringify({ error: 'Request not found' }) };
@@ -457,6 +457,7 @@ exports.handler = async function (event) {
         'x-prooflink-internal'   : INTERNAL_SECRET,
       },
       body: JSON.stringify({ id: request_id, auto: true }),
+      signal: AbortSignal.timeout(8000),
     }).catch(() => {}); // fire and forget — provision-tenant handles its own errors
   }
 

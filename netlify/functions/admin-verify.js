@@ -44,7 +44,7 @@ exports.handler = async (event) => {
   let { data: operator, error: opErr } = await supabase
     .from('operators')
     .select('id, email, name, role')
-    .ilike('email', email)
+    .eq('email', email.toLowerCase())
     .limit(1)
     .maybeSingle();
 
@@ -71,7 +71,7 @@ exports.handler = async (event) => {
         tenant_id: null,
       }], { onConflict: 'email' })
       .select('id, email, name, role')
-      .single();
+      .maybeSingle();
 
     if (insertErr || !newOp) {
       console.error('[admin-verify] bootstrap insert failed:', insertErr?.message);

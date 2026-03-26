@@ -27,7 +27,7 @@ exports.handler = async (event) => {
     .select('id, customer_name, customer_email, tenant_id')
     .eq('id', order_id)
     .eq('tenant_id', tenant_id)
-    .single();
+    .maybeSingle();
 
   if (orderErr || !order) return respond(404, { error: 'Order not found' });
 

@@ -70,7 +70,8 @@ async function verifyTurnstile(token, ip) {
   const res = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: form.toString()
+    body: form.toString(),
+    signal: AbortSignal.timeout(8000),
   });
 
   const data = await res.json().catch(() => null);
@@ -120,7 +121,8 @@ async function sendResendEmail({ from, to, replyTo, subject, html }) {
       reply_to: replyTo ? [replyTo] : undefined,
       subject,
       html
-    })
+    }),
+    signal: AbortSignal.timeout(8000),
   });
 
   if (!res.ok) {

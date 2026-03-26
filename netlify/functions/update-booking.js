@@ -105,7 +105,8 @@ exports.handler = async (event) => {
           supabase.from('bookings')
             .update({ confirmation_sent_at: new Date().toISOString() })
             .eq('id', data.id)
-            .then(() => {}).catch(() => {});
+            .eq('tenant_id', tenantId)
+            .then(() => {}).catch((e) => console.warn('[update-booking] confirmation_sent_at update failed:', e.message));
         }
       }
     } catch (e) {

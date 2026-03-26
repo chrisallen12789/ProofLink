@@ -60,6 +60,7 @@
     <div class="notify" id="notify" role="alert"></div>
 
     <section class="card form-card">
+      <p class="form-legend" style="font-size:.85rem;color:#9ca3af;padding:1rem 1.5rem 0;margin:0;"><span aria-hidden="true">*</span> Required fields</p>
       <div class="form-section visible" id="section-1">
         <h2 class="form-section-title">What kind of business needs the system?</h2>
         <p class="form-section-sub">
@@ -127,8 +128,8 @@
 
         <div class="field-row single">
           <div class="field">
-            <label for="business_name">Business name <span class="req">*</span></label>
-            <input type="text" id="business_name" placeholder="e.g. Benkari Vac's" autocomplete="organization" />
+            <label for="business_name">Business name <span class="req" aria-hidden="true">*</span></label>
+            <input type="text" id="business_name" placeholder="e.g. Benkari Vac's" autocomplete="organization" aria-required="true" />
             <p class="field-error" id="err-business_name">Business name is required.</p>
           </div>
         </div>
@@ -165,8 +166,8 @@
 
         <div class="field-row">
           <div class="field">
-            <label for="owner_name">Owner name <span class="req">*</span></label>
-            <input type="text" id="owner_name" placeholder="Full name" autocomplete="name" />
+            <label for="owner_name">Owner name <span class="req" aria-hidden="true">*</span></label>
+            <input type="text" id="owner_name" placeholder="Full name" autocomplete="name" aria-required="true" />
             <p class="field-error" id="err-owner_name">Your name is required.</p>
           </div>
             <div class="field">
@@ -179,8 +180,8 @@
 
         <div class="field-row single">
           <div class="field">
-            <label for="owner_email">Email address <span class="req">*</span></label>
-            <input type="email" id="owner_email" placeholder="you@yourbusiness.com" autocomplete="email" />
+            <label for="owner_email">Email address <span class="req" aria-hidden="true">*</span></label>
+            <input type="email" id="owner_email" placeholder="you@yourbusiness.com" autocomplete="email" aria-required="true" />
             <p class="field-error" id="err-owner_email">A valid email address is required.</p>
           </div>
         </div>

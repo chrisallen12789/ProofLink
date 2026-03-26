@@ -827,6 +827,15 @@ main {
   cursor: not-allowed;
 }
 
+/* FIX 9: Unavailable product visual differentiation */
+.product-card.is-unavailable {
+  opacity: 0.55;
+}
+.product-card.is-unavailable .product-price {
+  text-decoration: line-through;
+  opacity: 0.7;
+}
+
 .internal-badge {
   position: absolute;
   top: 0.8rem;

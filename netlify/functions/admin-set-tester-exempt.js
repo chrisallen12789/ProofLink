@@ -58,7 +58,7 @@ exports.handler = async (event) => {
       .from('tenants')
       .select('id, slug, name, billing_exempt, billing_exempt_until, billing_status')
       .eq('id', tenantId)
-      .single();
+      .maybeSingle();
 
     if (error || !tenant) return respond(404, { error: 'Tenant not found' });
 
@@ -100,7 +100,7 @@ exports.handler = async (event) => {
     .from('tenants')
     .select('id, slug, name, billing_exempt, billing_exempt_until')
     .eq('id', tenantId)
-    .single();
+    .maybeSingle();
 
   if (fetchErr || !tenant) return respond(404, { error: 'Tenant not found' });
 

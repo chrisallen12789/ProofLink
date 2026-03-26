@@ -113,11 +113,14 @@ exports.handler = async (event) => {
       admin_notes         : needsGuidedHelp ? 'customer_requested_guided_setup' : null,
     }])
     .select('id, business_name, status')
-    .single();
+    .maybeSingle();
 
   if (error) {
     console.error('Insert onboarding request error:', error);
     return respond(500, { error: 'Failed to submit onboarding request' });
+  }
+  if (!data) {
+    return respond(500, { error: 'Failed to submit onboarding request: no record returned' });
   }
 
   // ── Auto-evaluate (fire-and-forget — triggers auto-approval + provisioning)
@@ -132,6 +135,7 @@ exports.handler = async (event) => {
           'x-prooflink-internal' : internalSecret,
         },
         body: JSON.stringify({ request_id: data.id }),
+        signal: AbortSignal.timeout(8000),
       }).catch((e) => console.warn('[submit] evaluate-onboarding fire failed:', e.message));
     } catch (e) {
       console.warn('[submit] could not resolve site URL for auto-evaluation:', e.message);

@@ -41,7 +41,7 @@ exports.handler = async (event) => {
   // Validate Twilio signature in production
   if (process.env.NODE_ENV !== 'test' && !validateTwilio(event)) {
     const from = querystring.parse(event.body || '').From || 'unknown';
-    console.error(`[twilio-webhook] signature validation failed — From: ${from}, URL: ${process.env.SITE_URL || process.env.URL || 'unknown'}`);
+    console.error(`[twilio-webhook] signature validation failed — From: ${from.replace(/\d(?=\d{4})/g, '*')}, URL: ${process.env.SITE_URL || process.env.URL || 'unknown'}`);
     return { statusCode: 403, body: 'Forbidden' };
   }
 
@@ -68,7 +68,7 @@ exports.handler = async (event) => {
     .eq('direction', 'outbound')
     .order('created_at', { ascending: false })
     .limit(1)
-    .single();
+    .maybeSingle();
 
   if (recent) {
     tenantId   = recent.tenant_id;
@@ -109,7 +109,8 @@ exports.handler = async (event) => {
           .select('subscription')
           .eq('tenant_id', tenantId);
         if (subs?.length) {
-          const payload = JSON.stringify({ title: 'New SMS reply', body: `From ${from}: ${body.slice(0, 80)}`, url: '/operator/#orders' });
+          const maskedFrom = from.replace(/\d(?=\d{4})/g, '*');
+          const payload = JSON.stringify({ title: 'New SMS reply', body: `From ${maskedFrom}: ${body.slice(0, 80)}`, url: '/operator/#orders' });
           await Promise.allSettled(subs.map((s) => {
             try { return webpush.sendNotification(JSON.parse(s.subscription), payload); }
             catch { return Promise.resolve(); }
@@ -127,10 +128,11 @@ exports.handler = async (event) => {
         const siteUrl = getConfiguredSiteUrl();
         for (const op of operators) {
           if (!op.email) continue;
+          const maskedFromEmail = from.replace(/\d(?=\d{4})/g, '*');
           sendEmail({
             to     : op.email,
-            subject: `New SMS reply from ${from}`,
-            html   : `<p>A customer replied via SMS:</p><p><strong>${from}</strong>: ${body}</p><p><a href="${siteUrl}/operator/">View in dashboard →</a></p>`,
+            subject: `New SMS reply from ${maskedFromEmail}`,
+            html   : `<p>A customer replied via SMS:</p><p><strong>${maskedFromEmail}</strong>: ${body}</p><p><a href="${siteUrl}/operator/">View in dashboard →</a></p>`,
           }).catch(() => {});
         }
       }

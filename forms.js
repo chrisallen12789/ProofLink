@@ -169,9 +169,24 @@
         return;
       }
 
+      const FIELD_LABELS = {
+        fulfillment: 'Delivery preference',
+        name: 'Your name',
+        email: 'Email address',
+        phone: 'Phone number',
+        address: 'Street address',
+        city: 'City',
+        state: 'State',
+        zip: 'ZIP code',
+        message: 'Message',
+        service: 'Service type',
+        date: 'Preferred date',
+        subject: 'Subject',
+      };
+
       for (const k of requiredKeys) {
         if (!raw[k]) {
-          setStatus(form, "error", `Please fill out: ${k}`);
+          setStatus(form, "error", `Please fill out: ${FIELD_LABELS[k] || k}`);
           return;
         }
       }

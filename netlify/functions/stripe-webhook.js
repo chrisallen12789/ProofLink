@@ -85,6 +85,7 @@ async function stripeRequest(path, options = {}) {
       ...(options.headers || {}),
     },
     body: options.body || undefined,
+    signal: AbortSignal.timeout(8000),
   });
 
   const text = await res.text();
@@ -311,6 +312,39 @@ exports.handler = async (event) => {
     const evt = JSON.parse(body || '{}');
     const type = String(evt?.type || '');
     const obj = evt?.data?.object || {};
+
+    // ── Idempotency check ──────────────────────────────────────────────────────
+    const eventId = clean(evt?.id || '');
+    if (eventId) {
+      try {
+        const supabase = require('@supabase/supabase-js').createClient(
+          process.env.SUPABASE_URL,
+          process.env.SUPABASE_SERVICE_ROLE_KEY
+        );
+        const { data: existing } = await supabase
+          .from('processed_webhook_events')
+          .select('id')
+          .eq('event_id', eventId)
+          .maybeSingle();
+
+        if (existing) {
+          return json(200, { ok: true, skipped: true });
+        }
+
+        await supabase
+          .from('processed_webhook_events')
+          .insert({ event_id: eventId, processed_at: new Date().toISOString() })
+          .catch((insertErr) => {
+            if (insertErr?.message?.includes('does not exist') || insertErr?.code === '42P01') {
+              console.warn('[stripe-webhook] processed_webhook_events table does not exist — skipping idempotency insert');
+            } else {
+              console.warn('[stripe-webhook] idempotency insert failed:', insertErr?.message);
+            }
+          });
+      } catch (idempErr) {
+        console.warn('[stripe-webhook] idempotency check failed, proceeding:', idempErr?.message);
+      }
+    }
 
     console.log(
       '[stripe-webhook]',

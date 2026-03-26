@@ -4165,7 +4165,7 @@ function renderBlackoutDateItems(dates) {
           <button type="button" class="btn btn-ghost availability-remove-blackout" data-date="${escapeAttr(date)}" style="padding:6px 10px;">Remove</button>
         </div>
       `).join("")
-    : `<div class="muted" style="font-size:12px;">No closed dates added.</div>`;
+    : `<div class="muted" style="font-size:12px;">No closed dates added yet. Use the field above to block off vacation days or off-season periods.</div>`;
 }
 function syncBlackoutDateUi(dates) {
   if ($("availabilityBlackoutDatesData")) $("availabilityBlackoutDatesData").value = JSON.stringify(dates);
@@ -5016,6 +5016,9 @@ $("btnWalkIn")?.addEventListener("click", () => {
       modal.remove();
       await fetchBookings();
       renderBookings();
+      if (BOOKINGS_CACHE && BOOKINGS_CACHE.length === 1) {
+        showToast('🎉 First booking! Your calendar is live.', 6000, 'ok');
+      }
     } catch (err) {
       showToast("Error: " + err.message);
       btn.disabled = false; btn.textContent = "Create walk-in";
@@ -5240,6 +5243,9 @@ $("btnSaveBooking")?.addEventListener("click", async () => {
     const endEl  = $("bkRecurrenceEnd"); if (endEl) endEl.value = "";
     btn.disabled = false;
     await renderBookings();
+    if (BOOKINGS_CACHE && BOOKINGS_CACHE.length === 1) {
+      showToast('🎉 First booking! Your calendar is live.', 6000, 'ok');
+    }
     setTimeout(() => { const form = $("newBookingForm"); if (form) form.classList.add("hidden"); }, 1200);
   } catch (err) {
     if (msg) { msg.textContent = err.message || "Error saving."; msg.className = "msg error"; }
@@ -6571,18 +6577,22 @@ function renderWorkCommandCenter() {
       <div class="work-command__stat">
         <span class="muted">Requests waiting</span>
         <strong>${escapeHtml(String(requestPressure))}</strong>
+        ${requestPressure === 0 ? `<span class="muted" style="font-size:.72rem;">New requests appear here after intake</span>` : ''}
       </div>
       <div class="work-command__stat">
         <span class="muted">Live quotes</span>
         <strong>${escapeHtml(String(queuedQuotes))}</strong>
+        ${queuedQuotes === 0 ? `<span class="muted" style="font-size:.72rem;">Active proposals show here once drafted</span>` : ''}
       </div>
       <div class="work-command__stat">
         <span class="muted">Booked without job</span>
         <strong>${escapeHtml(String(bookedWithoutJobs))}</strong>
+        ${bookedWithoutJobs === 0 ? `<span class="muted" style="font-size:.72rem;">Confirmed bookings that need a job record appear here</span>` : ''}
       </div>
       <div class="work-command__stat">
         <span class="muted">Active field work</span>
         <strong>${escapeHtml(String(liveJobs))}</strong>
+        ${liveJobs === 0 ? `<span class="muted" style="font-size:.72rem;">Jobs in progress show here once dispatched</span>` : ''}
       </div>
     </div>
     <div class="work-command__grid">
@@ -7968,12 +7978,13 @@ function renderQuotesList() {
   const rows = statusFilter ? QUOTES_CACHE.filter((q) => q.status === statusFilter) : QUOTES_CACHE;
 
   if (!rows.length) {
-    el.innerHTML = `<div class="muted">No quote pages found yet. In service workspaces, build and send quotes from Walkthrough Bids.</div>`;
+    el.innerHTML = `<div class="muted">No quotes sent yet. Build and send your first estimate using the <strong>Walkthrough Bids</strong> tab, then it will appear here once delivered to the customer.</div>`;
     return;
   }
 
   const statusColor = { pending: "#93c5fd", accepted: "#4ade80", declined: "#f87171", expired: "rgba(255,255,255,.35)" };
-  const fmtMoney = (cents) => cents != null ? "$" + (cents / 100).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",") : "—";
+  const fmtMoney = (cents) => (cents != null && cents !== "") ? "$" + (Number(cents) / 100).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",") : "$0.00";
+  const convertibleStatuses = ["pending", "accepted", "approved"];
 
   el.innerHTML = `
     <div class="list">
@@ -7981,6 +7992,7 @@ function renderQuotesList() {
         const color = statusColor[q.status] || "rgba(255,255,255,.5)";
         const quoteUrl = `${location.origin}/quote.html?id=${encodeURIComponent(q.id)}`;
         const isPending = q.status === "pending";
+        const canConvert = convertibleStatuses.includes(String(q.status || "").toLowerCase());
         return `
         <div class="list-item" style="flex-direction:column;align-items:flex-start;gap:6px;">
           <div style="display:flex;align-items:center;gap:10px;width:100%;">
@@ -7991,9 +8003,10 @@ function renderQuotesList() {
             <span style="font-size:.75rem;padding:3px 9px;background:rgba(255,255,255,.06);border-radius:12px;color:${color};white-space:nowrap;">${escapeHtml(q.status || "pending")}</span>
             <span style="font-size:.85rem;font-weight:700;color:var(--text);white-space:nowrap;">${fmtMoney(q.amount_cents)}</span>
           </div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
             <a href="${escapeHtml(quoteUrl)}" target="_blank" style="font-size:.78rem;color:var(--accent);text-decoration:none;">View quote page →</a>
             ${isPending ? `<button class="btn btn-ghost btn-sm qt-resend-btn" data-email="${escapeHtml(q.customer_email || "")}" data-url="${escapeHtml(quoteUrl)}" data-name="${escapeHtml(q.customer_name || "")}" type="button" style="font-size:.75rem;padding:2px 8px;">Copy link</button>` : ""}
+            ${canConvert ? `<button class="btn btn-ghost btn-sm qt-convert-job-btn" data-quote-id="${escapeAttr(q.id)}" data-customer-id="${escapeAttr(q.customer_id || "")}" data-title="${escapeAttr(q.title || "")}" data-notes="${escapeAttr(q.description || q.notes || "")}" data-order-id="${escapeAttr(q.order_id || "")}" type="button" style="font-size:.75rem;padding:2px 8px;color:#fbbf24;border-color:rgba(251,191,36,.3);">Convert to Job →</button>` : ""}
             ${q.accepted_at ? `<span class="muted" style="font-size:.75rem;">Accepted ${formatDateOnly(q.accepted_at)}</span>` : ""}
             ${q.declined_at ? `<span class="muted" style="font-size:.75rem;">Declined ${formatDateOnly(q.declined_at)}</span>` : ""}
             ${q.valid_until ? `<span class="muted" style="font-size:.75rem;">Valid until ${formatDateOnly(q.valid_until)}</span>` : ""}
@@ -8016,6 +8029,42 @@ function renderQuotesList() {
         });
       } else {
         showCopyModal(`Copy this link and send it to ${name || "the customer"}.`, url).catch(() => {});
+      }
+    });
+  });
+
+  // Convert quote to job
+  el.querySelectorAll(".qt-convert-job-btn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      if (btn.disabled) return;
+      btn.disabled = true;
+      btn.textContent = "Creating job…";
+      try {
+        const nowIso = new Date().toISOString();
+        const customerId = btn.dataset.customerId || null;
+        const orderId = btn.dataset.orderId || null;
+        const payload = withTenantScope({
+          operator_id: opId(),
+          customer_id: customerId || null,
+          order_id: orderId || null,
+          status: "new",
+          title: btn.dataset.title || "Job from quote",
+          notes: btn.dataset.notes || "",
+          updated_at: nowIso,
+        });
+        const { data: jobRow, error: jobErr } = await sb.from("jobs")
+          .insert({ ...payload, created_at: nowIso })
+          .select("*")
+          .single();
+        if (jobErr) throw jobErr;
+        JOBS_CACHE = [jobRow, ...(JOBS_CACHE || [])];
+        ACTIVE_JOB_ID = jobRow.id;
+        showToast('Job created from quote. View it in Active Jobs.', 5000, 'ok');
+        switchTab('jobs');
+      } catch (err) {
+        showToast('Could not create job: ' + (err.message || String(err)), 4000);
+        btn.disabled = false;
+        btn.textContent = "Convert to Job →";
       }
     });
   });
@@ -8265,7 +8314,7 @@ async function fetchAndRenderMessages() {
 
     if (error) throw error;
     if (!data || !data.length) {
-      list.innerHTML = `<p class="muted" style="padding:12px 0;">No messages yet.</p>`;
+      list.innerHTML = `<p class="muted" style="padding:12px 0;">No messages yet. Messages from customers submitted through your contact form will appear here.</p>`;
       return;
     }
 
@@ -8593,6 +8642,18 @@ function startRealtime() {
       await renderMoney();
       realtimeToast('Payment record updated');
     })
+    .on('postgres_changes', {
+      event: 'INSERT', schema: 'public', table: 'bookings',
+      filter: `tenant_id=eq.${TENANT_ID}`,
+    }, async (payload) => {
+      const prevCount = (BOOKINGS_CACHE || []).length;
+      await fetchBookings();
+      renderBookings().catch(console.error);
+      const booking = payload.new || {};
+      if ((BOOKINGS_CACHE || []).length > prevCount) {
+        realtimeToast(`📅 New booking: ${booking.title || 'Service request'} from ${booking.customer_name || 'a customer'}.`);
+      }
+    })
     .subscribe();
 }
 
@@ -8649,7 +8710,7 @@ function renderAvailabilityBlocks() {
   const el = $('availabilityBlocksList');
   if (!el) return;
   if (!AVAILABILITY_BLOCKS_CACHE.length) {
-    el.innerHTML = '<div class="muted" style="font-size:.82rem;">No date blocks. Add one to pause bookings during vacations or off-season.</div>';
+    el.innerHTML = '<div class="muted" style="font-size:.82rem;">No date blocks yet. Click <strong>+ Add Block</strong> above to pause bookings during vacations or off-season.</div>';
     return;
   }
   el.innerHTML = AVAILABILITY_BLOCKS_CACHE.map(b => `
@@ -8768,7 +8829,7 @@ async function loadPhasesIntoEl(orderId, bodyEl) {
     const d = await res.json().catch(() => ({}));
     const phases = d.phases || [];
     if (!phases.length) {
-      bodyEl.innerHTML = '<div class="muted" style="font-size:.82rem;">No phases yet. Click "+ Phase" to add milestones.</div>';
+      bodyEl.innerHTML = '<div class="muted" style="font-size:.82rem;">No payment phases yet. Use <strong>+ Phase</strong> to break this project into milestones and track deposits or staged payments.</div>';
       return;
     }
     const totalPhased = phases.reduce((s, p) => s + Number(p.amount_cents || 0), 0);

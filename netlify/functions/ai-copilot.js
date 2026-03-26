@@ -38,6 +38,7 @@ async function callClaude(prompt, maxTokens = 1024) {
       max_tokens: maxTokens,
       messages  : [{ role: 'user', content: prompt }],
     }),
+    signal: AbortSignal.timeout(8000),
   });
 
   if (!res.ok) {

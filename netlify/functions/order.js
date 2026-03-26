@@ -6,7 +6,7 @@
 
 const { getConfiguredSiteUrl, getRequiredResendApiKey } = require("./utils/runtime-config");
 
-const DEFAULT_TENANT_BUSINESS_NAME = process.env.TENANT_BUSINESS_NAME || "Honest To Crust";
+const DEFAULT_TENANT_BUSINESS_NAME = process.env.TENANT_BUSINESS_NAME || "Your Business";
 const PLATFORM_NAME = process.env.PLATFORM_NAME || "ProofLink";
 const TENANT_REPLY_TO_NAME = process.env.TENANT_REPLY_TO_NAME || DEFAULT_TENANT_BUSINESS_NAME;
 const TENANT_CITY_STATE = process.env.TENANT_CITY_STATE || "";
@@ -109,7 +109,8 @@ async function verifyTurnstile(token, ip) {
   const res = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: form.toString()
+    body: form.toString(),
+    signal: AbortSignal.timeout(8000),
   });
 
   const data = await res.json().catch(() => null);
@@ -289,7 +290,8 @@ async function sendResendEmail({ from, to, replyTo, subject, html }) {
       reply_to: replyTo ? [replyTo] : undefined,
       subject,
       html
-    })
+    }),
+    signal: AbortSignal.timeout(8000),
   });
 
   if (!res.ok) {

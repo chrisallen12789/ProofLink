@@ -79,7 +79,7 @@ exports.handler = async (event) => {
         tenant_id: tenantId,
       }], { onConflict: 'email' })
       .select('id, email, tenant_id')
-      .single();
+      .maybeSingle();
 
     if (insertOpErr || !newOp) {
       console.error('[link-operator-user] operator creation failed:', insertOpErr?.message);

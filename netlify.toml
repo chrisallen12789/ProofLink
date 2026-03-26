@@ -132,7 +132,7 @@
   schedule = "0 * * * *"   # every hour on the hour
 
 [functions."process-recurring-orders"]
-  schedule = "0 8 * * *"   # daily at 8 AM UTC
+  schedule = "0 6 * * *"   # daily at 6 AM UTC
 
 # ── app.prooflink.co → prooflink.co canonical redirect ────────────────────────
 # If app.prooflink.co is added as a domain alias in Netlify, this redirects

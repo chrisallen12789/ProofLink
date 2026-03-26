@@ -33,7 +33,7 @@ exports.handler = async (event) => {
     .select('id, title, customer_name, customer_email, total_amount, operator_id, tenant_id')
     .eq('id', order_id)
     .eq('tenant_id', tenantId)
-    .single();
+    .maybeSingle();
 
   if (orderErr || !order) return respond(404, { error: 'Order not found' });
 
@@ -50,11 +50,14 @@ exports.handler = async (event) => {
       updated_at     : new Date().toISOString(),
     }, { onConflict: 'source_order_id' })
     .select()
-    .single();
+    .maybeSingle();
 
   if (error) {
     console.error('[create-recurring-order]', error);
     return respond(500, { error: 'Failed to create recurring schedule' });
+  }
+  if (!data) {
+    return respond(500, { error: 'Failed to create recurring schedule: no record returned' });
   }
 
   return respond(201, { ok: true, recurring: data });

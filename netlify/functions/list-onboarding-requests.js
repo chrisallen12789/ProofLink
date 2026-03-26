@@ -35,15 +35,13 @@ exports.handler = async (event) => {
       .from('tenant_onboarding_requests')
       .select('*')
       .eq('id', id)
-      .single();
+      .maybeSingle();
 
     if (error) {
-      if (error.code === 'PGRST116') {
-        return respond(404, { error: 'Request not found' });
-      }
       console.error('list-onboarding-requests single error:', error);
       return respond(500, { error: 'Database error' });
     }
+    if (!data) return respond(404, { error: 'Request not found' });
 
     return respond(200, { request: data });
   }

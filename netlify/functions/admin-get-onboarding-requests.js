@@ -42,12 +42,12 @@ exports.handler = async (event) => {
       .from('tenant_onboarding_requests')
       .select('*')
       .eq('id', id)
-      .single();
+      .maybeSingle();
 
     if (error) {
-      if (error.code === 'PGRST116') return respond(404, { error: 'Request not found' });
       return respond(500, { error: 'Database error', detail: error.message });
     }
+    if (!data) return respond(404, { error: 'Request not found' });
 
     return respond(200, { request: data });
   }
@@ -64,10 +64,12 @@ exports.handler = async (event) => {
   }
 
   if (q && q.trim()) {
-    const safe = q.trim();
-    query = query.or(
-      `business_name.ilike.%${safe}%,owner_name.ilike.%${safe}%,owner_email.ilike.%${safe}%`
-    );
+    const safe = String(q || '').trim().replace(/[^a-zA-Z0-9 @._-]/g, '').slice(0, 100);
+    if (safe) {
+      query = query.or(
+        `business_name.ilike.%${safe}%,owner_name.ilike.%${safe}%,owner_email.ilike.%${safe}%`
+      );
+    }
   }
 
   const { data, error, count } = await query;

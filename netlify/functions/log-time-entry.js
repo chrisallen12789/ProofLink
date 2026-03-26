@@ -77,11 +77,14 @@ exports.handler = async (event) => {
     .from('time_entries')
     .insert(record)
     .select()
-    .single();
+    .maybeSingle();
 
   if (error) {
     console.error('[log-time-entry]', error);
     return respond(500, { error: 'Failed to log time entry' });
+  }
+  if (!entry) {
+    return respond(500, { error: 'Failed to log time entry: no record returned' });
   }
 
   return respond(201, { ok: true, entry });

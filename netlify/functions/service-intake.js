@@ -180,8 +180,9 @@ async function submitServiceLeadFallback(supabase, payload) {
         updated_at: nowIso,
       })
       .select("*")
-      .single();
+      .maybeSingle();
     if (insert.error) throw insert.error;
+    if (!insert.data) throw new Error("Customer insert failed: no record returned");
     customer = insert.data;
   } else {
     const update = await supabase
@@ -196,8 +197,9 @@ async function submitServiceLeadFallback(supabase, payload) {
       })
       .eq("id", customer.id)
       .select("*")
-      .single();
+      .maybeSingle();
     if (update.error) throw update.error;
+    if (!update.data) throw new Error("Customer update failed: no record returned");
     customer = update.data;
   }
 
@@ -229,9 +231,10 @@ async function submitServiceLeadFallback(supabase, payload) {
       updated_at: nowIso,
     })
     .select("id,tenant_id,customer_id,operator_id")
-    .single();
+    .maybeSingle();
 
   if (leadInsert.error) throw leadInsert.error;
+  if (!leadInsert.data) throw new Error("Lead insert failed: no record returned");
 
   return {
     lead_id: leadInsert.data.id,

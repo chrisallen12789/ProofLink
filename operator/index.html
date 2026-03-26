@@ -56,7 +56,7 @@
         </div>
       </div>
 
-      <section class="side-card">
+      <section class="side-card" aria-live="polite">
         <div class="side-card__hd">First wins</div>
         <div id="startupChecklist" class="checklist" data-tour="checklist">
           <div class="checklist-item">
@@ -78,13 +78,14 @@
           <button class="tab" data-tab="ai" type="button">✦ AI</button>
         </div>
 
-        <button class="tab tab--more" id="btnSidebarMore" type="button" title="Show or hide grouped tools and support views. ProofLink remembers your preference.">Tools</button>
+        <!-- TODO: collapse by default — FIX 12: toggle implemented below -->
+        <button class="tab tab--more" id="btnSidebarMore" type="button" title="Advanced tools — Show or hide grouped tools and support views. ProofLink remembers your preference." aria-expanded="false" aria-controls="sidebarMore">Tools ▾</button>
 
-        <div id="sidebarMore" class="nav-more" style="display:none;">
+        <div id="sidebarMore" class="nav-more nav-tools-section collapsed" style="display:none;">
           <section class="nav-group" data-nav-group="workflow">
             <div class="nav-group__label">Work pipeline</div>
             <button class="tab" data-tab="leads" data-tour-tab="leads" type="button">Requests</button>
-            <button class="tab" data-tab="bids" data-tour-tab="bids" type="button">Walkthrough Bids <span style="font-size:.7rem;color:rgba(255,255,255,.35);display:block;font-weight:400;">On-site estimates</span></button>
+            <button class="tab" data-tab="bids" data-tour-tab="bids" type="button">Walkthrough Bids <span style="font-size:.7rem;color:rgba(255,255,255,.65);display:block;font-weight:400;">On-site estimates</span></button>
             <button class="tab" data-tab="jobs" data-tour-tab="jobs" type="button">Active Jobs</button>
             <button class="tab" data-tab="quotes" data-tour-tab="quotes" type="button">Quotes</button>
             <button class="tab" data-tab="plans" data-tour-tab="plans" type="button">Recurring Plans</button>
@@ -108,19 +109,19 @@
 
           <section class="nav-group" data-nav-group="operations">
             <div class="nav-group__label">Back office</div>
-            <button class="tab" data-tab="vendors" type="button">Vendors <span style="font-size:.7rem;color:rgba(255,255,255,.35);display:block;font-weight:400;">Subs &amp; suppliers</span></button>
-            <button class="tab" data-tab="equipment" type="button">Equipment <span style="font-size:.7rem;color:rgba(255,255,255,.35);display:block;font-weight:400;">Trucks &amp; machines</span></button>
-            <button class="tab" data-tab="team" type="button">Team <span style="font-size:.7rem;color:rgba(255,255,255,.35);display:block;font-weight:400;">Members &amp; crew</span></button>
-            <button class="tab" data-tab="inventory" type="button">Inventory <span style="font-size:.7rem;color:rgba(255,255,255,.35);display:block;font-weight:400;">Parts &amp; materials</span></button>
-            <button class="tab" data-tab="contracts" type="button">Contracts <span style="font-size:.7rem;color:rgba(255,255,255,.35);display:block;font-weight:400;">Warranties &amp; plans</span></button>
+            <button class="tab" data-tab="vendors" type="button">Vendors <span style="font-size:.7rem;color:rgba(255,255,255,.65);display:block;font-weight:400;">Subs &amp; suppliers</span></button>
+            <button class="tab" data-tab="equipment" type="button">Equipment <span style="font-size:.7rem;color:rgba(255,255,255,.65);display:block;font-weight:400;">Trucks &amp; machines</span></button>
+            <button class="tab" data-tab="team" type="button">Team <span style="font-size:.7rem;color:rgba(255,255,255,.65);display:block;font-weight:400;">Members &amp; crew</span></button>
+            <button class="tab" data-tab="inventory" type="button">Inventory <span style="font-size:.7rem;color:rgba(255,255,255,.65);display:block;font-weight:400;">Parts &amp; materials</span></button>
+            <button class="tab" data-tab="contracts" type="button">Contracts <span style="font-size:.7rem;color:rgba(255,255,255,.65);display:block;font-weight:400;">Warranties &amp; plans</span></button>
           </section>
 
           <section class="nav-group" data-nav-group="hydrovac">
             <div class="nav-group__label">Hydrovac operations</div>
-            <button class="tab" data-tab="facilities" type="button">Facilities <span style="font-size:.7rem;color:rgba(255,255,255,.35);display:block;font-weight:400;">Dump sites &amp; rates</span></button>
-            <button class="tab" data-tab="manifests" type="button">Loads &amp; Manifests <span style="font-size:.7rem;color:rgba(255,255,255,.35);display:block;font-weight:400;">Waste tracking</span></button>
-            <button class="tab" data-tab="locates" type="button">Locate Tickets <span style="font-size:.7rem;color:rgba(255,255,255,.35);display:block;font-weight:400;">811 / one-call</span></button>
-            <button class="tab" data-tab="compliance" type="button">Compliance <span style="font-size:.7rem;color:rgba(255,255,255,.35);display:block;font-weight:400;">Docs &amp; alerts</span></button>
+            <button class="tab" data-tab="facilities" type="button">Facilities <span style="font-size:.7rem;color:rgba(255,255,255,.65);display:block;font-weight:400;">Dump sites &amp; rates</span></button>
+            <button class="tab" data-tab="manifests" type="button">Loads &amp; Manifests <span style="font-size:.7rem;color:rgba(255,255,255,.65);display:block;font-weight:400;">Waste tracking</span></button>
+            <button class="tab" data-tab="locates" type="button">Locate Tickets <span style="font-size:.7rem;color:rgba(255,255,255,.65);display:block;font-weight:400;">811 / one-call</span></button>
+            <button class="tab" data-tab="compliance" type="button">Compliance <span style="font-size:.7rem;color:rgba(255,255,255,.65);display:block;font-weight:400;">Docs &amp; alerts</span></button>
           </section>
         </div>
       </div>
@@ -626,7 +627,7 @@
 
                     <!-- Hydrovac fields — shown only when service_type = hydrovac -->
                     <div id="hydrovacFields" style="display:none;">
-                      <div class="form-section-label" style="font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:rgba(255,255,255,.35);margin:16px 0 8px;">Hydrovac details</div>
+                      <div class="form-section-label" style="font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:rgba(255,255,255,.65);margin:16px 0 8px;">Hydrovac details</div>
 
                       <div class="form-row">
                         <label>Service type
@@ -688,7 +689,7 @@
                         </label>
                       </div>
 
-                      <div class="form-section-label" style="font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:rgba(255,255,255,.35);margin:16px 0 8px;">Disposal</div>
+                      <div class="form-section-label" style="font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:rgba(255,255,255,.65);margin:16px 0 8px;">Disposal</div>
 
                       <div class="form-row">
                         <label>Liquid disposal volume (gal)
@@ -710,7 +711,7 @@
 
                       <!-- Live revenue preview -->
                       <div id="hydrovacRevenuePreview" style="margin-top:12px;padding:12px 14px;background:rgba(200,75,47,.08);border:1px solid rgba(200,75,47,.2);border-radius:8px;display:none;">
-                        <div style="font-size:.72rem;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">Estimated revenue</div>
+                        <div style="font-size:.72rem;color:rgba(255,255,255,.65);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">Estimated revenue</div>
                         <div id="hydrovacRevenueBreakdown" style="font-size:.82rem;color:rgba(255,255,255,.7);line-height:1.6;"></div>
                         <div id="hydrovacRevenueTotal" style="font-size:1.1rem;font-weight:700;color:#e8e9eb;margin-top:6px;"></div>
                       </div>
@@ -2578,7 +2579,7 @@
                   <label>Notes</label>
                   <textarea id="bkNotes" rows="2" placeholder="Any details…"></textarea>
                   <div style="margin-top:14px;border-top:1px solid rgba(255,255,255,.08);padding-top:14px;">
-                    <label style="font-size:.78rem;color:rgba(255,255,255,.45);display:block;margin-bottom:8px;">Repeat</label>
+                    <label style="font-size:.78rem;color:rgba(255,255,255,.65);display:block;margin-bottom:8px;">Repeat</label>
                     <select id="bkRecurrenceRule" class="input" style="width:100%;margin-bottom:8px;">
                       <option value="">Does not repeat</option>
                       <option value="DAILY">Daily</option>
@@ -2587,9 +2588,9 @@
                       <option value="MONTHLY">Monthly</option>
                     </select>
                     <div id="bkRecurrenceOptions" style="display:none;">
-                      <label style="font-size:.78rem;color:rgba(255,255,255,.45);display:block;margin-bottom:4px;">Generate instances through</label>
+                      <label style="font-size:.78rem;color:rgba(255,255,255,.65);display:block;margin-bottom:4px;">Generate instances through</label>
                       <input type="date" id="bkRecurrenceEnd" class="input" style="width:100%;" />
-                      <div style="font-size:.75rem;color:rgba(255,255,255,.35);margin-top:4px;" id="bkRecurrenceCount">—</div>
+                      <div style="font-size:.75rem;color:rgba(255,255,255,.65);margin-top:4px;" id="bkRecurrenceCount">—</div>
                     </div>
                   </div>
                   <div style="display:flex;gap:8px;margin-top:4px;">
@@ -2914,7 +2915,7 @@
             <div class="card" style="margin-bottom:14px;">
               <div class="card-hd" style="display:flex;align-items:center;gap:8px;">
                 <strong>Today's briefing</strong>
-                <span id="aiBriefStatus" style="font-size:.75rem;color:rgba(255,255,255,.35);margin-left:auto;"></span>
+                <span id="aiBriefStatus" style="font-size:.75rem;color:rgba(255,255,255,.65);margin-left:auto;"></span>
               </div>
               <div class="card-bd">
                 <div id="aiBriefContent" style="font-size:.88rem;line-height:1.7;color:rgba(255,255,255,.8);white-space:pre-wrap;">Loading briefing…</div>
@@ -2948,7 +2949,7 @@
             <div class="card" style="margin-top:14px;">
               <div class="card-hd"><strong>Draft assistant</strong></div>
               <div class="card-bd">
-                <div style="font-size:.82rem;color:rgba(255,255,255,.45);margin-bottom:10px;">
+                <div style="font-size:.82rem;color:rgba(255,255,255,.65);margin-bottom:10px;">
                   Generate message drafts. All drafts require your review before sending.
                 </div>
                 <div style="display:flex;flex-wrap:wrap;gap:6px;">
@@ -3004,7 +3005,24 @@
     <div id="globalSearchOverlay" style="display:none;position:fixed;top:60px;left:50%;transform:translateX(-50%);width:min(600px,90vw);background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 8px 32px rgba(0,0,0,.5);z-index:9000;max-height:70vh;overflow-y:auto;">
       <div id="globalSearchResults" style="padding:8px 0;"></div>
     </div>
+
+    <!-- Live region for toast/status notifications (FIX 2) -->
+    <div id="globalToastRegion" aria-live="polite" aria-atomic="true" style="position:fixed;bottom:80px;right:16px;z-index:9999;pointer-events:none;"></div>
   </div>
+
+  <!-- FIX 10: Sign-out confirmation — intercepts before operator.js listener fires -->
+  <script>
+  (function () {
+    document.addEventListener('click', function (e) {
+      var btn = e.target.closest('#btnSignOut');
+      if (!btn) return;
+      if (!confirm('Sign out of ProofLink?')) {
+        e.stopImmediatePropagation();
+        e.preventDefault();
+      }
+    }, true);
+  })();
+  </script>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <script src="/platform/plan-rules.js" defer></script>
@@ -3275,27 +3293,27 @@
 <!-- Mobile bottom navigation -->
 <nav class="mobile-bottom-nav" id="mobileBottomNav" aria-label="Main navigation">
   <button class="mbn-item active" data-mbn-tab="dashboard" type="button">
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+    <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
     <span>Dashboard</span>
   </button>
   <button class="mbn-item" data-mbn-tab="orders" type="button">
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+    <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
     <span>Work</span>
   </button>
   <button class="mbn-item" data-mbn-tab="customers" type="button">
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+    <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
     <span>Customers</span>
   </button>
   <button class="mbn-item" data-mbn-tab="bookings" type="button">
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+    <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
     <span>Calendar</span>
   </button>
   <button class="mbn-item" data-mbn-tab="payments" type="button">
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+    <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
     <span>Money</span>
   </button>
   <button class="mbn-item" data-mbn-tab="__menu" type="button" id="mbnMenuBtn">
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
     <span>Tools</span>
   </button>
 </nav>

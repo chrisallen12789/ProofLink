@@ -85,11 +85,14 @@ exports.handler = async (event) => {
       .from('project_phases')
       .insert(record)
       .select()
-      .single();
+      .maybeSingle();
 
     if (error) {
       console.error('[manage-project-phases] POST', error);
       return respond(500, { error: 'Failed to create phase' });
+    }
+    if (!phase) {
+      return respond(500, { error: 'Failed to create phase: no record returned' });
     }
 
     return respond(201, { phase });

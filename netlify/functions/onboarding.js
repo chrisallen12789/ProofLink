@@ -61,7 +61,8 @@ async function sendEmail(to, subject, html) {
   await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${RESEND_API_KEY}` },
-    body: JSON.stringify({ from: `${PLATFORM_NAME} <onboarding@prooflink.co>`, to: [to], subject, html })
+    body: JSON.stringify({ from: `${PLATFORM_NAME} <onboarding@prooflink.co>`, to: [to], subject, html }),
+    signal: AbortSignal.timeout(8000),
   });
 }
 function escapeHtml(str) {
@@ -95,9 +96,12 @@ async function stageInSupabase(payload) {
       updated_at: new Date().toISOString(),
     })
     .select()
-    .single();
+    .maybeSingle();
   if (error) {
     return { staged: false, reason: `supabase_insert_failed:${error.message}` };
+  }
+  if (!data) {
+    return { staged: false, reason: 'supabase_insert_failed:no_record_returned' };
   }
   return { staged: true, record: data };
 }

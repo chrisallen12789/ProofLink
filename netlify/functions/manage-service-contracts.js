@@ -56,9 +56,10 @@ exports.handler = async (event) => {
       expires_at   : expires_at || null,
       terms        : terms || null,
       reminder_days: reminder_days != null ? Number(reminder_days) : 30,
-    }).select().single();
+    }).select().maybeSingle();
 
     if (error) return respond(500, { error: error.message });
+    if (!data) return respond(500, { error: 'Failed to create contract: no record returned' });
     return respond(201, { contract: data });
   }
 
@@ -82,9 +83,10 @@ exports.handler = async (event) => {
       .update(patch)
       .eq('id', id)
       .eq('tenant_id', tenantId)
-      .select().single();
+      .select().maybeSingle();
 
     if (error) return respond(500, { error: error.message });
+    if (!data) return respond(404, { error: 'Contract not found or access denied' });
     return respond(200, { contract: data });
   }
 

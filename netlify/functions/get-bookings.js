@@ -30,8 +30,8 @@ exports.handler = async (event) => {
     .order('starts_at', { ascending: true });
 
   if (error) {
-    console.error('[get-bookings]', error);
-    return respond(500, { error: 'Failed to fetch bookings', detail: error.message, code: error.code });
+    console.error('[get-bookings] fetch error:', error);
+    return respond(500, { error: 'Failed to fetch bookings' });
   }
 
   return respond(200, { bookings: data || [] });

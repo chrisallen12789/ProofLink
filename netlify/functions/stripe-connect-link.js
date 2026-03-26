@@ -25,6 +25,11 @@ exports.handler = async (event) => {
     const ctx = await requireOperatorContext(event, tenantId);
     const tenant = await findTenantById(tenantId).catch(() => null);
 
+    if (!tenant) {
+      console.error('[stripe-connect-link] tenant not found:', tenantId);
+      return json(404, { ok: false, error: 'Tenant not found' });
+    }
+
     let accountId = clean(
       body.stripeAccountId ||
       body.stripe_account_id ||

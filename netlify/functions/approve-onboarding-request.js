@@ -37,7 +37,7 @@ exports.handler = async (event) => {
     .from('tenant_onboarding_requests')
     .select('id, status, business_name, owner_name, owner_email')
     .eq('id', id)
-    .single();
+    .maybeSingle();
 
   if (fetchErr || !existing) {
     return respond(404, { error: 'Onboarding request not found' });
@@ -64,11 +64,14 @@ exports.handler = async (event) => {
     })
     .eq('id', id)
     .select('id, status, business_name, approved_at')
-    .single();
+    .maybeSingle();
 
   if (updateErr) {
     console.error('approve-onboarding-request update error:', updateErr);
     return respond(500, { error: 'Failed to approve request' });
+  }
+  if (!updated) {
+    return respond(500, { error: 'Failed to approve request: no record returned' });
   }
 
   // Email applicant — non-fatal

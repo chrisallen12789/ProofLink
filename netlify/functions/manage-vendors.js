@@ -50,9 +50,10 @@ exports.handler = async (event) => {
       phone    : phone || null,
       trade    : trade || null,
       notes    : notes || null,
-    }).select().single();
+    }).select().maybeSingle();
 
     if (error) return respond(500, { error: error.message });
+    if (!data) return respond(500, { error: 'Failed to create vendor: no record returned' });
     return respond(201, { vendor: data });
   }
 
@@ -76,9 +77,10 @@ exports.handler = async (event) => {
       .update(patch)
       .eq('id', id)
       .eq('tenant_id', tenantId)
-      .select().single();
+      .select().maybeSingle();
 
     if (error) return respond(500, { error: error.message });
+    if (!data) return respond(404, { error: 'Vendor not found or access denied' });
     return respond(200, { vendor: data });
   }
 
@@ -92,9 +94,10 @@ exports.handler = async (event) => {
       .update({ is_active: false })
       .eq('id', id)
       .eq('tenant_id', tenantId)
-      .select().single();
+      .select().maybeSingle();
 
     if (error) return respond(500, { error: error.message });
+    if (!data) return respond(404, { error: 'Vendor not found or access denied' });
     return respond(200, { vendor: data });
   }
 

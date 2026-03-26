@@ -52,9 +52,10 @@ exports.handler = async (event) => {
       operator_id  : operator_id || null,
       all_day      : all_day !== false,
       block_bookings: block_bookings !== false,
-    }).select().single();
+    }).select().maybeSingle();
 
     if (error) return respond(500, { error: error.message });
+    if (!data) return respond(500, { error: 'Failed to create block: no record returned' });
     return respond(201, { block: data });
   }
 

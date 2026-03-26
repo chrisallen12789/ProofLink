@@ -3151,4 +3151,24 @@ input:focus, textarea:focus, select:focus{
   .field-row {
     flex-direction: column;
   }
+
+  /* FIX 4: WCAG 2.1 minimum touch target for mobile bottom nav items */
+  .mbn-item {
+    min-height: 56px;
+    min-width: 44px;
+  }
+}
+
+/* FIX 12: Nav tools section collapse support */
+.nav-tools-section { overflow: hidden; transition: max-height 0.2s ease; }
+.nav-tools-section.collapsed { max-height: 0; }
+.nav-tools-section.expanded { max-height: 1000px; }
+
+/* FIX 9: Unavailable product visual differentiation */
+.product-card.is-unavailable {
+  opacity: 0.55;
+}
+.product-card.is-unavailable .product-price {
+  text-decoration: line-through;
+  opacity: 0.7;
 }

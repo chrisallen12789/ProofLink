@@ -96,6 +96,21 @@
       display: none;
     }
     .avail-block-error.visible { display: block; }
+    .form-legend {
+      font-size: .78rem;
+      color: rgba(255,255,255,.5);
+      margin-bottom: 14px;
+      margin-top: -8px;
+    }
+    @media (max-width: 500px) {
+      .address-row, .field-row {
+        flex-direction: column !important;
+      }
+      .address-row input, .field-row input {
+        max-width: 100% !important;
+        flex: 1 1 100% !important;
+      }
+    }
     #successView { text-align: center; padding: 16px 0; }
     #successView .check { font-size: 3rem; margin-bottom: 12px; }
     #successView h2 { margin-bottom: 8px; }
@@ -109,9 +124,10 @@
   <div class="sub">Choose a preferred time and tell us what you need.</div>
 
   <div id="bookForm">
+    <p class="form-legend"><span aria-hidden="true">*</span> Required fields</p>
     <h2>Your info</h2>
-    <label>Your name *</label>
-    <input type="text" id="customerName" placeholder="Jane Smith" autocomplete="name" />
+    <label>Your name <span aria-hidden="true">*</span></label>
+    <input type="text" id="customerName" placeholder="Jane Smith" autocomplete="name" aria-required="true" />
 
     <label>Email address</label>
     <input type="email" id="customerEmail" placeholder="jane@example.com" autocomplete="email" />
@@ -119,7 +135,7 @@
     <div style="margin-top:14px;">
       <label style="font-size:.78rem;color:rgba(255,255,255,.55);display:block;margin-bottom:6px;">Service address <span style="color:rgba(255,255,255,.3);">(where should we come?)</span></label>
       <input type="text" id="serviceAddress" class="input" placeholder="Street address" style="width:100%;margin-bottom:6px;" />
-      <div style="display:flex;gap:6px;">
+      <div class="address-row" style="display:flex;gap:6px;">
         <input type="text" id="serviceCity" class="input" placeholder="City" style="flex:2;" />
         <input type="text" id="serviceState" class="input" placeholder="State" style="flex:1;max-width:80px;" />
         <input type="text" id="serviceZip" class="input" placeholder="Zip" style="flex:1;max-width:90px;" />
@@ -135,19 +151,19 @@
       Choose your preferred date and time. We will confirm the final appointment shortly.
     </div>
 
-    <label>Service / reason *</label>
-    <input type="text" id="bookingTitle" placeholder="e.g. Lawn mowing, Consultation, Deep clean" />
+    <label>Service / reason <span aria-hidden="true">*</span></label>
+    <input type="text" id="bookingTitle" placeholder="e.g. Lawn mowing, Consultation, Deep clean" aria-required="true" />
 
-    <div class="avail-block-error" id="availBlockError"></div>
+    <div class="avail-block-error" id="availBlockError" role="alert" aria-live="assertive"></div>
 
     <div class="row">
       <div>
-        <label>Date *</label>
-        <input type="date" id="bookingDate" />
+        <label>Date <span aria-hidden="true">*</span></label>
+        <input type="date" id="bookingDate" aria-required="true" />
       </div>
       <div>
-        <label>Start time *</label>
-        <input type="time" id="bookingStart" value="09:00" />
+        <label>Start time <span aria-hidden="true">*</span></label>
+        <input type="time" id="bookingStart" value="09:00" aria-required="true" />
       </div>
     </div>
 
@@ -184,13 +200,13 @@
     </select>
 
     <button class="btn" id="btnBook" type="button">Send request</button>
-    <div class="msg" id="bookMsg"></div>
+    <div class="msg" id="bookMsg" role="alert"></div>
     <div id="pricingNote" style="display:none;margin-top:16px;padding:12px 14px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:8px;font-size:.8rem;color:rgba(255,255,255,.55);line-height:1.5;">
       Have questions about pricing? Contact us directly.<span id="pricingContact"></span>
     </div>
   </div>
 
-  <div id="successView" class="hidden">
+  <div id="successView" class="hidden" role="status" aria-live="polite">
     <div class="check">✅</div>
     <h2>Request received</h2>
     <p id="successDetail">Your appointment has been requested. You'll hear from us shortly to confirm.</p>
@@ -359,9 +375,23 @@
         service_address  : serviceAddress || undefined,
       }),
     })
-      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, status: r.status, d: d }; }); })
       .then(function (res) {
-        if (!res.ok) throw new Error(res.d.error || 'We could not send your request.');
+        if (!res.ok) {
+          var errMsg = (res.d && res.d.error) || '';
+          var httpStatus = res.status;
+          var friendly;
+          if (httpStatus >= 500) {
+            friendly = 'We hit a snag on our end. Please try again in a moment.';
+          } else if (errMsg && /duplicate|already.book/i.test(errMsg)) {
+            friendly = "Looks like you may have already booked this. Check your confirmation email.";
+          } else if (errMsg && /unavailable|not available/i.test(errMsg)) {
+            friendly = "This date isn\u2019t available. Please choose a different time.";
+          } else {
+            friendly = errMsg || 'We could not send your request. Please try again.';
+          }
+          throw new Error(friendly);
+        }
         document.getElementById('bookForm').classList.add('hidden');
         document.getElementById('successView').classList.remove('hidden');
         const start = new Date(startsAt);
@@ -370,7 +400,10 @@
           ' at ' + start.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) + '. We will confirm the final time shortly.';
       })
       .catch(function (err) {
-        msg.textContent = err.message || 'Something went wrong. Please try again or contact the business directly.';
+        var isNetworkError = err instanceof TypeError;
+        msg.textContent = isNetworkError
+          ? 'Connection problem. Check your internet and try again.'
+          : (err.message || 'Something went wrong. Please try again or contact the business directly.');
         msg.className   = 'msg error';
         btn.disabled    = false;
         btn.textContent = 'Send request';

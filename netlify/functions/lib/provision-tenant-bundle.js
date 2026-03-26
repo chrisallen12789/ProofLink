@@ -123,9 +123,10 @@ async function provisionTenantBundle({ supabase, payload, invitedByOperatorId = 
       billing_exempt_until: exemptUntil,
     }])
     .select("id,slug,name")
-    .single();
+    .maybeSingle();
 
   if (tenantError) throw tenantError;
+  if (!tenant) throw new Error("Tenant creation failed: no record returned after insert");
 
   const { data: operator, error: operatorError } = await supabase
     .from("operators")
@@ -136,9 +137,10 @@ async function provisionTenantBundle({ supabase, payload, invitedByOperatorId = 
       tenant_id: tenant.id,
     }], { onConflict: "email" })
     .select("id")
-    .single();
+    .maybeSingle();
 
   if (operatorError) throw operatorError;
+  if (!operator) throw new Error("Operator creation failed: no record returned after upsert");
 
   const { error: membershipError } = await supabase
     .from("operator_members")

@@ -722,6 +722,27 @@ const templates = {
     };
   },
 
+  newBookingOperator({ operator_email, operator_name, business_name, customer_name, service_title, starts_at, notes, booking_url }) {
+    return {
+      to     : operator_email,
+      subject: `New booking: ${service_title} \u2014 ${customer_name}`,
+      html   : layout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.green)}${bodyWrap(`
+        ${badge('New booking', T.greenLt, T.green, T.greenBd)}<br/><br/>
+        ${h1(`Hey ${operator_name}, you have a new booking.`)}
+        ${sub(`A customer just booked through ${business_name}.`)}
+        ${infoBox([
+          ['Customer', customer_name],
+          ['Service', service_title],
+          ['Date / time', starts_at],
+          ...(notes ? [['Notes', notes]] : []),
+        ])}
+        <div style="text-align:center;margin:0 0 28px;">${cta('View Booking \u2192', booking_url, T.red)}</div>
+        ${divider()}
+        ${p(`<span style="color:${T.hint};">You received this because you are the operator for ${business_name}.</span>`)}
+      `)}</table>`, { preheader: `New booking from ${customer_name}: ${service_title}.` }),
+    };
+  },
+
 };
 
 module.exports = { sendEmail, loggedSendEmail, templates, getChecklist, CHECKLIST_BY_TYPE, packageConfirmationEmail, retainerInvoiceEmail };

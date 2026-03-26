@@ -60,9 +60,10 @@ exports.handler = async (event) => {
         name     : name || null,
       })
       .select()
-      .single();
+      .maybeSingle();
 
     if (error) return respond(500, { error: error.message });
+    if (!data) return respond(500, { error: 'Failed to create member: no record returned' });
     return respond(201, { member: data });
   }
 
@@ -92,9 +93,10 @@ exports.handler = async (event) => {
       .eq('id', id)
       .eq('tenant_id', tenantId)
       .select()
-      .single();
+      .maybeSingle();
 
     if (error) return respond(500, { error: error.message });
+    if (!data) return respond(404, { error: 'Member not found or access denied' });
     return respond(200, { member: data });
   }
 
