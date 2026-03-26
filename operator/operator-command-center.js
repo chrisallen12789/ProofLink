@@ -759,6 +759,7 @@ function renderGuidance() {
   if (!guidanceWrap) return;
   const blueprint = currentWorkspaceBlueprint();
   const rubric = blueprint?.workflowRubric || {};
+  const operatorNeeds = Array.isArray(blueprint?.business?.operatorNeeds) ? blueprint.business.operatorNeeds.filter(Boolean) : [];
   const groups = [
     {
       title: "Keep work moving",
@@ -845,6 +846,12 @@ function renderGuidance() {
     {
       title: "Template retention",
       copy: [rubric.payment, rubric.repeatWork].filter(Boolean).join(" "),
+    },
+    {
+      title: "Template records",
+      copy: operatorNeeds.length
+        ? operatorNeeds.slice(0, 3).join(" ")
+        : "Make the record hold the customer context, delivery details, and payment follow-through your team would otherwise keep in memory.",
     },
   ];
   guidanceWrap.innerHTML = `

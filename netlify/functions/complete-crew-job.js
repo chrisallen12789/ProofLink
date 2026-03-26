@@ -8,7 +8,7 @@
 
 const { requireOperatorContext, getAdminClient, respond } = require('./utils/auth');
 const { requireHydrovacOperatorContext } = require('./utils/hydrovac');
-const { collectHydrovacLifecycleIssues, hydrovacJobType } = require('./lib/hydrovac-compliance');
+const { collectHydrovacLifecycleIssues, hydrovacJobType, logComplianceAlerts, resolveComplianceAlerts } = require('./lib/hydrovac-compliance');
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return respond(200, {});
@@ -60,6 +60,11 @@ exports.handler = async (event) => {
       targetStatus: 'completed',
     });
     if (issues.length) {
+      await logComplianceAlerts(adminSb, tenantId, issues, {
+        referenceType: 'job',
+        referenceId: job.id,
+        actorLabel: ctx.email || 'crew',
+      });
       return respond(409, { error: issues[0].message, issues });
     }
   }
@@ -86,6 +91,20 @@ exports.handler = async (event) => {
   if (updateErr) {
     console.error('[complete-crew-job] update error:', updateErr);
     return respond(500, { error: 'Failed to complete job' });
+  }
+
+  if (hydrovacCtx && hydrovacJobType(job)) {
+    await resolveComplianceAlerts(adminSb, tenantId, {
+      referenceType: 'job',
+      referenceId: job_id,
+      alertTypes: [
+        'manifest_missing',
+        'manifest_unconfirmed',
+        'manifest_facility_missing',
+        'manifest_ticket_missing',
+        'manifest_quantity_missing',
+      ],
+    });
   }
 
   return respond(200, { ok: true, job: updated });

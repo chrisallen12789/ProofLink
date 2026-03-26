@@ -2,7 +2,7 @@
 
 const { respond } = require("./utils/auth");
 const { clean, parseJsonBody, requireHydrovacOperatorContext } = require("./utils/hydrovac");
-const { collectHydrovacLifecycleIssues } = require("./lib/hydrovac-compliance");
+const { collectHydrovacLifecycleIssues, logComplianceAlerts, resolveComplianceAlerts } = require("./lib/hydrovac-compliance");
 
 exports.handler = async (event) => {
   if (event.httpMethod === "OPTIONS") return respond(200, {});
@@ -48,6 +48,11 @@ exports.handler = async (event) => {
     targetStatus: nextStatus,
   });
   if (issues.length) {
+    await logComplianceAlerts(adminSb, tenantId, issues, {
+      referenceType: "job",
+      referenceId: job.id,
+      actorLabel: ctx.email || "operator",
+    });
     return respond(409, { error: issues[0].message, issues });
   }
 
@@ -79,5 +84,18 @@ exports.handler = async (event) => {
     .maybeSingle();
 
   if (updateError) return respond(500, { error: updateError.message });
+  await resolveComplianceAlerts(adminSb, tenantId, {
+    referenceType: "job",
+    referenceId: jobId,
+    alertTypes: [
+      "locate_ticket_missing",
+      "confined_space_permit_missing",
+      "manifest_missing",
+      "manifest_unconfirmed",
+      "manifest_facility_missing",
+      "manifest_ticket_missing",
+      "manifest_quantity_missing",
+    ],
+  });
   return respond(200, { ok: true, job: updated });
 };

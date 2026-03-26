@@ -7,7 +7,7 @@
 
 const { requireOperatorContext, getAdminClient, respond } = require('./utils/auth');
 const { requireHydrovacOperatorContext } = require('./utils/hydrovac');
-const { collectHydrovacLifecycleIssues, hydrovacJobType } = require('./lib/hydrovac-compliance');
+const { collectHydrovacLifecycleIssues, hydrovacJobType, logComplianceAlerts, resolveComplianceAlerts } = require('./lib/hydrovac-compliance');
 
 const ALLOWED_CREW_STATUSES = new Set(['in_progress', 'blocked', 'completed']);
 const ADMIN_ROLES = new Set(['admin', 'owner', 'manager', 'platform_admin']);
@@ -116,6 +116,11 @@ exports.handler = async (event) => {
       targetStatus: status,
     });
     if (issues.length) {
+      await logComplianceAlerts(adminSb, tenantId, issues, {
+        referenceType: 'job',
+        referenceId: job.id,
+        actorLabel: ctx.email || user.email || 'crew',
+      });
       return respond(409, { error: issues[0].message, issues });
     }
   }
@@ -131,6 +136,22 @@ exports.handler = async (event) => {
   if (updateErr) {
     console.error('[update-crew-job] update error:', updateErr);
     return respond(500, { error: 'Failed to update job' });
+  }
+
+  if (hydrovacCtx && hydrovacJobType(job) && (status === 'in_progress' || status === 'completed')) {
+    await resolveComplianceAlerts(adminSb, tenantId, {
+      referenceType: 'job',
+      referenceId: job_id,
+      alertTypes: [
+        'locate_ticket_missing',
+        'confined_space_permit_missing',
+        'manifest_missing',
+        'manifest_unconfirmed',
+        'manifest_facility_missing',
+        'manifest_ticket_missing',
+        'manifest_quantity_missing',
+      ],
+    });
   }
 
   return respond(200, { job: updated });

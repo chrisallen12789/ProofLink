@@ -85,6 +85,8 @@ describe("netlify/functions/update-crew-job", () => {
           { code: "locate_ticket_missing", message: "An active locate ticket is required before this hydrovac job can start." },
         ]),
         hydrovacJobType: vi.fn(() => "hydrovac_excavation"),
+        logComplianceAlerts: vi.fn(async () => []),
+        resolveComplianceAlerts: vi.fn(async () => []),
       },
     };
 

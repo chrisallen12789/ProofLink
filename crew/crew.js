@@ -256,6 +256,14 @@ function showToast(message, type = 'info') {
   }, 3500);
 }
 
+function complianceIssueMessage(body = {}, fallback = '') {
+  const issues = Array.isArray(body.issues) ? body.issues : [];
+  if (issues.length) {
+    return issues.map((issue) => issue.message || issue.code || '').filter(Boolean).join(' ');
+  }
+  return body.error || fallback || 'This step is blocked until the required compliance item is handled.';
+}
+
 // ── Supabase Bootstrap ─────────────────────────────────────────────────────────
 
 function loadSupabaseScript() {
@@ -731,7 +739,10 @@ async function updateJobStatus(jobId, status, extraFields = {}) {
     });
 
     const body = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
+    if (!res.ok) {
+      if (res.status === 409) throw new Error(complianceIssueMessage(body, 'This job is blocked until the required compliance item is handled.'));
+      throw new Error(body.error || `HTTP ${res.status}`);
+    }
 
     const updated = body.job || { id: jobId, ...patch };
     updateJobCache(jobId, updated);
@@ -747,6 +758,11 @@ async function updateJobStatus(jobId, status, extraFields = {}) {
     }
   } catch (err) {
     console.error('[updateJobStatus]', err);
+    const detail = String(err.message || '').toLowerCase();
+    if (detail.includes('compliance') || detail.includes('permit') || detail.includes('locate') || detail.includes('manifest')) {
+      showToast(err.message || 'This job is blocked until the required compliance item is handled.', 'error');
+      return;
+    }
     OFFLINE_QUEUE.push({ type: 'status', jobId, patch, timestamp: Date.now() });
     await persistQueue();
     updateJobCache(jobId, patch);
@@ -1164,12 +1180,19 @@ async function submitCompletion() {
           signature_data_url  : sigDataUrl || undefined,
         }),
       });
+      const data = await res.json().catch(() => ({}));
       if (res.ok) {
         uploaded = true;
-        const data = await res.json().catch(() => ({}));
         if (data.job) updateJobCache(ACTIVE_JOB.id, data.job);
+      } else if (res.status === 409) {
+        const error = new Error(complianceIssueMessage(data, 'This job cannot be completed until the required compliance item is handled.'));
+        error.stopFallback = true;
+        throw error;
       }
-    } catch { /* fall through to update-crew-job */ }
+    } catch (err) {
+      if (err?.stopFallback) throw err;
+      /* fall through to update-crew-job */
+    }
 
     if (!uploaded) {
       // Fallback: use update-crew-job
@@ -1182,7 +1205,10 @@ async function submitCompletion() {
         body: JSON.stringify(body),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      if (!res.ok) {
+        if (res.status === 409) throw new Error(complianceIssueMessage(data, 'This job cannot be completed until the required compliance item is handled.'));
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
       if (data.job) updateJobCache(ACTIVE_JOB.id, data.job);
     }
 

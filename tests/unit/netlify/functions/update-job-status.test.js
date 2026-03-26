@@ -72,6 +72,8 @@ describe("netlify/functions/update-job-status", () => {
         collectHydrovacLifecycleIssues: vi.fn(async () => [
           { code: "locate_ticket_missing", message: "An active locate ticket is required before this hydrovac job can start." },
         ]),
+        logComplianceAlerts: vi.fn(async () => []),
+        resolveComplianceAlerts: vi.fn(async () => []),
       },
     };
 
@@ -127,6 +129,8 @@ describe("netlify/functions/update-job-status", () => {
       loaded: true,
       exports: {
         collectHydrovacLifecycleIssues: vi.fn(async () => []),
+        logComplianceAlerts: vi.fn(async () => []),
+        resolveComplianceAlerts: vi.fn(async () => []),
       },
     };
 

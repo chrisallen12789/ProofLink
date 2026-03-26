@@ -2,7 +2,7 @@
 
 const { respond } = require('./utils/auth');
 const { asBoolean, asNumber, clean, parseJsonBody, requireHydrovacOperatorContext, daysUntil } = require('./utils/hydrovac');
-const { jobRequiresLocateTicket } = require('./lib/hydrovac-compliance');
+const { jobRequiresLocateTicket, logComplianceAlerts, resolveComplianceAlerts } = require('./lib/hydrovac-compliance');
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return respond(200, {});
@@ -82,6 +82,14 @@ exports.handler = async (event) => {
 
     if (locateError) return respond(500, { error: locateError.message });
     if (!Array.isArray(locateTickets) || !locateTickets.length) {
+      await logComplianceAlerts(adminSb, tenantId, [{
+        code: 'locate_ticket_missing',
+        message: 'Dispatch is blocked until an active locate ticket is attached to this hydrovac job.',
+      }], {
+        referenceType: 'job',
+        referenceId: jobId,
+        actorLabel: ctx.email || 'operator',
+      });
       return respond(409, { error: 'Utility locate ticket required', missing: 'locate_ticket' });
     }
   }
@@ -101,13 +109,51 @@ exports.handler = async (event) => {
     const medExpired = qualifications?.medical_certificate_expiry && qualifications.medical_certificate_expiry < todayIso;
 
     if (cdlExpired && !forceDispatch) {
+      await logComplianceAlerts(adminSb, tenantId, [{
+        code: 'cdl_expiry',
+        message: 'Dispatch is blocked because the assigned driver CDL is expired.',
+      }], {
+        referenceType: 'job',
+        referenceId: jobId,
+        actorLabel: ctx.email || 'operator',
+      });
       return respond(409, { error: 'Driver CDL is expired', missing: 'cdl_expiry' });
     }
     if (medExpired && !forceDispatch) {
+      await logComplianceAlerts(adminSb, tenantId, [{
+        code: 'medical_certificate_expiry',
+        message: 'Dispatch is blocked because the assigned driver medical certificate is expired.',
+      }], {
+        referenceType: 'job',
+        referenceId: jobId,
+        actorLabel: ctx.email || 'operator',
+      });
       return respond(409, { error: 'Driver medical certificate is expired', missing: 'medical_certificate_expiry' });
     }
-    if (cdlExpired) warnings.push({ type: 'cdl_expired_override', message: 'Driver CDL is expired but dispatch was forced.' });
-    if (medExpired) warnings.push({ type: 'medical_expired_override', message: 'Driver medical certificate is expired but dispatch was forced.' });
+    if (cdlExpired) {
+      warnings.push({ type: 'cdl_expired_override', message: 'Driver CDL is expired but dispatch was forced.' });
+      await logComplianceAlerts(adminSb, tenantId, [{
+        code: 'cdl_expired_override',
+        message: 'Dispatch was forced with an expired CDL on the assigned driver.',
+      }], {
+        referenceType: 'job',
+        referenceId: jobId,
+        actorLabel: ctx.email || 'operator',
+        reason: forceDispatch ? 'Force dispatch was used.' : '',
+      });
+    }
+    if (medExpired) {
+      warnings.push({ type: 'medical_expired_override', message: 'Driver medical certificate is expired but dispatch was forced.' });
+      await logComplianceAlerts(adminSb, tenantId, [{
+        code: 'medical_expired_override',
+        message: 'Dispatch was forced with an expired medical certificate on the assigned driver.',
+      }], {
+        referenceType: 'job',
+        referenceId: jobId,
+        actorLabel: ctx.email || 'operator',
+        reason: forceDispatch ? 'Force dispatch was used.' : '',
+      });
+    }
 
     const cdlDays = daysUntil(qualifications?.cdl_expiry_date);
     const medDays = daysUntil(qualifications?.medical_certificate_expiry);
@@ -175,6 +221,16 @@ exports.handler = async (event) => {
     .maybeSingle();
 
   if (updateError) return respond(500, { error: updateError.message });
+
+  await resolveComplianceAlerts(adminSb, tenantId, {
+    referenceType: 'job',
+    referenceId: jobId,
+    alertTypes: [
+      'locate_ticket_missing',
+      'cdl_expiry',
+      'medical_certificate_expiry',
+    ],
+  });
 
   try {
     await adminSb

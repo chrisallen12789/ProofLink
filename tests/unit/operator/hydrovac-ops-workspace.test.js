@@ -9,6 +9,7 @@ function makeField() {
     value: "",
     innerHTML: "",
     addEventListener: vi.fn(),
+    querySelectorAll: vi.fn(() => []),
     requestSubmit: vi.fn(),
     focus: vi.fn(),
   };
@@ -27,6 +28,9 @@ function loadHydrovacOpsWorkspace(overrides = {}) {
     HYDROVAC_MANIFESTS_CACHE: [],
     HYDROVAC_LOCATE_TICKETS_CACHE: [],
     HYDROVAC_DRIVER_COMPLIANCE_CACHE: [],
+    HYDROVAC_EQUIPMENT_COMPLIANCE_CACHE: [],
+    HYDROVAC_ANALYTICS_CACHE: null,
+    HYDROVAC_ALERTS_CACHE: [],
     HYDROVAC_PERMITS_CACHE: [],
     HYDROVAC_ASSETS_CACHE: [],
     ACTIVE_FACILITY_ID: "",
@@ -47,6 +51,20 @@ function loadHydrovacOpsWorkspace(overrides = {}) {
     btnVerifyLocate: makeField(),
     hydrovacLocateForm: makeField(),
     btnRefreshCompliance: makeField(),
+    complianceStageStrip: makeField(),
+    complianceActionBar: { innerHTML: "", querySelectorAll: vi.fn(() => []) },
+    hydrovacComplianceSummary: makeField(),
+    hydrovacComplianceUrgent: { innerHTML: "", querySelectorAll: vi.fn(() => []) },
+    hydrovacComplianceCoverage: makeField(),
+    hydrovacPermitList: makeField(),
+    hydrovacPermitDetail: makeField(),
+    permitStageStrip: makeField(),
+    permitActionBar: { innerHTML: "", querySelectorAll: vi.fn(() => []) },
+    hydrovacAssetList: makeField(),
+    hydrovacAssetDetail: makeField(),
+    assetStageStrip: makeField(),
+    assetActionBar: { innerHTML: "", querySelectorAll: vi.fn(() => []) },
+    CUSTOMERS_CACHE: [],
     fetchHydrovacFacilities: vi.fn(() => Promise.resolve()),
     fetchHydrovacManifests: vi.fn(() => Promise.resolve()),
     fetchHydrovacLocateTickets: vi.fn(() => Promise.resolve()),
@@ -64,6 +82,9 @@ function loadHydrovacOpsWorkspace(overrides = {}) {
     escapeHtml: (value) => String(value),
     escapeAttr: (value) => String(value),
     titleCaseWords: (value) => String(value),
+    daysUntil: vi.fn(() => null),
+    formatUsd: (value) => `$${Number(value || 0).toFixed(2)}`,
+    switchTab: vi.fn(),
     hydrovacFacilityId: makeField(),
     hydrovacFacilityName: makeField(),
     hydrovacFacilityStatus: makeField(),
@@ -121,5 +142,29 @@ describe("operator hydrovac ops workspace", () => {
     expect(context.btnNewLocate.addEventListener).toHaveBeenCalledTimes(1);
     expect(context.hydrovacLocateForm.addEventListener).toHaveBeenCalledTimes(1);
     expect(context.btnRefreshCompliance.addEventListener).toHaveBeenCalledTimes(1);
+  });
+
+  test("renderHydrovacCompliance surfaces logged alerts in the summary", () => {
+    const context = loadHydrovacOpsWorkspace({
+      HYDROVAC_ALERTS_CACHE: [
+        {
+          id: "alert_1",
+          alert_type: "locate_ticket_missing",
+          severity: "critical",
+          message: "Dispatch is blocked until an active locate ticket is attached.",
+          reference_type: "job",
+          resolved: false,
+        },
+      ],
+    });
+    context.renderHydrovacPermitsWorkspace = vi.fn();
+    context.renderHydrovacAssetsWorkspace = vi.fn();
+
+    context.window.renderHydrovacCompliance([], []);
+
+    expect(context.complianceStageStrip.innerHTML).toContain("Audit trail");
+    expect(context.hydrovacComplianceSummary.innerHTML).toContain("Logged alerts");
+    expect(context.hydrovacComplianceUrgent.innerHTML).toContain("locate ticket missing");
+    expect(context.hydrovacComplianceCoverage.innerHTML).toContain("Open compliance alerts");
   });
 });

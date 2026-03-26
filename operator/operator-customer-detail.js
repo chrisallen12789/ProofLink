@@ -176,7 +176,7 @@
 
     customerDetailWrap.innerHTML = `
       ${renderRecordHeroCard({
-        eyebrow: "Customer workspace",
+        eyebrow: "Customer record",
         title: customer.name || "Unnamed customer",
         badges: [
           { label: `${openRequestsCount} open request${openRequestsCount === 1 ? "" : "s"}` },

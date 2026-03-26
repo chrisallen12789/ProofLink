@@ -1182,7 +1182,7 @@
 
   btnClearImport?.addEventListener("click", () => {
     resetImportState({ keepKind: true });
-    setImportMessage("Import workspace cleared.", "ok");
+    setImportMessage("Import list cleared.", "ok");
   });
 
   importFile?.addEventListener("change", async () => {

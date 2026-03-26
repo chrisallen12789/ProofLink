@@ -113,8 +113,8 @@
 <div id="auth-gate">
   <div class="auth-card">
     <div class="auth-logo">Proof<span>Link</span></div>
-    <div class="auth-sub">Operator sign in</div>
-    <input type="email" id="auth-email" class="auth-input" placeholder="operator@example.com"/>
+    <div class="auth-sub">Team sign in</div>
+    <input type="email" id="auth-email" class="auth-input" placeholder="team@example.com"/>
     <input type="password" id="auth-password" class="auth-input" placeholder="Password"/>
     <button class="auth-btn" id="auth-btn">Sign In</button>
     <div class="auth-error" id="auth-error"></div>
@@ -126,7 +126,7 @@
     <a href="/operator/" class="sidebar-logo">Proof<span>Link</span></a>
     <div class="sidebar-section-label">Manage</div>
     <ul class="sidebar-nav">
-      <li><a href="/operator/">📊 &nbsp;Dashboard</a></li>
+      <li><a href="/operator/">📊 &nbsp;Business hub</a></li>
       <li><a href="/operator/orders.html">📦 &nbsp;Orders</a></li>
       <li><a href="/operator/products.html">🛍️ &nbsp;Products</a></li>
       <li><a href="/operator/tenants.html">🏪 &nbsp;Tenants</a></li>
@@ -154,7 +154,7 @@
     <!-- KPI Cards -->
     <div class="kpi-grid" id="kpi-grid">
       <div class="kpi-card"><div class="kpi-label">Total Tenants</div><div class="kpi-value" id="kpi-tenants">–</div><div class="kpi-delta" id="kpi-tenants-delta"></div></div>
-      <div class="kpi-card"><div class="kpi-label">Applications</div><div class="kpi-value" id="kpi-requests">–</div><div class="kpi-delta" id="kpi-requests-delta"></div></div>
+      <div class="kpi-card"><div class="kpi-label">Signups</div><div class="kpi-value" id="kpi-requests">–</div><div class="kpi-delta" id="kpi-requests-delta"></div></div>
       <div class="kpi-card"><div class="kpi-label">Total Orders</div><div class="kpi-value" id="kpi-orders">–</div><div class="kpi-delta" id="kpi-orders-delta"></div></div>
       <div class="kpi-card"><div class="kpi-label">GMV (All Time)</div><div class="kpi-value" id="kpi-gmv">–</div><div class="kpi-delta" id="kpi-gmv-delta"></div></div>
     </div>
@@ -163,7 +163,7 @@
     <div class="two-col">
       <div class="panel">
         <div class="panel-header">
-          <div class="panel-title">Application pipeline</div>
+          <div class="panel-title">Signup pipeline</div>
         </div>
         <div class="panel-body">
           <div class="status-bars" id="status-bars">
@@ -201,7 +201,7 @@
     <div class="two-col">
       <div class="panel">
         <div class="panel-header">
-          <div class="panel-title">Recent applications</div>
+          <div class="panel-title">Recent signups</div>
           <a href="/operator/provisioning.html" style="font-size:0.75rem;color:var(--muted);text-decoration:none">View all →</a>
         </div>
         <div class="panel-body" style="padding:0 1.25rem">
@@ -315,7 +315,7 @@
       {key:'rejected',label:'Rejected',cls:'bar-rejected'},
     ];
     const container=document.getElementById('status-bars');
-    if(total===0){ container.innerHTML='<p style="text-align:center;color:var(--muted);font-size:0.82rem;padding:1rem">No applications yet.</p>'; return; }
+    if(total===0){ container.innerHTML='<p style="text-align:center;color:var(--muted);font-size:0.82rem;padding:1rem">No signups yet.</p>'; return; }
     container.innerHTML=statuses.map(s=>{
       const count=byStatus[s.key]||0;
       const pct=total>0?Math.max(count/total*100,0):0;

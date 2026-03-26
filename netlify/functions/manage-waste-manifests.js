@@ -11,7 +11,7 @@ const {
   endOfUtcDay,
   toIsoOrNull,
 } = require('./utils/hydrovac');
-const { manifestConfirmationIssues } = require('./lib/hydrovac-compliance');
+const { manifestConfirmationIssues, logComplianceAlerts, resolveComplianceAlerts } = require('./lib/hydrovac-compliance');
 
 async function nextManifestNumber(adminSb, tenantId, prefix) {
   const today = new Date();
@@ -329,6 +329,16 @@ exports.handler = async (event) => {
     if (patch.status === 'confirmed') {
       const issues = manifestConfirmationIssues(nextManifest);
       if (issues.length) {
+        await logComplianceAlerts(adminSb, tenantId, issues.map((message) => ({
+          code: message.includes('facility') ? 'manifest_facility_missing'
+            : message.includes('ticket') ? 'manifest_ticket_missing'
+            : 'manifest_quantity_missing',
+          message,
+        })), {
+          referenceType: 'manifest',
+          referenceId: existing.id,
+          actorLabel: ctx.email || 'operator',
+        });
         return respond(409, { error: issues[0], issues });
       }
       if (!patch.disposal_confirmed_at) patch.disposal_confirmed_at = new Date().toISOString();
@@ -353,6 +363,18 @@ exports.handler = async (event) => {
       .maybeSingle();
 
     if (error) return respond(500, { error: error.message });
+
+    if ((patch.status || existing.status) === 'confirmed') {
+      await resolveComplianceAlerts(adminSb, tenantId, {
+        referenceType: 'manifest',
+        referenceId: id,
+        alertTypes: [
+          'manifest_facility_missing',
+          'manifest_ticket_missing',
+          'manifest_quantity_missing',
+        ],
+      });
+    }
 
     if ((patch.status || existing.status) === 'confirmed' && data?.is_billable) {
       try {

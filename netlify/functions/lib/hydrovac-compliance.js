@@ -15,6 +15,34 @@ const CONFINED_SPACE_JOB_TYPES = new Set([
   "lift_station_cleaning",
 ]);
 
+const COMPLIANCE_ALERT_SEVERITY = {
+  locate_ticket_missing: "critical",
+  confined_space_permit_missing: "critical",
+  manifest_missing: "critical",
+  manifest_unconfirmed: "critical",
+  manifest_facility_missing: "warning",
+  manifest_ticket_missing: "warning",
+  manifest_quantity_missing: "warning",
+  cdl_expired_override: "expired",
+  medical_expired_override: "expired",
+  cdl_expiry: "expired",
+  medical_certificate_expiry: "expired",
+};
+
+const COMPLIANCE_ALERT_REFERENCE = {
+  manifest_missing: "job",
+  manifest_unconfirmed: "job",
+  manifest_facility_missing: "job",
+  manifest_ticket_missing: "job",
+  manifest_quantity_missing: "job",
+  locate_ticket_missing: "job",
+  confined_space_permit_missing: "job",
+  cdl_expired_override: "job",
+  medical_expired_override: "job",
+  cdl_expiry: "job",
+  medical_certificate_expiry: "job",
+};
+
 function hydrovacJobType(job) {
   return lower(job?.job_type || job?.service_type || "");
 }
@@ -168,10 +196,94 @@ function manifestConfirmationIssues(manifest) {
   return issues;
 }
 
+function complianceAlertSeverity(code) {
+  return COMPLIANCE_ALERT_SEVERITY[code] || "warning";
+}
+
+function complianceAlertReferenceType(code, fallback = "job") {
+  return COMPLIANCE_ALERT_REFERENCE[code] || fallback;
+}
+
+function complianceAlertMessage(issue, options = {}) {
+  const base = String(issue?.message || options.message || "").trim();
+  const actor = String(options.actorLabel || "").trim();
+  const reason = String(options.reason || "").trim();
+  const suffix = [];
+  if (actor) suffix.push(`Handled by ${actor}.`);
+  if (reason) suffix.push(`Reason: ${reason}`);
+  return [base, ...suffix].filter(Boolean).join(" ");
+}
+
+async function logComplianceAlerts(adminSb, tenantId, issues = [], options = {}) {
+  if (!adminSb || !tenantId || !Array.isArray(issues) || !issues.length) return [];
+
+  const referenceType = complianceAlertReferenceType(options.alertType || issues[0]?.code, options.referenceType || "job");
+  const referenceId = options.referenceId || null;
+
+  if (referenceId) {
+    await adminSb
+      .from("compliance_alerts")
+      .update({ resolved: true, resolved_at: new Date().toISOString() })
+      .eq("tenant_id", tenantId)
+      .eq("reference_type", referenceType)
+      .eq("reference_id", referenceId)
+      .eq("resolved", false)
+      .in("alert_type", issues.map((issue) => String(issue?.code || options.alertType || "").trim()).filter(Boolean));
+  }
+
+  const records = issues
+    .filter((issue) => String(issue?.code || options.alertType || "").trim())
+    .map((issue) => ({
+      tenant_id: tenantId,
+      alert_type: String(issue.code || options.alertType || "").trim(),
+      severity: complianceAlertSeverity(issue.code || options.alertType || ""),
+      reference_type: complianceAlertReferenceType(issue.code || options.alertType || "", options.referenceType || "job"),
+      reference_id: options.referenceId || issue.reference_id || null,
+      message: complianceAlertMessage(issue, options),
+      due_date: options.dueDate || null,
+      days_remaining: Number.isFinite(Number(options.daysRemaining)) ? Number(options.daysRemaining) : null,
+      resolved: false,
+      resolved_at: null,
+    }));
+
+  if (!records.length) return [];
+  const { data, error } = await adminSb
+    .from("compliance_alerts")
+    .insert(records)
+    .select("*");
+
+  if (error) throw error;
+  return Array.isArray(data) ? data : [];
+}
+
+async function resolveComplianceAlerts(adminSb, tenantId, options = {}) {
+  if (!adminSb || !tenantId) return [];
+  let query = adminSb
+    .from("compliance_alerts")
+    .update({ resolved: true, resolved_at: new Date().toISOString() })
+    .eq("tenant_id", tenantId)
+    .eq("resolved", false);
+
+  if (options.referenceType) query = query.eq("reference_type", options.referenceType);
+  if (options.referenceId) query = query.eq("reference_id", options.referenceId);
+  if (Array.isArray(options.alertTypes) && options.alertTypes.length) {
+    query = query.in("alert_type", options.alertTypes);
+  }
+
+  const { data, error } = await query.select("*");
+  if (error) throw error;
+  return Array.isArray(data) ? data : [];
+}
+
 module.exports = {
+  complianceAlertMessage,
+  complianceAlertReferenceType,
+  complianceAlertSeverity,
   collectHydrovacLifecycleIssues,
   hydrovacJobType,
   jobRequiresConfinedSpacePermit,
   jobRequiresLocateTicket,
+  logComplianceAlerts,
   manifestConfirmationIssues,
+  resolveComplianceAlerts,
 };

@@ -162,7 +162,7 @@ async function fetchHydrovacLocateTickets() {
   return HYDROVAC_LOCATE_TICKETS_CACHE;
 }
 async function fetchHydrovacComplianceData() {
-  const [equipmentData, driverData, locateData, manifestData, analyticsData, facilitiesData, locateBoardData, permitData, assetData] = await Promise.all([
+  const [equipmentData, driverData, locateData, manifestData, analyticsData, facilitiesData, locateBoardData, permitData, assetData, alertData] = await Promise.all([
     requestOperatorFunction("manage-equipment", { query: "action=compliance_summary" }),
     requestOperatorFunction("manage-driver-qualifications", { query: "action=compliance_summary" }),
     requestOperatorFunction("manage-locate-tickets", { query: "status=active&days_until_expiry=30&limit=100" }),
@@ -172,10 +172,12 @@ async function fetchHydrovacComplianceData() {
     requestOperatorFunction("manage-locate-tickets", { query: "limit=100" }),
     requestOperatorFunction("manage-confined-space-permits", { query: "limit=100" }),
     requestOperatorFunction("manage-infrastructure-assets"),
+    requestOperatorFunction("manage-compliance-alerts", { query: "limit=100" }),
   ]);
   HYDROVAC_EQUIPMENT_COMPLIANCE_CACHE = Array.isArray(equipmentData?.equipment) ? equipmentData.equipment : [];
   HYDROVAC_DRIVER_COMPLIANCE_CACHE = Array.isArray(driverData?.drivers) ? driverData.drivers : [];
   HYDROVAC_ANALYTICS_CACHE = analyticsData?.analytics || null;
+  HYDROVAC_ALERTS_CACHE = Array.isArray(alertData?.alerts) ? alertData.alerts : [];
   HYDROVAC_FACILITIES_CACHE = Array.isArray(facilitiesData?.facilities) ? facilitiesData.facilities : HYDROVAC_FACILITIES_CACHE;
   HYDROVAC_LOCATE_TICKETS_CACHE = Array.isArray(locateBoardData?.tickets) ? locateBoardData.tickets : HYDROVAC_LOCATE_TICKETS_CACHE;
   HYDROVAC_PERMITS_CACHE = Array.isArray(permitData?.permits) ? permitData.permits : HYDROVAC_PERMITS_CACHE;
@@ -184,6 +186,14 @@ async function fetchHydrovacComplianceData() {
     Array.isArray(locateData?.tickets) ? locateData.tickets : [],
     Array.isArray(manifestData?.manifests) ? manifestData.manifests : [],
   );
+}
+async function resolveHydrovacAlert(alertId) {
+  if (!alertId) return;
+  await requestOperatorFunction("manage-compliance-alerts", {
+    method: "PATCH",
+    body: { id: alertId, resolved: true },
+  });
+  await fetchHydrovacComplianceData();
 }
 async function fetchHydrovacDriverQualifications() {
   const driverData = await requestOperatorFunction("manage-driver-qualifications", { query: "action=compliance_summary" });
@@ -648,14 +658,17 @@ function renderHydrovacCompliance(expiringTickets = [], unbilledManifests = []) 
   if (!hydrovacComplianceSummary || !hydrovacComplianceUrgent || !hydrovacComplianceCoverage) return;
   const equipmentWarnings = HYDROVAC_EQUIPMENT_COMPLIANCE_CACHE.flatMap((row) => (row.warnings || []).map((warning) => ({ ...warning, type: "equipment", row })));
   const driverWarnings = HYDROVAC_DRIVER_COMPLIANCE_CACHE.flatMap((row) => (row.warnings || []).map((warning) => ({ ...warning, type: "driver", row })));
+  const loggedAlerts = Array.isArray(HYDROVAC_ALERTS_CACHE) ? HYDROVAC_ALERTS_CACHE.filter((row) => row && row.resolved !== true) : [];
   const criticalCount = equipmentWarnings.filter((row) => ["critical", "expired"].includes(String(row.severity || "").toLowerCase())).length
     + driverWarnings.filter((row) => ["critical", "expired"].includes(String(row.severity || "").toLowerCase())).length
     + expiringTickets.filter((row) => {
       const days = daysUntil(row.valid_until);
       return days != null && days <= 3;
-    }).length;
+    }).length
+    + loggedAlerts.filter((row) => ["critical", "expired"].includes(String(row.severity || "").toLowerCase())).length;
   const warningCount = equipmentWarnings.filter((row) => String(row.severity || "").toLowerCase() === "warning").length
-    + driverWarnings.filter((row) => String(row.severity || "").toLowerCase() === "warning").length;
+    + driverWarnings.filter((row) => String(row.severity || "").toLowerCase() === "warning").length
+    + loggedAlerts.filter((row) => String(row.severity || "").toLowerCase() === "warning").length;
   const avgMargin = HYDROVAC_ANALYTICS_CACHE?.avg_job_margin != null
     ? `${Math.round(Number(HYDROVAC_ANALYTICS_CACHE.avg_job_margin || 0) * 100)}%`
     : "N/A";
@@ -663,6 +676,7 @@ function renderHydrovacCompliance(expiringTickets = [], unbilledManifests = []) 
     complianceStageStrip.innerHTML = [
       { eyebrow: "Critical", value: criticalCount, title: "Act now", copy: "Items that can stop dispatch, compliance, or billing if ignored." },
       { eyebrow: "Watch", value: warningCount, title: "Expiring soon", copy: "Documents and permits the office should get in front of this month." },
+      { eyebrow: "Logged", value: loggedAlerts.length, title: "Audit trail", copy: "Blocked starts, closeout issues, and forced dispatches still waiting on follow-through." },
       { eyebrow: "Billing", value: unbilledManifests.length, title: "Uninvoiced disposal", copy: "Confirmed manifests still waiting to make it onto an invoice." },
       { eyebrow: "Margin", value: avgMargin, title: "Average job margin", copy: "Recent hydrovac margin based on tracked costs already in the system." },
     ].map((stage) => `
@@ -680,6 +694,7 @@ function renderHydrovacCompliance(expiringTickets = [], unbilledManifests = []) 
       <button type="button" class="pipeline-action-chip" data-compliance-action="manifests">Open manifests</button>
       <button type="button" class="pipeline-action-chip" data-compliance-action="equipment">Open equipment</button>
       <button type="button" class="pipeline-action-chip" data-compliance-action="jobs">Open jobs</button>
+      <button type="button" class="pipeline-action-chip" data-compliance-action="refresh">Refresh alerts</button>
     `;
     complianceActionBar.querySelectorAll("[data-compliance-action]").forEach((button) => {
       button.addEventListener("click", () => {
@@ -688,6 +703,7 @@ function renderHydrovacCompliance(expiringTickets = [], unbilledManifests = []) 
         if (action === "manifests") return switchTab("manifests");
         if (action === "equipment") return switchTab("equipment");
         if (action === "jobs") return switchTab("jobs");
+        if (action === "refresh") return fetchHydrovacComplianceData().catch(console.error);
       });
     });
   }
@@ -695,6 +711,7 @@ function renderHydrovacCompliance(expiringTickets = [], unbilledManifests = []) 
     <div class="card stat-card"><div class="card-hd"><strong>Critical items</strong><span class="muted">Today</span></div><div class="card-bd"><div class="money-big">${escapeHtml(String(criticalCount))}</div></div></div>
     <div class="card stat-card"><div class="card-hd"><strong>Driver warnings</strong><span class="muted">CDL / med / certs</span></div><div class="card-bd"><div class="money-big">${escapeHtml(String(driverWarnings.length))}</div></div></div>
     <div class="card stat-card"><div class="card-hd"><strong>Equipment warnings</strong><span class="muted">Inspections / docs</span></div><div class="card-bd"><div class="money-big">${escapeHtml(String(equipmentWarnings.length))}</div></div></div>
+    <div class="card stat-card"><div class="card-hd"><strong>Logged alerts</strong><span class="muted">Blocked / forced work</span></div><div class="card-bd"><div class="money-big">${escapeHtml(String(loggedAlerts.length))}</div></div></div>
     <div class="card stat-card"><div class="card-hd"><strong>Uninvoiced disposal</strong><span class="muted">Confirmed manifests</span></div><div class="card-bd"><div class="money-big">${escapeHtml(String(unbilledManifests.length))}</div></div></div>
   `;
   const urgentItems = [];
@@ -731,17 +748,44 @@ function renderHydrovacCompliance(expiringTickets = [], unbilledManifests = []) 
       actionTab: "manifests",
     });
   });
+  loggedAlerts.forEach((alert) => {
+    urgentItems.push({
+      id: alert.id,
+      label: titleCaseWords(String(alert.alert_type || "alert").replace(/_/g, " ")),
+      sub: alert.message || "Compliance alert logged",
+      tone: hydrovacWarningTone(alert.severity),
+      actionTab: alert.reference_type === "manifest" ? "manifests" : "jobs",
+      canResolve: true,
+    });
+  });
   hydrovacComplianceUrgent.innerHTML = urgentItems.length ? urgentItems.slice(0, 20).map((item) => `
-    <button type="button" class="list-item" data-compliance-tab="${escapeAttr(item.actionTab)}">
-      <div class="li-main">
+    <div class="list-item">
+      <button type="button" class="li-main" data-compliance-tab="${escapeAttr(item.actionTab)}" style="background:none;border:0;padding:0;text-align:left;cursor:pointer;">
         <div class="li-title">${escapeHtml(item.label)}</div>
         <div class="li-sub muted">${escapeHtml(item.sub)}</div>
+      </button>
+      <div class="li-meta">
+        <span class="pill ${item.tone}">${item.canResolve ? "Logged" : "Review"}</span>
+        ${item.canResolve ? `<button type="button" class="btn btn-ghost btn-sm" data-compliance-resolve="${escapeAttr(item.id || "")}">Resolve</button>` : ""}
       </div>
-      <div class="li-meta"><span class="pill ${item.tone}">Review</span></div>
-    </button>
+    </div>
   `).join("") : `<div class="muted">No urgent compliance issues are showing right now.</div>`;
   hydrovacComplianceUrgent.querySelectorAll("[data-compliance-tab]").forEach((button) => {
     button.addEventListener("click", () => switchTab(button.getAttribute("data-compliance-tab") || "compliance"));
+  });
+  hydrovacComplianceUrgent.querySelectorAll("[data-compliance-resolve]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const alertId = button.getAttribute("data-compliance-resolve") || "";
+      if (!alertId) return;
+      button.disabled = true;
+      try {
+        await resolveHydrovacAlert(alertId);
+      } catch (error) {
+        console.error("[resolveHydrovacAlert]", error);
+      } finally {
+        button.disabled = false;
+      }
+    });
   });
   hydrovacComplianceCoverage.innerHTML = `
     <div class="list-item">
@@ -759,6 +803,10 @@ function renderHydrovacCompliance(expiringTickets = [], unbilledManifests = []) 
     <div class="list-item">
       <div class="li-main"><div class="li-title">Active tickets in cache</div><div class="li-sub muted">Recent office view</div></div>
       <div class="li-meta"><span class="pill">${escapeHtml(String((HYDROVAC_LOCATE_TICKETS_CACHE || []).filter((row) => ["active", "extended"].includes(String(row.status || "").toLowerCase())).length))}</span></div>
+    </div>
+    <div class="list-item">
+      <div class="li-main"><div class="li-title">Open compliance alerts</div><div class="li-sub muted">Issues the office still needs to clear or acknowledge after a block or forced dispatch.</div></div>
+      <div class="li-meta"><span class="pill">${escapeHtml(String(loggedAlerts.length))}</span></div>
     </div>
   `;
   renderHydrovacPermitsWorkspace();
