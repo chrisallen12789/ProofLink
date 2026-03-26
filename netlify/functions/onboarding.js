@@ -1,4 +1,5 @@
 const { checkRateLimit, rateLimitResponse, getClientIP } = require('./utils/rate-limit');
+const { getAdminClient } = require('./utils/auth');
 const MIN_SUBMIT_MS = Number(process.env.MIN_SUBMIT_MS || 2500);
 const MAX_SUBMIT_MS = Number(process.env.MAX_SUBMIT_MS || 60 * 60 * 1000);
 const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
@@ -67,18 +68,13 @@ function escapeHtml(str) {
   return String(str || '').replace(/[&<>"']/g, (s) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[s]));
 }
 async function stageInSupabase(payload) {
-  const supabaseUrl = String(process.env.SUPABASE_URL || '').replace(/\/+$/, '');
-  const serviceRoleKey = String(process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
-  if (!supabaseUrl || !serviceRoleKey) return { staged: false, reason: 'missing_supabase_env' };
-  const res = await fetch(`${supabaseUrl}/rest/v1/onboarding_submissions`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      apikey: serviceRoleKey,
-      Authorization: `Bearer ${serviceRoleKey}`,
-      Prefer: 'return=representation'
-    },
-    body: JSON.stringify({
+  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    return { staged: false, reason: 'missing_supabase_env' };
+  }
+  const supabase = getAdminClient();
+  const { data, error } = await supabase
+    .from('onboarding_submissions')
+    .insert({
       business_name: payload.business_name,
       owner_name: payload.owner_name,
       email: payload.email,
@@ -98,13 +94,12 @@ async function stageInSupabase(payload) {
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     })
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    return { staged: false, reason: `supabase_insert_failed:${text || res.status}` };
+    .select()
+    .single();
+  if (error) {
+    return { staged: false, reason: `supabase_insert_failed:${error.message}` };
   }
-  const data = await res.json().catch(() => null);
-  return { staged: true, record: Array.isArray(data) ? data[0] : data };
+  return { staged: true, record: data };
 }
 
 exports.handler = async (event) => {

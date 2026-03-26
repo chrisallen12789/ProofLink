@@ -1,9 +1,9 @@
 // FILE: operator.config.js
 (() => {
-  const cfg = window.COTTAGELINK_CONFIG || {};
-  const tenant = cfg.tenant || window.COTTAGELINK_TENANT || {};
+  const cfg = window.PROOFLINK_CONFIG || {};
+  const tenant = cfg.tenant || window.PROOFLINK_TENANT || {};
   const backend = tenant.backend || {};
-  window.COTTAGELINK_OPERATOR_CONFIG = {
+  window.PROOFLINK_OPERATOR_CONFIG = {
     supabaseUrl: cfg.supabase?.url || "",
     supabaseAnonKey: cfg.supabase?.anonKey || "",
     tenantId: tenant.id || "default",

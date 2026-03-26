@@ -8,6 +8,7 @@
 const { getAdminClient, requireOperatorContext, respond } = require('./utils/auth');
 const { sendEmail, templates }  = require('./utils/email');
 const { getConfiguredSiteUrl }  = require('./utils/runtime-config');
+const { checkRateLimit, rateLimitResponse, getClientIP } = require('./utils/rate-limit');
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return respond(200, {});
@@ -46,6 +47,9 @@ exports.handler = async (event) => {
   } else {
     // Public self-booking — tenant_id must be in body
     if (!resolvedTenantId) return respond(400, { error: 'tenant_id required for public bookings' });
+    const ip = getClientIP(event);
+    const rl = checkRateLimit({ key: `create-booking:${resolvedTenantId}:${ip}`, maxRequests: 10, windowMs: 15 * 60 * 1000 });
+    if (!rl.allowed) return rateLimitResponse(rl.retryAfterMs);
     supabase = getAdminClient();
   }
 

@@ -34,7 +34,7 @@ async function callClaude(prompt, maxTokens = 1024) {
       'content-type'     : 'application/json',
     },
     body: JSON.stringify({
-      model     : 'claude-haiku-4-5-20251001',
+      model     : process.env.CLAUDE_MODEL_ID || 'claude-haiku-4-5-20251001',
       max_tokens: maxTokens,
       messages  : [{ role: 'user', content: prompt }],
     }),

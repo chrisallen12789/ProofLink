@@ -7,7 +7,7 @@ function renderOrders() {
   const statusOptions = ["new", "quoted", "confirmed", "fulfilled", "completed", "paid", "cancelled"];
 
   if (!rows.length) {
-    ordersList.innerHTML = `<div class="muted">No quoted or booked work yet.</div>`;
+    ordersList.innerHTML = `<div class="muted">No active work. When you convert a request to a job, it shows up here.</div>`;
     if (orderDetailWrap) orderDetailWrap.innerHTML = `<div class="muted">Select quoted or booked work to inspect it.</div>`;
     return;
   }

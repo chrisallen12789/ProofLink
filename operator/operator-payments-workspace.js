@@ -77,7 +77,7 @@
     }
 
     const rows = sortedPayments(PAYMENTS_CACHE);
-    paymentsList.innerHTML = rows.length ? "" : `<div class="muted">No payments recorded yet.</div>`;
+    paymentsList.innerHTML = rows.length ? "" : `<div class="muted">No payments recorded yet. Collect a deposit or close a job to see it here.</div>`;
 
     rows.forEach((p) => {
       const customer = CUSTOMERS_CACHE.find((c) => c.id === p.customer_id);

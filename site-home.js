@@ -1,5 +1,5 @@
 (() => {
-  const CL = window.CottageLink;
+  const CL = window.ProofLink;
   if (!CL) return;
 
   const {
@@ -17,7 +17,7 @@
   const catalogLead = document.getElementById("siteHomeCatalogLead");
 
   function getTenant() {
-    return window.COTTAGELINK_CONFIG?.tenant || {};
+    return window.PROOFLINK_CONFIG?.tenant || {};
   }
 
   function renderHero() {
@@ -74,8 +74,8 @@
       if (typeof window.PROOFLINK_WAIT_FOR_TENANT_READY === "function") {
         await window.PROOFLINK_WAIT_FOR_TENANT_READY();
       }
-      if (typeof window.COTTAGELINK_REFRESH_CONFIG === "function") {
-        window.COTTAGELINK_REFRESH_CONFIG();
+      if (typeof window.PROOFLINK_REFRESH_CONFIG === "function") {
+        window.PROOFLINK_REFRESH_CONFIG();
       }
       renderHero();
       const products = await catalog.fetch(false);

@@ -1,8 +1,8 @@
 // /operator/operator.data.js
 // Legacy localStorage bridge retained only for manual recovery. Database orders are the source of truth.
 (() => {
-  const cfg = window.COTTAGELINK_CONFIG || {};
-  const tenant = cfg.tenant || window.COTTAGELINK_TENANT || {};
+  const cfg = window.PROOFLINK_CONFIG || {};
+  const tenant = cfg.tenant || window.PROOFLINK_TENANT || {};
   const backend = tenant.backend || {};
   const KEY = backend.orderBridgeKey || "cottagelink_operator_order_bridge_v1";
   const TENANT_ID = tenant.id || "default";
@@ -93,7 +93,7 @@
     return new Blob([JSON.stringify(rows, null, 2)], { type: "application/json" });
   }
 
-  window.COTTAGELINK_OPERATOR_DATA = {
+  window.PROOFLINK_OPERATOR_DATA = {
     key: KEY,
     tenantId: TENANT_ID,
     readOrders,

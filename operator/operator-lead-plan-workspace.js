@@ -187,7 +187,7 @@ function renderLeads(filter = "") {
   renderRequestWorkspace();
   const rows = sortedLeads(filter);
   if (!rows.length) {
-    leadsList.innerHTML = `<div class="muted">No requests yet.</div>`;
+    leadsList.innerHTML = `<div class="muted">No requests yet. When customers reach out, they'll appear here.</div>`;
     ACTIVE_LEAD_ID = null;
     renderLeadDetail(null).catch(console.error);
     return;

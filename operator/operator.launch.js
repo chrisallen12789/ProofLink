@@ -1,6 +1,6 @@
 // FILE: operator/operator.launch.js
 (function () {
-  const cfg = window.COTTAGELINK_CONFIG || {};
+  const cfg = window.PROOFLINK_CONFIG || {};
   const tenant = cfg.tenant || {};
   const paymentCfg = tenant.payments || {};
   const domainCfg = tenant.domains || {};

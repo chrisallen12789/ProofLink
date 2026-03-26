@@ -1,12 +1,12 @@
 // FILE: operator.brand.js
 (() => {
-  const tenant = window.COTTAGELINK_TENANT || {};
+  const tenant = window.PROOFLINK_TENANT || {};
   const branding = tenant.branding || {};
-  window.COTTAGELINK_BRAND = {
+  window.PROOFLINK_BRAND = {
     productName: tenant.platformName || "ProofLink",
     tenantName: tenant.businessName || "Tenant",
     tenantLogoUrl: branding.tenantLogoUrl || "/assets/logo.png",
-    platformLogoUrl: branding.platformLogoUrl || "/assets/cottagelink-logo.png",
+    platformLogoUrl: branding.platformLogoUrl || "/assets/prooflink-logo.png",
     accent: branding.accent || "#c9a227",
     // Keep the operator console readable and stable even when the tenant
     // website uses dramatic brand colors that work poorly for internal tools.

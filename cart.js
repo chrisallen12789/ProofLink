@@ -1,5 +1,5 @@
 (() => {
-  const CL = window.CottageLink;
+  const CL = window.ProofLink;
   const {
     config,
     helpers: { safeParse, escapeHtml, clampQty, formatCents, normalizeZip },

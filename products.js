@@ -1,4 +1,4 @@
-const CL = window.CottageLink;
+const CL = window.ProofLink;
 const {
   helpers: { escapeHtml, toFiniteCents },
   catalog,

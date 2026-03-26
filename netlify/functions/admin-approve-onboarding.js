@@ -229,11 +229,8 @@ exports.handler = async (event) => {
 
   if (createAuthErr) {
     // User may already exist — look them up
-    const { data: listData } = await supabase.auth.admin.listUsers({ perPage: 1000 });
-    const match = (listData?.users || []).find(
-      u => u.email?.toLowerCase() === req.owner_email.toLowerCase()
-    );
-    authUserId = match?.id || null;
+    const { data: existingAuthUser } = await supabase.auth.admin.getUserByEmail(req.owner_email);
+    authUserId = existingAuthUser?.user?.id || null;
     if (!authUserId) {
       console.warn('[admin-approve] Auth user creation non-fatal:', createAuthErr.message);
     }

@@ -8,13 +8,13 @@
   <link rel="manifest" href="/manifest.webmanifest" />
   <title>ProofLink — Operator</title>
 
-  <script src="../cottagelink.tenant.js"></script>
-  <script src="../cottagelink.config.js"></script>
+  <script src="../prooflink.tenant.js"></script>
+  <script src="../prooflink.config.js"></script>
   <script src="./operator.brand.js"></script>
 
   <script>
     (function () {
-      const b = window.COTTAGELINK_BRAND || null;
+      const b = window.PROOFLINK_BRAND || null;
       if (!b) return;
       const r = document.documentElement.style;
       r.setProperty("--accent", b.accent || "#c84b2f");
@@ -27,7 +27,7 @@
       document.documentElement.setAttribute("data-brand", "1");
 
       const tenant = (b.tenantName || "Tenant").trim();
-      const product = (b.productName || "CottageLink").trim();
+      const product = (b.productName || "ProofLink").trim();
       document.title = `${tenant} — ${product} Operator`;
     })();
   </script>
@@ -68,7 +68,7 @@
 
       <div class="nav" aria-label="Sections" data-tour="sidebar-nav">
         <div class="nav-primary" id="sidebarPrimary">
-          <button class="tab active" data-tab="dashboard" data-tour-tab="dashboard" type="button">Today</button>
+          <button class="tab active" data-tab="dashboard" data-tour-tab="dashboard" type="button">Dashboard</button>
           <button class="tab" data-tab="orders" data-tour-tab="orders" type="button">Work</button>
           <button class="tab" data-tab="customers" data-tour-tab="customers" type="button">Customers</button>
           <button class="tab" data-tab="bookings" data-tour-tab="bookings" type="button">Calendar</button>
@@ -139,7 +139,7 @@
           </div>
           <div class="platform-copy">
             <div class="platform-name" id="brandProductName">ProofLink</div>
-            <div class="platform-tag">Learn business while earning</div>
+            <div class="platform-tag">Your work, your customers, your money — in one place.</div>
           </div>
         </div>
         <div style="margin-top:12px;">
@@ -153,7 +153,7 @@
     <main class="main">
       <header class="topbar">
         <div>
-          <h1>Business hub</h1>
+          <h1>Dashboard</h1>
           <div class="sub">Customers, work, scheduling, payments, and back-office details in one clear place.</div>
         </div>
         <div class="top-actions">
@@ -3276,7 +3276,7 @@
 <nav class="mobile-bottom-nav" id="mobileBottomNav" aria-label="Main navigation">
   <button class="mbn-item active" data-mbn-tab="dashboard" type="button">
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
-    <span>Today</span>
+    <span>Dashboard</span>
   </button>
   <button class="mbn-item" data-mbn-tab="orders" type="button">
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>

@@ -11,7 +11,7 @@
   }
 
   function getTenant() {
-    return (window.COTTAGELINK_CONFIG && window.COTTAGELINK_CONFIG.tenant) || {};
+    return (window.PROOFLINK_CONFIG && window.PROOFLINK_CONFIG.tenant) || {};
   }
 
   function tenantSlugForPreview() {
@@ -110,7 +110,7 @@
     const storefront = tenant.storefront || {};
 
     setText("[data-cl-tenant-name]", tenant.businessName || "Tenant");
-    setText("[data-cl-platform-name]", window.COTTAGELINK_CONFIG?.platform?.name || "ProofLink");
+    setText("[data-cl-platform-name]", window.PROOFLINK_CONFIG?.platform?.name || "ProofLink");
     setText("[data-cl-compliance-note]", storefront.complianceNotice || "");
     setText("[data-cl-allergen-note]", storefront.allergenNotice || "");
     setText("[data-cl-storefront-intro]", storefront.intro || "");
@@ -217,8 +217,8 @@
   }
 
   function refreshTenantShell() {
-    if (typeof window.COTTAGELINK_REFRESH_CONFIG === "function") {
-      window.COTTAGELINK_REFRESH_CONFIG();
+    if (typeof window.PROOFLINK_REFRESH_CONFIG === "function") {
+      window.PROOFLINK_REFRESH_CONFIG();
     }
     applyWebsiteTheme();
     applyBranding();
@@ -309,11 +309,11 @@
     try {
       if (typeof window.PROOFLINK_WAIT_FOR_TENANT_READY === "function") {
         await window.PROOFLINK_WAIT_FOR_TENANT_READY();
-      } else if (window.COTTAGELINK_TENANT_READY && typeof window.COTTAGELINK_TENANT_READY.then === "function") {
-        await window.COTTAGELINK_TENANT_READY;
+      } else if (window.PROOFLINK_TENANT_READY && typeof window.PROOFLINK_TENANT_READY.then === "function") {
+        await window.PROOFLINK_TENANT_READY;
       }
-      if (typeof window.COTTAGELINK_REFRESH_CONFIG === "function") {
-        window.COTTAGELINK_REFRESH_CONFIG();
+      if (typeof window.PROOFLINK_REFRESH_CONFIG === "function") {
+        window.PROOFLINK_REFRESH_CONFIG();
       }
       await inject("site-nav", "partials/nav.html");
       await inject("site-footer", "partials/footer.html");

@@ -1,7 +1,7 @@
 // FILE: forms.js
 (() => {
   const $ = (sel, root = document) => root.querySelector(sel);
-  const cfg = window.COTTAGELINK_CONFIG || {};
+  const cfg = window.PROOFLINK_CONFIG || {};
   const tenant = cfg.tenant || {};
 
   function initAntiSpam(form) {

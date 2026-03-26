@@ -155,7 +155,7 @@ function fillSetupForm(payload = {}, record = null) {
   if (setupHeroSubheading) setupHeroSubheading.value = payload.hero_subheading || "";
   if (setupAbout) setupAbout.value = payload.about || "";
   if (setupWorkspaceBusinessType) setupWorkspaceBusinessType.value = String(payload.workspace_business_type || record?.business_type || "").trim().toLowerCase();
-  if (setupAccentColor) setupAccentColor.value = payload.accent_color || window.COTTAGELINK_BRAND?.accent || "#c84b2f";
+  if (setupAccentColor) setupAccentColor.value = payload.accent_color || window.PROOFLINK_BRAND?.accent || "#c84b2f";
   if (setupPrimaryCtaLabel) setupPrimaryCtaLabel.value = payload.site_primary_cta_label || "Request service";
   if (setupBookingCtaLabel) setupBookingCtaLabel.value = payload.site_booking_cta_label || "Book now";
   if (setupSiteFontPreset) setupSiteFontPreset.value = payload.site_font_preset || "modern_sans";
