@@ -2202,7 +2202,8 @@ input:focus, textarea:focus, select:focus{
   .record-hero__head{ flex-direction:column; }
   .record-hero__badges{ justify-content:flex-start; }
   .record-action-rail__head,
-  .record-linked__head{ flex-direction:column; }
+  .record-linked__head,
+  .record-follow-through__head{ flex-direction:column; }
 }
 
 /* v2.1 operator additions */
@@ -2357,6 +2358,58 @@ input:focus, textarea:focus, select:focus{
   display:flex;
   flex-wrap:wrap;
   gap:10px;
+  margin-top:14px;
+}
+.record-follow-through{
+  background:rgba(255,255,255,.03);
+}
+.record-follow-through__head{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:14px;
+}
+.record-follow-through__head h3{
+  margin:6px 0 0;
+  font-family: var(--font-display);
+  font-size:22px;
+  letter-spacing:-.03em;
+}
+.record-follow-through__summary{
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));
+  gap:10px;
+  margin-top:14px;
+}
+.record-follow-through__metric{
+  border:1px solid rgba(255,255,255,.1);
+  border-radius:14px;
+  background:rgba(255,255,255,.03);
+  padding:12px;
+}
+.record-follow-through__metric span{
+  display:block;
+  color:var(--muted);
+  font-size:11px;
+  text-transform:uppercase;
+  letter-spacing:.08em;
+}
+.record-follow-through__metric strong{
+  display:block;
+  margin-top:6px;
+  font-size:18px;
+  line-height:1.35;
+}
+.record-follow-through__metric small{
+  display:block;
+  margin-top:6px;
+  color:var(--muted);
+  font-size:12px;
+  line-height:1.45;
+}
+.record-follow-through__controls,
+.record-follow-through__actions,
+.record-follow-through__timeline{
   margin-top:14px;
 }
 .record-linked__grid{

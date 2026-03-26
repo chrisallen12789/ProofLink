@@ -10002,6 +10002,9 @@ async function renderCustomerDetailWorkspace(customerIdValue, customer) {
   const activeOrderCount = customerOrders.filter((order) => !["completed", "cancelled", "archived"].includes(String(order.status || "").toLowerCase())).length;
   const activeJobCount = customerJobsRows.filter((job) => !["completed", "cancelled", "archived"].includes(String(job.status || "").toLowerCase())).length;
   const address = customerDisplayAddress(customer);
+  const latestInteraction = interactions[0] || null;
+  const latestPayment = customerPayments[0] || null;
+  const lastTouchValue = customer.last_contact_at || latestInteraction?.created_at || "";
   const hasActiveOrders = CRM_ORDERS_CACHE.some((o) => o.customer_id === customerIdValue && !["completed", "cancelled", "archived"].includes(String(o.status || "").toLowerCase()));
   const hasActiveJobs = JOBS_CACHE.some((job) => job.customer_id === customerIdValue && !["completed", "cancelled", "archived"].includes(String(job.status || "").toLowerCase()));
   const customerQuickActions = [
@@ -10192,19 +10195,47 @@ async function renderCustomerDetailWorkspace(customerIdValue, customer) {
     </div>
 
     <div class="grid two" style="margin-top:14px;">
-      <div class="card">
-        <div class="card-hd">
-          <strong>Customer snapshot</strong>
-          <span class="muted">Relationship details the office should not have to rediscover.</span>
-        </div>
-        <div class="card-bd">
-          <div class="detail-copy">Service address: <strong>${escapeHtml(address)}</strong></div>
-          <div class="detail-copy">Preferred contact: <strong>${escapeHtml(customer.preferred_contact || "email")}</strong></div>
-          <div class="detail-copy">Last touch: <strong>${escapeHtml(customer.last_contact_at ? formatDateTime(customer.last_contact_at) : "Not recorded")}</strong></div>
-          <div class="detail-copy">Lifetime value: <strong>${formatUsd(customerLifetimeValueCents(customer))}</strong></div>
-          <div class="detail-copy">Active work: <strong>${escapeHtml(String(activeOrderCount + activeJobCount))}</strong></div>
-        </div>
-      </div>
+      ${renderRecordFollowThroughCard({
+        eyebrow: "Follow-through",
+        title: "Keep the relationship warm and collectible",
+        description: "Use one place to log touchpoints, see the money picture, and keep the next customer-facing step obvious.",
+        summary: [
+          { label: "Last touch", value: lastTouchValue ? formatDateTime(lastTouchValue) : "Not recorded", note: latestInteraction ? customerInteractionLabel(latestInteraction.type) : "No interaction logged yet" },
+          { label: "Lifetime value", value: formatUsd(customerLifetimeValueCents(customer)), note: "Best available paid history for this customer" },
+          { label: "Open balance", value: formatUsd(balance), note: balance > 0 ? "Needs collection follow-through" : "Nothing outstanding" },
+          { label: "Recent payment", value: latestPayment ? formatUsd(paymentAmountCents(latestPayment)) : "None yet", note: latestPayment ? formatDateTime(latestPayment.paid_at || latestPayment.created_at || latestPayment.updated_at) : "No payment recorded yet" },
+        ],
+        controlsHtml: `
+          <div class="row">
+            <select id="customerInteractionType" style="max-width:200px;">
+              ${customerInteractionOptionsMarkup("note")}
+            </select>
+            <input id="customerInteractionSummary" class="input" style="flex:1;max-width:none;" placeholder="${escapeHtml(customerInteractionPlaceholder("note"))}" />
+            <button id="btnAddCustomerInteraction" class="btn btn-primary" type="button">Add interaction</button>
+          </div>
+        `,
+        actions: [
+          { label: "Record payment", className: "btn btn-primary", data: { "customer-action": "payment" } },
+          { label: "Open payments", className: "btn btn-ghost", data: { "customer-action": "payments" } },
+          { label: "Add note", className: "btn btn-ghost", data: { "customer-action": "note" } },
+          { label: "Open jobs", className: "btn btn-ghost", data: { "customer-action": "jobs" } },
+        ],
+        timelineHtml: interactions.length ? `
+          <div class="list">
+            ${interactions.slice(0, 6).map((i) => `
+              <div class="list-item">
+                <div class="li-main">
+                  <div class="li-title">${escapeHtml(customerInteractionLabel(i.type))}</div>
+                  <div class="li-sub muted">${escapeHtml(i.summary || "No summary")}</div>
+                </div>
+                <div class="li-meta">
+                  <span class="pill">${escapeHtml(formatDateTime(i.created_at))}</span>
+                </div>
+              </div>
+            `).join("")}
+          </div>
+        ` : `<div class="muted">No interactions logged yet.</div>`,
+      })}
 
       <div class="card">
         <div class="card-hd">
@@ -10236,40 +10267,6 @@ async function renderCustomerDetailWorkspace(customerIdValue, customer) {
               `).join("")}
             </div>
           ` : `<div class="muted">No payments recorded yet.</div>`}
-        </div>
-      </div>
-    </div>
-
-    <div class="card" style="margin-top:14px;">
-      <div class="card-hd">
-        <strong>Notes and interactions</strong>
-        <span class="muted">Capture what happened, what changed, and what needs to happen next.</span>
-      </div>
-      <div class="card-bd">
-        <div class="row">
-          <select id="customerInteractionType" style="max-width:200px;">
-            ${customerInteractionOptionsMarkup("note")}
-          </select>
-          <input id="customerInteractionSummary" class="input" style="flex:1;max-width:none;" placeholder="${escapeHtml(customerInteractionPlaceholder("note"))}" />
-          <button id="btnAddCustomerInteraction" class="btn btn-primary" type="button">Add interaction</button>
-        </div>
-
-        <div style="margin-top:14px;">
-          ${interactions.length ? `
-            <div class="list">
-              ${interactions.map((i) => `
-                <div class="list-item">
-                  <div class="li-main">
-                    <div class="li-title">${escapeHtml(customerInteractionLabel(i.type))}</div>
-                    <div class="li-sub muted">${escapeHtml(i.summary || "No summary")}</div>
-                  </div>
-                  <div class="li-meta">
-                    <span class="pill">${escapeHtml(formatDateTime(i.created_at))}</span>
-                  </div>
-                </div>
-              `).join("")}
-            </div>
-          ` : `<div class="muted">No interactions logged yet.</div>`}
         </div>
       </div>
     </div>
@@ -14066,6 +14063,42 @@ function renderLinkedRecordCard({
     </div>
   `;
 }
+function renderRecordFollowThroughCard({
+  eyebrow = "Follow-through",
+  title = "Keep the next move clear",
+  description = "",
+  summary = [],
+  controlsHtml = "",
+  actions = [],
+  timelineHtml = "",
+} = {}) {
+  const summaryHtml = (Array.isArray(summary) ? summary : [])
+    .filter((item) => item && item.label)
+    .map((item) => `
+      <div class="record-follow-through__metric">
+        <span>${escapeHtml(item.label)}</span>
+        <strong>${escapeHtml(item.value || "")}</strong>
+        ${item.note ? `<small>${escapeHtml(item.note)}</small>` : ""}
+      </div>
+    `)
+    .join("");
+  const actionsHtml = renderRecordActionButtons(actions);
+  return `
+    <div class="record-follow-through detail-card" style="margin-top:14px;">
+      <div class="record-follow-through__head">
+        <div>
+          <div class="kicker">${escapeHtml(eyebrow)}</div>
+          <h3>${escapeHtml(title)}</h3>
+        </div>
+        ${description ? `<div class="detail-copy">${escapeHtml(description)}</div>` : ""}
+      </div>
+      ${summaryHtml ? `<div class="record-follow-through__summary">${summaryHtml}</div>` : ""}
+      ${controlsHtml ? `<div class="record-follow-through__controls">${controlsHtml}</div>` : ""}
+      ${actionsHtml ? `<div class="record-follow-through__actions">${actionsHtml}</div>` : ""}
+      ${timelineHtml ? `<div class="record-follow-through__timeline">${timelineHtml}</div>` : ""}
+    </div>
+  `;
+}
 function dashboardClientTrackerRows(todayActions = []) {
   const rows = [];
   const activeStatuses = new Set(["new", "quoted", "confirmed", "fulfilled", "completed", "scheduled", "dispatched", "in_progress", "blocked"]);
@@ -16960,6 +16993,17 @@ function renderOrders() {
   const depositGap = orderDepositGapCents(active);
   const depositOverrideReason = orderDepositOverrideReason(active);
   const depositDueDate = orderDepositDueDate(active);
+  const orderPayments = sortedPayments(PAYMENTS_CACHE.filter((payment) => payment.order_id === active.id));
+  const recentOrderPayment = orderPayments[0] || null;
+  const orderFollowThroughActions = [
+    ["completed", "fulfilled"].includes(String(active.status || "").toLowerCase()) && active.customer_email
+      ? { id: "btnRequestReview", label: active.review_requested_at ? "Review requested" : "Request review", className: "btn btn-ghost btn-sm", disabled: !!active.review_requested_at }
+      : null,
+    active.customer_email ? { id: "btnNotifyCustomer", label: "Notify customer", className: "btn btn-ghost btn-sm" } : null,
+    active.customer_email ? { id: "btnSendInvoiceEmail", label: "Email invoice", className: "btn btn-ghost btn-sm" } : null,
+    active.customer_email ? { id: "btnSendPaymentReminder", label: "Payment reminder", className: "btn btn-ghost btn-sm" } : null,
+    active.customer_email ? { id: "btnSendQuote", label: "Send quote", className: "btn btn-ghost btn-sm" } : null,
+  ].filter(Boolean);
 
   const orderEmail = active.email || active.customer_email || "";
   const existingCustomer = orderEmail ? CUSTOMERS_CACHE.find((c) => c.email?.toLowerCase() === orderEmail.toLowerCase()) : null;
@@ -17104,51 +17148,56 @@ function renderOrders() {
       <div id="orderDepositMsg" class="msg"></div>
     </div>
 
-    <div class="detail-card" style="margin-top:14px;">
-      <div class="kicker">Order status</div>
-      <div class="row" style="margin-top:10px; align-items:end;flex-wrap:wrap;gap:8px;">
-        <label class="field" style="flex:1;min-width:120px;">
-          <span>Status</span>
-          <select id="orderStatusSelect">
-            ${statusOptions.map((status) => `<option value="${status}" ${String(active.status || "new").toLowerCase() === status ? "selected" : ""}>${escapeHtml(formatOrderWorkflowStatus(status))}</option>`).join("")}
-          </select>
-        </label>
-        ${active.customer_email ? `<label style="display:flex;align-items:center;gap:6px;font-size:.8rem;cursor:pointer;white-space:nowrap;"><input type="checkbox" id="chkNotifyOnStatusChange" checked /> Notify customer</label>` : ""}
-        <button id="btnSaveOrderStatus" class="btn btn-primary" type="button">Save status</button>
-      </div>
-      <div style="margin-top:.75rem;display:flex;gap:8px;flex-wrap:wrap;">
-        ${["completed","fulfilled"].includes(String(active.status||"").toLowerCase()) && active.customer_email ? `
-        <button id="btnRequestReview" class="btn btn-ghost btn-sm" type="button">
-          ${active.review_requested_at ? "✓ Review requested" : "⭐ Request review"}
-        </button>` : ""}
-        ${active.customer_email ? `<button id="btnNotifyCustomer" class="btn btn-ghost btn-sm" type="button">📧 Notify customer</button>` : ""}
-        ${active.customer_email ? `<button id="btnSendInvoiceEmail" class="btn btn-ghost btn-sm" type="button">🧾 Email invoice</button>` : ""}
-        ${active.customer_email ? `<button id="btnSendPaymentReminder" class="btn btn-ghost btn-sm" type="button">💰 Payment reminder</button>` : ""}
-        ${active.customer_email ? `<button id="btnSendQuote" class="btn btn-ghost btn-sm" type="button">📋 Send quote</button>` : ""}
-      </div>
-      <div id="quoteFormPanel" style="display:none;margin-top:12px;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:8px;padding:14px;">
-        <div style="font-size:.82rem;font-weight:600;margin-bottom:10px;color:var(--muted);">New quote</div>
-        <div class="row" style="gap:8px;flex-wrap:wrap;align-items:end;">
-          <label class="field" style="flex:2;min-width:160px;">Title
-            <input type="text" id="quoteTitle" placeholder="Quote title" value="${escapeAttr(active.title || '')}" />
+    ${renderRecordFollowThroughCard({
+      eyebrow: "Follow-through",
+      title: "Keep status, reminders, and collection aligned",
+      description: active.customer_email
+        ? "Update the workflow stage, send the right customer message, and keep money follow-through visible from one place."
+        : "Update the workflow stage here. Add a customer email to unlock reminders, invoice email, and review follow-up.",
+      summary: [
+        { label: "Status", value: formatOrderWorkflowStatus(active.status || "new"), note: "Current workflow stage" },
+        { label: "Collection", value: formatWorkflowPaymentState(paymentState), note: amountDue > 0 ? `${formatUsd(amountDue)} still open` : "Nothing outstanding" },
+        { label: "Due date", value: active.payment_due_date ? formatDateOnly(active.payment_due_date) : (depositDueDate ? formatDateOnly(depositDueDate) : "Not set"), note: active.payment_due_date ? "Customer-facing due date" : "Falls back to deposit or schedule timing" },
+        { label: "Recent payment", value: recentOrderPayment ? formatUsd(paymentAmountCents(recentOrderPayment)) : "None yet", note: recentOrderPayment ? formatDateTime(recentOrderPayment.paid_at || recentOrderPayment.created_at || recentOrderPayment.updated_at) : "No payment recorded yet" },
+      ],
+      controlsHtml: `
+        <div class="row" style="align-items:end;flex-wrap:wrap;gap:8px;">
+          <label class="field" style="flex:1;min-width:120px;">
+            <span>Status</span>
+            <select id="orderStatusSelect">
+              ${statusOptions.map((status) => `<option value="${status}" ${String(active.status || "new").toLowerCase() === status ? "selected" : ""}>${escapeHtml(formatOrderWorkflowStatus(status))}</option>`).join("")}
+            </select>
           </label>
-          <label class="field" style="flex:1;min-width:100px;">Amount (USD)
-            <input type="number" id="quoteAmount" placeholder="0.00" min="0" step="0.01" />
-          </label>
-          <label class="field" style="flex:1;min-width:110px;">Valid until
-            <input type="date" id="quoteValidUntil" />
-          </label>
+          ${active.customer_email ? `<label style="display:flex;align-items:center;gap:6px;font-size:.8rem;cursor:pointer;white-space:nowrap;"><input type="checkbox" id="chkNotifyOnStatusChange" checked /> Notify customer</label>` : ""}
+          <button id="btnSaveOrderStatus" class="btn btn-primary" type="button">Save status</button>
         </div>
-        <label class="field" style="margin-top:8px;">Description (optional)
-          <textarea id="quoteDescription" rows="2" placeholder="Scope of work, inclusions, terms…" style="width:100%;resize:vertical;">${escapeHtml(active.notes || '')}</textarea>
-        </label>
-        <div class="row" style="gap:8px;margin-top:10px;">
-          <button id="btnSubmitQuote" class="btn btn-primary btn-sm" type="button">Send quote</button>
-          <button id="btnCancelQuote" class="btn btn-ghost btn-sm" type="button">Cancel</button>
+      `,
+      actions: orderFollowThroughActions,
+      timelineHtml: `
+        <div id="quoteFormPanel" style="display:none;margin-top:12px;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:8px;padding:14px;">
+          <div style="font-size:.82rem;font-weight:600;margin-bottom:10px;color:var(--muted);">New quote</div>
+          <div class="row" style="gap:8px;flex-wrap:wrap;align-items:end;">
+            <label class="field" style="flex:2;min-width:160px;">Title
+              <input type="text" id="quoteTitle" placeholder="Quote title" value="${escapeAttr(active.title || '')}" />
+            </label>
+            <label class="field" style="flex:1;min-width:100px;">Amount (USD)
+              <input type="number" id="quoteAmount" placeholder="0.00" min="0" step="0.01" />
+            </label>
+            <label class="field" style="flex:1;min-width:110px;">Valid until
+              <input type="date" id="quoteValidUntil" />
+            </label>
+          </div>
+          <label class="field" style="margin-top:8px;">Description (optional)
+            <textarea id="quoteDescription" rows="2" placeholder="Scope of work, inclusions, terms…" style="width:100%;resize:vertical;">${escapeHtml(active.notes || '')}</textarea>
+          </label>
+          <div class="row" style="gap:8px;margin-top:10px;">
+            <button id="btnSubmitQuote" class="btn btn-primary btn-sm" type="button">Send quote</button>
+            <button id="btnCancelQuote" class="btn btn-ghost btn-sm" type="button">Cancel</button>
+          </div>
         </div>
-      </div>
-      <div id="orderNotifyMsg" class="msg" style="margin-top:8px;"></div>
-    </div>
+        <div id="orderNotifyMsg" class="msg" style="margin-top:8px;"></div>
+      `,
+    })}
 
     <div class="detail-card" style="margin-top:14px;" id="phasesSection">
       <div class="kicker" style="cursor:pointer;user-select:none;display:flex;align-items:center;justify-content:space-between;" id="phasesToggle">
