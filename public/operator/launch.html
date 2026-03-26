@@ -3,86 +3,15 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ProofLink — Launch Your Store</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    :root {
-      --ink: #0d0d0d; --paper: #f5f2eb; --cream: #ede8dd;
-      --accent: #c84b2f; --gold: #d4a843; --muted: #6b6560;
-      --border: #d9d4c9; --card: #ffffff; --success: #2e7d32;
-      --font-display: 'Syne', sans-serif; --font-body: 'DM Sans', sans-serif;
-    }
-    body { background: var(--paper); color: var(--ink); font-family: var(--font-body); min-height: 100vh; }
-    nav { display: flex; align-items: center; justify-content: space-between; padding: 1rem 2rem; background: var(--paper); border-bottom: 1px solid var(--border); }
-    .nav-logo { font-family: var(--font-display); font-weight: 800; font-size: 1.25rem; color: var(--ink); text-decoration: none; }
-    .nav-logo span { color: var(--accent); }
-    .launch-container { max-width: 680px; margin: 5rem auto; padding: 0 2rem; }
-    .welcome-badge { display: inline-flex; align-items: center; gap: 0.5rem; background: rgba(46,125,50,0.08); border: 1px solid rgba(46,125,50,0.25); color: var(--success); border-radius: 20px; padding: 0.4rem 1rem; font-size: 0.8rem; font-weight: 600; margin-bottom: 1.5rem; }
-    h1 { font-family: var(--font-display); font-size: 2.5rem; font-weight: 800; letter-spacing: -0.04em; margin-bottom: 1rem; }
-    .intro { font-size: 1rem; color: var(--muted); font-weight: 300; margin-bottom: 3rem; line-height: 1.75; }
-    .launch-steps { display: flex; flex-direction: column; gap: 1rem; margin-bottom: 3rem; }
-    .launch-step { background: var(--card); border: 1px solid var(--border); border-radius: 6px; padding: 1.5rem; display: flex; gap: 1.25rem; align-items: flex-start; transition: box-shadow 0.2s; }
-    .launch-step:hover { box-shadow: 0 4px 20px rgba(0,0,0,0.06); }
-    .step-check { width: 32px; height: 32px; border-radius: 50%; background: var(--cream); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 0.75rem; color: var(--muted); font-weight: 700; }
-    .step-check.done { background: rgba(46,125,50,0.1); border-color: rgba(46,125,50,0.3); color: var(--success); }
-    .step-title { font-family: var(--font-display); font-weight: 700; font-size: 0.95rem; margin-bottom: 0.3rem; }
-    .step-desc { font-size: 0.82rem; color: var(--muted); line-height: 1.6; }
-    .step-action { margin-top: 0.75rem; display: inline-flex; align-items: center; gap: 0.35rem; background: var(--accent); color: #fff; padding: 0.45rem 1rem; border-radius: 3px; font-size: 0.8rem; font-weight: 600; text-decoration: none; font-family: var(--font-display); transition: background 0.2s; }
-    .step-action:hover { background: #a83820; }
-    .go-to-dashboard { display: block; width: 100%; background: var(--ink); color: #f5f2eb; padding: 1rem; text-align: center; border-radius: 4px; font-family: var(--font-display); font-weight: 700; font-size: 1rem; text-decoration: none; transition: background 0.2s; }
-    .go-to-dashboard:hover { background: #1a1a1a; }
-  </style>
+  <title>ProofLink</title>
+  <meta name="robots" content="noindex" />
+  <script>
+    (function () {
+      window.location.replace("/operator/launch.html" + window.location.search + window.location.hash);
+    })();
+  </script>
 </head>
 <body>
-  <nav>
-    <a href="/" class="nav-logo">Proof<span>Link</span></a>
-  </nav>
-  <div class="launch-container">
-    <div class="welcome-badge">🎉 You're approved!</div>
-    <h1>Let's get your store live.</h1>
-    <p class="intro">Your ProofLink account is ready. Complete these steps to launch your storefront and start accepting orders.</p>
-    <div class="launch-steps">
-      <div class="launch-step">
-        <div class="step-check done">✓</div>
-        <div>
-          <div class="step-title">Application approved</div>
-          <div class="step-desc">Your ProofLink account has been created. You're ready to set up your store.</div>
-        </div>
-      </div>
-      <div class="launch-step">
-        <div class="step-check">2</div>
-        <div>
-          <div class="step-title">Set your password</div>
-          <div class="step-desc">Check your email for a login link to access your operator dashboard.</div>
-        </div>
-      </div>
-      <div class="launch-step">
-        <div class="step-check">3</div>
-        <div>
-          <div class="step-title">Add your products or services</div>
-          <div class="step-desc">List what you sell — prices, descriptions, and photos. Takes about 10 minutes.</div>
-          <a href="/operator/" class="step-action">Go to Dashboard →</a>
-        </div>
-      </div>
-      <div class="launch-step">
-        <div class="step-check">4</div>
-        <div>
-          <div class="step-title">Connect your Stripe account</div>
-          <div class="step-desc">Link your bank account to receive direct payouts. Stripe handles all payment processing securely.</div>
-        </div>
-      </div>
-      <div class="launch-step">
-        <div class="step-check">5</div>
-        <div>
-          <div class="step-title">Share your storefront link</div>
-          <div class="step-desc">Your public storefront is live! Share it with customers and start taking orders.</div>
-        </div>
-      </div>
-    </div>
-    <a href="/operator/" class="go-to-dashboard">Go to Operator Dashboard →</a>
-  </div>
+  <p>Redirecting to the current owner welcome page...</p>
 </body>
 </html>

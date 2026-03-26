@@ -141,3 +141,7 @@ vite.config.ts.timestamp-*
 # Local Netlify folder
 .netlify
 .claude/settings.local.json
+
+# Generated Netlify build artifacts
+netlify/functions/*.zip
+netlify/functions/manifest.json

@@ -3485,8 +3485,8 @@ function renderStartupChecklist() {
     { done: PRODUCTS_CACHE.length > 0, label: `Add your first ${catalogSingular}`, tab: "products", action: `Open ${catalogTabLabel}` },
     { done: PRODUCTS_CACHE.some((row) => !!row.is_active), label: `Make at least one ${catalogSingular} live for intake`, tab: "products", action: `Review ${catalogTabLabel}` },
     { done: pricingReady, label: workspaceUsesServiceCatalog(blueprint) ? "Give at least one service a usable price anchor" : `Price at least one ${catalogSingular}`, tab: workspaceUsesServiceCatalog(blueprint) ? "pricing" : "products", action: `Open ${workspaceTabLabel(workspaceUsesServiceCatalog(blueprint) ? "pricing" : "products", blueprint)}` },
-    { done: CUSTOMERS_CACHE.length > 0, label: "Capture your first customer in CRM", tab: "customers", action: "Open Customers" },
-    { done: CRM_ORDERS_CACHE.length > 0, label: `Convert at least one request into tracked ${orderLabel}`, tab: "orders", action: `Open ${workspaceTabLabel("orders", blueprint)}` },
+    { done: CUSTOMERS_CACHE.length > 0, label: "Add your first customer", tab: "customers", action: "Open Customers" },
+    { done: CRM_ORDERS_CACHE.length > 0, label: `Turn your first request into tracked ${orderLabel}`, tab: "orders", action: `Open ${workspaceTabLabel("orders", blueprint)}` },
     { done: EXPENSES_CACHE.length > 0, label: isServiceWorkspace(blueprint) ? `Track your first expense against real ${orderLabel}` : "Track your first expense", tab: "expenses", action: "Open Expenses" },
     { done: brandingReady, label: "Add branding, media, and public profile details", tab: "setup", action: "Open Setup" },
     { done: PAYMENTS_CACHE.length > 0, label: "Log your first payment, deposit, or offline collection", tab: "payments", action: "Open Payments" },
@@ -3501,8 +3501,8 @@ function renderStartupChecklist() {
 
   if (isTabVisibleInWorkspace("bids", blueprint)) {
     items.splice(4, 0,
-      { done: BIDS_CACHE.length > 0, label: "Create your first professional bid draft", tab: "bids", action: `Open ${workspaceBidLabel(blueprint)}` },
-      { done: hasPricedBidDraft(), label: "Price at least one real bid scope", tab: "bids", action: "Finish pricing" }
+      { done: BIDS_CACHE.length > 0, label: "Create your first quote draft", tab: "bids", action: `Open ${workspaceBidLabel(blueprint)}` },
+      { done: hasPricedBidDraft(), label: "Price out one real quote", tab: "bids", action: "Finish pricing" }
     );
   }
   if (isTabVisibleInWorkspace("plans", blueprint)) {
@@ -15738,7 +15738,7 @@ function renderDashboard() {
     })()}
 
     <div class="insight-grid">
-      <div class="insight">${checklistHtml || '<h3>Launch checklist</h3><p>Checklist unavailable right now.</p>'}</div>
+      <div class="insight">${checklistHtml || '<h3>First wins</h3><p>Checklist unavailable right now.</p>'}</div>
       <div class="insight">${paymentHtml || '<h3>Payment readiness</h3><p>Payment truth will appear here once tenant state loads.</p>'}</div>
       <div class="insight">
         <h3>Operating posture</h3>

@@ -49,22 +49,22 @@
     return [
       {
         selector: '[data-tour="checklist"]',
-        title: 'Startup progress',
-        body: 'This is your launch checklist. Each item should move the operator toward a live storefront. Every row is clickable, so the user can jump straight to the place that needs work.',
+        title: 'First wins',
+        body: 'This is your guided next-step list. Each item should move the business toward the first real customer, tracked work, and payment milestones. Every row is clickable, so the user can jump straight to the place that needs work.',
         tab: 'dashboard',
         placement: 'right'
       },
       {
         selector: '[data-tour-tab="products"]',
-        title: 'Products comes first',
-        body: 'A new operator needs something to sell before the rest of the workflow makes sense. This is where they create the first product or service.',
+        title: 'Services come first',
+        body: 'A new owner needs something concrete to sell before the rest of the workflow makes sense. This is where they create the first product or service.',
         tab: 'dashboard',
         placement: 'right'
       },
       {
         selector: '[data-tour="new-product"]',
-        title: 'Create the first product',
-        body: 'Use this button to start a product record. Product setup is the earliest high-value action in the system, so the tour should drive people here fast.',
+        title: 'Create the first service',
+        body: 'Use this button to start the first service or product record. This is an early high-value action, so the tour should drive people here fast.',
         tab: 'products',
         placement: 'left'
       },
@@ -77,8 +77,8 @@
       },
       {
         selector: '[data-tour-tab="setup"]',
-        title: 'Business Setup',
-        body: 'This page is for branding, storefront media, and public profile upkeep. It is not where they rewrite application or account-record data.',
+        title: 'Website details',
+        body: 'This page is for branding, website media, and public profile upkeep. It is not where they rewrite application or account-record data.',
         tab: 'products',
         placement: 'right'
       },

@@ -181,9 +181,9 @@ Notes:
 - Method: `GET`
 - Expected payload: query params `tenant_id=<uuid>` or `slug=<tenant-slug>`
 - Response format:
-  - `200 { "tenant_id": "...", "tenant_name": "...", "tenant_slug": "...", "steps": [ ... ], "completed": 4, "total": 8, "percent": 50, "launch_ready": false }`
-  - Errors: `400`, `404`, `405`
-- Authentication requirements: none enforced in the handler
+  - `200 { "tenant_id": "...", "tenant_name": "...", "tenant_slug": "...", "steps": [ ... ], "completed": 4, "total": 7, "percent": 57, "launch_ready": false }`
+  - Errors: `400`, `401`, `403`, `404`, `405`
+- Authentication requirements: operator context required via `requireOperatorContext`
 
 ## `get-operator-setup`
 - Endpoint: `/.netlify/functions/get-operator-setup`

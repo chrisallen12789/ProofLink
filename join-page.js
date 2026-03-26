@@ -411,7 +411,7 @@
 
       if (selfServe) {
         persistStartContext(data);
-        showNotify("Account created. Opening setup...", "success");
+        showNotify("Account ready. Opening your setup page...", "success");
         window.location.href = data.login_url || data.onboarding_url || "/operator/onboarding.html";
         return;
       }
@@ -423,10 +423,16 @@
 
       const plan = selectedPlan();
       $("success-screen").style.display = "block";
+      $("successTitle").textContent = plan.key === "enterprise"
+        ? "Guided rollout requested"
+        : "Guided setup requested";
+      $("successLead").textContent = plan.key === "enterprise"
+        ? "We saved your business details and queued an Enterprise rollout."
+        : "We saved your business details and queued your guided setup path.";
       $("success-email").textContent = state.ownerEmail;
       $("successPlanText").textContent = plan.key === "enterprise"
         ? "Your Enterprise request is queued for a guided rollout before the account goes live."
-        : "Your request is in the guided setup queue. We will follow up with the next step and help shape the account and website.";
+        : "Your request is in the guided setup queue. We will follow up with the next step and help shape the account, workflow, and website.";
       if (data.request_id) $("success-ref").textContent = `Reference ID: ${data.request_id}`;
     } catch (error) {
       showNotify(`Something went wrong: ${error.message}`, "error");
