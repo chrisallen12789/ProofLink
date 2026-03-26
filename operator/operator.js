@@ -1,4 +1,4 @@
-// /operator/operator.js
+﻿// /operator/operator.js
 // ProofLink Operator v3 CRM pass
 
 const OPERATOR_CONFIG = window.COTTAGELINK_OPERATOR_CONFIG || {};
@@ -1935,7 +1935,7 @@ function trackedJobExpenses(job, order = linkedOrderForJob(job)) {
       return true;
     });
 }
-// ── Hydrovac revenue calculation ───────────────────────────────────────────────
+// â”€â”€ Hydrovac revenue calculation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function calcHydrovacRevenueCents(job) {
   const bh       = Math.max(parseFloat(job.billable_hours) || 0, parseFloat(job.minimum_hours) || 2);
   const mult     = parseFloat(job.after_hours_multiplier) || 1.0;
@@ -1943,7 +1943,7 @@ function calcHydrovacRevenueCents(job) {
   const opR      = parseInt(job.hourly_operator_rate_cents) || 0;
   const mobFee   = parseInt(job.mobilization_fee_cents)     || 0;
   const disposal = parseInt(job.disposal_cost_cents)        || 0;
-  if (!truckR && !opR) return null; // rates not set — not a hydrovac job
+  if (!truckR && !opR) return null; // rates not set â€” not a hydrovac job
   return Math.round(bh * mult * (truckR + opR)) + mobFee + disposal;
 }
 
@@ -1957,10 +1957,10 @@ function hydrovacRevenueBreakdownHtml(job) {
   const rate   = truckR + opR;
   const laborRev = Math.round(bh * mult * rate);
   const total  = laborRev + mob + disp;
-  const multLabel = mult !== 1.0 ? ` × ${mult}× after-hours` : '';
+  const multLabel = mult !== 1.0 ? ` Ã— ${mult}Ã— after-hours` : '';
   return {
     html: `
-      <div>${bh.toFixed(2)} hrs × $${(rate/100).toFixed(2)}/hr${multLabel} = <strong>$${(laborRev/100).toFixed(2)}</strong></div>
+      <div>${bh.toFixed(2)} hrs Ã— $${(rate/100).toFixed(2)}/hr${multLabel} = <strong>$${(laborRev/100).toFixed(2)}</strong></div>
       ${mob  ? `<div>Mobilization: <strong>$${(mob/100).toFixed(2)}</strong></div>` : ''}
       ${disp ? `<div>Disposal: <strong>$${(disp/100).toFixed(2)}</strong></div>` : ''}
     `,
@@ -1985,11 +1985,11 @@ function toggleHydrovacFields(value) {
 
 function renderEquipmentOptions(selectedId = '') {
   if (!jobEquipmentId) return;
-  jobEquipmentId.innerHTML = '<option value="">— Unassigned —</option>'
+  jobEquipmentId.innerHTML = '<option value="">â€” Unassigned â€”</option>'
     + (EQUIPMENT_CACHE || [])
       .filter(e => e.is_active)
       .map(e => `<option value="${escapeAttr(e.id)}"${e.id === selectedId ? ' selected' : ''}>
-        ${escapeHtml(e.unit_number ? `${e.unit_number} — ${e.name}` : e.name)}
+        ${escapeHtml(e.unit_number ? `${e.unit_number} â€” ${e.name}` : e.name)}
         ${e.hourly_rate_cents ? ` ($${(e.hourly_rate_cents/100).toFixed(0)}/hr)` : ''}
       </option>`)
       .join('');
@@ -4043,7 +4043,7 @@ function renderPanelBackButtons() {
     }
 
     button.classList.remove("hidden");
-    button.textContent = `← ${workspaceTabLabel(previousTab, blueprint)}`;
+    button.textContent = `â† ${workspaceTabLabel(previousTab, blueprint)}`;
     button.textContent = `Back to ${workspaceTabLabel(previousTab, blueprint)}`;
     button.onclick = () => switchTab(previousTab);
   });
@@ -5189,7 +5189,7 @@ btnSaveSetupTop?.addEventListener("click", async () => {
 
   function syncThemeButton() {
     const activeTheme = root.getAttribute("data-theme") || "light";
-    replacementButton.textContent = activeTheme === "light" ? "◐" : "☀";
+    replacementButton.textContent = activeTheme === "light" ? "â—" : "â˜€";
     replacementButton.title = activeTheme === "light" ? "Switch to dark mode" : "Switch to light mode";
   }
 
@@ -6123,7 +6123,7 @@ btnSaveAvailability?.addEventListener("click", async () => {
   }
 });
 
-// ── Bookings ─────────────────────────────────────────────────────────────────
+// â”€â”€ Bookings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 async function fetchBookings() {
   if (FETCHING.has('bookings')) return;
@@ -6194,7 +6194,7 @@ function renderContracts() {
     expiringEl.innerHTML = expiring.length
       ? expiring.map(c => `<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.06);">
           <div><div style="font-weight:500;color:#e8e9eb;">${escapeHtml(c.title)}</div>
-          <div style="font-size:.78rem;color:rgba(255,255,255,.4);">${escapeHtml(c.contract_type || 'warranty')} · expires ${new Date(c.expires_at).toLocaleDateString()}</div></div>
+          <div style="font-size:.78rem;color:rgba(255,255,255,.4);">${escapeHtml(c.contract_type || 'warranty')} Â· expires ${new Date(c.expires_at).toLocaleDateString()}</div></div>
           <span style="color:#fbbf24;font-size:.78rem;font-weight:600;">${Math.ceil((new Date(c.expires_at)-now)/86400000)} days</span>
         </div>`).join('')
       : '<div class="muted" style="font-size:.82rem;">No contracts expiring in next 60 days.</div>';
@@ -6208,8 +6208,8 @@ function renderContracts() {
     <div style="display:flex;justify-content:space-between;align-items:flex-start;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.06);">
       <div>
         <div style="font-weight:500;color:#e8e9eb;">${escapeHtml(c.title)}</div>
-        <div style="font-size:.78rem;color:rgba(255,255,255,.4);">${escapeHtml(c.contract_type || 'warranty')}${c.starts_at ? ' · starts ' + new Date(c.starts_at).toLocaleDateString() : ''}${c.expires_at ? ' · expires ' + new Date(c.expires_at).toLocaleDateString() : ''}</div>
-        ${c.terms ? `<div style="font-size:.75rem;color:rgba(255,255,255,.3);margin-top:2px;">${escapeHtml(c.terms.slice(0,80))}${c.terms.length>80?'…':''}</div>` : ''}
+        <div style="font-size:.78rem;color:rgba(255,255,255,.4);">${escapeHtml(c.contract_type || 'warranty')}${c.starts_at ? ' Â· starts ' + new Date(c.starts_at).toLocaleDateString() : ''}${c.expires_at ? ' Â· expires ' + new Date(c.expires_at).toLocaleDateString() : ''}</div>
+        ${c.terms ? `<div style="font-size:.75rem;color:rgba(255,255,255,.3);margin-top:2px;">${escapeHtml(c.terms.slice(0,80))}${c.terms.length>80?'â€¦':''}</div>` : ''}
       </div>
       <button class="btn btn-ghost btn-sm" style="font-size:.72rem;" onclick="openEditContractModal(CONTRACTS_CACHE.find(x=>x.id==='${escapeAttr(c.id)}'))">Edit</button>
       <button class="btn btn-ghost" style="font-size:.72rem;" onclick="deleteContract('${escapeAttr(c.id)}')">Remove</button>
@@ -6270,7 +6270,7 @@ function openEditContractModal(contract) {
   document.getElementById('ecSave').onclick = async () => {
     const title = (document.getElementById('ecTitle')?.value || '').trim();
     if (!title) { notifyOperator("Add a title first."); return; }
-    const btn = document.getElementById('ecSave'); btn.disabled = true; btn.textContent = 'Saving…';
+    const btn = document.getElementById('ecSave'); btn.disabled = true; btn.textContent = 'Savingâ€¦';
     try {
       const tok = await getAccessToken();
       const res = await fetch('/.netlify/functions/manage-service-contracts', {
@@ -6340,7 +6340,7 @@ function openAddContractModal(customerId, orderId) {
   document.getElementById('ctSave').onclick = async () => {
     const title = ($('ctTitle')?.value || '').trim();
     if (!title) { notifyOperator("Add a title first."); return; }
-    const btn = $('ctSave'); btn.disabled = true; btn.textContent = 'Saving…';
+    const btn = $('ctSave'); btn.disabled = true; btn.textContent = 'Savingâ€¦';
     try {
       const tok = await getAccessToken();
       const res = await fetch('/.netlify/functions/manage-service-contracts', {
@@ -6393,7 +6393,7 @@ function renderInventory(filter = '') {
   const lowStockEl = $('inventoryLowStock');
   const totalValueEl = $('inventoryTotalValue');
   if (totalItemsEl) totalItemsEl.textContent = totalItems;
-  if (lowStockEl) lowStockEl.textContent = lowStock || '—';
+  if (lowStockEl) lowStockEl.textContent = lowStock || 'â€”';
   if (totalValueEl) totalValueEl.textContent = formatUsd(totalValue);
 
   const items = filter
@@ -6417,8 +6417,8 @@ function renderInventory(filter = '') {
     <tbody>${items.map(i => {
       const isLow = i.reorder_point > 0 && Number(i.quantity_on_hand) <= Number(i.reorder_point);
       return `<tr style="border-bottom:1px solid rgba(255,255,255,.05);">
-        <td style="padding:7px 8px;font-weight:500;color:#e8e9eb;">${escapeHtml(i.name)}${isLow ? ' <span style="color:#fbbf24;font-size:.72rem;">⚠ Low</span>' : ''}</td>
-        <td style="padding:7px 8px;color:rgba(255,255,255,.45);">${escapeHtml(i.category || '—')}</td>
+        <td style="padding:7px 8px;font-weight:500;color:#e8e9eb;">${escapeHtml(i.name)}${isLow ? ' <span style="color:#fbbf24;font-size:.72rem;">âš  Low</span>' : ''}</td>
+        <td style="padding:7px 8px;color:rgba(255,255,255,.45);">${escapeHtml(i.category || 'â€”')}</td>
         <td style="text-align:right;padding:7px 8px;">${Number(i.quantity_on_hand)} ${escapeHtml(i.unit || '')}</td>
         <td style="text-align:right;padding:7px 8px;color:rgba(255,255,255,.45);">${formatUsd(i.cost_cents)}</td>
         <td style="text-align:right;padding:7px 8px;">${formatUsd(i.price_cents)}</td>
@@ -6490,7 +6490,7 @@ function openAddInventoryModal() {
     const name = ($('invName')?.value || '').trim();
     if (!name) { notifyOperator("Add an item name first."); return; }
     const btn = $('invSaveBtn');
-    btn.disabled = true; btn.textContent = 'Saving…';
+    btn.disabled = true; btn.textContent = 'Savingâ€¦';
     try {
       const tok = await getAccessToken();
       const res = await fetch('/.netlify/functions/manage-inventory', {
@@ -6531,7 +6531,7 @@ function openLogUsageModal(itemId, itemName) {
   modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10000;display:flex;align-items:center;justify-content:center;';
   modal.innerHTML = `
     <div style="background:#1e2029;border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:24px 28px;max-width:400px;width:90%;box-shadow:0 8px 40px rgba(0,0,0,.5);">
-      <h3 style="margin:0 0 16px;font-size:1rem;color:#e8e9eb;">Log usage — ${escapeHtml(itemName)}</h3>
+      <h3 style="margin:0 0 16px;font-size:1rem;color:#e8e9eb;">Log usage â€” ${escapeHtml(itemName)}</h3>
       <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:18px;">
         <div style="display:flex;gap:8px;">
           <div style="flex:1;">
@@ -6557,7 +6557,7 @@ function openLogUsageModal(itemId, itemName) {
   document.getElementById('logUsageSave').onclick = async () => {
     const qty = parseFloat($('usageQty')?.value || 1);
     const btn = $('logUsageSave');
-    btn.disabled = true; btn.textContent = 'Saving…';
+    btn.disabled = true; btn.textContent = 'Savingâ€¦';
     try {
       const tok = await getAccessToken();
       const res = await fetch('/.netlify/functions/manage-inventory', {
@@ -6593,7 +6593,7 @@ function openEditInventoryModal(itemId) {
   modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10000;display:flex;align-items:center;justify-content:center;';
   modal.innerHTML = `
     <div style="background:#1e2029;border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:24px 28px;max-width:420px;width:90%;box-shadow:0 8px 40px rgba(0,0,0,.5);">
-      <h3 style="margin:0 0 16px;font-size:1rem;color:#e8e9eb;">Edit — ${escapeHtml(item.name)}</h3>
+      <h3 style="margin:0 0 16px;font-size:1rem;color:#e8e9eb;">Edit â€” ${escapeHtml(item.name)}</h3>
       <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:18px;">
         <div style="display:flex;gap:8px;">
           <div style="flex:1;"><label style="font-size:.75rem;color:rgba(255,255,255,.35);display:block;margin-bottom:2px;">Qty on hand</label>
@@ -6612,7 +6612,7 @@ function openEditInventoryModal(itemId) {
   document.body.appendChild(modal);
   document.getElementById('eiSave').onclick = async () => {
     const btn = $('eiSave');
-    btn.disabled = true; btn.textContent = 'Saving…';
+    btn.disabled = true; btn.textContent = 'Savingâ€¦';
     try {
       const tok = await getAccessToken();
       const res = await fetch('/.netlify/functions/manage-inventory', {
@@ -6660,8 +6660,8 @@ function renderVendors() {
     <div class="li" style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.06);">
       <div style="flex:1;">
         <div style="font-weight:600;color:#e8e9eb;">${escapeHtml(v.name)}</div>
-        <div style="font-size:.8rem;color:rgba(255,255,255,.4);">${escapeHtml(v.company || "")}${v.company && v.trade ? " · " : ""}${escapeHtml(v.trade || "")}</div>
-        <div style="font-size:.78rem;color:rgba(255,255,255,.35);">${escapeHtml(v.email || "")}${v.email && v.phone ? " · " : ""}${escapeHtml(v.phone || "")}</div>
+        <div style="font-size:.8rem;color:rgba(255,255,255,.4);">${escapeHtml(v.company || "")}${v.company && v.trade ? " Â· " : ""}${escapeHtml(v.trade || "")}</div>
+        <div style="font-size:.78rem;color:rgba(255,255,255,.35);">${escapeHtml(v.email || "")}${v.email && v.phone ? " Â· " : ""}${escapeHtml(v.phone || "")}</div>
       </div>
       <button class="btn btn-ghost btn-sm" style="font-size:.75rem;" onclick="openEditVendorModal(VENDORS_CACHE.find(x=>x.id==='${escapeAttr(v.id)}'))">Edit</button>
       <button class="btn btn-ghost" style="font-size:.75rem;" onclick="deleteVendor('${escapeAttr(v.id)}')">Remove</button>
@@ -6706,7 +6706,7 @@ function openEditVendorModal(vendor) {
   document.getElementById('evSave').onclick = async () => {
     const name = (document.getElementById('evName')?.value || '').trim();
     if (!name) { notifyOperator("Add a name first."); return; }
-    const btn = document.getElementById('evSave'); btn.disabled = true; btn.textContent = 'Saving…';
+    const btn = document.getElementById('evSave'); btn.disabled = true; btn.textContent = 'Savingâ€¦';
     try {
       const tok = await getAccessToken();
       const res = await fetch('/.netlify/functions/manage-vendors', {
@@ -6734,7 +6734,7 @@ function openEditVendorModal(vendor) {
   };
 }
 
-// ── Equipment management ────────────────────────────────────────────────────────
+// â”€â”€ Equipment management â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 async function fetchEquipment() {
   const token = (await sb.auth.getSession()).data.session?.access_token;
   const res = await fetch('/.netlify/functions/manage-equipment', { headers: { Authorization: 'Bearer ' + token } });
@@ -6761,9 +6761,9 @@ function renderEquipment() {
     </tr></thead>
     <tbody>
       ${EQUIPMENT_CACHE.map(e => `<tr>
-        <td style="padding:8px;color:#e8e9eb;">${escapeHtml(e.unit_number ? `${e.unit_number} — ${e.name}` : e.name)}<br><span style="font-size:.75rem;color:rgba(255,255,255,.35);">${escapeHtml([e.year, e.make, e.model].filter(Boolean).join(' '))}</span></td>
-        <td style="padding:8px;color:rgba(255,255,255,.55);">${escapeHtml(e.equipment_type || '—')}</td>
-        <td style="padding:8px;color:rgba(255,255,255,.55);">${e.hourly_rate_cents ? '$' + (e.hourly_rate_cents/100).toFixed(0) + '/hr' : '—'}</td>
+        <td style="padding:8px;color:#e8e9eb;">${escapeHtml(e.unit_number ? `${e.unit_number} â€” ${e.name}` : e.name)}<br><span style="font-size:.75rem;color:rgba(255,255,255,.35);">${escapeHtml([e.year, e.make, e.model].filter(Boolean).join(' '))}</span></td>
+        <td style="padding:8px;color:rgba(255,255,255,.55);">${escapeHtml(e.equipment_type || 'â€”')}</td>
+        <td style="padding:8px;color:rgba(255,255,255,.55);">${e.hourly_rate_cents ? '$' + (e.hourly_rate_cents/100).toFixed(0) + '/hr' : 'â€”'}</td>
         <td style="padding:8px;"><span style="font-size:.75rem;font-weight:600;color:${statusColor[e.status] || '#fff'};">${e.status || 'active'}</span></td>
         <td style="padding:8px;text-align:right;display:flex;gap:6px;justify-content:flex-end;">
           <button class="btn btn-ghost" style="font-size:.72rem;" onclick="openEditEquipmentModal('${escapeAttr(e.id)}')">Edit</button>
@@ -7963,7 +7963,7 @@ function renderHydrovacAssetsWorkspace() {
       <label style="margin-top:12px;">Notes
         <textarea id="assetNotes" rows="3" placeholder="Condition notes, site access, or municipal context.">${escapeHtml(active?.notes || "")}</textarea>
       </label>
-      <div class="detail-copy" style="margin-top:12px;">Service count: ${escapeHtml(String(active?.service_count_total || 0))} total • Last serviced ${escapeHtml(active?.last_service_date || "Not yet recorded")}</div>
+      <div class="detail-copy" style="margin-top:12px;">Service count: ${escapeHtml(String(active?.service_count_total || 0))} total â€¢ Last serviced ${escapeHtml(active?.last_service_date || "Not yet recorded")}</div>
       <div class="row" style="margin-top:12px;">
         <button id="btnSaveAsset" class="btn btn-primary" type="button">${active ? "Save asset" : "Create asset"}</button>
         ${active?.customer_id ? `<button id="btnOpenAssetCustomer" class="btn btn-ghost" type="button">Open customer</button>` : ""}
@@ -8162,8 +8162,8 @@ function renderTeamPanel() {
       ${TEAM_MEMBERS_CACHE.map(m => `
         <tr>
           <td style="padding:8px;color:#e8e9eb;">${escapeHtml(m.display_name || m.name || m.email || m.id)}</td>
-          <td style="padding:8px;color:rgba(255,255,255,.55);">${escapeHtml(m.role || '—')}</td>
-          <td style="padding:8px;color:rgba(255,255,255,.55);">${m.hourly_rate_cents ? formatUsd(m.hourly_rate_cents) + '/hr' : '—'}</td>
+          <td style="padding:8px;color:rgba(255,255,255,.55);">${escapeHtml(m.role || 'â€”')}</td>
+          <td style="padding:8px;color:rgba(255,255,255,.55);">${m.hourly_rate_cents ? formatUsd(m.hourly_rate_cents) + '/hr' : 'â€”'}</td>
           <td style="padding:8px;text-align:right;display:flex;gap:6px;justify-content:flex-end;">
             <button class="btn btn-ghost" style="font-size:.72rem;" onclick="openEditTeamMemberModal('${escapeAttr(m.id)}','${escapeAttr(m.role||'')}','${m.hourly_rate_cents||0}')">Edit</button>
             <button class="btn btn-ghost" style="font-size:.72rem;" onclick="removeTeamMember('${escapeAttr(m.id)}')">Remove</button>
@@ -8205,7 +8205,7 @@ function openInviteTeamMemberModal() {
   document.getElementById('tmSave').onclick = async () => {
     const email = (document.getElementById('tmEmail')?.value || '').trim();
     if (!email) { notifyOperator("Add an email address first."); return; }
-    const btn = document.getElementById('tmSave'); btn.disabled = true; btn.textContent = 'Sending…';
+    const btn = document.getElementById('tmSave'); btn.disabled = true; btn.textContent = 'Sendingâ€¦';
     try {
       const res = await fetch('/.netlify/functions/manage-operator-members', {
         method: 'POST',
@@ -8506,7 +8506,7 @@ function renderBookingsCalendar(bookings) {
   html += `</tr></tbody></table>`;
   cal.innerHTML = html;
 
-  // Click day → filter list to that day
+  // Click day â†’ filter list to that day
   cal.querySelectorAll(".bk-cal-day").forEach((cell) => {
     cell.addEventListener("click", () => {
       const date = cell.dataset.date;
@@ -8534,11 +8534,11 @@ function showBookingDetail(bk) {
     <div style="background:#1a1d27;border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:28px;max-width:480px;width:100%;max-height:90vh;overflow-y:auto;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
         <strong style="font-size:1rem;">${escapeHtml(bk.title || "Appointment")}</strong>
-        <button id="bkDetailClose" type="button" style="background:none;border:none;color:rgba(255,255,255,.5);font-size:1.2rem;cursor:pointer;padding:0 4px;">✕</button>
+        <button id="bkDetailClose" type="button" style="background:none;border:none;color:rgba(255,255,255,.5);font-size:1.2rem;cursor:pointer;padding:0 4px;">âœ•</button>
       </div>
       <table style="width:100%;font-size:.85rem;margin-bottom:16px;">
-        <tr><td style="color:rgba(255,255,255,.5);padding:5px 0;width:110px;">Customer</td><td>${escapeHtml(bk.customer_name || "—")}</td></tr>
-        <tr><td style="color:rgba(255,255,255,.5);padding:5px 0;">Email</td><td>${escapeHtml(bk.customer_email || "—")}</td></tr>
+        <tr><td style="color:rgba(255,255,255,.5);padding:5px 0;width:110px;">Customer</td><td>${escapeHtml(bk.customer_name || "â€”")}</td></tr>
+        <tr><td style="color:rgba(255,255,255,.5);padding:5px 0;">Email</td><td>${escapeHtml(bk.customer_email || "â€”")}</td></tr>
         <tr><td style="color:rgba(255,255,255,.5);padding:5px 0;">Status</td><td>${escapeHtml(bk.status || "confirmed")}</td></tr>
       </table>
       ${bk.notes ? `<div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:6px;padding:10px 12px;font-size:.82rem;color:rgba(255,255,255,.6);margin-bottom:16px;white-space:pre-wrap;">${escapeHtml(bk.notes)}</div>` : ""}
@@ -8550,7 +8550,7 @@ function showBookingDetail(bk) {
       </div>
       <div style="margin-top:10px;margin-bottom:16px;">
         <label style="font-size:.78rem;color:rgba(255,255,255,.45);display:block;margin-bottom:4px;">Vehicle / equipment (optional)</label>
-        <input id="bkVehicleNotes" class="input" value="${escapeAttr(bk.notes_vehicle || '')}" placeholder="e.g. 2019 Honda Civic — silver, plate ABC123" style="width:100%;" />
+        <input id="bkVehicleNotes" class="input" value="${escapeAttr(bk.notes_vehicle || '')}" placeholder="e.g. 2019 Honda Civic â€” silver, plate ABC123" style="width:100%;" />
       </div>
       <div style="border-top:1px solid rgba(255,255,255,.08);padding-top:16px;margin-bottom:4px;">
         <div style="font-size:.82rem;font-weight:600;color:rgba(255,255,255,.5);margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em;">Reschedule</div>
@@ -8598,7 +8598,7 @@ function showBookingDetail(bk) {
     const assignedOpId = (document.getElementById("bkAssignedOperator")?.value || "").trim();
     if (!date || !startT) { msgEl.textContent = "Date and start time are required."; msgEl.style.color = "#f87171"; return; }
     saveBtn.disabled = true;
-    saveBtn.textContent = "Saving…";
+    saveBtn.textContent = "Savingâ€¦";
     try {
       const startsAt     = new Date(`${date}T${startT}:00`).toISOString();
       const endsAt       = endT ? new Date(`${date}T${endT}:00`).toISOString() : null;
@@ -8612,7 +8612,7 @@ function showBookingDetail(bk) {
       });
       const d = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(d.error || "Failed to update");
-      msgEl.textContent = "Saved ✓";
+      msgEl.textContent = "Saved âœ“";
       msgEl.style.color = "#4ade80";
       BOOKINGS_CACHE = BOOKINGS_CACHE.map((b) => b.id === bk.id ? { ...b, starts_at: startsAt, ends_at: endsAt || b.ends_at, assigned_operator_id: assignedOpId || null } : b);
       renderBookingsCalendar(BOOKINGS_CACHE);
@@ -8637,17 +8637,17 @@ function renderBookingsList(bookings) {
   list.innerHTML = bookings.map((bk) => {
     const start = bk.starts_at ? new Date(bk.starts_at) : null;
     const end   = bk.ends_at   ? new Date(bk.ends_at)   : null;
-    const dateStr = start ? start.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }) : "—";
+    const dateStr = start ? start.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }) : "â€”";
     const timeStr = start
       ? start.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) +
-        (end ? ` – ${end.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}` : '')
-      : "—";
+        (end ? ` â€“ ${end.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}` : '')
+      : "â€”";
     const statusColor = bk.status === 'cancelled' ? '#f87171' : bk.status === 'completed' ? '#4ade80' : '#93c5fd';
     return `<div class="list-row" style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.06);">
       <div style="flex:1;min-width:0;">
         <div style="font-weight:600;font-size:.9rem;">${bk.title || "Appointment"}</div>
-        <div style="font-size:.8rem;color:rgba(255,255,255,.5);">${bk.customer_name || "—"} · ${dateStr} · ${timeStr}</div>
-        ${bk.notes ? `<div style="font-size:.78rem;color:rgba(255,255,255,.35);margin-top:2px;white-space:pre-wrap;">${escapeHtml(bk.notes.slice(0, 120))}${bk.notes.length > 120 ? '…' : ''}</div>` : ''}
+        <div style="font-size:.8rem;color:rgba(255,255,255,.5);">${bk.customer_name || "â€”"} Â· ${dateStr} Â· ${timeStr}</div>
+        ${bk.notes ? `<div style="font-size:.78rem;color:rgba(255,255,255,.35);margin-top:2px;white-space:pre-wrap;">${escapeHtml(bk.notes.slice(0, 120))}${bk.notes.length > 120 ? 'â€¦' : ''}</div>` : ''}
       </div>
       <span style="font-size:.75rem;padding:3px 8px;background:rgba(255,255,255,.06);border-radius:12px;color:${statusColor};white-space:nowrap;">${bk.status || "confirmed"}</span>
       ${bk.customer_email && !['cancelled','completed','no_show'].includes(bk.status) && bk.starts_at && new Date(bk.starts_at) > new Date() ? `<button class="btn btn-ghost btn-sm bk-remind-btn" data-action="remind" data-booking-id="${bk.id}" type="button" title="Send reminder email" style="white-space:nowrap;">Remind</button>` : ''}
@@ -8691,7 +8691,7 @@ function renderBookingsList(bookings) {
       }
       if (action === 'remind') {
         btn.disabled = true;
-        btn.textContent = "Sending…";
+        btn.textContent = "Sendingâ€¦";
         try {
           const tok = await getAccessToken();
           const res = await fetch("/.netlify/functions/send-booking-reminder", {
@@ -8701,7 +8701,7 @@ function renderBookingsList(bookings) {
           });
           const d = await res.json().catch(() => ({}));
           if (!res.ok) throw new Error(d.error || "Failed to send reminder");
-          btn.textContent = "Sent ✓";
+          btn.textContent = "Sent âœ“";
           setTimeout(() => { btn.textContent = "Remind"; btn.disabled = false; }, 3000);
         } catch (err) {
           notifyOperator(err.message || "Error sending reminder");
@@ -8820,7 +8820,7 @@ function renderDispatchWorkspace() {
               <button type="button" class="dispatch-job-card ${job.id === ACTIVE_DISPATCH_JOB_ID ? "is-active" : ""}" data-dispatch-job-id="${escapeAttr(job.id)}">
                 <div class="dispatch-job-card__title">${escapeHtml(job.title || "Untitled job")}</div>
                 <div class="dispatch-job-card__meta">${escapeHtml(job.customer_name || job.service_address || "Customer not linked")}</div>
-                <div class="dispatch-job-card__meta">${escapeHtml(job.scheduled_time || "Time not set")} • ${escapeHtml(titleCaseWords(String(job.status || "scheduled").replace(/_/g, " ")))}</div>
+                <div class="dispatch-job-card__meta">${escapeHtml(job.scheduled_time || "Time not set")} â€¢ ${escapeHtml(titleCaseWords(String(job.status || "scheduled").replace(/_/g, " ")))}</div>
                 <div class="dispatch-job-card__chips">
                   <span class="pill ${locateCount ? "pill-on" : "pill-warn"}">${locateCount ? `${locateCount} ticket` : "No locate"}</span>
                   <span class="pill">${escapeHtml(member ? teamMemberLabel(member) : "Driver open")}</span>
@@ -8987,7 +8987,7 @@ $("btnMyBookings")?.addEventListener("click", () => {
   renderBookings();
 });
 
-// ── Walk-in booking ─────────────────────────────────────────────────────────
+// â”€â”€ Walk-in booking â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 $("btnWalkIn")?.addEventListener("click", () => {
   const existing = document.getElementById("walkInModal");
   if (existing) { existing.remove(); return; }
@@ -8999,7 +8999,7 @@ $("btnWalkIn")?.addEventListener("click", () => {
   ).join("");
   modal.innerHTML = `
     <div style="background:#1e2029;border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:28px 32px;max-width:420px;width:90%;box-shadow:0 8px 40px rgba(0,0,0,.5);">
-      <h3 style="margin:0 0 18px;font-size:1rem;color:#e8e9eb;">⚡ Walk-in booking</h3>
+      <h3 style="margin:0 0 18px;font-size:1rem;color:#e8e9eb;">âš¡ Walk-in booking</h3>
       <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px;">
         <div>
           <label style="font-size:.78rem;color:rgba(255,255,255,.45);display:block;margin-bottom:3px;">Customer</label>
@@ -9045,7 +9045,7 @@ $("btnWalkIn")?.addEventListener("click", () => {
     const notes = (document.getElementById("wiNotes").value || "").trim();
     if (!service) { notifyOperator("Add a service name first."); return; }
     const btn = document.getElementById("wiSave");
-    btn.disabled = true; btn.textContent = "Creating…";
+    btn.disabled = true; btn.textContent = "Creatingâ€¦";
     try {
       const tok = await getAccessToken();
       const now = new Date().toISOString();
@@ -9101,7 +9101,7 @@ $("btnLogTime")?.addEventListener("click", () => {
 
   // Build open-orders list for the dropdown
   const openOrders = CRM_ORDERS_CACHE.filter((o) => !["paid","cancelled"].includes(String(o.status || "").toLowerCase()));
-  const orderOptions = openOrders.map((o) => `<option value="${escapeAttr(o.id)}">${escapeHtml(o.customer_name || o.name || "Order")} — ${escapeHtml(o.title || o.id)}</option>`).join("");
+  const orderOptions = openOrders.map((o) => `<option value="${escapeAttr(o.id)}">${escapeHtml(o.customer_name || o.name || "Order")} â€” ${escapeHtml(o.title || o.id)}</option>`).join("");
 
   modal.innerHTML = `
     <div style="background:#1e2029;border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:28px 32px;max-width:440px;width:90%;box-shadow:0 8px 40px rgba(0,0,0,.5);">
@@ -9166,7 +9166,7 @@ $("btnLogTime")?.addEventListener("click", () => {
       const d = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(d.error || "Failed to save time entry");
       if (d.entry) TIME_ENTRIES_CACHE = [...TIME_ENTRIES_CACHE, d.entry];
-      msgEl.textContent = `✓ Logged ${hours}h${billable && rate ? ` = $${(amountCents / 100).toFixed(2)} billable` : ''}`;
+      msgEl.textContent = `âœ“ Logged ${hours}h${billable && rate ? ` = $${(amountCents / 100).toFixed(2)} billable` : ''}`;
       msgEl.style.color = "#4ade80";
       setTimeout(() => modal.remove(), 1500);
     } catch (err) {
@@ -9179,7 +9179,7 @@ $("btnLogTime")?.addEventListener("click", () => {
 
 $("btnCopyBookingLink")?.addEventListener("click", () => {
   const link = $("bookingLinkDisplay")?.textContent?.trim();
-  if (!link || link === "—") return;
+  if (!link || link === "â€”") return;
   navigator.clipboard.writeText(link).then(() => {
     const btn = $("btnCopyBookingLink");
     if (btn) { btn.textContent = "Copied!"; setTimeout(() => { btn.textContent = "Copy link"; }, 2000); }
@@ -9208,9 +9208,9 @@ $("btnBkNext")?.addEventListener("click", async () => {
   function computeRecurrenceCount() {
     const rule = ruleEl.value;
     const endDate = endEl?.value;
-    if (!rule || !endDate) { if (cntEl) cntEl.textContent = "—"; return; }
+    if (!rule || !endDate) { if (cntEl) cntEl.textContent = "â€”"; return; }
     const baseDate = $("bkDate")?.value;
-    if (!baseDate) { if (cntEl) cntEl.textContent = "—"; return; }
+    if (!baseDate) { if (cntEl) cntEl.textContent = "â€”"; return; }
     const start = new Date(baseDate + "T00:00:00");
     const end   = new Date(endDate + "T00:00:00");
     if (end <= start) { if (cntEl) cntEl.textContent = "End date must be after start date."; return; }
@@ -9252,7 +9252,7 @@ $("btnSaveBooking")?.addEventListener("click", async () => {
   const endsAt   = new Date(new Date(startsAt).getTime() + dur * 60000).toISOString();
 
   btn.disabled = true;
-  if (msg) { msg.textContent = "Saving…"; msg.className = "msg"; }
+  if (msg) { msg.textContent = "Savingâ€¦"; msg.className = "msg"; }
   try {
     const tok = await getAccessToken();
     const payload = { customer_name: name, customer_email: email || undefined, title, starts_at: startsAt, ends_at: endsAt, notes: notes || undefined };
@@ -9275,13 +9275,13 @@ $("btnSaveBooking")?.addEventListener("click", async () => {
         });
         const rData = await rRes.json().catch(() => ({}));
         const n = rData.count || 0;
-        if (msg) { msg.textContent = `✓ Booked + ${n} recurring instance${n === 1 ? "" : "s"} created.`; msg.className = "msg success"; }
+        if (msg) { msg.textContent = `âœ“ Booked + ${n} recurring instance${n === 1 ? "" : "s"} created.`; msg.className = "msg success"; }
         showToast(`Booked + ${n} recurring instance${n === 1 ? "" : "s"} created.`);
       } catch (_) {
-        if (msg) { msg.textContent = "✓ Booking saved! (Recurring instances may have failed.)"; msg.className = "msg success"; }
+        if (msg) { msg.textContent = "âœ“ Booking saved! (Recurring instances may have failed.)"; msg.className = "msg success"; }
       }
     } else {
-      if (msg) { msg.textContent = "✓ Booking saved!"; msg.className = "msg success"; }
+      if (msg) { msg.textContent = "âœ“ Booking saved!"; msg.className = "msg success"; }
     }
 
     // Reset form
@@ -9298,7 +9298,7 @@ $("btnSaveBooking")?.addEventListener("click", async () => {
   }
 });
 
-// ── End Bookings ─────────────────────────────────────────────────────────────
+// â”€â”€ End Bookings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 async function fetchCustomers() {
   if (FETCHING.has('customers')) return;
@@ -9763,7 +9763,7 @@ function renderCustomersList(filter = "") {
     btn.addEventListener('click', async () => {
       FETCH_OFFSETS.customers += PAGE_SIZE;
       btn.disabled = true;
-      btn.textContent = 'Loading…';
+      btn.textContent = 'Loadingâ€¦';
       await fetchCustomers();
       renderCustomersList(customerSearch?.value || "");
     });
@@ -12178,7 +12178,7 @@ $("btnEmailBidToCustomer")?.addEventListener("click", async () => {
   }
   const btn = $("btnEmailBidToCustomer");
   if (btn) btn.disabled = true;
-  setInlineMessage(bidMsg, "Sending…", "ok");
+  setInlineMessage(bidMsg, "Sendingâ€¦", "ok");
   try {
     const tok = await getAccessToken();
     const res = await fetch("/.netlify/functions/send-bid-email", {
@@ -12188,7 +12188,7 @@ $("btnEmailBidToCustomer")?.addEventListener("click", async () => {
     });
     const d = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(d.error || "Failed to send");
-    setInlineMessage(bidMsg, `✓ Proposal emailed to ${customer.email}`, "ok");
+    setInlineMessage(bidMsg, `âœ“ Proposal emailed to ${customer.email}`, "ok");
     // Update local cache status
     const idx = BIDS_CACHE.findIndex((r) => r.id === active.id);
     if (idx >= 0) BIDS_CACHE[idx] = { ...BIDS_CACHE[idx], status: "sent" };
@@ -14078,7 +14078,7 @@ function maybeLogJobHours(job) {
         <input type="number" id="jobHoursInput" class="input" value="${escapeAttr(String(defaultHrs))}" min="0" max="24" step="0.25" placeholder="e.g. 2.5" style="margin-top:4px;" />
         ${hint ? `<div class="muted" style="font-size:.78rem;margin-top:4px;">${escapeHtml(hint)}</div>` : ''}
         <label class="check" style="margin-top:14px;">
-          <input type="checkbox" id="jobHoursBillable" checked /> Billable — include in payroll
+          <input type="checkbox" id="jobHoursBillable" checked /> Billable â€” include in payroll
         </label>
         <div id="jobHoursLogMsg" class="msg" style="margin-top:10px;"></div>
       </div>
@@ -14119,7 +14119,7 @@ function maybeLogJobHours(job) {
           job_id           : job.id,
           customer_id      : job.customer_id || null,
           order_id         : job.order_id   || null,
-          description      : `${job.title || 'Job'} — ${memberName}`,
+          description      : `${job.title || 'Job'} â€” ${memberName}`,
           started_at       : startedAt,
           duration_minutes : durationMinutes,
           billable,
@@ -14188,7 +14188,7 @@ async function saveJobRecord(fields = {}) {
   renderGuidance();
   // Notify the operator when a job has just been dispatched to a crew member
   if (String(data.status || "").toLowerCase() === "dispatched" && data.assigned_operator_id) {
-    showToast("Job dispatched — crew member will be notified");
+    showToast("Job dispatched â€” crew member will be notified");
   }
   // Prompt to log hours when a job is marked complete and has an assigned crew member
   if (String(data.status || "").toLowerCase() === "completed" && data.assigned_operator_id) {
@@ -14289,639 +14289,6 @@ async function createJobFromOrderRecord(order) {
   const job = JOBS_CACHE.find((row) => row.id === jobRow.id || row.order_id === order.id) || jobRow;
   ACTIVE_JOB_ID = job.id;
   return { job, existing: false };
-}
-function renderDashboard() {
-  if (!dashboardWrap) return;
-
-  const blueprint = currentWorkspaceBlueprint();
-  const summary = workspaceSummaryData(blueprint);
-  const pipeline = servicePipelineSnapshot();
-  const todayActions = todayActionItems();
-  const trackedClients = dashboardClientTrackerRows(todayActions);
-  const followUps = buildFollowUpQueue();
-  CURRENT_FOLLOW_UP_QUEUE = followUps;
-  const currentExpenses = currentMonthExpenseCents();
-  const quotedRevenue = quotedRevenueCents();
-  const activeOfferings = PRODUCTS_CACHE.filter((p) => !!p.is_active).length;
-  const topCustomer = sortedCustomers(CUSTOMERS_CACHE)[0] || null;
-  const staleLeadRows = staleLeads();
-  const completedUnpaid = completedUnpaidOrders();
-  const duePlans = dueServicePlans();
-  const depositRiskOrders = ordersMissingDeposits();
-  const completedUnpaidBalance = completedUnpaid.reduce((sum, row) => sum + orderAmountDueCents(row), 0);
-  const outstandingBalance = outstandingBalanceCents();
-  const overdueBalance = overdueBalanceCents();
-  const missingDepositBalance = depositRiskOrders.reduce((sum, row) => sum + orderDepositGapCents(row), 0);
-  const orderLabel = workspaceOrderLabelLower(blueprint);
-  const catalogLabel = workspaceCatalogLabelLower(blueprint);
-  const hydrovacToday = isHydrovacWorkspace(blueprint) ? hydrovacDashboardSnapshot() : null;
-  const alerts = [];
-
-  if (!CUSTOMERS_CACHE.length) alerts.push("No customers are in CRM yet. As real work lands here, relationship memory and follow-up get stronger.");
-  if (!CRM_ORDERS_CACHE.length) alerts.push(`No tracked ${orderLabel} exist yet. That means customer value and operational visibility are still shallow.`);
-  if (!EXPENSES_CACHE.length) alerts.push("No expenses are logged yet, so profit visibility is still weak.");
-  if (duePlans.length) alerts.push(`${duePlans.length} recurring plan${duePlans.length === 1 ? "" : "s"} are due right now. Generate the next work record before repeat revenue slips.`);
-  if (missingDepositBalance > 0) alerts.push(`${formatUsd(missingDepositBalance)} in deposits is still open on booked work. Make the deposit expectation visible before the schedule gets ahead of the cash.`);
-
-  const metricsHtml = window.ProofLinkAnalyticsWidgets?.renderCards
-    ? window.ProofLinkAnalyticsWidgets.renderCards({
-        revenueThisMonth: currentMonthRevenueCents() / 100,
-        revenueLastMonth: lastMonthRevenueCents() / 100,
-        orderCountThisMonth: currentMonthOrderCount(),
-        averageOrderValue: averageOrderValueCents() / 100,
-        newCustomersThisMonth: currentMonthCustomerCount(),
-        expensesThisMonth: currentExpenses / 100,
-        outstandingOrders: openOrdersCount()
-      })
-    : '';
-
-  const checklistHtml = window.ProofLinkChecklistEngine?.renderServerChecklist
-    ? window.ProofLinkChecklistEngine.renderServerChecklist(DASHBOARD_LAUNCH_CHECKLIST || { steps: [], percent: 0, launch_ready: false })
-    : '';
-
-  const paymentHtml = window.ProofLinkStripeReadiness?.render && DASHBOARD_PAYMENT_STATE
-    ? window.ProofLinkStripeReadiness.render({
-        billing_status: DASHBOARD_PAYMENT_STATE.billingStatus,
-        connect_status: DASHBOARD_PAYMENT_STATE.connectStatus,
-        online_payments_enabled: DASHBOARD_PAYMENT_STATE.onlinePaymentsEligible
-      })
-    : '';
-
-  // ── Onboarding checklist ──────────────────────────────────────────────────
-  const onboardingDismissed = localStorage.getItem("pl_onboarding_dismissed") === "true";
-  const step1Done = CUSTOMERS_CACHE.length > 0;
-  const step2Done = CRM_ORDERS_CACHE.length > 0;
-  const step3Done = localStorage.getItem("pl_invoice_sent") === "true" || PAYMENTS_CACHE.some((p) => p.invoice_sent_at || p.invoice_url);
-  const step4Done = BOOKINGS_CACHE.length > 0;
-  const stepsComplete = [step1Done, step2Done, step3Done, step4Done].filter(Boolean).length;
-  const showOnboarding = !onboardingDismissed && stepsComplete < 3;
-
-  const onboardingHtml = showOnboarding ? `
-    <div class="card" id="onboardingCard" style="margin-bottom:16px;border:1px solid rgba(200,75,47,.3);background:rgba(200,75,47,.04);">
-      <div class="card-hd">
-        <strong>Get started with ProofLink</strong>
-        <button id="btnDismissOnboarding" style="font-size:.75rem;color:rgba(255,255,255,.3);background:none;border:none;cursor:pointer;">Dismiss</button>
-      </div>
-      <div class="card-bd">
-        <div style="display:flex;flex-direction:column;gap:8px;">
-          <div style="display:flex;align-items:center;gap:10px;">
-            <span style="font-size:1.1rem;color:${step1Done ? "#4ade80" : "rgba(255,255,255,.3)"};">${step1Done ? "✓" : "○"}</span>
-            <span style="color:${step1Done ? "rgba(255,255,255,.5)" : "inherit"};text-decoration:${step1Done ? "line-through" : "none"};">Add your first customer</span>
-            ${!step1Done ? `<button data-tab="customers" class="btn btn-ghost" style="margin-left:auto;font-size:.75rem;padding:3px 10px;">Go →</button>` : ""}
-          </div>
-          <div style="display:flex;align-items:center;gap:10px;">
-            <span style="font-size:1.1rem;color:${step2Done ? "#4ade80" : "rgba(255,255,255,.3)"};">${step2Done ? "✓" : "○"}</span>
-            <span style="color:${step2Done ? "rgba(255,255,255,.5)" : "inherit"};text-decoration:${step2Done ? "line-through" : "none"};">Capture your first request</span>
-            ${!step2Done ? `<button data-tab="leads" class="btn btn-ghost" style="margin-left:auto;font-size:.75rem;padding:3px 10px;">Go →</button>` : ""}
-          </div>
-          <div style="display:flex;align-items:center;gap:10px;">
-            <span style="font-size:1.1rem;color:${step3Done ? "#4ade80" : "rgba(255,255,255,.3)"};">${step3Done ? "✓" : "○"}</span>
-            <span style="color:${step3Done ? "rgba(255,255,255,.5)" : "inherit"};text-decoration:${step3Done ? "line-through" : "none"};">Send your first invoice</span>
-            ${!step3Done ? `<button data-tab="payments" class="btn btn-ghost" style="margin-left:auto;font-size:.75rem;padding:3px 10px;">Go →</button>` : ""}
-          </div>
-          <div style="display:flex;align-items:center;gap:10px;">
-            <span style="font-size:1.1rem;color:${step4Done ? "#4ade80" : "rgba(255,255,255,.3)"};">${step4Done ? "✓" : "○"}</span>
-            <span style="color:${step4Done ? "rgba(255,255,255,.5)" : "inherit"};text-decoration:${step4Done ? "line-through" : "none"};">Schedule a booking</span>
-            ${!step4Done ? `<button data-tab="bookings" class="btn btn-ghost" style="margin-left:auto;font-size:.75rem;padding:3px 10px;">Go →</button>` : ""}
-          </div>
-        </div>
-        <div style="margin-top:12px;background:rgba(255,255,255,.06);border-radius:4px;height:4px;overflow:hidden;">
-          <div style="width:${Math.round(stepsComplete / 4 * 100)}%;height:100%;background:var(--accent);border-radius:4px;"></div>
-        </div>
-        <div style="font-size:.75rem;color:rgba(255,255,255,.3);margin-top:4px;">${stepsComplete} of 4 steps complete</div>
-      </div>
-    </div>` : "";
-
-  dashboardWrap.innerHTML = `
-    ${onboardingHtml}
-    ${metricsHtml}
-    ${renderTodayFocusSection({
-      todayActions,
-      followUps,
-      staleLeadRows,
-      duePlans,
-      depositRiskOrders: depositRiskOrders,
-      completedUnpaid,
-      blueprint,
-    })}
-
-    <div class="workflow-strip">
-      <div class="workflow-stage">
-        <span class="workflow-stage__label">Requests</span>
-        <strong>${pipeline.leads}</strong>
-      </div>
-      <div class="workflow-stage">
-        <span class="workflow-stage__label">Quoted</span>
-        <strong>${pipeline.quoted}</strong>
-      </div>
-      <div class="workflow-stage">
-        <span class="workflow-stage__label">Booked</span>
-        <strong>${pipeline.booked}</strong>
-      </div>
-      <div class="workflow-stage">
-        <span class="workflow-stage__label">In progress</span>
-        <strong>${pipeline.inProgress}</strong>
-      </div>
-      <div class="workflow-stage">
-        <span class="workflow-stage__label">Completed</span>
-        <strong>${pipeline.completed}</strong>
-      </div>
-      <div class="workflow-stage">
-        <span class="workflow-stage__label">Paid</span>
-        <strong>${pipeline.paid}</strong>
-      </div>
-    </div>
-
-    <div class="cards">
-      <div class="card mini">
-        <div class="card-bd">
-          <div class="muted">Open ${escapeHtml(orderLabel)}</div>
-          <div class="money">${openOrdersCount()}</div>
-        </div>
-      </div>
-      <div class="card mini">
-        <div class="card-bd">
-          <div class="muted">Outstanding money</div>
-          <div class="money">${formatUsd(outstandingBalance)}</div>
-        </div>
-      </div>
-      <div class="card mini">
-        <div class="card-bd">
-          <div class="muted">Requests waiting 24h+</div>
-          <div class="money">${staleLeadRows.length}</div>
-        </div>
-      </div>
-      <div class="card mini">
-        <div class="card-bd">
-          <div class="muted">Completed work unpaid</div>
-          <div class="money">${formatUsd(completedUnpaidBalance)}</div>
-        </div>
-      </div>
-      <div class="card mini">
-        <div class="card-bd">
-          <div class="muted">Recurring work due</div>
-          <div class="money">${duePlans.length}</div>
-        </div>
-      </div>
-      <div class="card mini">
-        <div class="card-bd">
-          <div class="muted">Booked without deposit</div>
-          <div class="money">${formatUsd(missingDepositBalance)}</div>
-        </div>
-      </div>
-      <div class="card mini">
-        <div class="card-bd">
-          <div class="muted">Overdue money</div>
-          <div class="money">${formatUsd(overdueBalance)}</div>
-        </div>
-      </div>
-      <div class="card mini">
-        <div class="card-bd">
-          <div class="muted">This month revenue</div>
-          <div class="money">${formatUsd(currentMonthRevenueCents())}</div>
-          <div class="muted" style="font-size:.75rem;margin-top:2px;">${(function(){ const mk = yyyymm(new Date()); return PAYMENTS_CACHE.filter((r) => monthKeyFromDate(r.paid_at || r.created_at || r.updated_at || new Date()) === mk).length; })()} payments collected</div>
-        </div>
-      </div>
-      <div class="card mini">
-        <div class="card-bd">
-          <div class="muted">This week revenue</div>
-          <div class="money">${formatUsd((function(){ const now = new Date(); const weekStart = new Date(now); weekStart.setDate(now.getDate() - now.getDay()); weekStart.setHours(0,0,0,0); return PAYMENTS_CACHE.filter((r) => new Date(r.paid_at || r.created_at || r.updated_at || 0) >= weekStart).reduce((s, r) => s + paymentRevenueContributionCents(r), 0); })())}</div>
-        </div>
-      </div>
-      <div class="card mini">
-        <div class="card-bd">
-          <div class="muted">MRR (active plans)</div>
-          <div class="money">${formatUsd(SERVICE_PLANS_CACHE.filter((p) => String(p.status || "").toLowerCase() === "active").reduce((s, p) => s + Number(p.amount_cents || 0), 0))}</div>
-          <div class="muted" style="font-size:.75rem;margin-top:2px;">${SERVICE_PLANS_CACHE.filter((p) => String(p.status || "").toLowerCase() === "active").length} active plan${SERVICE_PLANS_CACHE.filter((p) => String(p.status || "").toLowerCase() === "active").length === 1 ? "" : "s"}</div>
-        </div>
-      </div>
-    </div>
-
-    ${(function() {
-      const today = new Date();
-      const todayStr = today.toISOString().slice(0, 10);
-      const todayBookings = BOOKINGS_CACHE.filter((b) => b.starts_at && b.starts_at.slice(0, 10) === todayStr && b.status !== 'cancelled');
-      const overdueOrders = CRM_ORDERS_CACHE.filter((o) => {
-        if (["paid", "cancelled"].includes(String(o.status || "").toLowerCase())) return false;
-        const due = o.due_date || o.scheduled_date;
-        return due && new Date(due) < today;
-      });
-      const overduePayments = CRM_ORDERS_CACHE.filter((o) => {
-        if (["paid", "cancelled"].includes(String(o.status || "").toLowerCase())) return false;
-        if (!o.payment_due_date) return false;
-        return new Date(o.payment_due_date) < today && orderPaymentState(o) !== 'paid';
-      });
-      const unpaidCompleted = CRM_ORDERS_CACHE.filter((o) => ["completed", "fulfilled"].includes(String(o.status || "").toLowerCase()));
-      const fmtTime = (iso) => { try { return new Date(iso).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }); } catch { return ''; } };
-      return `
-        <div style="margin-bottom:20px;">
-          <div class="kicker" style="margin-bottom:10px;">Today at a glance</div>
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;">
-            <div style="background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px;">
-              <div class="muted" style="font-size:.78rem;margin-bottom:4px;">Today's appointments</div>
-              <div style="font-size:1.4rem;font-weight:700;">${todayBookings.length}</div>
-              ${todayBookings.length ? `<div style="margin-top:8px;font-size:.78rem;">${todayBookings.slice(0,3).map((b) => `<div style="color:var(--muted);">${fmtTime(b.starts_at)} · ${escapeHtml(b.customer_name || "Customer")}</div>`).join("")}${todayBookings.length > 3 ? `<div class="muted">+${todayBookings.length - 3} more</div>` : ""}</div>` : `<div class="muted" style="font-size:.78rem;margin-top:4px;">No appointments today</div>`}
-            </div>
-            <div style="background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px;">
-              <div class="muted" style="font-size:.78rem;margin-bottom:4px;">Overdue orders</div>
-              <div style="font-size:1.4rem;font-weight:700;${overdueOrders.length ? 'color:#f87171;' : ''}">${overdueOrders.length}</div>
-              ${overdueOrders.length ? `<div class="muted" style="font-size:.78rem;margin-top:4px;">${overdueOrders.slice(0,2).map((o) => escapeHtml(o.customer_name || o.name || "Order")).join(", ")}${overdueOrders.length > 2 ? ` +${overdueOrders.length - 2} more` : ""}</div>` : `<div class="muted" style="font-size:.78rem;margin-top:4px;">None overdue</div>`}
-            </div>
-            <div style="background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px;">
-              <div class="muted" style="font-size:.78rem;margin-bottom:4px;">Completed, unpaid</div>
-              <div style="font-size:1.4rem;font-weight:700;${unpaidCompleted.length ? 'color:#fbbf24;' : ''}">${unpaidCompleted.length}</div>
-              ${unpaidCompleted.length ? `<div class="muted" style="font-size:.78rem;margin-top:4px;">${formatUsd(unpaidCompleted.reduce((s, o) => s + Number(o.total_cents || 0), 0))} outstanding</div>` : `<div class="muted" style="font-size:.78rem;margin-top:4px;">All paid up</div>`}
-            </div>
-            <div style="background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px;${overduePayments.length ? 'border-color:#f87171;' : ''}">
-              <div class="muted" style="font-size:.78rem;margin-bottom:4px;">Past payment due date <span style="color:#f87171;font-size:.7rem;vertical-align:middle;">${overduePayments.length ? '●' : ''}</span></div>
-              <div style="font-size:1.4rem;font-weight:700;${overduePayments.length ? 'color:#f87171;' : ''}">${overduePayments.length}</div>
-              ${overduePayments.length ? `<div class="muted" style="font-size:.78rem;margin-top:4px;">${formatUsd(overduePayments.reduce((s, o) => s + orderAmountDueCents(o), 0))} past due</div>` : `<div class="muted" style="font-size:.78rem;margin-top:4px;">None past payment date</div>`}
-            </div>
-          </div>
-        </div>
-      `;
-    })()}
-
-    ${hydrovacToday ? `
-      <div class="hydrovac-pressure">
-        <div class="hydrovac-pressure__head">
-          <div>
-            <div class="kicker">Hydrovac pressure points</div>
-            <h3>Keep dispatch, disposal, and compliance in the same field of view.</h3>
-            <p>These are the items most likely to stop a truck, delay billing, or create cleanup work for the office later.</p>
-          </div>
-          <div class="workspace-chip-row">
-            <button type="button" class="pipeline-action-chip" data-hydrovac-today-tab="locates">Locate tickets</button>
-            <button type="button" class="pipeline-action-chip" data-hydrovac-today-tab="manifests">Loads & manifests</button>
-            <button type="button" class="pipeline-action-chip" data-hydrovac-today-tab="dispatch">Dispatch</button>
-            <button type="button" class="pipeline-action-chip" data-hydrovac-today-tab="compliance">Compliance</button>
-          </div>
-        </div>
-        <div class="hydrovac-pressure__stats">
-          <div class="hydrovac-pressure__stat">
-            <span class="muted">Open loads</span>
-            <strong>${escapeHtml(String(hydrovacToday.openLoads.length))}</strong>
-            <div class="muted">Still in transit or waiting to confirm.</div>
-          </div>
-          <div class="hydrovac-pressure__stat">
-            <span class="muted">Uninvoiced disposal</span>
-            <strong>${formatUsd(hydrovacToday.uninvoicedChargeCents)}</strong>
-            <div class="muted">${escapeHtml(String(hydrovacToday.uninvoicedManifests.length))} confirmed manifest${hydrovacToday.uninvoicedManifests.length === 1 ? "" : "s"} still waiting on billing.</div>
-          </div>
-          <div class="hydrovac-pressure__stat">
-            <span class="muted">Tickets expiring</span>
-            <strong>${escapeHtml(String(hydrovacToday.expiringTickets.length + hydrovacToday.expiredTickets.length))}</strong>
-            <div class="muted">${escapeHtml(String(hydrovacToday.expiredTickets.length))} already expired, ${escapeHtml(String(hydrovacToday.expiringTickets.length))} inside the 3-day window.</div>
-          </div>
-          <div class="hydrovac-pressure__stat">
-            <span class="muted">Dispatch blockers</span>
-            <strong>${escapeHtml(String(hydrovacToday.dispatchBlockedJobs.length))}</strong>
-            <div class="muted">${escapeHtml(String(hydrovacToday.todayJobs.length))} hydrovac job${hydrovacToday.todayJobs.length === 1 ? "" : "s"} on the board today.</div>
-          </div>
-        </div>
-        <div class="hydrovac-pressure__list">
-          ${[
-            ...hydrovacToday.dispatchBlockedJobs.slice(0, 4).map((job) => ({
-              tab: "dispatch",
-              id: job.id,
-              title: `${job.title || "Hydrovac job"} is not dispatch-ready`,
-              copy: `${job.customer_name || job.service_address || "Customer not linked"} • assign truck/driver and clear required compliance before the crew rolls.`,
-              tone: "pill-bad",
-            })),
-            ...hydrovacToday.expiredTickets.slice(0, 3).map((ticket) => ({
-              tab: "locates",
-              id: ticket.id,
-              title: `Locate ${ticket.ticket_number || "ticket"} is expired`,
-              copy: ticket.work_site_address || "Coverage needs attention before excavation work continues.",
-              tone: "pill-bad",
-            })),
-            ...hydrovacToday.uninvoicedManifests.slice(0, 3).map((manifest) => ({
-              tab: "manifests",
-              id: manifest.id,
-              title: `${manifest.manifest_number || "Manifest"} is ready to bill`,
-              copy: `${hydrovacMaterialLabel(manifest.material_type)} • ${formatUsd(Number(manifest.disposal_charge_cents || 0))} still not on the invoice.`,
-              tone: "pill-warn",
-            })),
-            ...hydrovacToday.expiredPermits.slice(0, 2).map((permit) => ({
-              tab: "permits",
-              id: permit.id,
-              title: `${permit.permit_number || "Permit"} is past due`,
-              copy: permit.space_description || "Permit-required confined space entry needs a fresh review.",
-              tone: "pill-bad",
-            })),
-          ].slice(0, 8).map((item) => `
-            <button type="button" class="hydrovac-pressure-row" data-hydrovac-today-tab="${escapeAttr(item.tab)}" data-hydrovac-today-id="${escapeAttr(item.id || "")}">
-              <div>
-                <strong>${escapeHtml(item.title)}</strong>
-                <div class="muted">${escapeHtml(item.copy)}</div>
-              </div>
-              <span class="pill ${item.tone}">Review</span>
-            </button>
-          `).join("") || `<div class="detail-card"><div class="kicker">Hydrovac office view</div><div><strong>No urgent hydrovac blockers are showing right now.</strong></div><div class="detail-copy">Dispatch, disposal, and compliance all look steady from the current data in ProofLink.</div></div>`}
-        </div>
-      </div>
-    ` : ""}
-
-    <div class="dashboard-tracker">
-      <div class="dashboard-tracker__head">
-        <div>
-          <div class="kicker">Active client tracker</div>
-          <h3>See who is active, what stage they are in, and where the money still sits.</h3>
-          <p>Open the client, quoted work, job, or request directly from the tracking row instead of hunting across the system.</p>
-        </div>
-        <div class="workspace-chip-row">
-          <span class="pill">${escapeHtml(String(trackedClients.length))} clients in focus</span>
-          <span class="pill">${escapeHtml(String(todayActions.length))} live pressure points</span>
-        </div>
-      </div>
-      <div class="dashboard-tracker__list">
-        ${trackedClients.length ? trackedClients.map((item) => `
-          <button type="button" class="dashboard-tracker-row${item.isPriority ? " is-priority" : ""}" data-today-tab="${escapeAttr(item.targetTab)}" data-today-id="${escapeAttr(item.targetId || "")}">
-            <div class="dashboard-tracker-row__main">
-              <div class="dashboard-tracker-row__title">
-                <strong>${escapeHtml(item.customerName)}</strong>
-                <span class="pill${item.isPriority ? " pill-bad" : ""}">${escapeHtml(item.statusLabel)}</span>
-              </div>
-              <div class="dashboard-tracker-row__copy">${escapeHtml(item.summary)}${item.serviceAddress ? ` &middot; ${escapeHtml(item.serviceAddress)}` : ""}</div>
-            </div>
-            <div class="dashboard-tracker-row__meta">
-              <span>${escapeHtml(item.monetaryLabel)}</span>
-              <span>${escapeHtml(item.actionHint)}</span>
-            </div>
-          </button>
-        `).join("") : `<div class="detail-card"><div class="kicker">Client tracker</div><div><strong>No active clients are being tracked yet.</strong></div><div class="detail-copy">As customers, jobs, and payments land in ProofLink, the dashboard will keep the live records visible here.</div></div>`}
-      </div>
-    </div>
-
-    <div class="follow-up-queue">
-      <div class="follow-up-queue__head">
-        <div>
-          <div class="kicker">Guarded follow-up queue</div>
-          <h3>Helpful follow-up without spam</h3>
-          <p>These follow-ups are generated from real workflow events, capped by cooldowns, and stop mattering as soon as the work state changes.</p>
-        </div>
-        <div class="follow-up-queue__meta">
-          <span class="pill">${escapeHtml(String(followUps.length))} queued</span>
-          <span class="pill">No bulk blasts</span>
-          <span class="pill">Operator visible</span>
-        </div>
-      </div>
-      ${FOLLOW_UP_QUEUE_MESSAGE ? `<div class="msg ${escapeAttr(FOLLOW_UP_QUEUE_MESSAGE.tone || "")}">${escapeHtml(FOLLOW_UP_QUEUE_MESSAGE.text || "")}</div>` : ""}
-      <div class="follow-up-grid">
-        ${followUps.length ? followUps.map((item, index) => `
-          <article class="follow-up-card">
-            <div class="follow-up-card__top">
-              <div>
-                <div class="kicker">${escapeHtml(item.kindLabel)}</div>
-                <strong>${escapeHtml(item.title)}</strong>
-              </div>
-              <span class="pill ${["payment_reminder", "deposit_reminder"].includes(item.kind) ? "pill-bad" : (item.kind === "review_request" ? "pill-on" : "")}">${escapeHtml(item.channel === "email" ? "Email ready" : "Call script ready")}</span>
-            </div>
-            <div class="detail-copy">${escapeHtml(item.detail)}</div>
-            <div class="follow-up-card__reason">${escapeHtml(item.reason)}</div>
-            <div class="follow-up-card__contact">${escapeHtml(item.customerName || item.contactName || "Customer")}${item.contactEmail ? ` &middot; ${escapeHtml(item.contactEmail)}` : ""}${item.contactPhone ? ` &middot; ${escapeHtml(item.contactPhone)}` : ""}</div>
-            ${item.reviewLinkUrl ? `<div class="workspace-chip-row"><span class="pill pill-on">${escapeHtml(item.reviewLinkLabel || "Review link ready")}</span></div>` : ""}
-            <div class="follow-up-card__actions">
-              <button type="button" class="btn btn-primary btn-sm" data-follow-up-action="copy" data-follow-up-index="${escapeAttr(index)}">${escapeHtml(item.channel === "email" ? "Copy email" : "Copy call script")}</button>
-              ${item.canSend ? `<button type="button" class="btn btn-ghost btn-sm" data-follow-up-action="send" data-follow-up-index="${escapeAttr(index)}">Send email</button>` : ""}
-              ${item.reviewLinkUrl ? `<button type="button" class="btn btn-ghost btn-sm" data-follow-up-action="copy-link" data-follow-up-index="${escapeAttr(index)}">Copy review link</button>` : ""}
-              ${item.reviewLinkUrl ? `<button type="button" class="btn btn-ghost btn-sm" data-follow-up-action="open-link" data-follow-up-index="${escapeAttr(index)}">Open review link</button>` : ""}
-              ${item.customerId ? `<button type="button" class="btn btn-ghost btn-sm" data-follow-up-action="handled" data-follow-up-index="${escapeAttr(index)}">Mark contacted</button>` : ""}
-              <button type="button" class="btn btn-ghost btn-sm" data-follow-up-action="open" data-follow-up-index="${escapeAttr(index)}">Open record</button>
-              <button type="button" class="btn btn-ghost btn-sm" data-follow-up-action="snooze" data-follow-up-index="${escapeAttr(index)}">Snooze 24h</button>
-            </div>
-          </article>
-        `).join("") : `<div class="detail-card"><div class="kicker">Queue</div><div><strong>No safe follow-up is queued right now.</strong></div><div class="detail-copy">That means requests are being worked, money is caught up, or recent contact already happened.</div></div>`}
-      </div>
-    </div>
-
-    <div class="insight-grid">
-      <div class="insight">
-        <h3>What needs attention</h3>
-        <p>${alerts.length ? alerts.map((x) => escapeHtml(x)).join("<br>") : "Core operator signals look stable right now."}</p>
-      </div>
-      <div class="insight">
-        <h3>Owner pressure points</h3>
-        <p>Stale requests: <strong>${staleLeadRows.length}</strong> | Completed but unpaid: <strong>${completedUnpaid.length}</strong></p>
-        <p>Quoted pipeline waiting on decision: <strong>${pipeline.quoted}</strong> | Due recurring work: <strong>${duePlans.length}</strong> | Missing deposits: <strong>${formatUsd(missingDepositBalance)}</strong></p>
-      </div>
-      <div class="insight">
-        <h3>CRM value</h3>
-        <p>Top customer today: <strong>${escapeHtml(topCustomer?.name || "None yet")}</strong>${topCustomer ? ` | ${formatUsd(customerLifetimeValueCents(topCustomer))}` : ""}</p>
-        <p>Active ${escapeHtml(catalogLabel)}: <strong>${activeOfferings}</strong></p>
-      </div>
-      <div class="insight">
-        <h3>Cash awareness</h3>
-        <p>Tracked expenses this month: <strong>${formatUsd(currentExpenses)}</strong></p>
-        <p>Forecasted month ${escapeHtml(orderLabel)}: <strong>${forecastMonthOrders()}</strong></p>
-      </div>
-    </div>
-
-    ${(function() {
-      const referralCounts = {};
-      CRM_ORDERS_CACHE.forEach((o) => {
-        const src = o.referral_source || 'Direct';
-        referralCounts[src] = (referralCounts[src] || 0) + 1;
-      });
-      const withSource = CRM_ORDERS_CACHE.filter((o) => o.referral_source).length;
-      if (withSource < 3) return '';
-      const sorted = Object.entries(referralCounts).sort((a, b) => b[1] - a[1]);
-      const total = CRM_ORDERS_CACHE.length;
-      return `
-        <div style="margin-bottom:20px;">
-          <div class="kicker" style="margin-bottom:10px;">How customers find you</div>
-          <div style="display:flex;flex-wrap:wrap;gap:8px;">
-            ${sorted.map(([src, count]) => `
-              <div style="background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:10px 14px;min-width:130px;">
-                <div style="font-size:.75rem;color:var(--muted);margin-bottom:2px;">${escapeHtml(src)}</div>
-                <div style="font-size:1.1rem;font-weight:700;">${count} <span style="font-size:.75rem;font-weight:400;color:var(--muted);">(${Math.round(count / total * 100)}%)</span></div>
-              </div>
-            `).join('')}
-          </div>
-        </div>
-      `;
-    })()}
-
-    <div class="insight-grid">
-      <div class="insight">${checklistHtml || '<h3>First wins</h3><p>Checklist unavailable right now.</p>'}</div>
-      <div class="insight">${paymentHtml || '<h3>Payment readiness</h3><p>Payment truth will appear here once tenant state loads.</p>'}</div>
-      <div class="insight">
-        <h3>Operating posture</h3>
-        <p>${escapeHtml(summary.priorityOutcomes[0] || "Keep the team inside one operating system instead of scattered memory.")}</p>
-        <p><strong>Next move:</strong> finish the highest-priority pending checklist step before adding new complexity.</p>
-      </div>
-      <div class="insight">
-        <h3>Booking link</h3>
-        <p style="word-break:break-all;font-size:.8rem;margin-bottom:8px;">${TENANT_ID ? `${location.origin}/book.html?tenant=${encodeURIComponent(TENANT_ID)}` : "Tenant ID not loaded yet."}</p>
-        ${TENANT_ID ? `<button type="button" class="btn btn-ghost btn-sm" id="dashboardCopyBookingLink">Copy booking link</button>` : ""}
-      </div>
-    </div>
-  `;
-
-  // Revenue this month
-  const monthRevEl = $("monthRevenueStat");
-  if (monthRevEl) {
-    const mk = yyyymm(new Date());
-    const monthRev = PAYMENTS_CACHE
-      .filter(p => p.paid_at && yyyymm(new Date(p.paid_at)) === mk)
-      .reduce((s, p) => s + Number(p.amount_total_cents || p.amount_cents || 0), 0);
-    monthRevEl.textContent = monthRev ? money(monthRev / 100) : '$0';
-  }
-
-  // MRR from active service plans
-  const mrrEl = $("mrrStat");
-  if (mrrEl) {
-    const mrr = SERVICE_PLANS_CACHE
-      .filter(p => p.active !== false && p.amount_cents)
-      .reduce((s, p) => s + Number(p.amount_cents || 0), 0);
-    mrrEl.textContent = mrr ? money(mrr / 100) + '/mo' : '—';
-  }
-
-  // Make pipeline stages clickable
-  dashboardWrap.querySelectorAll('.workflow-stage').forEach((el) => {
-    el.style.cursor = 'pointer';
-    el.style.transition = 'opacity .15s';
-    el.addEventListener('mouseenter', () => { el.style.opacity = '.8'; });
-    el.addEventListener('mouseleave', () => { el.style.opacity = '1'; });
-    el.addEventListener('click', () => {
-      const label = (el.querySelector('.workflow-stage__label, .stage-label, [class*="label"]')?.textContent || '').toLowerCase();
-      if      (label.includes('lead'))                     switchTab('leads');
-      else if (label.includes('quote'))                    switchTab(isServiceWorkspace(currentWorkspaceBlueprint()) ? 'bids' : 'quotes');
-      else if (label.includes('book') || label.includes('scheduled')) switchTab('bookings');
-      else if (label.includes('progress') || label.includes('active')) { switchTab('orders'); }
-      else if (label.includes('complet'))                  { switchTab('orders'); }
-      else if (label.includes('paid'))                     switchTab('payments');
-      else                                                 switchTab('orders');
-    });
-  });
-
-  dashboardWrap.querySelectorAll("[data-today-tab]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      activateWorkspaceTarget(
-        btn.getAttribute("data-today-tab") || "dashboard",
-        btn.getAttribute("data-today-id") || ""
-      );
-    });
-  });
-  dashboardWrap.querySelector("#dashboardCopyBookingLink")?.addEventListener("click", async () => {
-    const siteUrl = window.location.origin;
-    const link = `${siteUrl}/book.html?tenant=${encodeURIComponent(TENANT_ID)}`;
-    await navigator.clipboard.writeText(link).catch(() => {});
-    const btn = dashboardWrap.querySelector("#dashboardCopyBookingLink");
-    if (btn) { const orig = btn.textContent; btn.textContent = "✓ Copied!"; setTimeout(() => { btn.textContent = orig; }, 2000); }
-  });
-
-  // Onboarding card wiring
-  dashboardWrap.querySelector("#btnDismissOnboarding")?.addEventListener("click", () => {
-    localStorage.setItem("pl_onboarding_dismissed", "true");
-    const card = dashboardWrap.querySelector("#onboardingCard");
-    if (card) card.remove();
-  });
-  dashboardWrap.querySelectorAll("#onboardingCard [data-tab]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const tab = btn.getAttribute("data-tab");
-      if (tab) switchTab(tab);
-    });
-  });
-
-  dashboardWrap.querySelectorAll("[data-dashboard-action]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const action = btn.getAttribute("data-dashboard-action");
-      if (action === "import") {
-        switchTab("import");
-        return;
-      }
-      if (action === "new-lead") {
-        ACTIVE_LEAD_ID = null;
-        clearLeadForm();
-        renderLeadDetail(null).catch(console.error);
-        switchTab("leads");
-        return;
-      }
-      if (action === "new-bid") {
-        startNewBid(preferredBidProfile());
-        switchTab("bids");
-        return;
-      }
-      if (action === "new-customer") {
-        startNewCustomer();
-        switchTab("customers");
-        return;
-      }
-      if (action === "record-payment") {
-        clearPaymentForm({ customerId: ACTIVE_CUSTOMER_ID || "" });
-        renderPayments();
-        switchTab("payments");
-        return;
-      }
-      if (action === "new-plan") {
-        ACTIVE_PLAN_ID = null;
-        clearPlanForm();
-        renderPlanDetail(null).catch(console.error);
-        switchTab("plans");
-      }
-    });
-  });
-  dashboardWrap.querySelectorAll("[data-hydrovac-today-tab]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      activateWorkspaceTarget(
-        btn.getAttribute("data-hydrovac-today-tab") || "dashboard",
-        btn.getAttribute("data-hydrovac-today-id") || ""
-      );
-    });
-  });
-  dashboardWrap.querySelectorAll("[data-follow-up-action]").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      const action = btn.getAttribute("data-follow-up-action");
-      const index = Number(btn.getAttribute("data-follow-up-index"));
-      const item = CURRENT_FOLLOW_UP_QUEUE[index];
-      if (!item) return;
-      try {
-        if (action === "copy") {
-          await copyTextValue(item.message || "");
-          setFollowUpQueueMessage(item.channel === "email" ? "Follow-up email copied to the clipboard." : "Call script copied to the clipboard.", "ok");
-          renderDashboard();
-          return;
-        }
-        if (action === "send") {
-          setFollowUpQueueMessage("Sending follow-up...", "");
-          renderDashboard();
-          await sendQueuedFollowUp(item);
-          return;
-        }
-        if (action === "copy-link") {
-          if (!item.reviewLinkUrl) throw new Error("This follow-up does not have a review link yet.");
-          await copyTextValue(item.reviewLinkUrl);
-          setFollowUpQueueMessage("Review link copied to the clipboard.", "ok");
-          renderDashboard();
-          return;
-        }
-        if (action === "open-link") {
-          if (!item.reviewLinkUrl) throw new Error("This follow-up does not have a review link yet.");
-          window.open(item.reviewLinkUrl, "_blank", "noopener,noreferrer");
-          setFollowUpQueueMessage("Review link opened in a new tab.", "ok");
-          renderDashboard();
-          return;
-        }
-        if (action === "handled") {
-          await markQueuedFollowUpContacted(item);
-          return;
-        }
-        if (action === "open") {
-          openQueuedFollowUp(item);
-          return;
-        }
-        if (action === "snooze") {
-          snoozeFollowUpItem(item.id, 24);
-          setFollowUpQueueMessage("Follow-up snoozed for 24 hours.", "ok");
-          renderDashboard();
-        }
-      } catch (err) {
-        setFollowUpQueueMessage(err.message || String(err), "error");
-        renderDashboard();
-      }
-    });
-  });
 }
 function normalizeWorkflowStatusValue(value) {
   return String(value || "").trim().toLowerCase();
@@ -15282,241 +14649,6 @@ function renderJobWorkspace() {
       });
     }
   }
-function renderMoneyWorkspace() {
-  const unpaidOrders = (CRM_ORDERS_CACHE || []).filter((order) => {
-    const state = normalizeWorkflowStatusValue(orderPaymentState(order));
-    return !["paid"].includes(state) && !["cancelled"].includes(normalizeWorkflowStatusValue(order.status || "new"));
-  });
-  const overdueOrders = unpaidOrders.filter((order) => normalizeWorkflowStatusValue(orderPaymentState(order)) === "overdue");
-  const depositOpenOrders = unpaidOrders.filter((order) => orderDepositGapCents(order) > 0);
-  const recordedPayments = sortedPayments(PAYMENTS_CACHE || []).length;
-  const activePayment = currentPayment();
-  const activeOrder = activePayment?.order_id ? (CRM_ORDERS_CACHE.find((row) => row.id === activePayment.order_id) || null) : null;
-  const activeJob = activePayment?.job_id ? (JOBS_CACHE.find((row) => row.id === activePayment.job_id) || null) : null;
-  const activeCustomer = activePayment?.customer_id ? (CUSTOMERS_CACHE.find((row) => row.id === activePayment.customer_id) || null) : null;
-  if (moneyStageStrip) {
-    const cards = [
-      { tab: "payments", eyebrow: "Collection", value: unpaidOrders.length, title: "Open balances", copy: "Quoted or completed work that still has money left to collect." },
-      { tab: "payments", eyebrow: "Urgent", value: overdueOrders.length, title: "Overdue", copy: "Balances that have slipped past the expected collection window." },
-      { tab: "payments", eyebrow: "Deposit", value: depositOpenOrders.length, title: "Deposits open", copy: "Orders that still need a required deposit before work should move ahead." },
-      { tab: "payments", eyebrow: "Recorded", value: recordedPayments, title: "Payments logged", copy: "Manual and synced payment records already in the ledger." },
-    ];
-    moneyStageStrip.innerHTML = cards.map((stage) => `
-      <button type="button" class="pipeline-stage-card is-active" data-money-stage-tab="${escapeAttr(stage.tab)}">
-        <div class="pipeline-stage-card__eyebrow">${escapeHtml(stage.eyebrow)}</div>
-        <div class="pipeline-stage-card__value">${escapeHtml(String(stage.value))}</div>
-        <div class="pipeline-stage-card__title">${escapeHtml(stage.title)}</div>
-        <div class="pipeline-stage-card__copy">${escapeHtml(stage.copy)}</div>
-      </button>
-    `).join("");
-    moneyStageStrip.querySelectorAll("[data-money-stage-tab]").forEach((button) => {
-      button.addEventListener("click", () => switchTab(button.getAttribute("data-money-stage-tab") || "payments"));
-    });
-  }
-  if (moneyActionBar) {
-    moneyActionBar.innerHTML = `
-      <button type="button" class="pipeline-action-chip" data-money-action="new-payment">Record payment</button>
-      <button type="button" class="pipeline-action-chip" data-money-action="open-pipeline">${activeOrder ? "Open quoted / booked" : "Open pipeline"}</button>
-      <button type="button" class="pipeline-action-chip" data-money-action="open-job">${activeJob ? "Open active job" : "Open jobs"}</button>
-      <button type="button" class="pipeline-action-chip" data-money-action="open-customer">${activeCustomer ? "Open customer" : "Open customers"}</button>
-    `;
-    moneyActionBar.querySelectorAll("[data-money-action]").forEach((button) => {
-      button.addEventListener("click", () => {
-        const action = button.getAttribute("data-money-action");
-        if (action === "new-payment") {
-          clearPaymentForm();
-          renderPayments();
-          return;
-        }
-        if (action === "open-pipeline") {
-          if (activeOrder?.id) ACTIVE_ORDER_ID = activeOrder.id;
-          switchTab("orders");
-          return;
-        }
-        if (action === "open-job") {
-          if (activeJob?.id) ACTIVE_JOB_ID = activeJob.id;
-          switchTab("jobs");
-          return;
-        }
-        if (action === "open-customer") {
-          if (activeCustomer?.id) {
-            ACTIVE_CUSTOMER_ID = activeCustomer.id;
-            CUSTOMER_CREATING = false;
-          }
-          switchTab("customers");
-        }
-      });
-    });
-  }
-}
-function renderPipelineWorkspace() {
-  const stages = pipelineStageStats();
-  renderWorkCommandCenter();
-  if (pipelineStageStrip) {
-    pipelineStageStrip.innerHTML = stages.map((stage) => `
-      <button
-        type="button"
-        class="pipeline-stage-card ${stage.tab === "orders" ? "is-active" : ""}"
-        data-pipeline-tab="${escapeAttr(stage.tab)}"
-      >
-        <div class="pipeline-stage-card__eyebrow">${escapeHtml(stage.eyebrow)}</div>
-        <div class="pipeline-stage-card__value">${escapeHtml(String(stage.value))}</div>
-        <div class="pipeline-stage-card__title">${escapeHtml(stage.title)}</div>
-        <div class="pipeline-stage-card__copy">${escapeHtml(stage.copy)}</div>
-      </button>
-    `).join("");
-    pipelineStageStrip.querySelectorAll("[data-pipeline-tab]").forEach((button) => {
-      button.addEventListener("click", () => switchTab(button.getAttribute("data-pipeline-tab") || "orders"));
-    });
-  }
-  if (pipelineActionBar) {
-    pipelineActionBar.innerHTML = `
-      <button type="button" class="pipeline-action-chip" data-pipeline-action="new-request">New request</button>
-      <button type="button" class="pipeline-action-chip" data-pipeline-action="draft-proposal">Draft proposal</button>
-      <button type="button" class="pipeline-action-chip" data-pipeline-action="open-jobs">Open active jobs</button>
-      <button type="button" class="pipeline-action-chip" data-pipeline-action="record-payment">Record payment</button>
-    `;
-    pipelineActionBar.querySelectorAll("[data-pipeline-action]").forEach((button) => {
-      button.addEventListener("click", () => {
-        const action = button.getAttribute("data-pipeline-action");
-        if (action === "new-request") {
-          ACTIVE_LEAD_ID = null;
-          clearLeadForm();
-          renderLeadDetail(null).catch(console.error);
-          switchTab("leads");
-          return;
-        }
-        if (action === "draft-proposal") {
-          startNewBid(preferredBidProfile());
-          switchTab("bids");
-          return;
-        }
-        if (action === "open-jobs") {
-          switchTab("jobs");
-          return;
-        }
-        if (action === "record-payment") {
-          clearPaymentForm({ customerId: ACTIVE_CUSTOMER_ID || "" });
-          renderPayments();
-          switchTab("payments");
-        }
-      });
-    });
-  }
-}
-function renderGuidance() {
-  if (!guidanceWrap) return;
-  const blueprint = currentWorkspaceBlueprint();
-  const groups = [
-    {
-      title: "Keep work moving",
-      copy: "Everything tied to the active customer workflow lives here.",
-      actions: [
-        { tab: "leads", label: "Requests" },
-        { tab: "bids", label: workspaceBidLabel(blueprint) },
-        { tab: "orders", label: workspaceTabLabel("orders", blueprint) },
-        { tab: "jobs", label: workspaceJobsNavLabel(blueprint) },
-        { tab: "plans", label: "Recurring Plans" },
-      ],
-    },
-    {
-      title: "Money and follow-through",
-      copy: "Collect, review margin, and close the loop without leaving the customer story behind.",
-      actions: [
-        { tab: "payments", label: workspaceTabLabel("payments", blueprint) },
-        { tab: "expenses", label: "Expenses" },
-        { tab: "money", label: workspaceTabLabel("money", blueprint) },
-        { tab: "reviews", label: "Reviews" },
-      ],
-    },
-    {
-      title: "Website and launch",
-      copy: "Change what customers see, what they can request, and how the business presents itself.",
-      actions: [
-        { tab: "setup", label: workspaceTabLabel("setup", blueprint) },
-        { tab: "products", label: workspaceCatalogLabel(blueprint) },
-        { tab: "pricing", label: workspaceTabLabel("pricing", blueprint) },
-        { tab: "availability", label: workspaceTabLabel("availability", blueprint) },
-        { tab: "domains", label: "Domains" },
-        { tab: "import", label: workspaceTabLabel("import", blueprint) },
-      ],
-    },
-    {
-      title: "Operations and support",
-      copy: "Reach the back-office tools without forcing them into the daily sidebar.",
-      actions: [
-        { tab: "vendors", label: "Vendors" },
-        { tab: "inventory", label: "Inventory" },
-        { tab: "contracts", label: "Contracts" },
-        { tab: "equipment", label: "Equipment" },
-        { tab: "team", label: "Team" },
-      ],
-    },
-  ];
-  if (isHydrovacWorkspace(blueprint)) {
-    groups.splice(3, 0, {
-      title: "Hydrovac operations",
-      copy: "Daily truck, disposal, locate, and compliance tools stay grouped here.",
-      actions: [
-        { tab: "facilities", label: "Facilities" },
-        { tab: "manifests", label: "Loads & Manifests" },
-        { tab: "locates", label: "Locate Tickets" },
-        { tab: "compliance", label: "Compliance" },
-      ],
-    });
-  }
-  const visibleGroups = groups
-    .map((group) => ({
-      ...group,
-      actions: group.actions.filter((item) => isTabVisibleInWorkspace(item.tab, blueprint)),
-    }))
-    .filter((group) => group.actions.length);
-  const noteCards = [
-    {
-      title: "Daily shell",
-      copy: `Use Today, ${workspaceTabLabel("orders", blueprint)}, Customers, Calendar, and ${workspaceTabLabel("payments", blueprint)} as the main operating rhythm.`,
-    },
-    {
-      title: "Current pressure",
-      copy: LEADS_CACHE.length || CRM_ORDERS_CACHE.length || JOBS_CACHE.length
-        ? `You have ${LEADS_CACHE.length} request(s), ${BIDS_CACHE.length} proposal(s), ${CRM_ORDERS_CACHE.length} approved-work record(s), and ${JOBS_CACHE.length} active job(s) in play.`
-        : "Start with one customer and one real request. The flow gets easier once live work is moving through it.",
-    },
-  ];
-  guidanceWrap.innerHTML = `
-    <div class="operations-hub">
-      ${visibleGroups.map((group) => `
-        <section class="operations-group">
-          <div class="operations-group__head">
-            <div class="kicker">${escapeHtml(group.title)}</div>
-            <div class="guidance-copy">${escapeHtml(group.copy)}</div>
-          </div>
-          <div class="operations-actions">
-            ${group.actions.map((action) => `
-              <button class="btn btn-ghost btn-sm operations-action" type="button" data-ops-tab="${escapeAttr(action.tab)}">
-                ${escapeHtml(action.label)}
-              </button>
-            `).join("")}
-          </div>
-        </section>
-      `).join("")}
-      <div class="guidance-grid">
-        ${noteCards.map((card) => `
-          <div class="guidance-card">
-            <div class="kicker">${escapeHtml(card.title)}</div>
-            <div class="guidance-copy">${escapeHtml(card.copy)}</div>
-          </div>
-        `).join("")}
-      </div>
-    </div>
-  `;
-  guidanceWrap.querySelectorAll("[data-ops-tab]").forEach((button) => {
-    button.addEventListener("click", () => {
-      const tab = button.getAttribute("data-ops-tab") || "dashboard";
-      switchTab(tab);
-    });
-  });
-}
 btnRefreshDashboard?.addEventListener("click", async () => {
   await Promise.allSettled([fetchLeads(), fetchCrmOrders(), fetchPayments(), fetchJobs(), fetchServicePlans(), fetchDashboardLaunchChecklist(), fetchDashboardPaymentState(), loadPersistedBids()]);
   renderDashboard();
@@ -15580,7 +14712,7 @@ function renderHydrovacInvoiceWorkbench() {
       });
     });
   }
-  hydrovacInvoiceJobSelect.innerHTML = `<option value="">Select a hydrovac job</option>${hydrovacJobs.map((job) => `<option value="${escapeAttr(job.id)}"${job.id === ACTIVE_JOB_ID ? " selected" : ""}>${escapeHtml(job.title || job.customer_name || "Untitled job")} — ${escapeHtml(job.scheduled_date || "No date")}</option>`).join("")}`;
+  hydrovacInvoiceJobSelect.innerHTML = `<option value="">Select a hydrovac job</option>${hydrovacJobs.map((job) => `<option value="${escapeAttr(job.id)}"${job.id === ACTIVE_JOB_ID ? " selected" : ""}>${escapeHtml(job.title || job.customer_name || "Untitled job")} â€” ${escapeHtml(job.scheduled_date || "No date")}</option>`).join("")}`;
   hydrovacInvoicePreview.innerHTML = hydrovacInvoicePreviewHtml(hydrovacInvoiceJobSelect?.value || ACTIVE_JOB_ID || "");
 }
 async function renderMoney() {
@@ -15734,7 +14866,7 @@ async function renderMoney() {
                     <div><strong>${escapeHtml(row.job.title || row.order?.customer_name || "Job")}</strong></div>
                     <div class="muted" style="margin-top:4px;">Revenue ${escapeHtml(formatUsd(row.revenueCents))} | Cost ${escapeHtml(formatUsd(row.costCents))}</div>
                   </div>
-                  <div class="right"><span class="pill ${grossProfitToneClass(row.grossProfitCents)}">${escapeHtml(formatUsd(row.grossProfitCents))} • ${escapeHtml(formatPercent(row.marginRatio))}</span></div>
+                  <div class="right"><span class="pill ${grossProfitToneClass(row.grossProfitCents)}">${escapeHtml(formatUsd(row.grossProfitCents))} â€¢ ${escapeHtml(formatPercent(row.marginRatio))}</span></div>
                 </div>
               `).join("")}
             </div>
@@ -15756,7 +14888,7 @@ async function renderMoney() {
                     <div><strong>${escapeHtml(row.job.title || row.order?.customer_name || "Job")}</strong></div>
                     <div class="muted" style="margin-top:4px;">Revenue ${escapeHtml(formatUsd(row.revenueCents))} | Cost ${escapeHtml(formatUsd(row.costCents))}</div>
                   </div>
-                  <div class="right"><span class="pill ${grossProfitToneClass(row.grossProfitCents)}">${escapeHtml(formatUsd(row.grossProfitCents))} • ${escapeHtml(formatPercent(row.marginRatio))}</span></div>
+                  <div class="right"><span class="pill ${grossProfitToneClass(row.grossProfitCents)}">${escapeHtml(formatUsd(row.grossProfitCents))} â€¢ ${escapeHtml(formatPercent(row.marginRatio))}</span></div>
                 </div>
               `).join("")}
             </div>
@@ -15807,8 +14939,8 @@ async function renderMoney() {
       });
     const rows = [
       ['Current', buckets.current],
-      ['1–30 days overdue', buckets.d30],
-      ['31–60 days overdue', buckets.d60],
+      ['1â€“30 days overdue', buckets.d30],
+      ['31â€“60 days overdue', buckets.d60],
       ['61+ days overdue', buckets.d90],
     ];
     const total = Object.values(buckets).reduce((s, b) => s + b.cents, 0);
@@ -15833,7 +14965,7 @@ async function renderMoney() {
   renderHydrovacInvoiceWorkbench();
 }
 
-// ── Setup Wizard ──────────────────────────────────────────────────────────────
+// â”€â”€ Setup Wizard â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 async function maybeShowSetupWizard() {
   if (localStorage.getItem('pl_wizard_dismissed')) return;
   const cfg = SETUP_STATE?.config || {};
@@ -15850,7 +14982,7 @@ function showSetupWizard() {
   modal.id = 'setupWizardModal';
   modal.className = 'modal-overlay';
   modal.innerHTML = `<div class="modal-box" style="max-width:480px;">
-    <h2 style="margin:0 0 8px;font-size:1.2rem;">Welcome to ProofLink! 👋</h2>
+    <h2 style="margin:0 0 8px;font-size:1.2rem;">Welcome to ProofLink! ðŸ‘‹</h2>
     <p style="color:rgba(255,255,255,.65);margin:0 0 20px;font-size:.9rem;">Let's get your business set up in 3 quick steps so you can start taking bookings.</p>
     <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:20px;">
       <button class="btn btn-primary" onclick="document.getElementById('setupWizardModal')?.remove(); switchTab('setup');" style="text-align:left;padding:14px 16px;">
@@ -15868,7 +15000,7 @@ function showSetupWizard() {
     </div>
     <div style="display:flex;justify-content:space-between;align-items:center;">
       <button class="btn btn-ghost" style="font-size:.8rem;" onclick="localStorage.setItem('pl_wizard_dismissed','1');document.getElementById('setupWizardModal')?.remove();">Skip setup</button>
-      <button class="btn btn-primary" onclick="document.getElementById('setupWizardModal')?.remove(); switchTab('setup');">Get started →</button>
+      <button class="btn btn-primary" onclick="document.getElementById('setupWizardModal')?.remove(); switchTab('setup');">Get started â†’</button>
     </div>
   </div>`;
   document.body.appendChild(modal);
@@ -15963,7 +15095,7 @@ async function boot() {
   }
 }
 
-// ── Push Notifications ────────────────────────────────────────────────────────
+// â”€â”€ Push Notifications â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const VAPID_PUBLIC_KEY = "BPB-zAeBzP3xUdVT7F_zML4A3Oq0f_LE24o2oM38has6FhsIRDE6V14vNDkDZr_co2VP0HJVWkYaxr7tdAD5ARA";
 
@@ -16004,7 +15136,7 @@ async function registerPushNotifications() {
   }
 }
 
-// ── Invoice PDF ───────────────────────────────────────────────────────────────
+// â”€â”€ Invoice PDF â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function generateInvoicePDF(order) {
   const jsPDF = window.jspdf?.jsPDF;
@@ -16016,7 +15148,7 @@ function generateInvoicePDF(order) {
   const dark = [26, 26, 26];
   const grey = [100, 100, 100];
 
-  const fmt  = (v) => isNaN(Number(v)) ? "—" : "$" + Number(v).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  const fmt  = (v) => isNaN(Number(v)) ? "â€”" : "$" + Number(v).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   const now  = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
 
   // Header bar
@@ -16050,7 +15182,7 @@ function generateInvoicePDF(order) {
   doc.setFont("helvetica", "bold");
   doc.text("Bill To", W - 200, 80);
   doc.setFont("helvetica", "normal");
-  doc.text(String(order.customer_name || "—"), W - 200, 96);
+  doc.text(String(order.customer_name || "â€”"), W - 200, 96);
   if (order.customer_email) doc.text(order.customer_email, W - 200, 112);
 
   // Divider
@@ -16123,13 +15255,13 @@ function generateInvoicePDF(order) {
   doc.setTextColor(...grey);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8);
-  doc.text("Generated by ProofLink · prooflink.co", W / 2, doc.internal.pageSize.getHeight() - 24, { align: "center" });
+  doc.text("Generated by ProofLink Â· prooflink.co", W / 2, doc.internal.pageSize.getHeight() - 24, { align: "center" });
 
   const filename = `invoice-${String(order.id || "order").slice(0, 8)}-${now.replace(/\s/g, "-")}.pdf`;
   doc.save(filename);
 }
 
-// ── Reviews ───────────────────────────────────────────────────────────────────
+// â”€â”€ Reviews â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 async function fetchReviews() {
   if (FETCHING.has('reviews')) return;
@@ -16159,7 +15291,7 @@ function renderReviews(reviews) {
     return;
   }
   const avgRating = rows.reduce((s, r) => s + Number(r.rating || 0), 0) / rows.length;
-  const stars = (n) => "★".repeat(Math.round(n)) + "☆".repeat(5 - Math.round(n));
+  const stars = (n) => "â˜…".repeat(Math.round(n)) + "â˜†".repeat(5 - Math.round(n));
   el.innerHTML = `
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--border);">
       <div style="font-size:2rem;color:#fbbf24;">${stars(avgRating)}</div>
@@ -16198,7 +15330,7 @@ $("btnExportReviewsCsv")?.addEventListener("click", () => {
   downloadCsv("reviews", headers, rows.map((r) => headers.map((h) => r[h] ?? "")));
 });
 
-// ── Quotes Panel ──────────────────────────────────────────────────────────────
+// â”€â”€ Quotes Panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 async function fetchQuotes(status) {
   if (FETCHING.has('quotes')) return;
@@ -16234,7 +15366,7 @@ function renderQuotesList() {
   }
 
   const statusColor = { pending: "#93c5fd", accepted: "#4ade80", declined: "#f87171", expired: "rgba(255,255,255,.35)" };
-  const fmtMoney = (cents) => cents != null ? "$" + (cents / 100).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",") : "—";
+  const fmtMoney = (cents) => cents != null ? "$" + (cents / 100).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",") : "â€”";
 
   el.innerHTML = `
     <div class="list">
@@ -16247,13 +15379,13 @@ function renderQuotesList() {
           <div style="display:flex;align-items:center;gap:10px;width:100%;">
             <div style="flex:1;min-width:0;">
               <div style="font-weight:600;font-size:.9rem;">${escapeHtml(q.title || "Quote")}</div>
-              <div class="muted" style="font-size:.78rem;">${escapeHtml(q.customer_name || "")}${q.customer_email ? ` · ${escapeHtml(q.customer_email)}` : ""} · ${formatDateOnly(q.created_at)}</div>
+              <div class="muted" style="font-size:.78rem;">${escapeHtml(q.customer_name || "")}${q.customer_email ? ` Â· ${escapeHtml(q.customer_email)}` : ""} Â· ${formatDateOnly(q.created_at)}</div>
             </div>
             <span style="font-size:.75rem;padding:3px 9px;background:rgba(255,255,255,.06);border-radius:12px;color:${color};white-space:nowrap;">${escapeHtml(q.status || "pending")}</span>
             <span style="font-size:.85rem;font-weight:700;color:var(--text);white-space:nowrap;">${fmtMoney(q.amount_cents)}</span>
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;">
-            <a href="${escapeHtml(quoteUrl)}" target="_blank" style="font-size:.78rem;color:var(--accent);text-decoration:none;">View quote page →</a>
+            <a href="${escapeHtml(quoteUrl)}" target="_blank" style="font-size:.78rem;color:var(--accent);text-decoration:none;">View quote page â†’</a>
             ${isPending ? `<button class="btn btn-ghost btn-sm qt-resend-btn" data-email="${escapeHtml(q.customer_email || "")}" data-url="${escapeHtml(quoteUrl)}" data-name="${escapeHtml(q.customer_name || "")}" type="button" style="font-size:.75rem;padding:2px 8px;">Copy link</button>` : ""}
             ${q.accepted_at ? `<span class="muted" style="font-size:.75rem;">Accepted ${formatDateOnly(q.accepted_at)}</span>` : ""}
             ${q.declined_at ? `<span class="muted" style="font-size:.75rem;">Declined ${formatDateOnly(q.declined_at)}</span>` : ""}
@@ -16298,7 +15430,7 @@ $("btnExportQuotesCsv")?.addEventListener("click", () => {
   downloadCsv("quotes", headers, QUOTES_CACHE.map((q) => headers.map((h) => q[h] ?? "")));
 });
 
-// ── Global Search ─────────────────────────────────────────────────────────────
+// â”€â”€ Global Search â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const globalSearch = $("globalSearch");
 const globalSearchOverlay = $("globalSearchOverlay");
@@ -16307,7 +15439,7 @@ const globalSearchResults = $("globalSearchResults");
 function runGlobalSearch(q) {
   if (!CRM_ORDERS_CACHE?.length && !CUSTOMERS_CACHE?.length && !BOOKINGS_CACHE?.length) {
     const overlay = $("globalSearchOverlay");
-    if (overlay) overlay.innerHTML = '<div style="padding:20px;text-align:center;color:rgba(255,255,255,.4);font-size:.85rem;">Loading data… try again in a moment.</div>';
+    if (overlay) overlay.innerHTML = '<div style="padding:20px;text-align:center;color:rgba(255,255,255,.4);font-size:.85rem;">Loading dataâ€¦ try again in a moment.</div>';
     return;
   }
   if (!q || q.length < 2) { if (globalSearchOverlay) globalSearchOverlay.style.display = "none"; return; }
@@ -16390,7 +15522,7 @@ document.addEventListener("click", (e) => {
   }
 });
 
-// ── Dark / Light mode toggle ───────────────────────────────────────────────────
+// â”€â”€ Dark / Light mode toggle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 (function () {
   const saved = localStorage.getItem("pl_theme");
@@ -16404,10 +15536,10 @@ $("btnDarkMode")?.addEventListener("click", () => {
   document.documentElement.setAttribute("data-theme", next);
   localStorage.setItem("pl_theme", next);
   const btn = $("btnDarkMode");
-  if (btn) btn.textContent = next === "light" ? "☾" : "☀";
+  if (btn) btn.textContent = next === "light" ? "â˜¾" : "â˜€";
 });
 
-// ── CSV Export ────────────────────────────────────────────────────────────────
+// â”€â”€ CSV Export â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 $("btnExportCustomersCsv")?.addEventListener("click", () => {
   const rows = [['Name','Email','Phone','City','State','Created']];
@@ -16420,7 +15552,7 @@ $("btnExportCustomersCsv")?.addEventListener("click", () => {
   a.download = 'customers.csv'; a.click();
 });
 
-// ── Bulk Customer Import ──────────────────────────────────────────────────────
+// â”€â”€ Bulk Customer Import â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 $("btnImportCustomers")?.addEventListener("click", () => {
   const existing = document.getElementById("importCustomersModal");
   if (existing) { existing.remove(); return; }
@@ -16431,7 +15563,7 @@ $("btnImportCustomers")?.addEventListener("click", () => {
     <div style="background:#1a1d27;border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:28px;max-width:560px;width:100%;max-height:90vh;overflow-y:auto;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
         <strong style="font-size:1rem;">Import customers from CSV</strong>
-        <button id="importCustClose" type="button" style="background:none;border:none;color:rgba(255,255,255,.5);font-size:1.2rem;cursor:pointer;">✕</button>
+        <button id="importCustClose" type="button" style="background:none;border:none;color:rgba(255,255,255,.5);font-size:1.2rem;cursor:pointer;">âœ•</button>
       </div>
       <div style="font-size:.78rem;color:rgba(255,255,255,.4);margin-bottom:10px;">Expected format (one per line):<br /><code style="font-size:.75rem;">Name, Email, Phone, Address, City, State, Zip</code></div>
       <textarea id="importCsvData" class="input" rows="8" style="width:100%;font-family:monospace;font-size:.8rem;resize:vertical;" placeholder="Jane Smith, jane@example.com, 555-1234, 123 Main St, Springfield, IL, 62701&#10;John Doe, john@example.com, 555-9999"></textarea>
@@ -16479,7 +15611,7 @@ $("btnImportCustomers")?.addEventListener("click", () => {
     const msgEl     = modal.querySelector("#importCsvMsg");
     if (!parsedRows.length) { msgEl.textContent = "No rows to import."; return; }
     submitBtn.disabled = true;
-    submitBtn.textContent = "Importing…";
+    submitBtn.textContent = "Importingâ€¦";
     try {
       const tok = await getAccessToken();
       const customers = parsedRows.map(([name, email, phone, address, city, state, zip]) => ({
@@ -16510,12 +15642,12 @@ $("btnImportCustomers")?.addEventListener("click", () => {
   };
 });
 
-// ── Customer Messages ─────────────────────────────────────────────────────────
+// â”€â”€ Customer Messages â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 async function fetchAndRenderMessages() {
   const list = $("messagesList");
   if (!list) return;
-  list.innerHTML = `<p class="muted" style="padding:12px 0;">Loading…</p>`;
+  list.innerHTML = `<p class="muted" style="padding:12px 0;">Loadingâ€¦</p>`;
   try {
     const { data, error } = await sb
       .from("customer_messages")
@@ -16531,7 +15663,7 @@ async function fetchAndRenderMessages() {
     }
 
     list.innerHTML = data.map((msg) => {
-      const date = msg.created_at ? new Date(msg.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "—";
+      const date = msg.created_at ? new Date(msg.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "â€”";
       return `<div style="padding:14px 0;border-bottom:1px solid rgba(255,255,255,.06);">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
           <div style="font-weight:600;font-size:.88rem;">${escapeHtml(msg.customer_name || "Customer")}</div>
@@ -16542,7 +15674,7 @@ async function fetchAndRenderMessages() {
         ${msg.reply_text ? `<div style="background:rgba(200,75,47,.08);border-left:3px solid #c84b2f;padding:8px 12px;font-size:.82rem;color:rgba(255,255,255,.6);margin-bottom:8px;"><span style="font-size:.75rem;color:#c84b2f;font-weight:600;display:block;margin-bottom:4px;">Your reply</span>${escapeHtml(msg.reply_text)}</div>` : ""}
         ${!msg.reply_text ? `<div style="margin-top:6px;">
           <div class="msg-reply-form" data-id="${escapeAttr(msg.id)}" data-name="${escapeAttr(msg.customer_name || "")}" style="display:none;">
-            <textarea class="msg-reply-input" rows="3" placeholder="Type your reply…" style="width:100%;background:#0f1117;border:1px solid rgba(255,255,255,.15);border-radius:6px;color:#e8e9eb;padding:8px 10px;font-size:.85rem;resize:vertical;margin-bottom:6px;font-family:inherit;outline:none;"></textarea>
+            <textarea class="msg-reply-input" rows="3" placeholder="Type your replyâ€¦" style="width:100%;background:#0f1117;border:1px solid rgba(255,255,255,.15);border-radius:6px;color:#e8e9eb;padding:8px 10px;font-size:.85rem;resize:vertical;margin-bottom:6px;font-family:inherit;outline:none;"></textarea>
             <div style="display:flex;gap:8px;">
               <button class="btn btn-primary btn-sm msg-send-reply" type="button">Send reply</button>
               <button class="btn btn-ghost btn-sm msg-cancel-reply" type="button">Cancel</button>
@@ -16576,7 +15708,7 @@ async function fetchAndRenderMessages() {
         const resultEl  = form.querySelector(".msg-reply-result");
         const reply     = textarea.value.trim();
         if (!reply) { resultEl.textContent = "Please enter a reply."; resultEl.style.color = "#f87171"; return; }
-        btn.disabled = true; btn.textContent = "Sending…";
+        btn.disabled = true; btn.textContent = "Sendingâ€¦";
         try {
           const tok = await getAccessToken();
           const res = await fetch("/.netlify/functions/reply-customer-message", {
@@ -16586,7 +15718,7 @@ async function fetchAndRenderMessages() {
           });
           const d = await res.json().catch(() => ({}));
           if (!res.ok) throw new Error(d.error || "Failed to send reply");
-          resultEl.textContent = "Reply sent ✓";
+          resultEl.textContent = "Reply sent âœ“";
           resultEl.style.color = "#4ade80";
           setTimeout(() => fetchAndRenderMessages().catch(console.error), 1500);
         } catch (err) {
@@ -16611,13 +15743,13 @@ $("btnCopyBookingLink")?.addEventListener("click", async () => {
   try {
     await navigator.clipboard.writeText(link);
     const btn = $("btnCopyBookingLink");
-    if (btn) { const t = btn.textContent; btn.textContent = "✓ Copied!"; setTimeout(() => { btn.textContent = t; }, 2000); }
+    if (btn) { const t = btn.textContent; btn.textContent = "âœ“ Copied!"; setTimeout(() => { btn.textContent = t; }, 2000); }
   } catch {
     showCopyModal("Copy this booking link.", link).catch(() => {});
   }
 });
 
-// ── Sidebar More toggle ────────────────────────────────────────────────────────
+// â”€â”€ Sidebar More toggle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 $("btnSidebarMore")?.addEventListener("click", () => {
   const more = $("sidebarMore");
   if (!more) return;
@@ -16639,7 +15771,7 @@ function ensureSecondaryTabVisible(tab) {
   }
 }
 
-// ── AI Copilot Panel ──────────────────────────────────────────────────────────
+// â”€â”€ AI Copilot Panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 let AI_PANEL_LOADED = false;
 
@@ -16654,7 +15786,7 @@ async function loadAIBriefing() {
   const statusEl  = $("aiBriefStatus");
   const chipsEl   = $("aiContextChips");
   if (!briefEl) return;
-  if (statusEl) { statusEl.textContent = "Loading…"; statusEl.style.display = "block"; }
+  if (statusEl) { statusEl.textContent = "Loadingâ€¦"; statusEl.style.display = "block"; }
   briefEl.style.display = "none";
   try {
     const tok = await getAccessToken();
@@ -16703,7 +15835,7 @@ async function aiAskQuestion(question) {
   if (btn) btn.disabled = true;
   if (errorEl) errorEl.style.display = "none";
   answerEl.style.display = "block";
-  answerEl.textContent = "Thinking…";
+  answerEl.textContent = "Thinkingâ€¦";
   try {
     const tok = await getAccessToken();
     const res = await fetch("/.netlify/functions/ai-copilot", {
@@ -16768,7 +15900,7 @@ async function requestAIDraft(draft_type) {
   if (!outputEl) return;
   if (areaEl) areaEl.style.display = "block";
   if (copyBtn) copyBtn.style.display = "none";
-  outputEl.textContent = "Drafting…";
+  outputEl.textContent = "Draftingâ€¦";
   try {
     const tok = await getAccessToken();
     const res = await fetch("/.netlify/functions/ai-copilot", {
@@ -16891,7 +16023,7 @@ boot().catch((err) => {
   showLogin(err?.message || String(err));
 });
 
-// ── Availability blocks ────────────────────────────────────────────────────────
+// â”€â”€ Availability blocks â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 let AVAILABILITY_BLOCKS_CACHE = [];
 
 async function loadAvailabilityBlocks() {
@@ -16918,8 +16050,8 @@ function renderAvailabilityBlocks() {
       <div>
         <div style="font-weight:500;color:#e8e9eb;">${escapeHtml(b.title || 'Unavailable')}</div>
         <div style="font-size:.78rem;color:rgba(255,255,255,.4);">
-          ${new Date(b.starts_at).toLocaleDateString()} – ${new Date(b.ends_at).toLocaleDateString()}
-          ${b.block_bookings ? ' · <span style="color:#fbbf24;">Blocks new bookings</span>' : ''}
+          ${new Date(b.starts_at).toLocaleDateString()} â€“ ${new Date(b.ends_at).toLocaleDateString()}
+          ${b.block_bookings ? ' Â· <span style="color:#fbbf24;">Blocks new bookings</span>' : ''}
         </div>
       </div>
       <button class="btn btn-ghost" style="font-size:.72rem;" onclick="deleteAvailBlock('${escapeAttr(b.id)}')">Delete</button>
@@ -16967,7 +16099,7 @@ $('btnAddAvailBlock')?.addEventListener('click', () => {
     const ends = $('abEnd')?.value;
     if (!starts || !ends) { notifyOperator("Add both a start and end date."); return; }
     if (starts > ends) { notifyOperator("The start date needs to come before the end date."); return; }
-    const btn = $('abSave'); btn.disabled = true; btn.textContent = 'Saving…';
+    const btn = $('abSave'); btn.disabled = true; btn.textContent = 'Savingâ€¦';
     try {
       const tok = await getAccessToken();
       const res = await fetch('/.netlify/functions/manage-availability-blocks', {
@@ -16991,7 +16123,7 @@ $('btnAddAvailBlock')?.addEventListener('click', () => {
   };
 });
 
-// ── Package sessions summary ──────────────────────────────────────────────────
+// â”€â”€ Package sessions summary â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function renderPackagesSummary() {
   const card = $('packagesSummaryCard');
   const list = $('packagesSummaryList');
@@ -17004,7 +16136,7 @@ function renderPackagesSummary() {
     const total = Number(p.package_sessions_total || 0);
     const remaining = Math.max(0, total - used);
     const pct = total > 0 ? Math.round(remaining / total * 100) : 0;
-    const expiry = p.package_valid_until ? ` · expires ${new Date(p.package_valid_until).toLocaleDateString()}` : '';
+    const expiry = p.package_valid_until ? ` Â· expires ${new Date(p.package_valid_until).toLocaleDateString()}` : '';
     const custName = p.customer_name || p.email || 'Unknown';
     return `<div style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,.06);">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
@@ -17019,7 +16151,7 @@ function renderPackagesSummary() {
   }).join('');
 }
 
-// ── Project phases ────────────────────────────────────────────────────────────
+// â”€â”€ Project phases â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 async function loadPhasesIntoEl(orderId, bodyEl) {
   try {
     const tok = await getAccessToken();
@@ -17042,7 +16174,7 @@ async function loadPhasesIntoEl(orderId, bodyEl) {
           <div style="flex:1;">
             <div style="font-weight:500;color:#e8e9eb;">${escapeHtml(p.title)}</div>
             ${p.description ? `<div style="font-size:.75rem;color:rgba(255,255,255,.4);">${escapeHtml(p.description)}</div>` : ''}
-            <div style="font-size:.75rem;color:rgba(255,255,255,.35);">${formatUsd(p.amount_cents)}${p.due_date ? ' · due ' + new Date(p.due_date).toLocaleDateString() : ''}</div>
+            <div style="font-size:.75rem;color:rgba(255,255,255,.35);">${formatUsd(p.amount_cents)}${p.due_date ? ' Â· due ' + new Date(p.due_date).toLocaleDateString() : ''}</div>
           </div>
           <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;">
             <span style="font-size:.7rem;font-weight:600;color:${statusColor};text-transform:uppercase;">${p.status}</span>
@@ -17097,7 +16229,7 @@ function openAddPhaseModal(orderId) {
   document.getElementById('phSave').onclick = async () => {
     const title = ($('phTitle')?.value || '').trim();
     if (!title) { notifyOperator("Add a phase name first."); return; }
-    const btn = $('phSave'); btn.disabled = true; btn.textContent = 'Saving…';
+    const btn = $('phSave'); btn.disabled = true; btn.textContent = 'Savingâ€¦';
     try {
       const tok = await getAccessToken();
       const res = await fetch('/.netlify/functions/manage-project-phases', {
@@ -17124,12 +16256,12 @@ function openAddPhaseModal(orderId) {
   };
 }
 
-// ── Time entry logging ─────────────────────────────────────────────────────────
+// â”€â”€ Time entry logging â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 async function renderTimeEntries(orderId) {
   const body = document.getElementById("timeLoggedBody");
   if (!body || body.style.display === "none") return;
-  body.innerHTML = `<div class="muted" style="font-size:.82rem;">Loading…</div>`;
+  body.innerHTML = `<div class="muted" style="font-size:.82rem;">Loadingâ€¦</div>`;
   const entries = await fetchTimeEntries(orderId);
   if (!entries.length) {
     body.innerHTML = `<div class="muted" style="font-size:.82rem;">No time entries for this order.</div>`;
@@ -17157,7 +16289,7 @@ async function renderTimeEntries(orderId) {
           <td style="padding:3px 6px;border-bottom:1px solid rgba(255,255,255,.05);">${escapeHtml(e.description || "")}</td>
           <td style="text-align:right;padding:3px 6px;border-bottom:1px solid rgba(255,255,255,.05);">${dur}</td>
           <td style="text-align:right;padding:3px 6px;border-bottom:1px solid rgba(255,255,255,.05);">${e.billable ? "Yes" : "No"}</td>
-          <td style="text-align:right;padding:3px 6px;border-bottom:1px solid rgba(255,255,255,.05);">${e.billable && e.amount_cents ? formatUsd(e.amount_cents) : "—"}</td>
+          <td style="text-align:right;padding:3px 6px;border-bottom:1px solid rgba(255,255,255,.05);">${e.billable && e.amount_cents ? formatUsd(e.amount_cents) : "â€”"}</td>
         </tr>`;
       }).join("")}
       </tbody>
@@ -17165,10 +16297,10 @@ async function renderTimeEntries(orderId) {
         <td colspan="2" style="padding:6px 6px 2px;">Total</td>
         <td style="text-align:right;padding:6px 6px 2px;">${(totalMins / 60).toFixed(2)} hrs</td>
         <td></td>
-        <td style="text-align:right;padding:6px 6px 2px;">${totalBillable ? formatUsd(totalBillable) : "—"}</td>
+        <td style="text-align:right;padding:6px 6px 2px;">${totalBillable ? formatUsd(totalBillable) : "â€”"}</td>
       </tr></tfoot>
     </table>
-    <button id="btnTimeToInvoice" class="btn btn-ghost" style="margin-top:8px;font-size:.78rem;">⚡ Add uninvoiced hours to invoice</button>`;
+    <button id="btnTimeToInvoice" class="btn btn-ghost" style="margin-top:8px;font-size:.78rem;">âš¡ Add uninvoiced hours to invoice</button>`;
 }
 
 function openLogTimeModal(orderId) {
@@ -17200,7 +16332,7 @@ function openLogTimeModal(orderId) {
             <input id="ltDurationMins" type="number" min="1" step="1" placeholder="e.g. 60" class="input" style="width:100%;" />
           </div>
           <div style="flex:1;">
-            <label style="font-size:.72rem;color:rgba(255,255,255,.35);display:block;margin-bottom:2px;">— or — Ended at</label>
+            <label style="font-size:.72rem;color:rgba(255,255,255,.35);display:block;margin-bottom:2px;">â€” or â€” Ended at</label>
             <input id="ltEndedAt" type="datetime-local" class="input" style="width:100%;" />
           </div>
         </div>
@@ -17238,7 +16370,7 @@ function openLogTimeModal(orderId) {
 
     const btn = document.getElementById("ltSave");
     btn.disabled = true;
-    btn.textContent = "Saving…";
+    btn.textContent = "Savingâ€¦";
 
     try {
       const tok = await getAccessToken();
@@ -17274,7 +16406,7 @@ function openLogTimeModal(orderId) {
       const span = document.getElementById("timeLoggedToggle")?.querySelector("span");
       if (body) {
         body.style.display = "block";
-        if (span) span.textContent = "Time logged ▾";
+        if (span) span.textContent = "Time logged â–¾";
         await renderTimeEntries(orderId);
       }
     } catch (err) {
@@ -17285,7 +16417,7 @@ function openLogTimeModal(orderId) {
   };
 }
 
-// ── Session idle timeout ───────────────────────────────────────────────────────
+// â”€â”€ Session idle timeout â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 (function initIdleTimer() {
   const WARN_MS   = 25 * 60 * 1000; // warn after 25 min idle
   const LOGOUT_MS = 30 * 60 * 1000; // logout after 30 min idle
@@ -17318,7 +16450,7 @@ function openLogTimeModal(orderId) {
   reset();
 })();
 
-// ── Vendor handlers ────────────────────────────────────────────────────────────
+// â”€â”€ Vendor handlers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 $("btnRefreshVendors")?.addEventListener("click", async () => {
   await fetchVendors();
   renderVendors();
@@ -17354,7 +16486,7 @@ $("btnAddVendor")?.addEventListener("click", () => {
     const name = (document.getElementById("vName").value || "").trim();
     if (!name) { notifyOperator("Add a name first."); return; }
     const btn = document.getElementById("avSave");
-    btn.disabled = true; btn.textContent = "Saving…";
+    btn.disabled = true; btn.textContent = "Savingâ€¦";
     try {
       const tok = await getAccessToken();
       const res = await fetch("/.netlify/functions/manage-vendors", {
@@ -17380,4 +16512,5 @@ $("btnAddVendor")?.addEventListener("click", () => {
     }
   };
 });
+
 
