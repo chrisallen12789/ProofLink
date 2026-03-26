@@ -10002,6 +10002,22 @@ async function renderCustomerDetailWorkspace(customerIdValue, customer) {
   const activeOrderCount = customerOrders.filter((order) => !["completed", "cancelled", "archived"].includes(String(order.status || "").toLowerCase())).length;
   const activeJobCount = customerJobsRows.filter((job) => !["completed", "cancelled", "archived"].includes(String(job.status || "").toLowerCase())).length;
   const address = customerDisplayAddress(customer);
+  const hasActiveOrders = CRM_ORDERS_CACHE.some((o) => o.customer_id === customerIdValue && !["completed", "cancelled", "archived"].includes(String(o.status || "").toLowerCase()));
+  const hasActiveJobs = JOBS_CACHE.some((job) => job.customer_id === customerIdValue && !["completed", "cancelled", "archived"].includes(String(job.status || "").toLowerCase()));
+  const customerQuickActions = [
+    { label: "New request", className: "btn btn-primary", data: { "customer-action": "request" } },
+    { label: "Draft proposal", className: "btn btn-ghost", data: { "customer-action": "bid" } },
+    { label: "Record payment", className: "btn btn-ghost", data: { "customer-action": "payment" } },
+    { label: "Add note", className: "btn btn-ghost", data: { "customer-action": "note" } },
+  ];
+  if (!hasActiveOrders && !hasActiveJobs) {
+    customerQuickActions.push({
+      label: "Archive customer",
+      className: "btn btn-ghost",
+      style: "font-size:.75rem;color:#fbbf24;",
+      data: { "customer-action": "archive" },
+    });
+  }
 
   const renderWorkflowList = (rows, options = {}) => {
     if (!rows.length) return `<div class="empty-note">${escapeHtml(options.empty || "Nothing here yet.")}</div>`;
@@ -10047,20 +10063,12 @@ async function renderCustomerDetailWorkspace(customerIdValue, customer) {
         { label: "Booked + active work", value: String(activeOrderCount + activeJobCount), note: "Execution or follow-through still open" },
         { label: "Outstanding balance", value: formatUsd(balance), note: "Billed work not fully collected" },
       ],
-      actionsHtml: `
-        <div class="customer-action-row">
-          <button type="button" class="btn btn-primary" data-customer-action="request">New request</button>
-          <button type="button" class="btn btn-ghost" data-customer-action="bid">Draft proposal</button>
-          <button type="button" class="btn btn-ghost" data-customer-action="payment">Record payment</button>
-          <button type="button" class="btn btn-ghost" data-customer-action="note">Add note</button>
-          ${(function() {
-            const hasActiveOrders = CRM_ORDERS_CACHE.some((o) => o.customer_id === customerIdValue && !["completed", "cancelled", "archived"].includes(String(o.status || "").toLowerCase()));
-            const hasActiveJobs = JOBS_CACHE.some((job) => job.customer_id === customerIdValue && !["completed", "cancelled", "archived"].includes(String(job.status || "").toLowerCase()));
-            if (hasActiveOrders || hasActiveJobs) return "";
-            return `<button class="btn btn-ghost" style="font-size:.75rem;color:#fbbf24;" data-customer-action="archive">Archive customer</button>`;
-          })()}
-        </div>
-      `,
+    })}
+    ${renderRecordActionRail({
+      eyebrow: "Quick actions",
+      title: "Move the relationship forward",
+      description: "Start the next piece of work, collect money, or capture what just happened without leaving this customer record.",
+      actions: customerQuickActions,
     })}
 
     <div class="customer-flow-grid">
@@ -13985,6 +13993,79 @@ function renderRecordHeroCard({
     </div>
   `;
 }
+function renderRecordActionButtons(actions = []) {
+  return (Array.isArray(actions) ? actions : [])
+    .filter((action) => action && (action.label || action.html))
+    .map((action) => {
+      if (action.html) return action.html;
+      const attrs = [
+        `type="${escapeAttr(action.type || "button")}"`,
+        `class="${escapeAttr(action.className || "btn btn-ghost")}"`,
+      ];
+      if (action.id) attrs.push(`id="${escapeAttr(action.id)}"`);
+      if (action.title) attrs.push(`title="${escapeAttr(action.title)}"`);
+      if (action.style) attrs.push(`style="${escapeAttr(action.style)}"`);
+      if (action.disabled) attrs.push("disabled");
+      Object.entries(action.data || {}).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) attrs.push(`data-${escapeAttr(key)}="${escapeAttr(String(value))}"`);
+      });
+      return `<button ${attrs.join(" ")}>${escapeHtml(action.label || "")}</button>`;
+    })
+    .join("");
+}
+function renderRecordActionRail({
+  eyebrow = "Quick actions",
+  title = "Keep things moving",
+  description = "",
+  actions = [],
+  footerHtml = "",
+} = {}) {
+  const actionHtml = renderRecordActionButtons(actions);
+  return `
+    <div class="record-action-rail detail-card" style="margin-top:14px;">
+      <div class="record-action-rail__head">
+        <div>
+          <div class="kicker">${escapeHtml(eyebrow)}</div>
+          <h3>${escapeHtml(title)}</h3>
+        </div>
+        ${description ? `<div class="detail-copy">${escapeHtml(description)}</div>` : ""}
+      </div>
+      ${actionHtml ? `<div class="record-action-rail__buttons">${actionHtml}</div>` : ""}
+      ${footerHtml || ""}
+    </div>
+  `;
+}
+function renderLinkedRecordCard({
+  eyebrow = "Linked records",
+  title = "Keep the full chain together",
+  description = "",
+  items = [],
+  footerHtml = "",
+} = {}) {
+  const itemHtml = (Array.isArray(items) ? items : [])
+    .filter((item) => item && item.label)
+    .map((item) => `
+      <div class="record-linked__item">
+        <span>${escapeHtml(item.label)}</span>
+        <strong>${escapeHtml(item.value || "")}</strong>
+        ${item.note ? `<small>${escapeHtml(item.note)}</small>` : ""}
+      </div>
+    `)
+    .join("");
+  return `
+    <div class="record-linked detail-card" style="margin-top:14px;">
+      <div class="record-linked__head">
+        <div>
+          <div class="kicker">${escapeHtml(eyebrow)}</div>
+          <h3>${escapeHtml(title)}</h3>
+        </div>
+        ${description ? `<div class="detail-copy">${escapeHtml(description)}</div>` : ""}
+      </div>
+      ${itemHtml ? `<div class="record-linked__grid">${itemHtml}</div>` : `<div class="empty-note">No linked records yet.</div>`}
+      ${footerHtml || ""}
+    </div>
+  `;
+}
 function dashboardClientTrackerRows(todayActions = []) {
   const rows = [];
   const activeStatuses = new Set(["new", "quoted", "confirmed", "fulfilled", "completed", "scheduled", "dispatched", "in_progress", "blocked"]);
@@ -14524,6 +14605,12 @@ async function renderJobDetail(jobIdValue) {
   const hvRev = calcHydrovacRevenueCents(job);
   const hvBreakdown = hvRev !== null ? hydrovacRevenueBreakdownHtml(job) : null;
   const hydrovacState = isHydrovacJob(job) ? hydrovacJobDetailState(job.id) : null;
+  const jobActionButtons = [
+    order ? { label: "Open booked work", className: "btn btn-primary", data: { "job-quick-action": "open-order" } } : null,
+    { label: linkedCustomer ? "Open customer" : "Open customers", className: "btn btn-ghost", data: { "job-quick-action": "open-customer" } },
+    { label: "Record payment", className: "btn btn-ghost", data: { "job-quick-action": "record-payment" }, disabled: !order },
+    { label: "Log job cost", className: "btn btn-ghost", data: { "job-quick-action": "log-cost" } },
+  ].filter(Boolean);
   jobDetailWrap.innerHTML = `
     ${renderRecordHeroCard({
       eyebrow: "Execution record",
@@ -14548,6 +14635,14 @@ async function renderJobDetail(jobIdValue) {
         { label: "Gross profit", value: formatUsd(grossProfitCents), note: "Revenue minus tracked cost", tone: grossProfitToneClass(grossProfitCents) },
         { label: "Due now", value: formatUsd(Number(job.amount_due_cents || orderAmountDueCents(order) || 0)), note: formatWorkflowPaymentState(job.payment_state || orderPaymentState(order)), tone: paymentStateClass(job.payment_state || orderPaymentState(order)) },
       ],
+    })}
+    ${renderRecordActionRail({
+      eyebrow: "Quick actions",
+      title: "Keep field work and follow-through together",
+      description: order
+        ? "Jump to the booked work, customer, money, or cost log from one place while the crew context is still fresh."
+        : "Use this job to stay anchored in field execution, then move to the customer or money follow-through without hunting around.",
+      actions: jobActionButtons,
     })}
     <div class="detail-card" style="margin-top:14px;">
       <div class="kicker">Job economics</div>
@@ -14578,19 +14673,25 @@ async function renderJobDetail(jobIdValue) {
       </div>
       ` : ''}
     </div>
-    <div class="detail-card" style="margin-top:14px;">
-      <div class="kicker">Linked work</div>
-      <div class="detail-copy">Request: ${escapeHtml(linkedLead?.contact_name || linkedLead?.title || "Not linked")}</div>
-      <div class="detail-copy">Proposal: ${escapeHtml(linkedBid?.title || "Not linked")}</div>
-      <div class="detail-copy">Order: ${escapeHtml(order?.customer_name || "Not linked")}</div>
-      <div class="detail-copy">Customer: ${escapeHtml(linkedCustomer?.name || "Not linked")}</div>
-      <div class="detail-copy">${escapeHtml(job.service_address || "No service address recorded")}</div>
-      <div class="pipeline-next-steps">
-        <button id="btnJobOpenRequest" class="btn btn-ghost" type="button">${linkedLead ? "Open request" : "Open requests"}</button>
-        <button id="btnJobOpenBid" class="btn btn-ghost" type="button">${linkedBid ? "Open proposal" : "Open proposals"}</button>
-        <button id="btnJobOpenCustomer" class="btn btn-ghost" type="button">${linkedCustomer ? "Open customer" : "Open customers"}</button>
-      </div>
-    </div>
+    ${renderLinkedRecordCard({
+      eyebrow: "Linked work",
+      title: "See the full work chain",
+      description: "A job should stay tied to the request, proposal, booked work, and customer so nobody has to reconstruct what happened later.",
+      items: [
+        { label: "Request", value: linkedLead?.contact_name || linkedLead?.title || "Not linked", note: linkedLead ? titleCaseWords(String(linkedLead.status || "new")) : "No intake record attached yet" },
+        { label: "Proposal", value: linkedBid?.title || "Not linked", note: linkedBid ? titleCaseWords(String(linkedBid.status || "draft")) : "No proposal attached yet" },
+        { label: "Booked work", value: order?.customer_name || order?.title || "Not linked", note: order ? formatOrderWorkflowStatus(order.status || "new") : "Link or create booked work to keep billing attached" },
+        { label: "Customer", value: linkedCustomer?.name || "Not linked", note: linkedCustomer ? "Customer history is attached" : "Link a customer so future work and payments stay together" },
+        { label: "Service address", value: job.service_address || order?.service_address || "No service address recorded", note: "Field location for the crew and office" },
+      ],
+      footerHtml: `
+        <div class="pipeline-next-steps">
+          <button id="btnJobOpenRequest" class="btn btn-ghost" type="button">${linkedLead ? "Open request" : "Open requests"}</button>
+          <button id="btnJobOpenBid" class="btn btn-ghost" type="button">${linkedBid ? "Open proposal" : "Open proposals"}</button>
+          <button id="btnJobOpenCustomer" class="btn btn-ghost" type="button">${linkedCustomer ? "Open customer" : "Open customers"}</button>
+        </div>
+      `,
+    })}
     ${isHydrovacJob(job) ? renderHydrovacJobOperations(job, order, hydrovacState) : ""}
     ${(() => {
       if (!job.assigned_operator_id) return '';
@@ -14614,7 +14715,46 @@ async function renderJobDetail(jobIdValue) {
         </div>`;
     })()}
   `;
-  jobDetailWrap.querySelector('[data-job-cost-action="log"]')?.addEventListener("click", () => openExpenseForJob(job));
+  jobDetailWrap.querySelectorAll('[data-job-cost-action="log"]').forEach((button) => {
+    button.addEventListener("click", () => openExpenseForJob(job));
+  });
+  jobDetailWrap.querySelectorAll("[data-job-quick-action]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const action = button.getAttribute("data-job-quick-action") || "";
+      if (action === "open-order") {
+        if (order?.id) {
+          ACTIVE_ORDER_ID = order.id;
+          renderOrders();
+          switchTab("orders");
+        }
+        return;
+      }
+      if (action === "open-customer") {
+        if (linkedCustomer?.id) {
+          ACTIVE_CUSTOMER_ID = linkedCustomer.id;
+          CUSTOMER_CREATING = false;
+        }
+        switchTab("customers");
+        return;
+      }
+      if (action === "record-payment") {
+        if (!order?.id) return;
+        ACTIVE_ORDER_ID = order.id;
+        ACTIVE_JOB_ID = job.id;
+        clearPaymentForm({
+          customerId: job.customer_id || order.customer_id || "",
+          orderId: order.id,
+          amount: money(Number(job.amount_due_cents || orderAmountDueCents(order) || 0)),
+        });
+        renderPayments();
+        switchTab("payments");
+        return;
+      }
+      if (action === "log-cost") {
+        openExpenseForJob(job);
+      }
+    });
+  });
   jobDetailWrap.querySelector('#btnJobLogHours')?.addEventListener("click", () => maybeLogJobHours(job));
   jobDetailWrap.querySelector('#btnJobOpenRequest')?.addEventListener("click", () => {
     if (linkedLead?.id) ACTIVE_LEAD_ID = linkedLead.id;
@@ -16827,6 +16967,14 @@ function renderOrders() {
     ? CRM_ORDERS_CACHE.filter((o) => o.id !== active.id && (o.customer_id === existingCustomer.id || (o.email || o.customer_email || "").toLowerCase() === orderEmail.toLowerCase()))
     : CRM_ORDERS_CACHE.filter((o) => o.id !== active.id && orderEmail && (o.email || o.customer_email || "").toLowerCase() === orderEmail.toLowerCase());
   const isReturnCustomer = priorOrders.length > 0;
+  const orderActionButtons = [
+    !existingCustomer ? { id: "btnAddOrderToCrm", label: "Add customer to CRM", className: "btn btn-ghost btn-sm" } : null,
+    { label: linkedJob ? "Open linked job" : "Create job", className: "btn btn-primary", data: { "order-quick-action": "open-job" } },
+    { label: depositGap > 0 ? "Collect deposit" : "Record payment", className: "btn btn-ghost", data: { "order-quick-action": "collect-money" } },
+    { label: "Open customer", className: "btn btn-ghost", data: { "order-quick-action": "open-customer" } },
+    { label: "Download invoice", className: "btn btn-ghost", data: { "order-quick-action": "download-invoice" } },
+    active.customer_phone ? { label: "Text customer", className: "btn btn-ghost", data: { "order-quick-action": "text-customer" } } : null,
+  ].filter(Boolean);
 
   orderDetailWrap.innerHTML = `
     ${renderRecordHeroCard({
@@ -16854,9 +17002,16 @@ function renderOrders() {
         { label: "Due now", value: formatUsd(amountDue), note: paymentState === "overdue" ? "Past due" : "Still open", tone: paymentState === "overdue" ? "pill-bad" : "" },
         { label: "Deposit", value: depositGap > 0 ? `${formatUsd(depositGap)} open` : formatUsd(depositPaid), note: depositStatus === "not_required" ? "No deposit required" : formatDepositStatus(depositStatus) },
       ],
-      actionsHtml: !existingCustomer ? `<button id="btnAddOrderToCrm" class="btn btn-ghost btn-sm" type="button">+ Add customer to CRM</button>` : "",
     })}
     ${isReturnCustomer && !existingCustomer ? `<div class="detail-card" style="margin-top:14px;"><div class="kicker">Customer match</div><div class="detail-copy" style="font-size:.8rem;color:#fbbf24;">${priorOrders.length} prior order(s) found for this email. Consider linking this person into CRM so the next request, job, and payment history stay together.</div></div>` : ""}
+    ${renderRecordActionRail({
+      eyebrow: "Quick actions",
+      title: "Move this work forward",
+      description: linkedJob
+        ? "The booked work, field job, and payment flow are already tied together here. Use the actions below to keep them moving without jumping around."
+        : "Use one action row to create the linked job, collect money, or open the right record without rebuilding anything.",
+      actions: orderActionButtons,
+    })}
 
     ${(active.order_type === 'package' || active.order_type === 'retainer') ? `
     <div class="detail-card" style="margin-top:14px;">
@@ -17503,6 +17658,17 @@ function renderOrders() {
     if (!silent) setInlineMessage($("orderDepositMsg"), "Deposit settings saved.", "ok");
     return data;
   }
+
+  orderDetailWrap.querySelectorAll("[data-order-quick-action]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const action = button.getAttribute("data-order-quick-action") || "";
+      if (action === "open-job") return $("btnCreateJobFromOrder")?.click();
+      if (action === "collect-money") return $("btnCollectOrderDeposit")?.click();
+      if (action === "open-customer") return $("btnOpenOrderCustomer")?.click();
+      if (action === "download-invoice") return $("btnDownloadInvoice")?.click();
+      if (action === "text-customer") return $("btnOrderSms")?.click();
+    });
+  });
 
   $("btnCreateJobFromOrder")?.addEventListener("click", async () => {
     let currentOrder = CRM_ORDERS_CACHE.find((row) => row.id === active.id) || active;
