@@ -218,6 +218,7 @@ const ordersList = $("ordersList");
 const orderDetailWrap = $("orderDetailWrap");
 const pipelineStageStrip = $("pipelineStageStrip");
 const pipelineActionBar = $("pipelineActionBar");
+const workCommandWrap = $("workCommandWrap");
 const btnRefreshOrders = $("btnRefreshOrders");
 const btnExportOrders = $("btnExportOrders");
 const btnImportBridgeOrders = $("btnImportBridgeOrders");
@@ -13687,6 +13688,264 @@ function todayActionItems() {
   }
   return actions.slice(0, 4);
 }
+function orderHasLinkedJob(order) {
+  if (!order?.id) return false;
+  return JOBS_CACHE.some((job) => job.order_id === order.id || job.id === order.primary_job_id);
+}
+function workCommandItems() {
+  const staleLead = [...staleLeads()].sort((a, b) => leadLastTouchedAt(a) - leadLastTouchedAt(b))[0] || null;
+  const liveBid = [...BIDS_CACHE]
+    .filter((row) => !row.converted_order_id && !["declined", "expired", "converted"].includes(String(row.status || "").toLowerCase()))
+    .sort((a, b) => new Date(a.updated_at || a.created_at || 0).getTime() - new Date(b.updated_at || b.created_at || 0).getTime())[0] || null;
+  const bookedWithoutJob = [...CRM_ORDERS_CACHE]
+    .filter((row) => ["confirmed", "fulfilled"].includes(String(row.status || "").toLowerCase()))
+    .filter((row) => !orderHasLinkedJob(row))
+    .sort((a, b) => new Date(a.scheduled_date || a.created_at || 0).getTime() - new Date(b.scheduled_date || b.created_at || 0).getTime())[0] || null;
+  const activeJob = [...JOBS_CACHE]
+    .filter((row) => ["blocked", "scheduled", "dispatched", "in_progress"].includes(String(row.status || "").toLowerCase()))
+    .sort((a, b) => new Date(a.scheduled_date || a.created_at || 0).getTime() - new Date(b.scheduled_date || b.created_at || 0).getTime())[0] || null;
+  const collectionRisk = [...CRM_ORDERS_CACHE]
+    .filter((row) => orderAmountDueCents(row) > 0 && ["unpaid", "partially_paid", "overdue"].includes(orderPaymentState(row)))
+    .sort((a, b) => {
+      const stateA = orderPaymentState(a) === "overdue" ? 0 : 1;
+      const stateB = orderPaymentState(b) === "overdue" ? 0 : 1;
+      if (stateA !== stateB) return stateA - stateB;
+      return new Date(a.payment_due_date || a.created_at || 0).getTime() - new Date(b.payment_due_date || b.created_at || 0).getTime();
+    })[0] || null;
+
+  return [
+    staleLead ? {
+      title: "Requests waiting on you",
+      count: staleLeads().length,
+      detail: `${staleLead.contact_name || staleLead.title || "Request"} | ${ageLabelFromTime(leadLastTouchedAt(staleLead))}`,
+      action: "Open request",
+      tab: "leads",
+      targetId: staleLead.id,
+      tone: staleLeads().length ? "pill-bad" : "",
+    } : null,
+    liveBid ? {
+      title: "Quotes waiting to move",
+      count: BIDS_CACHE.filter((row) => !row.converted_order_id && !["declined", "expired", "converted"].includes(String(row.status || "").toLowerCase())).length,
+      detail: `${liveBid.title || "Proposal"} | ${formatBidStatus(liveBid.status)}`,
+      action: "Open quote",
+      tab: "bids",
+      targetId: liveBid.id,
+      tone: "",
+    } : null,
+    bookedWithoutJob ? {
+      title: "Booked work not yet in the field",
+      count: CRM_ORDERS_CACHE.filter((row) => ["confirmed", "fulfilled"].includes(String(row.status || "").toLowerCase()) && !orderHasLinkedJob(row)).length,
+      detail: `${bookedWithoutJob.customer_name || "Customer"} | ${formatUsd(Number(bookedWithoutJob.total_cents || 0))} booked`,
+      action: "Open work",
+      tab: "orders",
+      targetId: bookedWithoutJob.id,
+      tone: "",
+    } : null,
+    activeJob ? {
+      title: "Field work still moving",
+      count: JOBS_CACHE.filter((row) => ["blocked", "scheduled", "dispatched", "in_progress"].includes(String(row.status || "").toLowerCase())).length,
+      detail: `${activeJob.title || "Job"} | ${String(activeJob.status || "scheduled").replace(/_/g, " ")}`,
+      action: "Open job",
+      tab: "jobs",
+      targetId: activeJob.id,
+      tone: String(activeJob.status || "").toLowerCase() === "blocked" ? "pill-bad" : "",
+    } : null,
+    collectionRisk ? {
+      title: "Money still tied to live work",
+      count: CRM_ORDERS_CACHE.filter((row) => orderAmountDueCents(row) > 0 && ["unpaid", "partially_paid", "overdue"].includes(orderPaymentState(row))).length,
+      detail: `${collectionRisk.customer_name || "Customer"} | ${formatUsd(orderAmountDueCents(collectionRisk))} due`,
+      action: "Open money item",
+      tab: "orders",
+      targetId: collectionRisk.id,
+      tone: orderPaymentState(collectionRisk) === "overdue" ? "pill-bad" : "",
+    } : null,
+  ].filter(Boolean).slice(0, 4);
+}
+function renderTodayFocusSection({ todayActions = [], followUps = [], staleLeadRows = [], duePlans = [], depositRiskOrders = [], completedUnpaid = [], blueprint }) {
+  const fallbackActions = [
+    { label: "Add a customer", action: "new-customer" },
+    { label: "Create a request", action: "new-lead" },
+    { label: `Draft ${workspaceBidLabel(blueprint)}`, action: "new-bid" },
+    { label: "Record payment", action: "record-payment" },
+  ];
+  const primary = todayActions[0] || null;
+  const secondary = todayActions.slice(1, 3);
+  const cleanup = [
+    staleLeadRows.length ? `${staleLeadRows.length} request${staleLeadRows.length === 1 ? "" : "s"} waiting 24h+` : null,
+    depositRiskOrders.length ? `${depositRiskOrders.length} booked job${depositRiskOrders.length === 1 ? "" : "s"} still missing deposit coverage` : null,
+    completedUnpaid.length ? `${completedUnpaid.length} completed item${completedUnpaid.length === 1 ? "" : "s"} still unpaid` : null,
+    duePlans.length ? `${duePlans.length} recurring plan${duePlans.length === 1 ? "" : "s"} due now` : null,
+    followUps.length ? `${followUps.length} safe follow-up${followUps.length === 1 ? "" : "s"} queued` : null,
+  ].filter(Boolean).slice(0, 4);
+
+  return `
+    <div class="workflow-focus">
+      <div class="workflow-focus__head">
+        <div>
+          <div class="kicker">Operating rhythm</div>
+          <h3>Start with the next move that actually changes the business.</h3>
+          <p>Use Today to see what needs action now, what should move next, and what needs cleanup before it turns into friction later.</p>
+        </div>
+        <div class="workspace-chip-row">
+          ${fallbackActions.map((item) => `<button type="button" class="pipeline-action-chip" data-dashboard-action="${escapeAttr(item.action)}">${escapeHtml(item.label)}</button>`).join("")}
+        </div>
+      </div>
+      <div class="workflow-focus__grid">
+        <div class="workflow-focus__primary">
+          <div class="kicker">Start now</div>
+          ${primary ? `
+            <button type="button" class="today-action-card workflow-focus__card" data-today-tab="${escapeAttr(primary.tab)}" data-today-id="${escapeAttr(primary.targetId || "")}">
+              <strong>${escapeHtml(primary.title)}</strong>
+              <div class="muted">${escapeHtml(primary.detail)}</div>
+              <div class="workspace-chip-row">
+                <span class="pill pill-bad">Highest leverage</span>
+                <span class="pill">Open record</span>
+              </div>
+            </button>
+          ` : `
+            <div class="detail-card workflow-focus__empty">
+              <div class="kicker">Start now</div>
+              <div><strong>No urgent record is pulling focus right now.</strong></div>
+              <div class="detail-copy">That usually means the work is caught up enough to create the next customer, request, or quote on purpose.</div>
+            </div>
+          `}
+        </div>
+        <div class="workflow-focus__stack">
+          <div class="kicker">Keep moving</div>
+          ${secondary.length ? secondary.map((item) => `
+            <button type="button" class="today-action-card" data-today-tab="${escapeAttr(item.tab)}" data-today-id="${escapeAttr(item.targetId || "")}">
+              <strong>${escapeHtml(item.title)}</strong>
+              <div class="muted">${escapeHtml(item.detail)}</div>
+            </button>
+          `).join("") : `
+            <div class="detail-card workflow-focus__empty">
+              <div><strong>No secondary action is competing for attention yet.</strong></div>
+              <div class="detail-copy">As requests, work, and payments stack up, Today will keep the next moves visible here.</div>
+            </div>
+          `}
+        </div>
+        <div class="workflow-focus__summary">
+          <div class="kicker">Keep clean</div>
+          <div class="workflow-focus__summary-list">
+            ${cleanup.length ? cleanup.map((item) => `<div class="workflow-focus__summary-item">${escapeHtml(item)}</div>`).join("") : `<div class="workflow-focus__summary-item">No cleanup pressure is standing out right now.</div>`}
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+function activateWorkspaceTarget(tab, targetId = "") {
+  const id = String(targetId || "").trim();
+  if (tab === "leads" && id) ACTIVE_LEAD_ID = id;
+  if (tab === "bids" && id) ACTIVE_BID_ID = id;
+  if (tab === "orders" && id) ACTIVE_ORDER_ID = id;
+  if (tab === "jobs" && id) ACTIVE_JOB_ID = id;
+  if (tab === "plans" && id) ACTIVE_PLAN_ID = id;
+  if (tab === "customers" && id) ACTIVE_CUSTOMER_ID = id;
+  if (tab === "dispatch" && id) ACTIVE_DISPATCH_JOB_ID = id;
+  if (tab === "locates" && id) ACTIVE_LOCATE_ID = id;
+  if (tab === "manifests" && id) ACTIVE_MANIFEST_ID = id;
+  if (tab === "permits" && id) ACTIVE_PERMIT_ID = id;
+  switchTab(tab || "dashboard");
+}
+function renderWorkCommandCenter() {
+  if (!workCommandWrap) return;
+  const items = workCommandItems();
+  const requestPressure = staleLeads().length;
+  const queuedQuotes = BIDS_CACHE.filter((row) => !row.converted_order_id && !["declined", "expired", "converted"].includes(String(row.status || "").toLowerCase())).length;
+  const bookedWithoutJobs = CRM_ORDERS_CACHE.filter((row) => ["confirmed", "fulfilled"].includes(String(row.status || "").toLowerCase()) && !orderHasLinkedJob(row)).length;
+  const liveJobs = JOBS_CACHE.filter((row) => ["blocked", "scheduled", "dispatched", "in_progress"].includes(String(row.status || "").toLowerCase())).length;
+
+  workCommandWrap.innerHTML = `
+    <div class="work-command__head">
+      <div>
+        <div class="kicker">Command center</div>
+        <h3>Move work from request to field without losing the thread.</h3>
+        <p>Use this space to see where the workflow is backing up before you drop into the detailed record lists below.</p>
+      </div>
+      <div class="workspace-chip-row">
+        <button type="button" class="pipeline-action-chip" data-pipeline-action="new-request">New request</button>
+        <button type="button" class="pipeline-action-chip" data-pipeline-action="draft-proposal">Draft proposal</button>
+        <button type="button" class="pipeline-action-chip" data-pipeline-action="open-jobs">Open active jobs</button>
+        <button type="button" class="pipeline-action-chip" data-pipeline-action="record-payment">Record payment</button>
+      </div>
+    </div>
+    <div class="work-command__stats">
+      <div class="work-command__stat">
+        <span class="muted">Requests waiting</span>
+        <strong>${escapeHtml(String(requestPressure))}</strong>
+      </div>
+      <div class="work-command__stat">
+        <span class="muted">Live quotes</span>
+        <strong>${escapeHtml(String(queuedQuotes))}</strong>
+      </div>
+      <div class="work-command__stat">
+        <span class="muted">Booked without job</span>
+        <strong>${escapeHtml(String(bookedWithoutJobs))}</strong>
+      </div>
+      <div class="work-command__stat">
+        <span class="muted">Active field work</span>
+        <strong>${escapeHtml(String(liveJobs))}</strong>
+      </div>
+    </div>
+    <div class="work-command__grid">
+      ${items.length ? items.map((item) => `
+        <button type="button" class="today-action-card work-command__card" data-work-command-tab="${escapeAttr(item.tab)}" data-work-command-id="${escapeAttr(item.targetId || "")}">
+          <div class="dashboard-tracker-row__title">
+            <strong>${escapeHtml(item.title)}</strong>
+            <span class="pill ${escapeAttr(item.tone || "")}">${escapeHtml(String(item.count))}</span>
+          </div>
+          <div class="dashboard-tracker-row__copy">${escapeHtml(item.detail)}</div>
+          <div class="workspace-chip-row">
+            <span class="pill">Open record</span>
+            <span class="pill">${escapeHtml(item.action)}</span>
+          </div>
+        </button>
+      `).join("") : `
+        <div class="detail-card work-command__empty">
+          <div class="kicker">Command center</div>
+          <div><strong>No workflow pressure is showing right now.</strong></div>
+          <div class="detail-copy">Requests, quotes, booked work, and jobs are either caught up or not yet in the system.</div>
+        </div>
+      `}
+    </div>
+  `;
+
+  workCommandWrap.querySelectorAll("[data-work-command-tab]").forEach((button) => {
+    button.addEventListener("click", () => {
+      activateWorkspaceTarget(
+        button.getAttribute("data-work-command-tab") || "orders",
+        button.getAttribute("data-work-command-id") || ""
+      );
+    });
+  });
+  workCommandWrap.querySelectorAll("[data-pipeline-action]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const action = button.getAttribute("data-pipeline-action");
+      if (action === "new-request") {
+        ACTIVE_LEAD_ID = null;
+        clearLeadForm();
+        renderLeadDetail(null).catch(console.error);
+        switchTab("leads");
+        return;
+      }
+      if (action === "draft-proposal") {
+        startNewBid(preferredBidProfile());
+        switchTab("bids");
+        return;
+      }
+      if (action === "open-jobs") {
+        switchTab("jobs");
+        return;
+      }
+      if (action === "record-payment") {
+        clearPaymentForm({ customerId: ACTIVE_CUSTOMER_ID || "" });
+        renderPayments();
+        switchTab("payments");
+      }
+    });
+  });
+}
 function dashboardClientTrackerRows(todayActions = []) {
   const rows = [];
   const activeStatuses = new Set(["new", "quoted", "confirmed", "fulfilled", "completed", "scheduled", "dispatched", "in_progress", "blocked"]);
@@ -15399,6 +15658,15 @@ function renderDashboard() {
   dashboardWrap.innerHTML = `
     ${onboardingHtml}
     ${metricsHtml}
+    ${renderTodayFocusSection({
+      todayActions,
+      followUps,
+      staleLeadRows,
+      duePlans,
+      depositRiskOrders: depositRiskOrders,
+      completedUnpaid,
+      blueprint,
+    })}
 
     <div class="workflow-strip">
       <div class="workflow-stage">
@@ -15792,15 +16060,10 @@ function renderDashboard() {
 
   dashboardWrap.querySelectorAll("[data-today-tab]").forEach((btn) => {
     btn.addEventListener("click", () => {
-      const tab = btn.getAttribute("data-today-tab");
-      const targetId = btn.getAttribute("data-today-id");
-      if (tab === "leads" && targetId) ACTIVE_LEAD_ID = targetId;
-      if (tab === "bids" && targetId) ACTIVE_BID_ID = targetId;
-      if (tab === "orders" && targetId) ACTIVE_ORDER_ID = targetId;
-      if (tab === "jobs" && targetId) ACTIVE_JOB_ID = targetId;
-      if (tab === "plans" && targetId) ACTIVE_PLAN_ID = targetId;
-      if (tab === "customers" && targetId) ACTIVE_CUSTOMER_ID = targetId;
-      switchTab(tab || "dashboard");
+      activateWorkspaceTarget(
+        btn.getAttribute("data-today-tab") || "dashboard",
+        btn.getAttribute("data-today-id") || ""
+      );
     });
   });
   dashboardWrap.querySelector("#dashboardCopyBookingLink")?.addEventListener("click", async () => {
@@ -15864,13 +16127,10 @@ function renderDashboard() {
   });
   dashboardWrap.querySelectorAll("[data-hydrovac-today-tab]").forEach((btn) => {
     btn.addEventListener("click", () => {
-      const tab = btn.getAttribute("data-hydrovac-today-tab") || "";
-      const id = btn.getAttribute("data-hydrovac-today-id") || "";
-      if (tab === "dispatch" && id) ACTIVE_DISPATCH_JOB_ID = id;
-      if (tab === "locates" && id) ACTIVE_LOCATE_ID = id;
-      if (tab === "manifests" && id) ACTIVE_MANIFEST_ID = id;
-      if (tab === "permits" && id) ACTIVE_PERMIT_ID = id;
-      switchTab(tab || "dashboard");
+      activateWorkspaceTarget(
+        btn.getAttribute("data-hydrovac-today-tab") || "dashboard",
+        btn.getAttribute("data-hydrovac-today-id") || ""
+      );
     });
   });
   dashboardWrap.querySelectorAll("[data-follow-up-action]").forEach((btn) => {
@@ -16354,6 +16614,7 @@ function renderMoneyWorkspace() {
 }
 function renderPipelineWorkspace() {
   const stages = pipelineStageStats();
+  renderWorkCommandCenter();
   if (pipelineStageStrip) {
     pipelineStageStrip.innerHTML = stages.map((stage) => `
       <button

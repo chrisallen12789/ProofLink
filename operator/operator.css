@@ -52,7 +52,9 @@ html[data-theme="light"] .side-meta,
 html[data-theme="light"] .side-card,
 html[data-theme="light"] .workspace-panel-notice,
 html[data-theme="light"] .dashboard-tracker,
+html[data-theme="light"] .workflow-focus,
 html[data-theme="light"] .workflow-stage,
+html[data-theme="light"] .work-command,
 html[data-theme="light"] .list-item,
 html[data-theme="light"] .dashboard-tracker-row,
 html[data-theme="light"] .dashboard-quick-action {
@@ -1165,6 +1167,70 @@ input:focus, textarea:focus, select:focus{
   gap:12px;
   margin-bottom:14px;
 }
+.workflow-focus{
+  border:1px solid var(--border);
+  border-radius:18px;
+  background: linear-gradient(180deg, rgba(255,255,255,.08) 0%, rgba(255,255,255,.03) 100%);
+  padding:16px;
+  margin: 0 0 14px;
+}
+.workflow-focus__head,
+.work-command__head{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:14px;
+  margin-bottom:14px;
+}
+.workflow-focus__head h3,
+.work-command__head h3{
+  margin:6px 0 4px;
+  font-family: var(--font-display);
+  font-size: 18px;
+  letter-spacing: -.02em;
+}
+.workflow-focus__head p,
+.work-command__head p{
+  margin:0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+.workflow-focus__grid{
+  display:grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(240px, .85fr);
+  gap:12px;
+}
+.workflow-focus__primary,
+.workflow-focus__stack,
+.workflow-focus__summary{
+  display:grid;
+  gap:10px;
+}
+.workflow-focus__summary{
+  border:1px solid rgba(255,255,255,.12);
+  border-radius:16px;
+  background: rgba(255,255,255,.04);
+  padding:14px;
+  align-content:start;
+}
+.workflow-focus__summary-list{
+  display:grid;
+  gap:8px;
+}
+.workflow-focus__summary-item{
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:12px;
+  background: rgba(255,255,255,.04);
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+  padding:10px 12px;
+}
+.workflow-focus__empty,
+.work-command__empty{
+  height:100%;
+}
 .workflow-stage{
   border:1px solid var(--border);
   border-radius:16px;
@@ -1262,6 +1328,39 @@ input:focus, textarea:focus, select:focus{
   font-size: 12px;
   font-weight:700;
   text-align:right;
+}
+.work-command{
+  border:1px solid var(--border);
+  border-radius:18px;
+  background: rgba(255,255,255,.05);
+  padding:16px;
+}
+.work-command__stats{
+  display:grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap:12px;
+  margin-bottom:12px;
+}
+.work-command__stat{
+  border:1px solid rgba(255,255,255,.12);
+  border-radius:14px;
+  background: rgba(255,255,255,.05);
+  padding:12px 14px;
+}
+.work-command__stat strong{
+  display:block;
+  margin-top:6px;
+  font-family: var(--font-display);
+  font-size: 24px;
+  letter-spacing: -.03em;
+}
+.work-command__grid{
+  display:grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap:12px;
+}
+.work-command__card{
+  height:100%;
 }
 .hydrovac-pressure{
   border:1px solid var(--border);
@@ -2075,7 +2174,12 @@ input:focus, textarea:focus, select:focus{
   .input{ width: 100%; }
   .cards{ grid-template-columns: 1fr; }
   .workflow-strip{ grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .workflow-focus__grid,
+  .work-command__stats,
+  .work-command__grid{ grid-template-columns: 1fr 1fr; }
   .insight-grid{ grid-template-columns: 1fr; }
+  .workflow-focus__head,
+  .work-command__head,
   .dashboard-tracker__head{ flex-direction:column; }
   .dashboard-tracker-row{ grid-template-columns: 1fr; }
   .dashboard-tracker-row__meta{ align-items:flex-start; text-align:left; }
@@ -2089,6 +2193,12 @@ input:focus, textarea:focus, select:focus{
   .bid-guide-flow__top,
   .bid-step{ flex-direction:column; }
   .bid-step__left{ width:100%; }
+}
+@media (max-width: 640px){
+  .workflow-strip,
+  .workflow-focus__grid,
+  .work-command__stats,
+  .work-command__grid{ grid-template-columns: 1fr; }
 }
 
 /* v2.1 operator additions */
