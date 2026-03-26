@@ -54,6 +54,30 @@ function renderExpenseJobOptions(selectedJobId = "") {
   expenseJobId.innerHTML = options.join("");
   expenseJobId.value = selectedJobId || "";
 }
+function updateExpenseTypeVisibility() {
+  const type = normalizeExpenseType(expenseType?.value || "overhead");
+  const doc = typeof document !== "undefined" ? document : null;
+  const laborFields = typeof expenseLaborFields !== "undefined" ? expenseLaborFields : doc?.getElementById?.("expenseLaborFields");
+  const materialFields = typeof expenseMaterialFields !== "undefined" ? expenseMaterialFields : doc?.getElementById?.("expenseMaterialFields");
+  const materialNotesFields = typeof expenseMaterialNotesFields !== "undefined" ? expenseMaterialNotesFields : doc?.getElementById?.("expenseMaterialNotesFields");
+  const changeOrderFields = typeof expenseChangeOrderFields !== "undefined" ? expenseChangeOrderFields : doc?.getElementById?.("expenseChangeOrderFields");
+  if (laborFields) laborFields.classList.toggle("hidden", type !== "labor");
+  const showMaterial = ["material", "job_cost", "vendor_bill"].includes(type);
+  if (materialFields) materialFields.classList.toggle("hidden", !showMaterial);
+  if (materialNotesFields) materialNotesFields.classList.toggle("hidden", !showMaterial);
+  const showChangeOrder = !!expenseChangeOrder?.checked;
+  if (changeOrderFields) changeOrderFields.classList.toggle("hidden", !showChangeOrder);
+}
+function syncExpenseLaborAmount() {
+  const doc = typeof document !== "undefined" ? document : null;
+  const amountField = typeof expenseAmount !== "undefined" ? expenseAmount : doc?.getElementById?.("expenseAmount");
+  if (!amountField || normalizeExpenseType(expenseType?.value || "") !== "labor") return;
+  const hours = Number(expenseLaborHours?.value || 0);
+  const rate = Number(expenseLaborRate?.value || 0);
+  if (hours > 0 && rate > 0) {
+    amountField.value = String((hours * rate).toFixed(2));
+  }
+}
 function clearExpenseForm(defaults = {}) {
   expenseId.value = "";
   expenseDate.value = defaults.date || "";
@@ -623,47 +647,6 @@ async function boot() {
     showLogin(err?.message || String(err));
   } finally {
     BOOTING = false;
-  }
-}
-
-// â”€â”€ Push Notifications â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-const VAPID_PUBLIC_KEY = "BPB-zAeBzP3xUdVT7F_zML4A3Oq0f_LE24o2oM38has6FhsIRDE6V14vNDkDZr_co2VP0HJVWkYaxr7tdAD5ARA";
-
-function urlBase64ToUint8Array(base64String) {
-  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
-  const base64  = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
-  const raw     = atob(base64);
-  return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)));
-}
-
-async function registerPushNotifications() {
-  if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
-  if (Notification.permission === "denied") return;
-
-  try {
-    const reg = await navigator.serviceWorker.ready;
-    let sub   = await reg.pushManager.getSubscription();
-
-    if (!sub) {
-      if (Notification.permission !== "granted") {
-        const perm = await Notification.requestPermission();
-        if (perm !== "granted") return;
-      }
-      sub = await reg.pushManager.subscribe({
-        userVisibleOnly     : true,
-        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
-      });
-    }
-
-    const tok = await getAccessToken();
-    await fetch("/.netlify/functions/save-push-subscription", {
-      method : "POST",
-      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${tok}` },
-      body   : JSON.stringify({ subscription: sub.toJSON() }),
-    });
-  } catch (e) {
-    console.warn("[push] registration failed:", e.message);
   }
 }
 
