@@ -1237,6 +1237,25 @@ function setInlineMessage(el, message = "", tone = "") {
   el.textContent = message || "";
   el.className = tone ? `msg ${tone}` : "msg";
 }
+async function getCurrentPositionSafe(options = {}) {
+  if (!("geolocation" in navigator)) return null;
+  return new Promise((resolve) => {
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const lat = Number(position.coords?.latitude);
+        const lng = Number(position.coords?.longitude);
+        resolve(Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null);
+      },
+      () => resolve(null),
+      {
+        enableHighAccuracy: true,
+        timeout: 4000,
+        maximumAge: 60000,
+        ...options,
+      }
+    );
+  });
+}
 function getOperatorAccessToken() {
   return window.PROOFLINK_OPERATOR_RUNTIME?.getAccessToken?.() || Promise.resolve("");
 }
@@ -14638,6 +14657,18 @@ async function renderJobDetail(jobIdValue) {
   const hvRev = calcHydrovacRevenueCents(job);
   const hvBreakdown = hvRev !== null ? hydrovacRevenueBreakdownHtml(job) : null;
   const hydrovacState = isHydrovacJob(job) ? hydrovacJobDetailState(job.id) : null;
+  const fieldActualMins = job.actual_start_at && job.actual_end_at
+    ? Math.round((new Date(job.actual_end_at) - new Date(job.actual_start_at)) / 60000)
+    : null;
+  const fieldStatus = normalizeWorkflowStatusValue(job.status || "scheduled");
+  const fieldDueNow = Number(job.amount_due_cents || orderAmountDueCents(order) || 0);
+  const fieldActionButtons = [
+    ["scheduled", "dispatched"].includes(fieldStatus) ? { label: "Start work", className: "btn btn-primary", data: { "job-field-action": "start" } } : null,
+    fieldStatus === "blocked" ? { label: "Resume work", className: "btn btn-primary", data: { "job-field-action": "resume" } } : null,
+    ["scheduled", "dispatched", "in_progress"].includes(fieldStatus) ? { label: "Mark blocked", className: "btn btn-ghost", data: { "job-field-action": "block" } } : null,
+    !["completed", "cancelled"].includes(fieldStatus) ? { label: "Complete job", className: "btn btn-ghost", data: { "job-field-action": "complete" } } : null,
+    { label: "Save field note", id: "btnJobSaveFieldNote", className: "btn btn-ghost" },
+  ].filter(Boolean);
   const jobActionButtons = [
     order ? { label: "Open booked work", className: "btn btn-primary", data: { "job-quick-action": "open-order" } } : null,
     { label: linkedCustomer ? "Open customer" : "Open customers", className: "btn btn-ghost", data: { "job-quick-action": "open-customer" } },
@@ -14676,6 +14707,28 @@ async function renderJobDetail(jobIdValue) {
         ? "Jump to the booked work, customer, money, or cost log from one place while the crew context is still fresh."
         : "Use this job to stay anchored in field execution, then move to the customer or money follow-through without hunting around.",
       actions: jobActionButtons,
+    })}
+    ${renderRecordFollowThroughCard({
+      eyebrow: "Field updates",
+      title: "Handle the on-site moves fast",
+      description: "Use this area when the crew arrives, gets blocked, finishes the work, or needs to leave a field note without digging through the full job form.",
+      summary: [
+        { label: "Current stage", value: titleCaseWords(String(job.status || "scheduled").replace(/_/g, " ")), note: order ? `Booked work is ${formatOrderWorkflowStatus(order.status || "new")}` : "No booked-work record linked" },
+        { label: "Scheduled for", value: `${String(job.scheduled_date || "No date")} | ${String(job.scheduled_time || "No time")}`, note: job.schedule_window || "No schedule window recorded" },
+        { label: "On-site time", value: fieldActualMins != null ? `${(fieldActualMins / 60).toFixed(1)}h` : (job.actual_start_at ? "Started" : "Not started"), note: job.actual_start_at ? `${formatDateTime(job.actual_start_at)}${job.actual_end_at ? ` -> ${formatDateTime(job.actual_end_at)}` : ""}` : "No actual start captured yet" },
+        { label: "Money still open", value: formatUsd(fieldDueNow), note: formatWorkflowPaymentState(job.payment_state || orderPaymentState(order)) },
+      ],
+      controlsHtml: `
+        <label class="field">
+          <span>Field note</span>
+          <textarea id="jobFieldUpdateNote" rows="3" placeholder="Access issue, change in scope, proof reminder, customer update, or collection note.">${escapeHtml(job.notes || "")}</textarea>
+        </label>
+      `,
+      actions: fieldActionButtons,
+      timelineHtml: `
+        <div class="detail-copy">${job.check_in_lat ? `Check-in captured at ${escapeHtml(String(job.check_in_lat))}, ${escapeHtml(String(job.check_in_lng || ""))}.` : "If location permission is available, starting work will capture the crew check-in automatically."}</div>
+        <div id="jobFieldUpdateMsg" class="msg" style="margin-top:8px;"></div>
+      `,
     })}
     <div class="detail-card" style="margin-top:14px;">
       <div class="kicker">Job economics</div>
@@ -14750,6 +14803,75 @@ async function renderJobDetail(jobIdValue) {
   `;
   jobDetailWrap.querySelectorAll('[data-job-cost-action="log"]').forEach((button) => {
     button.addEventListener("click", () => openExpenseForJob(job));
+  });
+  const syncFieldJobState = (patch = {}) => {
+    if (Object.prototype.hasOwnProperty.call(patch, "status")) job.status = patch.status;
+    if (Object.prototype.hasOwnProperty.call(patch, "notes")) job.notes = patch.notes;
+    if (Object.prototype.hasOwnProperty.call(patch, "actual_start_at")) job.actual_start_at = patch.actual_start_at;
+    if (Object.prototype.hasOwnProperty.call(patch, "actual_end_at")) job.actual_end_at = patch.actual_end_at;
+    if (Object.prototype.hasOwnProperty.call(patch, "check_in_lat")) job.check_in_lat = patch.check_in_lat;
+    if (Object.prototype.hasOwnProperty.call(patch, "check_in_lng")) job.check_in_lng = patch.check_in_lng;
+  };
+  jobDetailWrap.querySelector('#btnJobSaveFieldNote')?.addEventListener("click", async () => {
+    const msgEl = jobDetailWrap.querySelector('#jobFieldUpdateMsg');
+    const nextNote = jobDetailWrap.querySelector('#jobFieldUpdateNote')?.value?.trim() || "";
+    const nextStatus = jobStatus?.value || job.status || "scheduled";
+    const patch = { id: job.id, notes: nextNote, status: nextStatus };
+    if (jobNotes) jobNotes.value = nextNote;
+    setInlineMessage(msgEl, "Saving field note...");
+    try {
+      await saveJobRecord(patch);
+      syncFieldJobState(patch);
+      setInlineMessage(msgEl, "Field note saved.", "ok");
+    } catch (error) {
+      setInlineMessage(msgEl, error.message || String(error), "error");
+    }
+  });
+  jobDetailWrap.querySelectorAll("[data-job-field-action]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const action = button.getAttribute("data-job-field-action") || "";
+      const msgEl = jobDetailWrap.querySelector('#jobFieldUpdateMsg');
+      const nextNote = jobDetailWrap.querySelector('#jobFieldUpdateNote')?.value?.trim() || "";
+      const nowIso = new Date().toISOString();
+      const patch = {
+        id: job.id,
+        notes: nextNote,
+      };
+      if (action === "start" || action === "resume") {
+        patch.status = "in_progress";
+        if (!job.actual_start_at) patch.actual_start_at = nowIso;
+        const position = await getCurrentPositionSafe();
+        if (Number.isFinite(position?.lat) && Number.isFinite(position?.lng)) {
+          patch.check_in_lat = position.lat;
+          patch.check_in_lng = position.lng;
+        }
+      }
+      if (action === "block") {
+        patch.status = "blocked";
+      }
+      if (action === "complete") {
+        patch.status = "completed";
+        if (!job.actual_start_at) patch.actual_start_at = nowIso;
+        if (!job.actual_end_at) patch.actual_end_at = nowIso;
+      }
+      if (jobNotes) jobNotes.value = nextNote;
+      if (jobStatus && patch.status) jobStatus.value = patch.status;
+      setInlineMessage(msgEl, action === "complete" ? "Closing out job..." : "Saving field update...");
+      try {
+        await saveJobRecord(patch);
+        syncFieldJobState(patch);
+        const successLabel = action === "start"
+          ? "Work started."
+          : action === "resume"
+            ? "Work resumed."
+            : action === "block"
+              ? "Job marked blocked."
+              : "Job completed.";
+        setInlineMessage(msgEl, successLabel, "ok");
+      } catch (error) {
+        setInlineMessage(msgEl, error.message || String(error), "error");
+      }
+    });
   });
   jobDetailWrap.querySelectorAll("[data-job-quick-action]").forEach((button) => {
     button.addEventListener("click", () => {
@@ -15662,6 +15784,10 @@ async function saveJobRecord(fields = {}) {
     disposal_manifest_number    : jobDisposalManifest?.value || null,
     updated_at: nowIso,
   });
+  if (Object.prototype.hasOwnProperty.call(fields, "actual_start_at")) payload.actual_start_at = fields.actual_start_at;
+  if (Object.prototype.hasOwnProperty.call(fields, "actual_end_at")) payload.actual_end_at = fields.actual_end_at;
+  if (Object.prototype.hasOwnProperty.call(fields, "check_in_lat")) payload.check_in_lat = fields.check_in_lat;
+  if (Object.prototype.hasOwnProperty.call(fields, "check_in_lng")) payload.check_in_lng = fields.check_in_lng;
   if (!payload.order_id) throw new Error("Link the job to an order before saving it.");
   const id = fields.id || jobId?.value || "";
   const query = id
