@@ -574,7 +574,6 @@ let TEAM_MEMBERS_CACHE = [];
 let TIME_ENTRIES_CACHE = [];
 let VENDORS_CACHE = [];
 let EQUIPMENT_CACHE = [];
-let EQUIPMENT_PANEL_LOADED = false;
 let HYDROVAC_FACILITIES_CACHE = [];
 let HYDROVAC_MANIFESTS_CACHE = [];
 let HYDROVAC_LOCATE_TICKETS_CACHE = [];
@@ -3824,11 +3823,8 @@ async function switchTab(tab, opts = {}) {
   if (nextTab === 'team') {
     window.loadTeamWorkspace?.();
   }
-  if (nextTab === 'equipment' && !EQUIPMENT_PANEL_LOADED) {
-    EQUIPMENT_PANEL_LOADED = true;
-    fetchEquipment().catch(console.warn);
-    $('btnAddEquipment')?.addEventListener('click', () => openAddEquipmentModal());
-    $('btnRefreshEquipment')?.addEventListener('click', () => fetchEquipment().catch(console.warn));
+  if (nextTab === 'equipment') {
+    window.loadEquipmentWorkspace?.();
   }
   if (opts.updateHash !== false) syncPanelHash(nextTab);
   renderPanelBackButtons();
@@ -4233,6 +4229,7 @@ window.initSetupWorkspaceBindings?.();
 window.initCatalogWorkspaceBindings?.();
 window.initMoneyWorkspaceBindings?.();
 window.initTeamWorkspaceBindings?.();
+window.initEquipmentWorkspaceBindings?.();
 window.initHydrovacOpsWorkspaceBindings?.();
 window.initDispatchWorkspaceBindings?.();
 window.initBidWorkspaceBindings?.();
@@ -5069,182 +5066,6 @@ function openEditVendorModal(vendor) {
 }
 
 // ── Equipment management ────────────────────────────────────────────────────────
-async function fetchEquipment() {
-  const token = (await sb.auth.getSession()).data.session?.access_token;
-  const res = await fetch('/.netlify/functions/manage-equipment', { headers: { Authorization: 'Bearer ' + token } });
-  const d = await res.json();
-  EQUIPMENT_CACHE = d.equipment || [];
-  renderEquipment();
-}
-
-function renderEquipment() {
-  const el = document.getElementById('equipmentList');
-  if (!el) return;
-  if (!EQUIPMENT_CACHE.length) {
-    el.innerHTML = '<div class="muted" style="font-size:.85rem;padding:16px 0;">No equipment yet. <button class="btn btn-ghost btn-sm" onclick="openAddEquipmentModal()">+ Add first truck</button></div>';
-    return;
-  }
-  const statusColor = { active: '#4caf82', maintenance: '#e5a027', retired: 'rgba(255,255,255,.3)' };
-  el.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:.85rem;">
-    <thead><tr>
-      <th style="text-align:left;padding:6px 8px;color:rgba(255,255,255,.4);font-weight:500;border-bottom:1px solid rgba(255,255,255,.08);">Unit</th>
-      <th style="text-align:left;padding:6px 8px;color:rgba(255,255,255,.4);font-weight:500;border-bottom:1px solid rgba(255,255,255,.08);">Type</th>
-      <th style="text-align:left;padding:6px 8px;color:rgba(255,255,255,.4);font-weight:500;border-bottom:1px solid rgba(255,255,255,.08);">Rate</th>
-      <th style="text-align:left;padding:6px 8px;color:rgba(255,255,255,.4);font-weight:500;border-bottom:1px solid rgba(255,255,255,.08);">Status</th>
-      <th style="padding:6px 8px;border-bottom:1px solid rgba(255,255,255,.08);"></th>
-    </tr></thead>
-    <tbody>
-      ${EQUIPMENT_CACHE.map(e => `<tr>
-        <td style="padding:8px;color:#e8e9eb;">${escapeHtml(e.unit_number ? `${e.unit_number} — ${e.name}` : e.name)}<br><span style="font-size:.75rem;color:rgba(255,255,255,.35);">${escapeHtml([e.year, e.make, e.model].filter(Boolean).join(' '))}</span></td>
-        <td style="padding:8px;color:rgba(255,255,255,.55);">${escapeHtml(e.equipment_type || '—')}</td>
-        <td style="padding:8px;color:rgba(255,255,255,.55);">${e.hourly_rate_cents ? '$' + (e.hourly_rate_cents/100).toFixed(0) + '/hr' : '—'}</td>
-        <td style="padding:8px;"><span style="font-size:.75rem;font-weight:600;color:${statusColor[e.status] || '#fff'};">${e.status || 'active'}</span></td>
-        <td style="padding:8px;text-align:right;display:flex;gap:6px;justify-content:flex-end;">
-          <button class="btn btn-ghost" style="font-size:.72rem;" onclick="openEditEquipmentModal('${escapeAttr(e.id)}')">Edit</button>
-          <button class="btn btn-ghost" style="font-size:.72rem;" onclick="deleteEquipment('${escapeAttr(e.id)}')">Remove</button>
-        </td>
-      </tr>`).join('')}
-    </tbody>
-  </table>`;
-}
-
-function openAddEquipmentModal() {
-  const existing = document.getElementById('addEquipmentModal');
-  if (existing) { existing.remove(); return; }
-  const modal = document.createElement('div');
-  modal.id = 'addEquipmentModal';
-  modal.className = 'modal-overlay';
-  modal.innerHTML = `<div class="modal-box" style="max-width:400px;">
-    <h3 style="margin:0 0 16px;font-size:1rem;">Add equipment</h3>
-    <label style="font-size:.8rem;color:rgba(255,255,255,.55);">Name *</label>
-    <input id="eqName" class="input" style="margin-bottom:10px;width:100%;" placeholder="Truck 1 / Vactor 2112">
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
-      <div><label style="font-size:.8rem;color:rgba(255,255,255,.55);">Unit #</label>
-        <input id="eqUnit" class="input" style="width:100%;" placeholder="T-01"></div>
-      <div><label style="font-size:.8rem;color:rgba(255,255,255,.55);">Type</label>
-        <select id="eqType" class="input" style="width:100%;">
-          <option value="hydrovac">Hydrovac</option>
-          <option value="vactor">Vactor</option>
-          <option value="jetter">Jetter</option>
-          <option value="combo">Combo</option>
-          <option value="vacuum_truck">Vacuum truck</option>
-          <option value="other">Other</option>
-        </select></div>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px;">
-      <div><label style="font-size:.8rem;color:rgba(255,255,255,.55);">Year</label>
-        <input id="eqYear" class="input" style="width:100%;" type="number" placeholder="2024"></div>
-      <div><label style="font-size:.8rem;color:rgba(255,255,255,.55);">Make</label>
-        <input id="eqMake" class="input" style="width:100%;" placeholder="Vactor"></div>
-      <div><label style="font-size:.8rem;color:rgba(255,255,255,.55);">Model</label>
-        <input id="eqModel" class="input" style="width:100%;" placeholder="2112"></div>
-    </div>
-    <label style="font-size:.8rem;color:rgba(255,255,255,.55);">Hourly rate ($/hr)</label>
-    <input id="eqRate" class="input" style="margin-bottom:10px;width:100%;" type="number" min="0" placeholder="0">
-    <label style="font-size:.8rem;color:rgba(255,255,255,.55);">Notes</label>
-    <textarea id="eqNotes" class="input" style="margin-bottom:16px;width:100%;height:60px;"></textarea>
-    <div style="display:flex;gap:8px;justify-content:flex-end;">
-      <button class="btn btn-ghost" onclick="document.getElementById('addEquipmentModal')?.remove()">Cancel</button>
-      <button class="btn btn-primary" id="eqSaveBtn">Save</button>
-    </div>
-  </div>`;
-  document.body.appendChild(modal);
-  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
-  modal.querySelector('#eqSaveBtn').onclick = async () => {
-    const name = document.getElementById('eqName')?.value?.trim();
-    if (!name) { showToast('Name is required'); return; }
-    const token = (await sb.auth.getSession()).data.session?.access_token;
-    try {
-      const res = await fetch('/.netlify/functions/manage-equipment', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-        body: JSON.stringify({
-          name,
-          unit_number: document.getElementById('eqUnit')?.value || null,
-          equipment_type: document.getElementById('eqType')?.value || 'hydrovac',
-          year: parseInt(document.getElementById('eqYear')?.value) || null,
-          make: document.getElementById('eqMake')?.value || null,
-          model: document.getElementById('eqModel')?.value || null,
-          hourly_rate_cents: Math.round((parseFloat(document.getElementById('eqRate')?.value) || 0) * 100),
-          notes: document.getElementById('eqNotes')?.value || null,
-        }),
-      });
-      if (!res.ok) throw new Error((await res.json()).error || 'Failed');
-      modal.remove();
-      await fetchEquipment();
-      showToast('Equipment added.');
-    } catch (err) { showToast('Error: ' + err.message); }
-  };
-}
-
-function openEditEquipmentModal(id) {
-  const eq = EQUIPMENT_CACHE.find(e => e.id === id);
-  if (!eq) return;
-  const existing = document.getElementById('editEquipmentModal');
-  if (existing) existing.remove();
-  const modal = document.createElement('div');
-  modal.id = 'editEquipmentModal';
-  modal.className = 'modal-overlay';
-  modal.innerHTML = `<div class="modal-box" style="max-width:400px;">
-    <h3 style="margin:0 0 16px;font-size:1rem;">Edit equipment</h3>
-    <label style="font-size:.8rem;color:rgba(255,255,255,.55);">Name</label>
-    <input id="eqEditName" class="input" style="margin-bottom:10px;width:100%;" value="${escapeAttr(eq.name)}">
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
-      <div><label style="font-size:.8rem;color:rgba(255,255,255,.55);">Unit #</label>
-        <input id="eqEditUnit" class="input" style="width:100%;" value="${escapeAttr(eq.unit_number||'')}"></div>
-      <div><label style="font-size:.8rem;color:rgba(255,255,255,.55);">Status</label>
-        <select id="eqEditStatus" class="input" style="width:100%;">
-          ${['active','maintenance','retired'].map(s => `<option value="${s}"${s===eq.status?' selected':''}>${s}</option>`).join('')}
-        </select></div>
-    </div>
-    <label style="font-size:.8rem;color:rgba(255,255,255,.55);">Hourly rate ($/hr)</label>
-    <input id="eqEditRate" class="input" style="margin-bottom:10px;width:100%;" type="number" min="0" value="${eq.hourly_rate_cents ? (eq.hourly_rate_cents/100).toFixed(0) : ''}">
-    <label style="font-size:.8rem;color:rgba(255,255,255,.55);">Notes</label>
-    <textarea id="eqEditNotes" class="input" style="margin-bottom:16px;width:100%;height:60px;">${escapeHtml(eq.notes||'')}</textarea>
-    <div style="display:flex;gap:8px;justify-content:flex-end;">
-      <button class="btn btn-ghost" onclick="document.getElementById('editEquipmentModal')?.remove()">Cancel</button>
-      <button class="btn btn-primary" id="eqEditSaveBtn">Save</button>
-    </div>
-  </div>`;
-  document.body.appendChild(modal);
-  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
-  modal.querySelector('#eqEditSaveBtn').onclick = async () => {
-    const token = (await sb.auth.getSession()).data.session?.access_token;
-    try {
-      const res = await fetch('/.netlify/functions/manage-equipment', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-        body: JSON.stringify({
-          id,
-          name: document.getElementById('eqEditName')?.value?.trim(),
-          unit_number: document.getElementById('eqEditUnit')?.value || null,
-          status: document.getElementById('eqEditStatus')?.value || 'active',
-          hourly_rate_cents: Math.round((parseFloat(document.getElementById('eqEditRate')?.value) || 0) * 100),
-          notes: document.getElementById('eqEditNotes')?.value || null,
-        }),
-      });
-      if (!res.ok) throw new Error((await res.json()).error || 'Failed');
-      modal.remove();
-      await fetchEquipment();
-      showToast('Equipment updated.');
-    } catch (err) { showToast('Error: ' + err.message); }
-  };
-}
-
-async function deleteEquipment(id) {
-  if (!(await showConfirmModal('Remove this equipment?', 'Remove', 'Cancel'))) return;
-  const token = (await sb.auth.getSession()).data.session?.access_token;
-  try {
-    const res = await fetch(`/.netlify/functions/manage-equipment?id=${encodeURIComponent(id)}`, {
-      method: 'DELETE', headers: { Authorization: 'Bearer ' + token },
-    });
-    if (!res.ok) throw new Error((await res.json()).error || 'Failed');
-    EQUIPMENT_CACHE = EQUIPMENT_CACHE.filter(e => e.id !== id);
-    renderEquipment();
-    showToast('Equipment removed.');
-  } catch (err) { showToast('Error: ' + err.message); }
-}
-
 hydrovacInvoiceJobSelect?.addEventListener("change", () => {
   ACTIVE_JOB_ID = hydrovacInvoiceJobSelect.value || null;
   renderHydrovacInvoiceWorkbench();
@@ -9278,166 +9099,6 @@ function openAddPhaseModal(orderId) {
 
 // ── Time entry logging ─────────────────────────────────────────────────────────
 
-async function renderTimeEntries(orderId) {
-  const body = document.getElementById("timeLoggedBody");
-  if (!body || body.style.display === "none") return;
-  body.innerHTML = `<div class="muted" style="font-size:.82rem;">Loading…</div>`;
-  const entries = await fetchTimeEntries(orderId);
-  if (!entries.length) {
-    body.innerHTML = `<div class="muted" style="font-size:.82rem;">No time entries for this order.</div>`;
-    return;
-  }
-  const totalMins     = entries.reduce((s, e) => s + Number(e.duration_minutes || 0), 0);
-  const totalBillable = entries.reduce((s, e) => s + Number(e.amount_cents || 0), 0);
-  body.innerHTML = `
-    <table style="width:100%;font-size:.8rem;border-collapse:collapse;">
-      <thead><tr style="color:rgba(255,255,255,.35);">
-        <th style="text-align:left;padding:4px 6px;border-bottom:1px solid rgba(255,255,255,.08);">Date</th>
-        <th style="text-align:left;padding:4px 6px;border-bottom:1px solid rgba(255,255,255,.08);">Description</th>
-        <th style="text-align:right;padding:4px 6px;border-bottom:1px solid rgba(255,255,255,.08);">Duration</th>
-        <th style="text-align:right;padding:4px 6px;border-bottom:1px solid rgba(255,255,255,.08);">Billable?</th>
-        <th style="text-align:right;padding:4px 6px;border-bottom:1px solid rgba(255,255,255,.08);">Cost</th>
-      </tr></thead>
-      <tbody>${entries.map((e) => {
-        const mins = Number(e.duration_minutes || 0);
-        const hrs  = Math.floor(mins / 60);
-        const rem  = mins % 60;
-        const dur  = hrs ? `${hrs}h ${rem}m` : `${rem}m`;
-        const date = e.started_at ? new Date(e.started_at).toLocaleDateString() : (e.date || "");
-        return `<tr>
-          <td style="padding:3px 6px;border-bottom:1px solid rgba(255,255,255,.05);">${escapeHtml(date)}</td>
-          <td style="padding:3px 6px;border-bottom:1px solid rgba(255,255,255,.05);">${escapeHtml(e.description || "")}</td>
-          <td style="text-align:right;padding:3px 6px;border-bottom:1px solid rgba(255,255,255,.05);">${dur}</td>
-          <td style="text-align:right;padding:3px 6px;border-bottom:1px solid rgba(255,255,255,.05);">${e.billable ? "Yes" : "No"}</td>
-          <td style="text-align:right;padding:3px 6px;border-bottom:1px solid rgba(255,255,255,.05);">${e.billable && e.amount_cents ? formatUsd(e.amount_cents) : "—"}</td>
-        </tr>`;
-      }).join("")}
-      </tbody>
-      <tfoot><tr style="font-weight:600;">
-        <td colspan="2" style="padding:6px 6px 2px;">Total</td>
-        <td style="text-align:right;padding:6px 6px 2px;">${(totalMins / 60).toFixed(2)} hrs</td>
-        <td></td>
-        <td style="text-align:right;padding:6px 6px 2px;">${totalBillable ? formatUsd(totalBillable) : "—"}</td>
-      </tr></tfoot>
-    </table>
-    <button id="btnTimeToInvoice" class="btn btn-ghost" style="margin-top:8px;font-size:.78rem;">⚡ Add uninvoiced hours to invoice</button>`;
-}
-
-function openLogTimeModal(orderId) {
-  const existing = document.getElementById("logTimeModal");
-  if (existing) { existing.remove(); return; }
-
-  // Default started_at to current local time in datetime-local format
-  const now = new Date();
-  const pad = (n) => String(n).padStart(2, "0");
-  const defaultStarted = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
-
-  const modal = document.createElement("div");
-  modal.id = "logTimeModal";
-  modal.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10000;display:flex;align-items:center;justify-content:center;";
-  modal.innerHTML = `
-    <div style="background:#1e2029;border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:28px 32px;max-width:480px;width:90%;box-shadow:0 8px 40px rgba(0,0,0,.5);">
-      <h3 style="margin:0 0 18px;font-size:1rem;color:#e8e9eb;">Log time entry</h3>
-      <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px;">
-        <input id="ltDesc" class="input" placeholder="Description *" style="width:100%;" />
-        <div style="display:flex;gap:8px;">
-          <div style="flex:1;">
-            <label style="font-size:.72rem;color:rgba(255,255,255,.35);display:block;margin-bottom:2px;">Started at</label>
-            <input id="ltStartedAt" type="datetime-local" class="input" value="${defaultStarted}" style="width:100%;" />
-          </div>
-        </div>
-        <div style="display:flex;gap:8px;">
-          <div style="flex:1;">
-            <label style="font-size:.72rem;color:rgba(255,255,255,.35);display:block;margin-bottom:2px;">Duration (minutes)</label>
-            <input id="ltDurationMins" type="number" min="1" step="1" placeholder="e.g. 60" class="input" style="width:100%;" />
-          </div>
-          <div style="flex:1;">
-            <label style="font-size:.72rem;color:rgba(255,255,255,.35);display:block;margin-bottom:2px;">— or — Ended at</label>
-            <input id="ltEndedAt" type="datetime-local" class="input" style="width:100%;" />
-          </div>
-        </div>
-        <div style="display:flex;gap:8px;align-items:center;">
-          <div style="flex:1;">
-            <label style="font-size:.72rem;color:rgba(255,255,255,.35);display:block;margin-bottom:2px;">Hourly rate ($)</label>
-            <input id="ltHourlyRate" type="number" min="0" step="0.01" placeholder="75.00" class="input" style="width:100%;" />
-          </div>
-          <div style="display:flex;align-items:center;gap:6px;padding-top:18px;">
-            <input id="ltBillable" type="checkbox" checked style="width:16px;height:16px;cursor:pointer;" />
-            <label for="ltBillable" style="font-size:.85rem;color:#e8e9eb;cursor:pointer;">Billable</label>
-          </div>
-        </div>
-      </div>
-      <div id="ltMsg" style="font-size:.8rem;color:#f87171;min-height:18px;margin-bottom:8px;"></div>
-      <div style="display:flex;gap:10px;justify-content:flex-end;">
-        <button onclick="document.getElementById('logTimeModal').remove()" class="btn btn-ghost">Cancel</button>
-        <button id="ltSave" class="btn btn-primary">Save entry</button>
-      </div>
-    </div>`;
-  document.body.appendChild(modal);
-
-  document.getElementById("ltSave").onclick = async () => {
-    const desc        = (document.getElementById("ltDesc")?.value || "").trim();
-    const startedAt   = document.getElementById("ltStartedAt")?.value || "";
-    const durationRaw = document.getElementById("ltDurationMins")?.value;
-    const endedAt     = document.getElementById("ltEndedAt")?.value || "";
-    const billable    = document.getElementById("ltBillable")?.checked ?? true;
-    const rateRaw     = document.getElementById("ltHourlyRate")?.value;
-    const msgEl       = document.getElementById("ltMsg");
-
-    if (!desc)       { msgEl.textContent = "Description is required."; return; }
-    if (!startedAt)  { msgEl.textContent = "Started at is required."; return; }
-    if (!durationRaw && !endedAt) { msgEl.textContent = "Provide duration or ended at."; return; }
-
-    const btn = document.getElementById("ltSave");
-    btn.disabled = true;
-    btn.textContent = "Saving…";
-
-    try {
-      const tok = await getAccessToken();
-      const payload = {
-        order_id   : orderId,
-        description: desc,
-        started_at : new Date(startedAt).toISOString(),
-        billable,
-      };
-      if (durationRaw) {
-        payload.duration_minutes = parseInt(durationRaw, 10);
-      } else {
-        payload.ended_at = new Date(endedAt).toISOString();
-      }
-      if (rateRaw) {
-        payload.hourly_rate_cents = Math.round(parseFloat(rateRaw) * 100);
-      }
-
-      const res = await fetch("/.netlify/functions/log-time-entry", {
-        method : "POST",
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${tok}` },
-        body   : JSON.stringify(payload),
-      });
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({}));
-        throw new Error(d.error || "Failed to save entry");
-      }
-      showToast("Time entry logged.");
-      modal.remove();
-
-      // Expand the time log section if it isn't already, then refresh
-      const body = document.getElementById("timeLoggedBody");
-      const span = document.getElementById("timeLoggedToggle")?.querySelector("span");
-      if (body) {
-        body.style.display = "block";
-        if (span) span.textContent = "Time logged ▾";
-        await renderTimeEntries(orderId);
-      }
-    } catch (err) {
-      if (msgEl) msgEl.textContent = "Error: " + err.message;
-      btn.disabled = false;
-      btn.textContent = "Save entry";
-    }
-  };
-}
-
-// ── Session idle timeout ───────────────────────────────────────────────────────
 (function initIdleTimer() {
   const WARN_MS   = 25 * 60 * 1000; // warn after 25 min idle
   const LOGOUT_MS = 30 * 60 * 1000; // logout after 30 min idle
