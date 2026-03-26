@@ -127,7 +127,7 @@
     if (resolvedSetupMode() === "guided") {
       return `${plan.name} can start instantly, but you asked for help. We will hold the setup in guided mode so the account and website can be shaped with you first.`;
     }
-    return `${plan.name} can create your account now. You will go straight into setup, branding, and website configuration so you can launch without waiting on a review queue.`;
+    return `${plan.name} can create your account now. You will go straight into setup, branding, and website configuration so you can launch without waiting on a manual review step.`;
   }
 
   function syncQueryString() {
@@ -427,12 +427,12 @@
         ? "Guided rollout requested"
         : "Guided setup requested";
       $("successLead").textContent = plan.key === "enterprise"
-        ? "We saved your business details and queued an Enterprise rollout."
-        : "We saved your business details and queued your guided setup path.";
+        ? "We saved your business details and started your Enterprise rollout."
+        : "We saved your business details and started your guided setup path.";
       $("success-email").textContent = state.ownerEmail;
       $("successPlanText").textContent = plan.key === "enterprise"
-        ? "Your Enterprise request is queued for a guided rollout before the account goes live."
-        : "Your request is in the guided setup queue. We will follow up with the next step and help shape the account, workflow, and website.";
+        ? "Your Enterprise request is in motion for a guided rollout before the account goes live."
+        : "We will follow up with the next step and help shape the account, workflow, and website with you.";
       if (data.request_id) $("success-ref").textContent = `Reference ID: ${data.request_id}`;
     } catch (error) {
       showNotify(`Something went wrong: ${error.message}`, "error");

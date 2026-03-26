@@ -340,31 +340,31 @@ const templates = {
   submitted({ owner_name, business_name, owner_email, business_slug, selected_plan }) {
     return {
       to: owner_email,
-      subject: `We received your application — ${business_name}`,
+      subject: `We received your setup request — ${business_name}`,
       html: layout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.green)}${bodyWrap(`
-        ${badge('Application received',T.greenLt,T.green,T.greenBd)}<br/><br/>
-        ${h1(`Hey ${owner_name}, you're in the queue.`)}
-        ${sub('Thanks for applying to ProofLink. We review every application and will be in touch within 24 hours.')}
+        ${badge('Request received',T.greenLt,T.green,T.greenBd)}<br/><br/>
+        ${h1(`Hey ${owner_name}, we have your details.`)}
+        ${sub('Thanks for choosing ProofLink. We are reviewing the setup details and will be in touch within 24 hours.')}
         ${infoBox([['Business',business_name],['Selected plan',selected_plan ? String(selected_plan).replace(/\b\w/g, (m) => m.toUpperCase()) : 'Starter'],['Website address',`${getSiteUrl()}/${business_slug||'...'}`],['Email',owner_email],['Review time','Within 24 hours']])}
         ${divider()}
-        ${p("You don't need to do anything else right now. When your application is approved we'll send you the next steps to finish setup.")}
+        ${p("You don't need to do anything else right now. We will send the next clear setup step as soon as the account is ready to move forward.")}
         ${p(`<span style="color:${T.hint};">Questions? Just reply to this email.</span>`)}
-      `)}</table>`, { preheader: `Your ProofLink application for ${business_name} is in review.` }),
+      `)}</table>`, { preheader: `Your ProofLink setup request for ${business_name} is in review.` }),
     };
   },
 
   approved({ owner_name, business_name, owner_email }) {
     return {
       to: owner_email,
-      subject: `Your application is approved — ${business_name}`,
+      subject: `We’re starting your account — ${business_name}`,
       html: layout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.green)}${bodyWrap(`
         ${badge('Approved ✓',T.greenLt,T.green,T.greenBd)}<br/><br/>
         ${h1(`Good news, ${owner_name}.`)}
-        ${sub(`Your application for ${business_name} has been approved. We're setting up your account now.`)}
+        ${sub(`The setup details for ${business_name} are approved. We're starting your account now.`)}
         ${callout(`<strong style="color:${T.ink};">What's next:</strong><br/>You'll receive one more email in the next few minutes with your password setup link so you can sign in and finish setup.`,T.amberLt,T.amberBd,T.amber)}
         ${divider()}
         ${p(`<strong style="color:${T.ink};">Quick start once you're in:</strong><br/>1. Set your password and sign in<br/>2. Add your products and services<br/>3. Connect Stripe to accept payments<br/>4. Share your website link`)}
-      `)}</table>`, { preheader: `${business_name} has been approved on ProofLink.` }),
+      `)}</table>`, { preheader: `${business_name} is moving into account setup on ProofLink.` }),
     };
   },
 
@@ -378,10 +378,10 @@ const templates = {
         ${h1(`Your account is ready, ${owner_name}.`)}
         ${sub(`${business_name} is set up on ProofLink. Click below to set your password and open your account.`)}
         <div style="text-align:center;margin:0 0 32px;">${cta('Set my password →', loginHref)}</div>
-        ${infoBox([...(store_slug?[['Your website',`${getSiteUrl()}/${store_slug}`]]:[]),['Sign-in page',`${SITE_URL}/operator/`]])}
+        ${infoBox([...(store_slug?[['Your website',`${getSiteUrl()}/${store_slug}`]]:[]),['Account sign-in',`${SITE_URL}/operator/`]])}
         ${divider()}
         <p style="margin:0 0 20px;font-size:15px;font-weight:700;color:${T.ink};">Complete your business setup</p>
-        ${p('Your website is ready but still needs your branding, photos, and business details to look its best. Here is exactly what to gather.')}
+        ${p('Your website shell is ready, and the next step is making it look like your business. Here is exactly what to gather.')}
         ${buildChecklistSection(business_type, loginHref)}
         ${divider()}
         ${p(`<span style="color:${T.hint};">Need help? Reply to this email and we'll walk you through setup personally.</span>`)}
@@ -392,15 +392,15 @@ const templates = {
   rejected({ owner_name, business_name, owner_email, rejection_reason }) {
     return {
       to: owner_email,
-      subject: `Update on your ProofLink application — ${business_name}`,
+      subject: `Update on your ProofLink request — ${business_name}`,
       html: layout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.border)}${bodyWrap(`
         ${h1(`Hi ${owner_name},`)}
         ${sub('Thank you for your interest in ProofLink.')}
-        ${p(`After reviewing the application for <strong style="color:${T.ink};">${business_name}</strong>, we're unable to approve it at this time.`)}
+        ${p(`After reviewing the request for <strong style="color:${T.ink};">${business_name}</strong>, we're unable to move it forward at this time.`)}
         ${rejection_reason?callout(`<strong style="color:${T.ink};">Note from our team:</strong><br/>${rejection_reason}`,T.bg,T.border,T.muted):''}
         ${divider()}
         ${p(`<span style="color:${T.hint};">If you believe this is an error or your situation has changed, just reply to this email. We're happy to take another look.</span>`)}
-      `)}</table>`, { preheader: `An update on your ProofLink application for ${business_name}.` }),
+      `)}</table>`, { preheader: `An update on your ProofLink request for ${business_name}.` }),
     };
   },
 
@@ -445,14 +445,14 @@ const templates = {
   operatorNewRequest({ operator_email, owner_name, business_name, business_type, city_state, owner_email, selected_plan }) {
     return {
       to: operator_email,
-      subject: `New application — ${business_name}`,
+      subject: `New account request — ${business_name}`,
       html: layout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.amber)}${bodyWrap(`
-        ${badge('New application',T.amberLt,T.amber,T.amberBd)}<br/><br/>
-        ${h1('New business application')}
-        ${sub('A business just applied to join ProofLink.')}
+        ${badge('New request',T.amberLt,T.amber,T.amberBd)}<br/><br/>
+        ${h1('New business request')}
+        ${sub('A business just asked to start with ProofLink.')}
         ${infoBox([['Business',business_name],['Owner',owner_name],['Email',owner_email],['Plan',selected_plan ? String(selected_plan).replace(/\b\w/g, (m) => m.toUpperCase()) : 'Starter'],['Type',business_type||'—'],['Location',city_state||'—']])}
         <div style="text-align:left;">${cta('Review in admin →',`${SITE_URL}/admin/`)}</div>
-      `)}</table>`, { preheader: `${business_name} just applied to join ProofLink.` }),
+      `)}</table>`, { preheader: `${business_name} just asked to start with ProofLink.` }),
     };
   },
 

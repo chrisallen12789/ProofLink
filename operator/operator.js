@@ -1156,12 +1156,22 @@ const BID_PROFILE_LIBRARY = {
   },
 };
 
-function showToast(msg, duration = 3500) {
+function showToast(msg, duration = 3500, tone = "neutral") {
+  const palette = {
+    neutral: { bg: "#1e2029", border: "rgba(255,255,255,.15)", color: "#e8e9eb" },
+    ok: { bg: "#163a22", border: "rgba(88,214,141,.35)", color: "#e9fff1" },
+    error: { bg: "#4a1d1f", border: "rgba(248,113,113,.35)", color: "#fff1f2" },
+  };
+  const colors = palette[tone] || palette.neutral;
   const el = document.createElement("div");
-  el.style.cssText = "position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1e2029;border:1px solid rgba(255,255,255,.15);border-radius:8px;padding:10px 20px;color:#e8e9eb;font-size:.85rem;z-index:99999;box-shadow:0 4px 20px rgba(0,0,0,.5);pointer-events:none;";
+  el.style.cssText = `position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:${colors.bg};border:1px solid ${colors.border};border-radius:8px;padding:10px 20px;color:${colors.color};font-size:.85rem;z-index:99999;box-shadow:0 4px 20px rgba(0,0,0,.5);pointer-events:none;`;
   el.textContent = msg;
   document.body.appendChild(el);
   setTimeout(() => el.remove(), duration);
+}
+function notifyOperator(message, tone = "error", duration = 4200) {
+  if (!message) return;
+  showToast(String(message), duration, tone);
 }
 
 function escapeHtml(str) {
@@ -4782,7 +4792,7 @@ function presetProductPayload(item, sortOrder) {
 async function loadRecommendedServicePack() {
   const preset = currentServicePreset();
   if (!preset?.items?.length) {
-    alert("No recommended services are configured for this workspace yet.");
+    notifyOperator("No recommended services are configured for this business yet.");
     return;
   }
 
@@ -4936,7 +4946,7 @@ btnLoadRecommendedServices?.addEventListener("click", async () => {
     await loadRecommendedServicePack();
   } catch (err) {
     if (productMsg) productMsg.textContent = err.message || String(err);
-    else alert(err.message || String(err));
+    else notifyOperator(err.message || String(err));
   }
 });
 btnRefreshProducts?.addEventListener("click", async () => {
@@ -4949,7 +4959,7 @@ btnRefreshProducts?.addEventListener("click", async () => {
     await refreshPicklists();
     renderStartupChecklist();
   } catch (err) {
-    alert(err.message || String(err));
+    notifyOperator(err.message || String(err));
   }
 });
 btnNewProduct?.addEventListener("click", clearProductForm);
@@ -5192,7 +5202,7 @@ function renderPricing(rows) {
         await fetchProducts();
         renderPricing(await fetchPricing());
       } catch (err) {
-        alert(err.message || String(err));
+        notifyOperator(err.message || String(err));
       }
     });
   });
@@ -5220,7 +5230,7 @@ function renderPricing(rows) {
         await fetchProducts();
         renderPricing(await fetchPricing());
       } catch (err) {
-        alert(err.message || String(err));
+        notifyOperator(err.message || String(err));
       }
     });
   });
@@ -5249,7 +5259,7 @@ function renderPricing(rows) {
 
         renderPricing(await fetchPricing());
       } catch (err) {
-        alert(err.message || String(err));
+        notifyOperator(err.message || String(err));
       }
     });
   });
@@ -5414,7 +5424,7 @@ btnRefreshPricing?.addEventListener("click", async () => {
     renderPricing(await fetchPricing());
     renderBidCatalogStarters(currentBid());
   } catch (err) {
-    alert(err.message || String(err));
+    notifyOperator(err.message || String(err));
   }
 });
 
@@ -5578,7 +5588,7 @@ btnRefreshExpenses?.addEventListener("click", async () => {
     await refreshPicklists();
     renderStartupChecklist();
   } catch (err) {
-    alert(err.message || String(err));
+    notifyOperator(err.message || String(err));
   }
 });
 expenseForm?.addEventListener("submit", async (e) => {
@@ -6376,7 +6386,7 @@ function openEditContractModal(contract) {
   document.body.appendChild(modal);
   document.getElementById('ecSave').onclick = async () => {
     const title = (document.getElementById('ecTitle')?.value || '').trim();
-    if (!title) { alert('Title is required.'); return; }
+    if (!title) { notifyOperator("Add a title first."); return; }
     const btn = document.getElementById('ecSave'); btn.disabled = true; btn.textContent = 'Saving…';
     try {
       const tok = await getAccessToken();
@@ -6446,7 +6456,7 @@ function openAddContractModal(customerId, orderId) {
   document.body.appendChild(modal);
   document.getElementById('ctSave').onclick = async () => {
     const title = ($('ctTitle')?.value || '').trim();
-    if (!title) { alert('Title is required.'); return; }
+    if (!title) { notifyOperator("Add a title first."); return; }
     const btn = $('ctSave'); btn.disabled = true; btn.textContent = 'Saving…';
     try {
       const tok = await getAccessToken();
@@ -6595,7 +6605,7 @@ function openAddInventoryModal() {
   document.body.appendChild(modal);
   document.getElementById('invSaveBtn').onclick = async () => {
     const name = ($('invName')?.value || '').trim();
-    if (!name) { alert('Item name is required.'); return; }
+    if (!name) { notifyOperator("Add an item name first."); return; }
     const btn = $('invSaveBtn');
     btn.disabled = true; btn.textContent = 'Saving…';
     try {
@@ -6812,7 +6822,7 @@ function openEditVendorModal(vendor) {
   document.body.appendChild(modal);
   document.getElementById('evSave').onclick = async () => {
     const name = (document.getElementById('evName')?.value || '').trim();
-    if (!name) { alert('Name is required.'); return; }
+    if (!name) { notifyOperator("Add a name first."); return; }
     const btn = document.getElementById('evSave'); btn.disabled = true; btn.textContent = 'Saving…';
     try {
       const tok = await getAccessToken();
@@ -8311,7 +8321,7 @@ function openInviteTeamMemberModal() {
   document.body.appendChild(modal);
   document.getElementById('tmSave').onclick = async () => {
     const email = (document.getElementById('tmEmail')?.value || '').trim();
-    if (!email) { alert('Email is required.'); return; }
+    if (!email) { notifyOperator("Add an email address first."); return; }
     const btn = document.getElementById('tmSave'); btn.disabled = true; btn.textContent = 'Sending…';
     try {
       const res = await fetch('/.netlify/functions/manage-operator-members', {
@@ -8787,7 +8797,7 @@ function renderBookingsList(bookings) {
           const lbl = $("bkListLabel");
           if (lbl) lbl.textContent = "Upcoming appointments";
         } catch (err) {
-          alert(err.message || "Error cancelling booking");
+          notifyOperator(err.message || "Error cancelling booking");
           btn.disabled = false;
         }
       }
@@ -8810,7 +8820,7 @@ function renderBookingsList(bookings) {
           btn.textContent = "Sent ✓";
           setTimeout(() => { btn.textContent = "Remind"; btn.disabled = false; }, 3000);
         } catch (err) {
-          alert(err.message || "Error sending reminder");
+          notifyOperator(err.message || "Error sending reminder");
           btn.textContent = "Remind";
           btn.disabled = false;
         }
@@ -9149,7 +9159,7 @@ $("btnWalkIn")?.addEventListener("click", () => {
     const price = parseFloat(document.getElementById("wiPrice").value || 0);
     const operatorId = document.getElementById("wiOperator").value;
     const notes = (document.getElementById("wiNotes").value || "").trim();
-    if (!service) { alert("Service name is required."); return; }
+    if (!service) { notifyOperator("Add a service name first."); return; }
     const btn = document.getElementById("wiSave");
     btn.disabled = true; btn.textContent = "Creating…";
     try {
@@ -9789,7 +9799,7 @@ btnRefreshCustomers?.addEventListener("click", async () => {
     await Promise.all([fetchCustomers(), fetchCrmOrders(), fetchPayments()]);
     renderCustomersList(customerSearch?.value || "");
   } catch (err) {
-    alert(err.message || String(err));
+    notifyOperator(err.message || String(err));
   }
 });
 
@@ -9798,7 +9808,7 @@ btnRefreshPayments?.addEventListener("click", async () => {
     await fetchPayments();
     renderPayments();
   } catch (err) {
-    alert(err.message || String(err));
+    notifyOperator(err.message || String(err));
   }
 });
 
@@ -10343,7 +10353,7 @@ async function renderCustomerDetailWorkspace(customerIdValue, customer) {
       created_at: nowIso,
     }));
     if (error) {
-      alert(error.message || String(error));
+      notifyOperator(error.message || String(error));
       return;
     }
 
@@ -10546,7 +10556,7 @@ async function renderCustomerDetail(customerIdValue) {
       created_at: nowIso,
     }));
     if (error) {
-      alert(error.message || String(error));
+      notifyOperator(error.message || String(error));
       return;
     }
 
@@ -17402,7 +17412,7 @@ function renderOrders() {
     try {
       assertOrderAllowsStatusChange(active, nextStatus);
     } catch (err) {
-      alert(err.message || String(err));
+      notifyOperator(err.message || String(err));
       return;
     }
     const { data, error } = await sb.from("orders")
@@ -17414,7 +17424,7 @@ function renderOrders() {
       .single();
 
     if (error) {
-      alert(error.message || String(error));
+      notifyOperator(error.message || String(error));
       return;
     }
 
@@ -17538,7 +17548,7 @@ function renderOrders() {
         row.id === active.id ? { ...row, review_requested_at: new Date().toISOString() } : row
       );
     } catch (err) {
-      alert(err.message || String(err));
+      notifyOperator(err.message || String(err));
       btn.disabled = false;
     }
   });
@@ -17878,7 +17888,7 @@ function renderOrders() {
         $("orderDepositOverrideReason")?.focus();
         return;
       }
-      alert(message);
+      notifyOperator(message);
     }
   });
   $("btnCreateRecurringPlanFromOrder")?.addEventListener("click", async () => {
@@ -17896,7 +17906,7 @@ function renderOrders() {
       renderGuidance();
       switchTab("plans");
     } catch (err) {
-      alert(err.message || String(err));
+      notifyOperator(err.message || String(err));
     }
   });
   $("btnRecordOrderPayment")?.addEventListener("click", () => {
@@ -17935,7 +17945,7 @@ function renderOrders() {
     } catch (err) {
       btn.disabled = false;
       btn.textContent = "+ Add customer to CRM";
-      alert("Failed to add customer: " + (err.message || String(err)));
+      notifyOperator("Failed to add customer: " + (err.message || String(err)));
     }
   });
 
@@ -18242,7 +18252,7 @@ btnRefreshOrders?.addEventListener("click", async () => {
     renderDashboard();
     renderGuidance();
   } catch (err) {
-    alert(err.message || String(err));
+    notifyOperator(err.message || String(err));
   }
 });
 btnRefreshGuidance?.addEventListener("click", () => {
@@ -18749,7 +18759,7 @@ async function registerPushNotifications() {
 
 function generateInvoicePDF(order) {
   const jsPDF = window.jspdf?.jsPDF;
-  if (!jsPDF) { alert("PDF library not loaded. Please refresh and try again."); return; }
+  if (!jsPDF) { notifyOperator("The PDF tool is not loaded yet. Refresh and try again."); return; }
 
   const doc  = new jsPDF({ unit: "pt", format: "letter" });
   const W    = doc.internal.pageSize.getWidth();
@@ -18934,7 +18944,7 @@ $("btnRefreshReviews")?.addEventListener("click", () => fetchAndRenderReviews().
 
 $("btnExportReviewsCsv")?.addEventListener("click", () => {
   const rows = REVIEWS_CACHE;
-  if (!rows.length) { alert("No reviews to export."); return; }
+  if (!rows.length) { notifyOperator("There are no reviews to export yet."); return; }
   const headers = ["id", "customer_name", "customer_email", "rating", "comment", "order_id", "created_at"];
   downloadCsv("reviews", headers, rows.map((r) => headers.map((h) => r[h] ?? "")));
 });
@@ -19034,7 +19044,7 @@ $("btnRefreshQuotes")?.addEventListener("click", () => fetchAndRenderQuotes().ca
 $("quotesStatusFilter")?.addEventListener("change", () => renderQuotesList());
 
 $("btnExportQuotesCsv")?.addEventListener("click", () => {
-  if (!QUOTES_CACHE.length) { alert("No quotes to export."); return; }
+  if (!QUOTES_CACHE.length) { notifyOperator("There are no quotes to export yet."); return; }
   const headers = ["id", "title", "customer_name", "customer_email", "amount_cents", "status", "valid_until", "created_at", "accepted_at", "declined_at"];
   downloadCsv("quotes", headers, QUOTES_CACHE.map((q) => headers.map((h) => q[h] ?? "")));
 });
@@ -19167,7 +19177,7 @@ function downloadCsv(filename, headers, rows) {
 
 $("btnExportOrdersCsv")?.addEventListener("click", () => {
   const rows = CRM_ORDERS_CACHE;
-  if (!rows.length) { alert("No orders to export."); return; }
+  if (!rows.length) { notifyOperator("There are no work records to export yet."); return; }
   const headers = ["id", "customer_name", "email", "phone", "status", "fulfillment", "scheduled_date", "total_cents", "total_amount", "source_type", "created_at", "updated_at"];
   downloadCsv("orders", headers, rows.map((r) => headers.map((h) => r[h] ?? "")));
 });
@@ -19589,7 +19599,7 @@ $("btnBulkStatusApply")?.addEventListener("click", async () => {
     .eq(OPERATOR_COLUMN, opId())
     .eq(TENANT_COLUMN, TENANT_ID);
 
-  if (error) { alert("Bulk update failed: " + error.message); return; }
+  if (error) { notifyOperator("Bulk update failed: " + error.message); return; }
   CRM_ORDERS_CACHE = CRM_ORDERS_CACHE.map((o) => ids.includes(o.id) ? { ...o, status, updated_at: now } : o);
   BULK_SELECTED_ORDER_IDS.clear();
   updateBulkBar();
@@ -19772,8 +19782,8 @@ $('btnAddAvailBlock')?.addEventListener('click', () => {
   document.getElementById('abSave').onclick = async () => {
     const starts = $('abStart')?.value;
     const ends = $('abEnd')?.value;
-    if (!starts || !ends) { alert('Start and end dates are required.'); return; }
-    if (starts > ends) { alert('Start must be before end.'); return; }
+    if (!starts || !ends) { notifyOperator("Add both a start and end date."); return; }
+    if (starts > ends) { notifyOperator("The start date needs to come before the end date."); return; }
     const btn = $('abSave'); btn.disabled = true; btn.textContent = 'Saving…';
     try {
       const tok = await getAccessToken();
@@ -19903,7 +19913,7 @@ function openAddPhaseModal(orderId) {
   document.body.appendChild(modal);
   document.getElementById('phSave').onclick = async () => {
     const title = ($('phTitle')?.value || '').trim();
-    if (!title) { alert('Phase name required.'); return; }
+    if (!title) { notifyOperator("Add a phase name first."); return; }
     const btn = $('phSave'); btn.disabled = true; btn.textContent = 'Saving…';
     try {
       const tok = await getAccessToken();
@@ -20159,7 +20169,7 @@ $("btnAddVendor")?.addEventListener("click", () => {
   document.getElementById("avCancel").onclick = () => modal.remove();
   document.getElementById("avSave").onclick = async () => {
     const name = (document.getElementById("vName").value || "").trim();
-    if (!name) { alert("Name is required."); return; }
+    if (!name) { notifyOperator("Add a name first."); return; }
     const btn = document.getElementById("avSave");
     btn.disabled = true; btn.textContent = "Saving…";
     try {
@@ -20187,3 +20197,4 @@ $("btnAddVendor")?.addEventListener("click", () => {
     }
   };
 });
+

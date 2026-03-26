@@ -145,3 +145,7 @@ vite.config.ts.timestamp-*
 # Generated Netlify build artifacts
 netlify/functions/*.zip
 netlify/functions/manifest.json
+
+# Legacy duplicate workspace snapshot artifacts
+ProofLink/
+ProofLink.zip

@@ -240,7 +240,7 @@
             <div class="panel-head">
               <div>
                 <h2>Today</h2>
-                <div class="muted">Track live customers, pipeline, unpaid work, and cash pressure without leaving the dashboard.</div>
+                <div class="muted">Track live customers, pipeline, unpaid work, and cash pressure without bouncing between screens.</div>
               </div>
               <div class="panel-actions">
                 <button id="btnLogTime" class="btn btn-ghost" type="button">⏱ Log time</button>
@@ -458,7 +458,7 @@
 
             <!-- Package orders summary — shown when packages exist -->
             <div class="workspace-panel-notice is-soft">
-              <div class="workspace-panel-notice__title">Run the service flow from one workspace</div>
+              <div class="workspace-panel-notice__title">Run the whole service flow from one place</div>
               <div class="workspace-panel-notice__copy">Requests feed proposals, proposals move into quoted or booked work, and approved work becomes active jobs. Use the stage buttons below to jump right to the exact step you need.</div>
             </div>
 
@@ -785,7 +785,7 @@
 
                     <div class="grid two form-grid">
                       <label>Plan title
-                        <input id="planTitle" placeholder="Monthly storefront wash" />
+                        <input id="planTitle" placeholder="Monthly house wash" />
                       </label>
 
                       <label>Service address
@@ -927,7 +927,7 @@
 
               <div class="card">
                 <div class="card-hd">
-                  <strong id="bidFormTitle">Walkthrough workspace</strong>
+                  <strong id="bidFormTitle">Walkthrough builder</strong>
                   <span class="muted">Capture the scope, job facts, commercial structure, and client-facing language.</span>
                 </div>
                 <div class="card-bd">
@@ -1255,7 +1255,7 @@
 
               <div class="card">
                 <div class="card-hd">
-                  <strong id="customerFormTitle">Customer workspace</strong>
+                  <strong id="customerFormTitle">Customer record</strong>
                   <span class="muted">Create or update the record, then review history below.</span>
                 </div>
                 <div class="card-bd">
@@ -1580,7 +1580,7 @@
                   <h2>Domain Settings</h2>
                   <button class="help-btn" type="button" data-help-topic="domains" aria-label="Domain help">?</button>
                 </div>
-                <div class="muted">Your storefront URL is managed by ProofLink. Custom domains stay under your registrar account.</div>
+                  <div class="muted">Your website link is managed by ProofLink. Custom domains stay under your registrar account.</div>
               </div>
               <div class="panel-actions">
                 <button id="btnRefreshDomains" class="btn btn-ghost" type="button">Refresh</button>
@@ -1663,7 +1663,7 @@
                     </label>
 
                     <label>Hero heading
-                      <input id="setupHeroHeading" placeholder="The main headline shown on the storefront." />
+                      <input id="setupHeroHeading" placeholder="The main headline shown on your website." />
                     </label>
 
                     <label>Hero subheading
@@ -1671,12 +1671,12 @@
                     </label>
 
                     <label>About the business
-                      <textarea id="setupAbout" rows="5" placeholder="Plain-English description of what this operator does and why customers should trust them."></textarea>
+                      <textarea id="setupAbout" rows="5" placeholder="Plain-English description of what the business does and why customers should trust it."></textarea>
                     </label>
 
-                    <label>Workspace profile
+                    <label>Business type
                       <select id="setupWorkspaceBusinessType"></select>
-                      <div class="muted" style="margin-top:6px;line-height:1.5;">This shapes the operator workspace for how the business actually runs. It does not change the protected onboarding record.</div>
+                      <div class="muted" style="margin-top:6px;line-height:1.5;">This shapes how ProofLink organizes the business for the way you actually work. It does not change your original signup record.</div>
                     </label>
 
                       <label>Accent color
@@ -1714,7 +1714,7 @@
                     <div class="row">
                       <label class="check">
                         <input id="setupShowPrices" type="checkbox" />
-                        Show prices on storefront
+                        Show prices on website
                       </label>
 
                       <label class="check">
@@ -1873,7 +1873,7 @@
                 </div>
                 <div class="card-bd">
                   <div class="muted" style="line-height:1.65;">
-                    Some fields are locked because they're tied to your billing, compliance, and account identity. Editable fields cover branding, public profile, and storefront presentation — the things you should be able to update without affecting your core account record.
+                    Some fields are locked because they're tied to billing, compliance, and account identity. Editable fields cover branding, public profile, and website presentation without changing the main account record.
                   </div>
                 </div>
               </div>
@@ -1885,7 +1885,7 @@
                 </div>
                 <div class="card-bd">
                   <div class="muted" style="line-height:1.65;">
-                    Use this page to manage logos, hero images, storefront copy, customer-facing contact details, and social presence. Core business record values still exist here for visibility, but they are not writable from the operator console.
+                    Use this page to manage logos, hero images, website copy, customer-facing contact details, and social presence. Core business record values still appear here for visibility, but they are not editable from this account page.
                   </div>
                 </div>
               </div>
@@ -2977,7 +2977,7 @@
             <div class="panel-head">
               <div>
                 <h2>Operations</h2>
-                <div class="muted">Reach the specialized tools without cluttering the daily workspace.</div>
+                <div class="muted">Reach the specialized tools without cluttering the day-to-day workflow.</div>
               </div>
               <div class="panel-actions">
                 <button id="btnRefreshGuidance" class="btn btn-ghost" type="button">Refresh</button>
@@ -3039,8 +3039,8 @@
       <!-- Step 1: Welcome -->
       <div class="tour-step active" id="tour-step-1">
         <div class="tour-icon">🎉</div>
-        <h2 class="tour-title" id="tour-title">Your workspace is ready.</h2>
-        <p class="tour-body">Welcome to ProofLink. This is where you run customers, work, scheduling, money, and the website from one place.</p>
+        <h2 class="tour-title" id="tour-title">Your account is ready.</h2>
+        <p class="tour-body">Welcome to ProofLink. This is where you run customers, work, scheduling, payments, and your website from one place.</p>
         <div class="tour-actions">
           <button class="tour-btn" onclick="tourNext()">Show me around →</button>
         </div>
@@ -3086,8 +3086,8 @@
           <li>
             <span class="tour-num">3</span>
             <div>
-              <strong>Test your storefront</strong>
-              <p>Preview your live storefront link and place one test order to make sure it works.</p>
+              <strong>Test your website</strong>
+              <p>Preview your live website link and place one test order to make sure it works.</p>
             </div>
           </li>
         </ol>
@@ -3105,7 +3105,7 @@
         <p class="tour-hint">You can replay this tour anytime from <strong>Operations</strong>.</p>
         <div class="tour-actions">
           <button class="tour-btn-ghost" onclick="tourBack()">← Back</button>
-          <button class="tour-btn" onclick="tourFinish()">Go to my dashboard →</button>
+          <button class="tour-btn" onclick="tourFinish()">Go to Today →</button>
         </div>
       </div>
 
