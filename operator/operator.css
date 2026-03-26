@@ -2199,6 +2199,8 @@ input:focus, textarea:focus, select:focus{
   .workflow-focus__grid,
   .work-command__stats,
   .work-command__grid{ grid-template-columns: 1fr; }
+  .record-hero__head{ flex-direction:column; }
+  .record-hero__badges{ justify-content:flex-start; }
 }
 
 /* v2.1 operator additions */
@@ -2263,6 +2265,73 @@ input:focus, textarea:focus, select:focus{
   font-size:13px;
   line-height:1.5;
   margin-top:8px;
+}
+.record-hero{
+  background: linear-gradient(180deg, rgba(255,255,255,.06) 0%, rgba(255,255,255,.02) 100%);
+}
+.record-hero__head{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:14px;
+}
+.record-hero__main{
+  min-width:0;
+}
+.record-hero__main h3{
+  margin:6px 0 0;
+  font-family: var(--font-display);
+  font-size:24px;
+  letter-spacing:-.03em;
+}
+.record-hero__meta{
+  display:grid;
+  gap:4px;
+  margin-top:10px;
+}
+.record-hero__meta-line{
+  color:var(--muted);
+  font-size:13px;
+  line-height:1.5;
+}
+.record-hero__badges{
+  justify-content:flex-end;
+  margin-top:0;
+}
+.record-hero__summary{
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(160px, 1fr));
+  gap:10px;
+  margin-top:14px;
+}
+.record-hero__metric{
+  border:1px solid rgba(255,255,255,.1);
+  border-radius:14px;
+  background:rgba(255,255,255,.04);
+  padding:12px;
+}
+.record-hero__metric span{
+  display:block;
+  color:var(--muted);
+  font-size:11px;
+  text-transform:uppercase;
+  letter-spacing:.08em;
+}
+.record-hero__metric strong{
+  display:block;
+  margin-top:6px;
+  font-size:22px;
+  font-weight:800;
+}
+.record-hero__metric small{
+  display:block;
+  margin-top:6px;
+  color:var(--muted);
+  font-size:12px;
+  line-height:1.45;
+}
+.record-hero__actions{
+  margin-top:14px;
 }
 .kicker {
   color:var(--accent);

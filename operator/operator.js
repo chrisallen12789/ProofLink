@@ -10026,47 +10026,42 @@ async function renderCustomerDetailWorkspace(customerIdValue, customer) {
   };
 
   customerDetailWrap.innerHTML = `
-    <div class="detail-card">
-      <div class="kicker">Customer workspace</div>
-      <div><strong>${escapeHtml(customer.name || "Unnamed customer")}</strong></div>
-      <div class="detail-copy">${escapeHtml(customer.email || "No email")} &middot; ${escapeHtml(customer.phone || "No phone")}</div>
-      <div class="detail-copy">Preferred contact: ${escapeHtml(customer.preferred_contact || "email")} &middot; ${escapeHtml(address)}</div>
-      <div class="detail-copy">Open the customer once, then move the work forward from here instead of hunting through separate screens.</div>
-      <div class="customer-action-row">
-        <button type="button" class="btn btn-primary" data-customer-action="request">New request</button>
-        <button type="button" class="btn btn-ghost" data-customer-action="bid">Draft proposal</button>
-        <button type="button" class="btn btn-ghost" data-customer-action="payment">Record payment</button>
-        <button type="button" class="btn btn-ghost" data-customer-action="note">Add note</button>
-      </div>
-      <div class="metric-grid" style="margin-top:14px;">
-        <div class="metric-card">
-          <div class="metric-label">Open requests</div>
-          <div class="metric-value">${escapeHtml(String(openRequestsCount))}</div>
-          <div class="metric-note">New work still waiting on scope, response, or a proposal.</div>
+    ${renderRecordHeroCard({
+      eyebrow: "Customer workspace",
+      title: customer.name || "Unnamed customer",
+      badges: [
+        { label: `${openRequestsCount} open request${openRequestsCount === 1 ? "" : "s"}` },
+        { label: `${openProposalCount} live proposal${openProposalCount === 1 ? "" : "s"}` },
+        { label: `${activeOrderCount + activeJobCount} active work item${activeOrderCount + activeJobCount === 1 ? "" : "s"}` },
+        balance > 0 ? { label: `${formatUsd(balance)} open`, tone: "pill-bad" } : { label: "No balance due", tone: "pill-on" },
+      ],
+      meta: [
+        `${customer.email || "No email"} | ${customer.phone || "No phone"}`,
+        `Preferred contact: ${customer.preferred_contact || "email"}`,
+        address,
+      ],
+      description: "Open the customer once, then move requests, pricing, field work, and payment follow-through from the same record.",
+      summary: [
+        { label: "Open requests", value: String(openRequestsCount), note: "Needs response or scope" },
+        { label: "Open proposals", value: String(openProposalCount), note: "Still moving toward approval" },
+        { label: "Booked + active work", value: String(activeOrderCount + activeJobCount), note: "Execution or follow-through still open" },
+        { label: "Outstanding balance", value: formatUsd(balance), note: "Billed work not fully collected" },
+      ],
+      actionsHtml: `
+        <div class="customer-action-row">
+          <button type="button" class="btn btn-primary" data-customer-action="request">New request</button>
+          <button type="button" class="btn btn-ghost" data-customer-action="bid">Draft proposal</button>
+          <button type="button" class="btn btn-ghost" data-customer-action="payment">Record payment</button>
+          <button type="button" class="btn btn-ghost" data-customer-action="note">Add note</button>
+          ${(function() {
+            const hasActiveOrders = CRM_ORDERS_CACHE.some((o) => o.customer_id === customerIdValue && !["completed", "cancelled", "archived"].includes(String(o.status || "").toLowerCase()));
+            const hasActiveJobs = JOBS_CACHE.some((job) => job.customer_id === customerIdValue && !["completed", "cancelled", "archived"].includes(String(job.status || "").toLowerCase()));
+            if (hasActiveOrders || hasActiveJobs) return "";
+            return `<button class="btn btn-ghost" style="font-size:.75rem;color:#fbbf24;" data-customer-action="archive">Archive customer</button>`;
+          })()}
         </div>
-        <div class="metric-card">
-          <div class="metric-label">Open proposals</div>
-          <div class="metric-value">${escapeHtml(String(openProposalCount))}</div>
-          <div class="metric-note">Quotes and walkthrough bids still moving toward approval.</div>
-        </div>
-        <div class="metric-card">
-          <div class="metric-label">Booked + active work</div>
-          <div class="metric-value">${escapeHtml(String(activeOrderCount + activeJobCount))}</div>
-          <div class="metric-note">Orders and jobs that still need execution, follow-up, or collection.</div>
-        </div>
-        <div class="metric-card">
-          <div class="metric-label">Outstanding balance</div>
-          <div class="metric-value">${formatUsd(balance)}</div>
-          <div class="metric-note">All billed work that is not fully collected yet.</div>
-        </div>
-      </div>
-      ${(function() {
-        const hasActiveOrders = CRM_ORDERS_CACHE.some((o) => o.customer_id === customerIdValue && !["completed", "cancelled", "archived"].includes(String(o.status || "").toLowerCase()));
-        const hasActiveJobs = JOBS_CACHE.some((job) => job.customer_id === customerIdValue && !["completed", "cancelled", "archived"].includes(String(job.status || "").toLowerCase()));
-        if (hasActiveOrders || hasActiveJobs) return "";
-        return `<div style="margin-top:12px;"><button class="btn btn-ghost" style="font-size:.75rem;color:#fbbf24;" data-customer-action="archive">Archive customer</button></div>`;
-      })()}
-    </div>
+      `,
+    })}
 
     <div class="customer-flow-grid">
       <div class="customer-flow-card">
@@ -13946,6 +13941,50 @@ function renderWorkCommandCenter() {
     });
   });
 }
+function renderRecordHeroCard({
+  eyebrow = "Record",
+  title = "Untitled",
+  badges = [],
+  meta = [],
+  summary = [],
+  description = "",
+  actionsHtml = "",
+} = {}) {
+  const badgeHtml = (Array.isArray(badges) ? badges : [])
+    .filter((item) => item && item.label)
+    .map((item) => `<span class="pill ${escapeAttr(item.tone || "")}">${escapeHtml(item.label)}</span>`)
+    .join("");
+  const metaHtml = (Array.isArray(meta) ? meta : [])
+    .filter(Boolean)
+    .map((item) => `<div class="record-hero__meta-line">${escapeHtml(item)}</div>`)
+    .join("");
+  const summaryHtml = (Array.isArray(summary) ? summary : [])
+    .filter((item) => item && item.label)
+    .map((item) => `
+      <div class="record-hero__metric ${escapeAttr(item.tone || "")}">
+        <span>${escapeHtml(item.label)}</span>
+        <strong>${escapeHtml(item.value || "")}</strong>
+        ${item.note ? `<small>${escapeHtml(item.note)}</small>` : ""}
+      </div>
+    `)
+    .join("");
+
+  return `
+    <div class="record-hero detail-card">
+      <div class="record-hero__head">
+        <div class="record-hero__main">
+          <div class="kicker">${escapeHtml(eyebrow)}</div>
+          <h3>${escapeHtml(title)}</h3>
+          ${metaHtml ? `<div class="record-hero__meta">${metaHtml}</div>` : ""}
+          ${description ? `<div class="detail-copy">${escapeHtml(description)}</div>` : ""}
+        </div>
+        ${badgeHtml ? `<div class="record-hero__badges workspace-chip-row">${badgeHtml}</div>` : ""}
+      </div>
+      ${summaryHtml ? `<div class="record-hero__summary">${summaryHtml}</div>` : ""}
+      ${actionsHtml ? `<div class="record-hero__actions">${actionsHtml}</div>` : ""}
+    </div>
+  `;
+}
 function dashboardClientTrackerRows(todayActions = []) {
   const rows = [];
   const activeStatuses = new Set(["new", "quoted", "confirmed", "fulfilled", "completed", "scheduled", "dispatched", "in_progress", "blocked"]);
@@ -14486,16 +14525,30 @@ async function renderJobDetail(jobIdValue) {
   const hvBreakdown = hvRev !== null ? hydrovacRevenueBreakdownHtml(job) : null;
   const hydrovacState = isHydrovacJob(job) ? hydrovacJobDetailState(job.id) : null;
   jobDetailWrap.innerHTML = `
-    <div class="detail-card">
-      <div class="kicker">Execution summary</div>
-      <div><strong>${escapeHtml(job.title || "Job")}</strong></div>
-      <div class="detail-copy">Status: ${escapeHtml(String(job.status || "scheduled").replace(/_/g, " "))}</div>
-      <div class="detail-copy">Scheduled: ${escapeHtml(String(job.scheduled_date || "No date"))} | ${escapeHtml(String(job.scheduled_time || "No time"))}</div>
-      <div class="detail-copy">Order stage: <span class="pill">${escapeHtml(formatOrderWorkflowStatus(order.status || "new"))}</span></div>
-      <div class="detail-copy">Payment: <span class="pill ${paymentStateClass(job.payment_state || orderPaymentState(order))}">${escapeHtml(formatWorkflowPaymentState(job.payment_state || orderPaymentState(order)))}</span></div>
-      ${order ? `<div class="detail-copy">Deposit: <span class="pill ${depositStatusClass(depositStatus)}">${escapeHtml(formatDepositStatus(depositStatus))}</span>${orderDepositGapCents(order) > 0 ? ` | ${formatUsd(orderDepositGapCents(order))} still open` : ""}</div>` : ""}
-      <div class="detail-copy">Due: ${formatUsd(Number(job.amount_due_cents || orderAmountDueCents(order) || 0))}</div>
-    </div>
+    ${renderRecordHeroCard({
+      eyebrow: "Execution record",
+      title: job.title || "Job",
+      badges: [
+        { label: titleCaseWords(String(job.status || "scheduled").replace(/_/g, " ")) },
+        order ? { label: formatOrderWorkflowStatus(order.status || "new") } : null,
+        { label: formatWorkflowPaymentState(job.payment_state || orderPaymentState(order)), tone: paymentStateClass(job.payment_state || orderPaymentState(order)) },
+        order ? { label: formatDepositStatus(depositStatus), tone: depositStatusClass(depositStatus) } : null,
+      ],
+      meta: [
+        `${linkedCustomer?.name || order?.customer_name || "Customer not linked"}`,
+        `Scheduled ${String(job.scheduled_date || "No date")} | ${String(job.scheduled_time || "No time")}`,
+        job.service_address || order?.service_address || "No service address recorded",
+      ],
+      description: linkedLead
+        ? `This job is already tied back to ${linkedLead.contact_name || linkedLead.title || "the original request"}, so field execution, customer context, and money stay in one chain.`
+        : "Use this job record to keep field execution, proof, and money state attached to the same piece of work.",
+      summary: [
+        { label: "Revenue", value: formatUsd(revenueCents), note: "Current job revenue" },
+        { label: "Tracked cost", value: formatUsd(costCents), note: trackedExpenses.length ? `${trackedExpenses.length} linked cost item${trackedExpenses.length === 1 ? "" : "s"}` : "No cost logged yet" },
+        { label: "Gross profit", value: formatUsd(grossProfitCents), note: "Revenue minus tracked cost", tone: grossProfitToneClass(grossProfitCents) },
+        { label: "Due now", value: formatUsd(Number(job.amount_due_cents || orderAmountDueCents(order) || 0)), note: formatWorkflowPaymentState(job.payment_state || orderPaymentState(order)), tone: paymentStateClass(job.payment_state || orderPaymentState(order)) },
+      ],
+    })}
     <div class="detail-card" style="margin-top:14px;">
       <div class="kicker">Job economics</div>
       <div class="workspace-chip-row">
@@ -16776,36 +16829,34 @@ function renderOrders() {
   const isReturnCustomer = priorOrders.length > 0;
 
   orderDetailWrap.innerHTML = `
-    <div class="detail-card">
-      <div class="kicker">Customer ${isReturnCustomer ? '<span class="pill pill-on" style="font-size:.7rem;margin-left:6px;">↩ Returning customer</span>' : ""}</div>
-      <div><strong>${escapeHtml(active.customer_name || active.name || "Unnamed customer")}</strong></div>
-      <div class="detail-copy">${escapeHtml(active.email || "No email")}  |  ${escapeHtml(active.phone || "No phone")}</div>
-      <div class="detail-copy">Submitted: ${escapeHtml(formatDateTime(active.created_at || active.createdAt))}</div>
-      <div class="detail-copy">Status: ${escapeHtml(String(active.status || "new"))}</div>
-      ${existingCustomer ? `<div class="detail-copy" style="color:var(--accent);font-size:.8rem;">✓ In CRM as ${escapeHtml(existingCustomer.name || "customer")} · ${existingCustomer.order_count || priorOrders.length} prior order(s)</div>` : `<button id="btnAddOrderToCrm" class="btn btn-ghost btn-sm" type="button" style="margin-top:8px;">+ Add customer to CRM</button>`}
-      ${isReturnCustomer && !existingCustomer ? `<div class="detail-copy" style="font-size:.8rem;color:#fbbf24;">⚠ ${priorOrders.length} prior order(s) found for this email — consider adding them to CRM</div>` : ""}
-    </div>
-
-    <div class="detail-card" style="margin-top:14px;">
-      <div class="kicker">Order profile</div>
-      <div class="detail-copy">Fulfillment: ${escapeHtml(active.fulfillment || "pickup")}</div>
-      <div class="detail-copy">Scheduled date: ${escapeHtml(String(scheduledDate))}</div>
-      <div class="detail-copy">Scheduled time: ${escapeHtml(String(scheduledTime))}</div>
-      <div class="detail-copy">Items: ${escapeHtml(String(itemCount))}</div>
-      <div class="detail-copy">Source: ${escapeHtml(sourceLabel)}</div>
-      ${active.referral_source ? `<div class="detail-copy">How they heard: ${escapeHtml(String(active.referral_source))}</div>` : ""}
-    </div>
-
-    <div class="detail-card" style="margin-top:14px;">
-      <div class="kicker">Commercial read</div>
-      <div class="detail-copy">Order value: ${formatUsd(totalCents)}</div>
-      <div class="detail-copy">Paid: ${formatUsd(amountPaid)} | Due: ${formatUsd(amountDue)}</div>
-      <div class="detail-copy">Deposit: ${formatUsd(depositPaid)} paid of ${formatUsd(depositRequired)} required${depositGap > 0 ? ` | ${formatUsd(depositGap)} still open` : ""}</div>
-      <div class="detail-copy">Deposit status: <span class="pill ${depositStatusClass(depositStatus)}">${escapeHtml(formatDepositStatus(depositStatus))}</span></div>
-      <div class="detail-copy">Payment state: ${escapeHtml(formatWorkflowPaymentState(paymentState))}</div>
-      <div class="detail-copy">Tenant: ${escapeHtml(active.tenant_id || TENANT_ID)}</div>
-      <div class="detail-copy">${escapeHtml(notesText)}</div>
-    </div>
+    ${renderRecordHeroCard({
+      eyebrow: "Work record",
+      title: active.customer_name || active.name || "Unnamed customer",
+      badges: [
+        { label: formatOrderWorkflowStatus(active.status || "new") },
+        { label: formatWorkflowPaymentState(paymentState), tone: paymentStateClass(paymentState) },
+        depositStatus !== "not_required" ? { label: formatDepositStatus(depositStatus), tone: depositStatusClass(depositStatus) } : null,
+        isReturnCustomer ? { label: "Returning customer", tone: "pill-on" } : null,
+      ],
+      meta: [
+        `${active.email || "No email"} | ${active.phone || "No phone"}`,
+        `Scheduled ${String(scheduledDate)} | ${String(scheduledTime)}`,
+        `Fulfillment: ${active.fulfillment || "pickup"} | ${itemCount} item${itemCount === 1 ? "" : "s"} | Source: ${sourceLabel}`,
+        active.referral_source ? `How they heard about you: ${String(active.referral_source)}` : "",
+        existingCustomer ? `In CRM as ${existingCustomer.name || "customer"} | ${existingCustomer.order_count || priorOrders.length} prior order(s)` : "",
+      ].filter(Boolean),
+      description: linkedJob
+        ? `This work is already tied to ${linkedJob.title || "a tracked job"}, so use the workflow below to keep execution and collection moving together.`
+        : "Use the workflow below to move this record into a tracked job, recurring plan, or the right payment follow-through without rebuilding anything.",
+      summary: [
+        { label: "Order value", value: formatUsd(totalCents), note: "Committed work total" },
+        { label: "Paid so far", value: formatUsd(amountPaid), note: "Money already collected" },
+        { label: "Due now", value: formatUsd(amountDue), note: paymentState === "overdue" ? "Past due" : "Still open", tone: paymentState === "overdue" ? "pill-bad" : "" },
+        { label: "Deposit", value: depositGap > 0 ? `${formatUsd(depositGap)} open` : formatUsd(depositPaid), note: depositStatus === "not_required" ? "No deposit required" : formatDepositStatus(depositStatus) },
+      ],
+      actionsHtml: !existingCustomer ? `<button id="btnAddOrderToCrm" class="btn btn-ghost btn-sm" type="button">+ Add customer to CRM</button>` : "",
+    })}
+    ${isReturnCustomer && !existingCustomer ? `<div class="detail-card" style="margin-top:14px;"><div class="kicker">Customer match</div><div class="detail-copy" style="font-size:.8rem;color:#fbbf24;">${priorOrders.length} prior order(s) found for this email. Consider linking this person into CRM so the next request, job, and payment history stay together.</div></div>` : ""}
 
     ${(active.order_type === 'package' || active.order_type === 'retainer') ? `
     <div class="detail-card" style="margin-top:14px;">
