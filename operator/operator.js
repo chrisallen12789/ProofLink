@@ -3998,11 +3998,11 @@ async function requireOperatorContext() {
 
   // Use tenant_id from operator_members first (handles platform_admin whose operators row has null tenant_id)
   const operatorTenantId = String(data.tenant_id || data.operators.tenant_id || '').trim();
-  if (TENANT_SCOPE_ENABLED && operatorTenantId && operatorTenantId !== TENANT_ID) {
-    // Tenant in database doesn't match static config - update the module-level
-    // TENANT_ID to the real value from the database so all queries use the correct
-    // tenant. This allows the operator dashboard to work for any provisioned tenant,
-    // not just the demo tenant hardcoded in cottagelink.tenant.js.
+  if (operatorTenantId && operatorTenantId !== TENANT_ID) {
+    // Always trust the membership tenant over the placeholder config tenant.
+    // Some dashboard and boot-time calls still key off TENANT_ID even when
+    // tenant-scope enforcement is disabled, so leaving "default" in place
+    // creates false tenant-mismatch errors for real operator accounts.
     console.log(`[ProofLink] Tenant scope updated: ${TENANT_ID} -> ${operatorTenantId}`);
     TENANT_ID = operatorTenantId;
   }
