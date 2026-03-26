@@ -3,7 +3,7 @@
 
 const OPERATOR_CONFIG = window.PROOFLINK_OPERATOR_CONFIG || {};
 const SUPABASE_URL = OPERATOR_CONFIG.supabaseUrl || "https://ygfpawksbqfbgohztisv.supabase.co";
-const SUPABASE_ANON_KEY = OPERATOR_CONFIG.supabaseAnonKey || '';
+const SUPABASE_ANON_KEY = OPERATOR_CONFIG.supabaseAnonKey || window.PROOFLINK_CONFIG?.supabase?.anonKey || "sb_publishable_bcILNxLX87f-G2zq_SbDGA_Vvs62biB";
 
 window.sb = window.sb || window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const sb = window.sb;
