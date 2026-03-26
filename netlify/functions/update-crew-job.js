@@ -6,6 +6,8 @@
 'use strict';
 
 const { requireOperatorContext, getAdminClient, respond } = require('./utils/auth');
+const { requireHydrovacOperatorContext } = require('./utils/hydrovac');
+const { collectHydrovacLifecycleIssues, hydrovacJobType } = require('./lib/hydrovac-compliance');
 
 const ALLOWED_CREW_STATUSES = new Set(['in_progress', 'blocked', 'completed']);
 const ADMIN_ROLES = new Set(['admin', 'owner', 'manager', 'platform_admin']);
@@ -22,6 +24,12 @@ exports.handler = async (event) => {
 
   const { user, tenantId, role } = ctx;
   const adminSb = getAdminClient();
+  let hydrovacCtx = null;
+  try {
+    hydrovacCtx = await requireHydrovacOperatorContext(event);
+  } catch (_) {
+    hydrovacCtx = null;
+  }
 
   let body;
   try { body = JSON.parse(event.body || '{}'); }
@@ -39,7 +47,7 @@ exports.handler = async (event) => {
   // Fetch the job to verify ownership and tenant
   const { data: job, error: jobErr } = await adminSb
     .from('jobs')
-    .select('id, tenant_id, assigned_operator_id, assigned_member_id, status, actual_start_at, actual_end_at')
+    .select('id, tenant_id, assigned_operator_id, assigned_member_id, status, actual_start_at, actual_end_at, job_type, service_type, requires_confined_space_permit, total_loads_hauled, total_disposal_cost_cents, disposal_cost_cents, disposal_site, disposal_manifest_number')
     .eq('id', job_id)
     .maybeSingle();
 
@@ -97,6 +105,19 @@ exports.handler = async (event) => {
 
   if (Object.keys(patch).length === 0) {
     return respond(400, { error: 'No valid fields provided to update' });
+  }
+
+  if (hydrovacCtx && hydrovacJobType(job) && (status === 'in_progress' || status === 'completed')) {
+    const issues = await collectHydrovacLifecycleIssues({
+      adminSb,
+      tenantId,
+      hydrovacSettings: hydrovacCtx.hydrovacSettings,
+      job,
+      targetStatus: status,
+    });
+    if (issues.length) {
+      return respond(409, { error: issues[0].message, issues });
+    }
   }
 
   const { data: updated, error: updateErr } = await adminSb

@@ -233,8 +233,25 @@ async function renderJobDetail(jobIdValue) {
       if (jobStatus && patch.status) jobStatus.value = patch.status;
       setInlineMessage(msgEl, action === "complete" ? "Closing out job..." : "Saving field update...");
       try {
-        await saveJobRecord(patch);
-        syncFieldJobState(patch);
+        if (patch.status && isHydrovacJob(job)) {
+          const result = await requestOperatorFunction("update-job-status", {
+            method: "POST",
+            body: patch,
+          });
+          syncFieldJobState(result?.job || patch);
+          await Promise.all([
+            fetchJobs(),
+            fetchCrmOrders(),
+            fetchJobHydrovacDetails(job.id, { force: true }).catch(() => null),
+          ]);
+          renderJobs(jobSearch?.value || "");
+          renderOrders();
+          renderDashboard();
+          renderGuidance();
+        } else {
+          await saveJobRecord(patch);
+          syncFieldJobState(patch);
+        }
         const successLabel = action === "start"
           ? "Work started."
           : action === "resume"

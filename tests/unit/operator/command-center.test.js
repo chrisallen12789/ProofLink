@@ -60,7 +60,16 @@ function loadCommandCenter(overrides = {}) {
     moneyStageStrip,
     moneyActionBar,
     dashboardWrap: null,
-    currentWorkspaceBlueprint: vi.fn(() => ({ business: { key: "starter" } })),
+    currentWorkspaceBlueprint: vi.fn(() => ({
+      business: { key: "starter" },
+      workflowRubric: {
+        intake: "Capture what matters first.",
+        scheduling: "Schedule with confidence.",
+        field: "Field updates stay quick.",
+        payment: "Collect on time.",
+        repeatWork: "Turn wins into repeat work.",
+      },
+    })),
     workspaceBidLabel: vi.fn(() => "Walkthrough Bids"),
     workspaceTabLabel: vi.fn((tab) => `Label ${tab}`),
     workspaceJobsNavLabel: vi.fn(() => "Active Jobs"),
@@ -126,6 +135,7 @@ describe("operator command center", () => {
 
     expect(guidanceWrap.innerHTML).toContain("Hydrovac operations");
     expect(guidanceWrap.innerHTML).toContain("Daily shell");
+    expect(guidanceWrap.innerHTML).toContain("Template intake");
     expect(guidanceWrap.innerHTML).not.toContain("Domains");
   });
 

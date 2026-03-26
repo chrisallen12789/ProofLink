@@ -11,6 +11,7 @@ const {
   endOfUtcDay,
   toIsoOrNull,
 } = require('./utils/hydrovac');
+const { manifestConfirmationIssues } = require('./lib/hydrovac-compliance');
 
 async function nextManifestNumber(adminSb, tenantId, prefix) {
   const today = new Date();
@@ -324,7 +325,14 @@ exports.handler = async (event) => {
     if (patch.quantity_actual !== undefined) patch.quantity_actual = asNumber(patch.quantity_actual, null);
     if (patch.tare_weight_lbs !== undefined) patch.tare_weight_lbs = asNumber(patch.tare_weight_lbs, null);
     if (patch.gross_weight_lbs !== undefined) patch.gross_weight_lbs = asNumber(patch.gross_weight_lbs, null);
-    if (patch.status === 'confirmed' && !patch.disposal_confirmed_at) patch.disposal_confirmed_at = new Date().toISOString();
+    const nextManifest = { ...existing, ...patch };
+    if (patch.status === 'confirmed') {
+      const issues = manifestConfirmationIssues(nextManifest);
+      if (issues.length) {
+        return respond(409, { error: issues[0], issues });
+      }
+      if (!patch.disposal_confirmed_at) patch.disposal_confirmed_at = new Date().toISOString();
+    }
 
     const departed = patch.departed_site_at || existing.departed_site_at;
     const arrived = patch.arrived_facility_at || existing.arrived_facility_at;

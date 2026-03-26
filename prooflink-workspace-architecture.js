@@ -74,6 +74,117 @@
     white_glove: "Priority rollout and support",
   };
 
+  const WORKFLOW_RUBRICS_BY_FAMILY = {
+    field_service: {
+      intake: "Capture the real site condition, urgency, and access details before you price the work.",
+      pricing: "Anchor pricing to scope, labor, materials, and the one or two extras that most often get forgotten.",
+      scheduling: "Confirm timing, access windows, and what must be ready before the crew rolls.",
+      proof: "Carry photos, findings, approvals, and closeout proof in the same record.",
+      payment: "Set deposit or payment expectations before the schedule gets ahead of the cash.",
+      repeatWork: "Use follow-up and repeat-service prompts so this does not become one-and-done revenue.",
+      field: "Make the phone flow fast enough for notes, status, proof, and collection on site.",
+    },
+    recurring_field_service: {
+      intake: "Capture property size, recurring cadence, and the property-specific notes the crew needs every visit.",
+      pricing: "Keep pricing simple enough to quote fast while still accounting for size, add-ons, and seasonality.",
+      scheduling: "Group work by route and cadence so recurring revenue feels easy to deliver.",
+      proof: "Track visit notes and simple before/after proof when it protects retention or upsells.",
+      payment: "Make recurring payment follow-through automatic instead of a weekly office scramble.",
+      repeatWork: "Treat route work and seasonal upsells as one connected customer plan.",
+      field: "Field updates should be lightweight enough to use between stops.",
+    },
+    retail_production: {
+      intake: "Capture order details, quantities, deadlines, and pickup or delivery promises correctly the first time.",
+      pricing: "Keep batch economics, rush fees, and custom-order pricing visible.",
+      scheduling: "Run production timing and pickup windows from one dependable order record.",
+      proof: "Use order notes and fulfillment checks to avoid remake-worthy mistakes.",
+      payment: "Collect deposits and balances against real due dates, not memory.",
+      repeatWork: "Use order history to surface repeat buyers and event-driven reorders.",
+      field: "Front-counter or kitchen updates should be quick enough during a rush.",
+    },
+    project_trade: {
+      intake: "Document hidden conditions, allowances, and customer decisions early.",
+      pricing: "Separate base scope, alternates, and change-sensitive work clearly.",
+      scheduling: "Keep long-running work moving by phase instead of one giant blob.",
+      proof: "Tie site photos, selections, and change approvals directly to the job.",
+      payment: "Make deposit, draw, and change-order money visible before margin drifts.",
+      repeatWork: "Use closeout and follow-up to turn one project into the next referral or maintenance need.",
+      field: "Field notes should capture real conditions fast enough to support billing and change control.",
+    },
+    creative_service: {
+      intake: "Capture session goals, date needs, location, and deliverables in one clean intake.",
+      pricing: "Price around package, add-ons, rights, and rush delivery without confusion.",
+      scheduling: "Protect calendar clarity so each booking has a clear next step.",
+      proof: "Keep contracts, shot lists, and delivery records tied together.",
+      payment: "Use deposits and balance timing to protect the calendar.",
+      repeatWork: "Turn milestones, families, and events into repeat-booking prompts.",
+      field: "Mobile flows should support quick session updates, not slow down the shoot day.",
+    },
+    appointment_service: {
+      intake: "Capture the care details, preferences, and access notes that make repeat service dependable.",
+      pricing: "Keep duration, profile-specific add-ons, and repeat pricing easy to understand.",
+      scheduling: "Recurring visits should be easy to book and even easier to repeat.",
+      proof: "Store care notes and visit history where the next person can trust them.",
+      payment: "Make repeat billing and overdue follow-up feel automatic.",
+      repeatWork: "The product should naturally turn satisfied care clients into recurring clients.",
+      field: "Phone flows should support in-the-moment updates between visits.",
+    },
+    event_service: {
+      intake: "Capture date, venue, guest count, must-haves, and decision-makers upfront.",
+      pricing: "Keep package scope, upgrades, and custom work organized before the proposal goes out.",
+      scheduling: "Use milestone-based planning instead of treating the event like a simple appointment.",
+      proof: "Tie timeline, contracts, approvals, and run-of-show details together.",
+      payment: "Deposits and milestone balances should be impossible to lose track of.",
+      repeatWork: "Use anniversaries, corporate repeats, and referrals as intentional follow-through.",
+      field: "Day-of updates should be fast and calm under pressure.",
+    },
+    mixed_scope_service: {
+      intake: "Capture site-by-site scope cleanly enough to support both recurring and one-off work.",
+      pricing: "Keep task groups, labor, haul-off, and extras separated so margin stays readable.",
+      scheduling: "Blend recurring work and project work without losing the site picture.",
+      proof: "Store inspections, punch lists, and closeout proof by property.",
+      payment: "Make approval and follow-through easy when many small scopes pile up.",
+      repeatWork: "Use site history to turn one visit into ongoing maintenance.",
+      field: "The field view should make mixed-scope updates easy from the property itself.",
+    },
+  };
+
+  const WORKFLOW_RUBRIC_OVERRIDES = {
+    hydrovac: {
+      intake: "Capture utility conflict, site class, disposal expectations, and hazard conditions before the truck rolls.",
+      pricing: "Price around truck time, labor, disposal, mobilization, and the special charges the office cannot afford to miss.",
+      scheduling: "Dispatch only when truck, driver, locate, permit, and disposal readiness all line up.",
+      proof: "Keep tickets, manifests, permits, load details, and closeout proof in the same operating record.",
+      payment: "Invoice from real work and disposal records, not handwritten recap notes.",
+      repeatWork: "Use asset history and municipal or industrial recurrence to keep hydrovac revenue predictable.",
+      field: "Crews should be able to start, log loads, confirm disposal, and close out compliance from the truck cab.",
+    },
+    landscaping: {
+      repeatWork: "Use route cadence, seasonal cleanups, and add-on services to deepen each property relationship.",
+    },
+    cleaning: {
+      proof: "Use scope notes, checklists, and occasional proof photos to prevent disputes before they start.",
+    },
+    hvac: {
+      intake: "Capture equipment facts, failure symptoms, and urgency before recommending repair or replacement.",
+    },
+    plumbing: {
+      intake: "Capture emergency level, fixture context, and likely restoration impact before scoping the repair.",
+    },
+    bakery: {
+      scheduling: "Protect prep timing, custom-order lead times, and pickup promises in one clean flow.",
+    },
+    photography: {
+      proof: "Keep session details, contracts, image-delivery promises, and final delivery in one record.",
+    },
+    events: {
+      scheduling: "Run deposits, planning checkpoints, and event-day execution from the same client record.",
+    },
+    pet_services: {
+      intake: "Capture pet profile details, care instructions, and home-access notes on the first visit.",
+    },
+  };
+
   const TIER_CAPABILITIES = {
     starter: {
       key: "starter",
@@ -166,6 +277,14 @@
       ],
     },
   };
+
+  function workflowRubricForBusiness(business) {
+    const familyKey = business?.family || "field_service";
+    return {
+      ...(WORKFLOW_RUBRICS_BY_FAMILY[familyKey] || WORKFLOW_RUBRICS_BY_FAMILY.field_service),
+      ...(WORKFLOW_RUBRIC_OVERRIDES[business?.key] || {}),
+    };
+  }
 
   const BUSINESS_PROFILES = {
     service_business: {
@@ -500,6 +619,7 @@
     return {
       tier,
       business,
+      workflowRubric: workflowRubricForBusiness(business),
       enabledFeatures,
       deferredFeatures,
       priorityViews: business.priorityViews || [],

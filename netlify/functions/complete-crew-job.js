@@ -7,6 +7,8 @@
 'use strict';
 
 const { requireOperatorContext, getAdminClient, respond } = require('./utils/auth');
+const { requireHydrovacOperatorContext } = require('./utils/hydrovac');
+const { collectHydrovacLifecycleIssues, hydrovacJobType } = require('./lib/hydrovac-compliance');
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return respond(200, {});
@@ -18,6 +20,12 @@ exports.handler = async (event) => {
 
   const { tenantId } = ctx;
   const adminSb = getAdminClient();
+  let hydrovacCtx = null;
+  try {
+    hydrovacCtx = await requireHydrovacOperatorContext(event);
+  } catch (_) {
+    hydrovacCtx = null;
+  }
 
   let body;
   try { body = JSON.parse(event.body || '{}'); }
@@ -31,7 +39,7 @@ exports.handler = async (event) => {
   // Verify job belongs to tenant
   const { data: job, error: jobErr } = await adminSb
     .from('jobs')
-    .select('id, tenant_id, status')
+    .select('id, tenant_id, status, job_type, service_type, requires_confined_space_permit, total_loads_hauled, total_disposal_cost_cents, disposal_cost_cents, disposal_site, disposal_manifest_number')
     .eq('id', job_id)
     .eq('tenant_id', tenantId)
     .maybeSingle();
@@ -42,6 +50,19 @@ exports.handler = async (event) => {
   }
 
   if (!job) return respond(404, { error: 'Job not found or does not belong to your tenant' });
+
+  if (hydrovacCtx && hydrovacJobType(job)) {
+    const issues = await collectHydrovacLifecycleIssues({
+      adminSb,
+      tenantId,
+      hydrovacSettings: hydrovacCtx.hydrovacSettings,
+      job,
+      targetStatus: 'completed',
+    });
+    if (issues.length) {
+      return respond(409, { error: issues[0].message, issues });
+    }
+  }
 
   // Build update patch
   const patch = {

@@ -156,7 +156,7 @@
       ? `Brand the website, preview the public pages, publish, and turn on money flows for ${businessName}.`
       : `Move ${businessName} from setup into a clean live launch.`;
     const eyebrow = $("onboardingEyebrow");
-    if (eyebrow) eyebrow.textContent = selfServe ? "Self-serve launch" : "Workspace launch";
+    if (eyebrow) eyebrow.textContent = selfServe ? "Self-serve launch" : "Business launch";
 
     $("businessKv").innerHTML = `
       <div class="k">Business</div><div>${businessName}</div>

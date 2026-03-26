@@ -2,8 +2,7 @@
 
 const { respond } = require('./utils/auth');
 const { asBoolean, asNumber, clean, parseJsonBody, requireHydrovacOperatorContext, daysUntil } = require('./utils/hydrovac');
-
-const LOCATE_REQUIRED_JOB_TYPES = new Set(['hydrovac_excavation', 'potholing', 'daylighting']);
+const { jobRequiresLocateTicket } = require('./lib/hydrovac-compliance');
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return respond(200, {});
@@ -71,7 +70,7 @@ exports.handler = async (event) => {
   const warnings = [];
   const dispatchDate = scheduledDate || clean(job.scheduled_date);
 
-  if (LOCATE_REQUIRED_JOB_TYPES.has(clean(job.job_type).toLowerCase()) && hydrovacSettings?.require_locate_ticket_for_excavation !== false) {
+  if (jobRequiresLocateTicket(job, hydrovacSettings)) {
     const { data: locateTickets, error: locateError } = await adminSb
       .from('utility_locate_tickets')
       .select('id, status, valid_until')

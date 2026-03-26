@@ -758,6 +758,7 @@ function renderPipelineWorkspace() {
 function renderGuidance() {
   if (!guidanceWrap) return;
   const blueprint = currentWorkspaceBlueprint();
+  const rubric = blueprint?.workflowRubric || {};
   const groups = [
     {
       title: "Keep work moving",
@@ -832,6 +833,18 @@ function renderGuidance() {
       copy: LEADS_CACHE.length || CRM_ORDERS_CACHE.length || JOBS_CACHE.length
         ? `You have ${LEADS_CACHE.length} request(s), ${BIDS_CACHE.length} proposal(s), ${CRM_ORDERS_CACHE.length} approved-work record(s), and ${JOBS_CACHE.length} active job(s) in play.`
         : "Start with one customer and one real request. The flow gets easier once live work is moving through it.",
+    },
+    {
+      title: "Template intake",
+      copy: rubric.intake || "Capture the real customer need clearly before the work starts moving.",
+    },
+    {
+      title: "Template delivery",
+      copy: [rubric.scheduling, rubric.field].filter(Boolean).join(" "),
+    },
+    {
+      title: "Template retention",
+      copy: [rubric.payment, rubric.repeatWork].filter(Boolean).join(" "),
     },
   ];
   guidanceWrap.innerHTML = `

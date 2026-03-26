@@ -48,5 +48,8 @@ describe("prooflink workspace architecture", () => {
 
     expect(eventsBlueprint.bidProfile).toBe("event_planning");
     expect(eventsBlueprint.priorityViews).toContain("bids");
+    expect(eventsBlueprint.workflowRubric.scheduling).toContain("deposits");
+    expect(bakeryBlueprint.workflowRubric.scheduling).toContain("pickup");
+    expect(petBlueprint.workflowRubric.intake).toContain("care");
   });
 });

@@ -26,7 +26,7 @@ function setBidWorkspaceBootstrapping(pending, message = "") {
     host.insertBefore(state, bidForm || null);
   }
   state.hidden = !pending;
-  state.textContent = pending ? (message || "Opening proposal workspace...") : "";
+  state.textContent = pending ? (message || "Opening proposal builder...") : "";
 }
 function loadBidDrafts() {
   try {
@@ -362,7 +362,7 @@ function populateBidForm(draft) {
   if (bidDepositPercent) bidDepositPercent.value = String(draft?.deposit_percent ?? 0);
   if (bidDepositAmount) bidDepositAmount.value = money(draft?.deposit_amount_cents || 0);
   if (bidTerms) bidTerms.value = draft?.terms || "";
-  if (bidFormTitle) bidFormTitle.textContent = draft?.title || "Walkthrough workspace";
+  if (bidFormTitle) bidFormTitle.textContent = draft?.title || "Proposal builder";
 }
 function clearBidForm() {
   renderBidCustomerOptions("");
@@ -388,7 +388,7 @@ function clearBidForm() {
   if (bidDepositPercent) bidDepositPercent.value = "0";
   if (bidDepositAmount) bidDepositAmount.value = "0.00";
   if (bidTerms) bidTerms.value = "";
-  if (bidFormTitle) bidFormTitle.textContent = "Walkthrough workspace";
+  if (bidFormTitle) bidFormTitle.textContent = "Proposal builder";
   clearBidLineItemForm();
   clearBidPhotoForm();
 }
