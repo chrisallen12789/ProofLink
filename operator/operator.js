@@ -1,9 +1,9 @@
 // /operator/operator.js
 // ProofLink Operator v3 CRM pass
 
-const OPERATOR_CONFIG = window.COTTAGELINK_OPERATOR_CONFIG || {};
+const OPERATOR_CONFIG = window.PROOFLINK_OPERATOR_CONFIG || {};
 const SUPABASE_URL = OPERATOR_CONFIG.supabaseUrl || "https://ygfpawksbqfbgohztisv.supabase.co";
-const SUPABASE_ANON_KEY = OPERATOR_CONFIG.supabaseAnonKey || "sb_publishable_bcILNxLX87f-G2zq_SbDGA_Vvs62biB";
+const SUPABASE_ANON_KEY = OPERATOR_CONFIG.supabaseAnonKey || '';
 
 window.sb = window.sb || window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const sb = window.sb;
@@ -101,14 +101,22 @@ const FOLLOW_UP_KIND_META = {
 
 function currentMonthRevenueCents() {
   const mk = yyyymm(new Date());
-  return PAYMENTS_CACHE.filter((row) => monthKeyFromDate(row.paid_at || row.created_at || row.updated_at || new Date()) === mk)
+  return PAYMENTS_CACHE
+    .filter((row) => {
+      const ts = row.paid_at || row.created_at;
+      return ts && monthKeyFromDate(ts) === mk;
+    })
     .reduce((sum, row) => sum + paymentRevenueContributionCents(row), 0);
 }
 function lastMonthRevenueCents() {
   const d = new Date();
   d.setMonth(d.getMonth() - 1);
   const mk = yyyymm(d);
-  return PAYMENTS_CACHE.filter((row) => monthKeyFromDate(row.paid_at || row.created_at || row.updated_at || new Date()) === mk)
+  return PAYMENTS_CACHE
+    .filter((row) => {
+      const ts = row.paid_at || row.created_at;
+      return ts && monthKeyFromDate(ts) === mk;
+    })
     .reduce((sum, row) => sum + paymentRevenueContributionCents(row), 0);
 }
 function currentMonthCustomerCount() {
@@ -127,11 +135,8 @@ function averageOrderValueCents() {
 }
 async function fetchDashboardPaymentState() {
   try {
-    let token = sessionStorage.getItem('pl_op_token') || '';
-    if (!token && sb?.auth?.getSession) {
-      const { data } = await sb.auth.getSession();
-      token = data?.session?.access_token || '';
-    }
+    const token = await getOperatorAccessToken();
+    if (!token) return null;
     const res = await fetch('/.netlify/functions/tenant-payment-status?tenant_id=' + encodeURIComponent(TENANT_ID), {
       headers: token ? { Authorization: `Bearer ${token}` } : {}
     });
@@ -1216,7 +1221,11 @@ function customerLifetimeValueCents(customer) {
   const paid = PAYMENTS_CACHE
     .filter((row) => row.customer_id === customer?.id)
     .reduce((sum, row) => sum + Math.max(0, paymentRevenueContributionCents(row)), 0);
-  return Math.max(stored, paid);
+  // Always prefer the computed value from local payment records; only fall back to the
+  // stored value if no payments exist in the local cache (paid === 0), which can happen
+  // before the cache is populated. Using Math.max() here was wrong: a stale stored value
+  // higher than the computed total would silently win.
+  return paid > 0 ? paid : stored;
 }
 function paymentSortTimestamp(row) {
   return new Date(row?.paid_at || row?.created_at || row?.updated_at || 0).getTime() || 0;
@@ -2113,7 +2122,7 @@ async function refreshPicklists() {
 }
 
 function initBranding() {
-  const b = window.COTTAGELINK_BRAND || {};
+  const b = window.PROOFLINK_BRAND || {};
   if (brandTenant) brandTenant.textContent = b.tenantName || "Tenant";
   if (brandPowered) brandPowered.textContent = `Business powered by ${b.productName || "ProofLink"}`;
   if (brandCompany) brandCompany.textContent = b.productName || "ProofLink";
@@ -4066,7 +4075,7 @@ const AVAILABILITY_LEAD_TIMES = [
 ];
 
 async function fetchAvailability() {
-  const { data, error } = await scopeQuery(sb.from("availability").select("*")).limit(1).single();
+  const { data, error } = await scopeQuery(sb.from("availability").select("*")).limit(1).maybeSingle();
   if (error && error.code !== "PGRST116") throw error;
 
   AVAILABILITY = normalizeAvailability(data || {

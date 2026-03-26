@@ -21,6 +21,17 @@
       .filter((row) => row.customer_id === customerIdValue)
       .sort((a, b) => new Date(b.updated_at || b.created_at || 0).getTime() - new Date(a.updated_at || a.created_at || 0).getTime());
   }
+  function bidLineItemTotalCents(item) {
+    return Math.round(Number(item?.quantity || 0) * Number(item?.unit_price_cents || 0));
+  }
+  function bidGrandTotalCents(bid) {
+    const explicitTotal = Number(bid?.total_cents || 0);
+    if (explicitTotal > 0) return explicitTotal;
+    const rows = Array.isArray(bid?.line_items) ? bid.line_items : [];
+    return rows
+      .filter((item) => String(item.kind || "base").toLowerCase() !== "option")
+      .reduce((sum, item) => sum + bidLineItemTotalCents(item), 0);
+  }
 
   function customerJobs(customerIdValue) {
     return [...(JOBS_CACHE || [])]
@@ -503,6 +514,7 @@
     customerDisplayAddress,
     customerRequests,
     customerBids,
+    bidGrandTotalCents,
     customerJobs,
     openCustomerRequestDraft,
     openCustomerBidDraft,
