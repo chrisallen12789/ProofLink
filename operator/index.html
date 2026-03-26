@@ -446,7 +446,7 @@
             <div class="panel-head">
               <div>
                 <h2>Work</h2>
-                <div class="muted">Keep requests, proposals, approved work, and active jobs moving without bouncing around the app.</div>
+            <div class="muted">Keep requests, proposals, booked work, and active jobs moving without bouncing around the app.</div>
               </div>
               <div class="panel-actions">
                 <button id="btnRefreshOrders" class="btn btn-ghost" type="button">Refresh</button>
@@ -459,7 +459,7 @@
             <!-- Package orders summary — shown when packages exist -->
             <div class="workspace-panel-notice is-soft">
               <div class="workspace-panel-notice__title">Run the whole service flow from one place</div>
-              <div class="workspace-panel-notice__copy">Requests feed proposals, proposals move into quoted or booked work, and approved work becomes active jobs. Use the stage buttons below to jump right to the exact step you need.</div>
+              <div class="workspace-panel-notice__copy">Requests feed proposals, proposals move into quoted or booked work, and booked work becomes active jobs. Use the stage buttons below to jump right to the exact step you need.</div>
             </div>
 
             <div id="pipelineStageStrip" class="pipeline-stage-strip"></div>
@@ -3045,8 +3045,8 @@
       <!-- Step 1: Welcome -->
       <div class="tour-step active" id="tour-step-1">
         <div class="tour-icon">🎉</div>
-        <h2 class="tour-title" id="tour-title">Your account is ready.</h2>
-        <p class="tour-body">Welcome to ProofLink. This is where you run customers, work, scheduling, payments, and your website from one place.</p>
+        <h2 class="tour-title" id="tour-title">Your business hub is ready.</h2>
+        <p class="tour-body">Welcome to ProofLink. This is where you keep customers, work, scheduling, payments, and your website together in one place.</p>
         <div class="tour-actions">
           <button class="tour-btn" onclick="tourNext()">Show me around →</button>
         </div>
@@ -3058,7 +3058,7 @@
         <h2 class="tour-title">Here's what each section does</h2>
         <ul class="tour-list">
           <li><strong>Today</strong> — Your daily snapshot. What is moving, what is blocked, and what needs attention.</li>
-          <li><strong>Work</strong> — Requests, proposals, approved work, and active jobs in one flow.</li>
+          <li><strong>Work</strong> — Requests, proposals, booked work, and active jobs in one flow.</li>
           <li><strong>Customers</strong> — Who ordered, how much they've spent, your notes on them.</li>
           <li><strong>Calendar</strong> — Scheduling, dispatch, recurring work, and route pressure.</li>
           <li><strong>Money</strong> — Deposits, payments, overdue balances, and profit clues.</li>
@@ -3294,7 +3294,7 @@
   }
 
   mbn.querySelectorAll('.mbn-item[data-mbn-tab]').forEach(function (btn) {
-    btn.addEventListener('click', function () {
+    btn.addEventListener('click', async function () {
       var tab = btn.dataset.mbnTab;
       if (tab === '__menu') {
         var sidebar = document.querySelector('.sidebar');
@@ -3304,8 +3304,9 @@
         }
         return;
       }
-      if (typeof switchTab === 'function') switchTab(tab);
-      syncMbn(tab);
+      var switched = true;
+      if (typeof switchTab === 'function') switched = await switchTab(tab);
+      if (switched !== false) syncMbn(tab);
       var sidebar = document.querySelector('.sidebar');
       if (sidebar) { sidebar.classList.remove('mobile-open'); document.body.classList.remove('sidebar-overlay-open'); }
     });
@@ -3314,9 +3315,10 @@
   // Keep bottom nav in sync with switchTab
   var origSwitch = window.switchTab;
   if (typeof origSwitch === 'function') {
-    window.switchTab = function (tab, opts) {
-      origSwitch(tab, opts);
-      syncMbn(tab);
+    window.switchTab = async function (tab, opts) {
+      var result = await origSwitch(tab, opts);
+      if (result !== false) syncMbn(tab);
+      return result;
     };
   }
 

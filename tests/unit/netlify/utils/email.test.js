@@ -74,7 +74,7 @@ describe("netlify/functions/utils/email", () => {
     expect(email.html).not.toContain("You received this because you applied to join ProofLink.");
   });
 
-  test("owner onboarding emails use password setup language instead of queue or store jargon", async () => {
+  test("owner onboarding emails use clear password setup language instead of review-queue jargon", async () => {
     const { templates } = require(emailUtilsPath);
 
     const email = templates.provisioned({
@@ -86,11 +86,12 @@ describe("netlify/functions/utils/email", () => {
       business_type: "hydrovac",
     });
 
-    expect(email.subject).toContain("account is ready");
+    expect(email.subject).toContain("Set your ProofLink password");
     expect(email.html).toContain("Set my password");
     expect(email.html).toContain("Account sign-in");
     expect(email.html).toContain("Your website");
     expect(email.html).not.toContain("application");
+    expect(email.html).not.toContain("approved");
     expect(email.html).not.toContain("queue");
     expect(email.html).not.toContain("dashboard");
     expect(email.html).not.toContain("Your store is live");

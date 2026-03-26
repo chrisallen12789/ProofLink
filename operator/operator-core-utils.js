@@ -131,6 +131,33 @@
     });
   }
 
+  function showCopyModal(message, value, closeText = "Close") {
+    return new Promise((resolve) => {
+      const overlay = document.createElement("div");
+      overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10000;display:flex;align-items:center;justify-content:center;padding:16px;";
+      overlay.innerHTML = `
+        <div style="background:#1e2029;border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:24px;max-width:520px;width:100%;box-shadow:0 8px 40px rgba(0,0,0,.5);">
+          <p style="margin:0 0 12px;font-size:.95rem;color:#e8e9eb;line-height:1.5;">${escapeHtml(message)}</p>
+          <textarea readonly style="width:100%;min-height:92px;background:#14161d;border:1px solid rgba(255,255,255,.14);border-radius:8px;color:#f3f4f6;padding:12px;font-size:.85rem;resize:vertical;font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;">${escapeHtml(value || "")}</textarea>
+          <div style="display:flex;justify-content:flex-end;margin-top:12px;">
+            <button id="copyModalClose" style="background:#c84b2f;color:#fff;border:none;border-radius:5px;padding:9px 20px;font-size:.85rem;font-weight:700;cursor:pointer;">${closeText}</button>
+          </div>
+        </div>`;
+      document.body.appendChild(overlay);
+      const close = () => {
+        overlay.remove();
+        resolve();
+      };
+      overlay.querySelector("#copyModalClose").onclick = close;
+      overlay.addEventListener("click", (event) => {
+        if (event.target === overlay) close();
+      });
+      const area = overlay.querySelector("textarea");
+      area?.focus();
+      area?.select();
+    });
+  }
+
   function setInlineMessage(el, message = "", tone = "") {
     if (!el) return;
     el.textContent = message || "";
@@ -192,6 +219,7 @@
     prettifyDay,
     formatTime12,
     showConfirmModal,
+    showCopyModal,
     setInlineMessage,
     downloadCsv,
     getCurrentPositionSafe,

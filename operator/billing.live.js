@@ -47,6 +47,7 @@ function render(root, tenant, bannerHtml) {
     ${bannerHtml}
     <section class="pl-billing-live">
       <h1>Billing</h1>
+      <div id="billingMessage" class="pl-billing-banner is-neutral" style="display:none;"></div>
       <p><strong>Plan:</strong> ${plan}</p>
       <p><strong>Billing status:</strong> ${tenant?.billing_status || "inactive"}</p>
       <p><strong>Connect status:</strong> ${tenant?.connect_status || "not_started"}</p>
@@ -60,6 +61,13 @@ function render(root, tenant, bannerHtml) {
   `;
 
   root.addEventListener("click", async (event) => {
+    const messageEl = root.querySelector("#billingMessage");
+    const setBillingMessage = (message, tone = "neutral") => {
+      if (!messageEl) return;
+      messageEl.innerHTML = `<p>${message}</p>`;
+      messageEl.className = `pl-billing-banner is-${tone}`;
+      messageEl.style.display = "block";
+    };
     const upgradeButton = event.target.closest("[data-upgrade-plan]");
     const portalButton = event.target.closest("[data-open-portal='true']");
 
@@ -79,7 +87,7 @@ function render(root, tenant, bannerHtml) {
 
       if (portalButton) {
         if (!tenant.stripe_customer_id) {
-          alert("No Stripe customer found for this tenant yet.");
+          setBillingMessage("Billing is not connected for this account yet. Reach out to support if you need help getting it set up.");
           return;
         }
 
@@ -90,7 +98,7 @@ function render(root, tenant, bannerHtml) {
         if (payload.url) window.location.href = payload.url;
       }
     } catch (error) {
-      alert(error.message);
+      setBillingMessage(error.message || "Something went wrong while opening billing.");
     }
   });
 }

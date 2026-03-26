@@ -270,6 +270,22 @@
     return '<span class="badge ' + key + '">' + label + '</span>';
   }
 
+  function showPortalNotice(message, tone) {
+    var existing = document.getElementById('portalNotice');
+    if (!existing) {
+      existing = document.createElement('div');
+      existing.id = 'portalNotice';
+      existing.className = 'msg';
+      existing.style.marginBottom = '12px';
+      var target = document.getElementById('portalContent') || document.getElementById('loginCard');
+      if (target && target.parentNode) target.parentNode.insertBefore(existing, target);
+    }
+    existing.textContent = message || '';
+    existing.className = 'msg' + (tone ? ' ' + tone : '');
+    existing.style.display = message ? 'block' : 'none';
+  }
+  window.showPortalNotice = showPortalNotice;
+
   function renderPackageBalance(orders) {
     var section = document.getElementById('packageBalanceSection');
     if (!section) return;
@@ -384,7 +400,20 @@
     // Wire up cancel buttons
     el.querySelectorAll('.cancel-booking-btn').forEach(function (btn) {
       btn.addEventListener('click', function () {
-        if (!confirm('Cancel this appointment?')) return;
+        if (btn.dataset.confirming !== '1') {
+          btn.dataset.confirming = '1';
+          btn.textContent = 'Click again to cancel';
+          showPortalNotice('Click the cancel button again to confirm this appointment change.', 'error');
+          setTimeout(function () {
+            if (btn.dataset.confirming === '1') {
+              btn.dataset.confirming = '';
+              btn.textContent = 'Cancel';
+            }
+          }, 3500);
+          return;
+        }
+        btn.dataset.confirming = '';
+        showPortalNotice('');
         btn.disabled = true;
         btn.textContent = 'Cancelling…';
         fetch('/.netlify/functions/cancel-booking', {
@@ -402,7 +431,7 @@
           .catch(function (err) {
             btn.disabled = false;
             btn.textContent = 'Cancel';
-            alert(err.message || 'Failed to cancel appointment');
+            showPortalNotice(err.message || 'Failed to cancel appointment', 'error');
           });
       });
     });
@@ -585,9 +614,9 @@ async function handlePayNow(orderId, balanceCents) {
     const data = await res.json();
     if (!res.ok) {
       if (data.contact_needed) {
-        alert('Online payment is not set up for this business. Please contact your provider directly to arrange payment.');
+        window.showPortalNotice && window.showPortalNotice('Online payment is not set up for this business yet. Please contact the business directly to arrange payment.', 'error');
       } else {
-        alert(data.error || 'Payment error. Please contact your provider.');
+        window.showPortalNotice && window.showPortalNotice(data.error || 'Payment error. Please contact the business directly.', 'error');
       }
       btn.disabled = false;
       btn.textContent = 'Pay Now';
@@ -596,7 +625,7 @@ async function handlePayNow(orderId, balanceCents) {
     // Redirect to Stripe Checkout
     window.location.href = data.checkout_url;
   } catch (err) {
-    alert('Could not connect to payment service. Please try again or contact your provider.');
+    window.showPortalNotice && window.showPortalNotice('Could not connect to payment service. Please try again or contact the business directly.', 'error');
     btn.disabled = false;
     btn.textContent = 'Pay Now';
   }

@@ -344,10 +344,10 @@ const templates = {
       html: layout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.green)}${bodyWrap(`
         ${badge('Request received',T.greenLt,T.green,T.greenBd)}<br/><br/>
         ${h1(`Hey ${owner_name}, we have your details.`)}
-        ${sub('Thanks for choosing ProofLink. We are reviewing the setup details and will be in touch within 24 hours.')}
-        ${infoBox([['Business',business_name],['Selected plan',selected_plan ? String(selected_plan).replace(/\b\w/g, (m) => m.toUpperCase()) : 'Starter'],['Website address',`${getSiteUrl()}/${business_slug||'...'}`],['Email',owner_email],['Review time','Within 24 hours']])}
+        ${sub('Thanks for choosing ProofLink. We are checking the details now and will send the next step within 24 hours.')}
+        ${infoBox([['Business',business_name],['Selected plan',selected_plan ? String(selected_plan).replace(/\b\w/g, (m) => m.toUpperCase()) : 'Starter'],['Website address',`${getSiteUrl()}/${business_slug||'...'}`],['Email',owner_email],['Next step','Within 24 hours']])}
         ${divider()}
-        ${p("You don't need to do anything else right now. We will send the next clear setup step as soon as the account is ready to move forward.")}
+        ${p("You don't need to do anything else right now. We will send the next clear setup step as soon as your account is ready for you.")}
         ${p(`<span style="color:${T.hint};">Questions? Just reply to this email.</span>`)}
       `)}</table>`, { preheader: `Your ProofLink setup request for ${business_name} is in review.` }),
     };
@@ -356,11 +356,11 @@ const templates = {
   approved({ owner_name, business_name, owner_email }) {
     return {
       to: owner_email,
-      subject: `We’re starting your account — ${business_name}`,
+      subject: `We’re setting up your account — ${business_name}`,
       html: layout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.green)}${bodyWrap(`
-        ${badge('Approved ✓',T.greenLt,T.green,T.greenBd)}<br/><br/>
+        ${badge('Setup confirmed ✓',T.greenLt,T.green,T.greenBd)}<br/><br/>
         ${h1(`Good news, ${owner_name}.`)}
-        ${sub(`The setup details for ${business_name} are approved. We're starting your account now.`)}
+        ${sub(`The setup details for ${business_name} are confirmed. We're setting up your account now.`)}
         ${callout(`<strong style="color:${T.ink};">What's next:</strong><br/>You'll receive one more email in the next few minutes with your password setup link so you can sign in and finish setup.`,T.amberLt,T.amberBd,T.amber)}
         ${divider()}
         ${p(`<strong style="color:${T.ink};">Quick start once you're in:</strong><br/>1. Set your password and sign in<br/>2. Add your products and services<br/>3. Connect Stripe to accept payments<br/>4. Share your website link`)}
@@ -372,10 +372,10 @@ const templates = {
     const loginHref = login_url || `${SITE_URL}/operator/`;
     return {
       to: owner_email,
-      subject: `Your ProofLink account is ready — ${business_name}`,
+      subject: `Set your ProofLink password — ${business_name}`,
       html: layout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.red)}${bodyWrap(`
-        ${badge('Account ready',T.redLight,T.red,T.redBorder)}<br/><br/>
-        ${h1(`Your account is ready, ${owner_name}.`)}
+        ${badge('Set your password',T.redLight,T.red,T.redBorder)}<br/><br/>
+        ${h1(`Set your password, ${owner_name}.`)}
         ${sub(`${business_name} is set up on ProofLink. Click below to set your password and open your account.`)}
         <div style="text-align:center;margin:0 0 32px;">${cta('Set my password →', loginHref)}</div>
         ${infoBox([...(store_slug?[['Your website',`${getSiteUrl()}/${store_slug}`]]:[]),['Account sign-in',`${SITE_URL}/operator/`]])}
@@ -760,3 +760,5 @@ module.exports.buildInvoiceHtml = function buildInvoiceHtml({
     ${p(`<span style="color:${T.hint};">Questions about this invoice? Just reply to this email.</span>`)}
   `)}</table>`, { preheader: `Invoice from ${business_name} — ${fmt()} due.` });
 };
+
+

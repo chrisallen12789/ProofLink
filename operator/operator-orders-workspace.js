@@ -894,7 +894,8 @@ function renderOrders() {
     const name = active.customer_name || active.name || "Unnamed";
     const email = active.email || active.customer_email || "";
     const phone = active.phone || active.customer_phone || "";
-    if (!confirm(`Add "${name}" (${email}) to your CRM?`)) return;
+    const approved = await showConfirmModal(`Add "${name}"${email ? ` (${email})` : ""} to your customer list?`, "Add customer", "Keep as-is");
+    if (!approved) return;
     btn.disabled = true;
     btn.textContent = "Adding…";
     try {

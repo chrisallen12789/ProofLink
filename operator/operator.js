@@ -3868,10 +3868,10 @@ function updateWorkspaceDirtyState(tab) {
 function workspaceExitMessage(tab) {
   return `You have unsaved changes in ${workspaceTabLabel(tab, currentWorkspaceBlueprint())}. If you leave this window now, those edits will be lost.`;
 }
-function confirmWorkspaceChange(currentTab, nextTab) {
+async function confirmWorkspaceChange(currentTab, nextTab) {
   if (!currentTab || currentTab === nextTab) return true;
   if (!WORKSPACE_DIRTY_TABS.has(currentTab)) return true;
-  return window.confirm(workspaceExitMessage(currentTab));
+  return showConfirmModal(workspaceExitMessage(currentTab), "Leave without saving", "Stay here");
 }
 function updateWorkspaceWindowControls(tab) {
   const panel = workspacePanel(tab);
@@ -4056,7 +4056,7 @@ function renderPanelBackButtons() {
     button.onclick = () => switchTab(previousTab);
   });
 }
-function switchTab(tab, opts = {}) {
+async function switchTab(tab, opts = {}) {
   if (_tabAbortController) { _tabAbortController.abort(); }
   _tabAbortController = new AbortController();
   let nextTab = normalizePanel(tab);
@@ -4067,7 +4067,7 @@ function switchTab(tab, opts = {}) {
   const activeTab = document.querySelector(".tab.active")?.dataset.tab || "dashboard";
   ensureWorkspaceWindowShell();
   bindWorkspaceDirtyTracking();
-  if (!opts.force && !confirmWorkspaceChange(activeTab, nextTab)) {
+  if (!opts.force && !(await confirmWorkspaceChange(activeTab, nextTab))) {
     if (opts.updateHash !== false) syncPanelHash(activeTab);
     return false;
   }
@@ -8672,7 +8672,8 @@ function renderBookingsList(bookings) {
       const bookingId = btn.dataset.bookingId;
       const action = btn.dataset.action;
       if (action === 'cancel') {
-        if (!confirm("Cancel this booking?")) return;
+        const approved = await showConfirmModal("Cancel this appointment?", "Cancel appointment", "Keep appointment");
+        if (!approved) return;
         btn.disabled = true;
         try {
           const tok = await getAccessToken();
@@ -10764,12 +10765,12 @@ function scheduleBidAutosave() {
     renderBidList(bidSearch?.value || "");
   }, 250);
 }
-function applyBidProfileStructure(force = false) {
+async function applyBidProfileStructure(force = false) {
   const active = currentBid();
   if (!active) return null;
   const profile = bidProfileConfig(bidProfile?.value || active.profile);
   const hasCustomLineItems = Array.isArray(active.line_items) && active.line_items.length > 0;
-  if (force && hasCustomLineItems && !window.confirm("Replace existing line items with the service-profile starter structure?")) {
+  if (force && hasCustomLineItems && !(await showConfirmModal("Replace the current line items with the starter service structure?", "Replace items", "Keep current items"))) {
     return active;
   }
   const nextDraft = {
@@ -16787,7 +16788,7 @@ function renderQuotesList() {
           setTimeout(() => { btn.textContent = "Copy link"; }, 2000);
         });
       } else {
-        prompt(`Copy this link and send it to ${name || "the customer"}:`, url);
+        showCopyModal(`Copy this link and send it to ${name || "the customer"}.`, url).catch(() => {});
       }
     });
   });
@@ -17124,7 +17125,7 @@ $("btnCopyBookingLink")?.addEventListener("click", async () => {
     const btn = $("btnCopyBookingLink");
     if (btn) { const t = btn.textContent; btn.textContent = "✓ Copied!"; setTimeout(() => { btn.textContent = t; }, 2000); }
   } catch {
-    prompt("Copy this booking link:", link);
+    showCopyModal("Copy this booking link.", link).catch(() => {});
   }
 });
 
