@@ -4,6 +4,23 @@
 const OPERATOR_CONFIG = window.PROOFLINK_OPERATOR_CONFIG || {};
 const SUPABASE_URL = OPERATOR_CONFIG.supabaseUrl || "https://ygfpawksbqfbgohztisv.supabase.co";
 const SUPABASE_ANON_KEY = OPERATOR_CONFIG.supabaseAnonKey || window.PROOFLINK_CONFIG?.supabase?.anonKey || "sb_publishable_bcILNxLX87f-G2zq_SbDGA_Vvs62biB";
+const OPERATOR_BOOT_UTILS = window.ProofLinkOperatorBootUtils || {};
+const isRealTenantId = OPERATOR_BOOT_UTILS.isRealTenantId || ((value) => {
+  const normalized = String(value || "").trim().toLowerCase();
+  return !!normalized && normalized !== "default";
+});
+const buildTenantQueryParam = OPERATOR_BOOT_UTILS.buildTenantQueryParam || ((tenantId) => {
+  const normalized = String(tenantId || "").trim();
+  return isRealTenantId(normalized) ? `tenant_id=${encodeURIComponent(normalized)}` : "";
+});
+const resolveOperatorTenantId = OPERATOR_BOOT_UTILS.resolveOperatorTenantId || ((currentTenantId, ...candidates) => {
+  for (const candidate of candidates) {
+    const normalized = String(candidate || "").trim();
+    if (isRealTenantId(normalized)) return normalized;
+  }
+  const current = String(currentTenantId || "").trim();
+  return isRealTenantId(current) ? current : "";
+});
 
 window.sb = window.sb || window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const sb = window.sb;
@@ -137,15 +154,14 @@ async function fetchDashboardPaymentState() {
   try {
     const token = await getOperatorAccessToken();
     if (!token) return null;
-    const tenantQuery = TENANT_ID && TENANT_ID !== 'default'
-      ? ('?tenant_id=' + encodeURIComponent(TENANT_ID))
-      : '';
+    const tenantQueryParam = buildTenantQueryParam(TENANT_ID);
+    const tenantQuery = tenantQueryParam ? `?${tenantQueryParam}` : '';
     const res = await fetch('/.netlify/functions/tenant-payment-status' + tenantQuery, {
       headers: token ? { Authorization: `Bearer ${token}` } : {}
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok || !data.ok) return null;
-    const resolvedTenantId = String(data.tenantId || data.tenant_id || '').trim();
+    const resolvedTenantId = resolveOperatorTenantId(TENANT_ID, data.tenantId, data.tenant_id);
     if (resolvedTenantId && resolvedTenantId !== TENANT_ID) {
       TENANT_ID = resolvedTenantId;
     }
@@ -160,15 +176,14 @@ async function fetchDashboardLaunchChecklist() {
   try {
     const tok = await getOperatorAccessToken();
     if (!tok) return null;
-    const tenantQuery = TENANT_ID && TENANT_ID !== 'default'
-      ? (`?tenant_id=${encodeURIComponent(TENANT_ID)}`)
-      : '';
+    const tenantQueryParam = buildTenantQueryParam(TENANT_ID);
+    const tenantQuery = tenantQueryParam ? `?${tenantQueryParam}` : '';
     const res = await fetch(`/.netlify/functions/get-launch-checklist${tenantQuery}`, {
       headers: tok ? { Authorization: `Bearer ${tok}` } : {},
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) return null;
-    const resolvedTenantId = String(data.tenant_id || '').trim();
+    const resolvedTenantId = resolveOperatorTenantId(TENANT_ID, data.tenant_id);
     if (resolvedTenantId && resolvedTenantId !== TENANT_ID) {
       TENANT_ID = resolvedTenantId;
     }
@@ -4012,7 +4027,7 @@ async function requireOperatorContext() {
   }
 
   // Use tenant_id from operator_members first (handles platform_admin whose operators row has null tenant_id)
-  const operatorTenantId = String(data.tenant_id || data.operators.tenant_id || '').trim();
+  const operatorTenantId = resolveOperatorTenantId(TENANT_ID, data.tenant_id, data.operators.tenant_id);
   if (operatorTenantId && operatorTenantId !== TENANT_ID) {
     // Always trust the membership tenant over the placeholder config tenant.
     // Some dashboard and boot-time calls still key off TENANT_ID even when

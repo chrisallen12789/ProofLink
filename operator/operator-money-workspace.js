@@ -436,7 +436,7 @@ async function renderMoney() {
                     <div><strong>${escapeHtml(row.job.title || row.order?.customer_name || "Job")}</strong></div>
                     <div class="muted" style="margin-top:4px;">Revenue ${escapeHtml(formatUsd(row.revenueCents))} | Cost ${escapeHtml(formatUsd(row.costCents))}</div>
                   </div>
-                  <div class="right"><span class="pill ${grossProfitToneClass(row.grossProfitCents)}">${escapeHtml(formatUsd(row.grossProfitCents))} â€¢ ${escapeHtml(formatPercent(row.marginRatio))}</span></div>
+                  <div class="right"><span class="pill ${grossProfitToneClass(row.grossProfitCents)}">${escapeHtml(formatUsd(row.grossProfitCents))} - ${escapeHtml(formatPercent(row.marginRatio))}</span></div>
                 </div>
               `).join("")}
             </div>
@@ -458,7 +458,7 @@ async function renderMoney() {
                     <div><strong>${escapeHtml(row.job.title || row.order?.customer_name || "Job")}</strong></div>
                     <div class="muted" style="margin-top:4px;">Revenue ${escapeHtml(formatUsd(row.revenueCents))} | Cost ${escapeHtml(formatUsd(row.costCents))}</div>
                   </div>
-                  <div class="right"><span class="pill ${grossProfitToneClass(row.grossProfitCents)}">${escapeHtml(formatUsd(row.grossProfitCents))} â€¢ ${escapeHtml(formatPercent(row.marginRatio))}</span></div>
+                  <div class="right"><span class="pill ${grossProfitToneClass(row.grossProfitCents)}">${escapeHtml(formatUsd(row.grossProfitCents))} - ${escapeHtml(formatPercent(row.marginRatio))}</span></div>
                 </div>
               `).join("")}
             </div>
@@ -509,8 +509,8 @@ async function renderMoney() {
       });
     const rows = [
       ['Current', buckets.current],
-      ['1â€“30 days overdue', buckets.d30],
-      ['31â€“60 days overdue', buckets.d60],
+      ['1-30 days overdue', buckets.d30],
+      ['31-60 days overdue', buckets.d60],
       ['61+ days overdue', buckets.d90],
     ];
     const total = Object.values(buckets).reduce((s, b) => s + b.cents, 0);
@@ -535,7 +535,7 @@ async function renderMoney() {
   renderHydrovacInvoiceWorkbench();
 }
 
-// â”€â”€ Setup Wizard â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Setup wizard
 async function maybeShowSetupWizard() {
   if (localStorage.getItem('pl_wizard_dismissed')) return;
   const cfg = SETUP_STATE?.config || {};
@@ -552,8 +552,8 @@ function showSetupWizard() {
   modal.id = 'setupWizardModal';
   modal.className = 'modal-overlay';
   modal.innerHTML = `<div class="modal-box" style="max-width:480px;">
-    <h2 style="margin:0 0 8px;font-size:1.2rem;">Welcome to ProofLink! ðŸ‘‹</h2>
-    <p style="color:rgba(255,255,255,.65);margin:0 0 20px;font-size:.9rem;">Let's get your business set up in 3 quick steps so you can start taking bookings.</p>
+    <h2 style="margin:0 0 8px;font-size:1.2rem;">Welcome to ProofLink</h2>
+    <p style="color:rgba(255,255,255,.65);margin:0 0 20px;font-size:.9rem;">Let's get your business ready in 3 quick steps so customers can start booking with confidence.</p>
     <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:20px;">
       <button class="btn btn-primary" onclick="document.getElementById('setupWizardModal')?.remove(); switchTab('setup');" style="text-align:left;padding:14px 16px;">
         <div style="font-weight:600;">1. Set up your business profile</div>
@@ -570,7 +570,7 @@ function showSetupWizard() {
     </div>
     <div style="display:flex;justify-content:space-between;align-items:center;">
       <button class="btn btn-ghost" style="font-size:.8rem;" onclick="localStorage.setItem('pl_wizard_dismissed','1');document.getElementById('setupWizardModal')?.remove();">Skip setup</button>
-      <button class="btn btn-primary" onclick="document.getElementById('setupWizardModal')?.remove(); switchTab('setup');">Get started â†’</button>
+      <button class="btn btn-primary" onclick="document.getElementById('setupWizardModal')?.remove(); switchTab('setup');">Get started</button>
     </div>
   </div>`;
   document.body.appendChild(modal);
@@ -665,7 +665,7 @@ async function boot() {
   }
 }
 
-// â”€â”€ Invoice PDF â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Invoice PDF
 
 function generateInvoicePDF(order) {
   const jsPDF = window.jspdf?.jsPDF;
@@ -677,7 +677,7 @@ function generateInvoicePDF(order) {
   const dark = [26, 26, 26];
   const grey = [100, 100, 100];
 
-  const fmt  = (v) => isNaN(Number(v)) ? "â€”" : "$" + Number(v).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  const fmt  = (v) => isNaN(Number(v)) ? "-" : "$" + Number(v).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   const now  = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
 
   // Header bar
@@ -711,7 +711,7 @@ function generateInvoicePDF(order) {
   doc.setFont("helvetica", "bold");
   doc.text("Bill To", W - 200, 80);
   doc.setFont("helvetica", "normal");
-  doc.text(String(order.customer_name || "â€”"), W - 200, 96);
+  doc.text(String(order.customer_name || "-"), W - 200, 96);
   if (order.customer_email) doc.text(order.customer_email, W - 200, 112);
 
   // Divider
@@ -784,13 +784,13 @@ function generateInvoicePDF(order) {
   doc.setTextColor(...grey);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8);
-  doc.text("Generated by ProofLink Â· prooflink.co", W / 2, doc.internal.pageSize.getHeight() - 24, { align: "center" });
+  doc.text("Generated by ProofLink - prooflink.co", W / 2, doc.internal.pageSize.getHeight() - 24, { align: "center" });
 
   const filename = `invoice-${String(order.id || "order").slice(0, 8)}-${now.replace(/\s/g, "-")}.pdf`;
   doc.save(filename);
 }
 
-// â”€â”€ Reviews â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Reviews
 
 
 async function fetchReviews() {
@@ -822,7 +822,7 @@ function renderReviews(reviews) {
     return;
   }
   const avgRating = rows.reduce((s, r) => s + Number(r.rating || 0), 0) / rows.length;
-  const stars = (n) => "â˜…".repeat(Math.round(n)) + "â˜†".repeat(5 - Math.round(n));
+  const stars = (n) => "*".repeat(Math.round(n)) + "o".repeat(5 - Math.round(n));
   el.innerHTML = `
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--border);">
       <div style="font-size:2rem;color:#fbbf24;">${stars(avgRating)}</div>

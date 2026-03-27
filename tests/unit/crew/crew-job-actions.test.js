@@ -83,4 +83,17 @@ describe("crew job actions", () => {
     expect(ensureElement("jobActions").innerHTML).toContain("Clock In");
     expect(ensureElement("jobActions").innerHTML).toContain("Report Issue");
   });
+
+  test("renderJobActions uses clearer paused and completed field guidance", () => {
+    const { context, ensureElement } = loadCrew();
+    ensureElement("jobActions");
+
+    context.renderJobActions("blocked", { blocker_note: "" });
+    expect(ensureElement("jobActions").innerHTML).toContain(
+      "Work is paused. Tell the office exactly what is stopping progress"
+    );
+
+    context.renderJobActions("completed", {});
+    expect(ensureElement("jobActions").innerHTML).toContain("Job complete");
+  });
 });

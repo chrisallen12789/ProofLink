@@ -58,7 +58,7 @@ function renderDashboard() {
       })
     : '';
 
-  // â”€â”€ Onboarding checklist â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // First-win checklist
   const onboardingDismissed = localStorage.getItem("pl_onboarding_dismissed") === "true";
   const step1Done = CUSTOMERS_CACHE.length > 0;
   const step2Done = CRM_ORDERS_CACHE.length > 0;
@@ -70,30 +70,30 @@ function renderDashboard() {
   const onboardingHtml = showOnboarding ? `
     <div class="card" id="onboardingCard" style="margin-bottom:16px;border:1px solid rgba(200,75,47,.3);background:rgba(200,75,47,.04);">
       <div class="card-hd">
-        <strong>Get started with ProofLink</strong>
+        <strong>Get your first wins</strong>
         <button id="btnDismissOnboarding" style="font-size:.75rem;color:rgba(255,255,255,.3);background:none;border:none;cursor:pointer;">Dismiss</button>
       </div>
       <div class="card-bd">
         <div style="display:flex;flex-direction:column;gap:8px;">
           <div style="display:flex;align-items:center;gap:10px;">
-            <span style="font-size:1.1rem;color:${step1Done ? "#4ade80" : "rgba(255,255,255,.3)"};">${step1Done ? "âœ“" : "â—‹"}</span>
+            <span style="font-size:1.1rem;color:${step1Done ? "#4ade80" : "rgba(255,255,255,.3)"};">${step1Done ? "&#10003;" : "&#9711;"}</span>
             <span style="color:${step1Done ? "rgba(255,255,255,.5)" : "inherit"};text-decoration:${step1Done ? "line-through" : "none"};">Add your first customer</span>
-            ${!step1Done ? `<button data-tab="customers" class="btn btn-ghost" style="margin-left:auto;font-size:.75rem;padding:3px 10px;">Go â†’</button>` : ""}
+            ${!step1Done ? `<button data-tab="customers" class="btn btn-ghost" style="margin-left:auto;font-size:.75rem;padding:3px 10px;">Open</button>` : ""}
           </div>
           <div style="display:flex;align-items:center;gap:10px;">
-            <span style="font-size:1.1rem;color:${step2Done ? "#4ade80" : "rgba(255,255,255,.3)"};">${step2Done ? "âœ“" : "â—‹"}</span>
+            <span style="font-size:1.1rem;color:${step2Done ? "#4ade80" : "rgba(255,255,255,.3)"};">${step2Done ? "&#10003;" : "&#9711;"}</span>
             <span style="color:${step2Done ? "rgba(255,255,255,.5)" : "inherit"};text-decoration:${step2Done ? "line-through" : "none"};">Capture your first request</span>
-            ${!step2Done ? `<button data-tab="leads" class="btn btn-ghost" style="margin-left:auto;font-size:.75rem;padding:3px 10px;">Go â†’</button>` : ""}
+            ${!step2Done ? `<button data-tab="leads" class="btn btn-ghost" style="margin-left:auto;font-size:.75rem;padding:3px 10px;">Open</button>` : ""}
           </div>
           <div style="display:flex;align-items:center;gap:10px;">
-            <span style="font-size:1.1rem;color:${step3Done ? "#4ade80" : "rgba(255,255,255,.3)"};">${step3Done ? "âœ“" : "â—‹"}</span>
+            <span style="font-size:1.1rem;color:${step3Done ? "#4ade80" : "rgba(255,255,255,.3)"};">${step3Done ? "&#10003;" : "&#9711;"}</span>
             <span style="color:${step3Done ? "rgba(255,255,255,.5)" : "inherit"};text-decoration:${step3Done ? "line-through" : "none"};">Send your first invoice</span>
-            ${!step3Done ? `<button data-tab="payments" class="btn btn-ghost" style="margin-left:auto;font-size:.75rem;padding:3px 10px;">Go â†’</button>` : ""}
+            ${!step3Done ? `<button data-tab="payments" class="btn btn-ghost" style="margin-left:auto;font-size:.75rem;padding:3px 10px;">Open</button>` : ""}
           </div>
           <div style="display:flex;align-items:center;gap:10px;">
-            <span style="font-size:1.1rem;color:${step4Done ? "#4ade80" : "rgba(255,255,255,.3)"};">${step4Done ? "âœ“" : "â—‹"}</span>
+            <span style="font-size:1.1rem;color:${step4Done ? "#4ade80" : "rgba(255,255,255,.3)"};">${step4Done ? "&#10003;" : "&#9711;"}</span>
             <span style="color:${step4Done ? "rgba(255,255,255,.5)" : "inherit"};text-decoration:${step4Done ? "line-through" : "none"};">Schedule a booking</span>
-            ${!step4Done ? `<button data-tab="bookings" class="btn btn-ghost" style="margin-left:auto;font-size:.75rem;padding:3px 10px;">Go â†’</button>` : ""}
+            ${!step4Done ? `<button data-tab="bookings" class="btn btn-ghost" style="margin-left:auto;font-size:.75rem;padding:3px 10px;">Open</button>` : ""}
           </div>
         </div>
         <div style="margin-top:12px;background:rgba(255,255,255,.06);border-radius:4px;height:4px;overflow:hidden;">
@@ -152,7 +152,7 @@ function renderDashboard() {
       </div>
       <div class="card mini">
         <div class="card-bd">
-          <div class="muted">Outstanding money</div>
+          <div class="muted">Open balances</div>
           <div class="money">${formatUsd(outstandingBalance)}</div>
         </div>
       </div>
@@ -164,7 +164,7 @@ function renderDashboard() {
       </div>
       <div class="card mini">
         <div class="card-bd">
-          <div class="muted">Completed work unpaid</div>
+          <div class="muted">Completed work still unpaid</div>
           <div class="money">${formatUsd(completedUnpaidBalance)}</div>
         </div>
       </div>
@@ -176,7 +176,7 @@ function renderDashboard() {
       </div>
       <div class="card mini">
         <div class="card-bd">
-          <div class="muted">Booked without deposit</div>
+          <div class="muted">Booked work missing deposit</div>
           <div class="money">${formatUsd(missingDepositBalance)}</div>
         </div>
       </div>
@@ -188,14 +188,14 @@ function renderDashboard() {
       </div>
       <div class="card mini">
         <div class="card-bd">
-          <div class="muted">This month revenue</div>
+          <div class="muted">Collected this month</div>
           <div class="money">${formatUsd(currentMonthRevenueCents())}</div>
           <div class="muted" style="font-size:.75rem;margin-top:2px;">${(function(){ const mk = yyyymm(new Date()); return PAYMENTS_CACHE.filter((r) => monthKeyFromDate(r.paid_at || r.created_at || r.updated_at || new Date()) === mk).length; })()} payments collected</div>
         </div>
       </div>
       <div class="card mini">
         <div class="card-bd">
-          <div class="muted">This week revenue</div>
+          <div class="muted">Collected this week</div>
           <div class="money">${formatUsd((function(){ const now = new Date(); const weekStart = new Date(now); weekStart.setDate(now.getDate() - now.getDay()); weekStart.setHours(0,0,0,0); return PAYMENTS_CACHE.filter((r) => new Date(r.paid_at || r.created_at || r.updated_at || 0) >= weekStart).reduce((s, r) => s + paymentRevenueContributionCents(r), 0); })())}</div>
         </div>
       </div>
@@ -231,12 +231,12 @@ function renderDashboard() {
             <div style="background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px;">
               <div class="muted" style="font-size:.78rem;margin-bottom:4px;">Today's appointments</div>
               <div style="font-size:1.4rem;font-weight:700;">${todayBookings.length}</div>
-              ${todayBookings.length ? `<div style="margin-top:8px;font-size:.78rem;">${todayBookings.slice(0,3).map((b) => `<div style="color:var(--muted);">${fmtTime(b.starts_at)} Â· ${escapeHtml(b.customer_name || "Customer")}</div>`).join("")}${todayBookings.length > 3 ? `<div class="muted">+${todayBookings.length - 3} more</div>` : ""}</div>` : `<div class="muted" style="font-size:.78rem;margin-top:4px;">No appointments today</div>`}
+              ${todayBookings.length ? `<div style="margin-top:8px;font-size:.78rem;">${todayBookings.slice(0,3).map((b) => `<div style="color:var(--muted);">${fmtTime(b.starts_at)} - ${escapeHtml(b.customer_name || "Customer")}</div>`).join("")}${todayBookings.length > 3 ? `<div class="muted">+${todayBookings.length - 3} more</div>` : ""}</div>` : `<div class="muted" style="font-size:.78rem;margin-top:4px;">No appointments today</div>`}
             </div>
             <div style="background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px;">
               <div class="muted" style="font-size:.78rem;margin-bottom:4px;">Overdue orders</div>
               <div style="font-size:1.4rem;font-weight:700;${overdueOrders.length ? 'color:#f87171;' : ''}">${overdueOrders.length}</div>
-              ${overdueOrders.length ? `<div class="muted" style="font-size:.78rem;margin-top:4px;">${overdueOrders.slice(0,2).map((o) => escapeHtml(o.customer_name || o.name || "Order")).join(", ")}${overdueOrders.length > 2 ? ` +${overdueOrders.length - 2} more` : ""}</div>` : `<div class="muted" style="font-size:.78rem;margin-top:4px;">None overdue</div>`}
+              ${overdueOrders.length ? `<div class="muted" style="font-size:.78rem;margin-top:4px;">${overdueOrders.slice(0,2).map((o) => escapeHtml(o.customer_name || o.name || "Order")).join(", ")}${overdueOrders.length > 2 ? ` +${overdueOrders.length - 2} more` : ""}</div>` : `<div class="muted" style="font-size:.78rem;margin-top:4px;">Nothing overdue right now</div>`}
             </div>
             <div style="background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px;">
               <div class="muted" style="font-size:.78rem;margin-bottom:4px;">Completed, unpaid</div>
@@ -244,9 +244,9 @@ function renderDashboard() {
               ${unpaidCompleted.length ? `<div class="muted" style="font-size:.78rem;margin-top:4px;">${formatUsd(unpaidCompleted.reduce((s, o) => s + Number(o.total_cents || 0), 0))} outstanding</div>` : `<div class="muted" style="font-size:.78rem;margin-top:4px;">All paid up</div>`}
             </div>
             <div style="background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px;${overduePayments.length ? 'border-color:#f87171;' : ''}">
-              <div class="muted" style="font-size:.78rem;margin-bottom:4px;">Past payment due date <span style="color:#f87171;font-size:.7rem;vertical-align:middle;">${overduePayments.length ? 'â—' : ''}</span></div>
+              <div class="muted" style="font-size:.78rem;margin-bottom:4px;">Payment follow-up due <span style="color:#f87171;font-size:.7rem;vertical-align:middle;">${overduePayments.length ? '&#9679;' : ''}</span></div>
               <div style="font-size:1.4rem;font-weight:700;${overduePayments.length ? 'color:#f87171;' : ''}">${overduePayments.length}</div>
-              ${overduePayments.length ? `<div class="muted" style="font-size:.78rem;margin-top:4px;">${formatUsd(overduePayments.reduce((s, o) => s + orderAmountDueCents(o), 0))} past due</div>` : `<div class="muted" style="font-size:.78rem;margin-top:4px;">None past payment date</div>`}
+              ${overduePayments.length ? `<div class="muted" style="font-size:.78rem;margin-top:4px;">${formatUsd(overduePayments.reduce((s, o) => s + orderAmountDueCents(o), 0))} still needs follow-up</div>` : `<div class="muted" style="font-size:.78rem;margin-top:4px;">No payment follow-up due today</div>`}
             </div>
           </div>
         </div>
@@ -296,7 +296,7 @@ function renderDashboard() {
               tab: "dispatch",
               id: job.id,
               title: `${job.title || "Hydrovac job"} is not dispatch-ready`,
-              copy: `${job.customer_name || job.service_address || "Customer not linked"} â€¢ assign truck/driver and clear required compliance before the crew rolls.`,
+              copy: `${job.customer_name || job.service_address || "Customer not linked"} - assign the truck, assign the driver, and clear compliance before the crew rolls.`,
               tone: "pill-bad",
             })),
             ...hydrovacToday.expiredTickets.slice(0, 3).map((ticket) => ({
@@ -310,7 +310,7 @@ function renderDashboard() {
               tab: "manifests",
               id: manifest.id,
               title: `${manifest.manifest_number || "Manifest"} is ready to bill`,
-              copy: `${hydrovacMaterialLabel(manifest.material_type)} â€¢ ${formatUsd(Number(manifest.disposal_charge_cents || 0))} still not on the invoice.`,
+              copy: `${hydrovacMaterialLabel(manifest.material_type)} - ${formatUsd(Number(manifest.disposal_charge_cents || 0))} still needs to be added to the invoice.`,
               tone: "pill-warn",
             })),
             ...hydrovacToday.expiredPermits.slice(0, 2).map((permit) => ({
@@ -485,7 +485,7 @@ function renderDashboard() {
     const mrr = SERVICE_PLANS_CACHE
       .filter(p => p.active !== false && p.amount_cents)
       .reduce((s, p) => s + Number(p.amount_cents || 0), 0);
-    mrrEl.textContent = mrr ? money(mrr / 100) + '/mo' : 'â€”';
+    mrrEl.textContent = mrr ? money(mrr / 100) + '/mo' : '-';
   }
 
   // Make pipeline stages clickable
@@ -519,7 +519,7 @@ function renderDashboard() {
     const link = `${siteUrl}/book.html?tenant=${encodeURIComponent(TENANT_ID)}`;
     await navigator.clipboard.writeText(link).catch(() => {});
     const btn = dashboardWrap.querySelector("#dashboardCopyBookingLink");
-    if (btn) { const orig = btn.textContent; btn.textContent = "âœ“ Copied!"; setTimeout(() => { btn.textContent = orig; }, 2000); }
+    if (btn) { const orig = btn.textContent; btn.textContent = "Copied"; setTimeout(() => { btn.textContent = orig; }, 2000); }
   });
 
   // Onboarding card wiring

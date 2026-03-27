@@ -35,13 +35,13 @@ function todayString() {
 }
 
 function formatTime(isoString) {
-  if (!isoString) return '—';
+  if (!isoString) return '-';
   const d = new Date(isoString);
   return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
 }
 
 function formatDate(isoString) {
-  if (!isoString) return '—';
+  if (!isoString) return '-';
   const d = new Date(isoString);
   return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
 }
@@ -344,7 +344,7 @@ function showFatalError(message) {
     <div style="display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px;
                 font-family:-apple-system,sans-serif;background:#0f1117;color:#e8e9eb;text-align:center;">
       <div>
-        <div style="font-size:2.5rem;margin-bottom:16px;">⚠️</div>
+        <div style="font-size:2.5rem;margin-bottom:16px;">!</div>
         <p style="font-size:1rem;color:rgba(255,255,255,.7);">${message}</p>
         <button onclick="location.reload()"
           style="margin-top:20px;padding:10px 24px;background:#c84b2f;color:#fff;
@@ -385,7 +385,7 @@ async function signIn(email, password) {
     return;
   }
 
-  setButtonLoading(btn, true, 'Signing in…');
+  setButtonLoading(btn, true, 'Signing in...');
 
   try {
     const { data, error } = await sb.auth.signInWithPassword({ email, password });
@@ -464,7 +464,7 @@ async function loadJobs(date = null) {
     const cached = await loadJobsFromIDB();
     JOBS = cached.filter((j) => j.scheduled_date === targetDate);
     renderJobCards(JOBS);
-    if (!isOnline()) showToast('Offline — showing cached jobs', 'info');
+    if (!isOnline()) showToast('Offline. Showing saved jobs.', 'info');
     return;
   }
 
@@ -499,7 +499,7 @@ async function loadJobs(date = null) {
     const cached = await loadJobsFromIDB();
     JOBS = cached;
     renderJobCards(JOBS);
-    showToast('Could not refresh — showing cached data', 'error');
+    showToast('Could not refresh. Showing saved data.', 'error');
   }
 }
 
@@ -509,7 +509,7 @@ async function loadUpcomingJobs() {
   if (list) list.innerHTML = skeletonCards(5);
 
   const token = await getToken();
-  if (!token) { showToast('Not authenticated', 'error'); return; }
+  if (!token) { showToast('Please sign in again.', 'error'); return; }
 
   try {
     const res = await fetch('/.netlify/functions/get-crew-jobs?upcoming=true', {
@@ -546,7 +546,7 @@ function renderJobCards(jobs) {
   if (!jobs || jobs.length === 0) {
     list.innerHTML = `
       <div class="empty-state">
-        <div class="empty-icon">☀️</div>
+        <div class="empty-icon">*</div>
         <p>No jobs scheduled for today</p>
       </div>`;
     return;
@@ -556,7 +556,7 @@ function renderJobCards(jobs) {
     const customer  = job.customers?.name || 'Customer';
     const title     = job.orders?.title   || job.title || 'Job';
     const time      = job.scheduled_time  ? formatTime(job.scheduled_date + 'T' + job.scheduled_time) : 'TBD';
-    const addr      = job.service_address || job.address || '—';
+    const addr      = job.service_address || job.address || '-';
 
     return `
       <div class="job-card" data-job-id="${job.id}" role="button" tabindex="0">
@@ -603,7 +603,7 @@ function renderScheduleList(jobs) {
   list.innerHTML = Object.entries(byDate).sort(([a], [b]) => a.localeCompare(b)).map(([date, dateJobs]) => `
     <div class="schedule-date-header">${formatDate(date + 'T00:00:00')}</div>
     ${dateJobs.map((job) => {
-      const customer = job.customers?.name || '—';
+      const customer = job.customers?.name || '-';
       const title    = job.orders?.title   || job.title || 'Job';
       const time     = job.scheduled_time  ? formatTime(job.scheduled_date + 'T' + job.scheduled_time) : 'TBD';
       return `
@@ -636,12 +636,12 @@ async function openJob(job) {
 
   // Populate fields
   setText('jobDetailTitle',    job.orders?.title   || job.title || 'Job');
-  setText('jobDetailCustomer', job.customers?.name || '—');
-  setText('jobDetailAddress',  job.service_address || job.address || '—');
+  setText('jobDetailCustomer', job.customers?.name || '-');
+  setText('jobDetailAddress',  job.service_address || job.address || '-');
   setText('jobDetailStatus',   statusLabel(job.status));
   setText('jobDetailDate',     formatDate((job.scheduled_date || '') + 'T00:00:00'));
   setText('jobDetailTime',     job.scheduled_time ? formatTime(job.scheduled_date + 'T' + job.scheduled_time) : 'TBD');
-  setText('jobDetailNotes',    job.description || job.notes || '—');
+  setText('jobDetailNotes',    job.description || job.notes || '-');
 
   // Status pill
   const pill = document.getElementById('jobDetailStatusPill');
@@ -658,7 +658,7 @@ async function openJob(job) {
     const parts = [];
     if (phone) parts.push(`<a href="tel:${escHtml(phone)}" class="contact-link">${escHtml(phone)}</a>`);
     if (email) parts.push(`<a href="mailto:${escHtml(email)}" class="contact-link">${escHtml(email)}</a>`);
-    contactEl.innerHTML = parts.join(' · ') || '—';
+    contactEl.innerHTML = parts.join(' - ') || '-';
   }
 
   // Action buttons
@@ -682,7 +682,7 @@ async function openJob(job) {
 
 function setText(id, value) {
   const el = document.getElementById(id);
-  if (el) el.textContent = value || '—';
+  if (el) el.textContent = value || '-';
 }
 
 function renderJobActions(status, job = ACTIVE_JOB) {
@@ -701,7 +701,7 @@ function renderJobActions(status, job = ACTIVE_JOB) {
   } else if (status === 'in_progress') {
     noteHtml = `<div class="status-note" style="margin-bottom:10px;">Keep notes and proof current so closeout is fast when the work is done.</div>`;
   } else if (status === 'blocked') {
-    noteHtml = `<div class="status-note" style="margin-bottom:10px;">Tell the office exactly what is stopping the work so they can clear it without a second trip.</div>`;
+    noteHtml = `<div class="status-note" style="margin-bottom:10px;">Work is paused. Tell the office exactly what is stopping progress so they can clear it without another trip.</div>`;
   }
 
   let html = noteHtml;
@@ -719,7 +719,7 @@ function renderJobActions(status, job = ACTIVE_JOB) {
       <button class="btn btn-primary" data-action="clock-in">Resume Job</button>
       <button class="btn btn-success" data-action="complete-job">Complete Job</button>`;
   } else if (status === 'completed') {
-    html += `<div class="completion-badge">✓ Job Completed</div>`;
+    html += `<div class="completion-badge">&#10003; Job complete</div>`;
   } else if (status === 'cancelled') {
     html += `<div class="status-note">This job has been cancelled.</div>`;
   }
@@ -736,7 +736,7 @@ async function updateJobStatus(jobId, status, extraFields = {}) {
     OFFLINE_QUEUE.push({ type: 'status', jobId, patch, timestamp: Date.now() });
     await persistQueue();
     updateJobCache(jobId, patch);
-    showToast('Saved offline — will sync when connected', 'info');
+    showToast('Saved offline. We will sync it when you reconnect.', 'info');
     if (ACTIVE_JOB && ACTIVE_JOB.id === jobId) {
       ACTIVE_JOB = { ...ACTIVE_JOB, ...patch, compliance_message: '' };
       renderJobActions(ACTIVE_JOB.status, ACTIVE_JOB);
@@ -745,7 +745,7 @@ async function updateJobStatus(jobId, status, extraFields = {}) {
   }
 
   const token = await getToken();
-  if (!token) { showToast('Not authenticated', 'error'); return false; }
+  if (!token) { showToast('Please sign in again.', 'error'); return false; }
 
   try {
     const res = await fetch('/.netlify/functions/update-crew-job', {
@@ -790,7 +790,7 @@ async function updateJobStatus(jobId, status, extraFields = {}) {
     OFFLINE_QUEUE.push({ type: 'status', jobId, patch, timestamp: Date.now() });
     await persistQueue();
     updateJobCache(jobId, patch);
-    showToast('Update queued — will sync when connected', 'info');
+    showToast('Update queued. We will sync it when you reconnect.', 'info');
     if (ACTIVE_JOB && ACTIVE_JOB.id === jobId) {
       ACTIVE_JOB = { ...ACTIVE_JOB, ...patch, compliance_message: '' };
       renderJobActions(ACTIVE_JOB.status, ACTIVE_JOB);
@@ -813,7 +813,7 @@ function updateJobCache(jobId, fields) {
 async function clockIn(jobId) {
   const fields = { actual_start_at: new Date().toISOString() };
 
-  // Try geolocation — optional, non-blocking
+  // Try geolocation. Optional and non-blocking.
   try {
     const pos = await getPosition();
     if (pos) {
@@ -824,7 +824,7 @@ async function clockIn(jobId) {
 
   const updated = await updateJobStatus(jobId, 'in_progress', fields);
   if (!updated) return;
-  showToast('Clocked in', 'success');
+  showToast('Clocked in. Work timer started.', 'success');
 
   // Start timer
   const startTime = ACTIVE_JOB?.actual_start_at
@@ -914,14 +914,14 @@ async function uploadPhoto(jobId, base64, type) {
         timestamp : Date.now(),
       });
     }
-    showToast('Photo saved — will upload when online', 'info');
+    showToast('Photo saved offline. We will upload it when you reconnect.', 'info');
     // Add a placeholder to the grid
     addPhotoToGrid({ url: 'data:image/jpeg;base64,' + photoBase64, photo_type: type, id: 'offline-' + Date.now() }, type);
     return;
   }
 
   const token = await getToken();
-  if (!token) throw new Error('Not authenticated');
+  if (!token) throw new Error('Please sign in again.');
 
   const res = await fetch('/.netlify/functions/upload-job-photo', {
     method : 'POST',
@@ -1007,7 +1007,7 @@ function showPhotoFullscreen(url) {
     overlay.id        = 'photoOverlay';
     overlay.className = 'photo-overlay';
     overlay.innerHTML = `
-      <div class="photo-overlay-close" role="button" aria-label="Close">✕</div>
+      <div class="photo-overlay-close" role="button" aria-label="Close">&#10005;</div>
       <img id="photoOverlayImg" src="" alt="Full size photo" />`;
     document.body.appendChild(overlay);
     overlay.addEventListener('click', (e) => {
@@ -1178,17 +1178,17 @@ async function submitCompletion() {
   const sigDataUrl = getSignatureDataUrl();
 
   const btn = document.getElementById('btnSubmitCompletion');
-  setButtonLoading(btn, true, 'Submitting…');
+  setButtonLoading(btn, true, 'Submitting...');
 
   const token = await getToken();
   if (!token) {
-    showToast('Not authenticated', 'error');
+    showToast('Please sign in again.', 'error');
     setButtonLoading(btn, false, 'Complete Job');
     return;
   }
 
   try {
-    // Build payload — complete-crew-job or update-crew-job with status completed
+    // Build payload for complete-crew-job or the update-crew-job fallback.
     const body = {
       job_id          : ACTIVE_JOB.id,
       status          : 'completed',
@@ -1292,7 +1292,7 @@ function showSuccessScreen() {
   const timeEl     = document.getElementById('successTime');
 
   if (titleEl)    titleEl.textContent    = ACTIVE_JOB?.orders?.title || ACTIVE_JOB?.title || 'Job';
-  if (customerEl) customerEl.textContent = ACTIVE_JOB?.customers?.name || '—';
+  if (customerEl) customerEl.textContent = ACTIVE_JOB?.customers?.name || '-';
   if (timeEl)     timeEl.textContent     = `Completed at ${new Date().toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`;
 
   showScreen('success');
@@ -1387,7 +1387,7 @@ async function submitBlocker() {
   }
 
   const btn = document.getElementById('btnSubmitBlocker');
-  setButtonLoading(btn, true, 'Reporting…');
+  setButtonLoading(btn, true, 'Reporting...');
 
   try {
     const updated = await updateJobStatus(ACTIVE_JOB.id, 'blocked', { blocker_note: note });
@@ -1443,7 +1443,7 @@ function setupOfflineSync() {
 function handleOffline() {
   const indicator = document.getElementById('offlineIndicator');
   if (indicator) indicator.style.display = 'flex';
-  showToast('You are offline — changes will sync when reconnected', 'info');
+  showToast('You are offline. Changes will sync when you reconnect.', 'info');
 }
 
 async function handleOnline() {
@@ -1452,7 +1452,7 @@ async function handleOnline() {
 
   if (OFFLINE_QUEUE.length === 0 && !(await hasPendingPhotos())) return;
 
-  showToast(`Syncing ${OFFLINE_QUEUE.length} pending update(s)…`, 'info');
+  showToast(`Syncing ${OFFLINE_QUEUE.length} pending update(s)...`, 'info');
 
   const token = await getToken();
   if (!token) return;
@@ -1538,12 +1538,12 @@ function showProfile() {
   const emailEl = document.getElementById('profileEmail');
 
   if (MEMBER) {
-    if (nameEl)  nameEl.textContent  = MEMBER.name       || '—';
-    if (roleEl)  roleEl.textContent  = MEMBER.role_title || MEMBER.role || '—';
+    if (nameEl)  nameEl.textContent  = MEMBER.name       || '-';
+    if (roleEl)  roleEl.textContent  = MEMBER.role_title || MEMBER.role || '-';
   }
 
   if (SESSION?.user) {
-    if (emailEl) emailEl.textContent = SESSION.user.email || '—';
+    if (emailEl) emailEl.textContent = SESSION.user.email || '-';
   }
 }
 
@@ -1674,7 +1674,7 @@ async function saveQuickLog() {
   }
 
   const note = document.getElementById('quickLogNote')?.value?.trim() || '';
-  const description = note ? `${_quickLogType} — ${note}` : _quickLogType;
+  const description = note ? `${_quickLogType} - ${note}` : _quickLogType;
   const started_at = _quickLogTimerStart
     ? new Date(_quickLogTimerStart).toISOString()
     : new Date(Date.now() - durationMinutes * 60000).toISOString();
@@ -1702,7 +1702,7 @@ async function saveQuickLog() {
 
     stopQuickLogTimer();
     closeQuickLog();
-    showToast(`${_quickLogType} logged — ${durationMinutes} min`, 'success');
+    showToast(`${_quickLogType} logged - ${durationMinutes} min`, 'success');
   } catch (err) {
     if (msgEl) { msgEl.textContent = err.message; msgEl.className = 'msg error'; }
   }
@@ -1822,7 +1822,7 @@ function setupPullToRefresh() {
   list.addEventListener('touchend', (e) => {
     const delta = e.changedTouches[0].clientY - startY;
     if (delta > 80 && list.scrollTop === 0) {
-      showToast('Refreshing…', 'info');
+      showToast('Refreshing...', 'info');
       loadJobs(CURRENT_DATE);
     }
   }, { passive: true });
