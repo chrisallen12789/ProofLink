@@ -117,9 +117,19 @@ exports.handler = async (event) => {
     }
 
     // --- Build success / cancel URLs ---
-    const baseUrl    = getBaseUrl(event);
-    const successUrl = `${baseUrl}/portal.html?checkout=success&order_id=${encodeURIComponent(orderId)}&session_id={CHECKOUT_SESSION_ID}`;
-    const cancelUrl  = `${baseUrl}/portal.html?checkout=cancel&order_id=${encodeURIComponent(orderId)}`;
+    const baseUrl = getBaseUrl(event);
+    const portalParams = new URLSearchParams({
+      tenant: order.tenant_id,
+      email,
+      order_id: orderId,
+    });
+    const successParams = new URLSearchParams(portalParams);
+    successParams.set('checkout', 'success');
+    successParams.set('session_id', '{CHECKOUT_SESSION_ID}');
+    const cancelParams = new URLSearchParams(portalParams);
+    cancelParams.set('checkout', 'cancel');
+    const successUrl = `${baseUrl}/portal.html?${successParams.toString()}`;
+    const cancelUrl = `${baseUrl}/portal.html?${cancelParams.toString()}`;
 
     // --- Create Stripe Checkout session ---
     const productName = (order.title || 'Outstanding Balance').trim();

@@ -64,7 +64,9 @@
     .btn-ghost:hover { background: rgba(255,255,255,.12); }
     .msg { margin-top: 12px; font-size: .875rem; padding: 10px 12px; border-radius: 6px; display: none; }
     .msg.error { background: rgba(239,68,68,.1); color: #f87171; border: 1px solid rgba(239,68,68,.2); display: block; }
+    .msg.info { background: rgba(96,165,250,.12); color: #bfdbfe; border: 1px solid rgba(96,165,250,.22); display: block; }
     .hidden { display: none; }
+    .portal-notice { margin-bottom: 12px; }
     .section-title { font-size: .95rem; font-weight: 600; margin-bottom: 12px; }
     .order-row {
       padding: 12px 0;
@@ -140,6 +142,12 @@
       text-decoration: none; display: inline-block;
     }
     .pay-btn:hover { background: rgba(200,75,47,.28); }
+    .stacked-row { flex-direction: column; align-items: flex-start; gap: 0; }
+    .stacked-row-main { display: flex; align-items: center; gap: 10px; width: 100%; }
+    .stacked-row-copy { flex: 1; min-width: 0; }
+    .stacked-row-note { font-size: .78rem; color: rgba(255,255,255,.4); margin-top: 4px; }
+    .stacked-row-actions { margin-top: 8px; }
+    .due-date-note { font-size: .72rem; font-weight: 400; color: rgba(255,255,255,.4); }
   </style>
 </head>
 <body>
@@ -221,6 +229,8 @@
   const params   = new URLSearchParams(location.search);
   const tenantId = params.get('tenant');
   const prefill  = params.get('email');
+  const checkoutState = params.get('checkout');
+  const checkoutOrderId = params.get('order_id');
   var portalEmail = '';
   var ALL_ORDERS   = [];
   var ALL_BOOKINGS = [];
@@ -277,16 +287,36 @@
     if (!existing) {
       existing = document.createElement('div');
       existing.id = 'portalNotice';
-      existing.className = 'msg';
-      existing.style.marginBottom = '12px';
+      existing.className = 'msg portal-notice';
       var target = document.getElementById('portalContent') || document.getElementById('loginCard');
       if (target && target.parentNode) target.parentNode.insertBefore(existing, target);
     }
     existing.textContent = message || '';
-    existing.className = 'msg' + (tone ? ' ' + tone : '');
+    existing.className = 'msg portal-notice' + (tone ? ' ' + tone : '');
     existing.style.display = message ? 'block' : 'none';
   }
   window.showPortalNotice = showPortalNotice;
+
+  function getCheckoutNotice(orders) {
+    if (!checkoutState) return null;
+    var matchedOrder = (orders || []).find(function (order) {
+      return order && order.id === checkoutOrderId;
+    });
+    var orderTitle = matchedOrder && matchedOrder.title ? matchedOrder.title : 'your order';
+    if (checkoutState === 'success') {
+      return {
+        tone: 'success',
+        message: 'Your payment for ' + orderTitle + ' was received. We are finalizing the update now, so your balance may take a moment to refresh.',
+      };
+    }
+    if (checkoutState === 'cancel') {
+      return {
+        tone: 'info',
+        message: 'No payment was made for ' + orderTitle + '. You can come back here any time when you are ready.',
+      };
+    }
+    return null;
+  }
 
   function renderPackageBalance(orders) {
     var section = document.getElementById('packageBalanceSection');
@@ -346,7 +376,7 @@
         if (dueCents != null && dueCents > 0) {
           var dueLabel = pState === 'overdue' ? 'Overdue' : 'Balance Due';
           var dueDateNote = (o.payment_due_date && pState !== 'paid') ?
-            ' <span style="font-size:.72rem;font-weight:400;color:rgba(255,255,255,.4);">by ' + fmtDate(o.payment_due_date) + '</span>' : '';
+            ' <span class="due-date-note">by ' + fmtDate(o.payment_due_date) + '</span>' : '';
           items.push('<div class="fin-item"><span class="fin-label">' + dueLabel + '</span><span class="fin-value ' + dueClass + '">' + fmtCents(dueCents) + dueDateNote + '</span></div>');
         } else if (dueCents === 0 || pState === 'paid') {
           items.push('<div class="fin-item"><span class="fin-label">Balance Due</span><span class="fin-value paid">$0.00 - Paid in full</span></div>');
@@ -359,12 +389,12 @@
       var payNowHtml = '';
       var canPay = dueCents > 0 && !['cancelled','void','completed'].includes(o.status);
       if (canPay) {
-        payNowHtml = '<button class="pay-btn" onclick="handlePayNow(\'' + o.id + '\',' + dueCents + ')" style="cursor:pointer;">Pay Now</button>';
+        payNowHtml = '<button class="pay-btn" data-action="pay-now" data-order-id="' + escHtml(o.id) + '" data-balance-cents="' + escHtml(String(dueCents)) + '" type="button">Pay now</button>';
       }
 
-      return '<div class="order-row" style="flex-direction:column;align-items:flex-start;gap:0;">' +
-        '<div style="display:flex;align-items:center;gap:10px;width:100%;">' +
-          '<div style="flex:1;min-width:0;">' +
+      return '<div class="order-row stacked-row">' +
+        '<div class="stacked-row-main">' +
+          '<div class="stacked-row-copy">' +
             '<div class="order-title">' + escHtml(o.title || 'Order') + '</div>' +
             '<div class="order-meta">' + fmtDate(o.created_at) + '</div>' +
           '</div>' +
@@ -372,7 +402,7 @@
           (!hasFinancials && legacyTotal ? '<div class="amount">' + legacyTotal + '</div>' : '') +
         '</div>' +
         financialsHtml +
-        (payNowHtml ? '<div style="margin-top:8px;">' + payNowHtml + '</div>' : '') +
+        (payNowHtml ? '<div class="stacked-row-actions">' + payNowHtml + '</div>' : '') +
       '</div>';
     }).join('');
   }
@@ -390,10 +420,10 @@
       var isFuture = start && start > new Date();
       var canCancel = isFuture && !['cancelled','completed','no_show'].includes(b.status);
       return '<div class="order-row" style="flex-wrap:wrap;align-items:flex-start;">' +
-        '<div style="flex:1;min-width:0;">' +
+        '<div class="stacked-row-copy">' +
           '<div class="order-title">' + escHtml(b.title || 'Appointment') + '</div>' +
           '<div class="order-meta">' + timeStr + '</div>' +
-          (b.notes ? '<div style="font-size:.78rem;color:rgba(255,255,255,.4);margin-top:4px;">' + escHtml(b.notes) + '</div>' : '') +
+          (b.notes ? '<div class="stacked-row-note">' + escHtml(b.notes) + '</div>' : '') +
         '</div>' +
         statusBadge(b.status) +
         (canCancel ? '<button class="btn btn-danger cancel-booking-btn" data-id="' + escHtml(b.id) + '" type="button">Cancel</button>' : '') +
@@ -456,9 +486,9 @@
       var reviewUrl = q.review_url || '';
       var canReview = !!reviewUrl && displayStatus === 'pending' && !isExpired;
       var validUntilText = q.valid_until ? (isExpired ? ' - Expired ' : ' - Valid until ') + fmtDate(q.valid_until) : '-';
-      return '<div class="order-row" style="flex-direction:column;align-items:flex-start;gap:6px;">' +
-        '<div style="display:flex;align-items:center;gap:10px;width:100%;">' +
-          '<div style="flex:1;min-width:0;">' +
+      return '<div class="order-row stacked-row" style="gap:6px;">' +
+        '<div class="stacked-row-main">' +
+          '<div class="stacked-row-copy">' +
             '<div class="order-title">' + escHtml(q.title || 'Estimate') + '</div>' +
             '<div class="order-meta">' + fmtDate(q.created_at) + validUntilText + '</div>' +
           '</div>' +
@@ -519,6 +549,14 @@
         renderBookings(ALL_BOOKINGS);
         renderPackageBalance(ALL_ORDERS);
         renderQuotes(d.quotes || []);
+        var checkoutNotice = getCheckoutNotice(ALL_ORDERS);
+        if (checkoutNotice) {
+          showPortalNotice(checkoutNotice.message, checkoutNotice.tone);
+          var ordersTab = document.querySelector('.tab-btn[data-tab="orders"]');
+          if (ordersTab) ordersTab.click();
+        } else {
+          showPortalNotice('');
+        }
         // Pre-fill contact form name from first known record
         var knownName = (d.orders && d.orders[0] && d.orders[0].customer_name) ||
                         (d.bookings && d.bookings[0] && d.bookings[0].customer_name) || '';
@@ -536,6 +574,12 @@
           : (err.message || 'Something went wrong. Please try again.');
         msg.className = 'msg error';
       });
+  });
+
+  document.getElementById('ordersList').addEventListener('click', function (event) {
+    var button = event.target.closest('[data-action="pay-now"]');
+    if (!button) return;
+    handlePayNow(button);
   });
 
   document.getElementById('orderSearch').addEventListener('input', function () {
@@ -558,6 +602,7 @@
   document.getElementById('btnPortalBack').addEventListener('click', function () {
     document.getElementById('portalContent').classList.add('hidden');
     document.getElementById('loginCard').classList.remove('hidden');
+    showPortalNotice('');
   });
 
   document.getElementById('btnSendContact').addEventListener('click', function () {
@@ -609,12 +654,17 @@
         msgEl.className = 'msg error';
       });
   });
+  if (tenantId && prefill && checkoutState) {
+    setTimeout(function () {
+      document.getElementById('btnPortalLookup').click();
+    }, 0);
+  }
 })();
 
-async function handlePayNow(orderId, balanceCents) {
-  const btn = event.currentTarget;
+async function handlePayNow(btn) {
+  const orderId = btn && btn.dataset ? btn.dataset.orderId : '';
   btn.disabled = true;
-  btn.textContent = 'Loading...';
+  btn.textContent = 'Opening secure checkout...';
   try {
     // Get the customer email from the portal session
     const email = window._portalEmail || '';
@@ -628,7 +678,7 @@ async function handlePayNow(orderId, balanceCents) {
         window.showPortalNotice && window.showPortalNotice(data.error || 'Payment error. Please contact the business directly.', 'error');
       }
       btn.disabled = false;
-      btn.textContent = 'Pay Now';
+      btn.textContent = 'Pay now';
       return;
     }
     // Redirect to Stripe Checkout
@@ -636,7 +686,7 @@ async function handlePayNow(orderId, balanceCents) {
   } catch (err) {
     window.showPortalNotice && window.showPortalNotice('Could not connect to payment service. Please try again or contact the business directly.', 'error');
     btn.disabled = false;
-    btn.textContent = 'Pay Now';
+    btn.textContent = 'Pay now';
   }
 }
 </script>

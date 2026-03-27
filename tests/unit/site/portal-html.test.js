@@ -24,9 +24,19 @@ describe("customer portal html", () => {
     expect(source).not.toContain('href="/quote.html?token=');
   });
 
+  test("uses delegated payment buttons and checkout return guidance", () => {
+    expect(source).toContain('data-action="pay-now"');
+    expect(source).not.toContain('onclick="handlePayNow(');
+    expect(source).toContain("checkoutState === 'success'");
+    expect(source).toContain("checkoutState === 'cancel'");
+    expect(source).toContain("Your payment for ");
+    expect(source).toContain("No payment was made for ");
+    expect(source).toContain("if (tenantId && prefill && checkoutState)");
+  });
+
   test("does not carry mojibake into the customer portal", () => {
-    expect(source).not.toContain("â");
-    expect(source).not.toContain("Ã");
-    expect(source).not.toContain("LoadingÃ");
+    expect(source).not.toContain("Ã¢");
+    expect(source).not.toContain("Ãƒ");
+    expect(source).not.toContain("LoadingÃƒ");
   });
 });
