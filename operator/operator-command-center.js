@@ -739,7 +739,7 @@ function renderMoneyWorkspace() {
   if (moneyActionBar) {
     moneyActionBar.innerHTML = `
       <button type="button" class="pipeline-action-chip" data-money-action="new-payment">Record payment</button>
-      <button type="button" class="pipeline-action-chip" data-money-action="open-pipeline">${activeOrder ? "Open quoted / booked" : "Open pipeline"}</button>
+      <button type="button" class="pipeline-action-chip" data-money-action="open-pipeline">${activeOrder ? "Open booked work" : "Open pipeline"}</button>
       <button type="button" class="pipeline-action-chip" data-money-action="open-job">${activeJob ? "Open active job" : "Open jobs"}</button>
       <button type="button" class="pipeline-action-chip" data-money-action="open-customer">${activeCustomer ? "Open customer" : "Open customers"}</button>
     `;

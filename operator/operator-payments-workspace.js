@@ -35,7 +35,7 @@
     const defaultOrderId = options.orderId ?? (preferredOrder?.customer_id === defaultCustomerId ? preferredOrder?.id || "" : "");
 
     ACTIVE_PAYMENT_ID = null;
-    if (paymentFormTitle) paymentFormTitle.textContent = options.title || "Manual payment entry";
+    if (paymentFormTitle) paymentFormTitle.textContent = options.title || "Record payment";
     if (paymentId) paymentId.value = "";
     if (paymentJobId) paymentJobId.value = options.jobId || "";
     renderPaymentCustomerOptions(defaultCustomerId);
@@ -77,7 +77,7 @@
     }
 
     const rows = sortedPayments(PAYMENTS_CACHE);
-    paymentsList.innerHTML = rows.length ? "" : `<div class="muted">No payments recorded yet. Collect a deposit or close a job to see it here.</div>`;
+    paymentsList.innerHTML = rows.length ? "" : `<div class="muted">No payments recorded yet. Record a deposit, final payment, or manual collection to see it here.</div>`;
 
     rows.forEach((p) => {
       const customer = CUSTOMERS_CACHE.find((c) => c.id === p.customer_id);
@@ -102,7 +102,7 @@
         if (!isManualPaymentRecord(p)) {
           ACTIVE_PAYMENT_ID = null;
           renderPayments();
-          setInlineMessage(paymentMsg, "Stripe-created payment records are read-only here. Use this form for manual collections.", "error");
+          setInlineMessage(paymentMsg, "Online payments stay read-only here. Use this form for cash, check, or other manual collections.", "error");
           return;
         }
 

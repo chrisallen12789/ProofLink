@@ -441,7 +441,7 @@
             <!-- Package orders summary — shown when packages exist -->
             <div class="workspace-panel-notice is-soft">
               <div class="workspace-panel-notice__title">Run the whole service flow from one place</div>
-              <div class="workspace-panel-notice__copy">Requests feed proposals, proposals move into quoted or booked work, and booked work becomes active jobs. Use the stage buttons below to jump right to the exact step you need.</div>
+              <div class="workspace-panel-notice__copy">Requests feed proposals, proposals move into booked work, and booked work becomes active jobs. Use the stage buttons below to jump right to the exact step you need.</div>
             </div>
 
             <div id="pipelineStageStrip" class="pipeline-stage-strip"></div>
@@ -458,7 +458,7 @@
             <div class="grid two">
               <div class="card">
                 <div class="card-hd">
-                  <strong>Quoted / booked work</strong>
+                  <strong>Booked work</strong>
                   <span class="muted">Work that is priced, approved, or waiting to move into the field</span>
                 </div>
                 <div class="card-bd">
@@ -487,7 +487,7 @@
                   <span class="muted">Review the work record, see linked stages, and take the next action.</span>
                 </div>
                 <div class="card-bd">
-                  <div id="orderDetailWrap" class="muted">Select quoted or booked work to inspect it.</div>
+                  <div id="orderDetailWrap" class="muted">Select booked work to inspect it.</div>
                   <div id="phasesSection">
                     <div class="section-toggle" id="phasesToggle">
                       <span>Project Phases</span>
@@ -1462,7 +1462,7 @@
             <div class="grid two">
               <div class="card">
                 <div class="card-hd">
-                  <strong id="paymentFormTitle">Manual payment entry</strong>
+                  <strong id="paymentFormTitle">Record payment</strong>
                   <span class="muted">Log cash, check, ACH, Zelle, Venmo, or card-on-site.</span>
                 </div>
                 <div class="card-bd">
@@ -2072,13 +2072,13 @@
                 <div class="muted">Track subs, suppliers, and partners.</div>
               </div>
               <div class="panel-actions">
-                <button id="btnAddVendor" class="btn" type="button">+ Add vendor</button>
+                <button id="btnAddVendor" class="btn" type="button">Add vendor</button>
                 <button id="btnRefreshVendors" class="btn btn-ghost" type="button">Refresh</button>
               </div>
             </div>
             <div class="card">
               <div class="card-bd" id="vendorsList">
-                <div class="muted" style="font-size:.85rem;">Loading vendors…</div>
+                <div class="muted" style="font-size:.85rem;">Loading vendors...</div>
               </div>
             </div>
           </section>
@@ -3063,7 +3063,7 @@
         <h2 class="tour-title" id="tour-title">Your business hub is ready.</h2>
         <p class="tour-body">Welcome to ProofLink. This is where you keep customers, work, scheduling, payments, and your website together in one place.</p>
         <div class="tour-actions">
-          <button class="tour-btn" onclick="tourNext()">Show me around -></button>
+          <button class="tour-btn" onclick="tourNext()">Show me around</button>
         </div>
       </div>
 
@@ -3080,8 +3080,8 @@
           <li><strong>More tools</strong> - Website, imports, and specialist operations pages when you need them.</li>
         </ul>
         <div class="tour-actions">
-          <button class="tour-btn-ghost" onclick="tourBack()"><- Back</button>
-          <button class="tour-btn" onclick="tourNext()">Got it -></button>
+          <button class="tour-btn-ghost" onclick="tourBack()">Back</button>
+          <button class="tour-btn" onclick="tourNext()">Got it</button>
         </div>
       </div>
 
@@ -3113,8 +3113,8 @@
           </li>
         </ol>
         <div class="tour-actions">
-          <button class="tour-btn-ghost" onclick="tourBack()"><- Back</button>
-          <button class="tour-btn" onclick="tourNext()">Almost there -></button>
+          <button class="tour-btn-ghost" onclick="tourBack()">Back</button>
+          <button class="tour-btn" onclick="tourNext()">Almost there</button>
         </div>
       </div>
 
@@ -3125,8 +3125,8 @@
         <p class="tour-body">Start by adding your first product or service. It only takes a minute.</p>
         <p class="tour-hint">You can replay this tour anytime from <strong>Operations</strong>.</p>
         <div class="tour-actions">
-          <button class="tour-btn-ghost" onclick="tourBack()"><- Back</button>
-          <button class="tour-btn" onclick="tourFinish()">Go to Today -></button>
+          <button class="tour-btn-ghost" onclick="tourBack()">Back</button>
+          <button class="tour-btn" onclick="tourFinish()">Go to Today</button>
         </div>
       </div>
 

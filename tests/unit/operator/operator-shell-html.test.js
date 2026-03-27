@@ -16,15 +16,21 @@ describe("operator shell html", () => {
     expect(source).toContain(">More tools<");
     expect(source).toContain('data-tab="dashboard"');
     expect(source).toContain(">Today<");
+    expect(source).toContain("Booked work");
+    expect(source).toContain("Select booked work to inspect it.");
     expect(source).not.toContain("Operators only");
     expect(source).not.toContain("Email me a sign-in link");
+    expect(source).not.toContain("Quoted / booked");
+    expect(source).not.toContain("quoted or booked work");
   });
 
   test("keeps obvious drift markers out of the operator entry surface", () => {
     expect(source).not.toContain("cottagelink-logo");
     expect(source).not.toContain("tenant_id ready");
     expect(source).not.toContain("Operator UI v3");
-    expect(source).not.toContain("â");
-    expect(source).not.toContain("Ã");
+    expect(source).not.toContain("Ã¢");
+    expect(source).not.toContain("Ãƒ");
+    expect(source).not.toContain("Show me around ->");
+    expect(source).not.toContain("<- Back");
   });
 });

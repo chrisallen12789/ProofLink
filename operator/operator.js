@@ -2402,7 +2402,7 @@ function workspaceOrderLabel(blueprint = currentWorkspaceBlueprint()) {
   return "Orders";
 }
 function workspaceQuotedBookedLabel(blueprint = currentWorkspaceBlueprint()) {
-  if (isServiceWorkspace(blueprint)) return "Quoted / booked";
+  if (isServiceWorkspace(blueprint)) return "Booked work";
   return workspaceOrderLabel(blueprint);
 }
 function workspaceJobsNavLabel(blueprint = currentWorkspaceBlueprint()) {
@@ -2546,7 +2546,7 @@ function workspacePanelCopy(tab, blueprint = currentWorkspaceBlueprint()) {
       return {
         title: "Jobs",
         subtitle: isServiceWorkspace(blueprint)
-          ? "Track approved and scheduled field work here. If the customer is still deciding, keep it in Walkthrough Bids or Quoted / booked work."
+          ? "Track approved and scheduled field work here. If the customer is still deciding, keep it in Walkthrough Bids or booked work."
           : "Track scheduled work, field progress, proof, and payment state without splitting execution from the customer record.",
       };
     case "plans":
@@ -2738,7 +2738,7 @@ function panelNoticeHtml(tab, blueprint = currentWorkspaceBlueprint()) {
     return `
       <div class="workspace-panel-notice is-soft">
         <div class="workspace-panel-notice__title">Jobs are for approved work</div>
-        <div class="workspace-panel-notice__copy">If you still need to work up or send the quote, open <strong>Walkthrough Bids</strong>. If the quote is out and waiting on approval, keep it in <strong>Quoted / booked work</strong>.</div>
+        <div class="workspace-panel-notice__copy">If you still need to work up or send the quote, open <strong>Walkthrough Bids</strong>. If the quote is out and waiting on approval, keep it in <strong>Booked work</strong>.</div>
       </div>
     `;
   }
@@ -7395,7 +7395,7 @@ function pipelineStageStats() {
       tab: "orders",
       value: quotedBookedCount,
       eyebrow: "Stage 3",
-      title: "Quoted / booked",
+      title: "Booked work",
       copy: "Priced work that is approved, waiting on approval, or being scheduled.",
     },
     {
@@ -7438,7 +7438,7 @@ function renderRequestWorkspace() {
       <button type="button" class="pipeline-action-chip" data-request-action="new-request">New request</button>
       <button type="button" class="pipeline-action-chip" data-request-action="draft-proposal">${linkedBid ? "Open proposal" : "Draft proposal"}</button>
       <button type="button" class="pipeline-action-chip" data-request-action="open-customer">${linkedCustomer ? "Open customer" : "Create customer"}</button>
-      <button type="button" class="pipeline-action-chip" data-request-action="open-pipeline">${linkedOrder ? "Open quoted / booked" : "Open pipeline"}</button>
+      <button type="button" class="pipeline-action-chip" data-request-action="open-pipeline">${linkedOrder ? "Open booked work" : "Open pipeline"}</button>
     `;
     requestActionBar.querySelectorAll("[data-request-action]").forEach((button) => {
       button.addEventListener("click", async () => {
@@ -7494,7 +7494,7 @@ function renderProposalWorkspace() {
     const cards = [
       { tab: "bids", eyebrow: "Proposals", value: draftCount, title: "Drafting", copy: "Quotes being scoped, priced, or cleaned up before delivery." },
       { tab: "bids", eyebrow: "Ready next", value: readyCount, title: "Priced and usable", copy: "Drafts with enough pricing in them to finish and send." },
-      { tab: "orders", eyebrow: "Moved forward", value: movedCount, title: "In pipeline", copy: "Proposals already turned into quoted or booked work." },
+      { tab: "orders", eyebrow: "Moved forward", value: movedCount, title: "In pipeline", copy: "Proposals already turned into booked work." },
     ];
     proposalStageStrip.innerHTML = cards.map((stage) => `
       <button type="button" class="pipeline-stage-card ${stage.tab === "bids" ? "is-active" : ""}" data-proposal-stage-tab="${escapeAttr(stage.tab)}">
@@ -7513,7 +7513,7 @@ function renderProposalWorkspace() {
       <button type="button" class="pipeline-action-chip" data-proposal-action="new-proposal">New quote</button>
       <button type="button" class="pipeline-action-chip" data-proposal-action="open-request">${linkedLead ? "Open request" : "Create request"}</button>
       <button type="button" class="pipeline-action-chip" data-proposal-action="open-customer">${customer ? "Open customer" : "Create customer"}</button>
-      <button type="button" class="pipeline-action-chip" data-proposal-action="open-pipeline">${linkedOrder ? "Open quoted / booked" : "Move into pipeline"}</button>
+      <button type="button" class="pipeline-action-chip" data-proposal-action="open-pipeline">${linkedOrder ? "Open booked work" : "Move into pipeline"}</button>
     `;
     proposalActionBar.querySelectorAll("[data-proposal-action]").forEach((button) => {
       button.addEventListener("click", () => {
@@ -7611,7 +7611,7 @@ function renderJobWorkspace() {
     ` : "";
     jobActionBar.innerHTML = `
         <button type="button" class="pipeline-action-chip" data-job-action="new-job">New job</button>
-        <button type="button" class="pipeline-action-chip" data-job-action="open-pipeline">${activeOrder ? "Open quoted / booked" : "Open pipeline"}</button>
+        <button type="button" class="pipeline-action-chip" data-job-action="open-pipeline">${activeOrder ? "Open booked work" : "Open pipeline"}</button>
         <button type="button" class="pipeline-action-chip" data-job-action="open-proposal">${linkedBid ? "Open proposal" : "Open proposals"}</button>
         <button type="button" class="pipeline-action-chip" data-job-action="open-request">${linkedLead ? "Open request" : "Open requests"}</button>
         <button type="button" class="pipeline-action-chip" data-job-action="open-customer">${activeCustomer ? "Open customer" : "Open customers"}</button>

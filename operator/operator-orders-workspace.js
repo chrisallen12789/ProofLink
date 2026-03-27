@@ -42,7 +42,7 @@ function renderOrders() {
 
   if (!rows.length) {
     ordersList.innerHTML = `<div class="muted">No active work. When you convert a request to a job, it shows up here.</div>`;
-    if (orderDetailWrap) orderDetailWrap.innerHTML = `<div class="muted">Select quoted or booked work to inspect it.</div>`;
+    if (orderDetailWrap) orderDetailWrap.innerHTML = `<div class="muted">Select booked work to inspect it.</div>`;
     return;
   }
 
@@ -973,7 +973,7 @@ function renderOrders() {
       orderId: active.id,
       amount: depositGap > 0 ? money(depositGap) : "",
       note: depositGap > 0 ? `Deposit for ${active.cart_summary || active.customer_name || "order"}` : "",
-      title: depositGap > 0 ? "Record deposit" : "Manual payment entry",
+      title: depositGap > 0 ? "Record deposit" : "Record payment",
     });
     switchTab("payments");
   });

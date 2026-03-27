@@ -82,6 +82,11 @@ function loadCustomersWorkspace(overrides = {}) {
 }
 
 describe("operator customers workspace", () => {
+  const source = fs.readFileSync(
+    path.resolve(process.cwd(), "operator/operator-customers-workspace.js"),
+    "utf8"
+  );
+
   test("customerInputPayload normalizes casing and blanks", () => {
     const context = loadCustomersWorkspace();
 
@@ -114,5 +119,10 @@ describe("operator customers workspace", () => {
     expect(context.customerSearch.addEventListener).toHaveBeenCalledTimes(1);
     expect(context.customerForm.addEventListener).toHaveBeenCalledTimes(1);
     expect(context.btnNewCustomer.addEventListener).toHaveBeenCalledTimes(1);
+  });
+
+  test("keeps the empty customer state focused on the next useful step", () => {
+    expect(source).toContain("No customers yet. Create one to start linking work and payments.");
+    expect(source).not.toContain("No customer records available.");
   });
 });

@@ -77,6 +77,11 @@ function loadMoneyWorkspace(overrides = {}) {
 }
 
 describe("operator money workspace", () => {
+  const paymentsSource = fs.readFileSync(
+    path.resolve(process.cwd(), "operator/operator-payments-workspace.js"),
+    "utf8"
+  );
+
   test("buildMoneyCollectionGuidance keeps deposits ahead of non-urgent balances", () => {
     const context = loadMoneyWorkspace({
       formatUsd: (value) => `$${value}`,
@@ -126,5 +131,13 @@ describe("operator money workspace", () => {
     expect(context.btnRefreshMoney.addEventListener).toHaveBeenCalled();
     expect(context.expenseForm.addEventListener).toHaveBeenCalled();
     expect(context.expenseType.addEventListener).toHaveBeenCalled();
+  });
+
+  test("payments workspace keeps manual collection language calm and plain", () => {
+    expect(paymentsSource).toContain('paymentFormTitle.textContent = options.title || "Record payment"');
+    expect(paymentsSource).toContain("No payments recorded yet. Record a deposit, final payment, or manual collection to see it here.");
+    expect(paymentsSource).toContain("Online payments stay read-only here. Use this form for cash, check, or other manual collections.");
+    expect(paymentsSource).not.toContain("Manual payment entry");
+    expect(paymentsSource).not.toContain("Stripe-created payment records are read-only here.");
   });
 });
