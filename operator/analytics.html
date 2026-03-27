@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-  <title>ProofLink — Analytics</title>
+  <title>ProofLink Platform Analytics</title>
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
   <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;600;700;800&family=Google+Sans+Text:wght@400;500;600;700&display=swap" rel="stylesheet"/>
@@ -26,6 +26,8 @@
     .sidebar-nav li a:hover,.sidebar-nav li a.active{background:rgba(255,255,255,0.07);color:#f5f2eb}
     .sidebar-nav li a.active{color:#fff;background:rgba(200,75,47,0.2)}
     .sidebar-section-label{font-size:0.62rem;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:rgba(245,242,235,0.25);padding:1.25rem 1.5rem 0.5rem}
+    .sidebar-footer{position:absolute;bottom:1.5rem;left:0;right:0;padding:0 1.5rem}
+    .sidebar-signout{width:100%;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:rgba(245,242,235,0.7);padding:0.5rem;border-radius:4px;cursor:pointer;font-size:0.75rem;font-family:var(--font-body)}
     /* main */
     .main{padding:2rem 2.5rem;max-width:1200px}
     .page-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:2rem;padding-bottom:1.5rem;border-bottom:1px solid var(--border)}
@@ -38,6 +40,7 @@
     .kpi-value{font-family:var(--font-display);font-size:2.25rem;font-weight:800;letter-spacing:-0.03em;color:var(--ink);line-height:1}
     .kpi-delta{display:inline-flex;align-items:center;gap:0.25rem;font-size:0.75rem;font-weight:500;margin-top:0.5rem;color:var(--muted)}
     .kpi-delta.up{color:var(--success)}.kpi-delta.down{color:var(--error)}
+    .kpi-delta.neutral{color:var(--muted)}
     .kpi-icon{float:right;font-size:1.5rem;margin-top:-0.25rem;opacity:0.4}
     /* two-col layout */
     .two-col{display:grid;grid-template-columns:1.5fr 1fr;gap:1.5rem;margin-bottom:1.5rem}
@@ -93,6 +96,12 @@
     @keyframes spin{to{transform:rotate(360deg)}}
     .btn-sm{display:inline-flex;align-items:center;gap:0.3rem;padding:0.4rem 0.9rem;border-radius:3px;font-size:0.75rem;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--card);color:var(--muted);font-family:var(--font-body);transition:all 0.15s}
     .btn-sm:hover{border-color:var(--ink);color:var(--ink)}
+    .state-message{font-size:0.82rem;color:var(--muted);text-align:center;padding:1.5rem}
+    .state-message--loading{padding:2rem}
+    .panel-link{font-size:0.75rem;color:var(--muted);text-decoration:none}
+    .panel-link:hover{color:var(--ink)}
+    .tenant-meta{flex:1;min-width:0}
+    .shell-hidden{display:none}
     /* auth */
     #auth-gate{display:flex;align-items:center;justify-content:center;min-height:100vh;background:var(--bg)}
     .auth-card{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:2.5rem;width:100%;max-width:380px;text-align:center}
@@ -121,24 +130,24 @@
   </div>
 </div>
 
-<div class="op-layout" id="op-shell" style="display:none">
+<div class="op-layout shell-hidden" id="op-shell">
   <aside class="sidebar">
     <a href="/operator/" class="sidebar-logo">Proof<span>Link</span></a>
     <div class="sidebar-section-label">Manage</div>
     <ul class="sidebar-nav">
-      <li><a href="/operator/">📊 &nbsp;Business hub</a></li>
-      <li><a href="/operator/orders.html">📦 &nbsp;Orders</a></li>
-      <li><a href="/operator/products.html">🛍️ &nbsp;Products</a></li>
-      <li><a href="/operator/tenants.html">🏪 &nbsp;Tenants</a></li>
+      <li><a href="/operator/">Business hub</a></li>
+      <li><a href="/operator/orders.html">Orders</a></li>
+      <li><a href="/operator/products.html">Products</a></li>
+      <li><a href="/operator/tenants.html">Tenants</a></li>
     </ul>
     <div class="sidebar-section-label">Platform</div>
     <ul class="sidebar-nav">
-      <li><a href="/operator/analytics.html" class="active">📈 &nbsp;Analytics</a></li>
-      <li><a href="/operator/provisioning.html">🔧 &nbsp;Provisioning</a></li>
-      <li><a href="/operator/settings.html">⚙️ &nbsp;Settings</a></li>
+      <li><a href="/operator/analytics.html" class="active">Analytics</a></li>
+      <li><a href="/operator/provisioning.html">Provisioning</a></li>
+      <li><a href="/operator/settings.html">Settings</a></li>
     </ul>
-    <div style="position:absolute;bottom:1.5rem;left:0;right:0;padding:0 1.5rem">
-      <button id="sign-out-btn" style="width:100%;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:rgba(245,242,235,0.5);padding:0.5rem;border-radius:4px;cursor:pointer;font-size:0.75rem;font-family:var(--font-body)">Sign out</button>
+    <div class="sidebar-footer">
+      <button id="sign-out-btn" class="sidebar-signout">Sign out</button>
     </div>
   </aside>
 
@@ -148,15 +157,15 @@
         <div class="page-title">Analytics</div>
         <div class="page-sub">Platform-wide metrics and activity.</div>
       </div>
-      <button class="btn-sm" id="refresh-btn">↻ Refresh</button>
+      <button class="btn-sm" id="refresh-btn">Refresh</button>
     </div>
 
     <!-- KPI Cards -->
     <div class="kpi-grid" id="kpi-grid">
-      <div class="kpi-card"><div class="kpi-label">Total Tenants</div><div class="kpi-value" id="kpi-tenants">–</div><div class="kpi-delta" id="kpi-tenants-delta"></div></div>
-      <div class="kpi-card"><div class="kpi-label">Signups</div><div class="kpi-value" id="kpi-requests">–</div><div class="kpi-delta" id="kpi-requests-delta"></div></div>
-      <div class="kpi-card"><div class="kpi-label">Total Orders</div><div class="kpi-value" id="kpi-orders">–</div><div class="kpi-delta" id="kpi-orders-delta"></div></div>
-      <div class="kpi-card"><div class="kpi-label">GMV (All Time)</div><div class="kpi-value" id="kpi-gmv">–</div><div class="kpi-delta" id="kpi-gmv-delta"></div></div>
+      <div class="kpi-card"><div class="kpi-label">Total tenants</div><div class="kpi-value" id="kpi-tenants">--</div><div class="kpi-delta" id="kpi-tenants-delta"></div></div>
+      <div class="kpi-card"><div class="kpi-label">Signups</div><div class="kpi-value" id="kpi-requests">--</div><div class="kpi-delta" id="kpi-requests-delta"></div></div>
+      <div class="kpi-card"><div class="kpi-label">Total orders</div><div class="kpi-value" id="kpi-orders">--</div><div class="kpi-delta" id="kpi-orders-delta"></div></div>
+      <div class="kpi-card"><div class="kpi-label">GMV (all time)</div><div class="kpi-value" id="kpi-gmv">--</div><div class="kpi-delta" id="kpi-gmv-delta"></div></div>
     </div>
 
     <!-- Row 2: Status breakdown + Recent tenants -->
@@ -167,7 +176,7 @@
         </div>
         <div class="panel-body">
           <div class="status-bars" id="status-bars">
-            <div style="text-align:center;padding:2rem;color:var(--muted)"><div class="spinner"></div></div>
+            <div class="state-message state-message--loading"><div class="spinner"></div></div>
           </div>
         </div>
       </div>
@@ -178,19 +187,19 @@
         </div>
         <div class="panel-body">
           <div class="gmv-block">
-            <div class="gmv-value" id="gmv-big">–</div>
+            <div class="gmv-value" id="gmv-big">--</div>
             <div class="gmv-label">total gross merchandise value</div>
-            <div class="gmv-week" id="gmv-week">– this week</div>
+            <div class="gmv-week" id="gmv-week">-- this week</div>
           </div>
           <hr style="border:none;border-top:1px solid var(--border);margin:1rem 0"/>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
             <div>
               <div style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);margin-bottom:0.3rem">Stripe connected</div>
-              <div style="font-family:var(--font-display);font-size:1.4rem;font-weight:800" id="stripe-count">–</div>
+              <div style="font-family:var(--font-display);font-size:1.4rem;font-weight:800" id="stripe-count">--</div>
             </div>
             <div>
               <div style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);margin-bottom:0.3rem">New this month</div>
-              <div style="font-family:var(--font-display);font-size:1.4rem;font-weight:800" id="new-month">–</div>
+              <div style="font-family:var(--font-display);font-size:1.4rem;font-weight:800" id="new-month">--</div>
             </div>
           </div>
         </div>
@@ -202,11 +211,11 @@
       <div class="panel">
         <div class="panel-header">
           <div class="panel-title">Recent signups</div>
-          <a href="/operator/provisioning.html" style="font-size:0.75rem;color:var(--muted);text-decoration:none">View all →</a>
+          <a href="/operator/provisioning.html" class="panel-link">View all</a>
         </div>
         <div class="panel-body" style="padding:0 1.25rem">
           <div class="activity-list" id="activity-list">
-            <div style="text-align:center;padding:2rem;color:var(--muted)"><div class="spinner"></div></div>
+            <div class="state-message state-message--loading"><div class="spinner"></div></div>
           </div>
         </div>
       </div>
@@ -214,11 +223,11 @@
       <div class="panel">
         <div class="panel-header">
           <div class="panel-title">Recent tenants</div>
-          <a href="/operator/tenants.html" style="font-size:0.75rem;color:var(--muted);text-decoration:none">View all →</a>
+          <a href="/operator/tenants.html" class="panel-link">View all</a>
         </div>
         <div class="panel-body" style="padding:0 1.25rem">
           <div class="tenant-list" id="tenant-list">
-            <div style="text-align:center;padding:2rem;color:var(--muted)"><div class="spinner"></div></div>
+            <div class="state-message state-message--loading"><div class="spinner"></div></div>
           </div>
         </div>
       </div>
@@ -237,7 +246,7 @@
   document.getElementById('auth-password').addEventListener('keydown', e => { if(e.key==='Enter') signIn(); });
   document.getElementById('sign-out-btn').addEventListener('click', () => {
     token = null; sessionStorage.removeItem('pl_op_token');
-    document.getElementById('op-shell').style.display='none';
+    document.getElementById('op-shell').classList.add('shell-hidden');
     document.getElementById('auth-gate').style.display='flex';
   });
   document.getElementById('refresh-btn').addEventListener('click', loadStats);
@@ -252,7 +261,7 @@
     const errEl = document.getElementById('auth-error');
     const btn   = document.getElementById('auth-btn');
     if(!email||!pass){ errEl.textContent='Enter email and password.'; return; }
-    btn.textContent='Signing in…'; btn.disabled=true; errEl.textContent='';
+    btn.textContent='Signing in...'; btn.disabled=true; errEl.textContent='';
     try{
       const r = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`,{
         method:'POST', headers:{'Content-Type':'application/json','apikey':SUPABASE_ANON},
@@ -267,7 +276,7 @@
 
   function showShell(){
     document.getElementById('auth-gate').style.display='none';
-    document.getElementById('op-shell').style.display='grid';
+    document.getElementById('op-shell').classList.remove('shell-hidden');
   }
 
   async function loadStats(){
@@ -302,7 +311,7 @@
     const el=document.getElementById(id); if(!el) return;
     if(count===null||count===undefined){ el.innerHTML=`<span>${label}</span>`; return; }
     const up=count>=0;
-    el.innerHTML=`<span class="${up?'up':''}">${showArrow?(up?'↑':'↓'):''}${count} ${label}</span>`;
+    el.innerHTML=`<span class="${showArrow ? (up ? 'up' : 'down') : 'neutral'}">${count} ${label}</span>`;
   }
 
   function renderStatusBars(byStatus, total){
@@ -315,7 +324,7 @@
       {key:'rejected',label:'Rejected',cls:'bar-rejected'},
     ];
     const container=document.getElementById('status-bars');
-    if(total===0){ container.innerHTML='<p style="text-align:center;color:var(--muted);font-size:0.82rem;padding:1rem">No signups yet.</p>'; return; }
+    if(total===0){ container.innerHTML='<p class="state-message">No signups yet.</p>'; return; }
     container.innerHTML=statuses.map(s=>{
       const count=byStatus[s.key]||0;
       const pct=total>0?Math.max(count/total*100,0):0;
@@ -335,14 +344,14 @@
 
   function renderActivity(requests){
     const el=document.getElementById('activity-list');
-    if(!requests.length){ el.innerHTML='<p style="text-align:center;color:var(--muted);font-size:0.82rem;padding:1.5rem">No recent activity.</p>'; return; }
+    if(!requests.length){ el.innerHTML='<p class="state-message">No recent activity yet.</p>'; return; }
     el.innerHTML=requests.map(r=>{
       const date=r.created_at?timeAgo(new Date(r.created_at)):'';
       return `<div class="activity-item">
         <div class="activity-dot dot-${r.status}"></div>
         <div>
-          <div class="activity-text"><strong>${esc(r.business_name)}</strong> — ${esc(r.owner_email)}</div>
-          <div class="activity-meta">${r.status} · ${r.business_type||'–'} · ${date}</div>
+          <div class="activity-text"><strong>${esc(r.business_name)}</strong> from ${esc(r.owner_email)}</div>
+          <div class="activity-meta">${r.status} / ${r.business_type || "--"} / ${date}</div>
         </div>
       </div>`;
     }).join('');
@@ -350,12 +359,12 @@
 
   function renderTenants(tenants){
     const el=document.getElementById('tenant-list');
-    if(!tenants.length){ el.innerHTML='<p style="text-align:center;color:var(--muted);font-size:0.82rem;padding:1.5rem">No tenants yet.</p>'; return; }
+    if(!tenants.length){ el.innerHTML='<p class="state-message">No tenants yet.</p>'; return; }
     el.innerHTML=tenants.map(t=>{
       const init=(t.name||'?').charAt(0).toUpperCase();
       return `<div class="tenant-row">
         <div class="tenant-avatar">${init}</div>
-        <div style="flex:1;min-width:0">
+        <div class="tenant-meta">
           <div class="tenant-name">${esc(t.name)}</div>
           <div class="tenant-slug">${esc(t.slug)}</div>
         </div>
