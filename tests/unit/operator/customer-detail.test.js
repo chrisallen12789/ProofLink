@@ -64,11 +64,85 @@ describe("operator customer detail", () => {
       },
     });
 
-    expect(items).toHaveLength(3);
+    expect(items).toHaveLength(4);
     expect(items.map((item) => item.label)).toEqual([
       "Property profile",
       "Access notes",
       "Repeat-service memory",
+      "Seasonal opportunities",
+    ]);
+    expect(items.slice(0, 3).every((item) => item.ready)).toBe(true);
+    expect(items[3].ready).toBe(false);
+  });
+
+  test("customerMemoryChecklist highlights cleaning visit cadence and checklist memory", () => {
+    const api = loadCustomerDetail();
+
+    const items = api.customerMemoryChecklist({
+      address_line1: "455 Elm St",
+      city: "Dallas",
+      state: "TX",
+      zip: "75001",
+      entry_notes: "Use side entrance",
+      checklist_notes: "Kitchen first, then upstairs bath",
+      recurring_notes: "Every other Tuesday",
+    }, {
+      business: {
+        key: "cleaning",
+      },
+    });
+
+    expect(items.map((item) => item.label)).toEqual([
+      "Site profile",
+      "Access instructions",
+      "Scope memory",
+      "Visit cadence",
+    ]);
+    expect(items.every((item) => item.ready)).toBe(true);
+  });
+
+  test("customerMemoryChecklist captures HVAC equipment and diagnostic memory", () => {
+    const api = loadCustomerDetail();
+
+    const items = api.customerMemoryChecklist({
+      equipment_serial: "TRN-44921",
+      access_notes: "Mechanical room behind unit 3",
+      failure_symptoms: "Short cycling after 10 minutes",
+      parts_follow_up: "Control board ordered",
+    }, {
+      business: {
+        key: "hvac",
+      },
+    });
+
+    expect(items.map((item) => item.label)).toEqual([
+      "Equipment history",
+      "Site and access",
+      "Diagnostic memory",
+      "Follow-up context",
+    ]);
+    expect(items.every((item) => item.ready)).toBe(true);
+  });
+
+  test("customerMemoryChecklist keeps plumbing emergency and repair follow-through visible", () => {
+    const api = loadCustomerDetail();
+
+    const items = api.customerMemoryChecklist({
+      fixture_notes: "Second-floor hall bath sink trap replaced in 2025",
+      shutoff_notes: "Whole-home shutoff in garage closet",
+      emergency_notes: "Ceiling leak over dining room",
+      restoration_notes: "Drywall patch likely after repair",
+    }, {
+      business: {
+        key: "plumbing",
+      },
+    });
+
+    expect(items.map((item) => item.label)).toEqual([
+      "Fixture history",
+      "Site and shutoff",
+      "Emergency context",
+      "Repair follow-through",
     ]);
     expect(items.every((item) => item.ready)).toBe(true);
   });
@@ -87,5 +161,18 @@ describe("operator customer detail", () => {
 
     expect(guidance.title).toBe("The first payment step is still open");
     expect(guidance.description).toContain("Send the invoice");
+  });
+
+  test("customer detail source uses shared memory checklist classes", () => {
+    const source = fs.readFileSync(
+      path.resolve(process.cwd(), "operator/operator-customer-detail.js"),
+      "utf8"
+    );
+
+    expect(source).toContain("memory-checklist");
+    expect(source).toContain("memory-checklist__item");
+    expect(source).toContain("memory-checklist__item--ready");
+    expect(source).not.toContain('style="padding:10px 12px;border:1px solid rgba(255,255,255,.08);border-radius:10px;');
+    expect(source).not.toContain('background:${item.ready ? "rgba(46,125,50,.10)" : "rgba(255,255,255,.03)"}');
   });
 });

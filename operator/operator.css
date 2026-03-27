@@ -1625,6 +1625,26 @@ input:focus, textarea:focus, select:focus{
   letter-spacing:.05em;
   margin-bottom:4px;
 }
+.memory-checklist{
+  display:grid;
+  gap:8px;
+  margin-top:10px;
+}
+.memory-checklist__item{
+  padding:10px 12px;
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:10px;
+  background:rgba(255,255,255,.03);
+}
+.memory-checklist__item--ready{
+  background:rgba(46,125,50,.10);
+}
+.memory-checklist__title{
+  font-weight:700;
+}
+.memory-checklist__note{
+  margin-top:4px;
+}
 
 .li-main{
   min-width:0;

@@ -44,7 +44,7 @@
       ? currentWorkspaceBlueprint()
       : { business: { recordFocus: [] } };
     return Array.isArray(blueprint?.business?.recordFocus)
-      ? blueprint.business.recordFocus.filter(Boolean).slice(0, 3)
+      ? blueprint.business.recordFocus.filter(Boolean).slice(0, 4)
       : [];
   }
 
@@ -53,6 +53,7 @@
     const address = customerDisplayAddress(customer);
     const hasAddress = address !== "No service address yet.";
     const hasAny = (...values) => values.some((value) => String(value || "").trim());
+    const firstFilled = (...values) => values.find((value) => String(value || "").trim()) || "";
     const detail = (label, ready, readyNote, missingNote) => ({
       label,
       ready: !!ready,
@@ -78,6 +79,12 @@
         customer?.service_schedule || customer?.frequency || customer?.recurring_notes || customer?.service_plan_name || "",
         "Capture cadence, route timing, or repeat-work preferences so follow-up stays easy."
       ),
+      detail(
+        "Seasonal opportunities",
+        hasAny(customer?.seasonal_notes, customer?.upsell_notes, customer?.cleanup_notes, customer?.follow_up_notes),
+        firstFilled(customer?.seasonal_notes, customer?.upsell_notes, customer?.cleanup_notes, customer?.follow_up_notes),
+        "Capture cleanup timing, seasonal upgrades, or upsell notes so the next visit grows the account."
+      ),
     ];
 
     const indoorServiceItems = [
@@ -95,30 +102,69 @@
       ),
       detail(
         "Scope memory",
-        hasAny(customer?.service_notes, customer?.scope_notes, customer?.preferences, customer?.notes),
-        customer?.service_notes || customer?.scope_notes || customer?.preferences || customer?.notes || "",
+        hasAny(customer?.service_notes, customer?.scope_notes, customer?.checklist_notes, customer?.room_notes, customer?.preferences, customer?.notes),
+        firstFilled(customer?.service_notes, customer?.scope_notes, customer?.checklist_notes, customer?.room_notes, customer?.preferences, customer?.notes),
         "Record the scope details, add-ons, or room-by-room expectations that protect repeat quality."
+      ),
+      detail(
+        "Visit cadence",
+        hasAny(customer?.service_schedule, customer?.frequency, customer?.recurring_notes, customer?.add_on_notes),
+        firstFilled(customer?.service_schedule, customer?.frequency, customer?.recurring_notes, customer?.add_on_notes),
+        "Capture repeat cadence and add-ons so the next cleaning visit starts with the right expectations."
       ),
     ];
 
     const equipmentItems = [
       detail(
         "Equipment history",
-        hasAny(customer?.equipment_notes, customer?.system_notes, customer?.asset_summary, customer?.notes),
-        customer?.equipment_notes || customer?.system_notes || customer?.asset_summary || customer?.notes || "",
+        hasAny(customer?.equipment_notes, customer?.system_notes, customer?.asset_summary, customer?.equipment_serial, customer?.notes),
+        firstFilled(customer?.equipment_notes, customer?.system_notes, customer?.asset_summary, customer?.equipment_serial, customer?.notes),
         "Capture the system, fixture, or asset context so diagnostics and repeat work start faster."
       ),
       detail(
         "Site and access",
-        hasAddress || hasAny(customer?.access_notes, customer?.entry_notes),
-        hasAddress ? address : (customer?.access_notes || customer?.entry_notes || ""),
+        hasAddress || hasAny(customer?.access_notes, customer?.entry_notes, customer?.tenant_notes),
+        hasAddress ? address : firstFilled(customer?.access_notes, customer?.entry_notes, customer?.tenant_notes),
         "Add the site details, tenant notes, or access information the technician needs on arrival."
       ),
       detail(
+        "Diagnostic memory",
+        hasAny(customer?.diagnostic_notes, customer?.failure_symptoms, customer?.issue_summary, customer?.system_notes),
+        firstFilled(customer?.diagnostic_notes, customer?.failure_symptoms, customer?.issue_summary, customer?.system_notes),
+        "Capture symptoms, findings, and technician notes so repeat diagnostics start from real context."
+      ),
+      detail(
         "Follow-up context",
-        hasAny(customer?.maintenance_notes, customer?.service_schedule, customer?.follow_up_notes, customer?.notes),
-        customer?.maintenance_notes || customer?.service_schedule || customer?.follow_up_notes || customer?.notes || "",
+        hasAny(customer?.maintenance_notes, customer?.service_schedule, customer?.follow_up_notes, customer?.parts_follow_up, customer?.warranty_notes),
+        firstFilled(customer?.maintenance_notes, customer?.service_schedule, customer?.follow_up_notes, customer?.parts_follow_up, customer?.warranty_notes),
         "Capture maintenance-plan context, return-visit risk, or parts follow-up before it slips."
+      ),
+    ];
+
+    const plumbingItems = [
+      detail(
+        "Fixture history",
+        hasAny(customer?.fixture_notes, customer?.system_notes, customer?.equipment_notes, customer?.notes),
+        firstFilled(customer?.fixture_notes, customer?.system_notes, customer?.equipment_notes, customer?.notes),
+        "Capture the fixture, line, or previous repair context so every visit starts from known conditions."
+      ),
+      detail(
+        "Site and shutoff",
+        hasAddress || hasAny(customer?.access_notes, customer?.entry_notes, customer?.shutoff_notes),
+        hasAddress ? address : firstFilled(customer?.access_notes, customer?.entry_notes, customer?.shutoff_notes),
+        "Store access, shutoff, or tenant notes so the team can arrive ready for the repair."
+      ),
+      detail(
+        "Emergency context",
+        hasAny(customer?.emergency_notes, customer?.issue_summary, customer?.water_damage_notes, customer?.leak_source),
+        firstFilled(customer?.emergency_notes, customer?.issue_summary, customer?.water_damage_notes, customer?.leak_source),
+        "Capture urgency, leak source, or damage context before it gets lost between calls and visits."
+      ),
+      detail(
+        "Repair follow-through",
+        hasAny(customer?.approval_notes, customer?.restoration_notes, customer?.follow_up_notes, customer?.parts_follow_up),
+        firstFilled(customer?.approval_notes, customer?.restoration_notes, customer?.follow_up_notes, customer?.parts_follow_up),
+        "Track approvals, restoration risk, and return-visit follow-through so the repair closes out cleanly."
       ),
     ];
 
@@ -129,7 +175,7 @@
       cleaning: indoorServiceItems,
       pet_services: indoorServiceItems,
       hvac: equipmentItems,
-      plumbing: equipmentItems,
+      plumbing: plumbingItems,
     };
 
     return map[businessKey] || customerTemplateRecordFocus().map((item) => ({
@@ -181,15 +227,15 @@
     const focus = customerMemoryChecklist(customer, blueprint);
     if (!focus.length) return "";
     return `
-      <div class="detail-card" style="margin-top:14px;">
+      <div class="detail-card detail-card--spaced">
         <div class="kicker">Business-specific memory</div>
         <div><strong>Keep the details this business depends on</strong></div>
         <div class="detail-copy">Use this customer record to hold the repeat details the team should not have to relearn on every visit.</div>
-        <div style="margin-top:10px;display:grid;gap:8px;">
+        <div class="memory-checklist">
           ${focus.map((item) => `
-            <div style="padding:10px 12px;border:1px solid rgba(255,255,255,.08);border-radius:10px;background:${item.ready ? "rgba(46,125,50,.10)" : "rgba(255,255,255,.03)"};">
-              <div style="font-weight:700;">${escapeHtml(item.ready ? `Ready: ${item.label}` : `Still needed: ${item.label}`)}</div>
-              <div class="detail-copy" style="margin-top:4px;">${escapeHtml(item.note)}</div>
+            <div class="memory-checklist__item ${item.ready ? "memory-checklist__item--ready" : ""}">
+              <div class="memory-checklist__title">${escapeHtml(item.ready ? `Ready: ${item.label}` : `Still needed: ${item.label}`)}</div>
+              <div class="detail-copy memory-checklist__note">${escapeHtml(item.note)}</div>
             </div>
           `).join("")}
         </div>
