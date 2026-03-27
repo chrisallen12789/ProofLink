@@ -131,12 +131,14 @@ exports.handler = async (event) => {
   }
 
   // ── Mark as provisioning ──────────────────────────────────────────────────
+  const nowIso = new Date().toISOString();
   await supabase
     .from('tenant_onboarding_requests')
     .update({
       status         : 'provisioning',
-      approved_at    : new Date().toISOString(),
+      approved_at    : nowIso,
       provision_error: null,
+      updated_at     : nowIso,
     })
     .eq('id', id);
 
@@ -267,7 +269,7 @@ exports.handler = async (event) => {
   // ── Mark provisioned ─────────────────────────────────────────────────────
   await supabase
     .from('tenant_onboarding_requests')
-    .update({ status: 'provisioned', provision_error: null })
+    .update({ status: 'provisioned', provision_error: null, updated_at: new Date().toISOString() })
     .eq('id', id);
 
   // ── Send welcome email (non-fatal) ────────────────────────────────────────

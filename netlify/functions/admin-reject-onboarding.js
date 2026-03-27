@@ -59,6 +59,7 @@ exports.handler = async (event) => {
     .update({
       status          : 'rejected',
       rejection_reason: rejection_reason?.trim() || null,
+      updated_at      : new Date().toISOString(),
     })
     .eq('id', id);
 

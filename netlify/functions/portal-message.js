@@ -25,6 +25,10 @@ exports.handler = async function handler(event) {
     return respond(400, { error: 'tenant_id, email, name, and message are required' });
   }
 
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return respond(400, { error: 'email is not a valid email address' });
+  }
+
   if (message.length > 2000) {
     return respond(400, { error: 'Message must be 2000 characters or fewer' });
   }

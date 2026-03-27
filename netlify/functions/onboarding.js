@@ -46,6 +46,7 @@ function validate(payload) {
   if (!payload.business_name) throw Object.assign(new Error('Business name is required.'), { statusCode: 400 });
   if (!payload.owner_name) throw Object.assign(new Error('Owner name is required.'), { statusCode: 400 });
   if (!payload.email) throw Object.assign(new Error('Email is required.'), { statusCode: 400 });
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email)) throw Object.assign(new Error('A valid email address is required.'), { statusCode: 400 });
   if (!payload.phone) throw Object.assign(new Error('Phone is required.'), { statusCode: 400 });
   if (!payload.business_category) throw Object.assign(new Error('Business category is required.'), { statusCode: 400 });
 }
@@ -57,13 +58,21 @@ function spamGate(payload) {
   }
 }
 async function sendEmail(to, subject, html) {
-  if (!RESEND_API_KEY || !to) return;
-  await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${RESEND_API_KEY}` },
-    body: JSON.stringify({ from: `${PLATFORM_NAME} <onboarding@prooflink.co>`, to: [to], subject, html }),
-    signal: AbortSignal.timeout(8000),
-  });
+  if (!RESEND_API_KEY || !to) { console.warn('[onboarding] sendEmail skipped — missing key or recipient'); return; }
+  try {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${RESEND_API_KEY}` },
+      body: JSON.stringify({ from: `${PLATFORM_NAME} <onboarding@prooflink.co>`, to: [to], subject, html }),
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      console.error('[onboarding] sendEmail failed:', res.status, data);
+    }
+  } catch (err) {
+    console.error('[onboarding] sendEmail error:', err.message);
+  }
 }
 function escapeHtml(str) {
   return String(str || '').replace(/[&<>"']/g, (s) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[s]));

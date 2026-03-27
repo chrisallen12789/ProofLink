@@ -59,6 +59,10 @@ exports.handler = async (event) => {
     return respond(400, { error: 'Missing required fields', fields: missing });
   }
 
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(owner_email.trim())) {
+    return respond(400, { error: 'owner_email is not a valid email address' });
+  }
+
   const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRe.test(owner_email.trim())) {
     return respond(400, { error: 'Invalid email address' });

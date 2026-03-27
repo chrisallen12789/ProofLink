@@ -54,6 +54,7 @@ exports.handler = async function handler(event) {
       status        : 'declined',
       declined_at   : new Date().toISOString(),
       decline_reason: reason || null,
+      updated_at    : new Date().toISOString(),
     })
     .eq('id', quote_id);
 

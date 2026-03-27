@@ -36,6 +36,7 @@ exports.handler = async (event) => {
 
   if (!customerName)                             return respond(400, { error: 'customer_name is required' });
   if (!customerEmail)                            return respond(400, { error: 'customer_email is required' });
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail)) return respond(400, { error: 'customer_email is not a valid email address' });
   if (!title)                                    return respond(400, { error: 'title is required' });
   if (title.length > 200)                        return respond(400, { error: 'title must be 200 characters or fewer' });
   if (description.length > 5000)                 return respond(400, { error: 'description must be 5000 characters or fewer' });
@@ -112,7 +113,7 @@ exports.handler = async (event) => {
 
     return respond(200, { ok: true, quote });
   } catch (err) {
-    console.error('[create-quote]', err);
+    console.error('[create-quote]', err.message, err);
     return respond(err.statusCode || 500, { error: err.message || 'Failed to create quote' });
   }
 };

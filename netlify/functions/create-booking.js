@@ -23,6 +23,9 @@ exports.handler = async (event) => {
   if (!customer_name || !title || !starts_at || !ends_at) {
     return respond(400, { error: 'Missing required fields: customer_name, title, starts_at, ends_at' });
   }
+  if (customer_email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customer_email)) {
+    return respond(400, { error: 'customer_email is not a valid email address' });
+  }
   if (isNaN(Date.parse(starts_at)) || isNaN(Date.parse(ends_at))) {
     return respond(400, { error: 'starts_at and ends_at must be valid ISO datetime strings' });
   }
@@ -112,33 +115,41 @@ exports.handler = async (event) => {
     }
   }
 
-  // Send operator notification email (non-fatal)
-  if (resolvedOperatorId) {
-    try {
-      const { data: operatorRow } = await supabase
-        .from('operators')
-        .select('email, name')
-        .eq('id', resolvedOperatorId)
-        .maybeSingle();
+  // Send operator notification email (non-fatal) — for both authenticated and public bookings
+  try {
+    const siteUrl = getConfiguredSiteUrl();
+    let operatorEmail = null;
+    let operatorName  = 'there';
 
-      if (operatorRow?.email) {
-        const siteUrl = getConfiguredSiteUrl();
-        const { data: tenantRow } = await supabase
-          .from('tenants').select('name').eq('id', resolvedTenantId).maybeSingle();
-        await sendEmail(templates.newBookingOperator({
-          operator_email: operatorRow.email,
-          operator_name: operatorRow.name || 'there',
-          business_name: tenantRow?.name || 'Your Business',
-          customer_name,
-          service_title: title,
-          starts_at,
-          notes: notes || '',
-          booking_url: `${siteUrl}/operator/`,
-        })).catch((e) => console.warn('[create-booking] operator notification failed:', e.message));
-      }
-    } catch (e) {
-      console.warn('[create-booking] operator notification setup failed:', e.message);
+    if (resolvedOperatorId) {
+      const { data: operatorRow } = await supabase
+        .from('operators').select('email, name').eq('id', resolvedOperatorId).maybeSingle();
+      operatorEmail = operatorRow?.email || null;
+      operatorName  = operatorRow?.name  || 'there';
+    } else {
+      // Public booking — find the tenant's primary operator
+      const { data: operatorRow } = await supabase
+        .from('operators').select('email, name').eq('tenant_id', resolvedTenantId).limit(1).maybeSingle();
+      operatorEmail = operatorRow?.email || null;
+      operatorName  = operatorRow?.name  || 'there';
     }
+
+    if (operatorEmail) {
+      const { data: tenantRow } = await supabase
+        .from('tenants').select('name').eq('id', resolvedTenantId).maybeSingle();
+      sendEmail(templates.newBookingOperator({
+        operator_email: operatorEmail,
+        operator_name : operatorName,
+        business_name : tenantRow?.name || 'Your Business',
+        customer_name,
+        service_title : title,
+        starts_at,
+        notes         : notes || '',
+        booking_url   : `${siteUrl}/operator/`,
+      })).catch((e) => console.warn('[create-booking] operator notification failed:', e.message));
+    }
+  } catch (e) {
+    console.warn('[create-booking] operator notification setup failed:', e.message);
   }
 
   return respond(201, { ok: true, booking: data });

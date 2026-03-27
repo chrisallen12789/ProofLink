@@ -35,7 +35,8 @@ async function updateTenantPlanFromSession(session) {
     .from("tenants")
     .update({
       prooflink_plan_key: targetPlan,
-      billing_status: "active"
+      billing_status: "active",
+      updated_at: new Date().toISOString(),
     })
     .eq("id", tenantId);
 
@@ -53,7 +54,8 @@ async function updateSubscriptionState(subscription) {
   const { error } = await supabase
     .from("tenants")
     .update({
-      billing_status: billingStatus
+      billing_status: billingStatus,
+      updated_at: new Date().toISOString(),
     })
     .eq("id", tenantId);
 

@@ -55,9 +55,10 @@ exports.handler = async (event) => {
   const reviewUrl    = `${siteUrl}/review.html?order=${encodeURIComponent(order_id)}&tenant=${encodeURIComponent(tenantId)}`;
 
   // Mark as requested (must succeed before sending email to prevent duplicates)
+  const nowIso = new Date().toISOString();
   const { error: updateErr } = await supabase
     .from('orders')
-    .update({ review_requested_at: new Date().toISOString() })
+    .update({ review_requested_at: nowIso, updated_at: nowIso })
     .eq('id', order_id)
     .eq('tenant_id', tenantId);
 

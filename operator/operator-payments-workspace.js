@@ -144,6 +144,17 @@
       return;
     }
 
+    // Warn if amount exceeds the amount still due on the linked order
+    if (linkedOrder && !id) {
+      const dueCents = orderAmountDueCents(linkedOrder);
+      if (dueCents > 0 && amountCents > dueCents) {
+        const due = formatCurrency(dueCents / 100);
+        const entered = formatCurrency(amountCents / 100);
+        const confirmed = window.confirm(`The entered amount (${entered}) exceeds the amount due (${due}). Record this payment anyway?`);
+        if (!confirmed) return;
+      }
+    }
+
     const nowIso = new Date().toISOString();
     const payload = withTenantScope({
       operator_id: opId(),
@@ -182,6 +193,22 @@
       await Promise.all([fetchPayments(), fetchCustomers(), fetchCrmOrders(), fetchJobs()]);
       const fresh = PAYMENTS_CACHE.find((row) => row.id === data.id) || data;
       loadPaymentIntoForm(fresh);
+
+      // Sync payment_state to the database so it's accurate outside the UI cache
+      const syncOrderId = data.order_id || payload.order_id;
+      if (syncOrderId) {
+        const freshOrder = CRM_ORDERS_CACHE.find((o) => o.id === syncOrderId);
+        if (freshOrder) {
+          const newState = orderPaymentState(freshOrder);
+          sb.from("orders")
+            .update({ payment_state: newState, updated_at: new Date().toISOString() })
+            .eq("id", syncOrderId)
+            .eq(TENANT_COLUMN, TENANT_ID)
+            .then(() => {})
+            .catch((e) => console.warn("[payments] order payment_state sync failed:", e.message));
+        }
+      }
+
       renderPayments();
       renderOrders();
       renderJobs(jobSearch?.value || "");

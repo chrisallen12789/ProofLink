@@ -101,7 +101,7 @@ exports.handler = async (event) => {
       generated_at: new Date().toISOString(),
     });
   } catch (err) {
-    console.error('[ai-brief]', err);
+    console.error('[ai-brief]', err.message, err);
     await logAgentEvent(adminSb, {
       tenant_id    : tenantId,
       operator_id  : operatorId,

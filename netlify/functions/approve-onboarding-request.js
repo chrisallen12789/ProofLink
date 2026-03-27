@@ -55,12 +55,14 @@ exports.handler = async (event) => {
   }
 
   // Update to approved
+  const nowIso = new Date().toISOString();
   const { data: updated, error: updateErr } = await supabase
     .from('tenant_onboarding_requests')
     .update({
       status         : 'approved',
-      approved_at    : new Date().toISOString(),
+      approved_at    : nowIso,
       provision_error: null,
+      updated_at     : nowIso,
     })
     .eq('id', id)
     .select('id, status, business_name, approved_at')

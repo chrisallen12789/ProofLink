@@ -93,7 +93,7 @@ exports.handler = async (event) => {
     console.log(`[admin-verify] Upgrading operator ${operator.id} to platform_admin`);
     const { error: upErr } = await supabase
       .from('operators')
-      .update({ role: 'platform_admin' })
+      .update({ role: 'platform_admin', updated_at: new Date().toISOString() })
       .eq('id', operator.id);
 
     if (!upErr) operator.role = 'platform_admin';

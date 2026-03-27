@@ -1,6 +1,6 @@
 // netlify/functions/get-bookings.js
 // Returns bookings for the authenticated operator's tenant.
-// GET ?start=YYYY-MM-DD&end=YYYY-MM-DD  (optional date window, defaults to current month)
+// GET ?start=YYYY-MM-DD&end=YYYY-MM-DD  (optional date window, defaults to start of current month → end of next month)
 
 'use strict';
 

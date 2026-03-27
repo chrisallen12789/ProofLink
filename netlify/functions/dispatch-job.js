@@ -203,11 +203,13 @@ exports.handler = async (event) => {
     }
   }
 
+  const nowIso = new Date().toISOString();
   const patch = {
-    status: 'dispatched',
-    assigned_truck_id: assignedTruckId,
-    assigned_member_id: driverMemberId,
-    assigned_operator_id: member.operator_id || null,
+    status               : 'dispatched',
+    assigned_truck_id    : assignedTruckId,
+    assigned_member_id   : driverMemberId,
+    assigned_operator_id : member.operator_id || null,
+    updated_at           : nowIso,
   };
   if (dispatchDate) patch.scheduled_date = dispatchDate;
   if (scheduledTime) patch.scheduled_time = scheduledTime;
@@ -235,7 +237,7 @@ exports.handler = async (event) => {
   try {
     await adminSb
       .from('equipment')
-      .update({ status: 'on_job' })
+      .update({ status: 'on_job', updated_at: nowIso })
       .eq('tenant_id', tenantId)
       .eq('id', assignedTruckId);
   } catch (equipmentError) {

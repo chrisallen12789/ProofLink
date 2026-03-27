@@ -89,7 +89,7 @@ exports.handler = async (event) => {
 
     return respond(200, { ok: true });
   } catch (err) {
-    console.error('[send-payment-reminder]', err);
+    console.error('[send-payment-reminder]', err.message, err);
     return respond(err.statusCode || 500, { error: err.message || 'Failed to send payment reminder' });
   }
 };

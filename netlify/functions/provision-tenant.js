@@ -55,7 +55,7 @@ exports.handler = async (event) => {
   if (existingTenant) {
     await supabase
       .from('tenant_onboarding_requests')
-      .update({ status: 'provisioned' })
+      .update({ status: 'provisioned', updated_at: new Date().toISOString() })
       .eq('id', id);
 
     return respond(200, {
@@ -74,7 +74,7 @@ exports.handler = async (event) => {
 
   await supabase
     .from('tenant_onboarding_requests')
-    .update({ status: 'provisioning', provision_error: null })
+    .update({ status: 'provisioning', provision_error: null, updated_at: new Date().toISOString() })
     .eq('id', id);
 
   async function failProvision(message) {
@@ -217,6 +217,7 @@ exports.handler = async (event) => {
     .update({
       status: 'provisioned',
       provision_error: null,
+      updated_at: new Date().toISOString(),
     })
     .eq('id', id);
 

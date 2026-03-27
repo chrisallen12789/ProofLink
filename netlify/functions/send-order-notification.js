@@ -82,7 +82,7 @@ exports.handler = async (event) => {
 
     return respond(200, { ok: true });
   } catch (err) {
-    console.error('[send-order-notification]', err);
+    console.error('[send-order-notification]', err.message, err);
     return respond(err.statusCode || 500, { error: err.message || 'Failed to send notification' });
   }
 };

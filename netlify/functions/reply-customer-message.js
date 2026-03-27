@@ -44,7 +44,7 @@ exports.handler = async (event) => {
 
   const { error: updateErr } = await supabase
     .from('customer_messages')
-    .update({ reply_text, replied_at: nowIso, status: 'replied' })
+    .update({ reply_text, replied_at: nowIso, status: 'replied', updated_at: nowIso })
     .eq('id', message_id);
 
   if (updateErr) { console.error('[reply-customer-message] update:', updateErr); return respond(500, { error: 'Failed to save reply' }); }

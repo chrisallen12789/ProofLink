@@ -70,10 +70,12 @@ exports.handler = async (event) => {
   }
 
   // Build update patch
+  const nowIso = new Date().toISOString();
   const patch = {
     status          : 'completed',
     completion_note,
-    actual_end_at   : new Date().toISOString(),
+    actual_end_at   : nowIso,
+    updated_at      : nowIso,
   };
 
   if (signature_data_url !== undefined) {

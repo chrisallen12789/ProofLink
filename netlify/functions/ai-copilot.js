@@ -114,7 +114,7 @@ exports.handler = async (event) => {
       duration_ms: durationMs,
     });
   } catch (err) {
-    console.error('[ai-copilot]', err);
+    console.error('[ai-copilot]', err.message, err);
     await logAgentEvent(adminSb, {
       tenant_id    : tenantId,
       operator_id  : operatorId,

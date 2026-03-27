@@ -245,6 +245,7 @@ exports.handler = async (event) => {
       amount_due_cents: amountDueCents,
       payment_state: amountDueCents <= 0 ? 'paid' : (amountPaidCents > 0 ? 'partially_paid' : 'unpaid'),
       notes: clean(order.notes || job.notes || '') || null,
+      updated_at: new Date().toISOString(),
     })
     .eq('tenant_id', tenantId)
     .eq('id', orderId)

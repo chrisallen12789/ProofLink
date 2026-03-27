@@ -23,6 +23,7 @@ function p(t)                      { return `<p style="margin:0 0 16px;font-size
 function divider()                 { return `<div style="border-top:1px solid ${T.border};margin:32px 0;"></div>`; }
 function cta(text, href, bg = T.red) { return `<a href="${href}" style="display:inline-block;background:${bg};color:#ffffff;padding:14px 32px;border-radius:5px;font-size:15px;font-weight:700;text-decoration:none;">${text}</a>`; }
 function infoBox(rows)             { return `<table cellpadding="0" cellspacing="0" style="width:100%;border:1px solid ${T.border};border-radius:6px;overflow:hidden;margin:0 0 28px;">${rows.map(([l, v], i) => `<tr><td style="padding:11px 16px;font-size:13px;color:${T.hint};width:120px;background:${i % 2 === 0 ? T.bg : T.card};border-bottom:1px solid ${T.border};white-space:nowrap;">${l}</td><td style="padding:11px 16px;font-size:13px;color:${T.ink};font-weight:500;background:${i % 2 === 0 ? T.bg : T.card};border-bottom:1px solid ${T.border};">${v}</td></tr>`).join('')}</table>`; }
+function escHtml(str) { return String(str == null ? '' : str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
 // ── Date/time formatting helpers ──────────────────────────────────────────────
 
@@ -129,22 +130,22 @@ exports.handler = async function handler(event) {
 
   // ── Build email HTML ────────────────────────────────────────────────────────
   const infoRows = [
-    ['Appointment', booking.title || 'Appointment'],
+    ['Appointment', escHtml(booking.title || 'Appointment')],
     ['Date',        dateStr],
     ['Time',        timeStr],
   ];
 
   const content = `<table width="100%" cellpadding="0" cellspacing="0">${accentBar()}${bodyWrap(`
     ${h1('Appointment Reminder')}
-    ${sub(`Hi ${booking.customer_name || 'there'},`)}
+    ${sub(`Hi ${escHtml(booking.customer_name || 'there')},`)}
     ${p('This is a friendly reminder about your upcoming appointment.')}
     ${infoBox(infoRows)}
-    ${cleanNotes ? `${p(`<strong>Notes:</strong> ${cleanNotes}`)}` : ''}
+    ${cleanNotes ? `${p(`<strong>Notes:</strong> ${escHtml(cleanNotes)}`)}` : ''}
     ${divider()}
     ${p('Need to make changes? You can view or manage your appointment through the link below.')}
     <div style="margin:0 0 32px;">${cta('View My Appointment', portalUrl)}</div>
     ${p(`We look forward to seeing you soon.`)}
-    ${p(`Warm regards,<br/><strong>${businessName}</strong>`)}
+    ${p(`Warm regards,<br/><strong>${escHtml(businessName)}</strong>`)}
   `)}
   </table>`;
 

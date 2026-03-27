@@ -91,7 +91,7 @@ exports.handler = async (event) => {
 
     const { data, error } = await adminSb
       .from('vendor_contacts')
-      .update({ is_active: false })
+      .update({ is_active: false, updated_at: new Date().toISOString() })
       .eq('id', id)
       .eq('tenant_id', tenantId)
       .select().maybeSingle();

@@ -77,7 +77,7 @@ exports.handler = async (event) => {
     invoiceNumber = await getNextInvoiceNumber(adminSb, tenantId, tenant?.slug || '');
     // Persist it immediately so re-sends use the same number
     await adminSb.from('orders')
-      .update({ invoice_number: invoiceNumber })
+      .update({ invoice_number: invoiceNumber, updated_at: new Date().toISOString() })
       .eq('id', order_id);
   }
 

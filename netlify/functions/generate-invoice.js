@@ -79,13 +79,17 @@ exports.handler = async (event) => {
     customer_name: order.customers?.name || order.customer_name || '',
     customer_email: order.customers?.email || order.customer_email || '',
     business_name: tenant?.name || 'Your Business',
-    line_items: [...expenseRows, ...timeEntryRows].map((item) => ({
-      description: item.description || item.name || 'Service',
-      quantity: item.quantity || item.hours || 1,
-      unit: item.unit || (item.hours ? 'hr' : 'ea'),
-      unit_price_cents: item.unit_price_cents || item.amount_cents || item.cost_cents || 0,
-      total_cents: item.total_cents || item.amount_cents || 0,
-    })),
+    line_items: [...expenseRows, ...timeEntryRows].map((item) => {
+      const qty            = item.quantity || item.hours || 1;
+      const unitPriceCents = item.unit_price_cents || item.amount_cents || item.cost_cents || 0;
+      return {
+        description     : item.description || item.name || 'Service',
+        quantity        : qty,
+        unit            : item.unit || (item.hours ? 'hr' : 'ea'),
+        unit_price_cents: unitPriceCents,
+        line_total_cents: item.line_total_cents || item.total_cents || Math.round(qty * unitPriceCents),
+      };
+    }),
     subtotal_cents: order.amount_cents || order.total_cents || 0,
     total_cents: order.amount_cents || order.total_cents || 0,
     notes: notes || null,

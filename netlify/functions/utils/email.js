@@ -80,6 +80,24 @@ const T = {
   amber:'#B45309',amberLt:'#FFFBF0',amberBd:'#F0D9A0',
 };
 
+function escHtml(str) {
+  return String(str == null ? '' : str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function fmtDatetime(iso) {
+  if (!iso) return '—';
+  try {
+    return new Date(iso).toLocaleString('en-US', {
+      weekday: 'short', month: 'short', day: 'numeric', year: 'numeric',
+      hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'UTC',
+    }) + ' UTC';
+  } catch { return String(iso); }
+}
+
 function layout(content, { preheader='', logo_url='' }={}) {
   const logoHtml = logo_url
     ? `<img src="${logo_url}" alt="Business logo" style="height:40px;max-width:180px;object-fit:contain;" />`
@@ -426,14 +444,14 @@ const templates = {
       to     : customer_email,
       subject: `Appointment confirmed — ${business_name}`,
       html   : businessLayout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.green)}${bodyWrap(`
-        ${h1(`You're booked, ${customer_name}!`)}
+        ${h1(`You're booked, ${escHtml(customer_name)}!`)}
         ${sub(`${business_name} has confirmed your appointment.`)}
         ${infoBox([
-          ['Service', title],
+          ['Service', escHtml(title)],
           ['Date', date_str],
           ['Time', time_str],
-          ...(location ? [['Location', location]] : []),
-          ...(notes ? [['Notes', notes]] : []),
+          ...(location ? [['Location', escHtml(location)]] : []),
+          ...(notes ? [['Notes', escHtml(notes)]] : []),
         ])}
         ${portal_url ? `<div style="text-align:center;margin:0 0 28px;">${cta('View my account →', portal_url, T.red)}</div>` : ''}
         ${divider()}
@@ -505,9 +523,9 @@ const templates = {
       subject: `Your quote from ${business_name}`,
       html   : businessLayout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.green)}${bodyWrap(`
         ${badge('Quote ready', T.greenLt, T.green, T.greenBd)}<br/><br/>
-        ${h1(`Hi ${customer_name},`)}
+        ${h1(`Hi ${escHtml(customer_name)},`)}
         ${sub(`${business_name} has prepared a quote for you. Review the details below and click the button to accept.`)}
-        ${infoBox([['Service', title], ...(description ? [['Details', description]] : []), ['Quote total', formattedAmount], ...(validStr ? [['Valid until', validStr]] : [])])}
+        ${infoBox([['Service', escHtml(title)], ...(description ? [['Details', escHtml(description)]] : []), ['Quote total', formattedAmount], ...(validStr ? [['Valid until', validStr]] : [])])}
         <div style="text-align:center;margin:0 0 28px;">${cta('Review estimate →', quote_url, T.red)}</div>
         ${divider()}
         ${p(`<span style="color:${T.hint};">Questions about this quote? Just reply to this email.</span>`)}
@@ -542,9 +560,9 @@ const templates = {
       subject: `Appointment cancelled — ${business_name}`,
       html   : businessLayout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.red)}${bodyWrap(`
         ${badge('Cancelled', T.redLight, T.red, T.redBorder)}<br/><br/>
-        ${h1(`Hi ${customer_name},`)}
+        ${h1(`Hi ${escHtml(customer_name)},`)}
         ${sub(`Your appointment with ${business_name} has been cancelled.`)}
-        ${infoBox([['Service', title || 'Appointment'], ['Date', date_str || '—'], ['Time', time_str || '—']])}
+        ${infoBox([['Service', escHtml(title) || 'Appointment'], ['Date', date_str || '—'], ['Time', time_str || '—']])}
         ${(rebook_url || portal_url) ? `<div style="text-align:center;margin:0 0 28px;">${cta('Book another appointment →', rebook_url || portal_url, T.red)}</div>` : ''}
         ${divider()}
         ${p(`<span style="color:${T.hint};">Need to reschedule? Reply to this email and we\u2019ll find a time that works.</span>`)}
@@ -558,9 +576,9 @@ const templates = {
       subject: `Reminder: appointment tomorrow — ${business_name}`,
       html   : businessLayout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.amber)}${bodyWrap(`
         ${badge('Reminder', T.amberLt, T.amber, T.amberBd)}<br/><br/>
-        ${h1(`See you tomorrow, ${customer_name}!`)}
+        ${h1(`See you tomorrow, ${escHtml(customer_name)}!`)}
         ${sub(`This is a reminder of your upcoming appointment with ${business_name}.`)}
-        ${infoBox([['Service', title || 'Appointment'], ['Date', date_str || '—'], ['Time', time_str || '—'], ...(location ? [['Location', location]] : [])])}
+        ${infoBox([['Service', escHtml(title) || 'Appointment'], ['Date', date_str || '—'], ['Time', time_str || '—'], ...(location ? [['Location', escHtml(location)]] : [])])}
         ${portal_url ? `<div style="text-align:center;margin:0 0 28px;">${cta('View appointment details →', portal_url, T.red)}</div>` : ''}
         ${divider()}
         ${p(`<span style="color:${T.hint};">Need to reschedule? Reply to this email and we\u2019ll sort it out.</span>`)}
@@ -575,19 +593,19 @@ const templates = {
       : null;
     return {
       to     : customer_email,
-      subject: `Proposal from ${business_name} — ${title}`,
+      subject: `Proposal from ${business_name} — ${escHtml(title)}`,
       html   : businessLayout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.red)}${bodyWrap(`
         ${badge('Proposal ready', T.redLight, T.red, T.redBorder)}<br/><br/>
-        ${h1(`Hi ${customer_name},`)}
+        ${h1(`Hi ${escHtml(customer_name)},`)}
         ${sub(`${business_name} has prepared a proposal for you.`)}
-        ${cover_note ? callout(cover_note, T.bg, T.border, T.ink) : ''}
+        ${cover_note ? callout(escHtml(cover_note).replace(/\n/g, '<br/>'), T.bg, T.border, T.ink) : ''}
         ${infoBox([
-          ['Service', title],
-          ...(project_summary ? [['Project', project_summary.slice(0, 200)]] : []),
+          ['Service', escHtml(title)],
+          ...(project_summary ? [['Project', escHtml(project_summary).slice(0, 200)]] : []),
           ...(fmt ? [['Estimate', fmt]] : []),
           ...(validStr ? [['Valid until', validStr]] : []),
         ])}
-        ${scope_of_work ? `${divider()}${p(`<strong style="color:${T.ink};">Scope of work:</strong><br/>${scope_of_work.replace(/\n/g, '<br/>')}`)}` : ''}
+        ${scope_of_work ? `${divider()}${p(`<strong style="color:${T.ink};">Scope of work:</strong><br/>${escHtml(scope_of_work).replace(/\n/g, '<br/>')}`)}` : ''}
         ${divider()}
         ${p(`<span style="color:${T.hint};">Questions about this proposal? Just reply to this email and we\u2019ll go through it together.</span>`)}
       `)}</table>`, { preheader: `${business_name} sent you a proposal for ${title}.` }),
@@ -711,10 +729,10 @@ const templates = {
       to     : customer_email,
       subject: `Reply from ${business_name}`,
       html   : businessLayout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.green)}${bodyWrap(`
-        ${h1(`Hi ${customer_name},`)}
+        ${h1(`Hi ${escHtml(customer_name)},`)}
         ${sub(`${business_name} replied to your message.`)}
-        ${callout(reply_text, T.bg, T.border, T.ink)}
-        ${original_message ? `${divider()}${p(`<strong style="color:${T.hint};">Your original message:</strong><br/>${original_message}`)}` : ''}
+        ${callout(escHtml(reply_text || '').replace(/\n/g, '<br/>'), T.bg, T.border, T.ink)}
+        ${original_message ? `${divider()}${p(`<strong style="color:${T.hint};">Your original message:</strong><br/>${escHtml(original_message).replace(/\n/g, '<br/>')}`)}` : ''}
         ${portal_url ? `<div style="text-align:center;margin:0 0 8px;">${cta('View your account →', portal_url, T.red)}</div>` : ''}
         ${divider()}
         ${p(`<span style="color:${T.hint};">Reply to this email to continue the conversation.</span>`)}
@@ -723,23 +741,27 @@ const templates = {
   },
 
   newBookingOperator({ operator_email, operator_name, business_name, customer_name, service_title, starts_at, notes, booking_url }) {
+    const safeCustomer = escHtml(customer_name || 'A customer');
+    const safeService = escHtml(service_title || 'Appointment');
+    const safeOperator = escHtml(operator_name || 'there');
+    const safeBusiness = escHtml(business_name || 'your business');
     return {
       to     : operator_email,
-      subject: `New booking: ${service_title} \u2014 ${customer_name}`,
+      subject: `New booking: ${safeService} \u2014 ${safeCustomer}`,
       html   : layout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.green)}${bodyWrap(`
         ${badge('New booking', T.greenLt, T.green, T.greenBd)}<br/><br/>
-        ${h1(`Hey ${operator_name}, you have a new booking.`)}
-        ${sub(`A customer just booked through ${business_name}.`)}
+        ${h1(`Hey ${safeOperator}, you have a new booking.`)}
+        ${sub(`A customer just booked through ${safeBusiness}.`)}
         ${infoBox([
-          ['Customer', customer_name],
-          ['Service', service_title],
-          ['Date / time', starts_at],
-          ...(notes ? [['Notes', notes]] : []),
+          ['Customer', safeCustomer],
+          ['Service', safeService],
+          ['Date / time', fmtDatetime(starts_at)],
+          ...(notes ? [['Notes', escHtml(notes)]] : []),
         ])}
         <div style="text-align:center;margin:0 0 28px;">${cta('View Booking \u2192', booking_url, T.red)}</div>
         ${divider()}
-        ${p(`<span style="color:${T.hint};">You received this because you are the operator for ${business_name}.</span>`)}
-      `)}</table>`, { preheader: `New booking from ${customer_name}: ${service_title}.` }),
+        ${p(`<span style="color:${T.hint};">You received this because you are the operator for ${safeBusiness}.</span>`)}
+      `)}</table>`, { preheader: `New booking from ${safeCustomer}: ${safeService}.` }),
     };
   },
 

@@ -199,7 +199,7 @@ exports.handler = async (event) => {
 
     const { data, error } = await adminSb
       .from('equipment')
-      .update({ is_active: false, status: 'out_of_service' })
+      .update({ is_active: false, status: 'out_of_service', updated_at: new Date().toISOString() })
       .eq('tenant_id', tenantId)
       .eq('id', id)
       .select()

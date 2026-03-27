@@ -112,7 +112,7 @@ exports.handler = async (event) => {
 
         await adminSb
           .from('jobs')
-          .update({ locate_ticket_ids: (tickets || []).map((row) => row.id) })
+          .update({ locate_ticket_ids: (tickets || []).map((row) => row.id), updated_at: new Date().toISOString() })
           .eq('tenant_id', tenantId)
           .eq('id', data.job_id);
       } catch (syncError) {
@@ -179,7 +179,7 @@ exports.handler = async (event) => {
 
         await adminSb
           .from('jobs')
-          .update({ locate_ticket_ids: (tickets || []).map((row) => row.id) })
+          .update({ locate_ticket_ids: (tickets || []).map((row) => row.id), updated_at: new Date().toISOString() })
           .eq('tenant_id', tenantId)
           .eq('id', data.job_id);
       } catch (syncError) {

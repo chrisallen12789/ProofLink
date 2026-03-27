@@ -178,7 +178,7 @@ exports.handler = async (event) => {
 
     const { data, error } = await adminSb
       .from('disposal_facilities')
-      .update({ status: 'inactive' })
+      .update({ status: 'inactive', updated_at: new Date().toISOString() })
       .eq('tenant_id', tenantId)
       .eq('id', id)
       .select()

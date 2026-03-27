@@ -82,7 +82,7 @@ exports.handler = async (event) => {
   const entryIds = entries.map((e) => e.id);
   await adminSb
     .from('time_entries')
-    .update({ invoiced: true })
+    .update({ invoiced: true, updated_at: new Date().toISOString() })
     .in('id', entryIds)
     .eq('tenant_id', tenantId);
 

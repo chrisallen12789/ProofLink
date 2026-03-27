@@ -51,13 +51,18 @@ exports.handler = async (event) => {
 
     const nowIso = new Date().toISOString();
 
-    // Mark the quote as accepted
-    const { error: updateError } = await supabase
+    // Mark the quote as accepted (atomic: only succeeds if still pending)
+    const { data: updatedRows, error: updateError } = await supabase
       .from('quotes')
       .update({ status: 'accepted', accepted_at: nowIso, updated_at: nowIso })
-      .eq('id', quoteId);
+      .eq('id', quoteId)
+      .eq('status', 'pending')
+      .select('id');
 
     if (updateError) { console.error('[quote-accept] update:', updateError); return respond(500, { error: 'Failed to accept quote' }); }
+    if (!updatedRows || updatedRows.length === 0) {
+      return respond(409, { error: 'Quote has already been accepted or is no longer available' });
+    }
 
     // Create an order from the quote
     const { data: order, error: orderError } = await supabase
@@ -114,7 +119,7 @@ exports.handler = async (event) => {
 
     return respond(200, { ok: true, order_id: order?.id || null });
   } catch (err) {
-    console.error('[quote-accept]', err);
+    console.error('[quote-accept]', err.message, err);
     return respond(err.statusCode || 500, { error: err.message || 'Failed to accept quote' });
   }
 };

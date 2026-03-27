@@ -419,6 +419,7 @@ exports.handler = async function (event) {
   }
 
   // Persist the decision
+  const evalNow = new Date().toISOString();
   const { error: updateErr } = await supabase
     .from('tenant_onboarding_requests')
     .update({
@@ -426,7 +427,8 @@ exports.handler = async function (event) {
       risk_level       : result.risk_level,
       reason_codes     : result.reason_codes,
       evaluation_result: result.evaluation_result,
-      evaluated_at     : new Date().toISOString(),
+      evaluated_at     : evalNow,
+      updated_at       : evalNow,
     })
     .eq('id', request_id);
 

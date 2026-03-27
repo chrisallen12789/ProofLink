@@ -58,7 +58,8 @@ exports.handler = async (event) => {
 
   const nowIso = new Date().toISOString();
   const patch = {
-    status: nextStatus,
+    status    : nextStatus,
+    updated_at: nowIso,
   };
   if (body.notes !== undefined) patch.notes = body.notes;
   if (body.blocker_note !== undefined) patch.blocker_note = body.blocker_note;

@@ -107,6 +107,8 @@ exports.handler = async (event) => {
     return respond(400, { error: 'No valid fields provided to update' });
   }
 
+  patch.updated_at = new Date().toISOString();
+
   if (hydrovacCtx && hydrovacJobType(job) && (status === 'in_progress' || status === 'completed')) {
     const issues = await collectHydrovacLifecycleIssues({
       adminSb,

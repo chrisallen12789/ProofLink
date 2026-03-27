@@ -134,6 +134,7 @@ function averageOrderValueCents() {
   return Math.round(total / rows.length);
 }
 async function fetchDashboardPaymentState() {
+  if (!TENANT_ID || TENANT_ID === 'default') return null;
   try {
     const token = await getOperatorAccessToken();
     if (!token) return null;
@@ -5138,7 +5139,7 @@ $("btnCopyBookingLink")?.addEventListener("click", () => {
   });
 });
 
-$("btnRefreshBookings")?.addEventListener("click", () => renderBookings());
+$("btnRefreshBookings")?.addEventListener("click", () => renderBookings().catch(console.error));
 
 $("btnBkPrev")?.addEventListener("click", async () => {
   BK_VIEW_DATE = new Date(BK_VIEW_DATE.getFullYear(), BK_VIEW_DATE.getMonth() - 1, 1);
@@ -7702,6 +7703,7 @@ async function boot() {
       fetchCrmOrders(),
       fetchPayments(),
       fetchJobs(),
+      fetchBookings(),
     ]);
     loadBidDrafts();
     await loadPersistedBids();
@@ -8602,7 +8604,13 @@ function startRealtime() {
 
   if (!TENANT_ID || !CURRENT_OPERATOR?.operator_id) return;
 
+  const _realtimeToastShown = new Set();
   function realtimeToast(msg) {
+    if (!document.body) return;
+    // Deduplicate: don't show same message twice in quick succession
+    if (_realtimeToastShown.has(msg)) return;
+    _realtimeToastShown.add(msg);
+    setTimeout(() => _realtimeToastShown.delete(msg), 4000);
     const el = document.createElement('div');
     el.textContent = msg;
     el.style.cssText = 'position:fixed;bottom:1.25rem;left:50%;transform:translateX(-50%);background:var(--bg2,#1e1e1e);color:var(--text,#fff);padding:.55rem 1.1rem;border-radius:8px;font-size:.82rem;box-shadow:0 4px 18px rgba(0,0,0,.45);z-index:9999;pointer-events:none;opacity:0;transition:opacity .25s';
@@ -8610,8 +8618,15 @@ function startRealtime() {
     requestAnimationFrame(() => { el.style.opacity = '1'; });
     setTimeout(() => {
       el.style.opacity = '0';
-      setTimeout(() => el.remove(), 300);
+      setTimeout(() => { try { el.remove(); } catch (_) {} }, 300);
     }, 3500);
+  }
+
+  // Debounced dashboard re-render for realtime events — prevents rapid-fire re-renders
+  let _realtimeDashTimer = null;
+  function debouncedRenderDashboard() {
+    clearTimeout(_realtimeDashTimer);
+    _realtimeDashTimer = setTimeout(() => renderDashboard(), 300);
   }
 
   _realtimeChannel = sb.channel('prooflink-operator-realtime')
@@ -8621,7 +8636,7 @@ function startRealtime() {
     }, async (payload) => {
       await fetchCrmOrders();
       renderOrders();
-      renderDashboard();
+      debouncedRenderDashboard();
       if (payload.eventType === 'INSERT') realtimeToast('New order received');
       if (payload.eventType === 'UPDATE') realtimeToast('Order updated');
     })
@@ -8640,6 +8655,7 @@ function startRealtime() {
       await fetchPayments();
       renderPayments();
       await renderMoney();
+      debouncedRenderDashboard();
       realtimeToast('Payment record updated');
     })
     .on('postgres_changes', {

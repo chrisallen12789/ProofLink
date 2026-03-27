@@ -50,11 +50,13 @@ exports.handler = async (event) => {
     const resolved = body.resolved !== false;
     if (!id) return respond(400, { error: 'id is required' });
 
+    const resolvedAt = resolved ? new Date().toISOString() : null;
     const { data, error } = await adminSb
       .from('compliance_alerts')
       .update({
         resolved,
-        resolved_at: resolved ? new Date().toISOString() : null,
+        resolved_at: resolvedAt,
+        updated_at : resolvedAt || new Date().toISOString(),
       })
       .eq('tenant_id', tenantId)
       .eq('id', id)

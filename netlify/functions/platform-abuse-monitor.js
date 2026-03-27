@@ -61,6 +61,7 @@ async function flagTenant(supabase, tenantId, reasonCode, detail) {
       conduct_notes     : detail,
       conduct_updated_at: now,
       flagged_at        : now,
+      updated_at        : now,
     })
     .eq('id', tenantId);
 

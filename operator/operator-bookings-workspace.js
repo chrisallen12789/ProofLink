@@ -25,18 +25,24 @@ async function fetchBookings() {
   }
 }
 
-async function fetchOperatorMembers() {
-  if (OPERATOR_MEMBERS_CACHE.length) return OPERATOR_MEMBERS_CACHE;
+let _operatorMembersLastFetched = 0;
+const OPERATOR_MEMBERS_TTL_MS = 5 * 60 * 1000; // re-fetch after 5 minutes
+
+async function fetchOperatorMembers({ force = false } = {}) {
+  const stale = Date.now() - _operatorMembersLastFetched > OPERATOR_MEMBERS_TTL_MS;
+  if (!force && OPERATOR_MEMBERS_CACHE.length && !stale) return OPERATOR_MEMBERS_CACHE;
   try {
     const tok = await getAccessToken();
     const res = await fetch("/.netlify/functions/get-operator-members", {
       headers: { Authorization: `Bearer ${tok}` },
     });
+    if (!res.ok) { console.warn("[fetchOperatorMembers] fetch failed:", res.status); return OPERATOR_MEMBERS_CACHE; }
     const d = await res.json().catch(() => ({}));
-    if (res.ok && Array.isArray(d.members)) {
+    if (Array.isArray(d.members)) {
       OPERATOR_MEMBERS_CACHE = d.members;
+      _operatorMembersLastFetched = Date.now();
     }
-  } catch (_) {}
+  } catch (err) { console.warn("[fetchOperatorMembers] error:", err.message); }
   return OPERATOR_MEMBERS_CACHE;
 }
 
@@ -667,6 +673,12 @@ function initBookingsWorkspaceBindings() {
     }
 
     const startsAt = new Date(`${date}T${time}:00`).toISOString();
+
+    // Warn if booking is being scheduled in the past
+    if (new Date(startsAt) < new Date()) {
+      const confirmed = window.confirm("This booking date is in the past. Save it anyway?");
+      if (!confirmed) return;
+    }
     const endsAt = new Date(new Date(startsAt).getTime() + duration * 60000).toISOString();
     button.disabled = true;
     if (message) {

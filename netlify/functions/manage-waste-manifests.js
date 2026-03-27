@@ -78,6 +78,7 @@ async function syncJobManifestTotals(adminSb, tenantId, jobId) {
       total_disposal_cost_cents: totalCost,
       total_disposal_charge_cents: totalCharge,
       manifest_ids: manifests.map((row) => row.id),
+      updated_at: new Date().toISOString(),
     })
     .eq('tenant_id', tenantId)
     .eq('id', jobId);

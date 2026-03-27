@@ -75,6 +75,7 @@ exports.handler = async function (event) {
     conduct_notes      : admin_notes || null,
     conduct_updated_at : now,
     conduct_updated_by : operatorId || user.id,
+    updated_at         : now,
   };
 
   if (action === 'suspend') {
