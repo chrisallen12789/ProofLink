@@ -1,4 +1,4 @@
-<!-- /operator/index.html -->
+﻿<!-- /operator/index.html -->
 <!doctype html>
 <html lang="en">
 <head>
@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <meta name="theme-color" content="#c84b2f" />
   <link rel="manifest" href="/manifest.webmanifest" />
-  <title>ProofLink — Operator</title>
+  <title>ProofLink - Operator</title>
 
   <script src="../prooflink.tenant.js"></script>
   <script src="../prooflink.config.js"></script>
@@ -28,7 +28,7 @@
 
       const tenant = (b.tenantName || "Tenant").trim();
       const product = (b.productName || "ProofLink").trim();
-      document.title = `${tenant} — ${product} Operator`;
+      document.title = `${tenant} - ${product} Operator`;
     })();
   </script>
 
@@ -45,61 +45,52 @@
         </div>
         <div class="title">
           <strong id="brandTenant">Tenant</strong>
-          <span id="brandPowered">Keep the work, customers, and money in one place</span>
+          <span id="sessionEmail" class="brand-session-email"></span>
+          <span id="brandPowered" style="display:none;"></span>
         </div>
       </div>
 
-      <div class="side-meta">
-        <div class="row">
-          <span>Signed in</span>
-          <span id="sessionEmail" class="badge"></span>
-        </div>
-      </div>
-
-      <section class="side-card" aria-live="polite">
+      <section class="side-card side-card--checklist" id="sideChecklistCard" aria-live="polite">
         <div class="side-card__hd">First wins</div>
         <div id="startupChecklist" class="checklist" data-tour="checklist">
           <div class="checklist-item">
             <span class="dot"></span>
-            <span>Loading your next steps…</span>
+            <span>Loading your next steps...</span>
           </div>
         </div>
       </section>
 
       <div class="nav" aria-label="Sections" data-tour="sidebar-nav">
         <div class="nav-primary" id="sidebarPrimary">
-          <button class="tab active" data-tab="dashboard" data-tour-tab="dashboard" type="button">Dashboard</button>
+          <button class="tab active" data-tab="dashboard" data-tour-tab="dashboard" type="button">Today</button>
           <button class="tab" data-tab="orders" data-tour-tab="orders" type="button">Work</button>
           <button class="tab" data-tab="customers" data-tour-tab="customers" type="button">Customers</button>
           <button class="tab" data-tab="bookings" data-tour-tab="bookings" type="button">Calendar</button>
           <button class="tab" data-tab="payments" data-tour-tab="payments" type="button">Money</button>
-          <button class="tab" data-tab="setup" data-tour-tab="setup" type="button">Website</button>
-          <button class="tab" data-tab="guidance" data-tour-tab="guidance" type="button">Operations</button>
-          <button class="tab" data-tab="ai" type="button">✦ AI</button>
         </div>
 
-        <!-- TODO: collapse by default — FIX 12: toggle implemented below -->
-        <button class="tab tab--more" id="btnSidebarMore" type="button" title="Advanced tools — Show or hide grouped tools and support views. ProofLink remembers your preference." aria-expanded="false" aria-controls="sidebarMore">Tools ▾</button>
+        <button class="tab tab--more" id="btnSidebarMore" type="button" title="Show or hide additional tools and settings. ProofLink remembers your preference." aria-expanded="false" aria-controls="sidebarMore">More tools</button>
 
-        <div id="sidebarMore" class="nav-more nav-tools-section collapsed" style="display:none;">
+        <div id="sidebarMore" class="nav-more nav-tools-section collapsed sidebar-more" style="display:none;">
           <section class="nav-group" data-nav-group="workflow">
             <div class="nav-group__label">Work pipeline</div>
             <button class="tab" data-tab="leads" data-tour-tab="leads" type="button">Requests</button>
-            <button class="tab" data-tab="bids" data-tour-tab="bids" type="button">Walkthrough Bids <span style="font-size:.7rem;color:rgba(255,255,255,.65);display:block;font-weight:400;">On-site estimates</span></button>
+            <button class="tab" data-tab="bids" data-tour-tab="bids" type="button"><span class="tab__stack"><span class="tab__label">Walkthrough bids</span><span class="tab__subline">On-site estimates</span></span></button>
             <button class="tab" data-tab="jobs" data-tour-tab="jobs" type="button">Active Jobs</button>
             <button class="tab" data-tab="quotes" data-tour-tab="quotes" type="button">Quotes</button>
             <button class="tab" data-tab="plans" data-tour-tab="plans" type="button">Recurring Plans</button>
           </section>
 
-          <section class="nav-group" data-nav-group="money">
-            <div class="nav-group__label">Follow-through</div>
+          <section class="nav-group" data-nav-group="reports">
+            <div class="nav-group__label">Reports &amp; Reviews</div>
             <button class="tab" data-tab="expenses" data-tour-tab="expenses" type="button">Expenses</button>
             <button class="tab" data-tab="money" data-tour-tab="money" type="button">Insights</button>
             <button class="tab" data-tab="reviews" data-tour-tab="reviews" type="button">Reviews</button>
           </section>
 
           <section class="nav-group" data-nav-group="website">
-            <div class="nav-group__label">Website details</div>
+            <div class="nav-group__label">Website &amp; Setup</div>
+            <button class="tab" data-tab="setup" data-tour-tab="setup" type="button">Website</button>
             <button class="tab" data-tab="products" data-tour-tab="products" type="button">Products</button>
             <button class="tab" data-tab="pricing" data-tour-tab="pricing" type="button">Pricing</button>
             <button class="tab" data-tab="availability" data-tour-tab="availability" type="button">Availability</button>
@@ -108,58 +99,48 @@
           </section>
 
           <section class="nav-group" data-nav-group="operations">
-            <div class="nav-group__label">Back office</div>
-            <button class="tab" data-tab="vendors" type="button">Vendors <span style="font-size:.7rem;color:rgba(255,255,255,.65);display:block;font-weight:400;">Subs &amp; suppliers</span></button>
-            <button class="tab" data-tab="equipment" type="button">Equipment <span style="font-size:.7rem;color:rgba(255,255,255,.65);display:block;font-weight:400;">Trucks &amp; machines</span></button>
-            <button class="tab" data-tab="team" type="button">Team <span style="font-size:.7rem;color:rgba(255,255,255,.65);display:block;font-weight:400;">Members &amp; crew</span></button>
-            <button class="tab" data-tab="inventory" type="button">Inventory <span style="font-size:.7rem;color:rgba(255,255,255,.65);display:block;font-weight:400;">Parts &amp; materials</span></button>
-            <button class="tab" data-tab="contracts" type="button">Contracts <span style="font-size:.7rem;color:rgba(255,255,255,.65);display:block;font-weight:400;">Warranties &amp; plans</span></button>
+            <div class="nav-group__label">Team &amp; Resources</div>
+            <button class="tab" data-tab="vendors" type="button"><span class="tab__stack"><span class="tab__label">Vendors</span><span class="tab__subline">Subs and suppliers</span></span></button>
+            <button class="tab" data-tab="equipment" type="button"><span class="tab__stack"><span class="tab__label">Equipment</span><span class="tab__subline">Trucks and machines</span></span></button>
+            <button class="tab" data-tab="team" type="button"><span class="tab__stack"><span class="tab__label">Team</span><span class="tab__subline">Members and crew</span></span></button>
+            <button class="tab" data-tab="inventory" type="button"><span class="tab__stack"><span class="tab__label">Inventory</span><span class="tab__subline">Parts and materials</span></span></button>
+            <button class="tab" data-tab="contracts" type="button"><span class="tab__stack"><span class="tab__label">Contracts</span><span class="tab__subline">Warranties and plans</span></span></button>
+          </section>
+
+          <section class="nav-group" data-nav-group="guidance">
+            <div class="nav-group__label">Guidance &amp; AI</div>
+            <button class="tab" data-tab="guidance" data-tour-tab="guidance" type="button">Operations</button>
+            <button class="tab" data-tab="ai" type="button">AI Assistant</button>
           </section>
 
           <section class="nav-group" data-nav-group="hydrovac">
             <div class="nav-group__label">Hydrovac operations</div>
-            <button class="tab" data-tab="facilities" type="button">Facilities <span style="font-size:.7rem;color:rgba(255,255,255,.65);display:block;font-weight:400;">Dump sites &amp; rates</span></button>
-            <button class="tab" data-tab="manifests" type="button">Loads &amp; Manifests <span style="font-size:.7rem;color:rgba(255,255,255,.65);display:block;font-weight:400;">Waste tracking</span></button>
-            <button class="tab" data-tab="locates" type="button">Locate Tickets <span style="font-size:.7rem;color:rgba(255,255,255,.65);display:block;font-weight:400;">811 / one-call</span></button>
-            <button class="tab" data-tab="compliance" type="button">Compliance <span style="font-size:.7rem;color:rgba(255,255,255,.65);display:block;font-weight:400;">Docs &amp; alerts</span></button>
+            <button class="tab" data-tab="facilities" type="button"><span class="tab__stack"><span class="tab__label">Facilities</span><span class="tab__subline">Dump sites and rates</span></span></button>
+            <button class="tab" data-tab="manifests" type="button"><span class="tab__stack"><span class="tab__label">Loads and manifests</span><span class="tab__subline">Waste tracking</span></span></button>
+            <button class="tab" data-tab="locates" type="button"><span class="tab__stack"><span class="tab__label">Locate tickets</span><span class="tab__subline">811 and one-call</span></span></button>
+            <button class="tab" data-tab="compliance" type="button"><span class="tab__stack"><span class="tab__label">Compliance</span><span class="tab__subline">Documents and alerts</span></span></button>
           </section>
         </div>
       </div>
 
-      <section class="side-card">
-        <div class="side-card__hd">How this helps</div>
-        <div class="side-copy">
-          Keep the whole business easier to follow: first contact, active work, payment status, and customer history all stay attached.
+      <div class="side-foot">
+        <div class="side-foot__row">
+          <span id="brandProductName" class="brand-product-name">ProofLink</span>
+          <span class="brand-company-note">&copy; <span id="brandCompany">ProofLink</span></span>
         </div>
-      </section>
-
-      <div class="side-foot muted">
-        <div class="platform-lockup">
-          <div class="platform-logo-wrap">
-            <img id="platformLogo" alt="ProofLink logo" />
-          </div>
-          <div class="platform-copy">
-            <div class="platform-name" id="brandProductName">ProofLink</div>
-            <div class="platform-tag">Your work, your customers, your money — in one place.</div>
-          </div>
-        </div>
-        <div style="margin-top:12px;">
-          <span class="pill">Operator</span>
-          <span class="pill" id="brandProductPill">ProofLink</span>
-        </div>
-        <div style="margin-top:8px;">© <span id="brandCompany">ProofLink</span></div>
+        <span id="brandProductPill" style="display:none;"></span>
       </div>
     </aside>
 
     <main class="main">
       <header class="topbar">
         <div>
-          <h1>Dashboard</h1>
-          <div class="sub">Customers, work, scheduling, payments, and back-office details in one clear place.</div>
+          <h1>Business hub</h1>
+          <div class="sub">Customers, work, scheduling, payments, and follow-through in one calm place.</div>
         </div>
         <div class="top-actions">
-          <input id="globalSearch" type="search" class="input" placeholder="Search work, customers, money…" style="width:240px;" />
-          <button id="btnDarkMode" class="btn btn-ghost" type="button" title="Toggle light/dark mode">☀</button>
+          <input id="globalSearch" type="search" class="input search-input--header" placeholder="Search work, customers, money..." />
+          <button id="btnDarkMode" class="btn btn-ghost" type="button" title="Toggle light or dark mode">Theme</button>
           <button id="btnStartTour" class="btn btn-ghost hidden" type="button">Start tour</button>
           <button id="btnSignOut" class="btn btn-ghost hidden" type="button">Sign out</button>
         </div>
@@ -168,8 +149,8 @@
       <div class="grid">
         <section id="viewLogin" class="card">
           <div class="card-hd">
-            <strong>Sign in</strong>
-            <span class="muted">Operators only</span>
+            <strong>Business sign-in</strong>
+            <span class="muted">Secure owner access</span>
           </div>
           <div class="card-bd">
             <form id="loginForm" class="form">
@@ -181,13 +162,13 @@
                 <input id="loginPassword" type="password" autocomplete="current-password" required />
               </label>
 
-              <div style="text-align:right;margin:-0.25rem 0 0.5rem;">
-                <a href="#" id="btnForgotPassword" style="font-size:0.8rem;color:var(--accent);text-decoration:none;">Forgot password?</a>
+              <div class="auth-inline-action">
+                <a href="#" id="btnForgotPassword" class="link-inline">Forgot password?</a>
               </div>
 
               <div class="row">
                 <button class="btn btn-primary" type="submit">Sign in</button>
-                <button id="btnMagicLink" class="btn btn-ghost" type="button">Email me a sign-in link</button>
+                <button id="btnMagicLink" class="btn btn-ghost" type="button">Send me a sign-in link</button>
               </div>
               <div id="loginMsg" class="msg"></div>
             </form>
@@ -196,41 +177,41 @@
 
         <!-- Password Setup View -->
         <div id="viewPasswordSetup" class="hidden">
-          <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:2rem;">
-            <div style="width:100%;max-width:400px;background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:2.5rem 2rem;box-shadow:var(--shadow);">
-              <div style="font-family:var(--font-display);font-size:1.25rem;font-weight:800;color:var(--text);margin-bottom:0.25rem;letter-spacing:-0.02em;">
-                Proof<span style="color:var(--accent);">Link</span>
+          <div class="auth-shell">
+            <div class="auth-card">
+              <div class="auth-brand">
+                Proof<span class="auth-brand__accent">Link</span>
               </div>
-              <div style="font-size:0.75rem;color:var(--muted);margin-bottom:2rem;text-transform:uppercase;letter-spacing:0.08em;">Business hub</div>
-              <div data-pw-heading style="font-family:var(--font-display);font-size:1.1rem;font-weight:700;color:var(--text);margin-bottom:0.4rem;">Set your password</div>
-              <p data-pw-desc style="font-size:0.82rem;color:var(--muted);margin-bottom:0.75rem;line-height:1.55;">Your email is confirmed. Create a password so you can log back in directly next time.</p>
-              <div data-pw-email style="font-size:0.82rem;color:var(--accent);font-weight:600;margin-bottom:1.25rem;word-break:break-all;"></div>
-              <label style="display:block;font-size:0.8rem;font-weight:600;color:var(--muted);margin-bottom:0.35rem;">New password</label>
-              <input type="password" id="newPasswordInput" placeholder="At least 8 characters" autocomplete="new-password" style="margin-bottom:1rem;" />
-              <label style="display:block;font-size:0.8rem;font-weight:600;color:var(--muted);margin-bottom:0.35rem;">Confirm password</label>
-              <input type="password" id="confirmPasswordInput" placeholder="Repeat your password" autocomplete="new-password" style="margin-bottom:1.25rem;" />
-              <button id="btnSetPassword" class="btn btn-primary" style="width:100%;padding:0.75rem;font-size:0.9375rem;font-weight:700;">Set password and open account</button>
-              <div id="passwordSetupMsg" class="msg" style="margin-top:0.75rem;min-height:1.25rem;"></div>
+              <div class="auth-kicker">Business hub</div>
+              <div data-pw-heading class="auth-title">Set your password</div>
+              <p data-pw-desc class="auth-copy">Your email is confirmed. Create a password so you can log back in directly next time.</p>
+              <div data-pw-email class="auth-email"></div>
+              <label class="auth-label">New password</label>
+              <input type="password" id="newPasswordInput" placeholder="At least 8 characters" autocomplete="new-password" class="auth-input-gap" />
+              <label class="auth-label">Confirm password</label>
+              <input type="password" id="confirmPasswordInput" placeholder="Repeat your password" autocomplete="new-password" class="auth-input-gap auth-input-gap--lg" />
+              <button id="btnSetPassword" class="btn btn-primary auth-submit" type="button">Set password and open account</button>
+              <div id="passwordSetupMsg" class="msg auth-msg"></div>
             </div>
           </div>
         </div>
 
         <!-- Forgot Password View -->
         <div id="viewForgotPassword" class="hidden">
-          <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:2rem;">
-            <div style="width:100%;max-width:400px;background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:2.5rem 2rem;box-shadow:var(--shadow);">
-              <div style="font-family:var(--font-display);font-size:1.25rem;font-weight:800;color:var(--text);margin-bottom:0.25rem;letter-spacing:-0.02em;">
-                Proof<span style="color:var(--accent);">Link</span>
+          <div class="auth-shell">
+            <div class="auth-card">
+              <div class="auth-brand">
+                Proof<span class="auth-brand__accent">Link</span>
               </div>
-              <div style="font-size:0.75rem;color:var(--muted);margin-bottom:2rem;text-transform:uppercase;letter-spacing:0.08em;">Business hub</div>
-              <div style="font-family:var(--font-display);font-size:1.1rem;font-weight:700;color:var(--text);margin-bottom:0.4rem;">Reset your password</div>
-              <p style="font-size:0.82rem;color:var(--muted);margin-bottom:1.75rem;line-height:1.55;">Enter your email address and we'll send you a link to reset your password.</p>
-              <label style="display:block;font-size:0.8rem;font-weight:600;color:var(--muted);margin-bottom:0.35rem;">Email address</label>
-              <input type="email" id="forgotEmail" placeholder="you@example.com" autocomplete="email" style="margin-bottom:1.25rem;" />
-              <button id="btnSendReset" class="btn btn-primary" style="width:100%;padding:0.75rem;font-size:0.9375rem;font-weight:700;">Send reset link</button>
-              <div id="forgotMsg" class="msg" style="margin-top:0.75rem;min-height:1.25rem;"></div>
-              <div style="text-align:center;margin-top:1.25rem;">
-                <button id="btnBackToLogin" class="btn btn-ghost" type="button" style="font-size:0.85rem;">Back to sign in</button>
+              <div class="auth-kicker">Business hub</div>
+              <div class="auth-title">Reset your password</div>
+              <p class="auth-copy auth-copy--spaced">Enter your email address and we will send you a link to reset your password.</p>
+              <label class="auth-label">Email address</label>
+              <input type="email" id="forgotEmail" placeholder="you@example.com" autocomplete="email" class="auth-input-gap auth-input-gap--lg" />
+              <button id="btnSendReset" class="btn btn-primary auth-submit" type="button">Send reset link</button>
+              <div id="forgotMsg" class="msg auth-msg"></div>
+              <div class="auth-back">
+                <button id="btnBackToLogin" class="btn btn-ghost auth-back__button" type="button">Back to sign in</button>
               </div>
             </div>
           </div>
@@ -244,8 +225,8 @@
                 <div class="muted">Track live customers, pipeline, unpaid work, and cash pressure without bouncing between screens.</div>
               </div>
               <div class="panel-actions">
-                <button id="btnLogTime" class="btn btn-ghost" type="button">⏱ Log time</button>
-                <button id="btnCopyBookingLink" class="btn btn-ghost" type="button" data-website-feature>🔗 Copy booking link</button>
+                <button id="btnLogTime" class="btn btn-ghost" type="button">Log time</button>
+                <button id="btnCopyBookingLink" class="btn btn-ghost" type="button" data-website-feature>Copy booking link</button>
                 <button id="btnRefreshDashboard" class="btn btn-ghost" type="button">Refresh</button>
               </div>
             </div>
@@ -1532,7 +1513,7 @@
                       </label>
 
                       <label>Reference number
-                        <input id="paymentReference" placeholder="Check #, confirmation, last fourâ€¦" />
+                        <input id="paymentReference" placeholder="Check #, confirmation, last four..." />
                       </label>
                     </div>
 
@@ -3063,10 +3044,7 @@
 <script src="./walkthrough.js" defer></script>
 <script src="./operator.launch.js" defer></script>
 
-  <!-- ═══════════════════════════════════════════════════
-       FIRST-LOGIN WALKTHROUGH MODAL
-       Auto-shows once per browser. Replay from Operations.
-  ════════════════════════════════════════════════════════ -->
+  <!-- First-login walkthrough modal -->
   <div id="tourModal" class="tour-modal" role="dialog" aria-modal="true" aria-labelledby="tour-title" style="display:none">
     <div class="tour-backdrop"></div>
     <div class="tour-card">
@@ -3080,74 +3058,74 @@
 
       <!-- Step 1: Welcome -->
       <div class="tour-step active" id="tour-step-1">
-        <div class="tour-icon">🎉</div>
+        <div class="tour-icon">Welcome</div>
         <h2 class="tour-title" id="tour-title">Your business hub is ready.</h2>
         <p class="tour-body">Welcome to ProofLink. This is where you keep customers, work, scheduling, payments, and your website together in one place.</p>
         <div class="tour-actions">
-          <button class="tour-btn" onclick="tourNext()">Show me around →</button>
+          <button class="tour-btn" onclick="tourNext()">Show me around -></button>
         </div>
       </div>
 
       <!-- Step 2: Menu tour -->
       <div class="tour-step" id="tour-step-2">
-        <div class="tour-icon">🧭</div>
-        <h2 class="tour-title">Here's what each section does</h2>
+        <div class="tour-icon">Guide</div>
+        <h2 class="tour-title">Here is what each section does</h2>
         <ul class="tour-list">
-          <li><strong>Today</strong> — Your daily snapshot. What is moving, what is blocked, and what needs attention.</li>
-          <li><strong>Work</strong> — Requests, proposals, booked work, and active jobs in one flow.</li>
-          <li><strong>Customers</strong> — Who ordered, how much they've spent, your notes on them.</li>
-          <li><strong>Calendar</strong> — Scheduling, dispatch, recurring work, and route pressure.</li>
-          <li><strong>Money</strong> — Deposits, payments, overdue balances, and profit clues.</li>
-          <li><strong>Tools</strong> — Website, import, and specialist operations pages when you need them.</li>
+          <li><strong>Today</strong> - Your daily snapshot. What is moving, what is blocked, and what needs attention.</li>
+          <li><strong>Work</strong> - Requests, proposals, booked work, and active jobs in one flow.</li>
+          <li><strong>Customers</strong> - Who ordered, how much they have spent, and your notes on them.</li>
+          <li><strong>Calendar</strong> - Scheduling, dispatch, recurring work, and route pressure.</li>
+          <li><strong>Money</strong> - Deposits, payments, overdue balances, and profit clues.</li>
+          <li><strong>More tools</strong> - Website, imports, and specialist operations pages when you need them.</li>
         </ul>
         <div class="tour-actions">
-          <button class="tour-btn-ghost" onclick="tourBack()">← Back</button>
-          <button class="tour-btn" onclick="tourNext()">Got it →</button>
+          <button class="tour-btn-ghost" onclick="tourBack()"><- Back</button>
+          <button class="tour-btn" onclick="tourNext()">Got it -></button>
         </div>
       </div>
 
       <!-- Step 3: Setup checklist -->
       <div class="tour-step" id="tour-step-3">
-        <div class="tour-icon">✅</div>
+        <div class="tour-icon">Done</div>
         <h2 class="tour-title">3 things to do first</h2>
         <ol class="tour-checklist">
           <li>
             <span class="tour-num">1</span>
             <div>
               <strong>Complete your business profile</strong>
-              <p>Add your business name, logo, and contact info so customers recognise you.</p>
+              <p>Add your business name, logo, and contact info so customers recognize you.</p>
             </div>
           </li>
           <li>
             <span class="tour-num">2</span>
             <div>
               <strong>Add products or services</strong>
-              <p>Go to <em>Website</em> or <em>Tools</em>, open your services, and add at least one thing you sell. Keep it simple to start.</p>
+              <p>Open Website or More tools, add at least one thing you sell, and keep it simple to start.</p>
             </div>
           </li>
           <li>
             <span class="tour-num">3</span>
             <div>
               <strong>Test your website</strong>
-              <p>Preview your live website link and place one test order to make sure it works.</p>
+              <p>Preview your live website link and place one test order so you know the customer experience is ready.</p>
             </div>
           </li>
         </ol>
         <div class="tour-actions">
-          <button class="tour-btn-ghost" onclick="tourBack()">← Back</button>
-          <button class="tour-btn" onclick="tourNext()">Almost there →</button>
+          <button class="tour-btn-ghost" onclick="tourBack()"><- Back</button>
+          <button class="tour-btn" onclick="tourNext()">Almost there -></button>
         </div>
       </div>
 
       <!-- Step 4: Finish -->
       <div class="tour-step" id="tour-step-4">
-        <div class="tour-icon">🚀</div>
-        <h2 class="tour-title">You're set — go make money.</h2>
+        <div class="tour-icon">Launch</div>
+        <h2 class="tour-title">You are set - go make money.</h2>
         <p class="tour-body">Start by adding your first product or service. It only takes a minute.</p>
         <p class="tour-hint">You can replay this tour anytime from <strong>Operations</strong>.</p>
         <div class="tour-actions">
-          <button class="tour-btn-ghost" onclick="tourBack()">← Back</button>
-          <button class="tour-btn" onclick="tourFinish()">Go to Today →</button>
+          <button class="tour-btn-ghost" onclick="tourBack()"><- Back</button>
+          <button class="tour-btn" onclick="tourFinish()">Go to Today -></button>
         </div>
       </div>
 
@@ -3294,7 +3272,7 @@
 <nav class="mobile-bottom-nav" id="mobileBottomNav" aria-label="Main navigation">
   <button class="mbn-item active" data-mbn-tab="dashboard" type="button">
     <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
-    <span>Dashboard</span>
+    <span>Today</span>
   </button>
   <button class="mbn-item" data-mbn-tab="orders" type="button">
     <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
@@ -3369,3 +3347,4 @@
 </script>
 </body>
 </html>
+

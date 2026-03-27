@@ -2149,11 +2149,11 @@ function initBranding() {
     brandLogo.style.display = "block";
   }
   if (platformLogo) {
-    platformLogo.src = b.platformLogoUrl || "../assets/cottagelink-logo.png";
+    platformLogo.src = b.platformLogoUrl || "../assets/logo.png";
     platformLogo.style.display = "block";
   }
   if (operatorFooterText) {
-    operatorFooterText.textContent = `Operator UI v3 - ${b.tenantName || "Tenant"}  |  Powered by ${b.productName || "ProofLink"}${TENANT_SCOPE_ENABLED ? `  |  ${TENANT_COLUMN} ready (${TENANT_ID})` : ""}`;
+    operatorFooterText.textContent = `${b.tenantName || "Tenant"} | Powered by ${b.productName || "ProofLink"}`;
   }
 }
 

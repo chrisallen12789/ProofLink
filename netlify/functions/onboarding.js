@@ -148,11 +148,11 @@ exports.handler = async (event) => {
       </div>`;
     const customerHtml = `
       <div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.6;">
-        <h2 style="font-size:18px;margin-bottom:12px;">Application received — ProofLink</h2>
+        <h2 style="font-size:18px;margin-bottom:12px;">Setup request received - ProofLink</h2>
         <p>Hi ${escapeHtml(payload.owner_name)},</p>
         <p>We received the setup request for <strong>${escapeHtml(payload.business_name)}</strong>. We will review it shortly and keep the next step simple.</p>
         <hr style="border:none;border-top:1px solid #eee;margin:16px 0;" />
-        <p><strong>This email is not a login link.</strong> Your ProofLink account does not exist yet — it will be created only after we approve your application.</p>
+        <p><strong>This email is not a login link.</strong> It is just a confirmation that we have your request and are getting the next step ready.</p>
         <p>We will send a separate email as soon as your account is ready so you can set your password and get straight into the business hub. You do not need to do anything else right now.</p>
         <hr style="border:none;border-top:1px solid #eee;margin:16px 0;" />
         <p style="font-size:12px;color:#888;"><strong>Business</strong> ${escapeHtml(payload.business_name)}<br>
