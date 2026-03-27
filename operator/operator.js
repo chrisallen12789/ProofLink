@@ -6095,9 +6095,11 @@ function leadFollowUpQueueItems() {
 }
 function quoteFollowUpQueueItems() {
   const brandLines = queueBrandLines();
+  const now = Date.now();
   return [...BIDS_CACHE]
     .filter((row) => !row.converted_order_id && String(row.status || "").toLowerCase() === "sent")
-    .filter((row) => (Date.now() - new Date(row.updated_at || row.created_at || 0).getTime()) >= 72 * 60 * 60 * 1000)
+    .filter((row) => !row.valid_until || new Date(row.valid_until).getTime() >= now) // skip expired proposals
+    .filter((row) => (now - new Date(row.updated_at || row.created_at || 0).getTime()) >= 72 * 60 * 60 * 1000)
     .sort((a, b) => new Date(a.updated_at || a.created_at || 0).getTime() - new Date(b.updated_at || b.created_at || 0).getTime())
     .map((bid) => {
       const customer = findBidCustomer(bid.customer_id);
