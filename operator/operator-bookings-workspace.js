@@ -399,47 +399,50 @@ function openWalkInBookingModal() {
 
   const modal = document.createElement("div");
   modal.id = "walkInModal";
-  modal.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10000;display:flex;align-items:center;justify-content:center;";
+  modal.className = "modal-overlay";
   const customerOptions = CUSTOMERS_CACHE.map((customer) => (
     `<option value="${escapeAttr(customer.id)}">${escapeHtml(customer.name || customer.email || "Unknown")}</option>`
   )).join("");
 
   modal.innerHTML = `
-    <div style="background:#1e2029;border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:28px 32px;max-width:420px;width:90%;box-shadow:0 8px 40px rgba(0,0,0,.5);">
-      <h3 style="margin:0 0 18px;font-size:1rem;color:#e8e9eb;">Walk-in booking</h3>
-      <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px;">
+    <div class="modal-card">
+      <h3 class="modal-title u-mb-18">Walk-in booking</h3>
+      <div class="modal-stack u-mb-18">
         <div>
-          <label style="font-size:.78rem;color:rgba(255,255,255,.45);display:block;margin-bottom:3px;">Customer</label>
-          <select id="wiCustomer" class="input" style="width:100%;">
+          <label class="field-note-label field-note-label--tight">Customer</label>
+          <select id="wiCustomer" class="input u-full-width">
             <option value="">-- Select or type name --</option>
             ${customerOptions}
           </select>
         </div>
         <div>
-          <label style="font-size:.78rem;color:rgba(255,255,255,.45);display:block;margin-bottom:3px;">Service</label>
-          <input id="wiService" class="input" placeholder="e.g. Haircut, Oil change, Dog grooming" style="width:100%;" />
+          <label class="field-note-label field-note-label--tight">Service</label>
+          <input id="wiService" class="input u-full-width" placeholder="e.g. Haircut, Oil change, Dog grooming" />
         </div>
-        <div style="display:flex;gap:8px;">
-          <div style="flex:1;">
-            <label style="font-size:.78rem;color:rgba(255,255,255,.45);display:block;margin-bottom:3px;">Price ($)</label>
-            <input id="wiPrice" type="number" min="0" step="0.01" class="input" placeholder="0.00" style="width:100%;" />
+        <div class="modal-grid-2">
+          <div class="modal-grid-2__fill">
+            <label class="field-note-label field-note-label--tight">Price ($)</label>
+            <input id="wiPrice" type="number" min="0" step="0.01" class="input u-full-width" placeholder="0.00" />
           </div>
-          <div style="flex:1;">
-            <label style="font-size:.78rem;color:rgba(255,255,255,.45);display:block;margin-bottom:3px;">Assigned to</label>
-            <select id="wiOperator" class="input" style="width:100%;">
+          <div class="modal-grid-2__fill">
+            <label class="field-note-label field-note-label--tight">Assigned to</label>
+            <select id="wiOperator" class="input u-full-width">
               <option value="">Unassigned</option>
               ${(OPERATOR_MEMBERS_CACHE || []).map((member) => `<option value="${escapeAttr(member.id)}">${escapeHtml(member.display_name || member.email || member.id)}</option>`).join("")}
             </select>
           </div>
         </div>
         <div>
-          <label style="font-size:.78rem;color:rgba(255,255,255,.45);display:block;margin-bottom:3px;">Notes</label>
-          <input id="wiNotes" class="input" placeholder="Optional" style="width:100%;" />
+          <label class="field-note-label field-note-label--tight">Notes</label>
+          <input id="wiNotes" class="input u-full-width" placeholder="Optional" />
         </div>
       </div>
-      <div style="display:flex;gap:10px;justify-content:flex-end;">
-        <button id="wiCancel" class="btn btn-ghost">Cancel</button>
-        <button id="wiSave" class="btn btn-primary">Create walk-in</button>
+      <div class="modal-footer">
+        <span></span>
+        <div class="action-row">
+          <button id="wiCancel" class="btn btn-ghost" type="button">Cancel</button>
+          <button id="wiSave" class="btn btn-primary" type="button">Create walk-in</button>
+        </div>
       </div>
     </div>
   `;
@@ -501,38 +504,42 @@ function openTimeLogModal() {
 
   const modal = document.createElement("div");
   modal.id = "timeLogModal";
-  modal.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10000;display:flex;align-items:center;justify-content:center;";
+  modal.className = "modal-overlay";
   const openOrders = CRM_ORDERS_CACHE.filter((order) => !["paid", "cancelled"].includes(String(order.status || "").toLowerCase()));
   const orderOptions = openOrders.map((order) => (
     `<option value="${escapeAttr(order.id)}">${escapeHtml(order.customer_name || order.name || "Order")} -- ${escapeHtml(order.title || order.id)}</option>`
   )).join("");
 
   modal.innerHTML = `
-    <div style="background:#1e2029;border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:28px 32px;max-width:440px;width:90%;box-shadow:0 8px 40px rgba(0,0,0,.5);">
-      <h3 style="margin:0 0 20px;font-size:1rem;color:#e8e9eb;">Log time</h3>
-      <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px;">
-        <input id="tlCustomer" class="input" placeholder="Customer name" />
-        <input id="tlDescription" class="input" placeholder="Work description" />
-        <div style="display:flex;gap:8px;align-items:center;">
-          <input id="tlHours" class="input" type="number" min="0" step="0.25" placeholder="Hours" style="width:90px;" />
-          <input id="tlRate" class="input" type="number" min="0" step="1" placeholder="Rate ($/hr)" style="flex:1;" />
-          <label style="display:flex;align-items:center;gap:5px;font-size:.8rem;cursor:pointer;white-space:nowrap;">
-            <input type="checkbox" id="tlBillable" checked /> Billable
+    <div class="modal-card">
+      <h3 class="modal-title u-mb-18">Log time</h3>
+      <div class="modal-stack u-mb-18">
+        <input id="tlCustomer" class="input u-full-width" placeholder="Customer name" />
+        <input id="tlDescription" class="input u-full-width" placeholder="Work description" />
+        <div class="row gap-8">
+          <input id="tlHours" class="input u-w-150" type="number" min="0" step="0.25" placeholder="Hours" />
+          <input id="tlRate" class="input u-flex-1" type="number" min="0" step="1" placeholder="Rate ($/hr)" />
+          <label class="modal-check">
+            <input type="checkbox" id="tlBillable" class="modal-check__input" checked />
+            <span class="modal-check__label">Billable</span>
           </label>
         </div>
-        <input id="tlDate" class="input" type="date" />
+        <input id="tlDate" class="input u-full-width" type="date" />
         <div>
-          <label style="font-size:.78rem;color:rgba(255,255,255,.45);display:block;margin-bottom:4px;">Link to order (optional)</label>
-          <select id="tlOrderLink" class="input" style="width:100%;">
+          <label class="field-note-label field-note-label--tight">Link to order (optional)</label>
+          <select id="tlOrderLink" class="input u-full-width">
             <option value="">No order linked</option>
             ${orderOptions}
           </select>
         </div>
       </div>
-      <div id="tlMsg" style="font-size:.8rem;margin-bottom:10px;"></div>
-      <div style="display:flex;gap:8px;justify-content:flex-end;">
+      <div id="tlMsg" class="msg u-mb-10"></div>
+      <div class="modal-footer">
+        <span></span>
+        <div class="action-row">
         <button id="tlCancel" class="btn btn-ghost btn-sm" type="button">Cancel</button>
         <button id="tlSave" class="btn btn-primary btn-sm" type="button">Save time entry</button>
+        </div>
       </div>
     </div>
   `;
@@ -551,7 +558,7 @@ function openTimeLogModal() {
 
     if (!hours || !description) {
       message.textContent = "Enter hours and description.";
-      message.style.color = "#f87171";
+      message.className = "msg error u-mb-10";
       return;
     }
 
@@ -581,11 +588,11 @@ function openTimeLogModal() {
       if (!res.ok) throw new Error(d.error || "Failed to save time entry");
       if (d.entry) TIME_ENTRIES_CACHE = [...TIME_ENTRIES_CACHE, d.entry];
       message.textContent = `Logged ${hours}h${billable && rate ? ` = $${(amountCents / 100).toFixed(2)} billable` : ""}`;
-      message.style.color = "#4ade80";
+      message.className = "msg success u-mb-10";
       setTimeout(() => modal.remove(), 1500);
     } catch (err) {
       message.textContent = err.message || "Failed to save.";
-      message.style.color = "#f87171";
+      message.className = "msg error u-mb-10";
     }
   };
   document.body.appendChild(modal);

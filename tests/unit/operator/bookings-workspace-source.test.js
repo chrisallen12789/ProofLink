@@ -19,4 +19,15 @@ describe("operator bookings workspace source", () => {
     expect(source).toContain('class="modal-status"');
     expect(source).not.toContain('overlay.style.cssText = "position:fixed;inset:0;');
   });
+
+  test("keeps walk-in and booking time-log modals on the shared modal system", () => {
+    expect(source).toContain('modal.className = "modal-overlay"');
+    expect(source).toContain("Walk-in booking");
+    expect(source).toContain('class="modal-grid-2"');
+    expect(source).toContain('class="modal-footer"');
+    expect(source).toContain('button.textContent = "Creating…"');
+    expect(source).toContain('message.className = "msg success u-mb-10"');
+    expect(source).not.toContain('modal.style.cssText = "position:fixed;inset:0;');
+    expect(source).not.toContain('style="background:#1e2029;border:1px solid rgba(255,255,255,.12);border-radius:10px;');
+  });
 });
