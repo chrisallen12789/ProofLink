@@ -3,14 +3,16 @@
 async function renderTimeEntries(orderId) {
   const body = document.getElementById("timeLoggedBody");
   if (!body || body.style.display === "none") return;
-  body.innerHTML = `<div class="muted" style="font-size:.82rem;">Loading…</div>`;
+  body.innerHTML = `<div class="muted" style="font-size:.82rem;">Loading...</div>`;
   const entries = await fetchTimeEntries(orderId);
   if (!entries.length) {
-    body.innerHTML = `<div class="muted" style="font-size:.82rem;">No time entries for this order.</div>`;
+    body.innerHTML = `<div class="muted" style="font-size:.82rem;">No time entries yet. Log time here to keep invoicing accurate.</div>`;
     return;
   }
-  const totalMins     = entries.reduce((s, e) => s + Number(e.duration_minutes || 0), 0);
-  const totalBillable = entries.reduce((s, e) => s + Number(e.amount_cents || 0), 0);
+
+  const totalMins = entries.reduce((sum, entry) => sum + Number(entry.duration_minutes || 0), 0);
+  const totalBillable = entries.reduce((sum, entry) => sum + Number(entry.amount_cents || 0), 0);
+
   body.innerHTML = `
     <table style="width:100%;font-size:.8rem;border-collapse:collapse;">
       <thead><tr style="color:rgba(255,255,255,.35);">
@@ -20,18 +22,18 @@ async function renderTimeEntries(orderId) {
         <th style="text-align:right;padding:4px 6px;border-bottom:1px solid rgba(255,255,255,.08);">Billable?</th>
         <th style="text-align:right;padding:4px 6px;border-bottom:1px solid rgba(255,255,255,.08);">Cost</th>
       </tr></thead>
-      <tbody>${entries.map((e) => {
-        const mins = Number(e.duration_minutes || 0);
-        const hrs  = Math.floor(mins / 60);
-        const rem  = mins % 60;
-        const dur  = hrs ? `${hrs}h ${rem}m` : `${rem}m`;
-        const date = e.started_at ? new Date(e.started_at).toLocaleDateString() : (e.date || "");
+      <tbody>${entries.map((entry) => {
+        const mins = Number(entry.duration_minutes || 0);
+        const hrs = Math.floor(mins / 60);
+        const rem = mins % 60;
+        const dur = hrs ? `${hrs}h ${rem}m` : `${rem}m`;
+        const date = entry.started_at ? new Date(entry.started_at).toLocaleDateString() : (entry.date || "");
         return `<tr>
           <td style="padding:3px 6px;border-bottom:1px solid rgba(255,255,255,.05);">${escapeHtml(date)}</td>
-          <td style="padding:3px 6px;border-bottom:1px solid rgba(255,255,255,.05);">${escapeHtml(e.description || "")}</td>
+          <td style="padding:3px 6px;border-bottom:1px solid rgba(255,255,255,.05);">${escapeHtml(entry.description || "")}</td>
           <td style="text-align:right;padding:3px 6px;border-bottom:1px solid rgba(255,255,255,.05);">${dur}</td>
-          <td style="text-align:right;padding:3px 6px;border-bottom:1px solid rgba(255,255,255,.05);">${e.billable ? "Yes" : "No"}</td>
-          <td style="text-align:right;padding:3px 6px;border-bottom:1px solid rgba(255,255,255,.05);">${e.billable && e.amount_cents ? formatUsd(e.amount_cents) : "—"}</td>
+          <td style="text-align:right;padding:3px 6px;border-bottom:1px solid rgba(255,255,255,.05);">${entry.billable ? "Yes" : "No"}</td>
+          <td style="text-align:right;padding:3px 6px;border-bottom:1px solid rgba(255,255,255,.05);">${entry.billable && entry.amount_cents ? formatUsd(entry.amount_cents) : "--"}</td>
         </tr>`;
       }).join("")}
       </tbody>
@@ -39,19 +41,21 @@ async function renderTimeEntries(orderId) {
         <td colspan="2" style="padding:6px 6px 2px;">Total</td>
         <td style="text-align:right;padding:6px 6px 2px;">${(totalMins / 60).toFixed(2)} hrs</td>
         <td></td>
-        <td style="text-align:right;padding:6px 6px 2px;">${totalBillable ? formatUsd(totalBillable) : "—"}</td>
+        <td style="text-align:right;padding:6px 6px 2px;">${totalBillable ? formatUsd(totalBillable) : "--"}</td>
       </tr></tfoot>
     </table>
-    <button id="btnTimeToInvoice" class="btn btn-ghost" style="margin-top:8px;font-size:.78rem;">⚡ Add uninvoiced hours to invoice</button>`;
+    <button id="btnTimeToInvoice" class="btn btn-ghost" style="margin-top:8px;font-size:.78rem;">Add uninvoiced hours to invoice</button>`;
 }
 
 function openLogTimeModal(orderId) {
   const existing = document.getElementById("logTimeModal");
-  if (existing) { existing.remove(); return; }
+  if (existing) {
+    existing.remove();
+    return;
+  }
 
-  // Default started_at to current local time in datetime-local format
   const now = new Date();
-  const pad = (n) => String(n).padStart(2, "0");
+  const pad = (value) => String(value).padStart(2, "0");
   const defaultStarted = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
 
   const modal = document.createElement("div");
@@ -74,7 +78,7 @@ function openLogTimeModal(orderId) {
             <input id="ltDurationMins" type="number" min="1" step="1" placeholder="e.g. 60" class="input" style="width:100%;" />
           </div>
           <div style="flex:1;">
-            <label style="font-size:.72rem;color:rgba(255,255,255,.35);display:block;margin-bottom:2px;">— or — Ended at</label>
+            <label style="font-size:.72rem;color:rgba(255,255,255,.35);display:block;margin-bottom:2px;">Or, enter an end time</label>
             <input id="ltEndedAt" type="datetime-local" class="input" style="width:100%;" />
           </div>
         </div>
@@ -98,28 +102,37 @@ function openLogTimeModal(orderId) {
   document.body.appendChild(modal);
 
   document.getElementById("ltSave").onclick = async () => {
-    const desc        = (document.getElementById("ltDesc")?.value || "").trim();
-    const startedAt   = document.getElementById("ltStartedAt")?.value || "";
+    const desc = (document.getElementById("ltDesc")?.value || "").trim();
+    const startedAt = document.getElementById("ltStartedAt")?.value || "";
     const durationRaw = document.getElementById("ltDurationMins")?.value;
-    const endedAt     = document.getElementById("ltEndedAt")?.value || "";
-    const billable    = document.getElementById("ltBillable")?.checked ?? true;
-    const rateRaw     = document.getElementById("ltHourlyRate")?.value;
-    const msgEl       = document.getElementById("ltMsg");
+    const endedAt = document.getElementById("ltEndedAt")?.value || "";
+    const billable = document.getElementById("ltBillable")?.checked ?? true;
+    const rateRaw = document.getElementById("ltHourlyRate")?.value;
+    const msgEl = document.getElementById("ltMsg");
 
-    if (!desc)       { msgEl.textContent = "Description is required."; return; }
-    if (!startedAt)  { msgEl.textContent = "Started at is required."; return; }
-    if (!durationRaw && !endedAt) { msgEl.textContent = "Provide duration or ended at."; return; }
+    if (!desc) {
+      msgEl.textContent = "Description is required.";
+      return;
+    }
+    if (!startedAt) {
+      msgEl.textContent = "Started at is required.";
+      return;
+    }
+    if (!durationRaw && !endedAt) {
+      msgEl.textContent = "Provide duration or ended at.";
+      return;
+    }
 
     const btn = document.getElementById("ltSave");
     btn.disabled = true;
-    btn.textContent = "Saving…";
+    btn.textContent = "Saving...";
 
     try {
       const tok = await getAccessToken();
       const payload = {
-        order_id   : orderId,
+        order_id: orderId,
         description: desc,
-        started_at : new Date(startedAt).toISOString(),
+        started_at: new Date(startedAt).toISOString(),
         billable,
       };
       if (durationRaw) {
@@ -132,23 +145,22 @@ function openLogTimeModal(orderId) {
       }
 
       const res = await fetch("/.netlify/functions/log-time-entry", {
-        method : "POST",
+        method: "POST",
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${tok}` },
-        body   : JSON.stringify(payload),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) {
-        const d = await res.json().catch(() => ({}));
-        throw new Error(d.error || "Failed to save entry");
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Failed to save entry");
       }
       showToast("Time entry logged.");
       modal.remove();
 
-      // Expand the time log section if it isn't already, then refresh
       const body = document.getElementById("timeLoggedBody");
       const span = document.getElementById("timeLoggedToggle")?.querySelector("span");
       if (body) {
         body.style.display = "block";
-        if (span) span.textContent = "Time logged ▾";
+        if (span) span.textContent = "Time logged";
         await renderTimeEntries(orderId);
       }
     } catch (err) {
@@ -170,4 +182,3 @@ window.PROOFLINK_OPERATOR_TIME_TOOLS = {
 };
 
 Object.assign(window, TIME_TOOLS_HELPERS);
-

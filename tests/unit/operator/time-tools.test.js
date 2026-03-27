@@ -50,7 +50,7 @@ describe("operator time tools", () => {
 
     await context.window.renderTimeEntries("order_123");
 
-    expect(elements.timeLoggedBody.innerHTML).toContain("No time entries for this order.");
+    expect(elements.timeLoggedBody.innerHTML).toContain("No time entries yet. Log time here to keep invoicing accurate.");
   });
 
   test("renderTimeEntries renders totals for existing entries", async () => {
@@ -67,5 +67,24 @@ describe("operator time tools", () => {
     expect(elements.timeLoggedBody.innerHTML).toContain("Main line jetting");
     expect(elements.timeLoggedBody.innerHTML).toContain("2.00 hrs");
     expect(elements.timeLoggedBody.innerHTML).toContain("$22500");
+    expect(elements.timeLoggedBody.innerHTML).toContain("Add uninvoiced hours to invoice");
+  });
+
+  test("time tools source keeps plain-language strings without encoding drift", () => {
+    const source = fs.readFileSync(
+      path.resolve(process.cwd(), "operator/operator-time-tools.js"),
+      "utf8"
+    );
+
+    expect(source).toContain("Loading...");
+    expect(source).toContain("No time entries yet. Log time here to keep invoicing accurate.");
+    expect(source).toContain('btn.textContent = "Saving..."');
+    expect(source).toContain('span.textContent = "Time logged"');
+    expect(source).toContain("Add uninvoiced hours to invoice");
+    expect(source).toContain("Or, enter an end time");
+    expect(source).not.toContain("â€¦");
+    expect(source).not.toContain("â€”");
+    expect(source).not.toContain("âš¡");
+    expect(source).not.toContain("â–¾");
   });
 });

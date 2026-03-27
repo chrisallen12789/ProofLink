@@ -76,4 +76,26 @@ describe("operator workflow scenarios", () => {
     expect(shellSource).toContain("proposals move into booked work");
     expect(shellSource).not.toContain("quoted or booked work");
   });
+
+  test("the booked-work to time-to-payment path stays plain and reassuring", () => {
+    const timeSource = fs.readFileSync(
+      path.resolve(process.cwd(), "operator/operator-time-tools.js"),
+      "utf8"
+    );
+    const ordersSource = fs.readFileSync(
+      path.resolve(process.cwd(), "operator/operator-orders-workspace.js"),
+      "utf8"
+    );
+    const crewSource = fs.readFileSync(
+      path.resolve(process.cwd(), "crew/crew.js"),
+      "utf8"
+    );
+
+    expect(timeSource).toContain("No time entries yet. Log time here to keep invoicing accurate.");
+    expect(timeSource).toContain("Add uninvoiced hours to invoice");
+    expect(ordersSource).toContain("Payment follow-up is overdue");
+    expect(crewSource).toContain("invoice or customer follow-through");
+    expect(timeSource).not.toContain("â€¦");
+    expect(timeSource).not.toContain("â€”");
+  });
 });
