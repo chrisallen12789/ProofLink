@@ -18,6 +18,12 @@ describe("customer portal html", () => {
     expect(source).toContain("Use another email");
   });
 
+  test("only shows a review link when the portal receives a real estimate review URL", () => {
+    expect(source).toContain("var reviewUrl = q.review_url || '';");
+    expect(source).toContain("Review estimate");
+    expect(source).not.toContain('href="/quote.html?token=');
+  });
+
   test("does not carry mojibake into the customer portal", () => {
     expect(source).not.toContain("â");
     expect(source).not.toContain("Ã");

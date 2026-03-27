@@ -8,6 +8,41 @@
 const { getAdminClient, respond } = require('./utils/auth');
 const { checkRateLimit, rateLimitResponse, getClientIP } = require('./utils/rate-limit');
 
+function normalizeEstimateStatus(status) {
+  const value = String(status || '').trim().toLowerCase();
+  if (['sent', 'review', 'ready_to_send'].includes(value)) return 'pending';
+  if (value === 'approved') return 'accepted';
+  return value || 'pending';
+}
+
+function normalizeLegacyQuote(quote) {
+  return {
+    id: quote.id,
+    title: quote.title,
+    description: quote.description || '',
+    amount_cents: quote.amount_cents || 0,
+    status: normalizeEstimateStatus(quote.status),
+    valid_until: quote.valid_until || null,
+    created_at: quote.created_at || null,
+    source_type: 'quote',
+    review_url: null,
+  };
+}
+
+function normalizeBidEstimate(bid) {
+  return {
+    id: bid.id,
+    title: bid.title,
+    description: bid.project_summary || '',
+    amount_cents: bid.total_cents || 0,
+    status: normalizeEstimateStatus(bid.status),
+    valid_until: bid.valid_until || null,
+    created_at: bid.created_at || null,
+    source_type: 'bid',
+    review_url: `/quote.html?token=${encodeURIComponent(bid.id)}`,
+  };
+}
+
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return respond(200, {});
   if (event.httpMethod !== 'POST')    return respond(405, { error: 'Method not allowed' });
@@ -54,7 +89,7 @@ exports.handler = async (event) => {
     .order('starts_at', { ascending: false })
     .limit(20);
 
-  // Fetch pending/accepted quotes for this email+tenant
+  // Fetch legacy quotes for this email+tenant.
   const { data: quotes } = await supabase
     .from('quotes')
     .select('id, title, description, amount_cents, status, valid_until, created_at')
@@ -63,10 +98,38 @@ exports.handler = async (event) => {
     .order('created_at', { ascending: false })
     .limit(10);
 
+  const { data: customers } = await supabase
+    .from('customers')
+    .select('id')
+    .eq('tenant_id', tenant_id)
+    .ilike('email', normalizedEmail)
+    .limit(20);
+
+  const customerIds = (customers || []).map((row) => row.id).filter(Boolean);
+  let bidEstimates = [];
+  if (customerIds.length) {
+    const { data: bids } = await supabase
+      .from('bids')
+      .select('id, title, project_summary, total_cents, status, valid_until, created_at, customer_id')
+      .eq('tenant_id', tenant_id)
+      .in('customer_id', customerIds)
+      .order('created_at', { ascending: false })
+      .limit(10);
+
+    bidEstimates = (bids || [])
+      .filter((row) => ['sent', 'review', 'ready_to_send', 'pending', 'approved', 'expired'].includes(String(row.status || '').trim().toLowerCase()))
+      .map(normalizeBidEstimate);
+  }
+
+  const estimateRows = [
+    ...(quotes || []).map(normalizeLegacyQuote),
+    ...bidEstimates,
+  ].sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+
   return respond(200, {
     business_name: tenant.name,
     orders  : orders   || [],
     bookings: bookings || [],
-    quotes  : quotes   || [],
+    quotes  : estimateRows,
   });
 };

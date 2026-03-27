@@ -339,6 +339,12 @@ test.describe.serial("service workflow e2e", () => {
   test("customer can review and approve the public estimate", async ({ page }) => {
     const admin = createAdminClient();
 
+    await page.goto(`/portal.html?tenant=${encodeURIComponent(state.tenantId)}&email=${encodeURIComponent(state.customerEmail)}`);
+    await page.locator("#btnPortalLookup").click();
+    await page.getByRole("button", { name: "Estimates" }).click();
+    await expect(page.locator("#quotesList")).toContainText(state.bidTitle, { timeout: 15000 });
+    await expect(page.locator("#quotesList")).toContainText("Review estimate");
+
     await page.goto(`/quote.html?token=${state.bidId}`);
     await expect(page.getByText("Estimate for your service")).toBeVisible();
     await expect(page.locator("#proposalTitle")).toContainText(state.bidTitle);
