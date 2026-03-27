@@ -327,28 +327,54 @@ async function renderPlanDetail(planIdValue) {
   const sourceOrder = CRM_ORDERS_CACHE.find((row) => row.id === plan.source_order_id) || null;
   const lastOrder = CRM_ORDERS_CACHE.find((row) => row.id === plan.last_generated_order_id) || null;
   const dueNow = dueServicePlans().some((row) => row.id === plan.id);
+  const workspaceBlueprint = typeof currentWorkspaceBlueprint === "function"
+    ? currentWorkspaceBlueprint()
+    : { business: { key: "other", label: "Business", recordFocus: [] } };
+  const sharedChecklist = window.PROOFLINK_OPERATOR_CUSTOMER_DETAIL?.customerMemoryChecklist;
+  const planCustomerMemory = customer && typeof sharedChecklist === "function"
+    ? sharedChecklist(customer, workspaceBlueprint).slice(0, 4)
+    : (workspaceBlueprint?.business?.recordFocus || []).slice(0, 4).map((item) => ({
+      label: item.label,
+      note: item.description || "",
+      ready: false,
+    }));
   planDetailWrap.innerHTML = `
     <div class="detail-card">
       <div class="kicker">Recurring summary</div>
       <div><strong>${escapeHtml(plan.title || "Recurring plan")}</strong></div>
       <div class="detail-copy">${escapeHtml(customer?.name || "No linked customer")} | ${escapeHtml(planCadenceLabel(plan.cadence, plan.custom_interval_days))}</div>
-      <div class="detail-copy">Next run: ${escapeHtml(servicePlanNextRunLabel(plan))}${dueNow ? " | Due now" : ""}</div>
-      <div class="detail-copy">Amount: ${formatUsd(servicePlanAmountCents(plan))} | Deposit: ${formatUsd(Number(plan.deposit_required_cents || 0))}</div>
-    </div>
-    <div class="detail-card" style="margin-top:14px;">
-      <div class="kicker">Source and automation</div>
-      <div class="detail-copy">Source order: ${escapeHtml(sourceOrder?.customer_name || sourceOrder?.cart_summary || "No source order")}</div>
-      <div class="detail-copy">Auto-create job: ${plan.auto_create_job !== false ? "On" : "Off"}</div>
-      <div class="detail-copy">${escapeHtml(plan.service_address || customer?.service_address || "No service address recorded")}</div>
-    </div>
-    <div class="detail-card" style="margin-top:14px;">
-      <div class="kicker">Last generated work</div>
-      <div class="detail-copy">Last order: ${escapeHtml(lastOrder?.customer_name || lastOrder?.cart_summary || "None yet")}</div>
-      <div class="detail-copy">${lastOrder ? `${escapeHtml(formatWorkflowPaymentState(orderPaymentState(lastOrder)))} | ${formatUsd(orderAmountDueCents(lastOrder))} due` : "Generate the next order when this plan is ready to create work."}</div>
-      <div class="detail-copy">${escapeHtml(plan.notes || "Use notes for site access, seasonal adjustments, and handoff reminders.")}</div>
-    </div>
-  `;
-}
+        <div class="detail-copy">Next run: ${escapeHtml(servicePlanNextRunLabel(plan))}${dueNow ? " | Due now" : ""}</div>
+        <div class="detail-copy">Amount: ${formatUsd(servicePlanAmountCents(plan))} | Deposit: ${formatUsd(Number(plan.deposit_required_cents || 0))}</div>
+      </div>
+      <div class="detail-card detail-card--spaced">
+        <div class="kicker">Source and automation</div>
+        <div class="detail-copy">Source order: ${escapeHtml(sourceOrder?.customer_name || sourceOrder?.cart_summary || "No source order")}</div>
+        <div class="detail-copy">Auto-create job: ${plan.auto_create_job !== false ? "On" : "Off"}</div>
+        <div class="detail-copy">${escapeHtml(plan.service_address || customer?.service_address || "No service address recorded")}</div>
+      </div>
+      <div class="detail-card detail-card--spaced">
+        <div class="kicker">Last generated work</div>
+        <div class="detail-copy">Last order: ${escapeHtml(lastOrder?.customer_name || lastOrder?.cart_summary || "None yet")}</div>
+        <div class="detail-copy">${lastOrder ? `${escapeHtml(formatWorkflowPaymentState(orderPaymentState(lastOrder)))} | ${formatUsd(orderAmountDueCents(lastOrder))} due` : "Generate the next order when this plan is ready to create work."}</div>
+        <div class="detail-copy">${escapeHtml(plan.notes || "Use notes for site access, seasonal adjustments, and handoff reminders.")}</div>
+      </div>
+      ${planCustomerMemory.length ? `
+        <div class="detail-card detail-card--spaced">
+          <div class="kicker">Customer memory</div>
+          <div><strong>Keep the trade details attached to the recurring rhythm</strong></div>
+          <div class="detail-copy">Use this plan to keep the property, access, equipment, or repair context visible before repeat work is generated again.</div>
+          <div class="memory-checklist">
+            ${planCustomerMemory.map((item) => `
+              <div class="memory-checklist__item ${item.ready ? "memory-checklist__item--ready" : ""}">
+                <div class="memory-checklist__label">${escapeHtml(item.label || "Detail")}</div>
+                <div class="memory-checklist__note">${escapeHtml(item.note || "Still needs attention before the next repeat visit.")}</div>
+              </div>
+            `).join("")}
+          </div>
+        </div>
+      ` : ""}
+    `;
+  }
 
 function sortedServicePlans(filter = "") {
   const needle = String(filter || "").trim().toLowerCase();

@@ -293,4 +293,33 @@ describe("operator lead plan workspace", () => {
     expect(context.leadDetailWrap.innerHTML).toContain("Front beds and narrow side gate");
     expect(context.leadDetailWrap.innerHTML).toContain("Gate code still needed");
   });
+
+  test("renderPlanDetail carries business-specific customer memory into recurring plans", async () => {
+    const context = loadLeadPlanWorkspace({
+      SERVICE_PLANS_CACHE: [{
+        id: "plan_1",
+        customer_id: "customer_1",
+        title: "Weekly mowing",
+        status: "active",
+        cadence: "weekly",
+        next_run_on: "2026-04-01",
+        amount_cents: 9500,
+        deposit_required_cents: 0,
+        updated_at: "2026-03-26T08:00:00.000Z",
+      }],
+      CUSTOMERS_CACHE: [{ id: "customer_1", name: "Logan's Lawn Care" }],
+      PROOFLINK_OPERATOR_CUSTOMER_DETAIL: {
+        customerMemoryChecklist: vi.fn(() => ([
+          { label: "Property profile", ready: true, note: "Front lawn plus fenced back yard" },
+          { label: "Seasonal notes", ready: false, note: "Spring mulch refresh coming up next month" },
+        ])),
+      },
+    });
+
+    await context.window.renderPlanDetail("plan_1");
+
+    expect(context.planDetailWrap.innerHTML).toContain("Keep the trade details attached to the recurring rhythm");
+    expect(context.planDetailWrap.innerHTML).toContain("Front lawn plus fenced back yard");
+    expect(context.planDetailWrap.innerHTML).toContain("Spring mulch refresh coming up next month");
+  });
 });
