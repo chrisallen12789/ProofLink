@@ -119,17 +119,39 @@ test.describe.serial("service workflow e2e", () => {
   }
 
   async function openTab(page, tabName) {
-    await page.locator(`button.tab[data-tab="${tabName}"]`).click();
+    await page.evaluate(async (nextTab) => {
+      if (typeof window.switchTab === "function") {
+        await window.switchTab(nextTab, { force: true });
+        return;
+      }
+      const tab = document.querySelector(`button.tab[data-tab="${nextTab}"]`);
+      tab?.click();
+    }, tabName);
+    await expect(page.locator(`[data-panel="${tabName}"]`)).not.toHaveClass(/hidden/);
+  }
+
+  function requireFixtureRow(label, result, hint) {
+    if (result.error) throw result.error;
+    if (!result.data) {
+      throw new Error(`${label} fixture is missing in the test Supabase project. ${hint}`);
+    }
+    return result.data;
   }
 
   async function tenantContext() {
     const admin = createAdminClient();
-    const tenant = await admin.from("tenants").select("id").eq("slug", TENANTS.tenantA.slug).single();
-    if (tenant.error) throw tenant.error;
-    const operator = await admin.from("operators").select("id").eq("email", process.env.TEST_TENANT_A_ADMIN_EMAIL).single();
-    if (operator.error) throw operator.error;
-    state.tenantId = tenant.data.id;
-    state.operatorId = operator.data.id;
+    const tenant = requireFixtureRow(
+      `Tenant ${TENANTS.tenantA.slug}`,
+      await admin.from("tenants").select("id").eq("slug", TENANTS.tenantA.slug).maybeSingle(),
+      "Seed the shared e2e tenant fixtures before running tests/e2e/service-workflow.spec.js.",
+    );
+    const operator = requireFixtureRow(
+      `Operator ${process.env.TEST_TENANT_A_ADMIN_EMAIL}`,
+      await admin.from("operators").select("id").eq("email", process.env.TEST_TENANT_A_ADMIN_EMAIL).maybeSingle(),
+      "Make sure the tenant A owner fixture exists and can sign in before running the service workflow browser suite.",
+    );
+    state.tenantId = tenant.id;
+    state.operatorId = operator.id;
     return admin;
   }
 
@@ -160,6 +182,19 @@ test.describe.serial("service workflow e2e", () => {
       await new Promise((resolve) => setTimeout(resolve, 500));
     }
     throw new Error(`Timed out waiting for synced bid state for lead ${leadId}`);
+  }
+
+  async function waitForBidStatus(admin, bidId, expectedStatus, timeoutMs = 30000) {
+    const startedAt = Date.now();
+    while (Date.now() - startedAt < timeoutMs) {
+      const result = await admin.from("bids").select("*").eq("id", bidId).single();
+      if (result.error) throw result.error;
+      if (String(result.data?.status || "").trim().toLowerCase() === String(expectedStatus || "").trim().toLowerCase()) {
+        return result.data;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+    throw new Error(`Timed out waiting for bid ${bidId} to reach status ${expectedStatus}`);
   }
 
   async function waitForOrderRow(admin, orderId, predicate, timeoutMs = 30000) {
@@ -276,9 +311,19 @@ test.describe.serial("service workflow e2e", () => {
     await expect(page.locator("#bidTitle")).toBeVisible();
     await page.locator("#bidTitle").fill(state.bidTitle);
     await page.locator("#bidProjectSummary").fill(`Exterior wash proposal ${state.stamp}`);
-    await page.locator("#bidStatus").selectOption("walkthrough_complete");
+    await page.locator("#bidStatus").selectOption("sent");
+    await page.locator("#bidValidUntil").fill(new Date(Date.now() + (10 * 86400000)).toISOString().slice(0, 10));
+    await page.locator("#bidCoverNote").fill("Approve this estimate when you are ready and we will take care of the next steps.");
     await page.locator("#bidForm").getByRole("button", { name: "Save bid" }).click();
 
+    await expect(page.locator("#bidMsg")).toContainText(/saved/i);
+
+    await page.locator("#bidLineItemName").fill("House wash");
+    await page.locator("#bidLineItemDescription").fill("Soft wash siding and exterior trim");
+    await page.locator("#bidLineItemUnitPrice").fill("350.00");
+    await page.locator("#bidLineItemForm").getByRole("button", { name: "Save line item" }).click();
+    await expect(page.locator("#bidLineItemMsg")).toContainText(/saved/i);
+    await page.locator("#bidForm").getByRole("button", { name: "Save bid" }).click();
     await expect(page.locator("#bidMsg")).toContainText(/saved/i);
 
     const bidRow = await waitForBidRow(
@@ -291,25 +336,37 @@ test.describe.serial("service workflow e2e", () => {
     expect(bidRow.customer_id).toBe(state.customerId);
   });
 
+  test("customer can review and approve the public estimate", async ({ page }) => {
+    const admin = createAdminClient();
+
+    await page.goto(`/quote.html?token=${state.bidId}`);
+    await expect(page.getByText("Estimate for your service")).toBeVisible();
+    await expect(page.locator("#proposalTitle")).toContainText(state.bidTitle);
+    await expect(page.locator("#lineItemsCard")).toContainText("House wash");
+    await expect(page.locator("#totalsCard")).toContainText("$350.00");
+    await page.getByRole("button", { name: "Approve and continue" }).click();
+    await expect(page.getByRole("dialog")).toBeVisible();
+    await page.getByRole("button", { name: "Yes, accept" }).click();
+    await expect(page.locator("#acceptedState")).toBeVisible({ timeout: 15000 });
+    await expect(page.locator("#acceptedMsg")).toContainText(/follow up shortly/i);
+
+    const acceptedBid = await waitForBidStatus(admin, state.bidId, "approved");
+    expect(acceptedBid.total_cents).toBe(35000);
+  });
+
   test("convert the bid into a tracked order without duplication or data loss", async ({ page }) => {
     const admin = createAdminClient();
 
     await loginAsTenantA(page);
-    await openTab(page, "leads");
-    await page.locator("#leadSearch").fill(state.stamp);
-    await page.locator("#leadsList").getByText(state.customerName).click();
-    await page.locator("#btnLeadDraftProposal").click();
-    await expect(page.locator('[data-panel="bids"]')).not.toHaveClass(/hidden/);
-    await page.locator("#bidStatus").selectOption("approved");
+    await openTab(page, "bids");
+    await page.locator("#bidSearch").fill(state.stamp);
+    await page.locator("#bidsList").getByText(state.bidTitle).click();
+    await expect(page.locator("#bidTitle")).toHaveValue(state.bidTitle);
     await page.locator("#bidDepositAmount").fill("100.00");
     await page.locator("#bidForm").getByRole("button", { name: "Save bid" }).click();
     await expect(page.locator("#bidMsg")).toContainText(/saved/i);
 
-    await page.locator("#bidLineItemName").fill("House wash");
-    await page.locator("#bidLineItemDescription").fill("Soft wash siding and exterior trim");
-    await page.locator("#bidLineItemUnitPrice").fill("350.00");
-    await page.locator("#bidLineItemForm").getByRole("button", { name: "Save line item" }).click();
-    await expect(page.locator("#bidLineItemMsg")).toContainText(/saved/i);
+    await waitForBidStatus(admin, state.bidId, "approved");
 
     await page.locator("#btnConvertBidToOrder").click();
     const orderRow = await waitForSingleRow(admin, "orders", "bid_id", state.bidId);
@@ -367,7 +424,8 @@ test.describe.serial("service workflow e2e", () => {
 
     await openTab(page, "orders");
     await page.locator(`#ordersList button[data-order-id="${state.orderId}"]`).click();
-    await expect(page.locator("#orderDetailWrap")).toContainText("Payment state: Partially paid");
+    await expect(page.locator("#orderDetailWrap")).toContainText("Partially paid");
+    await expect(page.locator("#orderDetailWrap")).toContainText("$200.00 still open");
   });
 
   test("complete payment and show paid state in the UI", async ({ page }) => {
@@ -390,7 +448,8 @@ test.describe.serial("service workflow e2e", () => {
 
     await openTab(page, "orders");
     await page.locator(`#ordersList button[data-order-id="${state.orderId}"]`).click();
-    await expect(page.locator("#orderDetailWrap")).toContainText("Payment state: Paid");
+    await expect(page.locator("#orderDetailWrap")).toContainText("Paid");
+    await expect(page.locator("#orderDetailWrap")).toContainText("$0.00");
   });
 
   test("simulate overdue and show overdue state in the UI", async ({ page }) => {
@@ -447,7 +506,7 @@ test.describe.serial("service workflow e2e", () => {
     await loginAsTenantA(page);
     await openTab(page, "orders");
     await page.locator(`#ordersList button[data-order-id="${state.overdueOrderId}"]`).click();
-    await expect(page.locator("#orderDetailWrap")).toContainText("Payment state: Overdue");
+    await expect(page.locator("#orderDetailWrap")).toContainText("Overdue");
   });
 
   test("switch tenant context and keep tenant A workflow data isolated", async ({ page }) => {

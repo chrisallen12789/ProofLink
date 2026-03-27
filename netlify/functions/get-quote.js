@@ -21,7 +21,45 @@ const BID_SELECT = [
   'status',
   'customer_id',
   'created_at',
+  'line_items',
 ].join(', ');
+
+function normalizeLineItem(item) {
+  const quantity = Number(item?.quantity ?? item?.qty ?? 1) || 1;
+  const unitPriceCents = Number(
+    item?.unit_price_cents
+    ?? item?.unitPriceCents
+    ?? item?.unit_price
+    ?? item?.price_cents
+    ?? item?.price
+    ?? 0
+  ) || 0;
+  const explicitLineTotalCents = Number(
+    item?.line_total_cents
+    ?? item?.lineTotalCents
+    ?? item?.total_cents
+    ?? item?.totalCents
+  );
+  const lineTotalCents = Number.isFinite(explicitLineTotalCents)
+    ? explicitLineTotalCents
+    : Math.round(quantity * unitPriceCents);
+
+  return {
+    id: item?.id || null,
+    name: item?.name || item?.description || 'Item',
+    description: item?.description || '',
+    note: item?.note || '',
+    quantity,
+    qty: quantity,
+    unit: item?.unit || 'item',
+    unit_price_cents: unitPriceCents,
+    unit_price: unitPriceCents / 100,
+    price: unitPriceCents / 100,
+    line_total_cents: lineTotalCents,
+    line_total: lineTotalCents / 100,
+    total: lineTotalCents / 100,
+  };
+}
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return respond(200, {});
@@ -55,7 +93,7 @@ exports.handler = async (event) => {
       return respond(500, { error: 'Failed to load proposal' });
     }
     if (!bid) return respond(404, { error: 'Proposal not found' });
-    if (bid.status === 'accepted') return respond(200, { ok: true, message: 'Already accepted' });
+    if (bid.status === 'approved' || bid.status === 'accepted') return respond(200, { ok: true, message: 'Already accepted' });
     if (bid.status && !['pending', 'sent', 'approved', 'review'].includes(bid.status)) {
       return respond(409, { error: `Proposal cannot be accepted — current status: ${bid.status}` });
     }
@@ -68,12 +106,13 @@ exports.handler = async (event) => {
       }
     }
 
-    // Mark bid as accepted (atomic: only succeed if still in an acceptable status)
+    // Mark bid as approved so the public accept flow matches the bid lifecycle
+    // enforced by the current schema and operator workflow.
     const { data: updatedRows, error: updateErr } = await supabase
       .from('bids')
-      .update({ status: 'accepted', updated_at: new Date().toISOString() })
+      .update({ status: 'approved', updated_at: new Date().toISOString() })
       .eq('id', bid_id)
-      .not('status', 'eq', 'accepted')
+      .not('status', 'eq', 'approved')
       .select('id');
 
     if (updateErr) {
@@ -148,6 +187,7 @@ exports.handler = async (event) => {
     return respond(500, { error: 'Failed to load proposal' });
   }
   if (!bid) return respond(404, { error: 'Proposal not found' });
+  const lineItems = Array.isArray(bid.line_items) ? bid.line_items.map(normalizeLineItem) : [];
 
   // Fetch tenant branding
   const { data: tenant } = await supabase
@@ -167,6 +207,8 @@ exports.handler = async (event) => {
     customerName = customer?.name || null;
   }
 
+  const publicStatus = String(bid.status || '').trim().toLowerCase() === 'approved' ? 'accepted' : bid.status;
+
   return respond(200, {
     ok   : true,
     quote: {
@@ -178,7 +220,7 @@ exports.handler = async (event) => {
       total_amount   : bid.total_cents != null ? Number(bid.total_cents) / 100 : null,
       valid_until    : bid.valid_until,
       cover_note     : bid.cover_note,
-      status         : bid.status,
+      status         : publicStatus,
       created_at     : bid.created_at,
       customer_name  : customerName,
       business_name  : tenant?.name       || null,
@@ -188,7 +230,7 @@ exports.handler = async (event) => {
       business_phone : tenant?.phone || null,
       notes          : bid.cover_note || null,
       terms          : bid.scope_of_work || null,
-      line_items     : [],
+      line_items     : lineItems,
     },
     id               : bid.id,
     title            : bid.title,
@@ -196,7 +238,7 @@ exports.handler = async (event) => {
     total_amount     : bid.total_cents != null ? Number(bid.total_cents) / 100 : null,
     valid_until      : bid.valid_until,
     cover_note       : bid.cover_note,
-    status           : bid.status,
+    status           : publicStatus,
     created_at       : bid.created_at,
     customer_name    : customerName,
     business_name    : tenant?.name || null,
@@ -205,6 +247,6 @@ exports.handler = async (event) => {
     business_phone   : tenant?.phone || null,
     notes            : bid.cover_note || null,
     terms            : bid.scope_of_work || null,
-    line_items       : [],
+    line_items       : lineItems,
   });
 };

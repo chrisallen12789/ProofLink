@@ -40,9 +40,14 @@ function createSupabaseMock({ bid, tenant, customer }) {
     select: vi.fn(() => bidsTable),
     eq: vi.fn(() => bidsTable),
     maybeSingle: vi.fn(async () => ({ data: bid, error: null })),
-    update: vi.fn(() => ({
-      eq: vi.fn(async () => ({ error: null })),
-    })),
+    update: vi.fn(() => {
+      const chain = {
+        eq: vi.fn(() => chain),
+        not: vi.fn(() => chain),
+        select: vi.fn(async () => ({ data: [{ id: bid?.id || "bid_pltest" }], error: null })),
+      };
+      return chain;
+    }),
   };
 
   const tenantsTable = {
@@ -88,6 +93,16 @@ describe("netlify/functions/get-quote", () => {
         status: "pending",
         customer_id: "cust_pltest_1",
         created_at: "2026-03-25T12:00:00.000Z",
+        line_items: [
+          {
+            id: "line_1",
+            name: "Daylight utility crossing",
+            description: "Safely expose the crossing with hydrovac excavation.",
+            quantity: 1,
+            unit: "job",
+            unit_price_cents: 125000,
+          },
+        ],
       },
       tenant: {
         name: "Benkari Vacs",
@@ -122,6 +137,15 @@ describe("netlify/functions/get-quote", () => {
       expect(body.business_logo_url).toBe("https://example.com/logo.png");
       expect(body.notes).toBe("Please review before Friday.");
       expect(body.terms).toBe("Expose the line and daylight the crossing.");
+      expect(body.quote.line_items).toEqual([
+        expect.objectContaining({
+          name: "Daylight utility crossing",
+          description: "Safely expose the crossing with hydrovac excavation.",
+          qty: 1,
+          unit_price: 1250,
+          line_total: 1250,
+        }),
+      ]);
     } finally {
       restore();
     }
@@ -157,7 +181,7 @@ describe("netlify/functions/get-quote", () => {
       expect(res.statusCode).toBe(200);
       expect(JSON.parse(res.body).ok).toBe(true);
       expect(supabase.bidsTable.update).toHaveBeenCalledWith(
-        expect.objectContaining({ status: "accepted" })
+        expect.objectContaining({ status: "approved" })
       );
     } finally {
       restore();

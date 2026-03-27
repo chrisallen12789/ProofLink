@@ -16,7 +16,7 @@
       padding: 32px 16px 64px;
     }
     .wrap { max-width: 680px; margin: 0 auto; width: 100%; }
-    .hidden { display: none; }
+    .hidden { display: none !important; }
 
     /* Loading */
     #loadingView {
@@ -458,10 +458,14 @@
         var qty   = parseFloat(item.qty || item.quantity || 1);
         var unit  = parseFloat(item.unit_price || item.price || 0);
         var total = parseFloat(item.line_total !== undefined ? item.line_total : item.total !== undefined ? item.total : qty * unit);
+        var title = item.name || item.description || 'Item';
+        var note = item.description && item.description !== title
+          ? item.description
+          : (item.note || '');
         return '<tr>' +
           '<td>' +
-            '<div class="item-desc">' + escHtml(item.description || item.name || 'Item') + '</div>' +
-            (item.note ? '<div class="item-note">' + escHtml(item.note) + '</div>' : '') +
+            '<div class="item-desc">' + escHtml(title) + '</div>' +
+            (note ? '<div class="item-note">' + escHtml(note) + '</div>' : '') +
           '</td>' +
           '<td class="right" style="color:rgba(255,255,255,.55);">' + escHtml(String(qty % 1 === 0 ? qty : qty.toFixed(2))) + '</td>' +
           '<td class="right" style="color:rgba(255,255,255,.7);">' + escHtml(fmtCurrency(unit)) + '</td>' +
