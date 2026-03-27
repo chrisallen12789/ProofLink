@@ -166,6 +166,17 @@ function loadLeadPlanWorkspace(overrides = {}) {
 }
 
 describe("operator lead plan workspace", () => {
+  test("keeps request-to-booked-work language clear in the lead workspace", () => {
+    const source = fs.readFileSync(
+      path.resolve(process.cwd(), "operator/operator-lead-plan-workspace.js"),
+      "utf8"
+    );
+
+    expect(source).toContain("Open booked work");
+    expect(source).toContain("Open work pipeline");
+    expect(source).not.toContain("Open quoted / booked");
+  });
+
   test("sortedLeads matches contact and service fields", () => {
     const context = loadLeadPlanWorkspace({
       LEADS_CACHE: [

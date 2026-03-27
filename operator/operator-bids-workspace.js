@@ -442,12 +442,12 @@ function bidGuidedSteps(draft) {
       id: "operations",
       title: "Push the bid into live work",
       copy: isServiceWorkspace(currentWorkspaceBlueprint())
-        ? "Once the proposal is real, move it into quoted / booked work so the rest of the business can manage it without relying on memory."
+        ? "Once the proposal is real, move it into booked work so the rest of the business can manage it without relying on memory."
         : "Once the proposal is real, convert it into a tracked order so the rest of the business can manage it without relying on memory.",
       done: !!draft?.converted_order_id,
       actionLabel: draft?.converted_order_id
-        ? (isServiceWorkspace(currentWorkspaceBlueprint()) ? "Open quoted / booked" : "Open order")
-        : (isServiceWorkspace(currentWorkspaceBlueprint()) ? "Move to quoted / booked" : "Create tracked order"),
+        ? (isServiceWorkspace(currentWorkspaceBlueprint()) ? "Open booked work" : "Open order")
+        : (isServiceWorkspace(currentWorkspaceBlueprint()) ? "Move into booked work" : "Create tracked order"),
       targetId: "btnConvertBidToOrder",
     },
   ];
@@ -779,7 +779,7 @@ function renderBidStatsCard(draft) {
         <div class="bid-stat__value" style="font-size:14px;">${escapeHtml(formatDateTime(draft.updated_at || draft.created_at))}</div>
       </div>
       <div class="bid-stat">
-        <div class="bid-stat__label">${escapeHtml(isServiceWorkspace(currentWorkspaceBlueprint()) ? "Quoted / booked work" : "Tracked order")}</div>
+        <div class="bid-stat__label">${escapeHtml(isServiceWorkspace(currentWorkspaceBlueprint()) ? "Booked work" : "Tracked order")}</div>
         <div class="bid-stat__value" style="font-size:14px;">${escapeHtml(draft.converted_order_id ? "Created" : "Not yet")}</div>
       </div>
     </div>
@@ -808,7 +808,7 @@ function renderBidList(filter = "") {
   if (!bidsList) return;
   const rows = sortedBids(filter);
   if (!rows.length) {
-  bidsList.innerHTML = `<div class="muted">${BIDS_CACHE.length ? "No walkthrough bids match this search." : "No walkthrough bids yet. Click New quote to start the first one."}</div>`;
+  bidsList.innerHTML = `<div class="muted">${BIDS_CACHE.length ? "No proposal drafts match this search." : "No proposal drafts yet. Click New quote to start the first one."}</div>`;
     if (!BIDS_CACHE.length) ACTIVE_BID_ID = null;
     return;
   }
@@ -825,7 +825,7 @@ function renderBidList(filter = "") {
         </div>
         <div class="li-meta">
           <span class="pill">${escapeHtml(formatBidStatus(row.status))}</span>
-          ${row.converted_order_id ? `<span class="pill pill-on">${escapeHtml(isServiceWorkspace(currentWorkspaceBlueprint()) ? "Quoted / booked" : "Tracked order")}</span>` : ""}
+          ${row.converted_order_id ? `<span class="pill pill-on">${escapeHtml(isServiceWorkspace(currentWorkspaceBlueprint()) ? "Booked work" : "Tracked order")}</span>` : ""}
           <span class="pill">${formatUsd(totals.total)}</span>
         </div>
       </button>
@@ -939,7 +939,7 @@ function renderBidWorkspace(draft, opts = {}) {
   if (!draft) {
     clearBidForm();
     if (btnConvertBidToOrder) {
-      btnConvertBidToOrder.textContent = isServiceWorkspace(currentWorkspaceBlueprint()) ? "Move to quoted / booked work" : "Create tracked order";
+      btnConvertBidToOrder.textContent = isServiceWorkspace(currentWorkspaceBlueprint()) ? "Move into booked work" : "Create tracked order";
       btnConvertBidToOrder.disabled = true;
     }
     renderBidQuickCustomerCard(null);
@@ -960,8 +960,8 @@ function renderBidWorkspace(draft, opts = {}) {
     const linkedOrder = currentBidOrder(draft);
     btnConvertBidToOrder.disabled = false;
     btnConvertBidToOrder.textContent = linkedOrder
-      ? (isServiceWorkspace(currentWorkspaceBlueprint()) ? "Open quoted / booked work" : "Open tracked order")
-      : (isServiceWorkspace(currentWorkspaceBlueprint()) ? "Move to quoted / booked work" : "Create tracked order");
+      ? (isServiceWorkspace(currentWorkspaceBlueprint()) ? "Open booked work" : "Open tracked order")
+      : (isServiceWorkspace(currentWorkspaceBlueprint()) ? "Move into booked work" : "Create tracked order");
   }
   renderBidQuickCustomerCard(draft);
   renderBidGuideFlow(draft);
@@ -1565,15 +1565,15 @@ btnConvertBidToOrder?.addEventListener("click", async () => {
     renderOrders();
     return;
   }
-  setInlineMessage(bidMsg, isServiceWorkspace(currentWorkspaceBlueprint()) ? "Moving quote into quoted / booked work..." : "Creating tracked order...");
+  setInlineMessage(bidMsg, isServiceWorkspace(currentWorkspaceBlueprint()) ? "Moving quote into booked work..." : "Creating tracked order...");
   try {
     const result = await convertBidToTrackedOrder();
     renderBids(bidSearch?.value || "", { preserveForm: true });
     setInlineMessage(
       bidMsg,
       result.existed
-        ? (isServiceWorkspace(currentWorkspaceBlueprint()) ? "Quoted / booked work already existed. Opening it next." : "Tracked order already existed. Opening Orders next.")
-        : (isServiceWorkspace(currentWorkspaceBlueprint()) ? "Quote moved into quoted / booked work. Opening it next." : "Tracked order created. Opening Orders next."),
+        ? (isServiceWorkspace(currentWorkspaceBlueprint()) ? "Booked work already existed. Opening it next." : "Tracked order already existed. Opening Orders next.")
+        : (isServiceWorkspace(currentWorkspaceBlueprint()) ? "Quote moved into booked work. Opening it next." : "Tracked order created. Opening Orders next."),
       "ok",
     );
     switchTab("orders");
@@ -1727,7 +1727,7 @@ $("btnEmailBidToCustomer")?.addEventListener("click", async () => {
   }
   const btn = $("btnEmailBidToCustomer");
   if (btn) btn.disabled = true;
-  setInlineMessage(bidMsg, "Sending…", "ok");
+  setInlineMessage(bidMsg, "Sending...", "ok");
   try {
     const tok = await getAccessToken();
     const res = await fetch("/.netlify/functions/send-bid-email", {
@@ -1737,7 +1737,7 @@ $("btnEmailBidToCustomer")?.addEventListener("click", async () => {
     });
     const d = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(d.error || "Failed to send");
-    setInlineMessage(bidMsg, `✓ Proposal emailed to ${customer.email}`, "ok");
+    setInlineMessage(bidMsg, `Proposal emailed to ${customer.email}.`, "ok");
     // Update local cache status
     const idx = BIDS_CACHE.findIndex((r) => r.id === active.id);
     if (idx >= 0) BIDS_CACHE[idx] = { ...BIDS_CACHE[idx], status: "sent" };

@@ -132,7 +132,7 @@ async function renderLeadDetail(leadIdValue) {
       <div class="pipeline-next-steps">
         <button id="btnLeadOpenCustomer" class="btn btn-ghost" type="button">${linkedCustomer ? "Open customer" : "Create customer"}</button>
         <button id="btnLeadDraftProposal" class="btn" type="button">${linkedBid ? "Open proposal" : "Draft proposal"}</button>
-        <button id="btnLeadOpenPipeline" class="btn btn-ghost" type="button">${linkedOrder ? "Open quoted / booked" : "Open pipeline"}</button>
+        <button id="btnLeadOpenPipeline" class="btn btn-ghost" type="button">${linkedOrder ? "Open booked work" : "Open work pipeline"}</button>
         <button id="btnLeadOpenJob" class="btn btn-ghost" type="button">${linkedJob ? "Open active job" : "Open jobs"}</button>
       </div>
     </div>

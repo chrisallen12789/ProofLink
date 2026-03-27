@@ -193,6 +193,21 @@ function loadBidsWorkspace(overrides = {}) {
 }
 
 describe("operator bids workspace", () => {
+  test("keeps proposal-to-booked-work language plain for service work", () => {
+    const source = fs.readFileSync(
+      path.resolve(process.cwd(), "operator/operator-bids-workspace.js"),
+      "utf8"
+    );
+
+    expect(source).toContain("Move into booked work");
+    expect(source).toContain("Open booked work");
+    expect(source).toContain("No proposal drafts yet.");
+    expect(source).toContain("Proposal emailed to ${customer.email}.");
+    expect(source).not.toContain("quoted / booked");
+    expect(source).not.toContain("Sending…");
+    expect(source).not.toContain("✓ Proposal emailed");
+  });
+
   test("sortedBids filters by customer and proposal label text", () => {
     const context = loadBidsWorkspace({
       BIDS_CACHE: [
