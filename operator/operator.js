@@ -134,15 +134,21 @@ function averageOrderValueCents() {
   return Math.round(total / rows.length);
 }
 async function fetchDashboardPaymentState() {
-  if (!TENANT_ID || TENANT_ID === 'default') return null;
   try {
     const token = await getOperatorAccessToken();
     if (!token) return null;
-    const res = await fetch('/.netlify/functions/tenant-payment-status?tenant_id=' + encodeURIComponent(TENANT_ID), {
+    const tenantQuery = TENANT_ID && TENANT_ID !== 'default'
+      ? ('?tenant_id=' + encodeURIComponent(TENANT_ID))
+      : '';
+    const res = await fetch('/.netlify/functions/tenant-payment-status' + tenantQuery, {
       headers: token ? { Authorization: `Bearer ${token}` } : {}
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok || !data.ok) return null;
+    const resolvedTenantId = String(data.tenantId || data.tenant_id || '').trim();
+    if (resolvedTenantId && resolvedTenantId !== TENANT_ID) {
+      TENANT_ID = resolvedTenantId;
+    }
     DASHBOARD_PAYMENT_STATE = data.paymentState || null;
     applyWorkspaceBlueprint();
     return DASHBOARD_PAYMENT_STATE;
@@ -151,14 +157,21 @@ async function fetchDashboardPaymentState() {
   }
 }
 async function fetchDashboardLaunchChecklist() {
-  if (!TENANT_ID) return null;
   try {
     const tok = await getOperatorAccessToken();
-    const res = await fetch(`/.netlify/functions/get-launch-checklist?tenant_id=${encodeURIComponent(TENANT_ID)}`, {
+    if (!tok) return null;
+    const tenantQuery = TENANT_ID && TENANT_ID !== 'default'
+      ? (`?tenant_id=${encodeURIComponent(TENANT_ID)}`)
+      : '';
+    const res = await fetch(`/.netlify/functions/get-launch-checklist${tenantQuery}`, {
       headers: tok ? { Authorization: `Bearer ${tok}` } : {},
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) return null;
+    const resolvedTenantId = String(data.tenant_id || '').trim();
+    if (resolvedTenantId && resolvedTenantId !== TENANT_ID) {
+      TENANT_ID = resolvedTenantId;
+    }
     DASHBOARD_LAUNCH_CHECKLIST = data;
     return data;
   } catch (_) {
