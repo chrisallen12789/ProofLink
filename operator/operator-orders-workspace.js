@@ -704,6 +704,7 @@ function renderOrders() {
             headers: { "Authorization": `Bearer ${tok}` },
           });
           const d = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(d.error || `Server error (${res.status})`);
           const msgs = d.messages || [];
           thread.innerHTML = msgs.length ? msgs.map((m) => {
             const isOut = m.direction === 'outbound';

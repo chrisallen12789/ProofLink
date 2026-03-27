@@ -787,6 +787,7 @@ async function fetchReviews() {
       headers: { "Authorization": `Bearer ${tok}` },
     });
     const d = await res.json().catch(() => ({}));
+    if (!res.ok) { console.warn('[reviews] fetch error:', res.status, d.error); return []; }
     REVIEWS_CACHE = d.reviews || [];
     return REVIEWS_CACHE;
   } catch (e) {
