@@ -78,14 +78,14 @@
       {
         selector: '[data-tour-tab="setup"]',
         title: 'Website details',
-        body: 'This page is for branding, website media, and public profile upkeep. It is not where they rewrite application or account-record data.',
+        body: 'This page is for branding, website media, and public profile details. Keep the business story current here while the protected account details stay safely in place.',
         tab: 'products',
         placement: 'right'
       },
       {
         selector: '[data-tour="verified-record"]',
         title: 'Protected business record',
-        body: 'These values stay visible but locked. Operators can see their approved record, but they cannot manipulate protected onboarding or compliance fields from this workspace.',
+        body: 'These account details stay visible but locked so the owner always knows what the business is operating under. If something important needs to change, the office can handle it the right way without risking billing or compliance settings.',
         tab: 'setup',
         placement: 'left'
       },

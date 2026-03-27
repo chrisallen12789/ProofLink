@@ -78,6 +78,7 @@
     .progress-track { height: 6px; background: var(--cream); border-radius: 20px; overflow: hidden; }
     .progress-fill { height: 100%; background: var(--accent); border-radius: 20px; transition: width 0.8s cubic-bezier(0.4,0,0.2,1); }
     .progress-fill.complete { background: var(--success); }
+    .progress-fill--start { width: 0%; }
     .steps { display: flex; flex-direction: column; gap: 0.75rem; margin-bottom: 2.5rem; }
     .step {
       background: var(--card);
@@ -165,16 +166,32 @@
       transition: all 0.15s;
     }
     .btn-refresh:hover { border-color: var(--ink); color: var(--ink); }
+    .error-state {
+      display: none;
+      text-align: center;
+      padding: 4rem 0;
+      color: var(--muted);
+    }
+    .error-state__icon {
+      font-size: 2rem;
+      margin-bottom: 1rem;
+    }
+    .error-state__copy {
+      font-size: 0.95rem;
+    }
+    .error-state__retry {
+      margin-top: 1.5rem;
+    }
     @media (max-width: 600px) {
       nav { padding: 1rem; }
       .container { padding: 2.5rem 1rem 4rem; }
     }
   </style>
 </head>
-<body>
+  <body>
   <nav>
     <a href="/" class="nav-logo">Proof<span>Link</span></a>
-    <a href="/operator/" class="nav-dash">Open business hub -></a>
+    <a href="/operator/" class="nav-dash">Open business hub</a>
   </nav>
 
   <div class="container">
@@ -183,10 +200,10 @@
       <p>Loading your next steps...</p>
     </div>
 
-    <div id="error-state" style="display:none;text-align:center;padding:4rem 0;color:var(--muted)">
-      <p style="font-size:2rem;margin-bottom:1rem">!</p>
-      <p style="font-size:0.95rem" id="error-msg">Could not load your next steps.</p>
-      <button class="btn-refresh" style="margin-top:1.5rem" onclick="loadChecklist()">Try again</button>
+    <div id="error-state" class="error-state">
+      <p class="error-state__icon">!</p>
+      <p class="error-state__copy" id="error-msg">Could not load your next steps.</p>
+      <button class="btn-refresh error-state__retry" onclick="loadChecklist()">Try again</button>
     </div>
 
     <div id="main-content" style="display:none">
@@ -202,7 +219,7 @@
           <span class="progress-pct" id="progress-pct">0%</span>
         </div>
         <div class="progress-track">
-          <div class="progress-fill" id="progress-fill" style="width:0%"></div>
+          <div class="progress-fill progress-fill--start" id="progress-fill"></div>
         </div>
       </div>
 
@@ -212,7 +229,7 @@
         <div class="all-done-icon">Up and running</div>
         <div class="all-done-title">You're rolling.</div>
         <p class="all-done-sub">Your account is doing real work, the customer flow is taking shape, and the public-facing details are ready to share.</p>
-        <a href="#" id="storefront-link" class="btn-storefront">View my website -></a>
+        <a href="#" id="storefront-link" class="btn-storefront">Open my website</a>
       </div>
 
       <div class="refresh-row">
@@ -298,7 +315,7 @@
                 ${step.complete
                   ? '<div class="step-badge-done">Complete</div>'
                   : step.cta
-                    ? `<a href="${esc(step.cta.href)}" class="step-cta">${esc(step.cta.label)} -></a>`
+                    ? `<a href="${esc(step.cta.href)}" class="step-cta">${esc(step.cta.label)}</a>`
                     : ""}
               </div>
             </div>
@@ -312,7 +329,7 @@
           const websiteUrl = slug ? (SITE_URL ? `${SITE_URL}/${slug}` : `/${slug}`) : "/";
           const websiteLink = document.getElementById("storefront-link");
           websiteLink.href = websiteUrl;
-          websiteLink.textContent = `View ${data.tenant_name || "my website"} ->`;
+          websiteLink.textContent = `Open ${data.tenant_name || "my website"}`;
         } else {
           allDone.classList.remove("visible");
         }
