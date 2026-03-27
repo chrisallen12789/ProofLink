@@ -271,18 +271,18 @@ function renderBookingsList(bookings) {
   if (!list) return;
 
   if (!bookings || !bookings.length) {
-    list.innerHTML = `<div class="muted" style="font-size:.85rem;">No bookings here yet. New appointments will appear here as soon as they are scheduled.</div>`;
+    list.innerHTML = `<div class="muted muted-small">No bookings here yet. New appointments will appear here as soon as they are scheduled.</div>`;
     return;
   }
 
   list.innerHTML = bookings.map((booking) => `
-    <div class="list-item" style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;">
+    <div class="list-item list-item--top">
       <div class="li-main">
         <div class="li-title">${escapeHtml(booking.title || "Booking")}</div>
         <div class="li-sub muted">${escapeHtml(booking.customer_name || booking.customer_email || "Customer")}</div>
         <div class="li-sub muted">${escapeHtml(formatDateTime(booking.starts_at))}${booking.assigned_operator_name ? ` | ${escapeHtml(booking.assigned_operator_name)}` : ""}</div>
       </div>
-      <div class="li-meta" style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">
+      <div class="li-meta li-meta--tight">
         <span class="pill ${booking.status === "cancelled" ? "pill-off" : "pill-on"}">${escapeHtml(String(booking.status || "scheduled").replace(/_/g, " "))}</span>
         ${booking.customer_email && !["cancelled", "completed", "no_show"].includes(booking.status) && booking.starts_at && new Date(booking.starts_at) > new Date()
           ? `<button class="btn btn-ghost btn-sm bk-remind-btn" data-action="remind" data-booking-id="${booking.id}" type="button">Remind</button>`

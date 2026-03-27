@@ -1650,6 +1650,15 @@ input:focus, textarea:focus, select:focus{
   flex-wrap:wrap;
   justify-content:flex-end;
 }
+.muted-small{
+  font-size:.85rem;
+}
+.list-item--top{
+  align-items:flex-start;
+}
+.li-meta--tight{
+  gap:6px;
+}
 
 /* Money summary cards */
 .cards{
