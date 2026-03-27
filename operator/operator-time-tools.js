@@ -3,10 +3,10 @@
 async function renderTimeEntries(orderId) {
   const body = document.getElementById("timeLoggedBody");
   if (!body || body.style.display === "none") return;
-  body.innerHTML = `<div class="muted" style="font-size:.82rem;">Loading...</div>`;
+  body.innerHTML = `<div class="muted table-empty">Loading...</div>`;
   const entries = await fetchTimeEntries(orderId);
   if (!entries.length) {
-    body.innerHTML = `<div class="muted" style="font-size:.82rem;">No time entries yet. Log time here to keep invoicing accurate.</div>`;
+    body.innerHTML = `<div class="muted table-empty">No time entries yet. Log time here to keep invoicing accurate.</div>`;
     return;
   }
 
@@ -14,13 +14,13 @@ async function renderTimeEntries(orderId) {
   const totalBillable = entries.reduce((sum, entry) => sum + Number(entry.amount_cents || 0), 0);
 
   body.innerHTML = `
-    <table style="width:100%;font-size:.8rem;border-collapse:collapse;">
-      <thead><tr style="color:rgba(255,255,255,.35);">
-        <th style="text-align:left;padding:4px 6px;border-bottom:1px solid rgba(255,255,255,.08);">Date</th>
-        <th style="text-align:left;padding:4px 6px;border-bottom:1px solid rgba(255,255,255,.08);">Description</th>
-        <th style="text-align:right;padding:4px 6px;border-bottom:1px solid rgba(255,255,255,.08);">Duration</th>
-        <th style="text-align:right;padding:4px 6px;border-bottom:1px solid rgba(255,255,255,.08);">Billable?</th>
-        <th style="text-align:right;padding:4px 6px;border-bottom:1px solid rgba(255,255,255,.08);">Cost</th>
+    <table class="data-table">
+      <thead><tr>
+        <th>Date</th>
+        <th>Description</th>
+        <th class="data-table__num">Duration</th>
+        <th class="data-table__num">Billable?</th>
+        <th class="data-table__num">Cost</th>
       </tr></thead>
       <tbody>${entries.map((entry) => {
         const mins = Number(entry.duration_minutes || 0);
@@ -29,22 +29,22 @@ async function renderTimeEntries(orderId) {
         const dur = hrs ? `${hrs}h ${rem}m` : `${rem}m`;
         const date = entry.started_at ? new Date(entry.started_at).toLocaleDateString() : (entry.date || "");
         return `<tr>
-          <td style="padding:3px 6px;border-bottom:1px solid rgba(255,255,255,.05);">${escapeHtml(date)}</td>
-          <td style="padding:3px 6px;border-bottom:1px solid rgba(255,255,255,.05);">${escapeHtml(entry.description || "")}</td>
-          <td style="text-align:right;padding:3px 6px;border-bottom:1px solid rgba(255,255,255,.05);">${dur}</td>
-          <td style="text-align:right;padding:3px 6px;border-bottom:1px solid rgba(255,255,255,.05);">${entry.billable ? "Yes" : "No"}</td>
-          <td style="text-align:right;padding:3px 6px;border-bottom:1px solid rgba(255,255,255,.05);">${entry.billable && entry.amount_cents ? formatUsd(entry.amount_cents) : "--"}</td>
+          <td>${escapeHtml(date)}</td>
+          <td>${escapeHtml(entry.description || "")}</td>
+          <td class="data-table__num">${dur}</td>
+          <td class="data-table__num">${entry.billable ? "Yes" : "No"}</td>
+          <td class="data-table__num">${entry.billable && entry.amount_cents ? formatUsd(entry.amount_cents) : "--"}</td>
         </tr>`;
       }).join("")}
       </tbody>
-      <tfoot><tr style="font-weight:600;">
-        <td colspan="2" style="padding:6px 6px 2px;">Total</td>
-        <td style="text-align:right;padding:6px 6px 2px;">${(totalMins / 60).toFixed(2)} hrs</td>
+      <tfoot><tr>
+        <td colspan="2">Total</td>
+        <td class="data-table__num">${(totalMins / 60).toFixed(2)} hrs</td>
         <td></td>
-        <td style="text-align:right;padding:6px 6px 2px;">${totalBillable ? formatUsd(totalBillable) : "--"}</td>
+        <td class="data-table__num">${totalBillable ? formatUsd(totalBillable) : "--"}</td>
       </tr></tfoot>
     </table>
-    <button id="btnTimeToInvoice" class="btn btn-ghost" style="margin-top:8px;font-size:.78rem;">Add uninvoiced hours to invoice</button>`;
+    <button id="btnTimeToInvoice" class="btn btn-ghost btn-sm u-mt-10" type="button">Add uninvoiced hours to invoice</button>`;
 }
 
 function openLogTimeModal(orderId) {
@@ -60,46 +60,51 @@ function openLogTimeModal(orderId) {
 
   const modal = document.createElement("div");
   modal.id = "logTimeModal";
-  modal.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10000;display:flex;align-items:center;justify-content:center;";
+  modal.className = "modal-overlay";
   modal.innerHTML = `
-    <div style="background:#1e2029;border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:28px 32px;max-width:480px;width:90%;box-shadow:0 8px 40px rgba(0,0,0,.5);">
-      <h3 style="margin:0 0 18px;font-size:1rem;color:#e8e9eb;">Log time entry</h3>
-      <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px;">
-        <input id="ltDesc" class="input" placeholder="Description *" style="width:100%;" />
-        <div style="display:flex;gap:8px;">
-          <div style="flex:1;">
-            <label style="font-size:.72rem;color:rgba(255,255,255,.35);display:block;margin-bottom:2px;">Started at</label>
-            <input id="ltStartedAt" type="datetime-local" class="input" value="${defaultStarted}" style="width:100%;" />
+    <div class="modal-card">
+      <h3 class="modal-title u-mb-18">Log time entry</h3>
+      <div class="modal-stack u-mb-18">
+        <input id="ltDesc" class="input u-full-width" placeholder="Description *" />
+        <div class="modal-grid-2">
+          <div class="modal-grid-2__fill">
+            <label class="section-heading-note">Started at</label>
+            <input id="ltStartedAt" type="datetime-local" class="input u-full-width" value="${defaultStarted}" />
           </div>
         </div>
-        <div style="display:flex;gap:8px;">
-          <div style="flex:1;">
-            <label style="font-size:.72rem;color:rgba(255,255,255,.35);display:block;margin-bottom:2px;">Duration (minutes)</label>
-            <input id="ltDurationMins" type="number" min="1" step="1" placeholder="e.g. 60" class="input" style="width:100%;" />
+        <div class="modal-grid-2">
+          <div class="modal-grid-2__fill">
+            <label class="section-heading-note">Duration (minutes)</label>
+            <input id="ltDurationMins" type="number" min="1" step="1" placeholder="e.g. 60" class="input u-full-width" />
           </div>
-          <div style="flex:1;">
-            <label style="font-size:.72rem;color:rgba(255,255,255,.35);display:block;margin-bottom:2px;">Or, enter an end time</label>
-            <input id="ltEndedAt" type="datetime-local" class="input" style="width:100%;" />
+          <div class="modal-grid-2__fill">
+            <label class="section-heading-note">Or, enter an end time</label>
+            <input id="ltEndedAt" type="datetime-local" class="input u-full-width" />
           </div>
         </div>
-        <div style="display:flex;gap:8px;align-items:center;">
-          <div style="flex:1;">
-            <label style="font-size:.72rem;color:rgba(255,255,255,.35);display:block;margin-bottom:2px;">Hourly rate ($)</label>
-            <input id="ltHourlyRate" type="number" min="0" step="0.01" placeholder="75.00" class="input" style="width:100%;" />
+        <div class="modal-grid-2">
+          <div class="modal-grid-2__fill">
+            <label class="section-heading-note">Hourly rate ($)</label>
+            <input id="ltHourlyRate" type="number" min="0" step="0.01" placeholder="75.00" class="input u-full-width" />
           </div>
-          <div style="display:flex;align-items:center;gap:6px;padding-top:18px;">
-            <input id="ltBillable" type="checkbox" checked style="width:16px;height:16px;cursor:pointer;" />
-            <label for="ltBillable" style="font-size:.85rem;color:#e8e9eb;cursor:pointer;">Billable</label>
+          <div class="modal-check">
+            <input id="ltBillable" class="modal-check__input" type="checkbox" checked />
+            <label for="ltBillable" class="modal-check__label">Billable</label>
           </div>
         </div>
       </div>
-      <div id="ltMsg" style="font-size:.8rem;color:#f87171;min-height:18px;margin-bottom:8px;"></div>
-      <div style="display:flex;gap:10px;justify-content:flex-end;">
-        <button onclick="document.getElementById('logTimeModal').remove()" class="btn btn-ghost">Cancel</button>
-        <button id="ltSave" class="btn btn-primary">Save entry</button>
+      <div id="ltMsg" class="msg u-mb-10"></div>
+      <div class="modal-footer">
+        <span></span>
+        <div class="action-row">
+          <button id="ltCancel" class="btn btn-ghost" type="button">Cancel</button>
+          <button id="ltSave" class="btn btn-primary" type="button">Save entry</button>
+        </div>
       </div>
     </div>`;
   document.body.appendChild(modal);
+
+  document.getElementById("ltCancel")?.addEventListener("click", () => modal.remove());
 
   document.getElementById("ltSave").onclick = async () => {
     const desc = (document.getElementById("ltDesc")?.value || "").trim();
@@ -112,14 +117,17 @@ function openLogTimeModal(orderId) {
 
     if (!desc) {
       msgEl.textContent = "Description is required.";
+      msgEl.className = "msg error u-mb-10";
       return;
     }
     if (!startedAt) {
       msgEl.textContent = "Started at is required.";
+      msgEl.className = "msg error u-mb-10";
       return;
     }
     if (!durationRaw && !endedAt) {
       msgEl.textContent = "Provide duration or ended at.";
+      msgEl.className = "msg error u-mb-10";
       return;
     }
 
@@ -164,7 +172,10 @@ function openLogTimeModal(orderId) {
         await renderTimeEntries(orderId);
       }
     } catch (err) {
-      if (msgEl) msgEl.textContent = "Error: " + err.message;
+      if (msgEl) {
+        msgEl.textContent = "Error: " + err.message;
+        msgEl.className = "msg error u-mb-10";
+      }
       btn.disabled = false;
       btn.textContent = "Save entry";
     }

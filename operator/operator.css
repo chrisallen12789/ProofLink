@@ -458,6 +458,59 @@ body{
   font-size:.8rem;
   color:rgba(255,255,255,.5);
 }
+.modal-grid-2{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:8px;
+}
+.modal-grid-2__fill{
+  flex:1;
+}
+.modal-check{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  padding-top:18px;
+}
+.modal-check__input{
+  width:16px;
+  height:16px;
+  cursor:pointer;
+}
+.modal-check__label{
+  font-size:.85rem;
+  color:#e8e9eb;
+  cursor:pointer;
+}
+.data-table{
+  width:100%;
+  font-size:.8rem;
+  border-collapse:collapse;
+}
+.data-table thead tr{
+  color:rgba(255,255,255,.35);
+}
+.data-table th{
+  text-align:left;
+  padding:4px 6px;
+  border-bottom:1px solid rgba(255,255,255,.08);
+}
+.data-table td{
+  padding:3px 6px;
+  border-bottom:1px solid rgba(255,255,255,.05);
+}
+.data-table tfoot tr{
+  font-weight:600;
+}
+.data-table tfoot td{
+  padding:6px 6px 2px;
+}
+.data-table__num{
+  text-align:right;
+}
+.table-empty{
+  font-size:.82rem;
+}
 .nowrap{ white-space:nowrap; }
 .overflow-x-auto{ overflow-x:auto; }
 .footer{

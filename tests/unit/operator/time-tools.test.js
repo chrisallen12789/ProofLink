@@ -26,6 +26,7 @@ function loadTimeTools(overrides = {}) {
         id: "",
         innerHTML: "",
         style: {},
+        className: "",
         remove: vi.fn(),
       })),
       getElementById: vi.fn((id) => elements[id] || null),
@@ -51,6 +52,7 @@ describe("operator time tools", () => {
     await context.window.renderTimeEntries("order_123");
 
     expect(elements.timeLoggedBody.innerHTML).toContain("No time entries yet. Log time here to keep invoicing accurate.");
+    expect(elements.timeLoggedBody.innerHTML).toContain("table-empty");
   });
 
   test("renderTimeEntries renders totals for existing entries", async () => {
@@ -64,6 +66,7 @@ describe("operator time tools", () => {
 
     await context.window.renderTimeEntries("order_123");
 
+    expect(elements.timeLoggedBody.innerHTML).toContain('class="data-table"');
     expect(elements.timeLoggedBody.innerHTML).toContain("Main line jetting");
     expect(elements.timeLoggedBody.innerHTML).toContain("2.00 hrs");
     expect(elements.timeLoggedBody.innerHTML).toContain("$22500");
@@ -82,9 +85,15 @@ describe("operator time tools", () => {
     expect(source).toContain('span.textContent = "Time logged"');
     expect(source).toContain("Add uninvoiced hours to invoice");
     expect(source).toContain("Or, enter an end time");
-    expect(source).not.toContain("â€¦");
-    expect(source).not.toContain("â€”");
-    expect(source).not.toContain("âš¡");
-    expect(source).not.toContain("â–¾");
+    expect(source).toContain('class="data-table"');
+    expect(source).toContain('modal.className = "modal-overlay"');
+    expect(source).toContain('class="modal-card"');
+    expect(source).toContain('id="ltCancel"');
+    expect(source).not.toContain('modal.style.cssText = "position:fixed;inset:0;');
+    expect(source).not.toContain('style="width:100%;font-size:.8rem;border-collapse:collapse;"');
+    expect(source).not.toContain("Ã¢â‚¬Â¦");
+    expect(source).not.toContain("Ã¢â‚¬â€");
+    expect(source).not.toContain("Ã¢Å¡Â¡");
+    expect(source).not.toContain("Ã¢â€“Â¾");
   });
 });
