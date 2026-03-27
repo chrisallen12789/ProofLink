@@ -31,7 +31,22 @@ describe("customer portal html", () => {
     expect(source).toContain("checkoutState === 'cancel'");
     expect(source).toContain("Your payment for ");
     expect(source).toContain("No payment was made for ");
+    expect(source).toContain('data-order-id="');
+    expect(source).toContain("order-row--highlight");
+    expect(source).toContain("focusPortalOrder(checkoutOrderId)");
     expect(source).toContain("if (tenantId && prefill && checkoutState)");
+  });
+
+  test("uses shared portal classes instead of inline return layouts", () => {
+    expect(source).toContain('class="btn btn-ghost portal-back-btn"');
+    expect(source).toContain('class="package-balance-panel"');
+    expect(source).toContain('class="order-row order-row--top"');
+    expect(source).toContain('class="order-row stacked-row stacked-row--tight"');
+    expect(source).toContain('class="review-estimate-link"');
+    expect(source).not.toContain('style="margin-top:12px;"');
+    expect(source).not.toContain('style="flex-wrap:wrap;align-items:flex-start;"');
+    expect(source).not.toContain('style="gap:6px;"');
+    expect(source).not.toContain('style="font-size:.82rem;color:#c84b2f;text-decoration:none;font-weight:600;"');
   });
 
   test("does not carry mojibake into the customer portal", () => {
