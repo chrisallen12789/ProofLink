@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Book an Appointment</title>
+  <title>Request an appointment</title>
   <link rel="icon" href="/assets/favicon.png" />
   <link rel="manifest" href="/site.webmanifest" />
   <style>
@@ -28,7 +28,8 @@
     }
     .logo { font-size: 1.4rem; font-weight: 700; color: #c84b2f; margin-bottom: 4px; }
     .biz-name { font-size: 1.1rem; font-weight: 600; margin-bottom: 2px; }
-    .sub { font-size: .875rem; color: rgba(255,255,255,.5); margin-bottom: 24px; }
+    .sub { font-size: .875rem; color: rgba(255,255,255,.5); margin-bottom: 18px; line-height: 1.5; }
+    .helper-copy { font-size: .84rem; color: rgba(255,255,255,.62); margin-bottom: 18px; line-height: 1.55; }
     h2 { font-size: 1rem; font-weight: 600; margin-bottom: 16px; }
     label { display: block; font-size: .8rem; color: rgba(255,255,255,.6); margin-bottom: 4px; }
     input, select, textarea {
@@ -120,11 +121,12 @@
 <body>
 <div class="card">
   <div class="logo">Appointment request</div>
-  <div class="biz-name" id="bizName">Loading…</div>
-  <div class="sub">Choose a preferred time and tell us what you need.</div>
+  <div class="biz-name" id="bizName">Loading...</div>
+  <div class="sub">Choose a preferred time, tell us what you need, and we will confirm the final appointment shortly.</div>
 
   <div id="bookForm">
     <p class="form-legend"><span aria-hidden="true">*</span> Required fields</p>
+    <p class="helper-copy">This form keeps things simple. Share the basics, and the business will follow up with the confirmed time and any next steps.</p>
     <h2>Your info</h2>
     <label>Your name <span aria-hidden="true">*</span></label>
     <input type="text" id="customerName" placeholder="Jane Smith" autocomplete="name" aria-required="true" />
@@ -180,17 +182,17 @@
     <label>Preferred time of day</label>
     <select id="preferredTime">
       <option value="">No preference</option>
-      <option value="Morning (8am–12pm)">Morning (8am–12pm)</option>
-      <option value="Afternoon (12pm–5pm)">Afternoon (12pm–5pm)</option>
-      <option value="Evening (5pm–8pm)">Evening (5pm–8pm)</option>
+      <option value="Morning (8am-12pm)">Morning (8am-12pm)</option>
+      <option value="Afternoon (12pm-5pm)">Afternoon (12pm-5pm)</option>
+      <option value="Evening (5pm-8pm)">Evening (5pm-8pm)</option>
     </select>
 
     <label>Notes (optional)</label>
-    <textarea id="bookingNotes" placeholder="Any details, access instructions, or special requests…"></textarea>
+    <textarea id="bookingNotes" placeholder="Any details, access instructions, or special requests..."></textarea>
 
     <label>How did you hear about us?</label>
     <select id="referralSource">
-      <option value="">— Select an option —</option>
+      <option value="">- Select an option -</option>
       <option value="Google Search">Google Search</option>
       <option value="Social Media">Social Media</option>
       <option value="Word of Mouth / Referral">Word of Mouth / Referral</option>
@@ -199,7 +201,7 @@
       <option value="Other">Other</option>
     </select>
 
-    <button class="btn" id="btnBook" type="button">Send request</button>
+    <button class="btn" id="btnBook" type="button">Send appointment request</button>
     <div class="msg" id="bookMsg" role="alert"></div>
     <div id="pricingNote" style="display:none;margin-top:16px;padding:12px 14px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:8px;font-size:.8rem;color:rgba(255,255,255,.55);line-height:1.5;">
       Have questions about pricing? Contact us directly.<span id="pricingContact"></span>
@@ -207,7 +209,7 @@
   </div>
 
   <div id="successView" class="hidden" role="status" aria-live="polite">
-    <div class="check">✅</div>
+    <div class="check">&#x2705;</div>
     <h2>Request received</h2>
     <p id="successDetail">Your appointment has been requested. You'll hear from us shortly to confirm.</p>
   </div>
@@ -236,7 +238,7 @@
     document.getElementById('bookingDate').value = d.toISOString().slice(0, 10);
   })();
 
-  // ── Availability block check ────────────────────────────────────────────────
+  // Availability block check
   var availErrorEl = document.getElementById('availBlockError');
   var bookBtn      = document.getElementById('btnBook');
 
@@ -259,7 +261,7 @@
         }
       })
       .catch(function () {
-        // On network error, don't block the customer — fail open.
+        // On network error, do not block the customer. Fail open instead.
         availErrorEl.textContent = '';
         availErrorEl.classList.remove('visible');
         bookBtn.disabled = false;
@@ -285,10 +287,10 @@
       .then(function (d) {
         if (d && d.business_name) {
           bizNameEl.textContent = d.business_name;
-          document.title = 'Book with ' + d.business_name;
+          document.title = 'Request an appointment with ' + d.business_name;
         } else {
           bizNameEl.textContent = 'Schedule with us';
-          document.title = 'Send an appointment request';
+          document.title = 'Request an appointment';
         }
         // Show pricing contact note if business has a phone or email on file
         var phone = d && (d.phone || d.business_phone);
@@ -307,11 +309,11 @@
       })
       .catch(function () {
         bizNameEl.textContent = 'Schedule with us';
-        document.title = 'Send an appointment request';
+        document.title = 'Request an appointment';
       });
   } else {
     bizNameEl.textContent = 'Schedule with us';
-    document.title = 'Send an appointment request';
+    document.title = 'Request an appointment';
   }
 
   document.getElementById('btnBook').addEventListener('click', function () {
@@ -357,7 +359,7 @@
     const endsAt   = new Date(new Date(startsAt).getTime() + dur * 60000).toISOString();
 
     btn.disabled    = true;
-    btn.textContent = 'Sending…';
+    btn.textContent = 'Sending...';
 
     fetch('/.netlify/functions/create-booking', {
       method : 'POST',
@@ -406,7 +408,7 @@
           : (err.message || 'Something went wrong. Please try again or contact the business directly.');
         msg.className   = 'msg error';
         btn.disabled    = false;
-        btn.textContent = 'Send request';
+        btn.textContent = 'Send appointment request';
       });
   });
 })();

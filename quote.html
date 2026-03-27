@@ -283,20 +283,20 @@
     <!-- Proposal summary card -->
     <div class="card">
       <div class="card-label">Estimate</div>
-      <div class="proposal-title" id="proposalTitle">—</div>
+      <div class="proposal-title" id="proposalTitle">-</div>
       <div id="proposalCustomer" style="font-size:.875rem;color:rgba(255,255,255,.5);"></div>
       <div class="meta-grid">
         <div class="meta-item">
           <div class="ml">Issued</div>
-          <div class="mv" id="metaIssued">—</div>
+          <div class="mv" id="metaIssued">-</div>
         </div>
         <div class="meta-item">
           <div class="ml">Valid until</div>
-          <div class="mv" id="metaValidUntil">—</div>
+          <div class="mv" id="metaValidUntil">-</div>
         </div>
         <div class="meta-item">
           <div class="ml">Status</div>
-          <div class="mv" id="metaStatus">—</div>
+          <div class="mv" id="metaStatus">-</div>
         </div>
       </div>
     </div>
@@ -333,11 +333,11 @@
       <div id="acceptedState" class="accepted-state">
         <div class="check">&#x2705;</div>
         <div class="atitle">Estimate approved</div>
-        <div class="asub" id="acceptedMsg">The business has been notified and will follow up shortly.</div>
+        <div class="asub" id="acceptedMsg">The business has been notified and will follow up with the next steps shortly.</div>
       </div>
-      <button class="btn-accept" id="btnAccept" type="button">Approve estimate</button>
+      <button class="btn-accept" id="btnAccept" type="button">Approve and continue</button>
       <div class="contact-row" id="contactRow">
-        Have questions? <span id="contactLinks">Contact us</span>
+        Have a question before you approve? <span id="contactLinks">Contact the business</span>
       </div>
     </div>
 
@@ -353,16 +353,16 @@
   }
 
   function fmtCurrency(amount) {
-    if (amount === null || amount === undefined || amount === '') return '—';
+    if (amount === null || amount === undefined || amount === '') return '-';
     var n = typeof amount === 'number' ? amount : parseFloat(amount);
-    if (isNaN(n)) return '—';
+    if (isNaN(n)) return '-';
     return '$' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   }
 
   function fmtDate(str) {
-    if (!str) return '—';
+    if (!str) return '-';
     var d = new Date(str);
-    if (isNaN(d.getTime())) return '—';
+    if (isNaN(d.getTime())) return '-';
     return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
   }
 
@@ -442,8 +442,8 @@
     }
 
     var statusMap = {
-      pending:  'Awaiting your response',
-      sent:     'Awaiting your response',
+      pending:  'Waiting on your approval',
+      sent:     'Waiting on your approval',
       accepted: 'Accepted',
       declined: 'Declined',
       expired:  'Expired'
@@ -534,22 +534,22 @@
       document.getElementById('contactLinks').textContent = 'Contact ' + BIZ_NAME;
     }
 
-    // Already accepted — hide accept button, show accepted state
+    // Already accepted. Hide the action button and show the accepted state.
     if (data.status === 'accepted') {
       showAcceptedState();
       return;
     }
 
-    // Expired — hide accept button, show expired state
+    // Expired. Hide the action button and show the expired state.
     var isExpiredByDate = data.valid_until && new Date(data.valid_until) < new Date();
     if (data.status === 'expired' || (data.status !== 'accepted' && isExpiredByDate)) {
       document.getElementById('btnAccept').style.display = 'none';
       var st = document.getElementById('acceptedState');
       st.style.display = 'block';
-      st.querySelector('.atitle').textContent = 'This proposal has expired';
+      st.querySelector('.atitle').textContent = 'This estimate has expired';
       st.querySelector('.atitle').style.color = '#f87171';
       document.getElementById('acceptedMsg').textContent =
-        'The validity window for this proposal has passed. Please contact ' + BIZ_NAME + ' for a revised proposal.';
+        'This estimate is no longer active. Please contact ' + BIZ_NAME + ' for an updated estimate.';
     }
   }
 
@@ -561,7 +561,7 @@
       BIZ_NAME + ' has been notified. They\u2019ll follow up shortly.';
   }
 
-  // Accept button — open modal
+  // Accept button. Open the confirmation modal.
   document.getElementById('btnAccept').addEventListener('click', function () {
     document.getElementById('modalBizName').textContent = BIZ_NAME;
     showEl('confirmModal');
