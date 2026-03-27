@@ -137,6 +137,13 @@ function loadLeadPlanWorkspace(overrides = {}) {
     currentLead: vi.fn(() => null),
     currentBid: vi.fn(() => null),
     preferredBidProfile: vi.fn(() => "default"),
+    currentWorkspaceBlueprint: vi.fn(() => ({
+      business: {
+        key: "landscaping",
+        label: "Landscaping",
+        recordFocus: [{ label: "Property profile", description: "Gate, beds, and front walk" }],
+      },
+    })),
     normalizeBidProfile: vi.fn((value) => value),
     bidDraftFromLeadRecord: vi.fn(() => ({ id: "draft_1", updated_at: "2026-03-26T10:00:00.000Z" })),
     bidRowFromDraft: vi.fn(() => ({})),
@@ -160,6 +167,10 @@ function loadLeadPlanWorkspace(overrides = {}) {
     ...overrides,
   };
 
+  if (overrides.PROOFLINK_OPERATOR_CUSTOMER_DETAIL) {
+    context.window.PROOFLINK_OPERATOR_CUSTOMER_DETAIL = overrides.PROOFLINK_OPERATOR_CUSTOMER_DETAIL;
+  }
+
   vm.createContext(context);
   vm.runInContext(source, context);
   return context;
@@ -175,6 +186,7 @@ describe("operator lead plan workspace", () => {
     expect(source).toContain("Open booked work");
     expect(source).toContain("Open work pipeline");
     expect(source).toContain("the quote, booked work, and job that follow");
+    expect(source).toContain("Keep the trade details attached to the request");
     expect(source).not.toContain("Open quoted / booked");
     expect(source).not.toContain("quoted work");
   });
@@ -253,5 +265,32 @@ describe("operator lead plan workspace", () => {
     expect(context.planSearch.addEventListener).toHaveBeenCalledTimes(1);
     expect(context.planForm.addEventListener).toHaveBeenCalledTimes(1);
     expect(context.btnRunDuePlans.addEventListener).toHaveBeenCalledTimes(1);
+  });
+
+  test("renderLeadDetail carries business-specific customer memory into request detail", async () => {
+    const context = loadLeadPlanWorkspace({
+      LEADS_CACHE: [{
+        id: "lead_1",
+        customer_id: "customer_1",
+        contact_name: "Logan",
+        status: "new",
+        priority: "high",
+        requested_service_type: "Landscaping",
+        updated_at: "2026-03-26T08:00:00.000Z",
+      }],
+      CUSTOMERS_CACHE: [{ id: "customer_1", name: "Logan's Lawn Care" }],
+      PROOFLINK_OPERATOR_CUSTOMER_DETAIL: {
+        customerMemoryChecklist: vi.fn(() => ([
+          { label: "Property profile", ready: true, note: "Front beds and narrow side gate" },
+          { label: "Access notes", ready: false, note: "Gate code still needed" },
+        ])),
+      },
+    });
+
+    await context.window.renderLeadDetail("lead_1");
+
+    expect(context.leadDetailWrap.innerHTML).toContain("Keep the trade details attached to the request");
+    expect(context.leadDetailWrap.innerHTML).toContain("Front beds and narrow side gate");
+    expect(context.leadDetailWrap.innerHTML).toContain("Gate code still needed");
   });
 });

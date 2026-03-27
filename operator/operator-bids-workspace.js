@@ -784,6 +784,43 @@ function renderBidStatsCard(draft) {
       </div>
     </div>
   `;
+  }
+function bidWorkspaceBlueprint() {
+  if (typeof currentWorkspaceBlueprint === "function") return currentWorkspaceBlueprint();
+  return { business: { key: "other", label: "Business", recordFocus: [] } };
+}
+function bidCustomerMemoryItems(draft, blueprint = bidWorkspaceBlueprint()) {
+  if (!draft?.customer_id) return [];
+  const customer = findBidCustomer(draft.customer_id);
+  if (!customer) return [];
+  const sharedChecklist = window.PROOFLINK_OPERATOR_CUSTOMER_DETAIL?.customerMemoryChecklist;
+  if (typeof sharedChecklist === "function") {
+    return sharedChecklist(customer, blueprint).slice(0, 4);
+  }
+  return (blueprint?.business?.recordFocus || []).slice(0, 4).map((item) => ({
+    label: item.label,
+    note: item.description || "",
+    ready: false,
+  }));
+}
+function renderBidCustomerMemoryCard(draft, blueprint = bidWorkspaceBlueprint()) {
+  const items = bidCustomerMemoryItems(draft, blueprint);
+  if (!draft?.customer_id || !items.length) return "";
+  return `
+    <div class="detail-card detail-card--spaced">
+      <div class="kicker">Customer memory</div>
+      <div><strong>Keep the trade details attached to the proposal</strong></div>
+      <div class="detail-copy">Use this proposal view to keep the property, access, equipment, or repair context visible while you tighten scope, pricing, and client-facing wording.</div>
+      <div class="memory-checklist">
+        ${items.map((item) => `
+          <div class="memory-checklist__item ${item.ready ? "memory-checklist__item--ready" : ""}">
+            <div class="memory-checklist__label">${escapeHtml(item.label || "Detail")}</div>
+            <div class="memory-checklist__note">${escapeHtml(item.note || "Still needs attention before this proposal is final.")}</div>
+          </div>
+        `).join("")}
+      </div>
+    </div>
+  `;
 }
 function renderBidDeliveryCard(draft) {
   if (!bidDeliveryWrap) return;
@@ -791,6 +828,7 @@ function renderBidDeliveryCard(draft) {
     bidDeliveryWrap.innerHTML = `<div class="muted">The proposal checklist will appear here once a draft is active.</div>`;
     return;
   }
+  const blueprint = bidWorkspaceBlueprint();
   const items = [];
   if (!draft.customer_id) items.push(CUSTOMERS_CACHE.length ? "Link the bid to a customer record." : "Create the first customer record and link this bid to it.");
   if (!String(draft.service_address || "").trim()) items.push("Add the service address.");
@@ -800,9 +838,10 @@ function renderBidDeliveryCard(draft) {
   if (!String(draft.cover_note || "").trim()) items.push("Write the client delivery note.");
   if (!String(draft.valid_until || "").trim()) items.push("Set the proposal validity window.");
   if (!draft.converted_order_id) items.push("Convert the bid into tracked work when it is ready to move into operations.");
-  bidDeliveryWrap.innerHTML = items.length
+  const readinessMarkup = items.length
     ? `<ul class="bid-readiness-list">${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`
     : `<div class="note-item"><strong>Ready to deliver</strong><div class="muted">This draft has the essentials for a professional client proposal.</div></div>`;
+  bidDeliveryWrap.innerHTML = `${readinessMarkup}${renderBidCustomerMemoryCard(draft, blueprint)}`;
 }
 function renderBidList(filter = "") {
   if (!bidsList) return;
@@ -1808,8 +1847,11 @@ const BID_WORKSPACE_HELPERS = {
   renderBidScopeStarters,
   addBidCatalogStarter,
   renderBidCatalogStarters,
-  renderBidStatsCard,
-  renderBidDeliveryCard,
+    renderBidStatsCard,
+    bidWorkspaceBlueprint,
+    bidCustomerMemoryItems,
+    renderBidCustomerMemoryCard,
+    renderBidDeliveryCard,
   renderBidList,
   renderBidPhotos,
   renderBidLineItems,

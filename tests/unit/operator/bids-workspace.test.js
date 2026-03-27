@@ -187,6 +187,10 @@ function loadBidsWorkspace(overrides = {}) {
     ...overrides,
   };
 
+  if (overrides.PROOFLINK_OPERATOR_CUSTOMER_DETAIL) {
+    context.window.PROOFLINK_OPERATOR_CUSTOMER_DETAIL = overrides.PROOFLINK_OPERATOR_CUSTOMER_DETAIL;
+  }
+
   vm.createContext(context);
   vm.runInContext(source, context);
   return context;
@@ -201,6 +205,8 @@ describe("operator bids workspace", () => {
 
     expect(source).toContain("Move into booked work");
     expect(source).toContain("Open booked work");
+    expect(source).toContain("Keep the trade details attached to the proposal");
+    expect(source).toContain("bidCustomerMemoryItems");
     expect(source).toContain("No proposal drafts yet.");
     expect(source).toContain("Proposal emailed to ${customer.email}.");
     expect(source).not.toContain("quoted / booked");
@@ -235,5 +241,24 @@ describe("operator bids workspace", () => {
     expect(context.bidForm.addEventListener).toHaveBeenCalledTimes(1);
     expect(context.bidPhotoForm.addEventListener).toHaveBeenCalledTimes(1);
     expect(context.btnExportBidJson.addEventListener).toHaveBeenCalledTimes(1);
+  });
+
+  test("bidCustomerMemoryItems reuses business-specific customer memory when available", () => {
+    const context = loadBidsWorkspace({
+      findBidCustomer: vi.fn(() => ({ id: "customer_1", name: "Logan's Lawn Care" })),
+      PROOFLINK_OPERATOR_CUSTOMER_DETAIL: {
+        customerMemoryChecklist: vi.fn(() => ([
+          { label: "Property profile", ready: true, note: "Front yard beds and stone border" },
+          { label: "Access notes", ready: false, note: "Need the gate code before the crew arrives" },
+        ])),
+      },
+    });
+
+    const items = context.window.bidCustomerMemoryItems({ id: "bid_1", customer_id: "customer_1" });
+
+    expect(items).toEqual([
+      { label: "Property profile", ready: true, note: "Front yard beds and stone border" },
+      { label: "Access notes", ready: false, note: "Need the gate code before the crew arrives" },
+    ]);
   });
 });

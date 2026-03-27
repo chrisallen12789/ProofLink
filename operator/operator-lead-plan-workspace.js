@@ -114,6 +114,17 @@ async function renderLeadDetail(leadIdValue) {
   const linkedBid = findBidRecordById(lead.converted_bid_id);
   const linkedOrder = linkedOrderForLead(lead);
   const linkedJob = linkedOrder ? (JOBS_CACHE.find((row) => row.order_id === linkedOrder.id || row.id === linkedOrder.primary_job_id) || null) : null;
+  const workspaceBlueprint = typeof currentWorkspaceBlueprint === "function"
+    ? currentWorkspaceBlueprint()
+    : { business: { key: "other", label: "Business", recordFocus: [] } };
+  const sharedChecklist = window.PROOFLINK_OPERATOR_CUSTOMER_DETAIL?.customerMemoryChecklist;
+  const leadCustomerMemory = linkedCustomer && typeof sharedChecklist === "function"
+    ? sharedChecklist(linkedCustomer, workspaceBlueprint).slice(0, 4)
+    : (workspaceBlueprint?.business?.recordFocus || []).slice(0, 4).map((item) => ({
+      label: item.label,
+      note: item.description || "",
+      ready: false,
+    }));
   leadDetailWrap.innerHTML = `
     <div class="detail-card">
       <div class="kicker">Request summary</div>
@@ -121,9 +132,9 @@ async function renderLeadDetail(leadIdValue) {
       <div class="detail-copy">${escapeHtml(lead.contact_email || "No email")} | ${escapeHtml(lead.contact_phone || "No phone")}</div>
       <div class="detail-copy">Status: ${escapeHtml(String(lead.status || "new").replace(/_/g, " "))} | Priority: ${escapeHtml(String(lead.priority || "normal"))}</div>
       <div class="detail-copy">Requested service: ${escapeHtml(lead.requested_service_type || "Not specified")}</div>
-      <div class="detail-copy">Last activity: ${escapeHtml(formatDateTime(lead.last_activity_at || lead.updated_at || lead.created_at))}</div>
-    </div>
-    <div class="detail-card" style="margin-top:14px;">
+        <div class="detail-copy">Last activity: ${escapeHtml(formatDateTime(lead.last_activity_at || lead.updated_at || lead.created_at))}</div>
+      </div>
+    <div class="detail-card detail-card--spaced">
       <div class="kicker">Workflow links</div>
       <div class="detail-copy">Customer: ${escapeHtml(linkedCustomer?.name || "Not linked yet")}</div>
       <div class="detail-copy">Bid: ${escapeHtml(linkedBid?.title || (lead.converted_bid_id ? "Linked record" : "Not created yet"))}</div>
@@ -136,6 +147,21 @@ async function renderLeadDetail(leadIdValue) {
         <button id="btnLeadOpenJob" class="btn btn-ghost" type="button">${linkedJob ? "Open active job" : "Open jobs"}</button>
       </div>
     </div>
+    ${leadCustomerMemory.length ? `
+      <div class="detail-card detail-card--spaced">
+        <div class="kicker">Customer memory</div>
+        <div><strong>Keep the trade details attached to the request</strong></div>
+        <div class="detail-copy">Capture the property, access, equipment, or emergency context here so the proposal and booked work do not have to depend on memory later.</div>
+        <div class="memory-checklist">
+          ${leadCustomerMemory.map((item) => `
+            <div class="memory-checklist__item ${item.ready ? "memory-checklist__item--ready" : ""}">
+              <div class="memory-checklist__label">${escapeHtml(item.label || "Detail")}</div>
+              <div class="memory-checklist__note">${escapeHtml(item.note || "Still needs attention before the work moves forward.")}</div>
+            </div>
+          `).join("")}
+        </div>
+      </div>
+    ` : ""}
   `;
   if (btnLeadOpenBid) btnLeadOpenBid.disabled = !lead.converted_bid_id;
   $("btnLeadOpenCustomer")?.addEventListener("click", () => {
