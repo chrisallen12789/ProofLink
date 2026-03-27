@@ -80,6 +80,11 @@ function loadBookingsWorkspace(overrides = {}) {
 }
 
 describe("operator bookings workspace", () => {
+  const source = fs.readFileSync(
+    path.resolve(process.cwd(), "operator/operator-bookings-workspace.js"),
+    "utf8"
+  );
+
   test("computeBookingRecurrenceCount returns a readable weekly count", () => {
     const { context } = loadBookingsWorkspace();
 
@@ -98,5 +103,16 @@ describe("operator bookings workspace", () => {
     expect(elements.btnMyBookings.addEventListener).toHaveBeenCalledTimes(1);
     expect(elements.btnWalkIn.addEventListener).toHaveBeenCalledTimes(1);
     expect(elements.btnSaveBooking.addEventListener).toHaveBeenCalledTimes(1);
+  });
+
+  test("keeps booking detail and empty states free of drift", () => {
+    expect(source).toContain('message: "--"');
+    expect(source).toContain("No bookings here yet. New appointments will appear here as soon as they are scheduled.");
+    expect(source).toContain('saveButton.textContent = "Saving..."');
+    expect(source).toContain(">Close</button>");
+    expect(source).not.toContain("â€”");
+    expect(source).not.toContain("Ã—");
+    expect(source).not.toContain("Savingâ€¦");
+    expect(source).not.toContain("Â·");
   });
 });

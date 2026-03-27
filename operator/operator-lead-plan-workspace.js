@@ -107,7 +107,7 @@ async function renderLeadDetail(leadIdValue) {
   populateLeadForm(lead);
   if (!lead) {
     if (btnLeadOpenBid) btnLeadOpenBid.disabled = true;
-    leadDetailWrap.innerHTML = `<div class="detail-card"><div class="kicker">Request intake</div><div><strong>Create or select a request.</strong></div><div class="detail-copy">This record becomes the bridge between the customer conversation and the quote, quoted work, and job that follow.</div></div>`;
+    leadDetailWrap.innerHTML = `<div class="detail-card"><div class="kicker">Request intake</div><div><strong>Create or select a request.</strong></div><div class="detail-copy">This record becomes the bridge between the customer conversation and the quote, booked work, and job that follow.</div></div>`;
     return;
   }
   const linkedCustomer = CUSTOMERS_CACHE.find((row) => row.id === lead.customer_id) || null;

@@ -55,4 +55,25 @@ describe("operator workflow scenarios", () => {
     expect(orderGuidance.title).toBe("Payment follow-up is overdue");
     expect(closeoutGuidance.title).toBe("Field work is done, and payment is the next move");
   });
+
+  test("the request-to-booked-work handoff keeps one plain-language path across the operator", () => {
+    const leadSource = fs.readFileSync(
+      path.resolve(process.cwd(), "operator/operator-lead-plan-workspace.js"),
+      "utf8"
+    );
+    const commandSource = fs.readFileSync(
+      path.resolve(process.cwd(), "operator/operator-command-center.js"),
+      "utf8"
+    );
+    const shellSource = fs.readFileSync(
+      path.resolve(process.cwd(), "operator/index.html"),
+      "utf8"
+    );
+
+    expect(leadSource).toContain("Open booked work");
+    expect(leadSource).toContain("the quote, booked work, and job that follow");
+    expect(commandSource).toContain("Open the client, booked work, job, or request directly");
+    expect(shellSource).toContain("proposals move into booked work");
+    expect(shellSource).not.toContain("quoted or booked work");
+  });
 });

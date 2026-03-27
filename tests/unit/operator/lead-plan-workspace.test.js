@@ -174,7 +174,9 @@ describe("operator lead plan workspace", () => {
 
     expect(source).toContain("Open booked work");
     expect(source).toContain("Open work pipeline");
+    expect(source).toContain("the quote, booked work, and job that follow");
     expect(source).not.toContain("Open quoted / booked");
+    expect(source).not.toContain("quoted work");
   });
 
   test("sortedLeads matches contact and service fields", () => {

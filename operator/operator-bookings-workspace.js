@@ -48,12 +48,12 @@ async function fetchOperatorMembers({ force = false } = {}) {
 
 function computeBookingRecurrenceCount(rule, baseDate, endDate) {
   const cleanRule = String(rule || "").trim().toUpperCase();
-  if (!cleanRule || !baseDate || !endDate) return { count: null, message: "—" };
+  if (!cleanRule || !baseDate || !endDate) return { count: null, message: "--" };
 
   const start = new Date(`${baseDate}T00:00:00`);
   const end = new Date(`${endDate}T00:00:00`);
   if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
-    return { count: null, message: "—" };
+    return { count: null, message: "--" };
   }
   if (end <= start) {
     return { count: null, message: "End date must be after start date." };
@@ -161,7 +161,7 @@ function showBookingDetail(booking) {
           <div style="font-size:1rem;font-weight:600;color:#e8e9eb;">${escapeHtml(booking.title || "Booking")}</div>
           <div style="font-size:.82rem;color:rgba(255,255,255,.45);">${escapeHtml(booking.customer_name || booking.customer_email || "Customer")}</div>
         </div>
-        <button id="bkDetailClose" type="button" style="background:none;border:none;color:rgba(255,255,255,.5);font-size:1.2rem;cursor:pointer;padding:0 4px;">×</button>
+        <button id="bkDetailClose" type="button" style="background:none;border:none;color:rgba(255,255,255,.5);font-size:1.2rem;cursor:pointer;padding:0 4px;">Close</button>
       </div>
       <div style="display:flex;flex-direction:column;gap:12px;">
         <div>
@@ -226,7 +226,7 @@ function showBookingDetail(booking) {
     try {
       if (saveButton) {
         saveButton.disabled = true;
-        saveButton.textContent = "Saving…";
+        saveButton.textContent = "Saving...";
       }
       if (message) message.textContent = "";
       const tok = await getAccessToken();
@@ -271,7 +271,7 @@ function renderBookingsList(bookings) {
   if (!list) return;
 
   if (!bookings || !bookings.length) {
-    list.innerHTML = `<div class="muted" style="font-size:.85rem;">No bookings here yet.</div>`;
+    list.innerHTML = `<div class="muted" style="font-size:.85rem;">No bookings here yet. New appointments will appear here as soon as they are scheduled.</div>`;
     return;
   }
 
@@ -280,7 +280,7 @@ function renderBookingsList(bookings) {
       <div class="li-main">
         <div class="li-title">${escapeHtml(booking.title || "Booking")}</div>
         <div class="li-sub muted">${escapeHtml(booking.customer_name || booking.customer_email || "Customer")}</div>
-        <div class="li-sub muted">${escapeHtml(formatDateTime(booking.starts_at))}${booking.assigned_operator_name ? ` · ${escapeHtml(booking.assigned_operator_name)}` : ""}</div>
+        <div class="li-sub muted">${escapeHtml(formatDateTime(booking.starts_at))}${booking.assigned_operator_name ? ` | ${escapeHtml(booking.assigned_operator_name)}` : ""}</div>
       </div>
       <div class="li-meta" style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">
         <span class="pill ${booking.status === "cancelled" ? "pill-off" : "pill-on"}">${escapeHtml(String(booking.status || "scheduled").replace(/_/g, " "))}</span>
@@ -380,13 +380,13 @@ async function renderBookings() {
   if (noShowStat) {
     const concluded = BOOKINGS_CACHE.filter((booking) => ["no_show", "completed"].includes(booking.status));
     const noShows = BOOKINGS_CACHE.filter((booking) => booking.status === "no_show");
-    noShowStat.textContent = concluded.length ? `${Math.round((noShows.length / concluded.length) * 100)}%` : "—";
+    noShowStat.textContent = concluded.length ? `${Math.round((noShows.length / concluded.length) * 100)}%` : "--";
   }
 
   const linkDisplay = $("bookingLinkDisplay");
   if (linkDisplay) {
     const slug = CURRENT_OPERATOR?.tenant_slug || OPERATOR_CONFIG?.tenantSlug || "";
-    linkDisplay.textContent = slug ? `${window.location.origin}/${slug}/book.html` : "—";
+    linkDisplay.textContent = slug ? `${window.location.origin}/${slug}/book.html` : "--";
   }
 }
 
@@ -504,7 +504,7 @@ function openTimeLogModal() {
   modal.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10000;display:flex;align-items:center;justify-content:center;";
   const openOrders = CRM_ORDERS_CACHE.filter((order) => !["paid", "cancelled"].includes(String(order.status || "").toLowerCase()));
   const orderOptions = openOrders.map((order) => (
-    `<option value="${escapeAttr(order.id)}">${escapeHtml(order.customer_name || order.name || "Order")} — ${escapeHtml(order.title || order.id)}</option>`
+    `<option value="${escapeAttr(order.id)}">${escapeHtml(order.customer_name || order.name || "Order")} -- ${escapeHtml(order.title || order.id)}</option>`
   )).join("");
 
   modal.innerHTML = `
@@ -695,7 +695,7 @@ function initBookingsWorkspaceBindings() {
 
     button.disabled = true;
     if (message) {
-      message.textContent = "Saving…";
+      message.textContent = "Saving...";
       message.className = "msg";
     }
 
@@ -799,3 +799,4 @@ window.PROOFLINK_OPERATOR_BOOKINGS_WORKSPACE = {
 };
 
 Object.assign(window, BOOKINGS_WORKSPACE_HELPERS);
+

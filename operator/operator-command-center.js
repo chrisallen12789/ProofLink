@@ -409,7 +409,7 @@ function renderDashboard() {
         <div>
           <div class="kicker">Active client tracker</div>
           <h3>See who is active, what stage they are in, and where the money still sits.</h3>
-          <p>Open the client, quoted work, job, or request directly from the tracking row instead of hunting across the system.</p>
+          <p>Open the client, booked work, job, or request directly from the tracking row instead of hunting across the system.</p>
         </div>
         <div class="workspace-chip-row">
           <span class="pill">${escapeHtml(String(trackedClients.length))} clients in focus</span>
