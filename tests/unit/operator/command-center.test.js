@@ -120,6 +120,22 @@ function loadCommandCenter(overrides = {}) {
 }
 
 describe("operator command center", () => {
+  test("buildDashboardCollectionGuidance prioritizes overdue balances first", () => {
+    const { context } = loadCommandCenter({
+      formatUsd: (value) => `$${value}`,
+    });
+
+    const guidance = context.buildDashboardCollectionGuidance({
+      outstandingBalance: 22000,
+      overdueBalance: 9000,
+      missingDepositBalance: 0,
+      completedUnpaidBalance: 4000,
+    });
+
+    expect(guidance.title).toBe("Overdue money needs attention first");
+    expect(guidance.chips).toContain("$9000 overdue");
+  });
+
   test("renderGuidance shows hydrovac operations and hides invisible tabs", () => {
     const { context, guidanceWrap } = loadCommandCenter({
       currentWorkspaceBlueprint: vi.fn(() => ({ business: { key: "hydrovac" } })),

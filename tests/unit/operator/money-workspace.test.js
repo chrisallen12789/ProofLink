@@ -77,6 +77,23 @@ function loadMoneyWorkspace(overrides = {}) {
 }
 
 describe("operator money workspace", () => {
+  test("buildMoneyCollectionGuidance keeps deposits ahead of non-urgent balances", () => {
+    const context = loadMoneyWorkspace({
+      formatUsd: (value) => `$${value}`,
+    });
+
+    const guidance = context.buildMoneyCollectionGuidance({
+      outstandingBalance: 12000,
+      overdueBalance: 0,
+      duePlansCount: 2,
+      openDepositCount: 1,
+      unpaidCompletedCount: 0,
+    });
+
+    expect(guidance.title).toBe("Collect the open deposits next");
+    expect(guidance.chips).toContain("1 deposit open");
+  });
+
   test("renderExpenseCustomerOptions builds customer choices", () => {
     const context = loadMoneyWorkspace({
       CUSTOMERS_CACHE: [

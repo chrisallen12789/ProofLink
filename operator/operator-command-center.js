@@ -1,5 +1,56 @@
 ﻿// Command-center workspace helpers extracted from operator.js so Today, money,
 // workflow guidance, and pipeline orchestration live in one domain module.
+function buildDashboardCollectionGuidance({ outstandingBalance, overdueBalance, missingDepositBalance, completedUnpaidBalance }) {
+  if (overdueBalance > 0) {
+    return {
+      title: "Overdue money needs attention first",
+      description: "Start with the overdue balances so the oldest money does not turn into a customer-history problem.",
+      chips: [
+        `${formatUsd(overdueBalance)} overdue`,
+        `${formatUsd(outstandingBalance)} still open`,
+      ],
+    };
+  }
+  if (missingDepositBalance > 0) {
+    return {
+      title: "Collect the open deposits before the schedule gets ahead",
+      description: "Deposits are the cleanest next move when work is booked but cash has not caught up yet.",
+      chips: [
+        `${formatUsd(missingDepositBalance)} deposit open`,
+        completedUnpaidBalance > 0 ? `${formatUsd(completedUnpaidBalance)} from completed work` : "No completed-work balance",
+      ],
+    };
+  }
+  if (completedUnpaidBalance > 0) {
+    return {
+      title: "Completed work still needs collection follow-through",
+      description: "The work is done, so the clearest next move is invoice delivery, reminder follow-through, or recording the payment.",
+      chips: [
+        `${formatUsd(completedUnpaidBalance)} from completed work`,
+        `${formatUsd(outstandingBalance)} still open`,
+      ],
+    };
+  }
+  if (outstandingBalance > 0) {
+    return {
+      title: "Keep the open balances moving",
+      description: "Nothing is overdue yet, but this is the right moment to send the invoice, confirm payment timing, or collect while the work is still fresh.",
+      chips: [
+        `${formatUsd(outstandingBalance)} still open`,
+        "No overdue balances",
+      ],
+    };
+  }
+  return {
+    title: "Collection is in a healthy place",
+    description: "No urgent money follow-up is pulling the team off course right now. Use that space to create the next piece of work or strengthen repeat-service follow-through.",
+    chips: [
+      "No overdue balances",
+      "Nothing urgent to collect",
+    ],
+  };
+}
+
 function renderDashboard() {
   if (!dashboardWrap) return;
 
@@ -22,6 +73,12 @@ function renderDashboard() {
   const outstandingBalance = outstandingBalanceCents();
   const overdueBalance = overdueBalanceCents();
   const missingDepositBalance = depositRiskOrders.reduce((sum, row) => sum + orderDepositGapCents(row), 0);
+  const collectionGuidance = buildDashboardCollectionGuidance({
+    outstandingBalance,
+    overdueBalance,
+    missingDepositBalance,
+    completedUnpaidBalance,
+  });
   const orderLabel = workspaceOrderLabelLower(blueprint);
   const catalogLabel = workspaceCatalogLabelLower(blueprint);
   const hydrovacToday = isHydrovacWorkspace(blueprint) ? hydrovacDashboardSnapshot() : null;
@@ -140,6 +197,20 @@ function renderDashboard() {
       <div class="workflow-stage">
         <span class="workflow-stage__label">Paid</span>
         <strong>${pipeline.paid}</strong>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:14px;">
+      <div class="card-hd">
+        <strong>Collection focus</strong>
+        <span class="muted">The clearest next money move</span>
+      </div>
+      <div class="card-bd">
+        <div style="font-weight:700;">${escapeHtml(collectionGuidance.title)}</div>
+        <div class="detail-copy" style="margin-top:6px;">${escapeHtml(collectionGuidance.description)}</div>
+        <div class="workspace-chip-row" style="margin-top:10px;">
+          ${collectionGuidance.chips.map((chip) => `<span class="pill">${escapeHtml(chip)}</span>`).join("")}
+        </div>
       </div>
     </div>
 
@@ -891,6 +962,7 @@ function renderGuidance() {
 }
 
 const COMMAND_CENTER_HELPERS = {
+  buildDashboardCollectionGuidance,
   renderDashboard,
   renderMoneyWorkspace,
   renderPipelineWorkspace,

@@ -283,7 +283,56 @@ expenseChangeOrder?.addEventListener("change", updateExpenseTypeVisibility);
 [expenseLaborHours, expenseLaborRate].forEach((el) => {
   el?.addEventListener("input", syncExpenseLaborAmount);
 });
-
+function buildMoneyCollectionGuidance({ outstandingBalance, overdueBalance, duePlansCount, openDepositCount, unpaidCompletedCount }) {
+  if (overdueBalance > 0) {
+    return {
+      title: "Start with the overdue balances",
+      description: "This is the money most likely to turn into drag on the business. Clear the oldest follow-up first, then work forward from there.",
+      chips: [
+        `${formatUsd(overdueBalance)} overdue`,
+        `${formatUsd(outstandingBalance)} still open`,
+      ],
+    };
+  }
+  if (openDepositCount > 0) {
+    return {
+      title: "Collect the open deposits next",
+      description: "Deposits are still the cleanest way to protect the schedule before more work moves into the field.",
+      chips: [
+        `${openDepositCount} deposit${openDepositCount === 1 ? "" : "s"} open`,
+        duePlansCount > 0 ? `${duePlansCount} recurring visit${duePlansCount === 1 ? "" : "s"} due` : "No recurring work due",
+      ],
+    };
+  }
+  if (unpaidCompletedCount > 0) {
+    return {
+      title: "Completed work still needs collection",
+      description: "The work is done. Keep invoice delivery and reminder follow-through attached until the finished jobs are fully collected.",
+      chips: [
+        `${unpaidCompletedCount} completed job${unpaidCompletedCount === 1 ? "" : "s"} unpaid`,
+        `${formatUsd(outstandingBalance)} still open`,
+      ],
+    };
+  }
+  if (outstandingBalance > 0) {
+    return {
+      title: "Keep the open balances moving",
+      description: "Nothing is overdue yet, so this is the right window to send the invoice, confirm timing, and keep collection easy.",
+      chips: [
+        `${formatUsd(outstandingBalance)} still open`,
+        "No overdue balances",
+      ],
+    };
+  }
+  return {
+    title: "Money follow-through is in a good place",
+    description: "Nothing urgent is waiting here right now. Use this breathing room to tighten pricing, profit visibility, or repeat-work follow-through.",
+    chips: [
+      "No overdue balances",
+      "Nothing urgent to collect",
+    ],
+  };
+}
 
 async function renderMoney() {
   if (!moneyWrap) return;
@@ -323,6 +372,20 @@ async function renderMoney() {
   const months = Array.from(expByMonth.keys()).sort().reverse();
   const duePlans = dueServicePlans();
   const activePlans = SERVICE_PLANS_CACHE.filter((row) => String(row.status || "").toLowerCase() === "active");
+  const outstandingBalance = outstandingBalanceCents();
+  const overdueBalance = overdueBalanceCents();
+  const openDepositOrders = ordersMissingDeposits();
+  const unpaidCompletedCount = CRM_ORDERS_CACHE.filter((row) => {
+    const status = String(row.status || "").toLowerCase();
+    return ["completed", "fulfilled"].includes(status) && orderAmountDueCents(row) > 0;
+  }).length;
+  const collectionGuidance = buildMoneyCollectionGuidance({
+    outstandingBalance,
+    overdueBalance,
+    duePlansCount: duePlans.length,
+    openDepositCount: openDepositOrders.length,
+    unpaidCompletedCount,
+  });
 
   moneyWrap.innerHTML = `
     <div class="cards">
@@ -378,6 +441,20 @@ async function renderMoney() {
         <div class="card-bd">
           <div class="muted">Tracked labor</div>
           <div class="money">${costBreakdown.laborHours ? `${Number(costBreakdown.laborHours.toFixed(2))}h` : "-"}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:14px;">
+      <div class="card-hd">
+        <strong>Collection focus</strong>
+        <span class="muted">The clearest next money move</span>
+      </div>
+      <div class="card-bd">
+        <div style="font-weight:700;">${escapeHtml(collectionGuidance.title)}</div>
+        <div class="detail-copy" style="margin-top:6px;">${escapeHtml(collectionGuidance.description)}</div>
+        <div class="workspace-chip-row" style="margin-top:10px;">
+          ${collectionGuidance.chips.map((chip) => `<span class="pill">${escapeHtml(chip)}</span>`).join("")}
         </div>
       </div>
     </div>
@@ -961,6 +1038,7 @@ function initMoneyWorkspaceBindings() {
 
 const MONEY_WORKSPACE_HELPERS = {
   fetchExpenses,
+  buildMoneyCollectionGuidance,
   renderExpenseCustomerOptions,
   renderExpenseOrderOptions,
   renderExpenseJobOptions,
