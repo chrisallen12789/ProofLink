@@ -18,10 +18,12 @@ describe("operator launch html", () => {
   });
 
   test("uses shared launch-state classes instead of inline error styling", () => {
-    expect(source).toContain('class="error-state"');
+    expect(source).toContain('class="error-state is-hidden"');
     expect(source).toContain('class="btn-refresh error-state__retry"');
     expect(source).toContain('class="progress-fill progress-fill--start"');
+    expect(source).toContain('class="is-hidden"');
     expect(source).not.toContain('id="error-state" style=');
     expect(source).not.toContain('id="progress-fill" style=');
+    expect(source).not.toContain('id="main-content" style=');
   });
 });

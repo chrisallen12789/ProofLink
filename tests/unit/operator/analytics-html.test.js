@@ -31,12 +31,19 @@ describe("operator analytics html", () => {
     expect(source).toContain('class="panel-link"');
     expect(source).toContain('class="state-message state-message--loading"');
     expect(source).toContain('class="tenant-meta"');
+    expect(source).toContain('class="gmv-divider"');
+    expect(source).toContain('class="gmv-grid"');
+    expect(source).toContain('class="gmv-stat-label"');
+    expect(source).toContain('class="gmv-stat-value"');
+    expect(source).toContain('class="panel-body panel-body--list"');
     expect(source).not.toContain(
       'style="position:absolute;bottom:1.5rem;left:0;right:0;padding:0 1.5rem"'
     );
     expect(source).not.toContain(
       'style="text-align:center;padding:2rem;color:var(--muted)"'
     );
+    expect(source).not.toContain('style="padding:0 1.25rem"');
+    expect(source).not.toContain('style="display:grid;grid-template-columns:1fr 1fr;gap:1rem"');
   });
 
   test("does not carry visible encoding drift", () => {

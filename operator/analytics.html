@@ -48,6 +48,7 @@
     .panel-header{padding:1rem 1.25rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
     .panel-title{font-family:var(--font-display);font-weight:700;font-size:0.9rem;letter-spacing:-0.01em}
     .panel-body{padding:1.25rem}
+    .panel-body--list{padding:0 1.25rem}
     /* status bar chart */
     .status-bars{display:flex;flex-direction:column;gap:0.85rem}
     .status-bar-row{display:grid;grid-template-columns:100px 1fr 40px;align-items:center;gap:0.75rem}
@@ -85,6 +86,10 @@
     .badge-stripe-none{background:var(--cream);color:var(--muted)}
     /* gmv highlight */
     .gmv-block{text-align:center;padding:1.5rem 0}
+    .gmv-divider{border:none;border-top:1px solid var(--border);margin:1rem 0}
+    .gmv-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+    .gmv-stat-label{font-size:0.7rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);margin-bottom:0.3rem}
+    .gmv-stat-value{font-family:var(--font-display);font-size:1.4rem;font-weight:800}
     .gmv-value{font-family:var(--font-display);font-size:3rem;font-weight:800;letter-spacing:-0.04em;color:var(--ink)}
     .gmv-label{font-size:0.8rem;color:var(--muted);margin-top:0.25rem}
     .gmv-week{font-size:1.1rem;font-weight:600;color:var(--success);margin-top:0.5rem}
@@ -191,15 +196,15 @@
             <div class="gmv-label">total gross merchandise value</div>
             <div class="gmv-week" id="gmv-week">-- this week</div>
           </div>
-          <hr style="border:none;border-top:1px solid var(--border);margin:1rem 0"/>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
+          <hr class="gmv-divider"/>
+          <div class="gmv-grid">
             <div>
-              <div style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);margin-bottom:0.3rem">Stripe connected</div>
-              <div style="font-family:var(--font-display);font-size:1.4rem;font-weight:800" id="stripe-count">--</div>
+              <div class="gmv-stat-label">Stripe connected</div>
+              <div class="gmv-stat-value" id="stripe-count">--</div>
             </div>
             <div>
-              <div style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);margin-bottom:0.3rem">New this month</div>
-              <div style="font-family:var(--font-display);font-size:1.4rem;font-weight:800" id="new-month">--</div>
+              <div class="gmv-stat-label">New this month</div>
+              <div class="gmv-stat-value" id="new-month">--</div>
             </div>
           </div>
         </div>
@@ -213,7 +218,7 @@
           <div class="panel-title">Recent signups</div>
           <a href="/operator/provisioning.html" class="panel-link">View all</a>
         </div>
-        <div class="panel-body" style="padding:0 1.25rem">
+        <div class="panel-body panel-body--list">
           <div class="activity-list" id="activity-list">
             <div class="state-message state-message--loading"><div class="spinner"></div></div>
           </div>
@@ -225,7 +230,7 @@
           <div class="panel-title">Recent tenants</div>
           <a href="/operator/tenants.html" class="panel-link">View all</a>
         </div>
-        <div class="panel-body" style="padding:0 1.25rem">
+        <div class="panel-body panel-body--list">
           <div class="tenant-list" id="tenant-list">
             <div class="state-message state-message--loading"><div class="spinner"></div></div>
           </div>
@@ -330,7 +335,7 @@
       const pct=total>0?Math.max(count/total*100,0):0;
       return `<div class="status-bar-row">
         <div class="status-bar-label">${s.label}</div>
-        <div class="bar-track"><div class="bar-fill ${s.cls}" style="width:0%" data-pct="${pct.toFixed(1)}"></div></div>
+        <div class="bar-track"><div class="bar-fill ${s.cls}" data-pct="${pct.toFixed(1)}"></div></div>
         <div class="status-bar-count">${count}</div>
       </div>`;
     }).join('');

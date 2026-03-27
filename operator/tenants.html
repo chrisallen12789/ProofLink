@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-  <title>ProofLink — Tenants</title>
+  <title>ProofLink Tenant Directory</title>
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
   <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;600;700;800&family=Google+Sans+Text:wght@400;500;600;700&display=swap" rel="stylesheet"/>
@@ -25,6 +25,8 @@
     .sidebar-nav li a:hover,.sidebar-nav li a.active{background:rgba(255,255,255,0.07);color:#f5f2eb}
     .sidebar-nav li a.active{color:#fff;background:rgba(200,75,47,0.2)}
     .sidebar-section-label{font-size:0.62rem;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:rgba(245,242,235,0.25);padding:1.25rem 1.5rem 0.5rem}
+    .sidebar-footer{position:absolute;bottom:1.5rem;left:0;right:0;padding:0 1.5rem}
+    .sidebar-signout{width:100%;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:rgba(245,242,235,0.7);padding:0.5rem;border-radius:4px;cursor:pointer;font-size:0.75rem;font-family:var(--font-body)}
     .main{padding:2rem 2.5rem;max-width:1200px}
     .page-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:1.5rem;padding-bottom:1.5rem;border-bottom:1px solid var(--border)}
     .page-title{font-family:var(--font-display);font-size:1.5rem;font-weight:700;letter-spacing:-0.02em}
@@ -55,6 +57,13 @@
     .badge-stripe-none{background:var(--cream);color:var(--muted)}
     /* loading */
     .loading-cell{text-align:center;padding:3rem;color:var(--muted)}
+    .loading-cell--error{color:var(--error)}
+    .tenant-count{font-size:0.8rem;color:var(--muted)}
+    .table-muted{color:var(--muted)}
+    .table-center{text-align:center}
+    .table-nowrap{white-space:nowrap}
+    .btn-sm--edit{font-size:0.72rem}
+    .shell-hidden{display:none}
     .spinner{width:22px;height:22px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.7s linear infinite;margin:0 auto 0.5rem}
     @keyframes spin{to{transform:rotate(360deg)}}
     /* MODAL */
@@ -75,6 +84,8 @@
     .info-value{font-size:0.85rem;font-weight:500;color:var(--ink)}
     /* Config editor */
     .config-grid{display:grid;grid-template-columns:1fr 1fr;gap:0.85rem}
+    .config-grid__full{grid-column:1/-1}
+    .modal-divider{border:none;border-top:1px solid var(--border);margin:0 0 1.5rem}
     .field{display:flex;flex-direction:column;gap:0.3rem}
     .field label{font-size:0.75rem;font-weight:600;color:var(--ink)}
     .field input,.field select,.field textarea{background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:0.55rem 0.75rem;font-size:0.85rem;font-family:var(--font-body);color:var(--ink);outline:none;transition:border-color 0.2s;width:100%}
@@ -120,24 +131,24 @@
   </div>
 </div>
 
-<div class="op-layout" id="op-shell" style="display:none">
+<div class="op-layout shell-hidden" id="op-shell">
   <aside class="sidebar">
     <a href="/operator/" class="sidebar-logo">Proof<span>Link</span></a>
     <div class="sidebar-section-label">Manage</div>
     <ul class="sidebar-nav">
-      <li><a href="/operator/">📊 &nbsp;Business Hub</a></li>
-      <li><a href="/operator/orders.html">📦 &nbsp;Orders</a></li>
-      <li><a href="/operator/products.html">🛍️ &nbsp;Products</a></li>
-      <li><a href="/operator/tenants.html" class="active">🏪 &nbsp;Tenants</a></li>
+      <li><a href="/operator/">Business hub</a></li>
+      <li><a href="/operator/orders.html">Orders</a></li>
+      <li><a href="/operator/products.html">Products</a></li>
+      <li><a href="/operator/tenants.html" class="active">Tenants</a></li>
     </ul>
     <div class="sidebar-section-label">Platform</div>
     <ul class="sidebar-nav">
-      <li><a href="/operator/analytics.html">📈 &nbsp;Analytics</a></li>
-      <li><a href="/operator/provisioning.html">🔧 &nbsp;Provisioning</a></li>
-      <li><a href="/operator/settings.html">⚙️ &nbsp;Settings</a></li>
+      <li><a href="/operator/analytics.html">Analytics</a></li>
+      <li><a href="/operator/provisioning.html">Provisioning</a></li>
+      <li><a href="/operator/settings.html">Settings</a></li>
     </ul>
-    <div style="position:absolute;bottom:1.5rem;left:0;right:0;padding:0 1.5rem">
-      <button id="sign-out-btn" style="width:100%;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:rgba(245,242,235,0.5);padding:0.5rem;border-radius:4px;cursor:pointer;font-size:0.75rem;font-family:var(--font-body)">Sign out</button>
+    <div class="sidebar-footer">
+      <button id="sign-out-btn" class="sidebar-signout">Sign out</button>
     </div>
   </aside>
 
@@ -147,12 +158,12 @@
         <div class="page-title">Tenants</div>
         <div class="page-sub">All provisioned businesses on the platform.</div>
       </div>
-      <button class="btn-sm" id="refresh-btn">↻ Refresh</button>
+      <button class="btn-sm" id="refresh-btn">Refresh</button>
     </div>
 
     <div class="search-row">
-      <input type="search" id="search-input" class="search-input" placeholder="Search by name, email, or slug…"/>
-      <span id="tenant-count" style="font-size:0.8rem;color:var(--muted)"></span>
+      <input type="search" id="search-input" class="search-input" placeholder="Search by business, email, or website"/>
+      <span id="tenant-count" class="tenant-count"></span>
     </div>
 
     <div class="table-card">
@@ -170,7 +181,7 @@
           </tr>
         </thead>
         <tbody id="tenants-tbody">
-          <tr><td colspan="8" class="loading-cell"><div class="spinner"></div>Loading tenants…</td></tr>
+          <tr><td colspan="8" class="loading-cell"><div class="spinner"></div>Loading tenants...</td></tr>
         </tbody>
       </table>
     </div>
@@ -182,7 +193,7 @@
   <div class="modal">
     <div class="modal-header">
       <div class="modal-title" id="modal-tenant-name">Tenant Details</div>
-      <button class="modal-close" id="modal-close">✕</button>
+      <button class="modal-close" id="modal-close">Close</button>
     </div>
     <div class="modal-body">
 
@@ -190,16 +201,16 @@
       <div class="modal-section">
         <div class="modal-section-title">Business info</div>
         <div class="info-grid">
-          <div class="info-item"><span class="info-label">Owner email</span><span class="info-value" id="mi-email">–</span></div>
-          <div class="info-item"><span class="info-label">Business type</span><span class="info-value" id="mi-type">–</span></div>
-          <div class="info-item"><span class="info-label">Location</span><span class="info-value" id="mi-location">–</span></div>
-          <div class="info-item"><span class="info-label">Website</span><span class="info-value"><a class="storefront-link" id="mi-storefront" href="#" target="_blank">–</a></span></div>
-          <div class="info-item"><span class="info-label">Stripe status</span><span class="info-value" id="mi-stripe">–</span></div>
-          <div class="info-item"><span class="info-label">Joined</span><span class="info-value" id="mi-joined">–</span></div>
+          <div class="info-item"><span class="info-label">Owner email</span><span class="info-value" id="mi-email">--</span></div>
+          <div class="info-item"><span class="info-label">Business type</span><span class="info-value" id="mi-type">--</span></div>
+          <div class="info-item"><span class="info-label">Location</span><span class="info-value" id="mi-location">--</span></div>
+          <div class="info-item"><span class="info-label">Website</span><span class="info-value"><a class="storefront-link" id="mi-storefront" href="#" target="_blank">--</a></span></div>
+          <div class="info-item"><span class="info-label">Stripe status</span><span class="info-value" id="mi-stripe">--</span></div>
+          <div class="info-item"><span class="info-label">Joined</span><span class="info-value" id="mi-joined">--</span></div>
         </div>
       </div>
 
-      <hr style="border:none;border-top:1px solid var(--border);margin:0 0 1.5rem"/>
+      <hr class="modal-divider"/>
 
       <!-- Config editor -->
       <div class="modal-section">
@@ -213,7 +224,7 @@
             <label for="cfg-tagline">Tagline</label>
             <input type="text" id="cfg-tagline" placeholder="Short description"/>
           </div>
-          <div class="field" style="grid-column:1/-1">
+          <div class="field config-grid__full">
             <label for="cfg-hero">Hero heading</label>
             <input type="text" id="cfg-hero" placeholder="What customers see first"/>
           </div>
@@ -230,15 +241,15 @@
               <option value="minimal">Minimal</option>
             </select>
           </div>
-          <div class="field" style="grid-column:1/-1">
+          <div class="field config-grid__full">
             <label for="cfg-logo">Logo URL</label>
-            <input type="url" id="cfg-logo" placeholder="https://…/logo.png"/>
+            <input type="url" id="cfg-logo" placeholder="https://example.com/logo.png"/>
           </div>
         </div>
       </div>
     </div>
     <div class="modal-footer">
-      <span class="save-success" id="save-success">✓ Saved</span>
+      <span class="save-success" id="save-success">Saved</span>
       <span class="save-error" id="save-error">Save failed</span>
       <button class="btn-sm" id="modal-cancel">Cancel</button>
       <button class="btn-save" id="btn-save-config">Save changes</button>
@@ -261,7 +272,7 @@
   document.getElementById('auth-password').addEventListener('keydown', e=>{ if(e.key==='Enter') signIn(); });
   document.getElementById('sign-out-btn').addEventListener('click',()=>{
     token=null; sessionStorage.removeItem('pl_op_token');
-    document.getElementById('op-shell').style.display='none';
+    document.getElementById('op-shell').classList.add('shell-hidden');
     document.getElementById('auth-gate').style.display='flex';
   });
 
@@ -289,7 +300,7 @@
     const errEl=document.getElementById('auth-error');
     const btn=document.getElementById('auth-btn');
     if(!email||!pass){ errEl.textContent='Enter email and password.'; return; }
-    btn.textContent='Signing in…'; btn.disabled=true; errEl.textContent='';
+    btn.textContent='Signing in...'; btn.disabled=true; errEl.textContent='';
     try{
       const r=await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`,{
         method:'POST',headers:{'Content-Type':'application/json','apikey':SUPABASE_ANON},
@@ -304,12 +315,12 @@
 
   function showShell(){
     document.getElementById('auth-gate').style.display='none';
-    document.getElementById('op-shell').style.display='grid';
+    document.getElementById('op-shell').classList.remove('shell-hidden');
   }
 
   async function loadTenants(q=''){
     const tbody=document.getElementById('tenants-tbody');
-    tbody.innerHTML='<tr><td colspan="8" class="loading-cell"><div class="spinner"></div>Loading…</td></tr>';
+    tbody.innerHTML='<tr><td colspan="8" class="loading-cell"><div class="spinner"></div>Loading...</td></tr>';
     const url='/.netlify/functions/get-tenants'+(q?`?q=${encodeURIComponent(q)}`:'');
     try{
       const r=await fetch(url,{headers:{Authorization:`Bearer ${token}`}});
@@ -318,30 +329,30 @@
       allTenants=d.tenants||[];
       document.getElementById('tenant-count').textContent=`${allTenants.length} tenant${allTenants.length!==1?'s':''}`;
       renderTable(allTenants);
-    }catch(e){ tbody.innerHTML=`<tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--error)">Error: ${esc(e.message)}</td></tr>`; }
+    }catch(e){ tbody.innerHTML=`<tr><td colspan="8" class="loading-cell loading-cell--error">Error: ${esc(e.message)}</td></tr>`; }
   }
 
   function renderTable(tenants){
     const tbody=document.getElementById('tenants-tbody');
-    if(!tenants.length){ tbody.innerHTML='<tr><td colspan="8" style="text-align:center;padding:3rem;color:var(--muted)">No tenants found.</td></tr>'; return; }
+    if(!tenants.length){ tbody.innerHTML='<tr><td colspan="8" class="loading-cell">No tenants found.</td></tr>'; return; }
     tbody.innerHTML=tenants.map(t=>{
       const stripeClass=t.stripe_status==='active'?'badge-stripe-active':t.stripe_status==='pending'?'badge-stripe-pending':'badge-stripe-none';
       const stripeLabel=t.stripe_status==='active'?'Connected':t.stripe_status==='pending'?'Pending':'Not connected';
-      const joined=t.created_at?new Date(t.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):'–';
+      const joined=t.created_at?new Date(t.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):'--';
       return `<tr data-id="${t.id}">
         <td><div class="tenant-name-cell">${esc(t.name)}</div><div class="tenant-email-cell">${esc(t.owner_email||'')}</div></td>
         <td class="td-mono">${esc(t.slug)}</td>
-        <td style="color:var(--muted)">${esc(t.business_type||'–')}</td>
+        <td class="table-muted">${esc(t.business_type||'--')}</td>
         <td><span class="badge ${stripeClass}">${stripeLabel}</span></td>
-        <td style="text-align:center">${t.product_count||0}</td>
-        <td style="text-align:center">${t.order_count||0}</td>
-        <td style="color:var(--muted);white-space:nowrap">${joined}</td>
+        <td class="table-center">${t.product_count||0}</td>
+        <td class="table-center">${t.order_count||0}</td>
+        <td class="table-muted table-nowrap">${joined}</td>
         <td>
-          <button class="btn-sm" style="font-size:0.72rem" onclick="event.stopPropagation();openModal('${t.id}')">Edit ✏️</button>
+          <button class="btn-sm btn-sm--edit" onclick="event.stopPropagation();openModal('${t.id}')">Edit details</button>
         </td>
       </tr>`;
     }).join('');
-    // Row click → open modal
+    // Row click opens modal detail.
     tbody.querySelectorAll('tr[data-id]').forEach(row=>{
       row.addEventListener('click', ()=> openModal(row.dataset.id));
     });
@@ -352,14 +363,14 @@
     if(!t) return;
     currentTenantId=tenantId;
     document.getElementById('modal-tenant-name').textContent=t.name;
-    document.getElementById('mi-email').textContent=t.owner_email||'–';
-    document.getElementById('mi-type').textContent=t.business_type||'–';
-    document.getElementById('mi-location').textContent=t.city_state||'–';
+    document.getElementById('mi-email').textContent=t.owner_email||'--';
+    document.getElementById('mi-type').textContent=t.business_type||'--';
+    document.getElementById('mi-location').textContent=t.city_state||'--';
     const storeUrl=SITE_URL?`${SITE_URL}/${t.slug}`:`/${t.slug}`;
     const link=document.getElementById('mi-storefront');
     link.href=storeUrl; link.textContent=`/${t.slug}`;
     document.getElementById('mi-stripe').textContent=t.stripe_status==='active'?'Connected':t.stripe_status==='pending'?'Pending setup':'Not connected';
-    document.getElementById('mi-joined').textContent=t.created_at?new Date(t.created_at).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}):'–';
+    document.getElementById('mi-joined').textContent=t.created_at?new Date(t.created_at).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}):'--';
     // Fill config fields
     const cfg=t.config||{};
     document.getElementById('cfg-title').value=cfg.site_title||t.name||'';
@@ -386,7 +397,7 @@
     const btn=document.getElementById('btn-save-config');
     const successEl=document.getElementById('save-success');
     const errorEl=document.getElementById('save-error');
-    btn.disabled=true; btn.textContent='Saving…';
+    btn.disabled=true; btn.textContent='Saving...';
     successEl.style.display='none'; errorEl.style.display='none';
     const config={
       site_title   : document.getElementById('cfg-title').value.trim(),

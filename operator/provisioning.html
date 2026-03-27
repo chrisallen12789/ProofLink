@@ -332,6 +332,9 @@
       align-items: center;
       gap: 0.4rem;
     }
+    .detail-badge {
+      display: inline-flex;
+    }
     .detail-row {
       display: grid;
       grid-template-columns: 130px 1fr;
@@ -773,7 +776,7 @@ function openDetailModal(e, id) {
 
     document.getElementById('dm-body').innerHTML = `
       <div class="detail-badge-row">
-        <span class="badge badge-${req.status}" style="display:inline-flex">${statusLabel(req.status)}</span>
+        <span class="badge badge-${req.status} detail-badge">${statusLabel(req.status)}</span>
       </div>
       ${row('Business name', req.business_name)}
       ${row('Owner name', req.owner_name)}

@@ -166,11 +166,16 @@
       transition: all 0.15s;
     }
     .btn-refresh:hover { border-color: var(--ink); color: var(--ink); }
+    .is-hidden {
+      display: none !important;
+    }
     .error-state {
-      display: none;
       text-align: center;
       padding: 4rem 0;
       color: var(--muted);
+    }
+    .error-state.visible {
+      display: block;
     }
     .error-state__icon {
       font-size: 2rem;
@@ -200,13 +205,13 @@
       <p>Loading your next steps...</p>
     </div>
 
-    <div id="error-state" class="error-state">
+    <div id="error-state" class="error-state is-hidden">
       <p class="error-state__icon">!</p>
       <p class="error-state__copy" id="error-msg">Could not load your next steps.</p>
       <button class="btn-refresh error-state__retry" onclick="loadChecklist()">Try again</button>
     </div>
 
-    <div id="main-content" style="display:none">
+    <div id="main-content" class="is-hidden">
       <div class="launch-header">
         <div class="welcome-pill" id="welcome-pill">Ready to start</div>
         <h1 class="launch-title" id="launch-title">Let's get the business moving.</h1>
@@ -338,18 +343,18 @@
       }
 
       function show(id) {
-        document.getElementById(id).style.display = "";
+        document.getElementById(id).classList.remove("is-hidden");
       }
 
       function hide(id) {
-        document.getElementById(id).style.display = "none";
+        document.getElementById(id).classList.add("is-hidden");
       }
 
       function showError(message) {
         hide("loading-state");
         hide("main-content");
         document.getElementById("error-msg").textContent = message;
-        document.getElementById("error-state").style.display = "block";
+        show("error-state");
       }
 
       function esc(value) {

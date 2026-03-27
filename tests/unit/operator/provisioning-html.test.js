@@ -30,6 +30,7 @@ describe("operator provisioning html", () => {
     expect(source).toContain('class="modal-overlay"');
     expect(source).toContain('class="modal-card modal-card--detail"');
     expect(source).toContain('class="modal-card modal-card--reject"');
+    expect(source).toContain('class="badge badge-${req.status} detail-badge"');
     expect(source).not.toContain(
       'style="margin-left:auto;display:flex;gap:1.25rem;align-items:center;"'
     );
@@ -39,6 +40,7 @@ describe("operator provisioning html", () => {
     expect(source).not.toContain(
       'style="display:none;position:fixed;inset:0;background:rgba(13,13,13,0.5);z-index:1000;align-items:center;justify-content:center;padding:1rem;"'
     );
+    expect(source).not.toContain('style="display:inline-flex"');
   });
 
   test("does not carry visible encoding drift", () => {
