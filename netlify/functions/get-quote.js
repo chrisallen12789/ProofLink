@@ -6,6 +6,7 @@
 'use strict';
 
 const { getAdminClient, respond } = require('./utils/auth');
+const { checkRateLimit, rateLimitResponse, getClientIP } = require('./utils/rate-limit');
 
 // Columns safe to expose to customers — never expose internal operator-only fields
 const BID_SELECT = [
@@ -24,6 +25,10 @@ const BID_SELECT = [
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return respond(200, {});
+
+  const ip = getClientIP(event);
+  const rl = checkRateLimit({ key: `get-quote:${ip}`, maxRequests: 30, windowMs: 15 * 60 * 1000 });
+  if (!rl.allowed) return rateLimitResponse(rl.retryAfterMs);
 
   // ── POST — customer accepts a proposal ───────────────────────────────────
   if (event.httpMethod === 'POST') {

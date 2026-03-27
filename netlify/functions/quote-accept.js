@@ -6,6 +6,7 @@
 const { getAdminClient, respond } = require('./utils/auth');
 const { sendEmail, templates } = require('./utils/email');
 const { getConfiguredSiteUrl } = require('./utils/runtime-config');
+const { checkRateLimit, rateLimitResponse, getClientIP } = require('./utils/rate-limit');
 
 function parseJsonBody(body) {
   if (!body) return {};
@@ -20,6 +21,10 @@ function clean(value) {
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return respond(200, {});
   if (event.httpMethod !== 'POST') return respond(405, { error: 'Method not allowed' });
+
+  const ip = getClientIP(event);
+  const rl = checkRateLimit({ key: `quote-accept:${ip}`, maxRequests: 10, windowMs: 15 * 60 * 1000 });
+  if (!rl.allowed) return rateLimitResponse(rl.retryAfterMs);
 
   let body;
   try {
