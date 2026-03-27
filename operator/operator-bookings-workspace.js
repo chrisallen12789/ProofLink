@@ -153,43 +153,43 @@ function showBookingDetail(booking) {
 
   const overlay = document.createElement("div");
   overlay.id = "bkDetailModal";
-  overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10000;display:flex;align-items:center;justify-content:center;";
+  overlay.className = "modal-overlay";
   overlay.innerHTML = `
-    <div style="background:#1e2029;border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:24px 28px;max-width:460px;width:92%;box-shadow:0 8px 40px rgba(0,0,0,.5);">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+    <div class="modal-card">
+      <div class="modal-head">
         <div>
-          <div style="font-size:1rem;font-weight:600;color:#e8e9eb;">${escapeHtml(booking.title || "Booking")}</div>
-          <div style="font-size:.82rem;color:rgba(255,255,255,.45);">${escapeHtml(booking.customer_name || booking.customer_email || "Customer")}</div>
+          <div class="modal-title">${escapeHtml(booking.title || "Booking")}</div>
+          <div class="modal-subtitle">${escapeHtml(booking.customer_name || booking.customer_email || "Customer")}</div>
         </div>
-        <button id="bkDetailClose" type="button" style="background:none;border:none;color:rgba(255,255,255,.5);font-size:1.2rem;cursor:pointer;padding:0 4px;">Close</button>
+        <button id="bkDetailClose" class="modal-close" type="button">Close</button>
       </div>
-      <div style="display:flex;flex-direction:column;gap:12px;">
+      <div class="modal-stack">
         <div>
-          <label style="font-size:.78rem;color:rgba(255,255,255,.45);display:block;margin-bottom:4px;">Assigned to</label>
-          <select id="bkAssignedOperator" class="input" style="width:100%;">
+          <label class="field-note-label field-note-label--tight">Assigned to</label>
+          <select id="bkAssignedOperator" class="input u-full-width">
             ${operatorOptions.join("")}
           </select>
         </div>
         <div>
-          <label style="font-size:.78rem;color:rgba(255,255,255,.45);display:block;margin-bottom:4px;">Vehicle / crew notes</label>
-          <input id="bkVehicleNotes" class="input" value="${escapeAttr(booking.notes_vehicle || "")}" placeholder="e.g. silver van, plate ABC123" style="width:100%;" />
+          <label class="field-note-label field-note-label--tight">Vehicle / crew notes</label>
+          <input id="bkVehicleNotes" class="input u-full-width" value="${escapeAttr(booking.notes_vehicle || "")}" placeholder="e.g. silver van, plate ABC123" />
         </div>
-        <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;">
+        <div class="modal-grid-3">
           <div>
-            <label style="font-size:.72rem;color:rgba(255,255,255,.35);display:block;margin-bottom:2px;">Date</label>
-            <input id="bkDetailDate" type="date" value="${escapeAttr(localDate)}" class="input" style="width:100%;" />
+            <label class="section-heading-note">Date</label>
+            <input id="bkDetailDate" type="date" value="${escapeAttr(localDate)}" class="input u-full-width" />
           </div>
           <div>
-            <label style="font-size:.72rem;color:rgba(255,255,255,.35);display:block;margin-bottom:2px;">Start</label>
-            <input id="bkDetailStart" type="time" value="${escapeAttr(localStart)}" class="input" style="width:100%;" />
+            <label class="section-heading-note">Start</label>
+            <input id="bkDetailStart" type="time" value="${escapeAttr(localStart)}" class="input u-full-width" />
           </div>
           <div>
-            <label style="font-size:.72rem;color:rgba(255,255,255,.35);display:block;margin-bottom:2px;">End</label>
-            <input id="bkDetailEnd" type="time" value="${escapeAttr(localEnd)}" class="input" style="width:100%;" />
+            <label class="section-heading-note">End</label>
+            <input id="bkDetailEnd" type="time" value="${escapeAttr(localEnd)}" class="input u-full-width" />
           </div>
         </div>
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
-          <span id="bkDetailMsg" style="font-size:.8rem;color:rgba(255,255,255,.5);"></span>
+        <div class="modal-footer">
+          <span id="bkDetailMsg" class="modal-status"></span>
           <button id="bkDetailSave" class="btn btn-primary btn-sm" type="button">Save changes</button>
         </div>
       </div>
