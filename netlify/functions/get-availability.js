@@ -6,10 +6,15 @@
 'use strict';
 
 const { getAdminClient, respond } = require('./utils/auth');
+const { checkRateLimit, rateLimitResponse, getClientIP } = require('./utils/rate-limit');
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return respond(200, {});
   if (event.httpMethod !== 'GET') return respond(405, { error: 'Method not allowed' });
+
+  const ip = getClientIP(event);
+  const rl = checkRateLimit({ key: `get-availability:${ip}`, maxRequests: 60, windowMs: 15 * 60 * 1000 });
+  if (!rl.allowed) return rateLimitResponse(rl.retryAfterMs);
 
   const params    = event.queryStringParameters || {};
   const tenantId  = params.tenant_id;

@@ -7,6 +7,7 @@
 
 const { getAdminClient, respond } = require('./utils/auth');
 const { normalizeBusinessTypeKey } = require('./utils/business-type');
+const { checkRateLimit, rateLimitResponse, getClientIP } = require('./utils/rate-limit');
 
 function clean(value) {
   return String(value || '').trim();
@@ -281,6 +282,10 @@ function toResponse(tenant, cfg) {
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return respond(200, {});
   if (event.httpMethod !== 'GET') return respond(405, { error: 'Method not allowed' });
+
+  const ip = getClientIP(event);
+  const rl = checkRateLimit({ key: `get-public-tenant-info:${ip}`, maxRequests: 60, windowMs: 15 * 60 * 1000 });
+  if (!rl.allowed) return rateLimitResponse(rl.retryAfterMs);
 
   const query = event.queryStringParameters || {};
   const tenantId = clean(query.tenant_id || '');

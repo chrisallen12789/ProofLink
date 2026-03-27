@@ -5,6 +5,7 @@
 // Sends admin + customer emails via Resend
 
 const { getConfiguredSiteUrl, getRequiredResendApiKey } = require("./utils/runtime-config");
+const { checkRateLimit, rateLimitResponse, getClientIP } = require('./utils/rate-limit');
 
 const DEFAULT_TENANT_BUSINESS_NAME = process.env.TENANT_BUSINESS_NAME || "Your Business";
 const PLATFORM_NAME = process.env.PLATFORM_NAME || "ProofLink";
@@ -323,6 +324,10 @@ async function saveOrderToSupabase(payload) {
 exports.handler = async (event) => {
   if (event.httpMethod === "OPTIONS") return json(200, { ok: true });
   if (event.httpMethod !== "POST") return json(405, { ok: false, error: "Method not allowed" });
+
+  const ip = getClientIP(event);
+  const rl = checkRateLimit({ key: `order:${ip}`, maxRequests: 5, windowMs: 15 * 60 * 1000 });
+  if (!rl.allowed) return rateLimitResponse(rl.retryAfterMs);
 
   try {
     const payload = normalizePayload(parseBody(event));

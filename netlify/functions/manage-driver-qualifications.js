@@ -159,6 +159,7 @@ exports.handler = async (event) => {
       else patch[field] = body[field];
     }
 
+    patch.updated_at = new Date().toISOString();
     const { data, error } = await adminSb
       .from('driver_qualifications')
       .update(patch)

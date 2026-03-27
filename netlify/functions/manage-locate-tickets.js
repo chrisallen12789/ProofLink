@@ -157,6 +157,7 @@ exports.handler = async (event) => {
       patch.verified_by_member_id = clean(body.verified_by_member_id) || operatorId || null;
     }
 
+    patch.updated_at = new Date().toISOString();
     const { data, error } = await adminSb
       .from('utility_locate_tickets')
       .update(patch)

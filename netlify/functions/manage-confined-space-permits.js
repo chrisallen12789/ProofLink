@@ -150,6 +150,7 @@ exports.handler = async (event) => {
       patch.closed_by_member_id = clean(body.closed_by_member_id) || null;
     }
 
+    patch.updated_at = new Date().toISOString();
     const { data, error } = await adminSb
       .from('confined_space_permits')
       .update(patch)

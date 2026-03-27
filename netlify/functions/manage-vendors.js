@@ -71,6 +71,7 @@ exports.handler = async (event) => {
       Object.entries(fields).filter(([k]) => ALLOWED.includes(k))
     );
     if (!Object.keys(patch).length) return respond(400, { error: 'No valid fields to update' });
+    patch.updated_at = new Date().toISOString();
 
     const { data, error } = await adminSb
       .from('vendor_contacts')

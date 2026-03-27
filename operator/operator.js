@@ -6096,7 +6096,7 @@ function leadFollowUpQueueItems() {
 function quoteFollowUpQueueItems() {
   const brandLines = queueBrandLines();
   const now = Date.now();
-  return [...BIDS_CACHE]
+  const bidItems = [...BIDS_CACHE]
     .filter((row) => !row.converted_order_id && String(row.status || "").toLowerCase() === "sent")
     .filter((row) => !row.valid_until || new Date(row.valid_until).getTime() >= now) // skip expired proposals
     .filter((row) => (now - new Date(row.updated_at || row.created_at || 0).getTime()) >= 72 * 60 * 60 * 1000)
@@ -6144,6 +6144,56 @@ function quoteFollowUpQueueItems() {
       });
     })
     .filter(Boolean);
+
+  // CRM quotes (QUOTES_CACHE) — pending quotes older than 72 h that haven't expired
+  const crmQuoteItems = [...QUOTES_CACHE]
+    .filter((q) => String(q.status || "").toLowerCase() === "pending")
+    .filter((q) => !q.valid_until || new Date(q.valid_until).getTime() >= now)
+    .filter((q) => (now - new Date(q.updated_at || q.created_at || 0).getTime()) >= 72 * 60 * 60 * 1000)
+    .sort((a, b) => new Date(a.updated_at || a.created_at || 0).getTime() - new Date(b.updated_at || b.created_at || 0).getTime())
+    .map((q) => {
+      const contactEmail = q.customer_email || "";
+      const contactName = q.customer_name || "there";
+      if (!contactEmail) return null;
+      // Try to match to a customer record for touched-recently check
+      const customer = CUSTOMERS_CACHE.find((c) => c.email && c.email.toLowerCase() === contactEmail.toLowerCase()) || null;
+      if (customer && customerTouchedRecently(customer, 72)) return null;
+      const amountFmt = q.amount_cents != null ? formatUsd(q.amount_cents / 100) : "";
+      const channel = followUpChannel({ email: contactEmail, phone: customer?.phone || "", preferred: customer?.preferred_contact || "email" });
+      return queueFollowUpItem({
+        kind: "quote_follow_up",
+        priority: 20,
+        tab: "quotes",
+        targetId: q.id,
+        recordId: q.id,
+        customerId: customer?.id || null,
+        customerName: q.customer_name || "Customer",
+        contactName,
+        contactEmail,
+        contactPhone: customer?.phone || "",
+        preferredContact: customer?.preferred_contact || "email",
+        channel,
+        title: `Follow up on ${q.title || "the quote"}`,
+        detail: `${contactName} | Sent ${ageLabelFromTime(new Date(q.updated_at || q.created_at || 0).getTime())}${amountFmt ? ` | ${amountFmt}` : ""}`,
+        reason: `This CRM quote is still pending and has not been accepted. ${followUpCooldownLabel("quote_follow_up")}`,
+        subject: `${bidBrandContext().tenantName}: following up on your quote`,
+        message: [
+          channel === "phone" ? `Call script for ${contactName}:` : `Hi ${contactName},`,
+          channel === "phone" ? "" : ``,
+          `Following up on the quote we sent over${q.title ? ` for "${q.title}"` : ""}.`,
+          channel === "phone"
+            ? `Ask whether they want to move forward, need revisions, or have questions before booking.`
+            : `If you want to move forward, need revisions, or have questions, just reply and we will handle the next step.`,
+          amountFmt ? `Quoted amount: ${amountFmt}.` : null,
+          q.valid_until ? `The quote is currently dated through ${formatDateOnly(q.valid_until)}.` : null,
+          channel === "phone" ? "" : ``,
+          ...brandLines,
+        ].filter(Boolean).join("\n"),
+      });
+    })
+    .filter(Boolean);
+
+  return [...bidItems, ...crmQuoteItems];
 }
 function paymentReminderQueueItems() {
   const brandLines = queueBrandLines();

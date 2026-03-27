@@ -191,6 +191,19 @@ btnRefreshExpenses?.addEventListener("click", async () => {
 });
 expenseForm?.addEventListener("submit", async (e) => {
   e.preventDefault();
+
+  const amountCents = toCents(expenseAmount.value);
+  if (!amountCents || amountCents <= 0) {
+    if (expenseMsg) expenseMsg.textContent = "Enter an expense amount greater than zero.";
+    expenseAmount?.focus();
+    return;
+  }
+  if (!expenseDate.value) {
+    if (expenseMsg) expenseMsg.textContent = "Select a date for this expense.";
+    expenseDate?.focus();
+    return;
+  }
+
   if (expenseMsg) expenseMsg.textContent = "Saving...";
 
   const id = expenseId.value || null;
@@ -212,7 +225,7 @@ expenseForm?.addEventListener("submit", async (e) => {
     used_materials: buildExpenseSupplementalItems(),
     description: expenseDescription.value.trim(),
     notes: expenseNotes?.value?.trim() || expenseDescription.value.trim(),
-    amount_cents: toCents(expenseAmount.value),
+    amount_cents: amountCents,
     updated_at: new Date().toISOString(),
   });
 

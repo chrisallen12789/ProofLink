@@ -222,14 +222,15 @@ exports.handler = async (event) => {
 
   const supabase = await getAdminClient();
 
-  // Optionally verify admin token for manual triggers
+  // Require admin token for manual POST triggers (GET is used by the scheduler)
   if (event.httpMethod === 'POST') {
     const authHeader = (event.headers['authorization'] || '').replace('Bearer ', '').trim();
-    if (authHeader) {
-      const { data: { user }, error } = await supabase.auth.getUser(authHeader);
-      if (error || !user) {
-        return { statusCode: 401, body: JSON.stringify({ error: 'Unauthorized' }) };
-      }
+    if (!authHeader) {
+      return { statusCode: 401, body: JSON.stringify({ error: 'Unauthorized' }) };
+    }
+    const { data: { user }, error } = await supabase.auth.getUser(authHeader);
+    if (error || !user) {
+      return { statusCode: 401, body: JSON.stringify({ error: 'Unauthorized' }) };
     }
   }
 

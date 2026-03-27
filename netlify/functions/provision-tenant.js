@@ -198,7 +198,7 @@ exports.handler = async (event) => {
   if (authUserId) {
     await supabase
       .from('operator_members')
-      .update({ user_id: authUserId })
+      .update({ user_id: authUserId, updated_at: new Date().toISOString() })
       .eq('operator_id', newOperatorId)
       .eq('tenant_id', tenantId);
   }

@@ -139,6 +139,7 @@ exports.handler = async (event) => {
     if (patch.defect_codes !== undefined) patch.defect_codes = asArray(patch.defect_codes);
     if (patch.has_defects !== undefined) patch.has_defects = asBoolean(patch.has_defects, false);
 
+    patch.updated_at = new Date().toISOString();
     const { data, error } = await adminSb
       .from('infrastructure_assets')
       .update(patch)

@@ -1,6 +1,8 @@
 // FILE: netlify/functions/supabase-order-proxy.js
 // Saves a storefront order into Supabase by calling the submit_storefront_order RPC.
 
+const { checkRateLimit, rateLimitResponse, getClientIP } = require('./utils/rate-limit');
+
 function json(statusCode, obj) {
   return {
     statusCode,
@@ -141,6 +143,10 @@ async function callSubmitStorefrontOrder(payload) {
 exports.handler = async (event) => {
   if (event.httpMethod === "OPTIONS") return json(200, { ok: true });
   if (event.httpMethod !== "POST") return json(405, { ok: false, error: "Method not allowed" });
+
+  const ip = getClientIP(event);
+  const rl = checkRateLimit({ key: `supabase-order-proxy:${ip}`, maxRequests: 5, windowMs: 15 * 60 * 1000 });
+  if (!rl.allowed) return rateLimitResponse(rl.retryAfterMs);
 
   try {
     const raw = parseBody(event);

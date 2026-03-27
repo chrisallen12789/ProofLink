@@ -362,7 +362,7 @@ function renderOrders() {
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${tok}` },
         body   : JSON.stringify({ order_id: orderId }),
       });
-      const d = await res.json();
+      const d = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(d.error || "Failed");
       if (d.lines_created === 0) {
         showToast("No uninvoiced billable hours found.");

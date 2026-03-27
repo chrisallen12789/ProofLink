@@ -355,6 +355,7 @@ exports.handler = async (event) => {
       }
     }
 
+    patch.updated_at = new Date().toISOString();
     const { data, error } = await adminSb
       .from('waste_manifests')
       .update(patch)

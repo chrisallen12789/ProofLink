@@ -159,6 +159,7 @@ exports.handler = async (event) => {
     if (patch.lng !== undefined) patch.lng = asNumber(patch.lng, null);
     if (patch.approved_profiles !== undefined && !Array.isArray(patch.approved_profiles)) patch.approved_profiles = [];
 
+    patch.updated_at = new Date().toISOString();
     const { data, error } = await adminSb
       .from('disposal_facilities')
       .update(patch)

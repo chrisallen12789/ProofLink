@@ -17,10 +17,15 @@
 // memberships are bootstrapped automatically.
 
 const { getAdminClient, respond } = require('./utils/auth');
+const { checkRateLimit, rateLimitResponse, getClientIP } = require('./utils/rate-limit');
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return respond(200, {});
   if (event.httpMethod !== 'POST')    return respond(405, { error: 'Method not allowed' });
+
+  const ip = getClientIP(event);
+  const rl = checkRateLimit({ key: `link-operator-user:${ip}`, maxRequests: 20, windowMs: 15 * 60 * 1000 });
+  if (!rl.allowed) return rateLimitResponse(rl.retryAfterMs);
 
   const authHeader =
     event.headers['authorization'] || event.headers['Authorization'] || '';

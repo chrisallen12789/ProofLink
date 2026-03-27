@@ -3,7 +3,8 @@
 async function fetchEquipment() {
   const token = (await sb.auth.getSession()).data.session?.access_token;
   const res = await fetch('/.netlify/functions/manage-equipment', { headers: { Authorization: 'Bearer ' + token } });
-  const d = await res.json();
+  if (!res.ok) { console.warn('[equipment] fetch failed:', res.status); return; }
+  const d = await res.json().catch(() => ({}));
   EQUIPMENT_CACHE = d.equipment || [];
   renderEquipment();
 }
