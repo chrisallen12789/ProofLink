@@ -7,6 +7,7 @@
 
 const { getAdminClient, respond } = require('./utils/auth');
 const { sendEmail } = require('./utils/email');
+const { checkRateLimit, rateLimitResponse, getClientIP } = require('./utils/rate-limit');
 
 exports.handler = async function handler(event) {
   if (event.httpMethod === 'OPTIONS') return respond(200, {});
@@ -28,6 +29,10 @@ exports.handler = async function handler(event) {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return respond(400, { error: 'email is not a valid email address' });
   }
+
+  const ip = getClientIP(event);
+  const rl = checkRateLimit({ key: `portal-message:${ip}`, maxRequests: 5, windowMs: 15 * 60 * 1000 });
+  if (!rl.allowed) return rateLimitResponse(rl.retryAfterMs);
 
   if (message.length > 2000) {
     return respond(400, { error: 'Message must be 2000 characters or fewer' });

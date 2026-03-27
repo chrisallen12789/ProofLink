@@ -6,6 +6,7 @@
 'use strict';
 
 const { getAdminClient, respond } = require('./utils/auth');
+const { checkRateLimit, rateLimitResponse, getClientIP } = require('./utils/rate-limit');
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return respond(200, {});
@@ -17,6 +18,10 @@ exports.handler = async (event) => {
 
   const { email, tenant_id } = body;
   if (!email || !tenant_id) return respond(400, { error: 'Missing email or tenant_id' });
+
+  const ip = getClientIP(event);
+  const rl = checkRateLimit({ key: `get-customer-portal:${ip}`, maxRequests: 20, windowMs: 15 * 60 * 1000 });
+  if (!rl.allowed) return rateLimitResponse(rl.retryAfterMs);
 
   const normalizedEmail = String(email).trim().toLowerCase();
   const supabase = getAdminClient();

@@ -5,6 +5,7 @@
 'use strict';
 
 const { getAdminClient, respond } = require('./utils/auth');
+const { checkRateLimit, rateLimitResponse, getClientIP } = require('./utils/rate-limit');
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return respond(200, {});
@@ -18,6 +19,10 @@ exports.handler = async (event) => {
 
   if (!order_id || !tenant_id)        return respond(400, { error: 'Missing order_id or tenant_id' });
   if (!rating || rating < 1 || rating > 5) return respond(400, { error: 'Rating must be 1–5' });
+
+  const ip = getClientIP(event);
+  const rl = checkRateLimit({ key: `submit-review:${ip}`, maxRequests: 5, windowMs: 60 * 60 * 1000 });
+  if (!rl.allowed) return rateLimitResponse(rl.retryAfterMs);
 
   const supabase = getAdminClient();
 

@@ -7,6 +7,7 @@
 
 const { getAdminClient, respond } = require('./utils/auth');
 const { sendEmail } = require('./utils/email');
+const { checkRateLimit, rateLimitResponse, getClientIP } = require('./utils/rate-limit');
 
 exports.handler = async function handler(event) {
   if (event.httpMethod === 'OPTIONS') return respond(200, {});
@@ -24,6 +25,10 @@ exports.handler = async function handler(event) {
   if (!quote_id) {
     return respond(400, { error: 'quote_id is required' });
   }
+
+  const ip = getClientIP(event);
+  const rl = checkRateLimit({ key: `quote-decline:${ip}`, maxRequests: 10, windowMs: 15 * 60 * 1000 });
+  if (!rl.allowed) return rateLimitResponse(rl.retryAfterMs);
 
   const supabase = getAdminClient();
 
