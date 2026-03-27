@@ -95,5 +95,19 @@ describe("crew job actions", () => {
 
     context.renderJobActions("completed", {});
     expect(ensureElement("jobActions").innerHTML).toContain("Job complete");
+    expect(ensureElement("jobActions").innerHTML).toContain(
+      "The office can now handle any remaining invoice or customer follow-through"
+    );
+  });
+
+  test("fieldActionGuidance keeps the crew guidance plain and reassuring", () => {
+    const { context } = loadCrew();
+
+    expect(context.fieldActionGuidance("scheduled", {})).toContain("Clock in when you are on site.");
+    expect(context.fieldActionGuidance("in_progress", {})).toContain("closeout is quick");
+    expect(context.fieldActionGuidance("completed", {})).toContain("invoice or customer follow-through");
+    expect(context.fieldActionGuidance("blocked", { blocker_note: "Customer gate is locked" })).toBe(
+      "Blocked: Customer gate is locked"
+    );
   });
 });

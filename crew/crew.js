@@ -264,6 +264,34 @@ function complianceIssueMessage(body = {}, fallback = '') {
   return body.error || fallback || 'This step is blocked until the required compliance item is handled.';
 }
 
+function fieldActionGuidance(status, job = ACTIVE_JOB) {
+  const blockerNote = String(job?.blocker_note || '').trim();
+  const complianceMessage = String(job?.compliance_message || '').trim();
+
+  if (complianceMessage) {
+    return complianceMessage;
+  }
+  if (blockerNote) {
+    return `Blocked: ${blockerNote}`;
+  }
+  if (status === 'scheduled' || status === 'dispatched') {
+    return 'Clock in when you are on site. If access, scope, safety, or compliance is not ready, report the issue before work begins.';
+  }
+  if (status === 'in_progress') {
+    return 'Keep notes, photos, and customer details current so closeout is quick and the office can invoice without guesswork.';
+  }
+  if (status === 'blocked') {
+    return 'Work is paused. Tell the office exactly what is stopping progress so they can clear it before another trip is needed.';
+  }
+  if (status === 'completed') {
+    return 'Job complete. The office can now handle any remaining invoice or customer follow-through from this record.';
+  }
+  if (status === 'cancelled') {
+    return 'This job has been cancelled.';
+  }
+  return '';
+}
+
 // ── Supabase Bootstrap ─────────────────────────────────────────────────────────
 
 function loadSupabaseScript() {
@@ -689,20 +717,10 @@ function renderJobActions(status, job = ACTIVE_JOB) {
   const container = document.getElementById('jobActions');
   if (!container) return;
 
-  const blockerNote = String(job?.blocker_note || '').trim();
-  const complianceMessage = String(job?.compliance_message || '').trim();
-  let noteHtml = '';
-  if (complianceMessage) {
-    noteHtml = `<div class="status-note" style="margin-bottom:10px;">${escHtml(complianceMessage)}</div>`;
-  } else if (blockerNote) {
-    noteHtml = `<div class="status-note" style="margin-bottom:10px;">Blocker: ${escHtml(blockerNote)}</div>`;
-  } else if (status === 'scheduled' || status === 'dispatched') {
-    noteHtml = `<div class="status-note" style="margin-bottom:10px;">Clock in when you are on site. If access, scope, safety, or compliance is not ready, report the issue first.</div>`;
-  } else if (status === 'in_progress') {
-    noteHtml = `<div class="status-note" style="margin-bottom:10px;">Keep notes and proof current so closeout is fast when the work is done.</div>`;
-  } else if (status === 'blocked') {
-    noteHtml = `<div class="status-note" style="margin-bottom:10px;">Work is paused. Tell the office exactly what is stopping progress so they can clear it without another trip.</div>`;
-  }
+  const guidance = fieldActionGuidance(status, job);
+  const noteHtml = guidance
+    ? `<div class="status-note" style="margin-bottom:10px;">${escHtml(guidance)}</div>`
+    : '';
 
   let html = noteHtml;
 
@@ -721,7 +739,7 @@ function renderJobActions(status, job = ACTIVE_JOB) {
   } else if (status === 'completed') {
     html += `<div class="completion-badge">&#10003; Job complete</div>`;
   } else if (status === 'cancelled') {
-    html += `<div class="status-note">This job has been cancelled.</div>`;
+    html += `<div class="status-note">${escHtml(fieldActionGuidance(status, job))}</div>`;
   }
 
   container.innerHTML = html;
@@ -736,7 +754,7 @@ async function updateJobStatus(jobId, status, extraFields = {}) {
     OFFLINE_QUEUE.push({ type: 'status', jobId, patch, timestamp: Date.now() });
     await persistQueue();
     updateJobCache(jobId, patch);
-    showToast('Saved offline. We will sync it when you reconnect.', 'info');
+    showToast('Saved offline. The update will sync when you reconnect.', 'info');
     if (ACTIVE_JOB && ACTIVE_JOB.id === jobId) {
       ACTIVE_JOB = { ...ACTIVE_JOB, ...patch, compliance_message: '' };
       renderJobActions(ACTIVE_JOB.status, ACTIVE_JOB);
@@ -745,7 +763,7 @@ async function updateJobStatus(jobId, status, extraFields = {}) {
   }
 
   const token = await getToken();
-  if (!token) { showToast('Please sign in again.', 'error'); return false; }
+  if (!token) { showToast('Please sign in again so this update can be sent.', 'error'); return false; }
 
   try {
     const res = await fetch('/.netlify/functions/update-crew-job', {
@@ -790,7 +808,7 @@ async function updateJobStatus(jobId, status, extraFields = {}) {
     OFFLINE_QUEUE.push({ type: 'status', jobId, patch, timestamp: Date.now() });
     await persistQueue();
     updateJobCache(jobId, patch);
-    showToast('Update queued. We will sync it when you reconnect.', 'info');
+    showToast('Update queued. It will sync when you reconnect.', 'info');
     if (ACTIVE_JOB && ACTIVE_JOB.id === jobId) {
       ACTIVE_JOB = { ...ACTIVE_JOB, ...patch, compliance_message: '' };
       renderJobActions(ACTIVE_JOB.status, ACTIVE_JOB);
@@ -1170,7 +1188,7 @@ async function submitCompletion() {
   const note   = noteEl ? noteEl.value.trim() : '';
 
   if (!note) {
-    showToast('Please enter a completion note', 'error');
+    showToast('Add a completion note so the office knows what was finished.', 'error');
     if (noteEl) noteEl.focus();
     return;
   }
@@ -1182,7 +1200,7 @@ async function submitCompletion() {
 
   const token = await getToken();
   if (!token) {
-    showToast('Please sign in again.', 'error');
+    showToast('Please sign in again so the closeout can be saved.', 'error');
     setButtonLoading(btn, false, 'Complete Job');
     return;
   }
@@ -1280,7 +1298,7 @@ async function submitCompletion() {
       ACTIVE_JOB = { ...ACTIVE_JOB, compliance_message: err.message || '' };
       renderJobActions(ACTIVE_JOB.status, ACTIVE_JOB);
     }
-    showToast(err.message || 'Could not complete job. Please try again.', 'error');
+    showToast(err.message || 'Could not complete the closeout. Please try again.', 'error');
   } finally {
     setButtonLoading(btn, false, 'Complete Job');
   }
@@ -1393,7 +1411,7 @@ async function submitBlocker() {
     const updated = await updateJobStatus(ACTIVE_JOB.id, 'blocked', { blocker_note: note });
     if (!updated) return;
     hideBlockerModal();
-    showToast('Issue reported', 'success');
+    showToast('Issue reported. The office can see it now.', 'success');
 
     if (ACTIVE_JOB) {
       ACTIVE_JOB.status = 'blocked';
@@ -1402,7 +1420,7 @@ async function submitBlocker() {
       renderJobActions('blocked', ACTIVE_JOB);
     }
   } catch (err) {
-    showToast('Failed to report issue', 'error');
+    showToast('Could not send the issue yet. Please try again.', 'error');
   } finally {
     setButtonLoading(btn, false, 'Submit Report');
   }
