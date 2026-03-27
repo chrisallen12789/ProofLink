@@ -28,9 +28,21 @@ describe("operator shell html", () => {
     expect(source).not.toContain("cottagelink-logo");
     expect(source).not.toContain("tenant_id ready");
     expect(source).not.toContain("Operator UI v3");
-    expect(source).not.toContain("Ã¢");
-    expect(source).not.toContain("Ãƒ");
+    expect(source).not.toContain("ÃƒÂ¢");
+    expect(source).not.toContain("ÃƒÆ’");
     expect(source).not.toContain("Show me around ->");
     expect(source).not.toContain("<- Back");
+  });
+
+  test("leans on shared shell utility classes instead of repeated inline spacing", () => {
+    expect(source).toContain('class="grid two u-mt-14"');
+    expect(source).toContain('class="workspace-panel-notice is-soft u-mb-14"');
+    expect(source).toContain('class="work-command u-mb-14"');
+    expect(source).toContain('class="bulk-status-bar"');
+    expect(source).toContain('class="btn btn-primary btn-compact"');
+    expect(source).toContain('class="muted u-fs-85"');
+    expect(source).not.toContain('style="font-size:.8rem;padding:6px 12px;"');
+    expect(source).not.toContain('style="margin-top:14px;"');
+    expect(source).not.toContain('style="margin-bottom:14px;"');
   });
 });

@@ -237,7 +237,7 @@
               </div>
             </div>
 
-            <div class="grid two" style="margin-top:14px;">
+            <div class="grid two u-mt-14">
               <div class="stat-card" id="monthRevenueCard">
                 <div class="stat-label">This month</div>
                 <div class="stat-value" id="monthRevenueStat">—</div>
@@ -261,7 +261,7 @@
               </div>
             </div>
 
-            <div id="productPresetNotice" class="workspace-panel-notice is-soft" style="margin-bottom:14px;"></div>
+            <div id="productPresetNotice" class="workspace-panel-notice is-soft u-mb-14"></div>
 
             <div id="requestStageStrip" class="pipeline-stage-strip"></div>
             <div id="requestActionBar" class="pipeline-action-bar"></div>
@@ -372,14 +372,14 @@
                     <div id="leadMsg" class="msg"></div>
                   </form>
 
-                  <div id="leadDetailWrap" class="muted" style="margin-top:16px;">Create or select a request to see the workflow context.</div>
+                  <div id="leadDetailWrap" class="muted u-mt-16">Create or select a request to see the workflow context.</div>
                 </div>
               </div>
             </div>
 
             <div id="permitStageStrip" class="pipeline-stage-strip"></div>
             <div id="permitActionBar" class="pipeline-action-bar"></div>
-            <div class="grid two" style="margin-top:14px;">
+            <div class="grid two u-mt-14">
               <div class="card">
                 <div class="card-hd">
                   <strong>Confined space permits</strong>
@@ -402,7 +402,7 @@
 
             <div id="assetStageStrip" class="pipeline-stage-strip"></div>
             <div id="assetActionBar" class="pipeline-action-bar"></div>
-            <div class="grid two" style="margin-top:14px;">
+            <div class="grid two u-mt-14">
               <div class="card">
                 <div class="card-hd">
                   <strong>Infrastructure assets</strong>
@@ -446,12 +446,12 @@
 
             <div id="pipelineStageStrip" class="pipeline-stage-strip"></div>
             <div id="pipelineActionBar" class="pipeline-action-bar"></div>
-            <div id="workCommandWrap" class="work-command" style="margin-bottom:14px;"></div>
+            <div id="workCommandWrap" class="work-command u-mb-14"></div>
 
-            <div class="card" id="packagesSummaryCard" style="display:none;margin-bottom:14px;">
-              <div class="card-hd"><strong>Active packages</strong> <span class="muted" style="font-size:.78rem;">Session-based orders</span></div>
+            <div class="card u-mb-14" id="packagesSummaryCard" style="display:none;">
+              <div class="card-hd"><strong>Active packages</strong> <span class="muted u-fs-78">Session-based orders</span></div>
               <div class="card-bd" id="packagesSummaryList">
-                <div class="muted" style="font-size:.85rem;">Loading…</div>
+                <div class="muted u-fs-85">Loading…</div>
               </div>
             </div>
 
@@ -462,9 +462,9 @@
                   <span class="muted">Work that is priced, approved, or waiting to move into the field</span>
                 </div>
                 <div class="card-bd">
-                  <div id="bulkStatusBar" style="display:none;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 0 12px;border-bottom:1px solid var(--border);margin-bottom:8px;">
-                    <span id="bulkSelectedCount" class="muted" style="font-size:.8rem;">0 selected</span>
-                    <select id="bulkStatusSelect" style="flex:1;min-width:120px;">
+                  <div id="bulkStatusBar" class="bulk-status-bar">
+                    <span id="bulkSelectedCount" class="muted bulk-status-bar__count">0 selected</span>
+                    <select id="bulkStatusSelect" class="bulk-status-bar__select">
                       <option value="">Change status to…</option>
                       <option value="new">New</option>
                       <option value="quoted">Quoted / awaiting approval</option>
@@ -474,8 +474,8 @@
                       <option value="paid">Paid</option>
                       <option value="cancelled">Cancelled</option>
                     </select>
-                    <button id="btnBulkStatusApply" class="btn btn-primary" type="button" style="font-size:.8rem;padding:6px 12px;">Apply</button>
-                    <button id="btnBulkClear" class="btn btn-ghost" type="button" style="font-size:.8rem;padding:6px 12px;">Clear selection</button>
+                    <button id="btnBulkStatusApply" class="btn btn-primary btn-compact" type="button">Apply</button>
+                    <button id="btnBulkClear" class="btn btn-ghost btn-compact" type="button">Clear selection</button>
                   </div>
                   <div id="ordersList" class="list" data-tour="orders-list"></div>
                 </div>
@@ -608,7 +608,7 @@
 
                     <!-- Hydrovac fields — shown only when service_type = hydrovac -->
                     <div id="hydrovacFields" style="display:none;">
-                      <div class="form-section-label" style="font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:rgba(255,255,255,.65);margin:16px 0 8px;">Hydrovac details</div>
+                      <div class="form-section-label">Hydrovac details</div>
 
                       <div class="form-row">
                         <label>Service type
@@ -670,7 +670,7 @@
                         </label>
                       </div>
 
-                      <div class="form-section-label" style="font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:rgba(255,255,255,.65);margin:16px 0 8px;">Disposal</div>
+                      <div class="form-section-label">Disposal</div>
 
                       <div class="form-row">
                         <label>Liquid disposal volume (gal)
@@ -707,7 +707,7 @@
                     <div id="jobMsg" class="msg"></div>
                   </form>
 
-                  <div id="jobDetailWrap" class="muted" style="margin-top:16px;">Select or create a job to see the execution context.</div>
+                  <div id="jobDetailWrap" class="muted u-mt-16">Select or create a job to see the execution context.</div>
                 </div>
               </div>
             </div>
@@ -830,7 +830,7 @@
                     <div id="planMsg" class="msg"></div>
                   </form>
 
-                  <div id="planDetailWrap" class="muted" style="margin-top:16px;">Select or create a plan to see the recurring workflow context.</div>
+                  <div id="planDetailWrap" class="muted u-mt-16">Select or create a plan to see the recurring workflow context.</div>
                 </div>
               </div>
             </div>
@@ -1132,7 +1132,7 @@
                     <div id="bidPhotoMsg" class="msg"></div>
                   </form>
 
-                  <div id="bidPhotosList" class="photo-grid" style="margin-top:16px;"></div>
+                  <div id="bidPhotosList" class="photo-grid u-mt-16"></div>
                 </div>
               </div>
 
@@ -1188,7 +1188,7 @@
                     <div id="bidLineItemMsg" class="msg"></div>
                   </form>
 
-                  <div id="bidLineItemsList" class="list" style="margin-top:16px;"></div>
+                  <div id="bidLineItemsList" class="list u-mt-16"></div>
                 </div>
               </div>
             </div>
@@ -1199,7 +1199,7 @@
                 <span class="muted">Client-facing version with scope, pricing, photos, and next steps.</span>
               </div>
               <div class="card-bd">
-                <div class="row" style="margin-bottom:14px;">
+                <div class="row u-mb-14">
                   <button id="btnCopyBidEmail" class="btn btn-ghost" type="button">Copy client email</button>
                   <button id="btnExportBidJson" class="btn btn-ghost" type="button">Export bid JSON</button>
                 </div>
@@ -1299,7 +1299,7 @@
                     <div id="customerMsg" class="msg"></div>
                   </form>
 
-                  <div id="customerDetailWrap" style="margin-top:16px;" class="muted">Create a customer record or select one from the list to inspect it.</div>
+                  <div id="customerDetailWrap" class="muted u-mt-16">Create a customer record or select one from the list to inspect it.</div>
                 </div>
               </div>
             </div>
@@ -1444,7 +1444,7 @@
                   <button id="btnConnectStripe" class="btn" type="button">Connect Stripe</button>
                   <button id="btnCreateOrderCheckout" class="btn btn-ghost" type="button">Create checkout for active order</button>
                 </div>
-                <div id="paymentActionMsg" class="muted" style="margin-top:10px;"></div>
+                <div id="paymentActionMsg" class="muted u-mt-10"></div>
                 </div>
               </div>
 
@@ -1537,7 +1537,7 @@
                   <span class="muted">Keep collection clear and audit-friendly.</span>
                 </div>
                 <div class="card-bd">
-                  <div class="muted" style="line-height:1.65;">
+                  <div class="muted u-text-detail">
                     Link the payment to a customer whenever possible. Add the related order if the payment belongs to a specific job. Use the reference field for check numbers, ACH confirmations, or the last four of a card receipt so reconciliation stays easy later.
                   </div>
                 </div>
@@ -1658,7 +1658,7 @@
 
                     <label>Business type
                       <select id="setupWorkspaceBusinessType"></select>
-                      <div class="muted" style="margin-top:6px;line-height:1.5;">This shapes how ProofLink organizes the business for the way you actually work. It does not change your original signup record.</div>
+                      <div class="muted u-help-copy">This shapes how ProofLink organizes the business for the way you actually work. It does not change your original signup record.</div>
                     </label>
 
                       <label>Accent color
@@ -1714,7 +1714,7 @@
                 </div>
               </div>
 
-              <div class="grid two" style="margin-top:16px;">
+              <div class="grid two u-mt-16">
                 <div class="card" id="setupStyleCard">
                   <div class="card-hd">
                     <strong>Website style</strong>
@@ -1791,7 +1791,7 @@
 
                     <label>Review link
                       <input id="setupReviewLinkUrl" placeholder="https://..." />
-                      <div class="muted" style="margin-top:6px;line-height:1.5;">Use the direct link customers should open after a paid job, like your Google review page.</div>
+                      <div class="muted u-help-copy">Use the direct link customers should open after a paid job, like your Google review page.</div>
                     </label>
 
                     <label>Referral thank-you note
@@ -1847,14 +1847,14 @@
                 </div>
             </div>
 
-            <div class="grid two" style="margin-top:16px;">
+            <div class="grid two u-mt-16">
               <div class="card">
                 <div class="card-hd">
                   <strong>Protection model</strong>
                   <span class="muted">Why some fields are locked</span>
                 </div>
                 <div class="card-bd">
-                  <div class="muted" style="line-height:1.65;">
+                  <div class="muted u-text-detail">
                     Some fields are locked because they're tied to billing, compliance, and account identity. Editable fields cover branding, public profile, and website presentation without changing the main account record.
                   </div>
                 </div>
@@ -1866,7 +1866,7 @@
                   <span class="muted">For owners, not developers</span>
                 </div>
                 <div class="card-bd">
-                  <div class="muted" style="line-height:1.65;">
+                  <div class="muted u-text-detail">
                     Use this page to manage logos, hero images, website copy, customer-facing contact details, and social presence. Core business record values still appear here for visibility, but they are not editable from this account page.
                   </div>
                 </div>
@@ -2001,7 +2001,7 @@
   </div>
 
   <!-- Summary row -->
-  <div class="grid three" style="margin-bottom:14px;" id="inventorySummary">
+  <div class="grid three u-mb-14" id="inventorySummary">
     <div class="stat-card">
       <div class="stat-label">Total items</div>
       <div class="stat-value" id="inventoryTotalItems">—</div>
@@ -2023,15 +2023,15 @@
       <input id="inventorySearch" class="input" placeholder="Search items…" style="width:200px;font-size:.82rem;" />
     </div>
     <div class="card-bd" id="inventoryList">
-      <div class="muted" style="font-size:.85rem;">Loading inventory…</div>
+      <div class="muted u-fs-85">Loading inventory…</div>
     </div>
   </div>
 
   <!-- Recent usage -->
-  <div class="card" style="margin-top:14px;">
+  <div class="card u-mt-14">
     <div class="card-hd"><strong>Recent usage</strong></div>
     <div class="card-bd" id="inventoryUsageList">
-      <div class="muted" style="font-size:.85rem;">No usage logged yet.</div>
+      <div class="muted u-fs-85">No usage logged yet.</div>
     </div>
   </div>
 </section>
@@ -2049,10 +2049,10 @@
   </div>
 
   <!-- Expiring soon -->
-  <div class="card" style="margin-bottom:14px;" id="contractsExpiringCard">
-    <div class="card-hd"><strong>Expiring soon</strong> <span class="muted" style="font-size:.78rem;">(next 60 days)</span></div>
+  <div class="card u-mb-14" id="contractsExpiringCard">
+    <div class="card-hd"><strong>Expiring soon</strong> <span class="muted u-fs-78">(next 60 days)</span></div>
     <div class="card-bd" id="contractsExpiringSoon">
-      <div class="muted" style="font-size:.85rem;">Loading…</div>
+      <div class="muted u-fs-85">Loading…</div>
     </div>
   </div>
 
@@ -2060,7 +2060,7 @@
   <div class="card">
     <div class="card-hd"><strong>All contracts</strong></div>
     <div class="card-bd" id="contractsList">
-      <div class="muted" style="font-size:.85rem;">Loading contracts…</div>
+      <div class="muted u-fs-85">Loading contracts…</div>
     </div>
   </div>
 </section>
@@ -2078,7 +2078,7 @@
             </div>
             <div class="card">
               <div class="card-bd" id="vendorsList">
-                <div class="muted" style="font-size:.85rem;">Loading vendors...</div>
+                <div class="muted u-fs-85">Loading vendors...</div>
               </div>
             </div>
           </section>
@@ -2407,7 +2407,7 @@
                   <span class="muted">CDL, med card, H2S, confined-space, and HOS</span>
                 </div>
                 <div class="card-bd">
-                  <div id="driverQualificationsList" class="list" style="margin-bottom:14px;"></div>
+                  <div id="driverQualificationsList" class="list u-mb-14"></div>
                   <div id="driverQualificationDetail" class="muted">Select a driver or create the first qualification record.</div>
                 </div>
               </div>
@@ -2415,10 +2415,10 @@
             <div class="card" style="margin-top:18px;">
               <div class="card-hd">
                 <strong>Hours &amp; Pay</strong>
-                <div class="row" style="gap:8px;align-items:center;">
-                  <input type="date" id="hoursStart" class="input" style="width:150px;" />
+                <div class="row row-tight">
+                  <input type="date" id="hoursStart" class="input u-w-150" />
                   <span class="muted">to</span>
-                  <input type="date" id="hoursEnd" class="input" style="width:150px;" />
+                  <input type="date" id="hoursEnd" class="input u-w-150" />
                   <button id="btnLoadHours" class="btn btn-primary btn-sm">Load</button>
                   <button id="btnExportHoursCsv" class="btn btn-ghost btn-sm">Export CSV</button>
                 </div>
@@ -2451,9 +2451,9 @@
                   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
                     <div>
                       <div style="font-weight:600;font-size:.9rem;color:#e8e9eb;">Date blocks</div>
-                      <div class="muted" style="font-size:.78rem;">Block dates when you're unavailable (seasonal pause, vacations, etc.)</div>
+                      <div class="muted u-fs-78">Block dates when you're unavailable (seasonal pause, vacations, etc.)</div>
                     </div>
-                    <button id="btnAddAvailBlock" class="btn btn-ghost" type="button" style="font-size:.8rem;">+ Block dates</button>
+                    <button id="btnAddAvailBlock" class="btn btn-ghost btn-compact" type="button">+ Block dates</button>
                   </div>
                   <div id="availabilityBlocksList">
                     <div class="muted" style="font-size:.82rem;">No date blocks set.</div>
@@ -2472,7 +2472,7 @@
               <div class="panel-actions">
                 <button id="btnNewBooking" class="btn" type="button">+ New booking</button>
                 <button id="btnWalkIn" class="btn btn-ghost" type="button">⚡ Walk-in</button>
-                <button id="btnMyBookings" class="btn btn-ghost" type="button" style="font-size:.8rem;">&#128100; My bookings</button>
+                <button id="btnMyBookings" class="btn btn-ghost btn-compact" type="button">&#128100; My bookings</button>
                 <button id="btnRefreshBookings" class="btn btn-ghost" type="button">Refresh</button>
               </div>
             </div>
@@ -2485,12 +2485,12 @@
               <div class="workspace-panel-notice__copy">Keep truck assignment, driver compliance, and scheduled work in one place so the crew rolls with the right truck, the right driver, and the right paperwork.</div>
             </div>
 
-            <div class="grid two" style="margin-top:14px;">
+            <div class="grid two u-mt-14">
               <div class="card">
                 <div class="card-hd">
                   <strong>Truck board</strong>
-                  <div class="row" style="gap:8px;align-items:center;">
-                    <input id="dispatchDate" class="input" type="date" style="width:160px;" />
+                  <div class="row row-tight">
+                    <input id="dispatchDate" class="input u-w-160" type="date" />
                     <button id="btnRefreshDispatchBoard" class="btn btn-ghost btn-sm" type="button">Refresh board</button>
                   </div>
                 </div>
@@ -2509,7 +2509,7 @@
               </div>
             </div>
 
-            <div class="card" style="margin-bottom:14px;" data-website-feature>
+            <div class="card u-mb-14" data-website-feature>
               <div class="card-bd">
                 <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
                   <span style="font-size:.85rem;color:rgba(255,255,255,.5);">Customer booking link:</span>
@@ -2520,16 +2520,16 @@
             </div>
 
             <!-- New booking form (hidden by default) -->
-            <div id="newBookingForm" class="card hidden" style="margin-bottom:14px;">
+            <div id="newBookingForm" class="card hidden u-mb-14">
               <div class="card-hd"><strong>New booking</strong></div>
               <div class="card-bd">
                 <div class="form">
                   <div class="row" style="gap:12px;">
-                    <div style="flex:1;">
+                    <div class="u-flex-1">
                       <label>Customer name *</label>
                       <input type="text" id="bkCustomerName" placeholder="Jane Smith" />
                     </div>
-                    <div style="flex:1;">
+                    <div class="u-flex-1">
                       <label>Email</label>
                       <input type="email" id="bkCustomerEmail" placeholder="jane@example.com" />
                     </div>
@@ -2537,15 +2537,15 @@
                   <label>Service / title *</label>
                   <input type="text" id="bkTitle" placeholder="e.g. Lawn mowing, Consultation" />
                   <div class="row" style="gap:12px;">
-                    <div style="flex:1;">
+                    <div class="u-flex-1">
                       <label>Date *</label>
                       <input type="date" id="bkDate" />
                     </div>
-                    <div style="flex:1;">
+                    <div class="u-flex-1">
                       <label>Start time *</label>
                       <input type="time" id="bkStart" value="09:00" />
                     </div>
-                    <div style="flex:1;">
+                    <div class="u-flex-1">
                       <label>Duration</label>
                       <select id="bkDuration">
                         <option value="30">30 min</option>
@@ -2561,7 +2561,7 @@
                   <textarea id="bkNotes" rows="2" placeholder="Any details…"></textarea>
                   <div style="margin-top:14px;border-top:1px solid rgba(255,255,255,.08);padding-top:14px;">
                     <label style="font-size:.78rem;color:rgba(255,255,255,.65);display:block;margin-bottom:8px;">Repeat</label>
-                    <select id="bkRecurrenceRule" class="input" style="width:100%;margin-bottom:8px;">
+                    <select id="bkRecurrenceRule" class="input u-full-width u-mb-14">
                       <option value="">Does not repeat</option>
                       <option value="DAILY">Daily</option>
                       <option value="WEEKLY">Weekly</option>
@@ -2570,7 +2570,7 @@
                     </select>
                     <div id="bkRecurrenceOptions" style="display:none;">
                       <label style="font-size:.78rem;color:rgba(255,255,255,.65);display:block;margin-bottom:4px;">Generate instances through</label>
-                      <input type="date" id="bkRecurrenceEnd" class="input" style="width:100%;" />
+                      <input type="date" id="bkRecurrenceEnd" class="input u-full-width" />
                       <div style="font-size:.75rem;color:rgba(255,255,255,.65);margin-top:4px;" id="bkRecurrenceCount">—</div>
                     </div>
                   </div>
@@ -2596,7 +2596,7 @@
             </div>
 
             <!-- Booking detail / upcoming list -->
-            <div class="card" style="margin-top:14px;">
+            <div class="card u-mt-14">
               <div class="card-hd"><strong id="bkListLabel">Upcoming appointments</strong></div>
               <div class="card-bd">
                 <div id="bookingsList"></div>
@@ -2780,14 +2780,14 @@
               </div>
             </div>
 
-            <div class="grid two" style="margin-top:14px;">
+            <div class="grid two u-mt-14">
               <div class="card">
                 <div class="card-hd">
                   <strong>Hydrovac invoice draft</strong>
                   <span class="muted">Bring time, disposal, and carried-over quote lines into one draft</span>
                 </div>
                 <div class="card-bd">
-                  <div class="row" style="gap:8px;align-items:end;flex-wrap:wrap;">
+                  <div class="row row-tight-end">
                     <label style="flex:1;min-width:220px;">Job
                       <select id="hydrovacInvoiceJobSelect">
                         <option value="">Select a hydrovac job</option>
@@ -2796,7 +2796,7 @@
                     <button id="btnPreviewHydrovacInvoice" class="btn btn-primary" type="button">Refresh draft</button>
                   </div>
                   <div id="hydrovacInvoiceMsg" class="msg"></div>
-                  <div id="hydrovacInvoicePreview" class="muted" style="margin-top:10px;">Pick a hydrovac job to build or refresh the invoice draft on the linked order.</div>
+                  <div id="hydrovacInvoicePreview" class="muted u-mt-10">Pick a hydrovac job to build or refresh the invoice draft on the linked order.</div>
                 </div>
               </div>
               <div class="card">
@@ -2813,10 +2813,10 @@
               </div>
             </div>
 
-            <div class="card" id="arAgingCard" style="margin-top:14px;">
+            <div class="card u-mt-14" id="arAgingCard">
               <div class="card-hd"><strong>Accounts receivable aging</strong></div>
               <div class="card-bd" id="arAgingContent">
-                <div class="muted" style="font-size:.85rem;">Loading...</div>
+                <div class="muted u-fs-85">Loading...</div>
               </div>
             </div>
           </section>
@@ -2893,7 +2893,7 @@
             </div>
 
             <!-- Daily briefing card -->
-            <div class="card" style="margin-bottom:14px;">
+            <div class="card u-mb-14">
               <div class="card-hd" style="display:flex;align-items:center;gap:8px;">
                 <strong>Today's briefing</strong>
                 <span id="aiBriefStatus" style="font-size:.75rem;color:rgba(255,255,255,.65);margin-left:auto;"></span>
@@ -2911,7 +2911,7 @@
               <div class="card-hd"><strong>Ask a question</strong></div>
               <div class="card-bd">
                 <div style="display:flex;gap:8px;margin-bottom:10px;">
-                  <input id="aiQuestion" class="input" placeholder="e.g. Which customers owe me money? Who needs a follow-up?" style="flex:1;" />
+                  <input id="aiQuestion" class="input u-flex-1" placeholder="e.g. Which customers owe me money? Who needs a follow-up?" />
                   <button id="btnAskAI" class="btn btn-primary" type="button">Ask</button>
                 </div>
                 <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;" id="aiQuickActions">
@@ -2927,7 +2927,7 @@
             </div>
 
             <!-- Draft assistant -->
-            <div class="card" style="margin-top:14px;">
+            <div class="card u-mt-14">
               <div class="card-hd"><strong>Draft assistant</strong></div>
               <div class="card-bd">
                 <div style="font-size:.82rem;color:rgba(255,255,255,.65);margin-bottom:10px;">
