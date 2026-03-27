@@ -130,7 +130,7 @@ async function incrementStorageUsage({ tenantId, bytes }) {
 
   const tenant = await findTenant(supabase, tenantId);
   const nextValue = Number(tenant.storage_used_mb || 0) + mb;
-  const { error } = await supabase.from('tenants').update({ storage_used_mb: nextValue }).eq('id', tenant.id);
+  const { error } = await supabase.from('tenants').update({ storage_used_mb: nextValue, updated_at: new Date().toISOString() }).eq('id', tenant.id);
   if (error) {
     throw Object.assign(new Error(error.message || 'Unable to increment storage fallback'), { statusCode: 500 });
   }

@@ -176,7 +176,7 @@ exports.handler = async (event) => {
     if (authUser?.id && tenantId && operatorId) {
       const { error: memberError } = await supabase
         .from('operator_members')
-        .update({ user_id: authUser.id })
+        .update({ user_id: authUser.id, updated_at: new Date().toISOString() })
         .eq('tenant_id', tenantId)
         .eq('operator_id', operatorId);
       if (memberError) {

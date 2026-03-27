@@ -110,7 +110,7 @@ exports.handler = async (event) => {
     // Keep status in sync
     await supabase
       .from('tenant_onboarding_requests')
-      .update({ status: 'provisioned' })
+      .update({ status: 'provisioned', updated_at: new Date().toISOString() })
       .eq('id', id);
 
     return respond(200, {
@@ -147,7 +147,7 @@ exports.handler = async (event) => {
     console.error('[admin-approve] failure:', message);
     await supabase
       .from('tenant_onboarding_requests')
-      .update({ status: 'failed', provision_error: message })
+      .update({ status: 'failed', provision_error: message, updated_at: new Date().toISOString() })
       .eq('id', id);
     return respond(500, { error: message });
   }
@@ -250,7 +250,7 @@ exports.handler = async (event) => {
   if (authUserId) {
     await supabase
       .from('operator_members')
-      .update({ user_id: authUserId })
+      .update({ user_id: authUserId, updated_at: new Date().toISOString() })
       .eq('operator_id', newOperatorId)
       .eq('tenant_id', tenantId);
   }

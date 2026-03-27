@@ -103,7 +103,7 @@ exports.handler = async (event) => {
           })).catch((e) => console.warn('[update-booking] reschedule email failed:', e.message));
           // Stamp confirmation_sent_at
           supabase.from('bookings')
-            .update({ confirmation_sent_at: new Date().toISOString() })
+            .update({ confirmation_sent_at: new Date().toISOString(), updated_at: new Date().toISOString() })
             .eq('id', data.id)
             .eq('tenant_id', tenantId)
             .then(() => {}).catch((e) => console.warn('[update-booking] confirmation_sent_at update failed:', e.message));

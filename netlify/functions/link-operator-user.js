@@ -103,7 +103,7 @@ exports.handler = async (event) => {
     if (!existingMember.user_id || existingMember.user_id !== user.id) {
       const { error: updateErr } = await supabase
         .from('operator_members')
-        .update({ user_id: user.id })
+        .update({ user_id: user.id, updated_at: new Date().toISOString() })
         .eq('operator_id', operator.id);
 
       if (updateErr) {
@@ -131,7 +131,7 @@ exports.handler = async (event) => {
   if (!operator.tenant_id) {
     await supabase
       .from('operators')
-      .update({ tenant_id: tenantId })
+      .update({ tenant_id: tenantId, updated_at: new Date().toISOString() })
       .eq('id', operator.id);
   }
 

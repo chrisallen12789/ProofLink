@@ -81,7 +81,7 @@ exports.handler = async (event) => {
     console.error('provision-tenant failure:', message);
     await supabase
       .from('tenant_onboarding_requests')
-      .update({ status: 'failed', provision_error: message })
+      .update({ status: 'failed', provision_error: message, updated_at: new Date().toISOString() })
       .eq('id', id);
     return respond(500, { error: message });
   }

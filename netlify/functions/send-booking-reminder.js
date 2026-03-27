@@ -167,7 +167,7 @@ exports.handler = async function handler(event) {
   try {
     const { error: updateErr } = await supabase
       .from('bookings')
-      .update({ reminder_sent_at: new Date().toISOString() })
+      .update({ reminder_sent_at: new Date().toISOString(), updated_at: new Date().toISOString() })
       .eq('id', booking.id)
       .eq('tenant_id', tenantId);
 

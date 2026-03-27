@@ -104,7 +104,7 @@ exports.handler = async (event) => {
 
   // Stamp invoice_sent_at
   await adminSb.from('orders')
-    .update({ invoice_sent_at: new Date().toISOString() })
+    .update({ invoice_sent_at: new Date().toISOString(), updated_at: new Date().toISOString() })
     .eq('id', order_id);
 
   return respond(200, { ok: true, sent_to: customerEmail, invoice_number: invoiceNumber });
