@@ -1832,7 +1832,7 @@
                     <span class="muted">Quick sanity check before publish</span>
                   </div>
                   <div class="card-bd">
-                    <div id="setupPublishMeta" class="muted" style="margin-bottom:12px;">Draft website. Save and publish when it looks right.</div>
+                    <div id="setupPublishMeta" class="muted u-mb-12">Draft website. Save and publish when it looks right.</div>
                     <div class="setup-preview-actions">
                       <button id="btnOpenSetupHomePreview" class="btn btn-ghost" type="button">Open homepage preview</button>
                       <button id="btnOpenSetupProductsPreview" class="btn btn-ghost" type="button">Open services page</button>
@@ -1882,7 +1882,7 @@
               </div>
               <div class="panel-actions">
                 <input id="productSearch" class="input" placeholder="Search…" />
-                <select id="servicePresetPack" class="input" style="width:240px;">
+                <select id="servicePresetPack" class="input u-w-240">
                   <option value="">Recommended service pack</option>
                 </select>
                 <button id="btnLoadRecommendedServices" class="btn btn-ghost" type="button">Load starters</button>
@@ -2008,7 +2008,7 @@
     </div>
     <div class="stat-card">
       <div class="stat-label">Low stock</div>
-      <div class="stat-value" id="inventoryLowStock" style="color:#fbbf24;">—</div>
+      <div class="stat-value" id="inventoryLowStock" class="u-color-warn">—</div>
     </div>
     <div class="stat-card">
       <div class="stat-label">Inventory value</div>
@@ -2389,7 +2389,7 @@
             </div>
             <div id="driverStageStrip" class="pipeline-stage-strip"></div>
             <div id="driverActionBar" class="pipeline-action-bar"></div>
-            <div class="grid two" style="margin-bottom:18px;">
+            <div class="grid two u-mb-18">
               <div class="card">
                 <div class="card-hd">
                   <strong>Crew roster</strong>
@@ -2412,7 +2412,7 @@
                 </div>
               </div>
             </div>
-            <div class="card" style="margin-top:18px;">
+            <div class="card u-mt-18">
               <div class="card-hd">
                 <strong>Hours &amp; Pay</strong>
                 <div class="row row-tight">
@@ -2447,16 +2447,16 @@
                 <div id="availabilityMsg" class="msg"></div>
 
                 <!-- Availability blocks (date range blocking) -->
-                <div style="margin-top:20px;border-top:1px solid rgba(255,255,255,.08);padding-top:16px;">
-                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+                <div class="section-divider">
+                  <div class="section-header-split">
                     <div>
-                      <div style="font-weight:600;font-size:.9rem;color:#e8e9eb;">Date blocks</div>
+                      <div class="section-title-compact">Date blocks</div>
                       <div class="muted u-fs-78">Block dates when you're unavailable (seasonal pause, vacations, etc.)</div>
                     </div>
                     <button id="btnAddAvailBlock" class="btn btn-ghost btn-compact" type="button">+ Block dates</button>
                   </div>
                   <div id="availabilityBlocksList">
-                    <div class="muted" style="font-size:.82rem;">No date blocks set.</div>
+                    <div class="muted u-fs-82">No date blocks set.</div>
                   </div>
                 </div>
               </div>
@@ -2511,10 +2511,10 @@
 
             <div class="card u-mb-14" data-website-feature>
               <div class="card-bd">
-                <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-                  <span style="font-size:.85rem;color:rgba(255,255,255,.5);">Customer booking link:</span>
-                  <code id="bookingLinkDisplay" style="font-size:.8rem;background:rgba(255,255,255,.05);padding:4px 8px;border-radius:4px;word-break:break-all;">—</code>
-                  <button id="btnCopyBookingLink" class="btn btn-ghost btn-sm" type="button" style="white-space:nowrap;">Copy link</button>
+                <div class="link-row">
+                  <span class="muted u-fs-85">Customer booking link:</span>
+                  <code id="bookingLinkDisplay" class="code-pill">—</code>
+                  <button id="btnCopyBookingLink" class="btn btn-ghost btn-sm nowrap" type="button">Copy link</button>
                 </div>
               </div>
             </div>
@@ -2524,7 +2524,7 @@
               <div class="card-hd"><strong>New booking</strong></div>
               <div class="card-bd">
                 <div class="form">
-                  <div class="row" style="gap:12px;">
+                  <div class="row">
                     <div class="u-flex-1">
                       <label>Customer name *</label>
                       <input type="text" id="bkCustomerName" placeholder="Jane Smith" />
@@ -2536,7 +2536,7 @@
                   </div>
                   <label>Service / title *</label>
                   <input type="text" id="bkTitle" placeholder="e.g. Lawn mowing, Consultation" />
-                  <div class="row" style="gap:12px;">
+                  <div class="row">
                     <div class="u-flex-1">
                       <label>Date *</label>
                       <input type="date" id="bkDate" />
@@ -2559,7 +2559,7 @@
                   </div>
                   <label>Notes</label>
                   <textarea id="bkNotes" rows="2" placeholder="Any details…"></textarea>
-                  <div style="margin-top:14px;border-top:1px solid rgba(255,255,255,.08);padding-top:14px;">
+                  <div class="section-divider--tight">
                     <label style="font-size:.78rem;color:rgba(255,255,255,.65);display:block;margin-bottom:8px;">Repeat</label>
                     <select id="bkRecurrenceRule" class="input u-full-width u-mb-14">
                       <option value="">Does not repeat</option>
@@ -2585,12 +2585,12 @@
 
             <!-- Calendar month view -->
             <div class="card">
-              <div class="card-hd" style="display:flex;align-items:center;gap:8px;">
+              <div class="card-hd card-hd-inline">
                 <button id="btnBkPrev" class="btn btn-ghost btn-sm" type="button">‹</button>
-                <strong id="bkMonthLabel" style="flex:1;text-align:center;"></strong>
+                <strong id="bkMonthLabel" class="card-hd-inline__fill"></strong>
                 <button id="btnBkNext" class="btn btn-ghost btn-sm" type="button">›</button>
               </div>
-              <div class="card-bd" style="overflow-x:auto;">
+              <div class="card-bd overflow-x-auto">
                 <div id="bookingsCalendar"></div>
               </div>
             </div>
@@ -2602,7 +2602,7 @@
                 <div id="bookingsList"></div>
               </div>
             </div>
-            <div style="margin-top:10px;font-size:.8rem;color:var(--muted);" id="bookingsNoShowStat"></div>
+            <div id="bookingsNoShowStat" class="muted u-mt-10 u-fs-80"></div>
           </section>
 
           <section class="panel hidden" data-panel="expenses">
@@ -2894,7 +2894,7 @@
 
             <!-- Daily briefing card -->
             <div class="card u-mb-14">
-              <div class="card-hd" style="display:flex;align-items:center;gap:8px;">
+              <div class="card-hd card-hd-inline">
                 <strong>Today's briefing</strong>
                 <span id="aiBriefStatus" style="font-size:.75rem;color:rgba(255,255,255,.65);margin-left:auto;"></span>
               </div>
