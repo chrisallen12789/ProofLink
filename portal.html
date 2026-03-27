@@ -445,15 +445,19 @@
       return;
     }
     var fmt = function(cents) { return cents ? '$' + (cents / 100).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',') : ''; };
+    var nowMs = Date.now();
     el.innerHTML = quotes.map(function (q) {
-      var isPending = q.status === 'pending';
+      var isExpired = q.status === 'expired' || (q.status === 'pending' && q.valid_until && new Date(q.valid_until).getTime() < nowMs);
+      var displayStatus = (isExpired && q.status === 'pending') ? 'expired' : q.status;
+      var isPending = q.status === 'pending' && !isExpired;
+      var validUntilText = q.valid_until ? (isExpired ? ' · Expired ' : ' · Valid until ') + fmtDate(q.valid_until) : '';
       return '<div class="order-row" style="flex-direction:column;align-items:flex-start;gap:6px;">' +
         '<div style="display:flex;align-items:center;gap:10px;width:100%;">' +
           '<div style="flex:1;min-width:0;">' +
             '<div class="order-title">' + escHtml(q.title || 'Estimate') + '</div>' +
-            '<div class="order-meta">' + fmtDate(q.created_at) + (q.valid_until ? ' · Valid until ' + fmtDate(q.valid_until) : '') + '</div>' +
+            '<div class="order-meta">' + fmtDate(q.created_at) + validUntilText + '</div>' +
           '</div>' +
-          statusBadge(q.status) +
+          statusBadge(displayStatus) +
           (q.amount_cents ? '<div class="amount">' + fmt(q.amount_cents) + '</div>' : '') +
         '</div>' +
         (isPending ? '<a href="/quote.html?token=' + encodeURIComponent(q.id) + '" style="font-size:.82rem;color:#c84b2f;text-decoration:none;font-weight:600;">Review estimate</a>' : '') +

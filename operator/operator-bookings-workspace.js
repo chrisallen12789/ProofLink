@@ -680,6 +680,19 @@ function initBookingsWorkspaceBindings() {
       if (!confirmed) return;
     }
     const endsAt = new Date(new Date(startsAt).getTime() + duration * 60000).toISOString();
+
+    // Warn on booking conflicts (same time window, not cancelled)
+    const conflicting = (BOOKINGS_CACHE || []).filter((b) => {
+      if (["cancelled", "no_show"].includes(String(b.status || "").toLowerCase())) return false;
+      if (!b.starts_at || !b.ends_at) return false;
+      return new Date(b.starts_at) < new Date(endsAt) && new Date(b.ends_at) > new Date(startsAt);
+    });
+    if (conflicting.length > 0) {
+      const names = conflicting.map((b) => b.customer_name || b.title || "another booking").join(", ");
+      const ok = window.confirm(`This time slot overlaps with ${conflicting.length === 1 ? "another booking" : conflicting.length + " other bookings"} (${names}). Save anyway?`);
+      if (!ok) return;
+    }
+
     button.disabled = true;
     if (message) {
       message.textContent = "Saving…";
