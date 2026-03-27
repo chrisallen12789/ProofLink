@@ -1,5 +1,6 @@
 ﻿// Money and follow-through workspace extracted from operator.js so expenses,
 // collections, and reviews live together in one domain module.
+let EXPENSES_FETCHED = false;
 async function fetchExpenses() {
   if (FETCHING.has('expenses')) return;
   FETCHING.add('expenses');
@@ -16,6 +17,7 @@ async function fetchExpenses() {
       return;
     }
     EXPENSES_CACHE = data || [];
+    EXPENSES_FETCHED = true;
     return EXPENSES_CACHE;
   } finally {
     FETCHING.delete('expenses');

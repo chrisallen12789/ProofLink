@@ -29,7 +29,8 @@ function renderDashboard() {
 
   if (!CUSTOMERS_CACHE.length) alerts.push("No customers are in CRM yet. As real work lands here, relationship memory and follow-up get stronger.");
   if (!CRM_ORDERS_CACHE.length) alerts.push(`No tracked ${orderLabel} exist yet. That means customer value and operational visibility are still shallow.`);
-  if (!EXPENSES_CACHE.length) alerts.push("No expenses are logged yet, so profit visibility is still weak.");
+  // Only show expenses alert after the fetch has completed; EXPENSES_FETCHED guards against false alerts at boot
+  if (typeof EXPENSES_FETCHED !== 'undefined' && EXPENSES_FETCHED && !EXPENSES_CACHE.length) alerts.push("No expenses are logged yet, so profit visibility is still weak.");
   if (duePlans.length) alerts.push(`${duePlans.length} recurring plan${duePlans.length === 1 ? "" : "s"} are due right now. Generate the next work record before repeat revenue slips.`);
   if (missingDepositBalance > 0) alerts.push(`${formatUsd(missingDepositBalance)} in deposits is still open on booked work. Make the deposit expectation visible before the schedule gets ahead of the cash.`);
 
