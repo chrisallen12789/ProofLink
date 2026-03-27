@@ -12,9 +12,14 @@ function loadOrdersWorkspace(overrides = {}) {
 
   const context = {
     console,
+    window: {},
     formatDateTime: (value) => `formatted:${value}`,
     ...overrides,
   };
+
+  if (overrides.PROOFLINK_OPERATOR_CUSTOMER_DETAIL) {
+    context.window.PROOFLINK_OPERATOR_CUSTOMER_DETAIL = overrides.PROOFLINK_OPERATOR_CUSTOMER_DETAIL;
+  }
 
   vm.createContext(context);
   vm.runInContext(source, context);
@@ -69,15 +74,43 @@ describe("operator orders workspace", () => {
     expect(source).toContain("sms-thread-row");
     expect(source).toContain("sms-thread-bubble");
     expect(source).toContain("btn-block u-mt-12");
+    expect(source).toContain("renderOrderCustomerMemoryCard");
+    expect(source).toContain("orderCustomerMemoryItems");
+    expect(source).toContain("Keep the trade details attached to the booked work");
     expect(source).not.toContain('style="display:none;margin-top:12px;background:rgba(255,255,255,.03);');
     expect(source).not.toContain('style="cursor:pointer;user-select:none;display:flex;align-items:center;justify-content:space-between;"');
     expect(source).not.toContain("style.cssText");
     expect(source).not.toContain('style="margin-top:14px;"');
     expect(source).not.toContain('style="display:flex;justify-content:flex-end;margin-bottom:5px;');
     expect(source).not.toContain('style="max-width:75%;background:#c84b2f;border-radius:10px;padding:6px 10px;font-size:.82rem;"');
-    expect(source).not.toContain("Ã¢Å“â€œ");
-    expect(source).not.toContain("Ã¢Å¡Â¡ Add uninvoiced hours to invoice");
-    expect(source).not.toContain("Project phases Ã¢â€“Â¸");
-    expect(source).not.toContain("Time logged Ã¢â€“Â¸");
+    expect(source).not.toContain("ÃƒÂ¢Ã…â€œÃ¢â‚¬Å“");
+    expect(source).not.toContain("ÃƒÂ¢Ã…Â¡Ã‚Â¡ Add uninvoiced hours to invoice");
+    expect(source).not.toContain("Project phases ÃƒÂ¢Ã¢â‚¬â€œÃ‚Â¸");
+    expect(source).not.toContain("Time logged ÃƒÂ¢Ã¢â‚¬â€œÃ‚Â¸");
+  });
+
+  test("orderCustomerMemoryItems reuses business-specific customer memory when available", () => {
+    const api = loadOrdersWorkspace({
+      PROOFLINK_OPERATOR_CUSTOMER_DETAIL: {
+        customerMemoryChecklist: vi.fn(() => ([
+          { label: "Property profile", ready: true, note: "123 Main St" },
+          { label: "Access notes", ready: false, note: "Gate code still missing" },
+        ])),
+      },
+      currentWorkspaceBlueprint: vi.fn(() => ({
+        business: {
+          key: "landscaping",
+          label: "Landscaping",
+          recordFocus: ["Property profile", "Route cadence"],
+        },
+      })),
+    });
+
+    const items = api.orderCustomerMemoryItems({ id: "customer_1", name: "Logan's Lawn Care" });
+
+    expect(items).toEqual([
+      { label: "Property profile", ready: true, note: "123 Main St" },
+      { label: "Access notes", ready: false, note: "Gate code still missing" },
+    ]);
   });
 });

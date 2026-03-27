@@ -43,6 +43,45 @@ function setOrderInlinePanelOpen(panel, isOpen) {
   panel.classList.toggle("u-hidden", !isOpen);
 }
 
+function orderWorkspaceBlueprint() {
+  if (typeof currentWorkspaceBlueprint === "function") return currentWorkspaceBlueprint();
+  return { business: { key: "other", label: "Business", recordFocus: [] } };
+}
+
+function orderCustomerMemoryItems(customer, blueprint = orderWorkspaceBlueprint()) {
+  if (!customer) return [];
+  const sharedChecklist = window.PROOFLINK_OPERATOR_CUSTOMER_DETAIL?.customerMemoryChecklist;
+  if (typeof sharedChecklist === "function") {
+    return sharedChecklist(customer, blueprint).slice(0, 4);
+  }
+  const focus = Array.isArray(blueprint?.business?.recordFocus) ? blueprint.business.recordFocus : [];
+  return focus.filter(Boolean).slice(0, 4).map((item) => ({
+    label: "Booked-work memory",
+    ready: !!String(item || "").trim(),
+    note: item || "",
+  }));
+}
+
+function renderOrderCustomerMemoryCard(customer, blueprint = orderWorkspaceBlueprint()) {
+  const items = orderCustomerMemoryItems(customer, blueprint);
+  if (!customer || !items.length) return "";
+  return `
+    <div class="detail-card detail-card--spaced">
+      <div class="kicker">Customer memory</div>
+      <div><strong>Keep the trade details attached to the booked work</strong></div>
+      <div class="detail-copy">Use this view to keep the property, access, equipment, or repair context visible while you schedule, collect money, and hand work to the field.</div>
+      <div class="memory-checklist">
+        ${items.map((item) => `
+          <div class="memory-checklist__item ${item.ready ? "memory-checklist__item--ready" : ""}">
+            <div class="memory-checklist__title">${escapeHtml(item.ready ? `Ready: ${item.label}` : `Still needed: ${item.label}`)}</div>
+            <div class="detail-copy memory-checklist__note">${escapeHtml(item.note || "")}</div>
+          </div>
+        `).join("")}
+      </div>
+    </div>
+  `;
+}
+
 function renderOrders() {
   if (!ordersList) return;
   renderPipelineWorkspace();
@@ -133,6 +172,7 @@ function renderOrders() {
   const linkedLead = linkedLeadForOrder(active);
   const linkedBid = linkedBidForOrder(active);
   const paymentState = orderPaymentState(active);
+  const blueprint = orderWorkspaceBlueprint();
   const amountDue = orderAmountDueCents(active);
   const amountPaid = orderAmountPaidCents(active);
   const depositPolicy = orderDepositPolicy(active);
@@ -206,6 +246,7 @@ function renderOrders() {
         : "Use one action row to create the linked job, collect money, or open the right record without rebuilding anything.",
       actions: orderActionButtons,
     })}
+    ${renderOrderCustomerMemoryCard(existingCustomer, blueprint)}
 
     ${(active.order_type === 'package' || active.order_type === 'retainer') ? `
     <div class="detail-card detail-card--spaced">
