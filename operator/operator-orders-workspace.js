@@ -34,6 +34,15 @@ function orderCollectionGuidance(order, amountDue, paymentState, depositGap, rec
   };
 }
 
+function isOrderInlinePanelOpen(panel) {
+  return !!panel && !panel.classList.contains("u-hidden");
+}
+
+function setOrderInlinePanelOpen(panel, isOpen) {
+  if (!panel) return;
+  panel.classList.toggle("u-hidden", !isOpen);
+}
+
 function renderOrders() {
   if (!ordersList) return;
   renderPipelineWorkspace();
@@ -63,9 +72,9 @@ function renderOrders() {
     const isChecked = BULK_SELECTED_ORDER_IDS.has(row.id);
 
     return `
-      <div class="list-item ${row.id === active.id ? "is-active" : ""}" style="gap:8px;">
-        <input type="checkbox" class="order-bulk-check" data-order-id="${escapeAttr(row.id)}" ${isChecked ? "checked" : ""} style="flex-shrink:0;margin:0;cursor:pointer;" onclick="event.stopPropagation();" />
-        <button type="button" class="li-btn" data-order-id="${escapeAttr(row.id)}" style="flex:1;text-align:left;background:none;border:none;color:inherit;cursor:pointer;padding:0;">
+      <div class="list-item order-item ${row.id === active.id ? "is-active" : ""} gap-8">
+        <input type="checkbox" class="order-bulk-check order-select-checkbox" data-order-id="${escapeAttr(row.id)}" ${isChecked ? "checked" : ""} onclick="event.stopPropagation();" />
+        <button type="button" class="li-btn li-btn-reset" data-order-id="${escapeAttr(row.id)}">
           <div class="li-main">
             <div class="li-title">${escapeHtml(customerName)}</div>
             <div class="li-sub muted">${escapeHtml(customerEmail)}  |  ${escapeHtml(formatDateTime(submittedAt))}</div>
@@ -189,7 +198,7 @@ function renderOrders() {
         { label: "Deposit", value: depositGap > 0 ? `${formatUsd(depositGap)} open` : formatUsd(depositPaid), note: depositStatus === "not_required" ? "No deposit required" : formatDepositStatus(depositStatus) },
       ],
     })}
-    ${isReturnCustomer && !existingCustomer ? `<div class="detail-card" style="margin-top:14px;"><div class="kicker">Customer match</div><div class="detail-copy" style="font-size:.8rem;color:#fbbf24;">${priorOrders.length} prior order(s) found for this email. Consider linking this person into CRM so the next request, job, and payment history stay together.</div></div>` : ""}
+    ${isReturnCustomer && !existingCustomer ? `<div class="detail-card u-mt-14"><div class="kicker">Customer match</div><div class="detail-copy detail-copy--warn">${priorOrders.length} prior order(s) found for this email. Consider linking this person into CRM so the next request, job, and payment history stay together.</div></div>` : ""}
     ${renderRecordActionRail({
       eyebrow: "Quick actions",
       title: "Move this work forward",
@@ -213,14 +222,14 @@ function renderOrders() {
       })() : `<div class="detail-copy">Bills every ${escapeHtml(String(active.recurrence_interval_days || 30))} days</div>`}
     </div>` : ''}
 
-    <div class="detail-card" style="margin-top:14px;">
+    <div class="detail-card u-mt-14">
       <div class="kicker">Workflow next step</div>
       <div class="detail-copy">Request: ${escapeHtml(linkedLead?.contact_name || linkedLead?.title || "Not linked")}</div>
       <div class="detail-copy">Proposal: ${escapeHtml(linkedBid?.title || "Not linked")}</div>
       <div class="detail-copy">Tracked job: ${escapeHtml(linkedJob?.title || (linkedJob ? "Linked job" : "No job yet"))}</div>
       <div class="detail-copy">Recurring plan: ${escapeHtml(linkedPlan?.title || "Not set up")}</div>
       <div class="detail-copy">${linkedJob ? `Execution status: ${escapeHtml(String(linkedJob.status || "scheduled").replace(/_/g, " "))}` : "Create a job when this work is ready to be scheduled or performed."}</div>
-      <div class="row" style="margin-top:10px;">
+      <div class="row action-row--wrap u-mt-10">
         <button id="btnOpenOrderRequest" class="btn btn-ghost" type="button">${linkedLead ? "Open request" : "Create request"}</button>
         <button id="btnOpenOrderBid" class="btn btn-ghost" type="button">${linkedBid ? "Open proposal" : "Draft proposal"}</button>
         <button id="btnCreateJobFromOrder" class="btn btn-primary" type="button">${linkedJob ? "Open linked job" : "Create job"}</button>
@@ -232,40 +241,40 @@ function renderOrders() {
         <button id="btnSetupRecurring" class="btn btn-ghost" type="button">Make recurring</button>
         ${active.customer_phone ? `<button id="btnOrderSms" class="btn btn-ghost" type="button">Text customer</button>` : ""}
       </div>
-      <div id="recurringSetupPanel" style="display:none;margin-top:12px;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:8px;padding:12px;">
-        <div class="row" style="gap:8px;align-items:end;flex-wrap:wrap;">
-          <label style="flex:1;min-width:130px;">Repeat every
+      <div id="recurringSetupPanel" class="inline-soft-panel u-hidden">
+        <div class="row row-tight-end action-row--wrap">
+          <label class="row-fill">Repeat every
             <select id="recurringFrequency">
               <option value="weekly">Week</option>
               <option value="biweekly">2 Weeks</option>
               <option value="monthly">Month</option>
             </select>
           </label>
-          <label style="flex:1;min-width:140px;">Next date
+          <label class="row-fill">Next date
             <input type="date" id="recurringNextDate" />
           </label>
-          <button id="btnSaveRecurring" class="btn btn-primary" type="button" style="flex:0 0 auto;">Save</button>
+          <button id="btnSaveRecurring" class="btn btn-primary" type="button">Save</button>
         </div>
-        <div id="recurringMsg" class="msg" style="margin-top:6px;"></div>
+        <div id="recurringMsg" class="msg u-mt-10"></div>
       </div>
 
       ${active.customer_phone ? `
-      <div id="orderSmsPanel" style="display:none;margin-top:12px;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:8px;padding:12px;">
-        <div style="font-size:.8rem;color:rgba(255,255,255,.5);margin-bottom:8px;">Texting ${escapeHtml(active.customer_name || "customer")} at ${escapeHtml(active.customer_phone)}</div>
-        <div id="orderSmsThread" style="max-height:200px;overflow-y:auto;margin-bottom:8px;"></div>
-        <div class="row" style="gap:8px;">
-          <input id="orderSmsInput" type="text" style="flex:1;" placeholder="Type a message..." />
+      <div id="orderSmsPanel" class="inline-soft-panel u-hidden">
+        <div class="inline-soft-panel__copy">Texting ${escapeHtml(active.customer_name || "customer")} at ${escapeHtml(active.customer_phone)}</div>
+        <div id="orderSmsThread" class="inline-soft-panel__thread"></div>
+        <div class="row gap-8">
+          <input id="orderSmsInput" class="u-flex-1" type="text" placeholder="Type a message..." />
           <button id="btnOrderSmsSend" class="btn btn-primary btn-sm" type="button">Send</button>
         </div>
         <div id="orderSmsMsg" class="msg"></div>
       </div>` : ""}
     </div>
 
-    <div class="detail-card" style="margin-top:14px;">
+    <div class="detail-card u-mt-14">
       <div class="kicker">Deposit control</div>
       <div class="detail-copy">${escapeHtml(depositPolicyLabel(depositPolicy))}${depositDueDate ? ` | Due ${escapeHtml(formatDateOnly(depositDueDate))}` : ""}</div>
       <div class="detail-copy">${depositOverrideReason ? `Override reason: ${escapeHtml(depositOverrideReason)}` : "Use this when the business needs a deposit rule that is teachable, enforceable, and still flexible in real life."}</div>
-      <div class="grid three form-grid" style="margin-top:10px;">
+      <div class="grid three form-grid u-mt-10">
         <label>Deposit policy
           <select id="orderDepositPolicySelect">
             <option value="optional" ${depositPolicy === "optional" ? "selected" : ""}>Optional</option>
@@ -280,10 +289,10 @@ function renderOrders() {
           <input id="orderDepositDueDate" type="date" value="${escapeAttr(depositDueDate || "")}" />
         </label>
       </div>
-      <label style="margin-top:10px;">Override reason
+      <label class="u-mt-10">Override reason
         <textarea id="orderDepositOverrideReason" rows="3" placeholder="Why this order can move ahead before the deposit is collected.">${escapeHtml(depositOverrideReason)}</textarea>
       </label>
-      <div class="row" style="margin-top:10px;">
+      <div class="row action-row--wrap u-mt-10">
         <button id="btnSaveOrderDepositSettings" class="btn btn-primary" type="button">Save deposit settings</button>
         <button id="btnClearOrderDepositOverride" class="btn btn-ghost" type="button" ${depositOverrideReason ? "" : "disabled"}>Clear override</button>
       </div>
@@ -303,67 +312,67 @@ function renderOrders() {
         { label: "Recent payment", value: recentOrderPayment ? formatUsd(paymentAmountCents(recentOrderPayment)) : "None yet", note: recentOrderPayment ? formatDateTime(recentOrderPayment.paid_at || recentOrderPayment.created_at || recentOrderPayment.updated_at) : "No payment recorded yet" },
       ],
       controlsHtml: `
-        <div class="row" style="align-items:end;flex-wrap:wrap;gap:8px;">
-          <label class="field" style="flex:1;min-width:120px;">
+        <div class="row row-tight-end action-row--wrap">
+          <label class="field row-fill">
             <span>Status</span>
             <select id="orderStatusSelect">
               ${statusOptions.map((status) => `<option value="${status}" ${String(active.status || "new").toLowerCase() === status ? "selected" : ""}>${escapeHtml(formatOrderWorkflowStatus(status))}</option>`).join("")}
             </select>
           </label>
-          ${active.customer_email ? `<label style="display:flex;align-items:center;gap:6px;font-size:.8rem;cursor:pointer;white-space:nowrap;"><input type="checkbox" id="chkNotifyOnStatusChange" checked /> Notify customer</label>` : ""}
+          ${active.customer_email ? `<label class="modal-check"><input type="checkbox" id="chkNotifyOnStatusChange" class="modal-check__input" checked /><span class="modal-check__label">Notify customer</span></label>` : ""}
           <button id="btnSaveOrderStatus" class="btn btn-primary" type="button">Save status</button>
         </div>
       `,
       actions: orderFollowThroughActions,
       timelineHtml: `
-        <div id="quoteFormPanel" style="display:none;margin-top:12px;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:8px;padding:14px;">
-          <div style="font-size:.82rem;font-weight:600;margin-bottom:10px;color:var(--muted);">New quote</div>
-          <div class="row" style="gap:8px;flex-wrap:wrap;align-items:end;">
-            <label class="field" style="flex:2;min-width:160px;">Title
+        <div id="quoteFormPanel" class="inline-soft-panel inline-soft-panel--padded u-hidden">
+          <div class="inline-soft-panel__title">New quote</div>
+          <div class="row row-tight-end action-row--wrap">
+            <label class="field row-fill">Title
               <input type="text" id="quoteTitle" placeholder="Quote title" value="${escapeAttr(active.title || '')}" />
             </label>
-            <label class="field" style="flex:1;min-width:100px;">Amount (USD)
+            <label class="field row-fill">Amount (USD)
               <input type="number" id="quoteAmount" placeholder="0.00" min="0" step="0.01" />
             </label>
-            <label class="field" style="flex:1;min-width:110px;">Valid until
+            <label class="field row-fill">Valid until
               <input type="date" id="quoteValidUntil" />
             </label>
           </div>
-          <label class="field" style="margin-top:8px;">Description (optional)
-            <textarea id="quoteDescription" rows="2" placeholder="Scope of work, inclusions, terms..." style="width:100%;resize:vertical;">${escapeHtml(active.notes || '')}</textarea>
+          <label class="field u-mt-10">Description (optional)
+            <textarea id="quoteDescription" class="u-full-width" rows="2" placeholder="Scope of work, inclusions, terms...">${escapeHtml(active.notes || '')}</textarea>
           </label>
-          <div class="row" style="gap:8px;margin-top:10px;">
+          <div class="row gap-8 u-mt-10">
             <button id="btnSubmitQuote" class="btn btn-primary btn-sm" type="button">Send quote</button>
             <button id="btnCancelQuote" class="btn btn-ghost btn-sm" type="button">Cancel</button>
           </div>
         </div>
-        <div id="orderNotifyMsg" class="msg" style="margin-top:8px;"></div>
+        <div id="orderNotifyMsg" class="msg u-mt-10"></div>
       `,
     })}
-    <div class="detail-card" style="margin-top:14px;">
+    <div class="detail-card u-mt-14">
       <div class="kicker">Collection guidance</div>
       <div><strong>${escapeHtml(collectionGuidance.title)}</strong></div>
       <div class="detail-copy">${escapeHtml(collectionGuidance.description)}</div>
-      <div class="workspace-chip-row" style="margin-top:10px;">
+      <div class="workspace-chip-row u-mt-10">
         <span class="pill ${amountDue > 0 ? "pill-bad" : "pill-good"}">${escapeHtml(amountDue > 0 ? `${formatUsd(amountDue)} still open` : "Nothing outstanding")}</span>
         <span class="pill">${escapeHtml(depositGap > 0 ? `${formatUsd(depositGap)} deposit open` : "Deposit handled or not required")}</span>
       </div>
     </div>
 
-    <div class="detail-card" style="margin-top:14px;" id="phasesSection">
-      <div class="kicker" style="cursor:pointer;user-select:none;display:flex;align-items:center;justify-content:space-between;" id="phasesToggle">
+    <div class="detail-card u-mt-14" id="phasesSection">
+      <div class="kicker detail-toggle" id="phasesToggle">
         <span>Project phases (show)</span>
-        <button class="btn btn-ghost" style="font-size:.72rem;padding:2px 8px;" onclick="event.stopPropagation();openAddPhaseModal('${escapeAttr(active.id)}')">+ Phase</button>
+        <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();openAddPhaseModal('${escapeAttr(active.id)}')">+ Phase</button>
       </div>
-      <div id="phasesBody" style="display:none;margin-top:10px;"></div>
+      <div id="phasesBody" class="u-hidden u-mt-10"></div>
     </div>
 
-    <div class="detail-card" style="margin-top:14px;" id="timeLoggedSection">
-      <div class="kicker" style="cursor:pointer;user-select:none;display:flex;align-items:center;justify-content:space-between;" id="timeLoggedToggle">
+    <div class="detail-card u-mt-14" id="timeLoggedSection">
+      <div class="kicker detail-toggle" id="timeLoggedToggle">
         <span>Time logged (show)</span>
-        <button class="btn btn-ghost" style="font-size:.72rem;padding:2px 8px;" onclick="event.stopPropagation();openLogTimeModal('${escapeAttr(active.id)}')">+ Log Time</button>
+        <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();openLogTimeModal('${escapeAttr(active.id)}')">+ Log Time</button>
       </div>
-      <div id="timeLoggedBody" style="display:none;margin-top:10px;"></div>
+      <div id="timeLoggedBody" class="u-hidden u-mt-10"></div>
     </div>
   `;
 
@@ -373,10 +382,10 @@ function renderOrders() {
     const body   = document.getElementById('phasesBody');
     const toggle = document.getElementById('phasesToggle')?.querySelector('span');
     if (!body) return;
-    if (body.style.display !== 'none') { body.style.display = 'none'; if (toggle) toggle.textContent = 'Project phases (show)'; return; }
-    body.style.display = 'block';
+    if (isOrderInlinePanelOpen(body)) { setOrderInlinePanelOpen(body, false); if (toggle) toggle.textContent = 'Project phases (show)'; return; }
+    setOrderInlinePanelOpen(body, true);
     if (toggle) toggle.textContent = 'Project phases (hide)';
-    body.innerHTML = '<div class="muted" style="font-size:.82rem;">Loading...</div>';
+    body.innerHTML = '<div class="muted table-empty">Loading...</div>';
     await loadPhasesIntoEl(active.id, body);
   });
 
@@ -386,9 +395,9 @@ function renderOrders() {
     const body   = document.getElementById("timeLoggedBody");
     const toggle = document.getElementById("timeLoggedToggle")?.querySelector("span");
     if (!body) return;
-    if (body.style.display !== "none") { body.style.display = "none"; if (toggle) toggle.textContent = "Time logged (show)"; return; }
+    if (isOrderInlinePanelOpen(body)) { setOrderInlinePanelOpen(body, false); if (toggle) toggle.textContent = "Time logged (show)"; return; }
     if (toggle) toggle.textContent = "Time logged (hide)";
-    body.style.display = "block";
+    setOrderInlinePanelOpen(body, true);
     await renderTimeEntries(active.id);
   });
 
@@ -637,9 +646,9 @@ function renderOrders() {
   $("btnSendQuote")?.addEventListener("click", () => {
     const panel = $("quoteFormPanel");
     if (!panel) return;
-    const isHidden = panel.style.display === "none";
-    panel.style.display = isHidden ? "block" : "none";
-    if (isHidden) {
+    const isOpen = isOrderInlinePanelOpen(panel);
+    setOrderInlinePanelOpen(panel, !isOpen);
+    if (!isOpen) {
       // Default valid-until to 14 days from now
       const validUntil = $("quoteValidUntil");
       if (validUntil && !validUntil.value) {
@@ -653,7 +662,7 @@ function renderOrders() {
 
   $("btnCancelQuote")?.addEventListener("click", () => {
     const panel = $("quoteFormPanel");
-    if (panel) panel.style.display = "none";
+    setOrderInlinePanelOpen(panel, false);
   });
 
   $("btnSubmitQuote")?.addEventListener("click", async () => {
@@ -685,7 +694,7 @@ function renderOrders() {
       if (!res.ok) throw new Error(d.error || "Failed to send quote");
       if (msg) { msg.textContent = `Quote sent to ${customerEmail}.`; msg.className = "msg success"; }
       const panel = $("quoteFormPanel");
-      if (panel) panel.style.display = "none";
+      setOrderInlinePanelOpen(panel, false);
     } catch (err) {
       if (msg) { msg.textContent = err.message || "Error sending quote."; msg.className = "msg error"; }
     }
@@ -695,9 +704,9 @@ function renderOrders() {
   $("btnSetupRecurring")?.addEventListener("click", () => {
     const panel = $("recurringSetupPanel");
     if (!panel) return;
-    const isHidden = panel.style.display === "none";
-    panel.style.display = isHidden ? "block" : "none";
-    if (isHidden) {
+    const isOpen = isOrderInlinePanelOpen(panel);
+    setOrderInlinePanelOpen(panel, !isOpen);
+    if (!isOpen) {
       const tomorrow = new Date();
       tomorrow.setDate(tomorrow.getDate() + 1);
       const dateInput = $("recurringNextDate");
@@ -736,9 +745,9 @@ function renderOrders() {
   $("btnOrderSms")?.addEventListener("click", async () => {
     const panel = $("orderSmsPanel");
     if (!panel) return;
-    const isHidden = panel.style.display === "none";
-    panel.style.display = isHidden ? "block" : "none";
-    if (isHidden && active.customer_phone) {
+    const isOpen = isOrderInlinePanelOpen(panel);
+    setOrderInlinePanelOpen(panel, !isOpen);
+    if (!isOpen && active.customer_phone) {
       const thread = $("orderSmsThread");
       if (thread && !thread.dataset.loaded) {
         thread.dataset.loaded = "1";
