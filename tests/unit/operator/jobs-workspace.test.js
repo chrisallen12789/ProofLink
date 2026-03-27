@@ -52,6 +52,7 @@ function loadJobsWorkspace(overrides = {}) {
     hydrovacRevenueBreakdownHtml: vi.fn(() => ""),
     isHydrovacJob: vi.fn(() => false),
     hydrovacJobDetailState: vi.fn(() => null),
+    PROOFLINK_OPERATOR_CUSTOMER_DETAIL: {},
     currentWorkspaceBlueprint: vi.fn(() => ({
       business: {
         key: "other",
@@ -79,6 +80,10 @@ function loadJobsWorkspace(overrides = {}) {
     escapeAttr: (value) => String(value),
     ...overrides,
   };
+
+  if (overrides.PROOFLINK_OPERATOR_CUSTOMER_DETAIL) {
+    context.window.PROOFLINK_OPERATOR_CUSTOMER_DETAIL = overrides.PROOFLINK_OPERATOR_CUSTOMER_DETAIL;
+  }
 
   vm.createContext(context);
   vm.runInContext(source, context);
@@ -192,5 +197,44 @@ describe("operator jobs workspace", () => {
     expect(guidance.title).toBe("Field work is done, and payment is the next move");
     expect(guidance.description).toContain("invoice");
     expect(guidance.chips).toContain("$8500 still open");
+  });
+
+  test("jobCustomerMemoryItems reuses business-specific customer memory when it is available", () => {
+    const { context } = loadJobsWorkspace({
+      PROOFLINK_OPERATOR_CUSTOMER_DETAIL: {
+        customerMemoryChecklist: vi.fn(() => ([
+          { label: "Property profile", ready: true, note: "123 Main St" },
+          { label: "Access notes", ready: false, note: "Gate code still missing" },
+        ])),
+      },
+      currentWorkspaceBlueprint: vi.fn(() => ({
+        business: {
+          key: "landscaping",
+          label: "Landscaping",
+          recordFocus: ["Property profile", "Route cadence"],
+        },
+      })),
+    });
+
+    const items = context.jobCustomerMemoryItems({ id: "customer_1", name: "Logan's Lawn Care" });
+
+    expect(items).toEqual([
+      { label: "Property profile", ready: true, note: "123 Main St" },
+      { label: "Access notes", ready: false, note: "Gate code still missing" },
+    ]);
+  });
+
+  test("jobs workspace source uses shared memory checklist classes for readiness and customer memory", () => {
+    const source = fs.readFileSync(
+      path.resolve(process.cwd(), "operator/operator-jobs-workspace.js"),
+      "utf8"
+    );
+
+    expect(source).toContain("renderJobCustomerMemoryCard");
+    expect(source).toContain("jobCustomerMemoryItems");
+    expect(source).toContain('class="memory-checklist"');
+    expect(source).toContain("memory-checklist__item--warn");
+    expect(source).not.toContain('background:${item.ready ? "rgba(46,125,50,.10)" : "rgba(200,75,47,.08)"}');
+    expect(source).not.toContain('background:rgba(255,255,255,.03);');
   });
 });

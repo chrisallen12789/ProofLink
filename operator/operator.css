@@ -1639,6 +1639,9 @@ input:focus, textarea:focus, select:focus{
 .memory-checklist__item--ready{
   background:rgba(46,125,50,.10);
 }
+.memory-checklist__item--warn{
+  background:rgba(200,75,47,.08);
+}
 .memory-checklist__title{
   font-weight:700;
 }

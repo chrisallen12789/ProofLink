@@ -10,6 +10,19 @@ function jobTemplateRecordFocus(blueprint = jobsWorkspaceBlueprint()) {
   return focus.filter(Boolean).slice(0, 3);
 }
 
+function jobCustomerMemoryItems(linkedCustomer, blueprint = jobsWorkspaceBlueprint()) {
+  if (!linkedCustomer) return [];
+  const sharedChecklist = window.PROOFLINK_OPERATOR_CUSTOMER_DETAIL?.customerMemoryChecklist;
+  if (typeof sharedChecklist === "function") {
+    return sharedChecklist(linkedCustomer, blueprint).slice(0, 4);
+  }
+  return jobTemplateRecordFocus(blueprint).map((item) => ({
+    label: "Field memory",
+    ready: !!String(item || "").trim(),
+    note: item || "",
+  }));
+}
+
 function hydrovacAlertsForJob(jobIdValue) {
   return Array.isArray(HYDROVAC_ALERTS_CACHE)
     ? HYDROVAC_ALERTS_CACHE.filter((alert) => (
@@ -176,20 +189,20 @@ function renderJobReadinessCard(summary) {
   if (!summary) return "";
   const blockerItems = summary.blockers.length ? summary.blockers : summary.items.filter((item) => item.ready).slice(0, 3);
   return `
-    <div class="detail-card" style="margin-top:14px;">
+    <div class="detail-card detail-card--spaced">
       <div class="kicker">Readiness</div>
       <div><strong>${escapeHtml(summary.title)}</strong></div>
       <div class="detail-copy">${escapeHtml(summary.description)}</div>
-      <div class="workspace-chip-row" style="margin-top:10px;">
+      <div class="workspace-chip-row u-mt-10">
         <span class="pill ${summary.blockers.length ? "pill-bad" : "pill-good"}">${escapeHtml(`${summary.readyCount}/${summary.totalCount} checks ready`)}</span>
         <span class="pill">${escapeHtml(summary.blockers.length ? `${summary.blockers.length} blocker${summary.blockers.length === 1 ? "" : "s"}` : "No blockers open")}</span>
       </div>
-      <div class="detail-copy" style="margin-top:10px;"><strong>Next step:</strong> ${escapeHtml(summary.nextStep)}</div>
-      <div style="margin-top:10px;display:grid;gap:8px;">
+      <div class="detail-copy u-mt-10"><strong>Next step:</strong> ${escapeHtml(summary.nextStep)}</div>
+      <div class="memory-checklist">
         ${blockerItems.map((item) => `
-          <div style="padding:10px 12px;border:1px solid rgba(255,255,255,.08);border-radius:10px;background:${item.ready ? "rgba(46,125,50,.10)" : "rgba(200,75,47,.08)"};">
-            <div style="font-weight:700;">${escapeHtml(item.ready ? `Ready: ${item.label}` : `Needs attention: ${item.label}`)}</div>
-            <div class="detail-copy" style="margin-top:4px;">${escapeHtml(item.note || "")}</div>
+          <div class="memory-checklist__item ${item.ready ? "memory-checklist__item--ready" : "memory-checklist__item--warn"}">
+            <div class="memory-checklist__title">${escapeHtml(item.ready ? `Ready: ${item.label}` : `Needs attention: ${item.label}`)}</div>
+            <div class="detail-copy memory-checklist__note">${escapeHtml(item.note || "")}</div>
           </div>
         `).join("")}
       </div>
@@ -237,15 +250,35 @@ function renderTemplateRecordFocusCard(blueprint = jobsWorkspaceBlueprint()) {
   const focus = jobTemplateRecordFocus(blueprint);
   if (!focus.length) return "";
   return `
-    <div class="detail-card" style="margin-top:14px;">
+    <div class="detail-card detail-card--spaced">
       <div class="kicker">Template record focus</div>
       <div><strong>What matters most on this record</strong></div>
       <div class="detail-copy">Capture the details this business type depends on so future work feels easier, not more generic.</div>
-      <div style="margin-top:10px;display:grid;gap:8px;">
+      <div class="memory-checklist">
         ${focus.map((item, index) => `
-          <div style="padding:10px 12px;border:1px solid rgba(255,255,255,.08);border-radius:10px;background:rgba(255,255,255,.03);">
-            <div style="font-weight:700;">${escapeHtml(`Focus ${index + 1}`)}</div>
-            <div class="detail-copy" style="margin-top:4px;">${escapeHtml(item)}</div>
+          <div class="memory-checklist__item">
+            <div class="memory-checklist__title">${escapeHtml(`Focus ${index + 1}`)}</div>
+            <div class="detail-copy memory-checklist__note">${escapeHtml(item)}</div>
+          </div>
+        `).join("")}
+      </div>
+    </div>
+  `;
+}
+
+function renderJobCustomerMemoryCard(linkedCustomer, blueprint = jobsWorkspaceBlueprint()) {
+  const items = jobCustomerMemoryItems(linkedCustomer, blueprint);
+  if (!linkedCustomer || !items.length) return "";
+  return `
+    <div class="detail-card detail-card--spaced">
+      <div class="kicker">Customer memory</div>
+      <div><strong>Carry the site details into the field</strong></div>
+      <div class="detail-copy">Keep the repeat-service context tied to the active job so the crew and office do not have to relearn it under pressure.</div>
+      <div class="memory-checklist">
+        ${items.map((item) => `
+          <div class="memory-checklist__item ${item.ready ? "memory-checklist__item--ready" : ""}">
+            <div class="memory-checklist__title">${escapeHtml(item.ready ? `Ready: ${item.label}` : `Still needed: ${item.label}`)}</div>
+            <div class="detail-copy memory-checklist__note">${escapeHtml(item.note || "")}</div>
           </div>
         `).join("")}
       </div>
@@ -341,6 +374,7 @@ async function renderJobDetail(jobIdValue) {
     })}
     ${renderJobReadinessCard(readiness)}
     ${renderTemplateRecordFocusCard(blueprint)}
+    ${renderJobCustomerMemoryCard(linkedCustomer, blueprint)}
     ${renderRecordFollowThroughCard({
       eyebrow: "Field updates",
       title: "Handle the on-site moves fast",
