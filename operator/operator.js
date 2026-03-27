@@ -5400,6 +5400,16 @@ customerForm?.addEventListener("submit", async (e) => {
       setInlineMessage(customerMsg, `A customer with email ${emailVal} already exists: ${dup.name || 'unnamed'}. Open their record instead.`, 'error');
       return;
     }
+    // DB-level check: cache is paginated so a duplicate may not be loaded
+    try {
+      let dbQ = sb.from('customers').select('id, name').eq('email', emailVal).eq(TENANT_COLUMN, TENANT_ID).limit(1).maybeSingle();
+      if (custId) dbQ = sb.from('customers').select('id, name').eq('email', emailVal).eq(TENANT_COLUMN, TENANT_ID).neq('id', custId).limit(1).maybeSingle();
+      const { data: dbDup } = await dbQ;
+      if (dbDup) {
+        setInlineMessage(customerMsg, `A customer with email ${emailVal} already exists: ${dbDup.name || 'unnamed'}. Open their record instead.`, 'error');
+        return;
+      }
+    } catch (_) { /* non-fatal */ }
   }
 
   try {
@@ -7987,14 +7997,27 @@ function renderQuotesList() {
   const statusColor = { pending: "#93c5fd", accepted: "#4ade80", declined: "#f87171", expired: "rgba(255,255,255,.35)" };
   const fmtMoney = (cents) => (cents != null && cents !== "") ? "$" + (Number(cents) / 100).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",") : "$0.00";
   const convertibleStatuses = ["pending", "accepted", "approved"];
+  const now = new Date();
+
+  // Auto-expire pending quotes whose valid_until has passed (update DB best-effort)
+  const toExpire = rows.filter((q) => q.status === "pending" && q.valid_until && new Date(q.valid_until) < now);
+  if (toExpire.length) {
+    const expireIds = toExpire.map((q) => q.id);
+    sb.from("quotes").update({ status: "expired", updated_at: new Date().toISOString() })
+      .in("id", expireIds).eq(TENANT_COLUMN, TENANT_ID)
+      .then(() => { QUOTES_CACHE = QUOTES_CACHE.map((q) => expireIds.includes(q.id) ? { ...q, status: "expired" } : q); })
+      .catch((e) => console.warn("[quotes] auto-expire update failed:", e.message));
+  }
 
   el.innerHTML = `
     <div class="list">
       ${rows.map((q) => {
-        const color = statusColor[q.status] || "rgba(255,255,255,.5)";
+        const isExpired = q.status === "expired" || (q.status === "pending" && q.valid_until && new Date(q.valid_until) < now);
+        const displayStatus = isExpired && q.status === "pending" ? "expired" : q.status;
+        const color = statusColor[displayStatus] || "rgba(255,255,255,.5)";
         const quoteUrl = `${location.origin}/quote.html?id=${encodeURIComponent(q.id)}`;
-        const isPending = q.status === "pending";
-        const canConvert = convertibleStatuses.includes(String(q.status || "").toLowerCase());
+        const isPending = q.status === "pending" && !isExpired;
+        const canConvert = !isExpired && convertibleStatuses.includes(String(q.status || "").toLowerCase());
         return `
         <div class="list-item" style="flex-direction:column;align-items:flex-start;gap:6px;">
           <div style="display:flex;align-items:center;gap:10px;width:100%;">
@@ -8002,7 +8025,7 @@ function renderQuotesList() {
               <div style="font-weight:600;font-size:.9rem;">${escapeHtml(q.title || "Quote")}</div>
               <div class="muted" style="font-size:.78rem;">${escapeHtml(q.customer_name || "")}${q.customer_email ? ` · ${escapeHtml(q.customer_email)}` : ""} · ${formatDateOnly(q.created_at)}</div>
             </div>
-            <span style="font-size:.75rem;padding:3px 9px;background:rgba(255,255,255,.06);border-radius:12px;color:${color};white-space:nowrap;">${escapeHtml(q.status || "pending")}</span>
+            <span style="font-size:.75rem;padding:3px 9px;background:rgba(255,255,255,.06);border-radius:12px;color:${color};white-space:nowrap;">${escapeHtml(displayStatus || "pending")}</span>
             <span style="font-size:.85rem;font-weight:700;color:var(--text);white-space:nowrap;">${fmtMoney(q.amount_cents)}</span>
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
@@ -8011,7 +8034,7 @@ function renderQuotesList() {
             ${canConvert ? `<button class="btn btn-ghost btn-sm qt-convert-job-btn" data-quote-id="${escapeAttr(q.id)}" data-customer-id="${escapeAttr(q.customer_id || "")}" data-title="${escapeAttr(q.title || "")}" data-notes="${escapeAttr(q.description || q.notes || "")}" data-order-id="${escapeAttr(q.order_id || "")}" type="button" style="font-size:.75rem;padding:2px 8px;color:#fbbf24;border-color:rgba(251,191,36,.3);">Convert to Job →</button>` : ""}
             ${q.accepted_at ? `<span class="muted" style="font-size:.75rem;">Accepted ${formatDateOnly(q.accepted_at)}</span>` : ""}
             ${q.declined_at ? `<span class="muted" style="font-size:.75rem;">Declined ${formatDateOnly(q.declined_at)}</span>` : ""}
-            ${q.valid_until ? `<span class="muted" style="font-size:.75rem;">Valid until ${formatDateOnly(q.valid_until)}</span>` : ""}
+            ${q.valid_until ? `<span class="muted" style="font-size:.75rem;">${isExpired ? "Expired" : "Valid until"} ${formatDateOnly(q.valid_until)}</span>` : ""}
           </div>
         </div>`;
       }).join("")}
@@ -8042,9 +8065,14 @@ function renderQuotesList() {
       btn.disabled = true;
       btn.textContent = "Creating job…";
       try {
+        const orderId = btn.dataset.orderId || null;
+        // Enforce deposit policy if a linked order exists
+        if (orderId) {
+          const linkedOrder = CRM_ORDERS_CACHE.find((row) => row.id === orderId);
+          if (linkedOrder) assertOrderAllowsJobCreation(linkedOrder);
+        }
         const nowIso = new Date().toISOString();
         const customerId = btn.dataset.customerId || null;
-        const orderId = btn.dataset.orderId || null;
         const payload = withTenantScope({
           operator_id: opId(),
           customer_id: customerId || null,

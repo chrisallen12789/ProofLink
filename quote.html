@@ -537,6 +537,19 @@
     // Already accepted — hide accept button, show accepted state
     if (data.status === 'accepted') {
       showAcceptedState();
+      return;
+    }
+
+    // Expired — hide accept button, show expired state
+    var isExpiredByDate = data.valid_until && new Date(data.valid_until) < new Date();
+    if (data.status === 'expired' || (data.status !== 'accepted' && isExpiredByDate)) {
+      document.getElementById('btnAccept').style.display = 'none';
+      var st = document.getElementById('acceptedState');
+      st.style.display = 'block';
+      st.querySelector('.atitle').textContent = 'This proposal has expired';
+      st.querySelector('.atitle').style.color = '#f87171';
+      document.getElementById('acceptedMsg').textContent =
+        'The validity window for this proposal has passed. Please contact ' + BIZ_NAME + ' for a revised proposal.';
     }
   }
 
@@ -568,16 +581,34 @@
     confirmBtn.disabled = true;
     confirmBtn.textContent = 'Sending\u2026';
 
-    // POST accept; succeed gracefully if the endpoint is not yet available
     var acceptReq = token
       ? fetch('/.netlify/functions/get-quote', {
           method : 'POST',
           headers: { 'Content-Type': 'application/json' },
           body   : JSON.stringify({ bid_id: token, token: token, action: 'accept' }),
-        }).catch(function () { return { ok: true }; })
+        })
       : Promise.resolve({ ok: true });
 
-    acceptReq.then(function () {
+    acceptReq.then(function (res) {
+      if (res && typeof res.json === 'function') {
+        return res.json().catch(function () { return { ok: res.ok }; }).then(function (d) {
+          hideEl('confirmModal');
+          if (!res.ok) {
+            var msg = d && d.error ? d.error : 'Unable to accept at this time. Please try again or contact us directly.';
+            confirmBtn.disabled = false;
+            confirmBtn.textContent = 'Yes, accept';
+            var errEl = document.createElement('div');
+            errEl.style.cssText = 'color:#f87171;font-size:.85rem;margin-top:10px;text-align:center;';
+            errEl.textContent = msg;
+            confirmBtn.parentNode.appendChild(errEl);
+            return;
+          }
+          showAcceptedState();
+        });
+      }
+      hideEl('confirmModal');
+      showAcceptedState();
+    }).catch(function () {
       hideEl('confirmModal');
       showAcceptedState();
     });

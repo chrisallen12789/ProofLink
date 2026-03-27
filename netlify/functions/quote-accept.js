@@ -49,6 +49,14 @@ exports.handler = async (event) => {
       return respond(409, { error: `Quote cannot be accepted — current status: ${quote.status}` });
     }
 
+    // Reject if the quote's validity window has passed
+    if (quote.valid_until) {
+      const expiry = new Date(quote.valid_until);
+      if (!isNaN(expiry.getTime()) && expiry < new Date()) {
+        return respond(410, { error: 'This quote has expired and can no longer be accepted. Please contact us for a revised proposal.' });
+      }
+    }
+
     const nowIso = new Date().toISOString();
 
     // Mark the quote as accepted (atomic: only succeeds if still pending)

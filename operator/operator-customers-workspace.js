@@ -403,6 +403,16 @@ function initCustomersWorkspaceBindings() {
         setInlineMessage(customerMsg, `A customer with email ${emailValue} already exists: ${duplicate.name || "unnamed"}. Open their record instead.`, "error");
         return;
       }
+      // DB-level check: cache is paginated so a duplicate may not be loaded
+      try {
+        let dbQuery = sb.from("customers").select("id, name").eq("email", emailValue).eq(TENANT_COLUMN, TENANT_ID).limit(1).maybeSingle();
+        if (customerRecordId) dbQuery = sb.from("customers").select("id, name").eq("email", emailValue).eq(TENANT_COLUMN, TENANT_ID).neq("id", customerRecordId).limit(1).maybeSingle();
+        const { data: dbDup } = await dbQuery;
+        if (dbDup) {
+          setInlineMessage(customerMsg, `A customer with email ${emailValue} already exists: ${dbDup.name || "unnamed"}. Open their record instead.`, "error");
+          return;
+        }
+      } catch (_) { /* non-fatal: proceed if DB check fails */ }
     }
 
     try {

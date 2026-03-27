@@ -51,16 +51,32 @@ exports.handler = async (event) => {
     }
     if (!bid) return respond(404, { error: 'Proposal not found' });
     if (bid.status === 'accepted') return respond(200, { ok: true, message: 'Already accepted' });
+    if (bid.status && !['pending', 'sent', 'approved', 'review'].includes(bid.status)) {
+      return respond(409, { error: `Proposal cannot be accepted — current status: ${bid.status}` });
+    }
 
-    // Mark bid as accepted
-    const { error: updateErr } = await supabase
+    // Reject if the proposal's validity window has passed
+    if (bid.valid_until) {
+      const expiry = new Date(bid.valid_until);
+      if (!isNaN(expiry.getTime()) && expiry < new Date()) {
+        return respond(410, { error: 'This proposal has expired and can no longer be accepted. Please contact us for a revised proposal.' });
+      }
+    }
+
+    // Mark bid as accepted (atomic: only succeed if still in an acceptable status)
+    const { data: updatedRows, error: updateErr } = await supabase
       .from('bids')
       .update({ status: 'accepted', updated_at: new Date().toISOString() })
-      .eq('id', bid_id);
+      .eq('id', bid_id)
+      .not('status', 'eq', 'accepted')
+      .select('id');
 
     if (updateErr) {
       console.error('[get-quote] POST accept update:', updateErr);
       return respond(500, { error: 'Failed to accept proposal' });
+    }
+    if (!updatedRows || updatedRows.length === 0) {
+      return respond(409, { error: 'Proposal has already been accepted or is no longer available' });
     }
 
     // Look up customer name for notification
