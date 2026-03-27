@@ -52,7 +52,7 @@ describe("operator orders workspace", () => {
     expect(guidance.description).toContain("formatted:2026-03-27T09:00:00Z");
   });
 
-  test("keeps visible order-workspace language plain and free of old icon drift", () => {
+  test("keeps visible order-workspace language plain and uses shared UI classes", () => {
     const source = fs.readFileSync(
       path.resolve(process.cwd(), "operator/operator-orders-workspace.js"),
       "utf8"
@@ -66,11 +66,18 @@ describe("operator orders workspace", () => {
     expect(source).toContain('class="kicker detail-toggle"');
     expect(source).toContain('class="li-btn li-btn-reset"');
     expect(source).toContain("isOrderInlinePanelOpen");
+    expect(source).toContain("sms-thread-row");
+    expect(source).toContain("sms-thread-bubble");
+    expect(source).toContain("btn-block u-mt-12");
     expect(source).not.toContain('style="display:none;margin-top:12px;background:rgba(255,255,255,.03);');
     expect(source).not.toContain('style="cursor:pointer;user-select:none;display:flex;align-items:center;justify-content:space-between;"');
-    expect(source).not.toContain("âœ“");
-    expect(source).not.toContain("âš¡ Add uninvoiced hours to invoice");
-    expect(source).not.toContain("Project phases â–¸");
-    expect(source).not.toContain("Time logged â–¸");
+    expect(source).not.toContain("style.cssText");
+    expect(source).not.toContain('style="margin-top:14px;"');
+    expect(source).not.toContain('style="display:flex;justify-content:flex-end;margin-bottom:5px;');
+    expect(source).not.toContain('style="max-width:75%;background:#c84b2f;border-radius:10px;padding:6px 10px;font-size:.82rem;"');
+    expect(source).not.toContain("Ã¢Å“â€œ");
+    expect(source).not.toContain("Ã¢Å¡Â¡ Add uninvoiced hours to invoice");
+    expect(source).not.toContain("Project phases Ã¢â€“Â¸");
+    expect(source).not.toContain("Time logged Ã¢â€“Â¸");
   });
 });

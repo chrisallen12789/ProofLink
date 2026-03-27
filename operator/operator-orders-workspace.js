@@ -110,8 +110,7 @@ function renderOrders() {
   if (CRM_ORDERS_CACHE.length < ORDERS_TOTAL_COUNT) {
     const remaining = ORDERS_TOTAL_COUNT - CRM_ORDERS_CACHE.length;
     const btn = document.createElement('button');
-    btn.className = 'btn btn-ghost';
-    btn.style.cssText = 'width:100%;margin-top:12px;';
+    btn.className = 'btn btn-ghost btn-block u-mt-12';
     btn.textContent = `Load ${Math.min(PAGE_SIZE, remaining)} more (${CRM_ORDERS_CACHE.length} of ${ORDERS_TOTAL_COUNT} shown)`;
     btn.addEventListener('click', async () => {
       FETCH_OFFSETS.orders += PAGE_SIZE;
@@ -209,7 +208,7 @@ function renderOrders() {
     })}
 
     ${(active.order_type === 'package' || active.order_type === 'retainer') ? `
-    <div class="detail-card" style="margin-top:14px;">
+    <div class="detail-card detail-card--spaced">
       <div class="kicker">Order type: ${escapeHtml(active.order_type === 'package' ? 'Session Package' : 'Monthly Retainer')}</div>
       ${active.order_type === 'package' ? (() => {
         const total = Number(active.package_sessions_total || 0);
@@ -761,12 +760,12 @@ function renderOrders() {
           const msgs = d.messages || [];
           thread.innerHTML = msgs.length ? msgs.map((m) => {
             const isOut = m.direction === 'outbound';
-            return `<div style="display:flex;justify-content:${isOut ? 'flex-end' : 'flex-start'};margin-bottom:5px;">
-              <div style="max-width:75%;background:${isOut ? '#c84b2f' : 'rgba(255,255,255,.1)'};border-radius:10px;padding:6px 10px;font-size:.82rem;">
+            return `<div class="sms-thread-row ${isOut ? 'sms-thread-row--outbound' : 'sms-thread-row--inbound'}">
+              <div class="sms-thread-bubble ${isOut ? 'sms-thread-bubble--outbound' : 'sms-thread-bubble--inbound'}">
                 ${escapeHtml(m.body || "")}
               </div>
             </div>`;
-          }).join('') : '<p style="font-size:.8rem;color:rgba(255,255,255,.4);">No messages yet.</p>';
+          }).join('') : '<p class="inline-soft-panel__empty">No messages yet.</p>';
           thread.scrollTop = thread.scrollHeight;
         } catch (e) { console.error("[order sms thread]", e); }
       }
@@ -793,8 +792,8 @@ function renderOrders() {
       if (inp) inp.value = "";
       const thread = $("orderSmsThread");
       if (thread) {
-        thread.innerHTML += `<div style="display:flex;justify-content:flex-end;margin-bottom:5px;">
-          <div style="max-width:75%;background:#c84b2f;border-radius:10px;padding:6px 10px;font-size:.82rem;">${escapeHtml(text)}</div>
+        thread.innerHTML += `<div class="sms-thread-row sms-thread-row--outbound">
+          <div class="sms-thread-bubble sms-thread-bubble--outbound">${escapeHtml(text)}</div>
         </div>`;
         thread.scrollTop = thread.scrollHeight;
       }

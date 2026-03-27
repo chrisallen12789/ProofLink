@@ -551,6 +551,38 @@ body{
   overflow-y:auto;
   margin-bottom:8px;
 }
+.inline-soft-panel__empty{
+  font-size:.8rem;
+  color:rgba(255,255,255,.4);
+}
+.detail-card--spaced{
+  margin-top:14px;
+}
+.btn-block{
+  width:100%;
+}
+.sms-thread-row{
+  display:flex;
+  margin-bottom:5px;
+}
+.sms-thread-row--outbound{
+  justify-content:flex-end;
+}
+.sms-thread-row--inbound{
+  justify-content:flex-start;
+}
+.sms-thread-bubble{
+  max-width:75%;
+  border-radius:10px;
+  padding:6px 10px;
+  font-size:.82rem;
+}
+.sms-thread-bubble--outbound{
+  background:#c84b2f;
+}
+.sms-thread-bubble--inbound{
+  background:rgba(255,255,255,.1);
+}
 .detail-toggle{
   cursor:pointer;
   user-select:none;
