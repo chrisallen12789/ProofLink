@@ -2011,7 +2011,7 @@ function toggleHydrovacFields(value) {
   const el = document.getElementById('hydrovacFields');
   if (!el) return;
   const isHydrovac = value === 'hydrovac';
-  el.style.display = isHydrovac ? 'block' : 'none';
+  el.classList.toggle("u-hidden", !isHydrovac);
   if (isHydrovac) {
     renderEquipmentOptions();
     if (jobServiceType && !String(jobServiceType.value || "").trim()) {
@@ -2169,6 +2169,23 @@ function initBranding() {
   }
   if (operatorFooterText) {
     operatorFooterText.textContent = `${b.tenantName || "Tenant"} | Powered by ${b.productName || "ProofLink"}`;
+  }
+}
+
+function isSidebarMoreOpen() {
+  const more = $("sidebarMore");
+  return !!more && !more.classList.contains("u-hidden");
+}
+
+function setSidebarMoreOpen(isOpen) {
+  const more = $("sidebarMore");
+  const btn = $("btnSidebarMore");
+  if (!more) return;
+  more.classList.toggle("u-hidden", !isOpen);
+  more.setAttribute("aria-hidden", String(!isOpen));
+  if (btn) {
+    btn.textContent = isOpen ? "Hide tools" : "Tools";
+    btn.setAttribute("aria-expanded", String(isOpen));
   }
 }
 
@@ -2840,10 +2857,8 @@ function syncOperatorShellLayout(blueprint = currentWorkspaceBlueprint()) {
   startupChecklist?.closest(".side-card")?.setAttribute("hidden", "hidden");
   document.querySelector(".side-copy")?.closest(".side-card")?.setAttribute("hidden", "hidden");
   sectionNav?.querySelector('.tab[data-tab="ai"]')?.setAttribute("hidden", "hidden");
-  const more = $("sidebarMore");
-  const moreButton = $("btnSidebarMore");
   syncSidebarGroupVisibility(blueprint);
-  if (moreButton) moreButton.textContent = more && more.style.display !== "none" ? "Hide tools" : "Tools";
+  setSidebarMoreOpen(isSidebarMoreOpen());
   const mobileWorkLabel = document.querySelector('.mbn-item[data-mbn-tab="orders"] span');
   if (mobileWorkLabel) mobileWorkLabel.textContent = workspaceTabLabel("orders", blueprint);
   const mobileMenuLabel = document.querySelector('#mbnMenuBtn span');
@@ -5203,7 +5218,7 @@ $("btnBkNext")?.addEventListener("click", async () => {
   }
 
   ruleEl.addEventListener("change", () => {
-    if (optEl) optEl.style.display = ruleEl.value ? "block" : "none";
+    if (optEl) optEl.classList.toggle("u-hidden", !ruleEl.value);
     computeRecurrenceCount();
   });
   endEl?.addEventListener("change", computeRecurrenceCount);
@@ -5268,7 +5283,7 @@ $("btnSaveBooking")?.addEventListener("click", async () => {
     // Reset form
     ["bkCustomerName","bkCustomerEmail","bkTitle","bkNotes"].forEach((id) => { const el = $(id); if (el) el.value = ""; });
     const ruleEl = $("bkRecurrenceRule"); if (ruleEl) ruleEl.value = "";
-    const optEl  = $("bkRecurrenceOptions"); if (optEl) optEl.style.display = "none";
+    const optEl  = $("bkRecurrenceOptions"); if (optEl) optEl.classList.add("u-hidden");
     const endEl  = $("bkRecurrenceEnd"); if (endEl) endEl.value = "";
     btn.disabled = false;
     await renderBookings();
@@ -8517,24 +8532,15 @@ $("btnCopyBookingLink")?.addEventListener("click", async () => {
 
 // ── Sidebar More toggle ────────────────────────────────────────────────────────
 $("btnSidebarMore")?.addEventListener("click", () => {
-  const more = $("sidebarMore");
-  if (!more) return;
-  const isOpen = more.style.display !== 'none';
-  more.style.display = isOpen ? 'none' : 'block';
-  const btn = $("btnSidebarMore");
-  if (btn) btn.textContent = isOpen ? 'Tools' : 'Hide tools';
+  const isOpen = isSidebarMoreOpen();
+  setSidebarMoreOpen(!isOpen);
   try { localStorage.setItem('pl_sidebar_simple', isOpen ? '1' : '0'); } catch {}
 });
 
 // Auto-expand More panel when a secondary tab is navigated to directly (hash, back button, etc.)
 function ensureSecondaryTabVisible(tab) {
   if (!SECONDARY_TABS.has(tab)) return;
-  const more = $("sidebarMore");
-  const btn  = $("btnSidebarMore");
-  if (more && more.style.display === 'none') {
-    more.style.display = 'block';
-    if (btn) btn.textContent = 'Hide tools';
-  }
+  if (!isSidebarMoreOpen()) setSidebarMoreOpen(true);
 }
 
 // ── AI Copilot Panel ──────────────────────────────────────────────────────────
@@ -8801,13 +8807,7 @@ initBranding();
 
 // Restore sidebar preference
 try {
-  if (localStorage.getItem('pl_sidebar_simple') === '1') {
-    const more = $("sidebarMore");
-    if (more) more.style.display = 'none';
-  }
-  const btn = $("btnSidebarMore");
-  const more = $("sidebarMore");
-  if (btn) btn.textContent = more && more.style.display !== 'none' ? 'Hide tools' : 'Tools';
+  setSidebarMoreOpen(localStorage.getItem('pl_sidebar_simple') !== '1');
 } catch {}
 
 boot().catch((err) => {
@@ -8921,8 +8921,8 @@ function renderPackagesSummary() {
   const list = $('packagesSummaryList');
   if (!card || !list) return;
   const packages = (CRM_ORDERS_CACHE || []).filter(o => o.order_type === 'package' && !o.is_deleted);
-  if (!packages.length) { card.style.display = 'none'; return; }
-  card.style.display = '';
+  if (!packages.length) { card.classList.add("u-hidden"); return; }
+  card.classList.remove("u-hidden");
   list.innerHTML = packages.map(p => {
     const used = Number(p.package_sessions_used || 0);
     const total = Number(p.package_sessions_total || 0);

@@ -46,7 +46,7 @@
         <div class="title">
           <strong id="brandTenant">Tenant</strong>
           <span id="sessionEmail" class="brand-session-email"></span>
-          <span id="brandPowered" style="display:none;"></span>
+          <span id="brandPowered"></span>
         </div>
       </div>
 
@@ -71,7 +71,7 @@
 
         <button class="tab tab--more" id="btnSidebarMore" type="button" title="Show or hide additional tools and settings. ProofLink remembers your preference." aria-expanded="false" aria-controls="sidebarMore">More tools</button>
 
-        <div id="sidebarMore" class="nav-more nav-tools-section collapsed sidebar-more" style="display:none;">
+        <div id="sidebarMore" class="nav-more nav-tools-section collapsed sidebar-more u-hidden" aria-hidden="true">
           <section class="nav-group" data-nav-group="workflow">
             <div class="nav-group__label">Work pipeline</div>
             <button class="tab" data-tab="leads" data-tour-tab="leads" type="button">Requests</button>
@@ -128,7 +128,7 @@
           <span id="brandProductName" class="brand-product-name">ProofLink</span>
           <span class="brand-company-note">&copy; <span id="brandCompany">ProofLink</span></span>
         </div>
-        <span id="brandProductPill" style="display:none;"></span>
+        <span id="brandProductPill" class="u-hidden"></span>
       </div>
     </aside>
 
@@ -448,7 +448,7 @@
             <div id="pipelineActionBar" class="pipeline-action-bar"></div>
             <div id="workCommandWrap" class="work-command u-mb-14"></div>
 
-            <div class="card u-mb-14" id="packagesSummaryCard" style="display:none;">
+            <div class="card u-mb-14 u-hidden" id="packagesSummaryCard">
               <div class="card-hd"><strong>Active packages</strong> <span class="muted u-fs-78">Session-based orders</span></div>
               <div class="card-bd" id="packagesSummaryList">
                 <div class="muted u-fs-85">Loading…</div>
@@ -494,7 +494,7 @@
                       <button onclick="openAddPhaseModal(currentOrder?.id); event.stopPropagation();" class="btn-sm">+ Phase</button>
                       <span class="toggle-arrow">▾</span>
                     </div>
-                    <div id="phasesContent" style="display:none"></div>
+                    <div id="phasesContent" class="u-hidden"></div>
                   </div>
                 </div>
               </div>
@@ -607,7 +607,7 @@
                     </label>
 
                     <!-- Hydrovac fields — shown only when service_type = hydrovac -->
-                    <div id="hydrovacFields" style="display:none;">
+                    <div id="hydrovacFields" class="u-hidden">
                       <div class="form-section-label">Hydrovac details</div>
 
                       <div class="form-row">
@@ -691,10 +691,10 @@
                       </div>
 
                       <!-- Live revenue preview -->
-                      <div id="hydrovacRevenuePreview" style="margin-top:12px;padding:12px 14px;background:rgba(200,75,47,.08);border:1px solid rgba(200,75,47,.2);border-radius:8px;display:none;">
-                        <div style="font-size:.72rem;color:rgba(255,255,255,.65);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">Estimated revenue</div>
-                        <div id="hydrovacRevenueBreakdown" style="font-size:.82rem;color:rgba(255,255,255,.7);line-height:1.6;"></div>
-                        <div id="hydrovacRevenueTotal" style="font-size:1.1rem;font-weight:700;color:#e8e9eb;margin-top:6px;"></div>
+                      <div id="hydrovacRevenuePreview" class="revenue-preview">
+                        <div class="revenue-preview__label">Estimated revenue</div>
+                        <div id="hydrovacRevenueBreakdown" class="revenue-preview__copy"></div>
+                        <div id="hydrovacRevenueTotal" class="revenue-preview__total"></div>
                       </div>
                     </div>
 
@@ -1273,7 +1273,7 @@
                         <input id="customerAddress1" placeholder="Street address" />
                       </label>
                     </div>
-                    <div class="form-row" style="display:grid;grid-template-columns:1fr 80px 90px;gap:8px;">
+                    <div class="form-row inline-grid-quote">
                       <label>City
                         <input id="customerCity" placeholder="City" />
                       </label>
@@ -1293,7 +1293,7 @@
                       <button class="btn btn-primary" type="submit">Save customer</button>
                       <button id="btnSaveAndAddCustomer" class="btn btn-ghost" type="button">Save &amp; add another</button>
                       <button id="btnClearCustomerForm" class="btn btn-ghost" type="button">Clear form</button>
-                      <button id="btnArchiveCustomer" class="btn btn-ghost" type="button" style="color:#e05c5c;display:none;">Archive customer</button>
+                      <button id="btnArchiveCustomer" class="btn btn-danger u-hidden" type="button">Archive customer</button>
                     </div>
 
                     <div id="customerMsg" class="msg"></div>
@@ -1439,7 +1439,7 @@
                 </div>
                 <div class="card-bd">
                   <div id="paymentSettingsWrap"></div>
-                <div class="payment-actions" style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap;">
+                <div class="payment-actions">
                   <button id="btnStartPlatformCheckout" class="btn btn-primary" type="button">Start platform billing</button>
                   <button id="btnConnectStripe" class="btn" type="button">Connect Stripe</button>
                   <button id="btnCreateOrderCheckout" class="btn btn-ghost" type="button">Create checkout for active order</button>
@@ -1623,11 +1623,11 @@
                   <span class="muted">Read-only account and onboarding data</span>
                 </div>
                 <div class="card-bd">
-                  <div class="muted" style="margin-bottom:12px;line-height:1.65;">
+                  <div class="muted u-mb-12 u-text-detail">
                     These values are part of the operator account record created during onboarding, provisioning, or approval. They are shown here for reference and are not editable from this page.
                   </div>
                   <div id="setupLockedRecord" class="table muted">Loading protected business record…</div>
-                  <div class="muted" style="margin-top:12px;line-height:1.65;">
+                  <div class="muted u-mt-12 u-text-detail">
                     Need one of these corrected? Route the request through platform support or the admin review flow rather than changing it here.
                   </div>
                 </div>
@@ -2018,9 +2018,9 @@
 
   <!-- Items list -->
   <div class="card">
-    <div class="card-hd" style="display:flex;align-items:center;justify-content:space-between;">
+    <div class="card-hd card-hd-inline card-hd-inline--space">
       <strong>Items</strong>
-      <input id="inventorySearch" class="input" placeholder="Search items…" style="width:200px;font-size:.82rem;" />
+      <input id="inventorySearch" class="input compact-input" placeholder="Search items…" />
     </div>
     <div class="card-bd" id="inventoryList">
       <div class="muted u-fs-85">Loading inventory…</div>
@@ -2097,7 +2097,7 @@
             <div class="card">
               <div class="card-bd">
                 <div id="equipmentList" class="list-wrap">
-                  <div class="muted" style="font-size:.85rem;padding:16px 0;">Loading equipment...</div>
+                  <div class="muted u-fs-85 u-py-16">Loading equipment...</div>
                 </div>
               </div>
             </div>
@@ -2560,7 +2560,7 @@
                   <label>Notes</label>
                   <textarea id="bkNotes" rows="2" placeholder="Any details…"></textarea>
                   <div class="section-divider--tight">
-                    <label style="font-size:.78rem;color:rgba(255,255,255,.65);display:block;margin-bottom:8px;">Repeat</label>
+                    <label class="field-note-label">Repeat</label>
                     <select id="bkRecurrenceRule" class="input u-full-width u-mb-14">
                       <option value="">Does not repeat</option>
                       <option value="DAILY">Daily</option>
@@ -2568,13 +2568,13 @@
                       <option value="BIWEEKLY">Every 2 weeks</option>
                       <option value="MONTHLY">Monthly</option>
                     </select>
-                    <div id="bkRecurrenceOptions" style="display:none;">
-                      <label style="font-size:.78rem;color:rgba(255,255,255,.65);display:block;margin-bottom:4px;">Generate instances through</label>
+                    <div id="bkRecurrenceOptions" class="u-hidden">
+                      <label class="field-note-label field-note-label--tight">Generate instances through</label>
                       <input type="date" id="bkRecurrenceEnd" class="input u-full-width" />
-                      <div style="font-size:.75rem;color:rgba(255,255,255,.65);margin-top:4px;" id="bkRecurrenceCount">—</div>
+                      <div id="bkRecurrenceCount" class="section-heading-note">—</div>
                     </div>
                   </div>
-                  <div style="display:flex;gap:8px;margin-top:4px;">
+                  <div class="action-row u-mt-4">
                     <button id="btnSaveBooking" class="btn btn-primary" type="button">Save booking</button>
                     <button id="btnCancelBooking" class="btn btn-ghost" type="button">Cancel</button>
                   </div>
@@ -2743,7 +2743,7 @@
                       </label>
                     </div>
 
-                    <div class="muted" style="line-height:1.55;">
+                    <div class="muted u-text-detail-tight">
                       Link a job or order when this spend belongs to real work. That lets ProofLink show revenue, cost, gross profit, and margin without guessing.
                     </div>
 
@@ -2788,7 +2788,7 @@
                 </div>
                 <div class="card-bd">
                   <div class="row row-tight-end">
-                    <label style="flex:1;min-width:220px;">Job
+                    <label class="row-fill">Job
                       <select id="hydrovacInvoiceJobSelect">
                         <option value="">Select a hydrovac job</option>
                       </select>
@@ -2805,7 +2805,7 @@
                   <span class="muted">What the office should verify before sending</span>
                 </div>
                 <div class="card-bd">
-                  <div class="workspace-panel-notice is-soft" style="margin:0;">
+                  <div class="workspace-panel-notice is-soft flush-notice">
                     <div class="workspace-panel-notice__title">Draft from real work, not memory</div>
                     <div class="workspace-panel-notice__copy">Use the linked job after completion to pull in mobilization, time segments, confirmed disposal manifests, water usage, and any carried-over bid items. Then review the draft before sending the invoice.</div>
                   </div>
@@ -2828,7 +2828,7 @@
                 <div class="muted">Quotes sent to customers — track status and follow up.</div>
               </div>
               <div class="panel-actions">
-                <select id="quotesStatusFilter" class="input" style="min-width:130px;padding:6px 10px;font-size:.82rem;">
+                <select id="quotesStatusFilter" class="input compact-select">
                   <option value="">All statuses</option>
                   <option value="pending">Pending</option>
                   <option value="accepted">Accepted</option>
@@ -2896,33 +2896,33 @@
             <div class="card u-mb-14">
               <div class="card-hd card-hd-inline">
                 <strong>Today's briefing</strong>
-                <span id="aiBriefStatus" style="font-size:.75rem;color:rgba(255,255,255,.65);margin-left:auto;"></span>
+                <span id="aiBriefStatus" class="card-hd-inline__status"></span>
               </div>
               <div class="card-bd">
-                <div id="aiBriefContent" style="font-size:.88rem;line-height:1.7;color:rgba(255,255,255,.8);white-space:pre-wrap;">Loading briefing…</div>
+                <div id="aiBriefContent" class="ai-copy">Loading briefing…</div>
               </div>
             </div>
 
             <!-- Context chips -->
-            <div id="aiContextChips" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;"></div>
+            <div id="aiContextChips" class="chip-row"></div>
 
             <!-- Copilot Q&A -->
             <div class="card">
               <div class="card-hd"><strong>Ask a question</strong></div>
               <div class="card-bd">
-                <div style="display:flex;gap:8px;margin-bottom:10px;">
+                <div class="action-row action-row--mb">
                   <input id="aiQuestion" class="input u-flex-1" placeholder="e.g. Which customers owe me money? Who needs a follow-up?" />
                   <button id="btnAskAI" class="btn btn-primary" type="button">Ask</button>
                 </div>
-                <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;" id="aiQuickActions">
+                <div class="chip-row chip-row--compact" id="aiQuickActions">
                   <button class="btn btn-ghost btn-sm ai-quick" data-q="Which customers owe me money?" type="button">💰 Who owes me?</button>
                   <button class="btn btn-ghost btn-sm ai-quick" data-q="Who needs a follow-up right now?" type="button">📋 Follow-ups needed</button>
                   <button class="btn btn-ghost btn-sm ai-quick" data-q="What should I focus on today?" type="button">🎯 Today's priorities</button>
                   <button class="btn btn-ghost btn-sm ai-quick" data-q="Are there any expired or expiring quotes?" type="button">📄 Quote status</button>
                   <button class="btn btn-ghost btn-sm ai-quick" data-q="Which customers haven't been seen recently?" type="button">👥 Stale customers</button>
                 </div>
-                <div id="aiAnswer" style="font-size:.88rem;line-height:1.7;color:rgba(255,255,255,.8);white-space:pre-wrap;display:none;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:14px;margin-bottom:10px;"></div>
-                <div id="aiError" style="display:none;font-size:.85rem;color:#f87171;"></div>
+                <div id="aiAnswer" class="ai-answer"></div>
+                <div id="aiError" class="ai-error"></div>
               </div>
             </div>
 
@@ -2930,26 +2930,26 @@
             <div class="card u-mt-14">
               <div class="card-hd"><strong>Draft assistant</strong></div>
               <div class="card-bd">
-                <div style="font-size:.82rem;color:rgba(255,255,255,.65);margin-bottom:10px;">
+                <div class="ai-helper">
                   Generate message drafts. All drafts require your review before sending.
                 </div>
-                <div style="display:flex;flex-wrap:wrap;gap:6px;">
+                <div class="chip-row chip-row--compact">
                   <button class="btn btn-ghost btn-sm ai-draft" data-type="invoice_followup" type="button">💸 Invoice follow-up</button>
                   <button class="btn btn-ghost btn-sm ai-draft" data-type="booking_reminder" type="button">📅 Booking reminder</button>
                   <button class="btn btn-ghost btn-sm ai-draft" data-type="customer_followup" type="button">👋 Customer re-engagement</button>
                 </div>
-                <div id="aiDraftArea" style="margin-top:10px;display:none;">
-                  <div style="font-size:.75rem;color:#c84b2f;font-weight:600;margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em;">Draft — review before sending</div>
-                  <div id="aiDraftText" style="font-size:.88rem;line-height:1.7;white-space:pre-wrap;background:rgba(200,75,47,.06);border:1px solid rgba(200,75,47,.2);border-radius:8px;padding:14px;color:rgba(255,255,255,.85);"></div>
-                  <div style="margin-top:8px;display:flex;gap:8px;">
+                <div id="aiDraftArea" class="ai-draft-area">
+                  <div class="ai-draft-label">Draft — review before sending</div>
+                  <div id="aiDraftText" class="ai-draft-text"></div>
+                  <div class="ai-draft-actions">
                     <button id="btnCopyDraft" class="btn btn-ghost btn-sm" type="button">Copy</button>
                     <button id="btnCloseDraft" class="btn btn-ghost btn-sm" type="button">Close</button>
                   </div>
                 </div>
                 <!-- Draft context inputs (shown contextually) -->
-                <div id="aiDraftContext" style="display:none;margin-top:10px;">
+                <div id="aiDraftContext" class="ai-draft-context">
                   <div id="aiDraftContextFields"></div>
-                  <button id="btnSubmitDraft" class="btn btn-primary btn-sm" style="margin-top:8px;" type="button">Generate draft</button>
+                  <button id="btnSubmitDraft" class="btn btn-primary btn-sm u-mt-10" type="button">Generate draft</button>
                 </div>
               </div>
             </div>
@@ -2983,12 +2983,12 @@
     </main>
 
     <!-- Global search overlay -->
-    <div id="globalSearchOverlay" style="display:none;position:fixed;top:60px;left:50%;transform:translateX(-50%);width:min(600px,90vw);background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 8px 32px rgba(0,0,0,.5);z-index:9000;max-height:70vh;overflow-y:auto;">
-      <div id="globalSearchResults" style="padding:8px 0;"></div>
+    <div id="globalSearchOverlay" class="overlay-search">
+      <div id="globalSearchResults" class="overlay-search__results"></div>
     </div>
 
     <!-- Live region for toast/status notifications (FIX 2) -->
-    <div id="globalToastRegion" aria-live="polite" aria-atomic="true" style="position:fixed;bottom:80px;right:16px;z-index:9999;pointer-events:none;"></div>
+    <div id="globalToastRegion" class="toast-region" aria-live="polite" aria-atomic="true"></div>
   </div>
 
   <!-- FIX 10: Sign-out confirmation — intercepts before operator.js listener fires -->
@@ -3046,7 +3046,7 @@
 <script src="./operator.launch.js" defer></script>
 
   <!-- First-login walkthrough modal -->
-  <div id="tourModal" class="tour-modal" role="dialog" aria-modal="true" aria-labelledby="tour-title" style="display:none">
+  <div id="tourModal" class="tour-modal hidden" role="dialog" aria-modal="true" aria-labelledby="tour-title">
     <div class="tour-backdrop"></div>
     <div class="tour-card">
 
@@ -3236,12 +3236,12 @@
   window.tourBack = function(){ goTo(step-1); };
   window.tourFinish = function(){
     localStorage.setItem(TOUR_KEY,'1');
-    modal().style.display='none';
+    modal().classList.add('hidden');
   };
 
   window.showTour = function(){
     goTo(1);
-    modal().style.display='flex';
+    modal().classList.remove('hidden');
   };
 
   document.querySelector('.tour-backdrop').addEventListener('click', window.tourFinish);
@@ -3253,7 +3253,7 @@
   function maybeAutoShowTour(){
     if (canAutoShowTour()) {
       goTo(1);
-      modal().style.display = 'flex';
+      modal().classList.remove('hidden');
       return;
     }
 

@@ -641,7 +641,7 @@ function initBookingsWorkspaceBindings() {
     if (countEl) countEl.textContent = result.message;
   };
   ruleEl?.addEventListener("change", () => {
-    if (optionsEl) optionsEl.style.display = ruleEl.value ? "block" : "none";
+    if (optionsEl) optionsEl.classList.toggle("u-hidden", !ruleEl.value);
     updateRecurrenceMessage();
   });
   endEl?.addEventListener("change", updateRecurrenceMessage);
@@ -762,7 +762,7 @@ function initBookingsWorkspaceBindings() {
       });
       const recurrenceRuleEl = $("bkRecurrenceRule");
       if (recurrenceRuleEl) recurrenceRuleEl.value = "";
-      if (optionsEl) optionsEl.style.display = "none";
+      if (optionsEl) optionsEl.classList.add("u-hidden");
       if (endEl) endEl.value = "";
       button.disabled = false;
       await renderBookings();
