@@ -6,7 +6,7 @@
     productName: tenant.platformName || "ProofLink",
     tenantName: tenant.businessName || "Tenant",
     tenantLogoUrl: branding.tenantLogoUrl || "/assets/logo.png",
-    platformLogoUrl: branding.platformLogoUrl || "/assets/prooflink-logo.png",
+    platformLogoUrl: branding.platformLogoUrl || "/assets/logo.png",
     accent: branding.accent || "#c9a227",
     // Keep the operator console readable and stable even when the tenant
     // website uses dramatic brand colors that work poorly for internal tools.

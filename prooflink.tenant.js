@@ -29,7 +29,7 @@ window.PROOFLINK_TENANT = window.PROOFLINK_TENANT || {
 
   branding: {
     tenantLogoUrl: "/assets/logo.png",
-    platformLogoUrl: "/assets/cottagelink-logo.png",
+    platformLogoUrl: "/assets/logo.png",
     faviconPng: "/assets/favicon.png",
     faviconIco: "/favicon.ico",
     accent: "#c9a227",

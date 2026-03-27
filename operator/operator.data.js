@@ -4,7 +4,7 @@
   const cfg = window.PROOFLINK_CONFIG || {};
   const tenant = cfg.tenant || window.PROOFLINK_TENANT || {};
   const backend = tenant.backend || {};
-  const KEY = backend.orderBridgeKey || "cottagelink_operator_order_bridge_v1";
+  const KEY = backend.orderBridgeKey || "prooflink_operator_order_bridge_v1";
   const TENANT_ID = tenant.id || "default";
 
   function safeParse(raw) {

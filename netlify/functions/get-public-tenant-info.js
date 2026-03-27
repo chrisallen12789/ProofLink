@@ -203,7 +203,7 @@ function toResponse(tenant, cfg) {
       },
       branding: {
         tenantLogoUrl: clean(cfg.logo_url || tenant.logo_url || '/assets/logo.png') || '/assets/logo.png',
-        platformLogoUrl: '/assets/cottagelink-logo.png',
+        platformLogoUrl: '/assets/logo.png',
         faviconPng: '/assets/favicon.png',
         faviconIco: '/favicon.ico',
         accent: palette.accent,

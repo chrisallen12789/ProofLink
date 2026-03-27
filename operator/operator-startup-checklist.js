@@ -52,6 +52,14 @@ function renderStartupChecklist() {
       <span class="pill" style="margin-left:8px;">${escapeHtml(item.action)}</span>
     </button>
   `).join("");
+
+  // Auto-hide the checklist card once every item is completed
+  const doc = typeof document !== "undefined" ? document : null;
+  const card = doc?.getElementById?.("sideChecklistCard");
+  if (card) {
+    const allDone = items.every((item) => item.done);
+    card.style.display = allDone ? "none" : "";
+  }
 }
 
 let STARTUP_CHECKLIST_BINDINGS_BOUND = false;
