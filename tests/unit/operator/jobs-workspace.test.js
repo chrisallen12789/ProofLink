@@ -175,4 +175,22 @@ describe("operator jobs workspace", () => {
     ]));
     expect(summary.nextStep).toContain("Link a customer");
   });
+
+  test("buildJobCloseoutGuidance keeps payment follow-through visible after field work is done", () => {
+    const { context } = loadJobsWorkspace({
+      formatUsd: vi.fn((value) => `$${value}`),
+      normalizeWorkflowStatusValue: vi.fn((value) => value),
+    });
+
+    const guidance = context.buildJobCloseoutGuidance(
+      { status: "completed" },
+      null,
+      { blockers: [], nextStep: "" },
+      8500
+    );
+
+    expect(guidance.title).toBe("Field work is done, and payment is the next move");
+    expect(guidance.description).toContain("invoice");
+    expect(guidance.chips).toContain("$8500 still open");
+  });
 });

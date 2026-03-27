@@ -1,5 +1,39 @@
 // Order workspace extracted from operator.js so list rendering, detail actions,
 // and follow-through behavior stay together in one domain module.
+function orderCollectionGuidance(order, amountDue, paymentState, depositGap, recentOrderPayment) {
+  const hasEmail = !!String(order?.customer_email || order?.email || "").trim();
+  if (amountDue <= 0) {
+    return {
+      title: "This work is financially closed",
+      description: recentOrderPayment
+        ? `The most recent payment landed ${formatDateTime(recentOrderPayment.paid_at || recentOrderPayment.created_at || recentOrderPayment.updated_at)}. The next move is retention, review follow-up, or repeat work.`
+        : "No balance is left open on this work record.",
+    };
+  }
+  if (depositGap > 0) {
+    return {
+      title: "The deposit still needs attention",
+      description: hasEmail
+        ? "Collect the deposit or send the reminder before the schedule gets ahead of the cash."
+        : "Record the deposit here, and add an email address if you want reminders and invoice follow-through from the same record.",
+    };
+  }
+  if (paymentState === "overdue") {
+    return {
+      title: "Payment follow-up is overdue",
+      description: hasEmail
+        ? "Send the reminder from this record, then keep the balance visible until it is fully collected."
+        : "Record the next payment here. Adding an email address will unlock reminder follow-through from this same record.",
+    };
+  }
+  return {
+    title: "Payment is still open",
+    description: hasEmail
+      ? "Keep the invoice and the reminder flow attached to this record so the customer sees one clear path to pay."
+      : "Record the payment here, and add an email address if you want invoice and reminder follow-through in the same place.",
+  };
+}
+
 function renderOrders() {
   if (!ordersList) return;
   renderPipelineWorkspace();
@@ -73,7 +107,7 @@ function renderOrders() {
     btn.addEventListener('click', async () => {
       FETCH_OFFSETS.orders += PAGE_SIZE;
       btn.disabled = true;
-      btn.textContent = 'Loading…';
+      btn.textContent = "Loading...";
       await fetchCrmOrders();
       renderOrders();
     });
@@ -102,6 +136,7 @@ function renderOrders() {
   const depositDueDate = orderDepositDueDate(active);
   const orderPayments = sortedPayments(PAYMENTS_CACHE.filter((payment) => payment.order_id === active.id));
   const recentOrderPayment = orderPayments[0] || null;
+  const collectionGuidance = orderCollectionGuidance(active, amountDue, paymentState, depositGap, recentOrderPayment);
   const orderFollowThroughActions = [
     ["completed", "fulfilled"].includes(String(active.status || "").toLowerCase()) && active.customer_email
       ? { id: "btnRequestReview", label: active.review_requested_at ? "Review requested" : "Request review", className: "btn btn-ghost btn-sm", disabled: !!active.review_requested_at }
@@ -150,7 +185,7 @@ function renderOrders() {
       summary: [
         { label: "Order value", value: formatUsd(totalCents), note: "Committed work total" },
         { label: "Paid so far", value: formatUsd(amountPaid), note: "Money already collected" },
-        { label: "Due now", value: formatUsd(amountDue), note: paymentState === "overdue" ? "Past due" : "Still open", tone: paymentState === "overdue" ? "pill-bad" : "" },
+        { label: "Due now", value: formatUsd(amountDue), note: paymentState === "overdue" ? "Needs payment follow-up" : "Still open", tone: paymentState === "overdue" ? "pill-bad" : "" },
         { label: "Deposit", value: depositGap > 0 ? `${formatUsd(depositGap)} open` : formatUsd(depositPaid), note: depositStatus === "not_required" ? "No deposit required" : formatDepositStatus(depositStatus) },
       ],
     })}
@@ -172,7 +207,7 @@ function renderOrders() {
         const used  = Number(active.package_sessions_used || 0);
         const remaining = Math.max(0, total - used);
         const pct = total > 0 ? Math.round(remaining / total * 10) : 0;
-        const bar = '█'.repeat(pct) + '░'.repeat(10 - pct);
+        const bar = '#'.repeat(pct) + '-'.repeat(10 - pct);
         return `<div class="detail-copy">Sessions: ${remaining} remaining of ${total} &nbsp;[${bar}]&nbsp; (used ${used})</div>
         ${active.package_valid_until ? `<div class="detail-copy">Valid until ${new Date(active.package_valid_until).toLocaleDateString()}</div>` : ''}`;
       })() : `<div class="detail-copy">Bills every ${escapeHtml(String(active.recurrence_interval_days || 30))} days</div>`}
@@ -193,9 +228,9 @@ function renderOrders() {
         <button id="btnCollectOrderDeposit" class="btn btn-ghost" type="button">${depositGap > 0 ? "Collect deposit" : "Record payment"}</button>
         <button id="btnRecordOrderPayment" class="btn btn-ghost" type="button">Record payment</button>
         <button id="btnOpenOrderCustomer" class="btn btn-ghost" type="button">Open customer</button>
-        <button id="btnDownloadInvoice" class="btn btn-ghost" type="button">⬇ Invoice PDF</button>
-        <button id="btnSetupRecurring" class="btn btn-ghost" type="button">🔁 Make recurring</button>
-        ${active.customer_phone ? `<button id="btnOrderSms" class="btn btn-ghost" type="button">💬 Text customer</button>` : ""}
+        <button id="btnDownloadInvoice" class="btn btn-ghost" type="button">Download invoice PDF</button>
+        <button id="btnSetupRecurring" class="btn btn-ghost" type="button">Make recurring</button>
+        ${active.customer_phone ? `<button id="btnOrderSms" class="btn btn-ghost" type="button">Text customer</button>` : ""}
       </div>
       <div id="recurringSetupPanel" style="display:none;margin-top:12px;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:8px;padding:12px;">
         <div class="row" style="gap:8px;align-items:end;flex-wrap:wrap;">
@@ -219,7 +254,7 @@ function renderOrders() {
         <div style="font-size:.8rem;color:rgba(255,255,255,.5);margin-bottom:8px;">Texting ${escapeHtml(active.customer_name || "customer")} at ${escapeHtml(active.customer_phone)}</div>
         <div id="orderSmsThread" style="max-height:200px;overflow-y:auto;margin-bottom:8px;"></div>
         <div class="row" style="gap:8px;">
-          <input id="orderSmsInput" type="text" style="flex:1;" placeholder="Type a message…" />
+          <input id="orderSmsInput" type="text" style="flex:1;" placeholder="Type a message..." />
           <button id="btnOrderSmsSend" class="btn btn-primary btn-sm" type="button">Send</button>
         </div>
         <div id="orderSmsMsg" class="msg"></div>
@@ -295,7 +330,7 @@ function renderOrders() {
             </label>
           </div>
           <label class="field" style="margin-top:8px;">Description (optional)
-            <textarea id="quoteDescription" rows="2" placeholder="Scope of work, inclusions, terms…" style="width:100%;resize:vertical;">${escapeHtml(active.notes || '')}</textarea>
+            <textarea id="quoteDescription" rows="2" placeholder="Scope of work, inclusions, terms..." style="width:100%;resize:vertical;">${escapeHtml(active.notes || '')}</textarea>
           </label>
           <div class="row" style="gap:8px;margin-top:10px;">
             <button id="btnSubmitQuote" class="btn btn-primary btn-sm" type="button">Send quote</button>
@@ -305,10 +340,19 @@ function renderOrders() {
         <div id="orderNotifyMsg" class="msg" style="margin-top:8px;"></div>
       `,
     })}
+    <div class="detail-card" style="margin-top:14px;">
+      <div class="kicker">Collection guidance</div>
+      <div><strong>${escapeHtml(collectionGuidance.title)}</strong></div>
+      <div class="detail-copy">${escapeHtml(collectionGuidance.description)}</div>
+      <div class="workspace-chip-row" style="margin-top:10px;">
+        <span class="pill ${amountDue > 0 ? "pill-bad" : "pill-good"}">${escapeHtml(amountDue > 0 ? `${formatUsd(amountDue)} still open` : "Nothing outstanding")}</span>
+        <span class="pill">${escapeHtml(depositGap > 0 ? `${formatUsd(depositGap)} deposit open` : "Deposit handled or not required")}</span>
+      </div>
+    </div>
 
     <div class="detail-card" style="margin-top:14px;" id="phasesSection">
       <div class="kicker" style="cursor:pointer;user-select:none;display:flex;align-items:center;justify-content:space-between;" id="phasesToggle">
-        <span>Project phases ▸</span>
+        <span>Project phases (show)</span>
         <button class="btn btn-ghost" style="font-size:.72rem;padding:2px 8px;" onclick="event.stopPropagation();openAddPhaseModal('${escapeAttr(active.id)}')">+ Phase</button>
       </div>
       <div id="phasesBody" style="display:none;margin-top:10px;"></div>
@@ -316,7 +360,7 @@ function renderOrders() {
 
     <div class="detail-card" style="margin-top:14px;" id="timeLoggedSection">
       <div class="kicker" style="cursor:pointer;user-select:none;display:flex;align-items:center;justify-content:space-between;" id="timeLoggedToggle">
-        <span>Time logged ▸</span>
+        <span>Time logged (show)</span>
         <button class="btn btn-ghost" style="font-size:.72rem;padding:2px 8px;" onclick="event.stopPropagation();openLogTimeModal('${escapeAttr(active.id)}')">+ Log Time</button>
       </div>
       <div id="timeLoggedBody" style="display:none;margin-top:10px;"></div>
@@ -329,10 +373,10 @@ function renderOrders() {
     const body   = document.getElementById('phasesBody');
     const toggle = document.getElementById('phasesToggle')?.querySelector('span');
     if (!body) return;
-    if (body.style.display !== 'none') { body.style.display = 'none'; if (toggle) toggle.textContent = 'Project phases ▸'; return; }
+    if (body.style.display !== 'none') { body.style.display = 'none'; if (toggle) toggle.textContent = 'Project phases (show)'; return; }
     body.style.display = 'block';
-    if (toggle) toggle.textContent = 'Project phases ▾';
-    body.innerHTML = '<div class="muted" style="font-size:.82rem;">Loading…</div>';
+    if (toggle) toggle.textContent = 'Project phases (hide)';
+    body.innerHTML = '<div class="muted" style="font-size:.82rem;">Loading...</div>';
     await loadPhasesIntoEl(active.id, body);
   });
 
@@ -342,19 +386,19 @@ function renderOrders() {
     const body   = document.getElementById("timeLoggedBody");
     const toggle = document.getElementById("timeLoggedToggle")?.querySelector("span");
     if (!body) return;
-    if (body.style.display !== "none") { body.style.display = "none"; if (toggle) toggle.textContent = "Time logged ▸"; return; }
-    if (toggle) toggle.textContent = "Time logged ▾";
+    if (body.style.display !== "none") { body.style.display = "none"; if (toggle) toggle.textContent = "Time logged (show)"; return; }
+    if (toggle) toggle.textContent = "Time logged (hide)";
     body.style.display = "block";
     await renderTimeEntries(active.id);
   });
 
-  // Time → Invoice button
+  // Time to invoice button
   document.addEventListener("click", async (ev) => {
     if (ev.target?.id !== "btnTimeToInvoice") return;
     const orderId = ACTIVE_ORDER_ID;
     if (!orderId) return;
     ev.target.disabled = true;
-    ev.target.textContent = "Working…";
+    ev.target.textContent = "Working...";
     try {
       const tok = await getAccessToken();
       const res = await fetch("/.netlify/functions/time-to-invoice", {
@@ -374,7 +418,7 @@ function renderOrders() {
     } catch (err) {
       showToast("Error: " + err.message);
     } finally {
-      if (ev.target) { ev.target.disabled = false; ev.target.textContent = "⚡ Add uninvoiced hours to invoice"; }
+      if (ev.target) { ev.target.disabled = false; ev.target.textContent = "Add uninvoiced hours to invoice"; }
     }
   });
 
@@ -514,7 +558,7 @@ function renderOrders() {
       });
       const d = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(d.error || "Failed to send review request");
-      btn.textContent = "✓ Review requested";
+      btn.textContent = "Review requested";
       CRM_ORDERS_CACHE = CRM_ORDERS_CACHE.map((row) =>
         row.id === active.id ? { ...row, review_requested_at: new Date().toISOString() } : row
       );
@@ -529,7 +573,7 @@ function renderOrders() {
     const msg = $("orderNotifyMsg");
     if (!btn) return;
     btn.disabled = true;
-    if (msg) { msg.textContent = "Sending…"; msg.className = "msg"; }
+    if (msg) { msg.textContent = "Sending..."; msg.className = "msg"; }
     try {
       const tok = await getAccessToken();
       const res = await fetch("/.netlify/functions/send-order-notification", {
@@ -539,7 +583,7 @@ function renderOrders() {
       });
       const d = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(d.error || "Failed to send");
-      if (msg) { msg.textContent = "✓ Customer notified!"; msg.className = "msg success"; }
+      if (msg) { msg.textContent = "Customer notified."; msg.className = "msg success"; }
     } catch (err) {
       if (msg) { msg.textContent = err.message || "Error sending."; msg.className = "msg error"; }
     }
@@ -551,7 +595,7 @@ function renderOrders() {
     const msg = $("orderNotifyMsg");
     if (!btn) return;
     btn.disabled = true;
-    if (msg) { msg.textContent = "Sending invoice…"; msg.className = "msg"; }
+    if (msg) { msg.textContent = "Sending invoice..."; msg.className = "msg"; }
     try {
       const tok = await getAccessToken();
       const res = await fetch("/.netlify/functions/send-invoice-email", {
@@ -561,7 +605,7 @@ function renderOrders() {
       });
       const d = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(d.error || "Failed to send");
-      if (msg) { msg.textContent = "✓ Invoice emailed!"; msg.className = "msg success"; }
+      if (msg) { msg.textContent = "Invoice emailed."; msg.className = "msg success"; }
     } catch (err) {
       if (msg) { msg.textContent = err.message || "Error sending."; msg.className = "msg error"; }
     }
@@ -573,7 +617,7 @@ function renderOrders() {
     const msg = $("orderNotifyMsg");
     if (!btn) return;
     btn.disabled = true;
-    if (msg) { msg.textContent = "Sending reminder…"; msg.className = "msg"; }
+    if (msg) { msg.textContent = "Sending reminder..."; msg.className = "msg"; }
     try {
       const tok = await getAccessToken();
       const res = await fetch("/.netlify/functions/send-payment-reminder", {
@@ -583,7 +627,7 @@ function renderOrders() {
       });
       const d = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(d.error || "Failed to send");
-      if (msg) { msg.textContent = "✓ Payment reminder sent!"; msg.className = "msg success"; }
+      if (msg) { msg.textContent = "Payment reminder sent."; msg.className = "msg success"; }
     } catch (err) {
       if (msg) { msg.textContent = err.message || "Error sending."; msg.className = "msg error"; }
     }
@@ -628,7 +672,7 @@ function renderOrders() {
     }
 
     if (btn) btn.disabled = true;
-    if (msg) { msg.textContent = "Sending quote…"; msg.className = "msg"; }
+    if (msg) { msg.textContent = "Sending quote..."; msg.className = "msg"; }
 
     try {
       const tok = await getAccessToken();
@@ -639,7 +683,7 @@ function renderOrders() {
       });
       const d = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(d.error || "Failed to send quote");
-      if (msg) { msg.textContent = `✓ Quote sent to ${customerEmail}!`; msg.className = "msg success"; }
+      if (msg) { msg.textContent = `Quote sent to ${customerEmail}.`; msg.className = "msg success"; }
       const panel = $("quoteFormPanel");
       if (panel) panel.style.display = "none";
     } catch (err) {
@@ -670,7 +714,7 @@ function renderOrders() {
     const nd   = $("recurringNextDate")?.value;
     if (!freq || !nd) { if (msg) { msg.textContent = "Select frequency and date."; msg.className = "msg error"; } return; }
     btn.disabled = true;
-    if (msg) { msg.textContent = "Saving…"; msg.className = "msg"; }
+    if (msg) { msg.textContent = "Saving..."; msg.className = "msg"; }
     try {
       const tok = await getAccessToken();
       const res = await fetch("/.netlify/functions/create-recurring-order", {
@@ -680,8 +724,8 @@ function renderOrders() {
       });
       const d = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(d.error || "Failed to save");
-      if (msg) { msg.textContent = "✓ Recurring schedule saved!"; msg.className = "msg success"; }
-      $("btnSetupRecurring").textContent = "🔁 Recurring: " + freq;
+      if (msg) { msg.textContent = "Recurring schedule saved."; msg.className = "msg success"; }
+      $("btnSetupRecurring").textContent = "Recurring: " + freq;
     } catch (err) {
       if (msg) { msg.textContent = err.message || "Error saving."; msg.className = "msg error"; }
       btn.disabled = false;
@@ -745,7 +789,7 @@ function renderOrders() {
         </div>`;
         thread.scrollTop = thread.scrollHeight;
       }
-      if (msg) { msg.textContent = "✓ Sent"; msg.className = "msg success"; setTimeout(() => { if (msg) { msg.textContent = ""; msg.className = "msg"; } }, 2000); }
+      if (msg) { msg.textContent = "Message sent."; msg.className = "msg success"; setTimeout(() => { if (msg) { msg.textContent = ""; msg.className = "msg"; } }, 2000); }
     } catch (err) {
       if (msg) { msg.textContent = err.message || "Error sending."; msg.className = "msg error"; }
     }
@@ -898,7 +942,7 @@ function renderOrders() {
     const approved = await showConfirmModal(`Add "${name}"${email ? ` (${email})` : ""} to your customer list?`, "Add customer", "Keep as-is");
     if (!approved) return;
     btn.disabled = true;
-    btn.textContent = "Adding…";
+    btn.textContent = "Adding...";
     try {
       const { data, error } = await sb.from("customers").insert({
         tenant_id: TENANT_ID,
@@ -913,11 +957,11 @@ function renderOrders() {
       if (error) throw error;
       await fetchCustomers();
       renderCustomersList(customerSearch?.value || "");
-      btn.textContent = "✓ Added to CRM";
+      btn.textContent = "Added to CRM";
       btn.style.color = "#4ade80";
     } catch (err) {
       btn.disabled = false;
-      btn.textContent = "+ Add customer to CRM";
+      btn.textContent = "Add customer to CRM";
       notifyOperator("Failed to add customer: " + (err.message || String(err)));
     }
   });

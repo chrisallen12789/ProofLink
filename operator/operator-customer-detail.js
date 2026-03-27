@@ -48,19 +48,148 @@
       : [];
   }
 
+  function customerMemoryChecklist(customer, blueprint = (typeof currentWorkspaceBlueprint === "function" ? currentWorkspaceBlueprint() : { business: { key: "service_business" } })) {
+    const businessKey = String(blueprint?.business?.key || "service_business").trim().toLowerCase();
+    const address = customerDisplayAddress(customer);
+    const hasAddress = address !== "No service address yet.";
+    const hasAny = (...values) => values.some((value) => String(value || "").trim());
+    const detail = (label, ready, readyNote, missingNote) => ({
+      label,
+      ready: !!ready,
+      note: ready ? readyNote : missingNote,
+    });
+
+    const propertyItems = [
+      detail(
+        "Property profile",
+        hasAddress,
+        address,
+        "Add the service address and the property details the crew should not have to relearn."
+      ),
+      detail(
+        "Access notes",
+        hasAny(customer?.access_notes, customer?.gate_notes, customer?.service_notes, customer?.notes),
+        customer?.access_notes || customer?.gate_notes || customer?.service_notes || customer?.notes || "",
+        "Capture gate codes, entry notes, parking, or site access details for repeat visits."
+      ),
+      detail(
+        "Repeat-service memory",
+        hasAny(customer?.service_schedule, customer?.frequency, customer?.recurring_notes, customer?.service_plan_name),
+        customer?.service_schedule || customer?.frequency || customer?.recurring_notes || customer?.service_plan_name || "",
+        "Capture cadence, route timing, or repeat-work preferences so follow-up stays easy."
+      ),
+    ];
+
+    const indoorServiceItems = [
+      detail(
+        "Site profile",
+        hasAddress,
+        address,
+        "Add the service address so the next visit starts from a real site record."
+      ),
+      detail(
+        "Access instructions",
+        hasAny(customer?.access_notes, customer?.alarm_notes, customer?.entry_notes, customer?.notes),
+        customer?.access_notes || customer?.alarm_notes || customer?.entry_notes || customer?.notes || "",
+        "Capture entry, alarm, parking, or on-site contact notes for the team."
+      ),
+      detail(
+        "Scope memory",
+        hasAny(customer?.service_notes, customer?.scope_notes, customer?.preferences, customer?.notes),
+        customer?.service_notes || customer?.scope_notes || customer?.preferences || customer?.notes || "",
+        "Record the scope details, add-ons, or room-by-room expectations that protect repeat quality."
+      ),
+    ];
+
+    const equipmentItems = [
+      detail(
+        "Equipment history",
+        hasAny(customer?.equipment_notes, customer?.system_notes, customer?.asset_summary, customer?.notes),
+        customer?.equipment_notes || customer?.system_notes || customer?.asset_summary || customer?.notes || "",
+        "Capture the system, fixture, or asset context so diagnostics and repeat work start faster."
+      ),
+      detail(
+        "Site and access",
+        hasAddress || hasAny(customer?.access_notes, customer?.entry_notes),
+        hasAddress ? address : (customer?.access_notes || customer?.entry_notes || ""),
+        "Add the site details, tenant notes, or access information the technician needs on arrival."
+      ),
+      detail(
+        "Follow-up context",
+        hasAny(customer?.maintenance_notes, customer?.service_schedule, customer?.follow_up_notes, customer?.notes),
+        customer?.maintenance_notes || customer?.service_schedule || customer?.follow_up_notes || customer?.notes || "",
+        "Capture maintenance-plan context, return-visit risk, or parts follow-up before it slips."
+      ),
+    ];
+
+    const map = {
+      landscaping: propertyItems,
+      property_maintenance: propertyItems,
+      pressure_washing: propertyItems,
+      cleaning: indoorServiceItems,
+      pet_services: indoorServiceItems,
+      hvac: equipmentItems,
+      plumbing: equipmentItems,
+    };
+
+    return map[businessKey] || customerTemplateRecordFocus().map((item) => ({
+      label: "Relationship memory",
+      ready: hasAny(customer?.notes, customer?.service_notes, customer?.preferences),
+      note: hasAny(customer?.notes, customer?.service_notes, customer?.preferences)
+        ? (customer?.service_notes || customer?.preferences || customer?.notes || item)
+        : item,
+    }));
+  }
+
+  function customerCollectionGuidance(customer, customerOrders, customerPayments, balance) {
+    const latestPayment = customerPayments[0] || null;
+    const latestOrder = customerOrders[0] || null;
+    const hasEmail = !!String(customer?.email || latestOrder?.customer_email || "").trim();
+    if (!customerOrders.length) {
+      return {
+        title: "No money follow-through yet",
+        description: "Once this customer has approved work, this record will keep billing, payment, and the next customer-facing step in one place.",
+      };
+    }
+    if (balance <= 0 && latestPayment) {
+      return {
+        title: "This customer is paid up",
+        description: `The most recent payment landed ${formatDateTime(latestPayment.paid_at || latestPayment.created_at || latestPayment.updated_at)}. Keep the next follow-up focused on repeat work or reviews.`,
+      };
+    }
+    if (balance > 0 && !latestPayment) {
+      return {
+        title: "The first payment step is still open",
+        description: hasEmail
+          ? "Send the invoice or collect the first payment while the work is still fresh for the customer."
+          : "Record the payment here, and add an email address if you want invoice and reminder follow-through from the same record.",
+      };
+    }
+    return {
+      title: "There is still money to collect",
+      description: hasEmail
+        ? "Use this record to send the next reminder, log the payment, and keep the balance visible until it is fully closed."
+        : "Record the next payment here. Adding an email address will also unlock invoice and reminder follow-through from this record.",
+    };
+  }
+
   function renderCustomerRecordFocusCard() {
-    const focus = customerTemplateRecordFocus();
+    const customer = global.CURRENT_CUSTOMER_DETAIL_CUSTOMER || null;
+    const blueprint = typeof currentWorkspaceBlueprint === "function"
+      ? currentWorkspaceBlueprint()
+      : { business: { key: "service_business" } };
+    const focus = customerMemoryChecklist(customer, blueprint);
     if (!focus.length) return "";
     return `
       <div class="detail-card" style="margin-top:14px;">
-        <div class="kicker">Relationship memory</div>
-        <div><strong>Keep the details this business lives on</strong></div>
+        <div class="kicker">Business-specific memory</div>
+        <div><strong>Keep the details this business depends on</strong></div>
         <div class="detail-copy">Use this customer record to hold the repeat details the team should not have to relearn on every visit.</div>
         <div style="margin-top:10px;display:grid;gap:8px;">
-          ${focus.map((item, index) => `
-            <div style="padding:10px 12px;border:1px solid rgba(255,255,255,.08);border-radius:10px;background:rgba(255,255,255,.03);">
-              <div style="font-weight:700;">${escapeHtml(`Focus ${index + 1}`)}</div>
-              <div class="detail-copy" style="margin-top:4px;">${escapeHtml(item)}</div>
+          ${focus.map((item) => `
+            <div style="padding:10px 12px;border:1px solid rgba(255,255,255,.08);border-radius:10px;background:${item.ready ? "rgba(46,125,50,.10)" : "rgba(255,255,255,.03)"};">
+              <div style="font-weight:700;">${escapeHtml(item.ready ? `Ready: ${item.label}` : `Still needed: ${item.label}`)}</div>
+              <div class="detail-copy" style="margin-top:4px;">${escapeHtml(item.note)}</div>
             </div>
           `).join("")}
         </div>
@@ -144,6 +273,7 @@
 
   async function renderCustomerDetailWorkspace(customerIdValue, customer) {
     if (!customerDetailWrap) return;
+    global.CURRENT_CUSTOMER_DETAIL_CUSTOMER = customer || null;
     if (!customer) {
       customerDetailWrap.innerHTML = `
         <div class="detail-card">
@@ -174,6 +304,7 @@
     const address = customerDisplayAddress(customer);
     const latestInteraction = interactions[0] || null;
     const latestPayment = customerPayments[0] || null;
+    const collectionGuidance = customerCollectionGuidance(customer, customerOrders, customerPayments, balance);
     const lastTouchValue = customer.last_contact_at || latestInteraction?.created_at || "";
     const hasActiveOrders = CRM_ORDERS_CACHE.some((o) => o.customer_id === customerIdValue && !["completed", "cancelled", "archived"].includes(String(o.status || "").toLowerCase()));
     const hasActiveJobs = JOBS_CACHE.some((job) => job.customer_id === customerIdValue && !["completed", "cancelled", "archived"].includes(String(job.status || "").toLowerCase()));
@@ -345,6 +476,7 @@
             <button type="button" class="btn btn-primary" data-customer-action="payment">Record payment</button>
             <button type="button" class="btn btn-ghost" data-customer-action="payments">Open payments</button>
           </div>
+          <div class="detail-copy" style="margin-top:10px;">${escapeHtml(collectionGuidance.description)}</div>
           <div class="customer-money-grid">
             <div class="customer-money-card">
               <span>Total billed</span>
@@ -366,6 +498,15 @@
       </div>
 
       <div class="grid two" style="margin-top:14px;">
+        <div class="detail-card">
+          <div class="kicker">Collection guidance</div>
+          <div><strong>${escapeHtml(collectionGuidance.title)}</strong></div>
+          <div class="detail-copy">${escapeHtml(collectionGuidance.description)}</div>
+          <div class="workspace-chip-row" style="margin-top:10px;">
+            <span class="pill ${balance > 0 ? "pill-bad" : "pill-good"}">${escapeHtml(balance > 0 ? `${formatUsd(balance)} still open` : "Nothing outstanding")}</span>
+            <span class="pill">${escapeHtml(latestPayment ? `Recent payment ${formatUsd(paymentAmountCents(latestPayment))}` : "No payment recorded yet")}</span>
+          </div>
+        </div>
         ${renderRecordFollowThroughCard({
           eyebrow: "Follow-through",
           title: "Keep the relationship warm and collectible",
@@ -516,6 +657,8 @@
     customerBids,
     bidGrandTotalCents,
     customerJobs,
+    customerMemoryChecklist,
+    customerCollectionGuidance,
     openCustomerRequestDraft,
     openCustomerBidDraft,
     openCustomerPaymentDraft,

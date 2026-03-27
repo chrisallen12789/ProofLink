@@ -47,4 +47,45 @@ describe("operator customer detail", () => {
       ],
     })).toBe(42000);
   });
+
+  test("customerMemoryChecklist reflects repeat-service memory for landscaping", () => {
+    const api = loadCustomerDetail();
+
+    const items = api.customerMemoryChecklist({
+      address_line1: "123 Main St",
+      city: "Tulsa",
+      state: "OK",
+      zip: "74103",
+      access_notes: "Gate code 4421",
+      service_plan_name: "Weekly mow",
+    }, {
+      business: {
+        key: "landscaping",
+      },
+    });
+
+    expect(items).toHaveLength(3);
+    expect(items.map((item) => item.label)).toEqual([
+      "Property profile",
+      "Access notes",
+      "Repeat-service memory",
+    ]);
+    expect(items.every((item) => item.ready)).toBe(true);
+  });
+
+  test("customerCollectionGuidance highlights the first payment step when money is still open", () => {
+    const api = loadCustomerDetail({
+      formatDateTime: (value) => `formatted:${value}`,
+    });
+
+    const guidance = api.customerCollectionGuidance(
+      { email: "owner@example.com" },
+      [{ id: "order_1" }],
+      [],
+      15000
+    );
+
+    expect(guidance.title).toBe("The first payment step is still open");
+    expect(guidance.description).toContain("Send the invoice");
+  });
 });

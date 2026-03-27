@@ -197,6 +197,42 @@ function renderJobReadinessCard(summary) {
   `;
 }
 
+function buildJobCloseoutGuidance(job, order, readiness, amountDueCents) {
+  const fieldStatus = normalizeWorkflowStatusValue(job?.status || "scheduled");
+  if (readiness?.blockers?.length) {
+    return {
+      title: "Clear the blockers before closeout",
+      description: readiness.nextStep || "Clear the missing customer, schedule, compliance, or load details before the crew tries to close this job out.",
+      chips: [
+        `${readiness.blockers.length} blocker${readiness.blockers.length === 1 ? "" : "s"} open`,
+        amountDueCents > 0 ? `${formatUsd(amountDueCents)} still open` : "No payment blocker",
+      ],
+    };
+  }
+  if (fieldStatus === "completed") {
+    return {
+      title: amountDueCents > 0 ? "Field work is done, and payment is the next move" : "This job is ready to stay closed",
+      description: amountDueCents > 0
+        ? "The field work is complete. Keep the invoice, reminder, or collection follow-through attached here until the balance is cleared."
+        : "The key field details are in place. Keep this record tied to the customer and booked work so future service starts from history instead of guesswork.",
+      chips: [
+        "Crew updates captured",
+        amountDueCents > 0 ? `${formatUsd(amountDueCents)} still open` : "Nothing outstanding",
+      ],
+    };
+  }
+  return {
+    title: "Leave the job easy to finish",
+    description: amountDueCents > 0
+      ? "Before the crew leaves, save the field note, make sure the work status is current, and decide whether payment should be collected or followed up right away."
+      : "Before the crew leaves, save the field note and make sure the work status and customer context reflect what actually happened on site.",
+    chips: [
+      titleCaseWords(String(job?.status || "scheduled").replace(/_/g, " ")),
+      amountDueCents > 0 ? `${formatUsd(amountDueCents)} still open` : "No balance open",
+    ],
+  };
+}
+
 function renderTemplateRecordFocusCard(blueprint = jobsWorkspaceBlueprint()) {
   const focus = jobTemplateRecordFocus(blueprint);
   if (!focus.length) return "";
@@ -256,6 +292,7 @@ async function renderJobDetail(jobIdValue) {
     : null;
   const fieldStatus = normalizeWorkflowStatusValue(job.status || "scheduled");
   const fieldDueNow = Number(job.amount_due_cents || orderAmountDueCents(order) || 0);
+  const closeoutGuidance = buildJobCloseoutGuidance(job, order, readiness, fieldDueNow);
   const fieldActionButtons = [
     ["scheduled", "dispatched"].includes(fieldStatus) ? { label: "Start work", className: "btn btn-primary", data: { "job-field-action": "start" } } : null,
     fieldStatus === "blocked" ? { label: "Resume work", className: "btn btn-primary", data: { "job-field-action": "resume" } } : null,
@@ -326,6 +363,14 @@ async function renderJobDetail(jobIdValue) {
         <div id="jobFieldUpdateMsg" class="msg" style="margin-top:8px;"></div>
       `,
     })}
+    <div class="detail-card" style="margin-top:14px;">
+      <div class="kicker">Closeout guidance</div>
+      <div><strong>${escapeHtml(closeoutGuidance.title)}</strong></div>
+      <div class="detail-copy">${escapeHtml(closeoutGuidance.description)}</div>
+      <div class="workspace-chip-row" style="margin-top:10px;">
+        ${closeoutGuidance.chips.map((chip) => `<span class="pill">${escapeHtml(chip)}</span>`).join("")}
+      </div>
+    </div>
     <div class="detail-card" style="margin-top:14px;">
       <div class="kicker">Job economics</div>
       <div class="workspace-chip-row">
@@ -745,6 +790,7 @@ function renderJobs(filter = "") {
 
 const JOBS_WORKSPACE_HELPERS = {
   buildJobReadinessSummary,
+  buildJobCloseoutGuidance,
   renderJobDetail,
   renderJobs,
 };
