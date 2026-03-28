@@ -61,6 +61,17 @@ function normalizeLineItem(item) {
   };
 }
 
+function maskEmail(email) {
+  const normalized = String(email || '').trim().toLowerCase();
+  if (!normalized || !normalized.includes('@')) return '';
+  const parts = normalized.split('@');
+  const local = parts[0];
+  const domain = parts[1];
+  if (!local || !domain) return '';
+  if (local.length <= 2) return `${local.charAt(0)}*@${domain}`;
+  return `${local.slice(0, 2)}***@${domain}`;
+}
+
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return respond(200, {});
 
@@ -76,6 +87,7 @@ exports.handler = async (event) => {
 
     const { action } = body;
     const bid_id = body.bid_id || body.token || body.id;
+    const submittedCustomerEmail = String(body.customer_email || '').trim().toLowerCase();
     if (action !== 'accept') return respond(400, { error: 'Invalid action' });
     if (!bid_id) return respond(400, { error: 'bid_id is required' });
 
@@ -84,7 +96,7 @@ exports.handler = async (event) => {
     // Fetch the bid so we can read tenant_id, title, customer_id
     const { data: bid, error: bidFetchErr } = await supabase
       .from('bids')
-      .select('id, tenant_id, title, status, customer_id')
+      .select('id, tenant_id, title, status, customer_id, valid_until')
       .eq('id', bid_id)
       .maybeSingle();
 
@@ -125,13 +137,19 @@ exports.handler = async (event) => {
 
     // Look up customer name for notification
     let customerName = 'A customer';
+    let customerEmail = '';
     if (bid.customer_id) {
       const { data: customer } = await supabase
         .from('customers')
-        .select('name')
+        .select('name, email')
         .eq('id', bid.customer_id)
         .maybeSingle();
       if (customer?.name) customerName = customer.name;
+      if (customer?.email) customerEmail = String(customer.email).trim().toLowerCase();
+    }
+
+    if (customerEmail && submittedCustomerEmail !== customerEmail) {
+      return respond(403, { error: 'Please enter the same email address this estimate was sent to before approving it.' });
     }
 
     // Look up tenant notification email
@@ -198,13 +216,15 @@ exports.handler = async (event) => {
 
   // Fetch customer name for display (email not exposed)
   let customerName = null;
+  let customerEmail = null;
   if (bid.customer_id) {
     const { data: customer } = await supabase
       .from('customers')
-      .select('name')
+      .select('name, email')
       .eq('id', bid.customer_id)
       .maybeSingle();
     customerName = customer?.name || null;
+    customerEmail = customer?.email || null;
   }
 
   const publicStatus = String(bid.status || '').trim().toLowerCase() === 'approved' ? 'accepted' : bid.status;
@@ -231,6 +251,7 @@ exports.handler = async (event) => {
       notes          : bid.cover_note || null,
       terms          : bid.scope_of_work || null,
       line_items     : lineItems,
+      recipient_email_hint: maskEmail(customerEmail),
     },
     id               : bid.id,
     title            : bid.title,
@@ -248,5 +269,6 @@ exports.handler = async (event) => {
     notes            : bid.cover_note || null,
     terms            : bid.scope_of_work || null,
     line_items       : lineItems,
+    recipient_email_hint: maskEmail(customerEmail),
   });
 };

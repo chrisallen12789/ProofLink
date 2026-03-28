@@ -139,7 +139,8 @@ function emailDomain(email) {
 }
 
 function normalize(str) {
-  return (str || '').toLowerCase()
+  if (typeof str !== 'string') return '';
+  return str.toLowerCase()
     .replace(/[^a-z0-9\s]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
@@ -148,6 +149,13 @@ function normalize(str) {
 function textContainsAny(text, keywords) {
   const n = normalize(text);
   return keywords.find(kw => n.includes(normalize(kw))) || null;
+}
+
+function logNonBlockingRuleError(stage, err) {
+  console.warn('[evaluate-onboarding] non-blocking rule lookup failed:', {
+    stage,
+    error: err?.message || String(err),
+  });
 }
 
 function slugIsValid(slug) {
@@ -196,7 +204,7 @@ async function runEvaluation(req, supabase) {
       if (existing) {
         reasons.push({ code: 'DUPLICATE_SLUG', verdict: 'REJECT', detail: slug });
       }
-    } catch (_) { /* log but don't fail */ }
+    } catch (err) { logNonBlockingRuleError('tenant_slug_lookup', err); }
   }
 
   // ── 3. Duplicate application (same email, non-rejected) ────────────────────
@@ -211,7 +219,7 @@ async function runEvaluation(req, supabase) {
     if (dupApp) {
       reasons.push({ code: 'DUPLICATE_APPLICATION', verdict: 'FLAG', detail: 'Existing request: ' + dupApp.status });
     }
-  } catch (_) { /* log but don't fail */ }
+  } catch (err) { logNonBlockingRuleError('duplicate_application_lookup', err); }
 
   // ── 4. Protected brand impersonation ───────────────────────────────────────
   const nameNorm  = normalize(req.business_name || '');
@@ -268,7 +276,7 @@ async function runEvaluation(req, supabase) {
         }
       }
     }
-  } catch (_) {}
+  } catch (err) { logNonBlockingRuleError('pl_banned_keywords', err); }
 
   // pl_protected_brands
   try {
@@ -282,7 +290,7 @@ async function runEvaluation(req, supabase) {
         reasons.push({ code: 'PROTECTED_BRAND', verdict: 'REJECT', detail: hit.name });
       }
     }
-  } catch (_) {}
+  } catch (err) { logNonBlockingRuleError('pl_protected_brands', err); }
 
   // pl_reserved_slugs
   try {
@@ -297,7 +305,7 @@ async function runEvaluation(req, supabase) {
         reasons.push({ code: 'RESERVED_SLUG', verdict: 'REJECT', detail: slug });
       }
     }
-  } catch (_) {}
+  } catch (err) { logNonBlockingRuleError('pl_reserved_slugs', err); }
 
   // pl_prohibited_categories — DB-managed category rules (extends baseline)
   try {
@@ -323,7 +331,7 @@ async function runEvaluation(req, supabase) {
         }
       }
     }
-  } catch (_) {}
+  } catch (err) { logNonBlockingRuleError('pl_prohibited_categories', err); }
 
   // ── Final decision ──────────────────────────────────────────────────────────
   const hasReject = reasons.some(r => r.verdict === 'REJECT');

@@ -260,6 +260,24 @@
   <div class="modal-box">
     <div class="modal-title" id="modalTitle">Approve this estimate?</div>
     <div class="modal-sub">Approving this estimate from <strong id="modalBizName"></strong> lets them know you are ready to move forward.</div>
+    <div class="card" style="padding:14px 16px;margin-bottom:18px;text-align:left;">
+      <div class="meta-item"><div class="ml">Estimate</div><div class="mv" id="modalEstimateTitle">-</div></div>
+      <div class="meta-grid" style="margin-top:12px;">
+        <div class="meta-item">
+          <div class="ml">Amount</div>
+          <div class="mv" id="modalEstimateAmount">-</div>
+        </div>
+        <div class="meta-item">
+          <div class="ml">Valid until</div>
+          <div class="mv" id="modalEstimateValidUntil">-</div>
+        </div>
+      </div>
+    </div>
+    <div id="modalEmailWrap" class="hidden" style="text-align:left;margin-bottom:18px;">
+      <label for="modalCustomerEmail" style="display:block;font-size:.8rem;color:rgba(255,255,255,.6);margin-bottom:6px;">Confirm the email this estimate was sent to</label>
+      <input id="modalCustomerEmail" type="email" placeholder="you@example.com" autocomplete="email" style="width:100%;background:#12141c;border:1px solid rgba(255,255,255,.14);border-radius:8px;color:#e8e9eb;padding:11px 12px;font-size:.9rem;" />
+      <div id="modalEmailHint" style="margin-top:6px;font-size:.76rem;color:rgba(255,255,255,.5);"></div>
+    </div>
     <div class="modal-actions">
       <button class="btn-modal-cancel" id="btnModalCancel" type="button">Go back</button>
       <button class="btn-modal-confirm" id="btnModalConfirm" type="button">Yes, accept</button>
@@ -378,6 +396,7 @@
   var params = new URLSearchParams(location.search);
   var token  = params.get('token') || params.get('id');
   var BIZ_NAME = '';
+  var CURRENT_QUOTE = null;
 
   if (!token) {
     hideEl('loadingView');
@@ -401,6 +420,7 @@
     });
 
   function renderProposal(data) {
+    CURRENT_QUOTE = data || null;
     // Business info
     BIZ_NAME = data.business_name || 'the business';
     document.getElementById('bizName').textContent = BIZ_NAME;
@@ -568,6 +588,13 @@
   // Accept button. Open the confirmation modal.
   document.getElementById('btnAccept').addEventListener('click', function () {
     document.getElementById('modalBizName').textContent = BIZ_NAME;
+    document.getElementById('modalEstimateTitle').textContent = (CURRENT_QUOTE && CURRENT_QUOTE.title) || 'Estimate';
+    document.getElementById('modalEstimateAmount').textContent = fmtCurrency((CURRENT_QUOTE && (CURRENT_QUOTE.total_amount != null ? CURRENT_QUOTE.total_amount : CURRENT_QUOTE.total_cents / 100)) || 0);
+    document.getElementById('modalEstimateValidUntil').textContent = (CURRENT_QUOTE && CURRENT_QUOTE.valid_until) ? fmtDate(CURRENT_QUOTE.valid_until) : 'No expiration listed';
+    var emailHint = (CURRENT_QUOTE && CURRENT_QUOTE.recipient_email_hint) || '';
+    document.getElementById('modalCustomerEmail').value = '';
+    document.getElementById('modalEmailHint').textContent = emailHint ? ('For security, enter the email that received this estimate. Expected account: ' + emailHint) : '';
+    document.getElementById('modalEmailWrap').classList.toggle('hidden', !emailHint);
     showEl('confirmModal');
   });
 
@@ -582,6 +609,12 @@
   // Confirm acceptance
   document.getElementById('btnModalConfirm').addEventListener('click', function () {
     var confirmBtn = document.getElementById('btnModalConfirm');
+    var emailInput = document.getElementById('modalCustomerEmail');
+    var expectedEmailHint = (CURRENT_QUOTE && CURRENT_QUOTE.recipient_email_hint) || '';
+    if (expectedEmailHint && !String(emailInput.value || '').trim()) {
+      emailInput.focus();
+      return;
+    }
     confirmBtn.disabled = true;
     confirmBtn.textContent = 'Sending\u2026';
 
@@ -589,7 +622,7 @@
       ? fetch('/.netlify/functions/get-quote', {
           method : 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body   : JSON.stringify({ bid_id: token, token: token, action: 'accept' }),
+          body   : JSON.stringify({ bid_id: token, token: token, action: 'accept', customer_email: String(emailInput.value || '').trim() || undefined }),
         })
       : Promise.resolve({ ok: true });
 

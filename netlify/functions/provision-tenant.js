@@ -98,6 +98,7 @@ exports.handler = async (event) => {
   const exemptUntil    = couponApplied
     ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()
     : null;
+  const ownerEmail = String(req.owner_email || '').trim().toLowerCase();
 
   const { data: tenant, error: tenantErr } = await supabase
     .from('tenants')
@@ -105,7 +106,7 @@ exports.handler = async (event) => {
       {
         name                 : req.business_name,
         slug                 : tenantSlug,
-        owner_email          : req.owner_email,
+        owner_email          : ownerEmail,
         owner_name           : req.owner_name,
         business_type        : req.business_type || null,
         city_state           : req.city_state || null,
@@ -129,27 +130,60 @@ exports.handler = async (event) => {
 
   const tenantId = tenant.id;
 
-  const { data: operator, error: opErr } = await supabase
+  const { data: existingOperator, error: operatorLookupErr } = await supabase
     .from('operators')
-    .upsert(
-      [
+    .select('id, tenant_id, name, role')
+    .ilike('email', ownerEmail)
+    .maybeSingle();
+
+  if (operatorLookupErr) {
+    return failProvision(`Operator lookup failed: ${operatorLookupErr.message}`);
+  }
+
+  let operator = existingOperator;
+  if (operator) {
+    const operatorPatch = {};
+    if (!operator.name && req.owner_name) operatorPatch.name = req.owner_name;
+    if (!operator.role) operatorPatch.role = 'tenant_owner';
+    if (!operator.tenant_id) operatorPatch.tenant_id = tenantId;
+
+    if (Object.keys(operatorPatch).length) {
+      const { data: updatedOperator, error: operatorUpdateErr } = await supabase
+        .from('operators')
+        .update(operatorPatch)
+        .eq('id', operator.id)
+        .select('id, tenant_id, name, role')
+        .maybeSingle();
+
+      if (operatorUpdateErr) {
+        return failProvision(`Operator update failed: ${operatorUpdateErr.message}`);
+      }
+      if (!updatedOperator) {
+        return failProvision('Operator update failed: no record returned after update');
+      }
+      operator = updatedOperator;
+    }
+  } else {
+    const { data: insertedOperator, error: opErr } = await supabase
+      .from('operators')
+      .insert([
         {
-          email: req.owner_email,
+          email: ownerEmail,
           name: req.owner_name,
           role: 'tenant_owner',
           tenant_id: tenantId,
         },
-      ],
-      { onConflict: 'email' }
-    )
-    .select('id')
-    .maybeSingle();
+      ])
+      .select('id, tenant_id, name, role')
+      .maybeSingle();
 
-  if (opErr) {
-    return failProvision(`Operator creation failed: ${opErr.message}`);
-  }
-  if (!operator) {
-    return failProvision('Operator creation failed: no record returned after upsert');
+    if (opErr) {
+      return failProvision(`Operator creation failed: ${opErr.message}`);
+    }
+    if (!insertedOperator) {
+      return failProvision('Operator creation failed: no record returned after insert');
+    }
+    operator = insertedOperator;
   }
 
   const newOperatorId = operator.id;
@@ -178,35 +212,41 @@ exports.handler = async (event) => {
   let authUserId = null;
 
   const { data: newAuthUser, error: createAuthErr } = await supabase.auth.admin.createUser({
-    email: req.owner_email,
+    email: ownerEmail,
     email_confirm: true,
   });
 
   if (createAuthErr) {
-    const { data: listData } = await supabase.auth.admin.listUsers({ perPage: 1000 });
+    const { data: listData, error: listUsersErr } = await supabase.auth.admin.listUsers({ perPage: 1000 });
+    if (listUsersErr) {
+      return failProvision(`Auth user creation failed: ${createAuthErr.message}`);
+    }
     const match = (listData?.users || []).find(
-      (user) => user.email?.toLowerCase() === req.owner_email.toLowerCase()
+      (user) => user.email?.toLowerCase() === ownerEmail
     );
     authUserId = match?.id || null;
     if (!authUserId) {
-      console.warn('[provision] Auth user creation non-fatal:', createAuthErr.message);
+      return failProvision(`Auth user creation failed: ${createAuthErr.message}`);
     }
   } else {
     authUserId = newAuthUser?.user?.id || null;
   }
 
   if (authUserId) {
-    await supabase
+    const { error: memberUserErr } = await supabase
       .from('operator_members')
       .update({ user_id: authUserId, updated_at: new Date().toISOString() })
       .eq('operator_id', newOperatorId)
       .eq('tenant_id', tenantId);
+    if (memberUserErr) {
+      return failProvision(`Operator member auth link failed: ${memberUserErr.message}`);
+    }
   }
 
   let loginUrl = redirectTo;
   if (authUserId) {
     try {
-      loginUrl = await buildPasswordSetupUrl(supabase, req.owner_email, `${siteUrl}/operator/`);
+      loginUrl = await buildPasswordSetupUrl(supabase, ownerEmail, `${siteUrl}/operator/`);
     } catch (err) {
       console.warn('[provision] password setup link non-fatal:', err.message);
     }
@@ -229,7 +269,7 @@ exports.handler = async (event) => {
     templates.provisioned({
       owner_name: req.owner_name,
       business_name: req.business_name,
-      owner_email: req.owner_email,
+      owner_email: ownerEmail,
       store_slug: tenantSlug,
       login_url: loginUrl,
       business_type: req.business_type || null,

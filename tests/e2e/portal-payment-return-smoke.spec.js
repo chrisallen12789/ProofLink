@@ -6,6 +6,18 @@ const { loadTestEnv } = require("../setup/env.test");
 loadTestEnv();
 
 test.describe("portal payment return smoke", () => {
+  async function seedCheckoutReturn(page, overrides = {}) {
+    await page.addInitScript((value) => {
+      window.sessionStorage.setItem("prooflink_portal_checkout", JSON.stringify(value));
+    }, {
+      order_id: "order_smoke_1",
+      tenant_id: "tenant_smoke",
+      email: "customer@example.com",
+      saved_at: Date.now(),
+      ...overrides,
+    });
+  }
+
   async function stubPortalRoutes(page, options = {}) {
     const order = Object.assign({
       id: "order_smoke_1",
@@ -45,6 +57,7 @@ test.describe("portal payment return smoke", () => {
 
   test("restores the customer account context after a canceled checkout", async ({ page }) => {
     await stubPortalRoutes(page);
+    await seedCheckoutReturn(page);
 
     await page.goto("/portal.html?tenant=tenant_smoke&email=customer@example.com&checkout=cancel&order_id=order_smoke_1");
 
@@ -68,6 +81,7 @@ test.describe("portal payment return smoke", () => {
         payment_state: "paid",
       },
     });
+    await seedCheckoutReturn(page);
 
     await page.goto("/portal.html?tenant=tenant_smoke&email=customer@example.com&checkout=success&order_id=order_smoke_1");
 

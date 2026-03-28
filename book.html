@@ -231,11 +231,20 @@
     if (emailEl) emailEl.value = prefillEmail;
   }
 
+  function sanitizeTelHref(value) {
+    var digits = String(value || '').replace(/[^\d+]/g, '');
+    return digits ? 'tel:' + digits : '';
+  }
+
   // Pre-fill date to tomorrow
   (function () {
+    var dateInput = document.getElementById('bookingDate');
+    if (!dateInput) return;
     const d = new Date();
+    const today = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    dateInput.min = today.toISOString().slice(0, 10);
     d.setDate(d.getDate() + 1);
-    document.getElementById('bookingDate').value = d.toISOString().slice(0, 10);
+    dateInput.value = d.toISOString().slice(0, 10);
   })();
 
   // Availability block check
@@ -248,7 +257,12 @@
       '/.netlify/functions/get-availability?tenant_id=' +
       encodeURIComponent(tenantId) + '&date=' + encodeURIComponent(dateStr)
     )
-      .then(function (r) { return r.json(); })
+      .then(function (r) {
+        return r.json().then(function (data) {
+          if (!r.ok) throw new Error((data && data.error) || 'Availability could not be checked.');
+          return data;
+        });
+      })
       .then(function (data) {
         if (!data.available) {
           availErrorEl.textContent = data.reason || 'This date is not available for booking.';
@@ -261,10 +275,9 @@
         }
       })
       .catch(function () {
-        // On network error, do not block the customer. Fail open instead.
-        availErrorEl.textContent = '';
-        availErrorEl.classList.remove('visible');
-        bookBtn.disabled = false;
+        availErrorEl.textContent = 'We could not confirm availability right now. Please try again in a moment or contact the business directly before booking.';
+        availErrorEl.classList.add('visible');
+        bookBtn.disabled = true;
       });
   }
 
@@ -300,7 +313,7 @@
           var noteEl    = document.getElementById('pricingNote');
           if (contactEl && noteEl) {
             var parts = [];
-            if (phone) parts.push('<a href="tel:' + phone.replace(/\s/g,'') + '" style="color:rgba(255,255,255,.7);text-decoration:underline;">' + phone + '</a>');
+            if (phone) parts.push('<a href="' + sanitizeTelHref(phone) + '" style="color:rgba(255,255,255,.7);text-decoration:underline;">' + phone + '</a>');
             if (email) parts.push('<a href="mailto:' + email + '" style="color:rgba(255,255,255,.7);text-decoration:underline;">' + email + '</a>');
             contactEl.innerHTML = ' ' + parts.join(' or ');
             noteEl.style.display = 'block';
@@ -328,7 +341,6 @@
     const preferredTime  = document.getElementById('preferredTime').value;
     const referralSource = document.getElementById('referralSource').value;
     const rawNotes       = document.getElementById('bookingNotes').value.trim();
-    const notes          = rawNotes + (referralSource ? '\n\nHow they heard about us: ' + referralSource : '');
     const serviceAddress = [
       document.getElementById('serviceAddress')?.value?.trim(),
       document.getElementById('serviceCity')?.value?.trim(),
@@ -371,10 +383,10 @@
         title,
         starts_at      : startsAt,
         ends_at        : endsAt,
-        preferred_time   : preferredTime || undefined,
-        referral_source  : referralSource || undefined,
-        notes            : notes || undefined,
-        service_address  : serviceAddress || undefined,
+        preferred_time : preferredTime || undefined,
+        referral_source: referralSource || undefined,
+        notes          : rawNotes || undefined,
+        service_address: serviceAddress || undefined,
       }),
     })
       .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, status: r.status, d: d }; }); })
@@ -404,7 +416,7 @@
       .catch(function (err) {
         var isNetworkError = err instanceof TypeError;
         msg.textContent = isNetworkError
-          ? 'Connection problem. Check your internet and try again.'
+          ? 'Connection problem. Your request was not sent. Check your internet and try again.'
           : (err.message || 'Something went wrong. Please try again or contact the business directly.');
         msg.className   = 'msg error';
         btn.disabled    = false;

@@ -124,6 +124,29 @@ describe("netlify/functions/order", () => {
     expect(global.fetch).not.toHaveBeenCalled();
   });
 
+  test("rejects invalid delivery ZIP codes before downstream side effects", async () => {
+    const handler = await loadHandler();
+    const res = await handler({
+      httpMethod: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        tenantId: "tenant-1",
+        tenantSlug: "tenant-1",
+        customer_name: "Test",
+        email: "test@example.com",
+        phone: "555-111-2222",
+        fulfillment: "delivery",
+        deliveryZip: "ABCDE",
+        items: [{ name: "Item" }],
+        startedAt: Date.now() - 5000,
+      }),
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(JSON.parse(res.body).error).toBe("Delivery ZIP code must be 5 digits.");
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
   test("rejects missing required fields before downstream side effects", async () => {
     const handler = await loadHandler();
     const res = await handler({
@@ -209,6 +232,10 @@ describe("netlify/functions/order", () => {
     expect(res.statusCode).toBe(200);
     expect(JSON.parse(res.body).ok).toBe(true);
     expect(global.fetch).toHaveBeenCalledTimes(4);
+    const turnstileRequest = global.fetch.mock.calls[0];
+    const proxyRequest = global.fetch.mock.calls[1];
+    expect(turnstileRequest[1].body).toContain("remoteip=127.0.0.1");
+    expect(proxyRequest[1].signal).toBeDefined();
   });
 
   test("explicit local bypass remains controlled", async () => {

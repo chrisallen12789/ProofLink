@@ -341,7 +341,7 @@
       </div>
     </div>
 
-    <button class="btn btn-ghost portal-back-btn" id="btnPortalBack" type="button">Use another email</button>
+    <button class="btn btn-ghost portal-back-btn" id="btnPortalBack" type="button">Sign out and use another email</button>
   </div>
 
 </div>
@@ -359,22 +359,74 @@
   const prefill  = params.get('email');
   const checkoutState = params.get('checkout');
   const checkoutOrderId = params.get('order_id');
+  const PORTAL_SESSION_KEY = 'prooflink_portal_session';
+  const PORTAL_CHECKOUT_KEY = 'prooflink_portal_checkout';
   var portalEmail = '';
   var ALL_ORDERS   = [];
   var ALL_BOOKINGS = [];
 
   if (prefill) document.getElementById('portalEmail').value = prefill;
   document.getElementById('newBookingLink').textContent = 'Schedule another appointment';
-  document.getElementById('btnPortalBack').textContent = 'Use another email';
+  document.getElementById('btnPortalBack').textContent = 'Sign out and use another email';
+
+  function readSessionValue(key) {
+    try {
+      var raw = window.sessionStorage.getItem(key);
+      return raw ? JSON.parse(raw) : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function writeSessionValue(key, value) {
+    try {
+      window.sessionStorage.setItem(key, JSON.stringify(value));
+    } catch (_) {}
+  }
+
+  function clearSessionValue(key) {
+    try {
+      window.sessionStorage.removeItem(key);
+    } catch (_) {}
+  }
+
+  function activatePortalTab(tabName, updateHash) {
+    var nextTab = tabName || 'orders';
+    document.querySelectorAll('.tab-btn').forEach(function (b) { b.classList.remove('active'); });
+    document.querySelectorAll('.tab-panel').forEach(function (p) { p.classList.remove('active'); });
+    var nextButton = document.querySelector('.tab-btn[data-tab="' + nextTab + '"]');
+    var nextPanel = document.getElementById('tab-' + nextTab);
+    if (!nextButton || !nextPanel) return;
+    nextButton.classList.add('active');
+    nextPanel.classList.add('active');
+    if (updateHash !== false) {
+      if (history && history.replaceState) {
+        history.replaceState(null, '', '#' + nextTab);
+      } else {
+        location.hash = nextTab;
+      }
+    }
+  }
+
+  function clearPortalSession() {
+    portalEmail = '';
+    window._portalEmail = '';
+    ALL_ORDERS = [];
+    ALL_BOOKINGS = [];
+    clearSessionValue(PORTAL_SESSION_KEY);
+    clearSessionValue(PORTAL_CHECKOUT_KEY);
+  }
+
+  function hasTrustedCheckoutReturn(orderId) {
+    if (!checkoutState || !orderId) return false;
+    var checkoutSession = readSessionValue(PORTAL_CHECKOUT_KEY);
+    return !!(checkoutSession && checkoutSession.order_id === orderId && checkoutSession.tenant_id === tenantId);
+  }
 
   // Tab switching
   document.querySelectorAll('.tab-btn').forEach(function (btn) {
     btn.addEventListener('click', function () {
-      document.querySelectorAll('.tab-btn').forEach(function (b) { b.classList.remove('active'); });
-      document.querySelectorAll('.tab-panel').forEach(function (p) { p.classList.remove('active'); });
-      btn.classList.add('active');
-      var panel = document.getElementById('tab-' + btn.dataset.tab);
-      if (panel) panel.classList.add('active');
+      activatePortalTab(btn.dataset.tab, true);
     });
   });
 
@@ -426,7 +478,7 @@
   window.showPortalNotice = showPortalNotice;
 
   function getCheckoutNotice(orders) {
-    if (!checkoutState) return null;
+    if (!checkoutState || !hasTrustedCheckoutReturn(checkoutOrderId)) return null;
     var matchedOrder = (orders || []).find(function (order) {
       return order && order.id === checkoutOrderId;
     });
@@ -798,19 +850,9 @@
     // Wire up cancel buttons
     el.querySelectorAll('.cancel-booking-btn').forEach(function (btn) {
       btn.addEventListener('click', function () {
-        if (btn.dataset.confirming !== '1') {
-          btn.dataset.confirming = '1';
-          btn.textContent = 'Click again to cancel';
-          showPortalNotice('Click the cancel button again to confirm this appointment change.', 'error');
-          setTimeout(function () {
-            if (btn.dataset.confirming === '1') {
-              btn.dataset.confirming = '';
-              btn.textContent = 'Cancel';
-            }
-          }, 3500);
+        if (!window.confirm('Cancel this appointment? The business will see the update right away.')) {
           return;
         }
-        btn.dataset.confirming = '';
         showPortalNotice('');
         btn.disabled = true;
         btn.textContent = 'Cancelling...';
@@ -911,6 +953,7 @@
         ALL_BOOKINGS = d.bookings || [];
         portalEmail  = email;
         window._portalEmail = email;
+        writeSessionValue(PORTAL_SESSION_KEY, { tenant_id: tenantId, email: email, saved_at: Date.now() });
         renderOrders(ALL_ORDERS);
         renderBookings(ALL_BOOKINGS);
         renderPackageBalance(ALL_ORDERS);
@@ -918,8 +961,8 @@
         var checkoutNotice = getCheckoutNotice(ALL_ORDERS);
         if (checkoutNotice) {
           showPortalNotice(checkoutNotice.message, checkoutNotice.tone);
-          var ordersTab = document.querySelector('.tab-btn[data-tab="orders"]');
-          if (ordersTab) ordersTab.click();
+          activatePortalTab('orders', true);
+          clearSessionValue(PORTAL_CHECKOUT_KEY);
         } else {
           showPortalNotice('');
         }
@@ -967,8 +1010,10 @@
   });
 
   document.getElementById('btnPortalBack').addEventListener('click', function () {
+    clearPortalSession();
     document.getElementById('portalContent').classList.add('hidden');
     document.getElementById('loginCard').classList.remove('hidden');
+    document.getElementById('portalEmail').value = '';
     showPortalNotice('');
   });
 
@@ -1021,6 +1066,9 @@
         msgEl.className = 'msg error';
       });
   });
+  if (location.hash) {
+    activatePortalTab(location.hash.replace(/^#/, ''), false);
+  }
   if (tenantId && prefill && checkoutState) {
     setTimeout(function () {
       document.getElementById('btnPortalLookup').click();
@@ -1030,11 +1078,20 @@
 
 async function handlePayNow(btn) {
   const orderId = btn && btn.dataset ? btn.dataset.orderId : '';
+  if (!orderId) return;
   btn.disabled = true;
   btn.textContent = 'Opening secure checkout...';
   try {
     // Get the customer email from the portal session
     const email = window._portalEmail || '';
+    try {
+      window.sessionStorage.setItem('prooflink_portal_checkout', JSON.stringify({
+        order_id: orderId,
+        tenant_id: new URLSearchParams(location.search).get('tenant'),
+        email: email,
+        saved_at: Date.now(),
+      }));
+    } catch (_) {}
     const url = '/.netlify/functions/portal-checkout?order_id=' + encodeURIComponent(orderId) + '&email=' + encodeURIComponent(email);
     const res = await fetch(url);
     const data = await res.json();

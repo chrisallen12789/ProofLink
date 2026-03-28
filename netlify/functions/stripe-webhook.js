@@ -71,6 +71,16 @@ function getStripeSecretKey() {
   return clean(process.env.STRIPE_SECRET_KEY);
 }
 
+function getSupabaseIdempotencyClient() {
+  const url = clean(process.env.SUPABASE_URL);
+  const serviceRoleKey = clean(process.env.SUPABASE_SERVICE_ROLE_KEY);
+  if (!url || !serviceRoleKey) {
+    console.warn('[stripe-webhook] skipping idempotency check because Supabase admin env is missing');
+    return null;
+  }
+  return require('@supabase/supabase-js').createClient(url, serviceRoleKey);
+}
+
 async function stripeRequest(path, options = {}) {
   const secretKey = getStripeSecretKey();
   if (!secretKey) {
@@ -314,33 +324,33 @@ exports.handler = async (event) => {
     const obj = evt?.data?.object || {};
 
     // ── Idempotency check ──────────────────────────────────────────────────────
+    // Idempotency check
     const eventId = clean(evt?.id || '');
     if (eventId) {
       try {
-        const supabase = require('@supabase/supabase-js').createClient(
-          process.env.SUPABASE_URL,
-          process.env.SUPABASE_SERVICE_ROLE_KEY
-        );
-        const { data: existing } = await supabase
-          .from('processed_webhook_events')
-          .select('id')
-          .eq('event_id', eventId)
-          .maybeSingle();
+        const supabase = getSupabaseIdempotencyClient();
+        if (supabase) {
+          const { data: existing } = await supabase
+            .from('processed_webhook_events')
+            .select('id')
+            .eq('event_id', eventId)
+            .maybeSingle();
 
-        if (existing) {
-          return json(200, { ok: true, skipped: true });
+          if (existing) {
+            return json(200, { ok: true, skipped: true });
+          }
+
+          await supabase
+            .from('processed_webhook_events')
+            .insert({ event_id: eventId, processed_at: new Date().toISOString() })
+            .catch((insertErr) => {
+              if (insertErr?.message?.includes('does not exist') || insertErr?.code === '42P01') {
+                console.warn('[stripe-webhook] processed_webhook_events table does not exist - skipping idempotency insert');
+              } else {
+                console.warn('[stripe-webhook] idempotency insert failed:', insertErr?.message);
+              }
+            });
         }
-
-        await supabase
-          .from('processed_webhook_events')
-          .insert({ event_id: eventId, processed_at: new Date().toISOString() })
-          .catch((insertErr) => {
-            if (insertErr?.message?.includes('does not exist') || insertErr?.code === '42P01') {
-              console.warn('[stripe-webhook] processed_webhook_events table does not exist — skipping idempotency insert');
-            } else {
-              console.warn('[stripe-webhook] idempotency insert failed:', insertErr?.message);
-            }
-          });
       } catch (idempErr) {
         console.warn('[stripe-webhook] idempotency check failed, proceeding:', idempErr?.message);
       }

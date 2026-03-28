@@ -15,7 +15,7 @@ describe("customer portal html", () => {
     expect(source).toContain("See my account");
     expect(source).toContain("Message us");
     expect(source).toContain("Schedule another appointment");
-    expect(source).toContain("Use another email");
+    expect(source).toContain("Sign out and use another email");
   });
 
   test("only shows a review link when the portal receives a real estimate review URL", () => {
@@ -48,6 +48,9 @@ describe("customer portal html", () => {
     expect(source).toContain("Partially paid");
     expect(source).toContain("checkoutState === 'success'");
     expect(source).toContain("checkoutState === 'cancel'");
+    expect(source).toContain("hasTrustedCheckoutReturn(checkoutOrderId)");
+    expect(source).toContain("prooflink_portal_checkout");
+    expect(source).toContain("activatePortalTab('orders', true)");
     expect(source).toContain("Your payment for ");
     expect(source).toContain("No payment was made for ");
     expect(source).toContain('data-order-id="');
@@ -81,6 +84,8 @@ describe("customer portal html", () => {
     expect(source).toContain("This visit is complete. The business will keep any follow-up, payment, or next-service step attached from here.");
     expect(source).toContain("This visit was marked as missed. Contact the business if you want help getting it back on the schedule.");
     expect(source).toContain("You are booked. If anything changes, you can cancel here or message the business from this account.");
+    expect(source).toContain("window.confirm('Cancel this appointment? The business will see the update right away.')");
+    expect(source).toContain("activatePortalTab(location.hash.replace(/^#/, ''), false)");
   });
 
   test("does not carry mojibake into the customer portal", () => {

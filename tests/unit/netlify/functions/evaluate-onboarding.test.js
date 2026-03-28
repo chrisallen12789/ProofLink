@@ -5,7 +5,8 @@ const path = require("path");
 const handlerPath = path.resolve(process.cwd(), "netlify/functions/evaluate-onboarding.js");
 const supabasePkgPath = require.resolve("@supabase/supabase-js");
 
-function createSupabaseMock() {
+function createSupabaseMock(options = {}) {
+  const tableErrors = options.tableErrors || {};
   const requestRow = {
     id: "req_pltest_approved",
     owner_email: "owner@pltest-example.com",
@@ -43,6 +44,7 @@ function createSupabaseMock() {
         return builder;
       },
       maybeSingle: vi.fn(async () => {
+        if (tableErrors[table]) throw tableErrors[table];
         if (table === "tenants") return { data: null, error: null };
         if (table === "onboarding_requests") return { data: requestRow, error: null };
         if (table === "tenant_onboarding_requests") {
@@ -60,6 +62,9 @@ function createSupabaseMock() {
         eq: vi.fn(async () => ({ error: null })),
       })),
       then(resolve, reject) {
+        if (tableErrors[table]) {
+          return Promise.reject(tableErrors[table]).then(resolve, reject);
+        }
         let result;
         if (table === "pl_banned_keywords" || table === "pl_protected_brands" || table === "pl_prohibited_categories") {
           result = { data: [], error: null };
@@ -140,6 +145,41 @@ describe("netlify/functions/evaluate-onboarding", () => {
       expect(JSON.parse(res.body).error).toBe("configuration_error");
       expect(global.fetch).not.toHaveBeenCalled();
     } finally {
+      restore();
+    }
+  });
+
+  test("logs non-blocking rule lookup failures and still returns the evaluation result", async () => {
+    process.env.PUBLIC_SITE_URL = "https://prooflink.example";
+    const fetchMock = vi.fn(async () => ({ ok: true }));
+    vi.stubGlobal("fetch", fetchMock);
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const supabase = createSupabaseMock({
+      tableErrors: {
+        pl_reserved_slugs: new Error("reserved slug lookup offline"),
+      },
+    });
+    const { handler, restore } = loadHandlerWithSupabaseMock(() => supabase);
+
+    try {
+      const res = await handler({
+        httpMethod: "POST",
+        headers: { "x-prooflink-internal": "internal_pltest" },
+        body: JSON.stringify({ request_id: "req_pltest_approved" }),
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(JSON.parse(res.body)).toMatchObject({ status: "approved", risk_level: "low" });
+      expect(warnSpy).toHaveBeenCalledWith(
+        "[evaluate-onboarding] non-blocking rule lookup failed:",
+        expect.objectContaining({
+          stage: "pl_reserved_slugs",
+          error: "reserved slug lookup offline",
+        })
+      );
+      expect(fetchMock).toHaveBeenCalled();
+    } finally {
+      warnSpy.mockRestore();
       restore();
     }
   });

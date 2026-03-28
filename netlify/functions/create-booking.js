@@ -1,7 +1,7 @@
-// netlify/functions/create-booking.js
+﻿// netlify/functions/create-booking.js
 // Creates a new booking.
 // POST { customer_name, customer_email?, title, starts_at, ends_at, notes?, order_id? }
-// Also accepts unauthenticated public bookings (no Authorization header) — used by book.html.
+// Also accepts unauthenticated public bookings (no Authorization header) - used by book.html.
 
 'use strict';
 
@@ -9,6 +9,40 @@ const { getAdminClient, requireOperatorContext, respond } = require('./utils/aut
 const { sendEmail, templates }  = require('./utils/email');
 const { getConfiguredSiteUrl }  = require('./utils/runtime-config');
 const { checkRateLimit, rateLimitResponse, getClientIP } = require('./utils/rate-limit');
+
+function parseConfigValue(value) {
+  if (!value) return {};
+  if (typeof value === 'object') return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return {};
+  }
+}
+
+function formatBookingWindow(startsAt, endsAt, timezone) {
+  const startDate = new Date(startsAt);
+  const endDate = new Date(endsAt);
+  const resolvedTimezone = timezone || 'America/New_York';
+  const dateFormatter = new Intl.DateTimeFormat('en-US', {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone: resolvedTimezone,
+  });
+  const timeFormatter = new Intl.DateTimeFormat('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZone: resolvedTimezone,
+  });
+
+  return {
+    date: dateFormatter.format(startDate),
+    time: `${timeFormatter.format(startDate)} - ${timeFormatter.format(endDate)}`,
+    timezone: resolvedTimezone,
+  };
+}
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return respond(200, {});
@@ -32,23 +66,23 @@ exports.handler = async (event) => {
   if (new Date(ends_at) <= new Date(starts_at)) {
     return respond(400, { error: 'ends_at must be after starts_at' });
   }
+  if (new Date(starts_at).getTime() < (Date.now() - 60 * 1000)) {
+    return respond(400, { error: 'Bookings must be requested for a future time.' });
+  }
 
-  // Determine tenant and operator from auth token OR public body param
-  let resolvedTenantId  = tenant_id || null;
+  let resolvedTenantId = tenant_id || null;
   let resolvedOperatorId = null;
   let supabase;
 
   const authHeader = (event.headers?.authorization || event.headers?.Authorization || '').trim();
   if (authHeader.startsWith('Bearer ')) {
-    // Authenticated operator booking
     let ctx;
     try { ctx = await requireOperatorContext(event); }
     catch (err) { return respond(err.statusCode || 401, { error: err.message }); }
-    supabase           = ctx.supabase;
-    resolvedTenantId   = ctx.tenantId;
+    supabase = ctx.supabase;
+    resolvedTenantId = ctx.tenantId;
     resolvedOperatorId = ctx.operatorId;
   } else {
-    // Public self-booking — tenant_id must be in body
     if (!resolvedTenantId) return respond(400, { error: 'tenant_id required for public bookings' });
     const ip = getClientIP(event);
     const rl = checkRateLimit({ key: `create-booking:${resolvedTenantId}:${ip}`, maxRequests: 10, windowMs: 15 * 60 * 1000 });
@@ -66,7 +100,7 @@ exports.handler = async (event) => {
       title,
       starts_at,
       ends_at,
-      notes         : [notes, preferred_time ? `Preferred time: ${preferred_time}` : null, referral_source ? `Referral: ${referral_source}` : null].filter(Boolean).join('\n') || null,
+      notes         : notes || null,
       order_id      : order_id || null,
       status        : 'confirmed',
       created_at    : new Date().toISOString(),
@@ -83,31 +117,35 @@ exports.handler = async (event) => {
     return respond(500, { error: 'Failed to create booking: no record returned' });
   }
 
-  // Send confirmation email (non-fatal)
+  let tenantContext = null;
+  try {
+    const [{ data: tenant }, { data: siteSettingsRow }, { data: availabilityRow }] = await Promise.all([
+      supabase.from('tenants').select('name').eq('id', resolvedTenantId).maybeSingle(),
+      supabase.from('tenant_config').select('config_value').eq('tenant_id', resolvedTenantId).eq('config_key', 'site_settings').maybeSingle(),
+      supabase.from('availability').select('timezone').eq('tenant_id', resolvedTenantId).limit(1).maybeSingle(),
+    ]);
+    const siteSettings = parseConfigValue(siteSettingsRow?.config_value);
+    tenantContext = {
+      businessName: tenant?.name || 'Your service provider',
+      timezone: availabilityRow?.timezone || siteSettings.timezone || siteSettings.site_timezone || 'America/New_York',
+    };
+  } catch (lookupError) {
+    console.warn('[create-booking] tenant context lookup failed:', lookupError.message || lookupError);
+  }
+
   if (customer_email) {
     try {
-      const startDate = new Date(starts_at);
-      const endDate   = new Date(ends_at);
-      const dateStr   = startDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
-      const timeStr   = startDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) +
-                        ' – ' + endDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-      const siteUrl   = getConfiguredSiteUrl();
-
-      // Get business name (reuse existing supabase client)
-      const { data: tenant } = await supabase
-        .from('tenants').select('name').eq('id', resolvedTenantId).maybeSingle();
-
-      const portalUrl = customer_email
-        ? `${siteUrl}/portal.html?tenant=${encodeURIComponent(resolvedTenantId)}&email=${encodeURIComponent(customer_email)}`
-        : null;
+      const bookingWindow = formatBookingWindow(starts_at, ends_at, tenantContext?.timezone);
+      const siteUrl = getConfiguredSiteUrl();
+      const portalUrl = `${siteUrl}/portal.html?tenant=${encodeURIComponent(resolvedTenantId)}&email=${encodeURIComponent(customer_email)}`;
 
       sendEmail(templates.bookingConfirmation({
         customer_name,
         customer_email,
-        business_name: tenant?.name || 'Your service provider',
+        business_name: tenantContext?.businessName || 'Your service provider',
         title,
-        date_str: dateStr,
-        time_str: timeStr,
+        date_str: bookingWindow.date,
+        time_str: `${bookingWindow.time} (${bookingWindow.timezone})`,
         portal_url: portalUrl,
       })).catch((e) => console.warn('[create-booking] email failed:', e.message));
     } catch (e) {
@@ -115,7 +153,6 @@ exports.handler = async (event) => {
     }
   }
 
-  // Send operator notification email (non-fatal) — for both authenticated and public bookings
   try {
     const siteUrl = getConfiguredSiteUrl();
     let operatorEmail = null;
@@ -127,7 +164,6 @@ exports.handler = async (event) => {
       operatorEmail = operatorRow?.email || null;
       operatorName  = operatorRow?.name  || 'there';
     } else {
-      // Public booking — find the tenant's primary operator
       const { data: operatorRow } = await supabase
         .from('operators').select('email, name').eq('tenant_id', resolvedTenantId).limit(1).maybeSingle();
       operatorEmail = operatorRow?.email || null;
@@ -135,16 +171,14 @@ exports.handler = async (event) => {
     }
 
     if (operatorEmail) {
-      const { data: tenantRow } = await supabase
-        .from('tenants').select('name').eq('id', resolvedTenantId).maybeSingle();
       sendEmail(templates.newBookingOperator({
         operator_email: operatorEmail,
         operator_name : operatorName,
-        business_name : tenantRow?.name || 'Your Business',
+        business_name : tenantContext?.businessName || 'Your Business',
         customer_name,
         service_title : title,
         starts_at,
-        notes         : notes || '',
+        notes         : [notes, preferred_time ? `Preferred time: ${preferred_time}` : null, referral_source ? `Referral: ${referral_source}` : null].filter(Boolean).join('\n'),
         booking_url   : `${siteUrl}/operator/`,
       })).catch((e) => console.warn('[create-booking] operator notification failed:', e.message));
     }

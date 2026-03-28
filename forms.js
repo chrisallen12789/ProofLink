@@ -12,7 +12,6 @@
   }
 
   const API_BASE = (window.HTC_EMAIL_API_BASE || "").replace(/\/+$/, "");
-  const API_KEY = window.HTC_EMAIL_API_KEY || "";
 
   function apiUrl(path) {
     if (API_BASE) return `${API_BASE}${path}`;
@@ -20,12 +19,9 @@
   }
 
   async function postJson(path, payload) {
-    const headers = { "Content-Type": "application/json" };
-    if (API_KEY) headers["x-api-key"] = API_KEY;
-
     const res = await fetch(apiUrl(path), {
       method: "POST",
-      headers,
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
 
@@ -152,6 +148,15 @@
     };
   }
 
+  function ensureTurnstileToken(form, raw) {
+    const widget = form.querySelector(".cf-turnstile");
+    if (!widget) return;
+    const token = raw["cf-turnstile-response"] || raw.turnstileToken || "";
+    if (!token) {
+      throw new Error("Spam protection is still loading. Please wait a moment, then try again.");
+    }
+  }
+
   function bind(formSelector, endpoint, requiredKeys, options = {}) {
     const form = $(formSelector);
     if (!form) return;
@@ -166,6 +171,28 @@
 
       if (raw.fax) {
         setStatus(form, "error", "Submission rejected.");
+        return;
+      }
+
+      try {
+        ensureTurnstileToken(form, raw);
+      } catch (err) {
+        setStatus(form, "error", err.message || "Spam protection is still loading. Please try again.");
+        return;
+      }
+
+      if (options.requireCart) {
+        try {
+          const built = buildOrderPayload(raw);
+          void built;
+        } catch (err) {
+          setStatus(form, "error", err.message || "Please review your cart before submitting.");
+          return;
+        }
+      }
+
+      if (raw.deliveryZip && !/^\d{5}$/.test(raw.deliveryZip)) {
+        setStatus(form, "error", "Please enter a valid 5-digit ZIP code.");
         return;
       }
 

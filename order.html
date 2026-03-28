@@ -35,7 +35,7 @@
         <section class="cart-box" aria-label="Your cart">
           <h2>Your cart</h2>
 
-            <p id="cartEmpty" class="muted" style="display:none;">Your request is empty. Browse the public catalog to add what you need.</p>
+            <p id="cartEmpty" class="muted" style="display:none;" tabindex="-1">Your request is empty. Browse the public catalog to add what you need.</p>
 
           <div id="cartItems" class="cart-items" aria-live="polite"></div>
 
@@ -66,6 +66,8 @@
                     inputmode="numeric"
                     autocomplete="postal-code"
                     maxlength="5"
+                    pattern="[0-9]{5}"
+                    title="Enter a 5-digit ZIP code"
                     placeholder="48843"
                   />
                 </div>

@@ -74,6 +74,55 @@ describe("netlify/functions/utils/email", () => {
     expect(email.html).not.toContain("You received this because you applied to join ProofLink.");
   });
 
+  test("business branding is escaped before it reaches the email layout", async () => {
+    const { templates } = require(emailUtilsPath);
+
+    const email = templates.quoteReady({
+      customer_name: "Chris",
+      customer_email: "chris@example.com",
+      business_name: '<b>Unsafe & Name</b>',
+      title: "Estimate",
+      amount_cents: 25000,
+      quote_url: "https://example.com/quote",
+    });
+
+    expect(email.html).toContain("&lt;b&gt;Unsafe &amp; Name&lt;/b&gt;");
+    expect(email.html).not.toContain("<title><b>Unsafe");
+  });
+
+  test("logo URLs are sanitized before they are injected into email HTML", async () => {
+    const { templates } = require(emailUtilsPath);
+
+    const email = templates.bookingConfirmation({
+      customer_name: "Chris",
+      customer_email: "chris@example.com",
+      business_name: "ProofLink Test",
+      title: "Site visit",
+      date_str: "Monday, March 30, 2026",
+      time_str: "2:00 PM - 3:00 PM (America/New_York)",
+      portal_url: "https://example.com/portal",
+      logo_url: '\"><script>alert(1)</script>',
+    });
+
+    expect(email.html).not.toContain("<script>");
+    expect(email.html).not.toContain('src=""><script>');
+  });
+
+  test("payload serialization failures are returned cleanly instead of throwing", async () => {
+    const { sendEmail } = require(emailUtilsPath);
+    const circular = {};
+    circular.self = circular;
+
+    const result = await sendEmail({
+      to: "ops@example.com",
+      subject: "Circular payload",
+      html: circular,
+    });
+
+    expect(result.error).toMatch(/circular/i);
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
   test("owner onboarding emails use clear password setup language instead of review-queue jargon", async () => {
     const { templates } = require(emailUtilsPath);
 

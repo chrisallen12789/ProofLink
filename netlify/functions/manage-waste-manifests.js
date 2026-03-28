@@ -19,13 +19,27 @@ const {
   truckLoadIssuesForRows,
 } = require('./lib/hydrovac-compliance');
 
+const MANIFEST_METADATA_FIELDS = [
+  'bol_number',
+  'live_load_hold_reason',
+  'disposal_ready_by',
+  'load_still_in_truck',
+  'carried_job_ids',
+  'load_isolation_note',
+  'customer_records_prepared_at',
+  'audit_packet_prepared_at',
+  'audit_archived_at',
+  'disposal_handoff_prepared_at',
+];
+
 function cleanManifestMetadata(value) {
   return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 }
 
 function normalizeManifestMetadata(existingMetadata, body = {}) {
   const current = cleanManifestMetadata(existingMetadata);
-  const next = { ...current };
+  const provided = cleanManifestMetadata(body.metadata);
+  const next = { ...current, ...provided };
   if (body.bol_number !== undefined) next.bol_number = clean(body.bol_number) || null;
   if (body.live_load_hold_reason !== undefined) next.live_load_hold_reason = clean(body.live_load_hold_reason) || null;
   if (body.disposal_ready_by !== undefined) next.disposal_ready_by = clean(body.disposal_ready_by) || null;
@@ -382,7 +396,7 @@ exports.handler = async (event) => {
     for (const field of fields) {
       if (body[field] !== undefined) patch[field] = body[field];
     }
-    if (body.metadata !== undefined || body.bol_number !== undefined || body.live_load_hold_reason !== undefined || body.disposal_ready_by !== undefined || body.load_still_in_truck !== undefined || body.carried_job_ids !== undefined || body.load_isolation_note !== undefined || body.customer_records_prepared_at !== undefined || body.audit_packet_prepared_at !== undefined || body.audit_archived_at !== undefined || body.disposal_handoff_prepared_at !== undefined) {
+    if (body.metadata !== undefined || MANIFEST_METADATA_FIELDS.some((field) => body[field] !== undefined)) {
       patch.metadata = normalizeManifestMetadata(existing.metadata, body);
     }
 

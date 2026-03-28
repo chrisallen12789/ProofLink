@@ -15,6 +15,7 @@ const TENANT_CITY_STATE = process.env.TENANT_CITY_STATE || "";
 const TURNSTILE_SECRET_KEY = process.env.TURNSTILE_SECRET_KEY || "";
 const MIN_SUBMIT_MS = Number(process.env.MIN_SUBMIT_MS || 2500);
 const MAX_SUBMIT_MS = Number(process.env.MAX_SUBMIT_MS || 60 * 60 * 1000);
+const ORDER_PROXY_TIMEOUT_MS = Number(process.env.ORDER_PROXY_TIMEOUT_MS || 10000);
 
 function localCaptchaBypassEnabled() {
   const allowBypass = String(process.env.ALLOW_LOCAL_TURNSTILE_BYPASS || "").trim().toLowerCase() === "true";
@@ -82,6 +83,7 @@ function normalizePayload(input) {
     fulfillment: normalizeString(payload.fulfillment).toLowerCase(),
     requestedDate: normalizeString(payload.requestedDate || payload.scheduled_date),
     requestedTime: normalizeString(payload.requestedTime || payload.scheduled_time),
+    deliveryZip: normalizeString(payload.deliveryZip || payload.delivery_zip),
     cartSummary: normalizeString(payload.cartSummary || payload.cart_summary),
     notes: payload.notes ? String(payload.notes).trim() : null,
     items: Array.isArray(payload.items) ? payload.items : [],
@@ -145,6 +147,9 @@ function validatePayload(payload) {
   if (!payload.fulfillment) throw Object.assign(new Error("Fulfillment required"), { statusCode: 400 });
   if (!Array.isArray(payload.items) || !payload.items.length) {
     throw Object.assign(new Error("Your cart is empty."), { statusCode: 400 });
+  }
+  if (payload.deliveryZip && !/^\d{5}$/.test(payload.deliveryZip)) {
+    throw Object.assign(new Error("Delivery ZIP code must be 5 digits."), { statusCode: 400 });
   }
 }
 
@@ -310,7 +315,8 @@ async function saveOrderToSupabase(payload) {
   const res = await fetch(apiUrl, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload)
+    body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(ORDER_PROXY_TIMEOUT_MS),
   });
 
   const data = await res.json().catch(() => null);
@@ -325,8 +331,8 @@ exports.handler = async (event) => {
   if (event.httpMethod === "OPTIONS") return json(200, { ok: true });
   if (event.httpMethod !== "POST") return json(405, { ok: false, error: "Method not allowed" });
 
-  const ip = getClientIP(event);
-  const rl = checkRateLimit({ key: `order:${ip}`, maxRequests: 5, windowMs: 15 * 60 * 1000 });
+  const clientIp = getClientIP(event);
+  const rl = checkRateLimit({ key: `order:${clientIp}`, maxRequests: 5, windowMs: 15 * 60 * 1000 });
   if (!rl.allowed) return rateLimitResponse(rl.retryAfterMs);
 
   try {
@@ -334,11 +340,7 @@ exports.handler = async (event) => {
     spamGate(payload);
     validatePayload(payload);
 
-    const ip =
-      event.headers?.["x-nf-client-connection-ip"] ||
-      event.headers?.["x-forwarded-for"]?.split(",")[0]?.trim();
-
-    const ts = await verifyTurnstile(payload.turnstileToken, ip);
+    const ts = await verifyTurnstile(payload.turnstileToken, clientIp);
     if (TURNSTILE_SECRET_KEY && !ts.success) {
       throw Object.assign(new Error("Submission rejected."), { statusCode: 400 });
     }

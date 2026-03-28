@@ -15,6 +15,12 @@ describe("booking page html", () => {
     expect(source).toContain("Send appointment request");
     expect(source).toContain("This form keeps things simple.");
     expect(source).toContain("Morning (8am-12pm)");
+    expect(source).toContain("dateInput.value = d.toISOString().slice(0, 10)");
+    expect(source).toContain("dateInput.min = today.toISOString().slice(0, 10)");
+    expect(source).toContain("We could not confirm availability right now.");
+    expect(source).toContain("referral_source: referralSource || undefined");
+    expect(source).toContain("notes          : rawNotes || undefined");
+    expect(source).toContain("sanitizeTelHref(phone)");
   });
 
   test("does not carry mojibake into the booking page", () => {

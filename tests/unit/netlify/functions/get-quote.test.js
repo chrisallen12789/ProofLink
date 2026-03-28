@@ -114,6 +114,7 @@ describe("netlify/functions/get-quote", () => {
       },
       customer: {
         name: "Chris Customer",
+        email: "chris@example.com",
       },
     });
 
@@ -134,6 +135,7 @@ describe("netlify/functions/get-quote", () => {
       expect(body.quote.total_amount).toBe(1250);
       expect(body.quote.business_email).toBe("dispatch@benkari.test");
       expect(body.quote.business_phone).toBe("555-111-2222");
+      expect(body.quote.recipient_email_hint).toBe("ch***@example.com");
       expect(body.business_logo_url).toBe("https://example.com/logo.png");
       expect(body.notes).toBe("Please review before Friday.");
       expect(body.terms).toBe("Expose the line and daylight the crossing.");
@@ -183,6 +185,44 @@ describe("netlify/functions/get-quote", () => {
       expect(supabase.bidsTable.update).toHaveBeenCalledWith(
         expect.objectContaining({ status: "approved" })
       );
+    } finally {
+      restore();
+    }
+  });
+
+  test("POST accept requires the recipient email when the quote has a customer email on file", async () => {
+    const supabase = createSupabaseMock({
+      bid: {
+        id: "bid_pltest_3",
+        tenant_id: "tenant_pltest_3",
+        title: "Seasonal maintenance",
+        status: "pending",
+        customer_id: "cust_pltest_3",
+        valid_until: "2026-04-10",
+      },
+      tenant: {
+        email: "office@example.com",
+        notification_email: null,
+      },
+      customer: {
+        name: "Chris Customer",
+        email: "customer@example.com",
+      },
+    });
+
+    const { handler, restore } = loadHandlerWithAuthMock({
+      getAdminClient: () => supabase,
+      respond: (statusCode, body) => ({ statusCode, body: JSON.stringify(body) }),
+    });
+
+    try {
+      const res = await handler({
+        httpMethod: "POST",
+        body: JSON.stringify({ action: "accept", token: "bid_pltest_3", customer_email: "wrong@example.com" }),
+      });
+
+      expect(res.statusCode).toBe(403);
+      expect(JSON.parse(res.body).error).toContain("same email address");
     } finally {
       restore();
     }

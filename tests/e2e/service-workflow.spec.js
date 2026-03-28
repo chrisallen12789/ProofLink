@@ -352,6 +352,7 @@ test.describe.serial("service workflow e2e", () => {
     await expect(page.locator("#totalsCard")).toContainText("$350.00");
     await page.getByRole("button", { name: "Approve and continue" }).click();
     await expect(page.getByRole("dialog")).toBeVisible();
+    await page.locator("#modalCustomerEmail").fill(state.customerEmail);
     await page.getByRole("button", { name: "Yes, accept" }).click();
     await expect(page.locator("#acceptedState")).toBeVisible({ timeout: 15000 });
     await expect(page.locator("#acceptedMsg")).toContainText(/follow up shortly/i);
@@ -438,7 +439,6 @@ test.describe.serial("service workflow e2e", () => {
     const admin = createAdminClient();
     const orderLookup = await admin.from("orders").select("id,cart_summary,customer_name,customer_id,lead_id,email").eq("id", state.orderId).single();
     expect(orderLookup.error).toBeNull();
-    const orderLabel = orderLookup.data.cart_summary || orderLookup.data.customer_name || "your service";
     const customerLookup = await admin.from("customers").select("id,email,name").eq("id", state.customerId).single();
     expect(customerLookup.error).toBeNull();
     const leadLookup = await admin.from("leads").select("id,contact_email,customer_id").eq("id", state.leadId).single();

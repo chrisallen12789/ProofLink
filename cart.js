@@ -15,6 +15,7 @@
   let CATALOG_CACHE = catalog.loadCache();
   let CATALOG_BY_ID = catalog.buildIndex(CATALOG_CACHE);
   let SYNC_IN_FLIGHT = null;
+  const MAX_TOASTS = 3;
 
   function fulfillmentCopy() {
     const deliveryCfg = config?.storefront?.delivery || {};
@@ -381,7 +382,12 @@
 
     if (!state.items.length) {
       wrap.innerHTML = "";
-      if (empty) empty.style.display = "block";
+      if (empty) {
+        empty.style.display = "block";
+        if (document.activeElement === document.body || document.activeElement === wrap) {
+          empty.focus();
+        }
+      }
       updateOrderTotalsUI();
       renderTrialSuggestion();
       return;
@@ -488,6 +494,9 @@
   function toast(message) {
     const host = $("#toastHost");
     if (!host) return;
+    while (host.children.length >= MAX_TOASTS) {
+      host.firstElementChild?.remove();
+    }
 
     const el = document.createElement("div");
     el.className = "toast";
@@ -517,6 +526,12 @@
   });
 
   loadCatalogRows(CATALOG_CACHE);
+  const requestedDateInput = $("#orderRequestedDate");
+  if (requestedDateInput) {
+    const today = new Date();
+    const localDate = new Date(today.getTime() - (today.getTimezoneOffset() * 60000)).toISOString().slice(0, 10);
+    requestedDateInput.min = localDate;
+  }
   syncFulfillmentLabels();
   updateCountBadges();
   renderOrderCart();
