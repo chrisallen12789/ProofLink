@@ -159,7 +159,10 @@
               </label>
 
               <label>Password
-                <input id="loginPassword" type="password" autocomplete="current-password" required />
+                <div class="password-input-wrap">
+                  <input id="loginPassword" type="password" autocomplete="current-password" aria-describedby="loginMsg" required />
+                  <button type="button" class="password-toggle" data-password-toggle="loginPassword" aria-label="Show password" aria-pressed="false">Show</button>
+                </div>
               </label>
 
               <div class="auth-inline-action">
@@ -170,7 +173,7 @@
                 <button class="btn btn-primary" type="submit">Sign in</button>
                 <button id="btnMagicLink" class="btn btn-ghost" type="button">Send me a sign-in link</button>
               </div>
-              <div id="loginMsg" class="msg"></div>
+              <div id="loginMsg" class="msg" role="alert"></div>
             </form>
           </div>
         </section>
@@ -187,11 +190,22 @@
               <p data-pw-desc class="auth-copy">Your email is confirmed. Create a password so you can log back in directly next time.</p>
               <div data-pw-email class="auth-email"></div>
               <label class="auth-label">New password</label>
-              <input type="password" id="newPasswordInput" placeholder="At least 8 characters" autocomplete="new-password" class="auth-input-gap" />
+              <div class="password-input-wrap auth-input-gap">
+                <input type="password" id="newPasswordInput" placeholder="At least 8 characters" autocomplete="new-password" aria-describedby="passwordStrengthRules passwordSetupMsg" />
+                <button type="button" class="password-toggle" data-password-toggle="newPasswordInput" aria-label="Show password" aria-pressed="false">Show</button>
+              </div>
+              <div id="passwordStrengthRules" class="password-rule-list" aria-live="polite">
+                <div id="passwordRuleLength" class="password-rule">At least 8 characters</div>
+                <div id="passwordRuleComplexity" class="password-rule">At least one number or symbol</div>
+              </div>
               <label class="auth-label">Confirm password</label>
-              <input type="password" id="confirmPasswordInput" placeholder="Repeat your password" autocomplete="new-password" class="auth-input-gap auth-input-gap--lg" />
+              <div class="password-input-wrap auth-input-gap auth-input-gap--lg">
+                <input type="password" id="confirmPasswordInput" placeholder="Repeat your password" autocomplete="new-password" aria-describedby="passwordMatchHint passwordSetupMsg" />
+                <button type="button" class="password-toggle" data-password-toggle="confirmPasswordInput" aria-label="Show password" aria-pressed="false">Show</button>
+              </div>
+              <div id="passwordMatchHint" class="password-match-hint muted" aria-live="polite"></div>
               <button id="btnSetPassword" class="btn btn-primary auth-submit" type="button">Set password and open account</button>
-              <div id="passwordSetupMsg" class="msg auth-msg"></div>
+              <div id="passwordSetupMsg" class="msg auth-msg" role="alert"></div>
             </div>
           </div>
         </div>
@@ -209,7 +223,7 @@
               <label class="auth-label">Email address</label>
               <input type="email" id="forgotEmail" placeholder="you@example.com" autocomplete="email" class="auth-input-gap auth-input-gap--lg" />
               <button id="btnSendReset" class="btn btn-primary auth-submit" type="button">Send reset link</button>
-              <div id="forgotMsg" class="msg auth-msg"></div>
+              <div id="forgotMsg" class="msg auth-msg" role="alert"></div>
               <div class="auth-back">
                 <button id="btnBackToLogin" class="btn btn-ghost auth-back__button" type="button">Back to sign in</button>
               </div>

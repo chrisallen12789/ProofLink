@@ -2228,11 +2228,69 @@ input:focus, textarea:focus, select:focus{
   font-weight:600;
   color:var(--muted);
 }
+.password-input-wrap{
+  display:flex;
+  align-items:center;
+  gap:.5rem;
+}
+.password-input-wrap input{
+  flex:1;
+}
+.password-toggle{
+  min-width:64px;
+  padding:.6rem .75rem;
+  border-radius:12px;
+  border:1px solid var(--border);
+  background:rgba(255,255,255,.06);
+  color:var(--text);
+  font:inherit;
+  font-size:.8rem;
+  font-weight:600;
+  cursor:pointer;
+}
+.password-toggle[aria-pressed="true"]{
+  background:rgba(200,75,47,.18);
+  border-color:rgba(200,75,47,.45);
+}
 .auth-input-gap{
   margin-bottom:1rem;
 }
 .auth-input-gap--lg{
   margin-bottom:1.25rem;
+}
+.password-rule-list{
+  display:grid;
+  gap:.4rem;
+  margin:-.35rem 0 1rem;
+  font-size:.8rem;
+  color:var(--muted);
+}
+.password-rule{
+  display:flex;
+  align-items:center;
+  gap:.5rem;
+}
+.password-rule::before{
+  content:"•";
+  color:rgba(255,255,255,.45);
+}
+.password-rule.is-met{
+  color:#a6f3c0;
+}
+.password-rule.is-met::before{
+  content:"✓";
+  color:#a6f3c0;
+}
+.password-match-hint{
+  min-height:1rem;
+  margin:-.35rem 0 1rem;
+  font-size:.8rem;
+}
+.password-match-hint.is-error{
+  color:#ff9a9a;
+}
+.password-match-hint.is-ok{
+  color:#a6f3c0;
 }
 .auth-submit{
   width:100%;

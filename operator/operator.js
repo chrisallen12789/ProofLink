@@ -700,12 +700,17 @@ const passwordSetupMsg  = $("passwordSetupMsg");
 const newPasswordInput  = $("newPasswordInput");
 const confirmPasswordInput = $("confirmPasswordInput");
 const btnSetPassword    = $("btnSetPassword");
+const passwordStrengthRules = $("passwordStrengthRules");
+const passwordRuleLength = $("passwordRuleLength");
+const passwordRuleComplexity = $("passwordRuleComplexity");
+const passwordMatchHint = $("passwordMatchHint");
 
 const viewForgotPassword = $("viewForgotPassword");
 const forgotEmail        = $("forgotEmail");
 const btnSendReset       = $("btnSendReset");
 const btnBackToLogin     = $("btnBackToLogin");
 const forgotMsg          = $("forgotMsg");
+const passwordToggleButtons = Array.from(document.querySelectorAll("[data-password-toggle]"));
 
 const BID_PROFILE_LIBRARY = {
   general_service: {
@@ -3764,6 +3769,10 @@ function showLogin(message = "") {
   btnSignOut?.classList.add("hidden");
   btnStartTour?.classList.add("hidden");
   if (sessionEmail) sessionEmail.textContent = "";
+  if (loginPassword) loginPassword.type = "password";
+  passwordToggleButtons
+    .filter((button) => button.dataset.passwordToggle === "loginPassword")
+    .forEach((button) => updatePasswordToggleButton(button, loginPassword));
   if (loginMsg) loginMsg.textContent = message || "";
 }
 function showApp(user) {
@@ -3775,6 +3784,102 @@ function showApp(user) {
   btnStartTour?.classList.remove("hidden");
   if (sessionEmail) sessionEmail.textContent = user?.email || "";
   if (loginMsg) loginMsg.textContent = "";
+}
+
+function passwordHasMinimumLength(value = "") {
+  return String(value || "").length >= 8;
+}
+
+function passwordHasNumberOrSymbol(value = "") {
+  return /[\d\W_]/.test(String(value || ""));
+}
+
+function updatePasswordToggleButton(button, input) {
+  if (!button || !input) return;
+  const showing = input.type === "text";
+  button.textContent = showing ? "Hide" : "Show";
+  button.setAttribute("aria-pressed", showing ? "true" : "false");
+  button.setAttribute("aria-label", `${showing ? "Hide" : "Show"} password`);
+}
+
+function bindPasswordToggle(button) {
+  if (!button) return;
+  const inputId = button.dataset.passwordToggle || "";
+  const input = inputId ? $(inputId) : null;
+  if (!input) return;
+  updatePasswordToggleButton(button, input);
+  button.addEventListener("click", () => {
+    input.type = input.type === "password" ? "text" : "password";
+    updatePasswordToggleButton(button, input);
+  });
+}
+
+function setPasswordRuleState(ruleEl, isMet) {
+  if (!ruleEl) return;
+  ruleEl.classList.toggle("is-met", !!isMet);
+}
+
+function updatePasswordStrengthFeedback() {
+  const password = newPasswordInput?.value || "";
+  const meetsLength = passwordHasMinimumLength(password);
+  const meetsComplexity = passwordHasNumberOrSymbol(password);
+  setPasswordRuleState(passwordRuleLength, meetsLength);
+  setPasswordRuleState(passwordRuleComplexity, meetsComplexity);
+  if (newPasswordInput) {
+    const valid = !password || (meetsLength && meetsComplexity);
+    newPasswordInput.setAttribute("aria-invalid", valid ? "false" : "true");
+  }
+  return meetsLength && meetsComplexity;
+}
+
+function updatePasswordMatchFeedback() {
+  const password = newPasswordInput?.value || "";
+  const confirm = confirmPasswordInput?.value || "";
+  if (!confirmPasswordInput) return true;
+  if (!confirm) {
+    confirmPasswordInput.setCustomValidity("");
+    confirmPasswordInput.setAttribute("aria-invalid", "false");
+    if (passwordMatchHint) {
+      passwordMatchHint.textContent = "";
+      passwordMatchHint.className = "password-match-hint muted";
+    }
+    return true;
+  }
+  const matches = password === confirm;
+  confirmPasswordInput.setCustomValidity(matches ? "" : "Passwords do not match");
+  confirmPasswordInput.setAttribute("aria-invalid", matches ? "false" : "true");
+  if (passwordMatchHint) {
+    passwordMatchHint.textContent = matches ? "Passwords match." : "Passwords do not match yet.";
+    passwordMatchHint.className = `password-match-hint ${matches ? "is-ok" : "is-error"}`;
+  }
+  return matches;
+}
+
+function resetPasswordSetupFeedback() {
+  if (passwordSetupMsg) {
+    passwordSetupMsg.textContent = "";
+    passwordSetupMsg.className = "msg auth-msg";
+  }
+  if (newPasswordInput) {
+    newPasswordInput.type = "password";
+    newPasswordInput.setAttribute("aria-invalid", "false");
+  }
+  if (confirmPasswordInput) {
+    confirmPasswordInput.type = "password";
+    confirmPasswordInput.setAttribute("aria-invalid", "false");
+    confirmPasswordInput.setCustomValidity("");
+  }
+  passwordToggleButtons.forEach((button) => {
+    const inputId = button.dataset.passwordToggle || "";
+    const input = inputId ? $(inputId) : null;
+    updatePasswordToggleButton(button, input);
+  });
+  if (passwordMatchHint) {
+    passwordMatchHint.textContent = "";
+    passwordMatchHint.className = "password-match-hint muted";
+  }
+  setPasswordRuleState(passwordRuleLength, false);
+  setPasswordRuleState(passwordRuleComplexity, false);
 }
 
 function getAuthCallbackType() {
@@ -3813,10 +3918,12 @@ async function showPasswordSetup(mode) {
   viewForgotPassword?.classList.add("hidden");
   btnSignOut?.classList.remove("hidden");
   btnStartTour?.classList.remove("hidden");
-  if (passwordSetupMsg) passwordSetupMsg.textContent = "";
   if (newPasswordInput) newPasswordInput.value = "";
   if (confirmPasswordInput) confirmPasswordInput.value = "";
   if (btnSetPassword) btnSetPassword.disabled = false;
+  resetPasswordSetupFeedback();
+  updatePasswordStrengthFeedback();
+  updatePasswordMatchFeedback();
 
   const heading  = viewPasswordSetup?.querySelector("[data-pw-heading]");
   const desc     = viewPasswordSetup?.querySelector("[data-pw-desc]");
@@ -3852,6 +3959,15 @@ function showForgotPassword() {
   if (forgotMsg) forgotMsg.textContent = "";
   if (forgotEmail) forgotEmail.value = loginEmail?.value || "";
 }
+passwordToggleButtons.forEach(bindPasswordToggle);
+newPasswordInput?.addEventListener("input", () => {
+  updatePasswordStrengthFeedback();
+  updatePasswordMatchFeedback();
+});
+confirmPasswordInput?.addEventListener("input", () => {
+  updatePasswordMatchFeedback();
+});
+
 async function getUser() {
   const { data, error } = await sb.auth.getUser();
   return error ? null : data?.user || null;
@@ -3876,22 +3992,26 @@ btnSetPassword?.addEventListener("click", async () => {
   const pw  = newPasswordInput?.value || "";
   const pw2 = confirmPasswordInput?.value || "";
 
-  if (pw.length < 8) {
-    if (passwordSetupMsg) { passwordSetupMsg.textContent = "Password must be at least 8 characters."; passwordSetupMsg.className = "msg error"; }
+  if (!passwordHasMinimumLength(pw)) {
+    if (passwordSetupMsg) { passwordSetupMsg.textContent = "Password must be at least 8 characters."; passwordSetupMsg.className = "msg auth-msg error"; }
     return;
   }
-  if (pw !== pw2) {
-    if (passwordSetupMsg) { passwordSetupMsg.textContent = "Passwords do not match."; passwordSetupMsg.className = "msg error"; }
+  if (!passwordHasNumberOrSymbol(pw)) {
+    if (passwordSetupMsg) { passwordSetupMsg.textContent = "Password must include at least one number or symbol."; passwordSetupMsg.className = "msg auth-msg error"; }
+    return;
+  }
+  if (pw !== pw2 || !updatePasswordMatchFeedback()) {
+    if (passwordSetupMsg) { passwordSetupMsg.textContent = "Passwords do not match."; passwordSetupMsg.className = "msg auth-msg error"; }
     return;
   }
 
   if (btnSetPassword) btnSetPassword.disabled = true;
-  if (passwordSetupMsg) { passwordSetupMsg.textContent = "Setting password..."; passwordSetupMsg.className = "msg"; }
+  if (passwordSetupMsg) { passwordSetupMsg.textContent = "Setting password..."; passwordSetupMsg.className = "msg auth-msg"; }
 
   const { error } = await sb.auth.updateUser({ password: pw });
 
   if (error) {
-    if (passwordSetupMsg) { passwordSetupMsg.textContent = error.message || "Could not set password."; passwordSetupMsg.className = "msg error"; }
+    if (passwordSetupMsg) { passwordSetupMsg.textContent = error.message || "Could not set password."; passwordSetupMsg.className = "msg auth-msg error"; }
     if (btnSetPassword) btnSetPassword.disabled = false;
     return;
   }
@@ -3899,7 +4019,7 @@ btnSetPassword?.addEventListener("click", async () => {
   const isReset = passwordSetupMode === "reset";
   passwordSetupMode = null;
 
-  if (passwordSetupMsg) { passwordSetupMsg.textContent = isReset ? "Password updated. Loading your business hub..." : "Password set. Loading your business hub..."; passwordSetupMsg.className = "msg ok"; }
+  if (passwordSetupMsg) { passwordSetupMsg.textContent = isReset ? "Password updated. Loading your business hub..." : "Password set. Loading your business hub..."; passwordSetupMsg.className = "msg auth-msg ok"; }
 
   setTimeout(() => {
     window.PROOFLINK_BOOT_READY = false;
@@ -3954,11 +4074,11 @@ btnBackToLogin?.addEventListener("click", () => showLogin(""));
 btnSendReset?.addEventListener("click", async () => {
   const email = (forgotEmail?.value || "").trim();
   if (!email) {
-    if (forgotMsg) { forgotMsg.textContent = "Enter your email address."; forgotMsg.className = "msg error"; }
+    if (forgotMsg) { forgotMsg.textContent = "Enter your email address."; forgotMsg.className = "msg auth-msg error"; }
     return;
   }
   if (btnSendReset) btnSendReset.disabled = true;
-  if (forgotMsg) { forgotMsg.textContent = "Sending reset link..."; forgotMsg.className = "msg"; }
+  if (forgotMsg) { forgotMsg.textContent = "Sending reset link..."; forgotMsg.className = "msg auth-msg"; }
 
   try {
     const { error } = await sb.auth.resetPasswordForEmail(email, {
@@ -3967,10 +4087,10 @@ btnSendReset?.addEventListener("click", async () => {
     if (error) throw error;
     if (forgotMsg) {
       forgotMsg.textContent = "Check your inbox for a password reset link.";
-      forgotMsg.className = "msg ok";
+      forgotMsg.className = "msg auth-msg ok";
     }
   } catch (err) {
-    if (forgotMsg) { forgotMsg.textContent = err?.message || String(err); forgotMsg.className = "msg error"; }
+    if (forgotMsg) { forgotMsg.textContent = err?.message || String(err); forgotMsg.className = "msg auth-msg error"; }
   } finally {
     if (btnSendReset) btnSendReset.disabled = false;
   }

@@ -70,10 +70,17 @@ function loadHandlerWithMocks({ authExports, emailExports, slugifyExports, seedT
   };
 }
 
-function createSupabaseMock({ existingOperator = null, listUsersError = null, listUsers = [], authCreateError = null } = {}) {
+function createSupabaseMock({
+  existingOperator = null,
+  listUsersError = null,
+  listUsers = [],
+  authCreateError = null,
+  tenantRollbackError = null,
+  provisionFailureInsertError = null,
+} = {}) {
   const tenantsInsert = vi.fn(() => makeInsertSingle({ id: "tenant_pltest", slug: "prooflink-test", name: "ProofLink Test" }));
   const tenantsDelete = vi.fn(() => ({
-    eq: vi.fn(async () => ({ error: null })),
+    eq: vi.fn(async () => ({ error: tenantRollbackError })),
   }));
   const operatorsSelect = vi.fn(() => ({
     ilike: vi.fn(() => ({
@@ -112,6 +119,7 @@ function createSupabaseMock({ existingOperator = null, listUsersError = null, li
   const onboardingUpdate = vi.fn(() => ({
     eq: vi.fn(async () => ({ error: null })),
   }));
+  const provisionFailuresInsert = vi.fn(async () => ({ error: provisionFailureInsertError }));
 
   const supabase = {
     from: vi.fn((table) => {
@@ -153,6 +161,11 @@ function createSupabaseMock({ existingOperator = null, listUsersError = null, li
           delete: operatorMembersDelete,
         };
       }
+      if (table === "provision_failures") {
+        return {
+          insert: provisionFailuresInsert,
+        };
+      }
       throw new Error(`Unexpected table ${table}`);
     }),
     auth: {
@@ -169,6 +182,7 @@ function createSupabaseMock({ existingOperator = null, listUsersError = null, li
       operatorsDelete,
       operatorMembersUpsert,
       operatorMembersDelete,
+      provisionFailuresInsert,
     },
   };
 
@@ -242,6 +256,45 @@ describe("netlify/functions/provision-tenant", () => {
       expect(supabase._calls.operatorMembersDelete).toHaveBeenCalled();
       expect(supabase._calls.tenantsDelete).toHaveBeenCalled();
       expect(supabase._calls.operatorsDelete).toHaveBeenCalled();
+    } finally {
+      restore();
+    }
+  });
+
+  test("records rollback failures for admin follow-up when cleanup cannot finish cleanly", async () => {
+    process.env.PUBLIC_SITE_URL = "https://app.prooflink.test";
+    const supabase = createSupabaseMock({
+      authCreateError: { message: "Auth create failed" },
+      listUsers: [],
+      tenantRollbackError: { message: "tenant delete blocked" },
+    });
+
+    const { handler, restore } = loadHandlerWithMocks({
+      authExports: {
+        requireOnboardingAdminContext: vi.fn(async () => ({ operatorId: "op_pltest_admin", supabase })),
+        respond: (statusCode, body) => ({ statusCode, body: JSON.stringify(body) }),
+      },
+      emailExports: { sendEmail: vi.fn(async () => ({ id: "email_pltest" })), templates: { provisioned: vi.fn(() => ({})) } },
+      slugifyExports: { uniqueTenantSlug: vi.fn(async () => "prooflink-test") },
+      seedTemplateExports: { seedTemplateForTenant: vi.fn(async () => {}) },
+      authLinksExports: { buildPasswordSetupUrl: vi.fn(async () => "https://app.prooflink.test/operator/") },
+    });
+
+    try {
+      const res = await handler({
+        httpMethod: "POST",
+        headers: {},
+        body: JSON.stringify({ id: "req_pltest" }),
+      });
+
+      expect(res.statusCode).toBe(500);
+      expect(supabase._calls.provisionFailuresInsert).toHaveBeenCalledWith(expect.objectContaining({
+        onboarding_request_id: "req_pltest",
+        tenant_id: "tenant_pltest",
+        owner_email: "owner@example.com",
+        failure_stage: "rollback",
+        rollback_issues: expect.arrayContaining(["Tenant rollback failed: tenant delete blocked"]),
+      }));
     } finally {
       restore();
     }

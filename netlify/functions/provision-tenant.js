@@ -77,6 +77,7 @@ exports.handler = async (event) => {
     .update({ status: 'provisioning', provision_error: null, updated_at: new Date().toISOString() })
     .eq('id', id);
 
+  const ownerEmail = String(req.owner_email || '').trim().toLowerCase();
   let createdTenantId = null;
   let createdOperatorId = null;
   let createdAuthUserId = null;
@@ -130,12 +131,40 @@ exports.handler = async (event) => {
     return rollbackIssues;
   }
 
+  async function recordProvisionFailure(message, rollbackIssues = []) {
+    if (!rollbackIssues.length) return;
+    const payload = {
+      onboarding_request_id: id,
+      tenant_id: createdTenantId,
+      operator_id: createdOperatorId || operatorId || null,
+      owner_email: ownerEmail || null,
+      failure_stage: 'rollback',
+      failure_message: message,
+      rollback_issues: rollbackIssues,
+      metadata: {
+        source: 'provision-tenant',
+        request_status: req.status || null,
+        selected_plan: req.selected_plan || null,
+        created_auth_user_id: createdAuthUserId || null,
+      },
+    };
+    try {
+      const { error } = await supabase.from('provision_failures').insert(payload);
+      if (error) {
+        console.error('provision-tenant rollback failure log failed:', error.message);
+      }
+    } catch (err) {
+      console.error('provision-tenant rollback failure log failed:', err.message || err);
+    }
+  }
+
   async function failProvision(message) {
     console.error('provision-tenant failure:', message);
     const rollbackIssues = await rollbackProvisionArtifacts();
     if (rollbackIssues.length) {
       console.error('provision-tenant rollback failure:', rollbackIssues);
     }
+    await recordProvisionFailure(message, rollbackIssues);
     await supabase
       .from('tenant_onboarding_requests')
       .update({
@@ -159,7 +188,6 @@ exports.handler = async (event) => {
   const exemptUntil    = couponApplied
     ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()
     : null;
-  const ownerEmail = String(req.owner_email || '').trim().toLowerCase();
 
   const { data: tenant, error: tenantErr } = await supabase
     .from('tenants')
