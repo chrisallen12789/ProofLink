@@ -73,6 +73,20 @@ It adds:
 - service-plan order/job generation RPCs
 - recurring-order uniqueness guards and supporting indexes
 
+This file already owns the recurring scheduled-date uniqueness guard on `public.orders` via:
+- `idx_orders_service_plan_scheduled_date_unique`
+
+Do not add or run a separate recurring-order idempotency migration for `orders`; the source-of-truth uniqueness guard already lives here under `service_plan_id`.
+
+### `provision_failures.sql`
+Additive platform-internal observability schema for failed tenant provisioning rollbacks. Run this after `catchup_run_this.sql`.
+
+It adds:
+- `provision_failures`
+- platform-internal rollback failure tracking for provisioning cleanup
+- service-role-only RLS/policy coverage
+- partial indexes for onboarding request and tenant follow-up
+
 ### `service_deposit_control.sql`
 Additive deposit-control schema. Run this after `catchup_run_this.sql` and `service_workflow_phase1.sql`.
 
@@ -126,12 +140,13 @@ The `/archive/` folder contains older migrations kept for reference. Some schema
 3. Run `catchup_run_this.sql`.
 4. Run `service_workflow_phase1.sql`.
 5. Run `service_recurring_plans.sql` if you want recurring service plans enabled.
-6. Run `service_deposit_control.sql` if you want deposit requirements, overrides, and booking/job enforcement enabled.
-7. Run `hydrovac_module_foundation.sql` if you want hydrovac / Vactor compliance, manifest, and dispatch schema enabled.
-8. Point `.env.test` or `TEST_*` secrets at that same project.
-9. Run `npm run test:preflight:service-workflow`.
-10. Set the required environment variables from the root `.env.example`.
-11. Deploy or run the app against that project.
+6. Run `provision_failures.sql` if you want provisioning rollback failures recorded for admin follow-up.
+7. Run `service_deposit_control.sql` if you want deposit requirements, overrides, and booking/job enforcement enabled.
+8. Run `hydrovac_module_foundation.sql` if you want hydrovac / Vactor compliance, manifest, and dispatch schema enabled.
+9. Point `.env.test` or `TEST_*` secrets at that same project.
+10. Run `npm run test:preflight:service-workflow`.
+11. Set the required environment variables from the root `.env.example`.
+12. Deploy or run the app against that project.
 
 ## Change process
 
@@ -141,6 +156,16 @@ The `/archive/` folder contains older migrations kept for reference. Some schema
 4. Apply the same change in Supabase SQL Editor for the target environment.
 5. Rerun `npm run test:preflight:service-workflow` against that environment when the change affects the service workflow.
 6. Commit the SQL source-of-truth and any targeted live repair together.
+
+## Standalone migration rollback
+
+### `provision_failures.sql`
+```sql
+drop table if exists public.provision_failures;
+```
+
+### `service_recurring_plans.sql`
+Do not roll this back casually on a live environment. It adds schema, functions, triggers, and RLS across recurring service features. If rollback is required, treat it as a dedicated migration project with data review first.
 
 This keeps `CATCHUP_RUN_THIS.sql` current as the repo source of truth for the versioned core schema.
 

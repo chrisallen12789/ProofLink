@@ -172,7 +172,7 @@ const CHECKLIST_BY_TYPE = {
       {slot:'logo',label:'Business logo',hint:'PNG, transparent preferred. Min 400Ã—400px.'},
       {slot:'hero',label:'Hero / before-after photo',hint:'Dramatic before/after or clean result. Landscape 1200Ã—600px min.'},
       {slot:'truck',label:'Truck / rig photo',hint:'Photo of your vehicle or equipment. Builds trust.'},
-      {slot:'work_1',label:'Work sample #1',hint:'Completed job â€” driveway, house wash, deck, etc.'},
+      {slot:'work_1',label:'Work sample #1',hint:'Completed job — driveway, house wash, deck, etc.'},
       {slot:'work_2',label:'Work sample #2',hint:'Second completed job photo.'},
     ],
   },
@@ -225,7 +225,7 @@ const CHECKLIST_BY_TYPE = {
     info:[
       {label:'Tagline',key:'tagline',hint:'E.g. "HVAC service, repair, and installation you can count on."'},
       {label:'Service area',key:'city_state',hint:'City or region you serve.'},
-      {label:'Phone number',key:'phone',hint:'Emergency calls come here â€” always answered.'},
+      {label:'Phone number',key:'phone',hint:'Emergency calls come here — always answered.'},
       {label:'License number',key:'license_number',hint:'Contractor license number. Builds trust with homeowners.'},
       {label:'Accent color',key:'accent_color',hint:'Blues work well for HVAC.'},
     ],
@@ -307,9 +307,9 @@ const CHECKLIST_BY_TYPE = {
     ],
     images:[
       {slot:'logo',label:'Business logo',hint:'PNG, transparent preferred.'},
-      {slot:'hero',label:'Hero image',hint:'Stunning event setup â€” reception, styled table, or venue. 1200Ã—800px.'},
+      {slot:'hero',label:'Hero image',hint:'Stunning event setup — reception, styled table, or venue. 1200Ã—800px.'},
       {slot:'event_1',label:'Event photo #1',hint:'Full room or venue setup you coordinated.'},
-      {slot:'event_2',label:'Event photo #2',hint:'Detail shot â€” centerpiece, florals, lighting.'},
+      {slot:'event_2',label:'Event photo #2',hint:'Detail shot — centerpiece, florals, lighting.'},
       {slot:'event_3',label:'Event photo #3',hint:'Third event or setup photo.'},
     ],
   },
@@ -378,7 +378,7 @@ function buildChecklistSection(businessType, loginHref) {
         </p>
       </div>
     </div>
-    <div style="text-align:center;margin:0 0 8px;">${cta('Upload images in your account â†’', uploadUrl)}</div>`;
+    <div style="text-align:center;margin:0 0 8px;">${cta('Upload images in your account →', uploadUrl)}</div>`;
 }
 
 // â”€â”€ Templates â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -388,7 +388,7 @@ const templates = {
   submitted({ owner_name, business_name, owner_email, business_slug, selected_plan }) {
     return {
       to: owner_email,
-      subject: `We received your setup request â€” ${business_name}`,
+      subject: `We received your setup request — ${business_name}`,
       html: layout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.green)}${bodyWrap(`
         ${badge('Request received',T.greenLt,T.green,T.greenBd)}<br/><br/>
         ${h1(`Hey ${owner_name}, we have your details.`)}
@@ -404,9 +404,9 @@ const templates = {
   approved({ owner_name, business_name, owner_email }) {
     return {
       to: owner_email,
-      subject: `Weâ€™re setting up your account â€” ${business_name}`,
+      subject: `We’re setting up your account — ${business_name}`,
       html: layout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.green)}${bodyWrap(`
-        ${badge('Setup confirmed âœ“',T.greenLt,T.green,T.greenBd)}<br/><br/>
+        ${badge('Setup confirmed ✓',T.greenLt,T.green,T.greenBd)}<br/><br/>
         ${h1(`Good news, ${owner_name}.`)}
         ${sub(`The setup details for ${business_name} are confirmed. We're setting up your account now.`)}
         ${callout(`<strong style="color:${T.ink};">What's next:</strong><br/>You'll receive one more email in the next few minutes with your password setup link so you can sign in and finish setup.`,T.amberLt,T.amberBd,T.amber)}
@@ -420,12 +420,12 @@ const templates = {
     const loginHref = login_url || `${SITE_URL}/operator/`;
     return {
       to: owner_email,
-      subject: `Set your ProofLink password â€” ${business_name}`,
+      subject: `Set your ProofLink password — ${business_name}`,
       html: layout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.red)}${bodyWrap(`
         ${badge('Set your password',T.redLight,T.red,T.redBorder)}<br/><br/>
         ${h1(`Set your password, ${owner_name}.`)}
         ${sub(`${business_name} is set up on ProofLink. Click below to set your password and open your account.`)}
-        <div style="text-align:center;margin:0 0 32px;">${cta('Set my password â†’', loginHref)}</div>
+        <div style="text-align:center;margin:0 0 32px;">${cta('Set my password →', loginHref)}</div>
         ${infoBox([...(store_slug?[['Your website',`${getSiteUrl()}/${store_slug}`]]:[]),['Account sign-in',`${SITE_URL}/operator/`]])}
         ${divider()}
         <p style="margin:0 0 20px;font-size:15px;font-weight:700;color:${T.ink};">Complete your business setup</p>
@@ -440,7 +440,7 @@ const templates = {
   rejected({ owner_name, business_name, owner_email, rejection_reason }) {
     return {
       to: owner_email,
-      subject: `Update on your ProofLink request â€” ${business_name}`,
+      subject: `Update on your ProofLink request — ${business_name}`,
       html: layout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.border)}${bodyWrap(`
         ${h1(`Hi ${owner_name},`)}
         ${sub('Thank you for your interest in ProofLink.')}
@@ -455,13 +455,13 @@ const templates = {
   reviewRequest({ customer_name, customer_email, business_name, review_url }) {
     return {
       to: customer_email,
-      subject: `How did we do? â€” ${business_name}`,
+      subject: `How did we do? — ${business_name}`,
       html: layout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.amber)}${bodyWrap(`
         ${h1(`How did we do, ${customer_name}?`)}
         ${sub(`Thanks for choosing ${business_name}. Your feedback helps us improve and helps other customers find great local services.`)}
         <div style="text-align:center;margin:0 0 28px;">
           <p style="margin:0 0 16px;font-size:15px;color:${T.muted};">It only takes 30 seconds.</p>
-          ${cta('Leave a quick review â†’', review_url, T.red)}
+          ${cta('Leave a quick review →', review_url, T.red)}
         </div>
         ${divider()}
         ${p(`<span style="color:${T.hint};">If you have any questions or concerns, just reply to this email.</span>`)}
@@ -472,7 +472,7 @@ const templates = {
   bookingConfirmation({ customer_name, customer_email, business_name, title, date_str, time_str, location, notes, portal_url }) {
     return {
       to     : customer_email,
-      subject: `Appointment confirmed â€” ${business_name}`,
+      subject: `Appointment confirmed — ${business_name}`,
       html   : businessLayout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.green)}${bodyWrap(`
         ${h1(`You're booked, ${escHtml(customer_name)}!`)}
         ${sub(`${business_name} has confirmed your appointment.`)}
@@ -483,7 +483,7 @@ const templates = {
           ...(location ? [['Location', escHtml(location)]] : []),
           ...(notes ? [['Notes', escHtml(notes)]] : []),
         ])}
-        ${portal_url ? `<div style="text-align:center;margin:0 0 28px;">${cta('View my account â†’', portal_url, T.red)}</div>` : ''}
+        ${portal_url ? `<div style="text-align:center;margin:0 0 28px;">${cta('View my account →', portal_url, T.red)}</div>` : ''}
         ${divider()}
         ${p(`<span style="color:${T.hint};">Need to reschedule? Reply to this email and we'll find a new time. Late cancellations (less than 24 hours) may be subject to a cancellation fee per our policy.</span>`)}
       `)}</table>`, { preheader: `Your appointment with ${business_name} is confirmed.`, business_name }),
@@ -493,13 +493,13 @@ const templates = {
   operatorNewRequest({ operator_email, owner_name, business_name, business_type, city_state, owner_email, selected_plan }) {
     return {
       to: operator_email,
-      subject: `New account request â€” ${business_name}`,
+      subject: `New account request — ${business_name}`,
       html: layout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.amber)}${bodyWrap(`
         ${badge('New request',T.amberLt,T.amber,T.amberBd)}<br/><br/>
         ${h1('New business request')}
         ${sub('A business just asked to start with ProofLink.')}
-        ${infoBox([['Business',business_name],['Owner',owner_name],['Email',owner_email],['Plan',selected_plan ? String(selected_plan).replace(/\b\w/g, (m) => m.toUpperCase()) : 'Starter'],['Type',business_type||'â€”'],['Location',city_state||'â€”']])}
-        <div style="text-align:left;">${cta('Review in admin â†’',`${SITE_URL}/admin/`)}</div>
+        ${infoBox([['Business',business_name],['Owner',owner_name],['Email',owner_email],['Plan',selected_plan ? String(selected_plan).replace(/\b\w/g, (m) => m.toUpperCase()) : 'Starter'],['Type',business_type||'—'],['Location',city_state||'—']])}
+        <div style="text-align:left;">${cta('Review in admin →',`${SITE_URL}/admin/`)}</div>
       `)}</table>`, { preheader: `${business_name} just asked to start with ProofLink.` }),
     };
   },
@@ -514,7 +514,7 @@ const templates = {
         ${h1(`Hi ${customer_name},`)}
         ${sub(`Your order with ${business_name} has been updated.`)}
         ${infoBox([['Order', order_title || 'Your order'], ['Status', statusLabel]])}
-        ${portal_url ? `<div style="text-align:center;margin:0 0 28px;">${cta('View order details â†’', portal_url, T.red)}</div>` : ''}
+        ${portal_url ? `<div style="text-align:center;margin:0 0 28px;">${cta('View order details →', portal_url, T.red)}</div>` : ''}
         ${divider()}
         ${p(`<span style="color:${T.hint};">Questions? Reply to this email and we'll be happy to help.</span>`)}
       `)}</table>`, { preheader: `Your order with ${business_name} is now: ${statusLabel}.`, business_name }),
@@ -525,7 +525,7 @@ const templates = {
     const formattedAmount = typeof total_amount === 'number'
       ? `$${total_amount.toFixed(2)}`
       : (total_cents ? `$${(Number(total_cents) / 100).toFixed(2)}` : 'See invoice');
-    const dateStr = created_at ? new Date(created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'â€”';
+    const dateStr = created_at ? new Date(created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '—';
     return {
       to     : customer_email,
       subject: `Payment reminder from ${business_name}`,
@@ -534,7 +534,7 @@ const templates = {
         ${h1(`Hi ${customer_name},`)}
         ${sub(`This is a friendly reminder that a payment is due to ${business_name}.`)}
         ${infoBox([['Amount due', formattedAmount], ['Order date', dateStr], ['Status', String(status || 'pending').replace(/_/g, ' ').replace(/\b\w/g, (m) => m.toUpperCase())]])}
-        ${portal_url ? `<div style="text-align:center;margin:0 0 28px;">${cta('Review and pay â†’', portal_url, T.red)}</div>` : ''}
+        ${portal_url ? `<div style="text-align:center;margin:0 0 28px;">${cta('Review and pay →', portal_url, T.red)}</div>` : ''}
         ${divider()}
         ${p(`<span style="color:${T.hint};">If you have already paid, please disregard this email. Questions? Just reply and we'll sort it out.</span>`)}
       `)}</table>`, { preheader: `Friendly reminder: payment of ${formattedAmount} is due to ${business_name}.`, business_name }),
@@ -556,7 +556,7 @@ const templates = {
         ${h1(`Hi ${escHtml(customer_name)},`)}
         ${sub(`${business_name} has prepared a quote for you. Review the details below and click the button to accept.`)}
         ${infoBox([['Service', escHtml(title)], ...(description ? [['Details', escHtml(description)]] : []), ['Quote total', formattedAmount], ...(validStr ? [['Valid until', validStr]] : [])])}
-        <div style="text-align:center;margin:0 0 28px;">${cta('Review estimate â†’', quote_url, T.red)}</div>
+        <div style="text-align:center;margin:0 0 28px;">${cta('Review estimate →', quote_url, T.red)}</div>
         ${divider()}
         ${p(`<span style="color:${T.hint};">Questions about this quote? Just reply to this email.</span>`)}
       `)}</table>`, { preheader: `${business_name} has sent you a quote for ${title}.`, business_name }),
@@ -571,13 +571,13 @@ const templates = {
     if (signature) infoRows.push(['Accepted by', signature]);
     return {
       to     : customer_email,
-      subject: `Quote accepted â€” ${business_name}`,
+      subject: `Quote accepted — ${business_name}`,
       html   : businessLayout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.green)}${bodyWrap(`
-        ${badge('Quote accepted âœ“', T.greenLt, T.green, T.greenBd)}<br/><br/>
+        ${badge('Quote accepted ✓', T.greenLt, T.green, T.greenBd)}<br/><br/>
         ${h1(`You're all set, ${customer_name}!`)}
         ${sub(`Thanks for accepting the quote from ${business_name}. Your order has been confirmed and the team will be in touch.`)}
         ${infoBox(infoRows)}
-        ${portal_url ? `<div style="text-align:center;margin:0 0 28px;">${cta('View order details â†’', portal_url, T.red)}</div>` : ''}
+        ${portal_url ? `<div style="text-align:center;margin:0 0 28px;">${cta('View order details →', portal_url, T.red)}</div>` : ''}
         ${divider()}
         ${p(`<span style="color:${T.hint};">Questions? Just reply to this email and we'll take care of you.</span>`)}
       `)}</table>`, { preheader: `Your quote from ${business_name} has been accepted. Order confirmed.`, business_name }),
@@ -587,13 +587,13 @@ const templates = {
   bookingCancelled({ customer_name, customer_email, business_name, title, date_str, time_str, portal_url, rebook_url }) {
     return {
       to     : customer_email,
-      subject: `Appointment cancelled â€” ${business_name}`,
+      subject: `Appointment cancelled — ${business_name}`,
       html   : businessLayout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.red)}${bodyWrap(`
         ${badge('Cancelled', T.redLight, T.red, T.redBorder)}<br/><br/>
         ${h1(`Hi ${escHtml(customer_name)},`)}
         ${sub(`Your appointment with ${business_name} has been cancelled.`)}
-        ${infoBox([['Service', escHtml(title) || 'Appointment'], ['Date', date_str || 'â€”'], ['Time', time_str || 'â€”']])}
-        ${(rebook_url || portal_url) ? `<div style="text-align:center;margin:0 0 28px;">${cta('Book another appointment â†’', rebook_url || portal_url, T.red)}</div>` : ''}
+        ${infoBox([['Service', escHtml(title) || 'Appointment'], ['Date', date_str || '—'], ['Time', time_str || '—']])}
+        ${(rebook_url || portal_url) ? `<div style="text-align:center;margin:0 0 28px;">${cta('Book another appointment →', rebook_url || portal_url, T.red)}</div>` : ''}
         ${divider()}
         ${p(`<span style="color:${T.hint};">Need to reschedule? Reply to this email and we\u2019ll find a time that works.</span>`)}
       `)}</table>`, { preheader: `Your appointment with ${business_name} has been cancelled.`, business_name }),
@@ -603,13 +603,13 @@ const templates = {
   bookingReminder({ customer_name, customer_email, business_name, title, date_str, time_str, location, portal_url }) {
     return {
       to     : customer_email,
-      subject: `Reminder: appointment tomorrow â€” ${business_name}`,
+      subject: `Reminder: appointment tomorrow — ${business_name}`,
       html   : businessLayout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.amber)}${bodyWrap(`
         ${badge('Reminder', T.amberLt, T.amber, T.amberBd)}<br/><br/>
         ${h1(`See you tomorrow, ${escHtml(customer_name)}!`)}
         ${sub(`This is a reminder of your upcoming appointment with ${business_name}.`)}
-        ${infoBox([['Service', escHtml(title) || 'Appointment'], ['Date', date_str || 'â€”'], ['Time', time_str || 'â€”'], ...(location ? [['Location', escHtml(location)]] : [])])}
-        ${portal_url ? `<div style="text-align:center;margin:0 0 28px;">${cta('View appointment details â†’', portal_url, T.red)}</div>` : ''}
+        ${infoBox([['Service', escHtml(title) || 'Appointment'], ['Date', date_str || '—'], ['Time', time_str || '—'], ...(location ? [['Location', escHtml(location)]] : [])])}
+        ${portal_url ? `<div style="text-align:center;margin:0 0 28px;">${cta('View appointment details →', portal_url, T.red)}</div>` : ''}
         ${divider()}
         ${p(`<span style="color:${T.hint};">Need to reschedule? Reply to this email and we\u2019ll sort it out.</span>`)}
       `)}</table>`, { preheader: `Reminder: your appointment with ${business_name} is tomorrow.`, business_name }),
@@ -623,7 +623,7 @@ const templates = {
       : null;
     return {
       to     : customer_email,
-      subject: `Proposal from ${business_name} â€” ${escHtml(title)}`,
+      subject: `Proposal from ${business_name} — ${escHtml(title)}`,
       html   : businessLayout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.red)}${bodyWrap(`
         ${badge('Proposal ready', T.redLight, T.red, T.redBorder)}<br/><br/>
         ${h1(`Hi ${escHtml(customer_name)},`)}
@@ -646,11 +646,11 @@ const templates = {
     const resolvedCents = amount_cents != null ? amount_cents : total_cents;
     const n = resolvedCents != null ? resolvedCents / 100 : Number(total_amount || 0);
     const fmt = isNaN(n) || !n ? null : '$' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-    const fmtMoney = (cents) => cents != null ? '$' + (Number(cents) / 100).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',') : 'â€”';
+    const fmtMoney = (cents) => cents != null ? '$' + (Number(cents) / 100).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',') : '—';
     const dateStr = created_at
       ? new Date(created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
       : new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-    const resolvedTitle = order_title || title || 'â€”';
+    const resolvedTitle = order_title || title || '—';
     const lineItemsHtml = line_items.length > 0 ? `
 <table style="width:100%;border-collapse:collapse;margin-bottom:16px;">
   <thead>
@@ -673,12 +673,12 @@ const templates = {
 </table>` : '';
     return {
       to     : customer_email,
-      subject: `Invoice from ${business_name}${fmt ? ' â€” ' + fmt + ' due' : ''}`,
+      subject: `Invoice from ${business_name}${fmt ? ' — ' + fmt + ' due' : ''}`,
       html   : businessLayout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.red)}${bodyWrap(`
         ${badge('Invoice', T.redLight, T.red, T.redBorder)}<br/><br/>
         ${h1(`Invoice from ${business_name}`)}
         ${infoBox([
-          ['Invoice #', invoice_number || String(order_id || '').slice(0, 8).toUpperCase() || 'â€”'],
+          ['Invoice #', invoice_number || String(order_id || '').slice(0, 8).toUpperCase() || '—'],
           ['Date', dateStr],
           ...(due_date ? [['Due date', new Date(due_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })]] : []),
           ['Service', resolvedTitle],
@@ -687,10 +687,10 @@ const templates = {
         ${description ? p(`<em>${description}</em>`) : ''}
         ${lineItemsHtml}
         ${fmt ? `<div style="text-align:right;margin:0 0 24px;font-size:15px;font-weight:700;color:${T.ink};">Total due: ${fmt}</div>` : ''}
-        <div style="text-align:center;margin:0 0 28px;">${cta(payment_url ? 'Pay now â†’' : 'View invoice â†’', payment_url || portal_url, T.red)}</div>
+        <div style="text-align:center;margin:0 0 28px;">${cta(payment_url ? 'Pay now →' : 'View invoice →', payment_url || portal_url, T.red)}</div>
         ${divider()}
         ${p(`<span style="color:${T.hint};">Questions? Just reply and we\u2019ll sort it out.</span>`)}
-      `)}</table>`, { preheader: `Invoice from ${business_name}${fmt ? ' â€” ' + fmt + ' due' : ''}.`, logo_url }),
+      `)}</table>`, { preheader: `Invoice from ${business_name}${fmt ? ' — ' + fmt + ' due' : ''}.`, logo_url }),
     };
   },
 
@@ -701,14 +701,14 @@ const templates = {
       ? new Date(valid_until).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' })
       : null;
     const sessionsNum = Number(sessions_total) || 0;
-    const progressPct = 0; // new purchase â€” 0 sessions used
+    const progressPct = 0; // new purchase — 0 sessions used
     const barWidth = 100 - progressPct;
     const ctaHref = booking_url || `${SITE_URL}/book/`;
     return {
       to     : customer_email,
       subject: `Your ${package_title} package is confirmed`,
       html   : businessLayout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.green)}${bodyWrap(`
-        ${badge('Package confirmed âœ“', T.greenLt, T.green, T.greenBd)}<br/><br/>
+        ${badge('Package confirmed ✓', T.greenLt, T.green, T.greenBd)}<br/><br/>
         ${h1(`You're all set, ${customer_name}!`)}
         ${sub(`Hi ${customer_name}, your session package is active and ready to use.`)}
         ${infoBox([
@@ -723,11 +723,11 @@ const templates = {
             <div style="background:${T.green};width:${barWidth}%;height:8px;border-radius:4px;"></div>
           </div>
         </div>
-        <div style="text-align:center;margin:0 0 28px;">${cta('Book your first session â†’', ctaHref, T.green)}</div>
+        <div style="text-align:center;margin:0 0 28px;">${cta('Book your first session →', ctaHref, T.green)}</div>
         ${divider()}
         ${p(`Your remaining sessions will be tracked automatically. You'll see your balance when you log in.`)}
         ${p(`<span style="color:${T.hint};">Questions? Just reply to this email.</span>`)}
-      `)}</table>`, { preheader: `Your ${package_title} package is confirmed â€” ${sessionsNum} sessions ready to use.`, logo_url }),
+      `)}</table>`, { preheader: `Your ${package_title} package is confirmed — ${sessionsNum} sessions ready to use.`, logo_url }),
     };
   },
 
@@ -736,21 +736,21 @@ const templates = {
     const amountStr = fmtMoney(amount_cents);
     return {
       to     : customer_email,
-      subject: `${retainer_title} â€” ${period_label} Invoice`,
+      subject: `${retainer_title} — ${period_label} Invoice`,
       html   : businessLayout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.red)}${bodyWrap(`
         ${badge('Retainer invoice', T.redLight, T.red, T.redBorder)}<br/><br/>
-        ${h1(`${retainer_title} â€” ${period_label}`)}
+        ${h1(`${retainer_title} — ${period_label}`)}
         ${sub(`Hi ${customer_name}, your ${retainer_title} invoice for ${period_label} is ready.`)}
         ${infoBox([
           ...(invoice_number ? [['Invoice #', invoice_number]] : []),
           ...(amountStr ? [['Amount due', amountStr]] : []),
           ['Period', period_label],
         ])}
-        ${payment_url ? `<div style="text-align:center;margin:0 0 28px;">${cta('Pay now â†’', payment_url, T.red)}</div>` : ''}
+        ${payment_url ? `<div style="text-align:center;margin:0 0 28px;">${cta('Pay now →', payment_url, T.red)}</div>` : ''}
         ${divider()}
         ${p('This invoice is automatically generated as part of your retainer agreement.')}
         ${p(`<span style="color:${T.hint};">Questions? Just reply to this email and we\u2019ll sort it out.</span>`)}
-      `)}</table>`, { preheader: `${retainer_title} â€” ${period_label} invoice${amountStr ? ': ' + amountStr + ' due' : ''}.`, logo_url }),
+      `)}</table>`, { preheader: `${retainer_title} — ${period_label} invoice${amountStr ? ': ' + amountStr + ' due' : ''}.`, logo_url }),
     };
   },
 
@@ -763,7 +763,7 @@ const templates = {
         ${sub(`${business_name} replied to your message.`)}
         ${callout(escHtml(reply_text || '').replace(/\n/g, '<br/>'), T.bg, T.border, T.ink)}
         ${original_message ? `${divider()}${p(`<strong style="color:${T.hint};">Your original message:</strong><br/>${escHtml(original_message).replace(/\n/g, '<br/>')}`)}` : ''}
-        ${portal_url ? `<div style="text-align:center;margin:0 0 8px;">${cta('View your account â†’', portal_url, T.red)}</div>` : ''}
+        ${portal_url ? `<div style="text-align:center;margin:0 0 8px;">${cta('View your account →', portal_url, T.red)}</div>` : ''}
         ${divider()}
         ${p(`<span style="color:${T.hint};">Reply to this email to continue the conversation.</span>`)}
       `)}</table>`, { preheader: `${business_name} replied to your message.` }),
@@ -826,7 +826,7 @@ templates.reviewRequest = function reviewRequest({
       ${reviewedCopy}
       <div style="text-align:center;margin:0 0 28px;">
         <p style="margin:0 0 16px;font-size:15px;color:${T.muted};">It only takes 30 seconds.</p>
-        ${cta('Leave a quick review Ã¢â€ â€™', review_url, T.red)}
+        ${cta('Leave a quick review Ã¢â€ ’', review_url, T.red)}
       </div>
       ${divider()}
       ${p(`<span style="color:${T.hint};">If you have any questions or concerns, just reply to this email.</span>`)}
@@ -848,7 +848,7 @@ module.exports.buildInvoiceHtml = function buildInvoiceHtml({
 }) {
   const fmt = (_v) => {
     const n = total_cents != null ? total_cents / 100 : Number(total_amount || 0);
-    return isNaN(n) ? 'â€”' : '$' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    return isNaN(n) ? '—' : '$' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   };
   const dateStr = created_at
     ? new Date(created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
@@ -858,17 +858,17 @@ module.exports.buildInvoiceHtml = function buildInvoiceHtml({
     ${badge('Invoice', T.redLight, T.red, T.redBorder)}<br/><br/>
     ${h1(`Invoice from ${business_name}`)}
     ${infoBox([
-      ['Invoice #', String(order_id || '').slice(0, 8).toUpperCase() || 'â€”'],
+      ['Invoice #', String(order_id || '').slice(0, 8).toUpperCase() || '—'],
       ['Date', dateStr],
-      ['Service', title || 'â€”'],
+      ['Service', title || '—'],
       ['Status', statusLabel],
       ['Amount due', fmt()],
     ])}
     ${description ? `${p(`<em>${description}</em>`)}` : ''}
-    ${portal_url ? `<div style="text-align:center;margin:0 0 28px;">${cta('View invoice details â†’', portal_url, T.red)}</div>` : ''}
+    ${portal_url ? `<div style="text-align:center;margin:0 0 28px;">${cta('View invoice details →', portal_url, T.red)}</div>` : ''}
     ${divider()}
     ${p(`<span style="color:${T.hint};">Questions about this invoice? Just reply to this email.</span>`)}
-  `)}</table>`, { preheader: `Invoice from ${business_name} â€” ${fmt()} due.` });
+  `)}</table>`, { preheader: `Invoice from ${business_name} — ${fmt()} due.` });
 };
 
 
