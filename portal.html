@@ -68,6 +68,42 @@
     .hidden { display: none; }
     .portal-notice { margin-bottom: 12px; }
     .portal-back-btn { margin-top: 12px; }
+    .orders-summary {
+      margin-bottom: 12px;
+      padding: 14px 16px;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,.08);
+      background: rgba(255,255,255,.04);
+    }
+    .orders-summary--attention {
+      border-color: rgba(200,75,47,.22);
+      background: rgba(200,75,47,.08);
+    }
+    .orders-summary-kicker {
+      font-size: .72rem;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      font-weight: 700;
+      color: rgba(255,255,255,.46);
+      margin-bottom: 6px;
+    }
+    .orders-summary-title {
+      font-size: .95rem;
+      font-weight: 600;
+      color: #e8e9eb;
+    }
+    .orders-summary-copy {
+      margin-top: 4px;
+      font-size: .84rem;
+      color: rgba(255,255,255,.7);
+      line-height: 1.5;
+    }
+    .orders-summary-next {
+      margin-top: 10px;
+      font-size: .8rem;
+      color: rgba(255,255,255,.82);
+      font-weight: 600;
+    }
     .section-title { font-size: .95rem; font-weight: 600; margin-bottom: 12px; }
     .order-row {
       padding: 12px 0;
@@ -247,6 +283,7 @@
 
     <div class="tab-panel active" id="tab-orders">
       <div class="search-row"><input type="text" id="orderSearch" placeholder="Search orders..." /></div>
+      <div id="ordersSummary" class="orders-summary hidden"></div>
       <div id="ordersList"></div>
     </div>
 
@@ -414,6 +451,78 @@
     return "";
   }
 
+  function summarizePortalPayments(orders) {
+    var rows = Array.isArray(orders) ? orders : [];
+    var summary = {
+      openCount: 0,
+      overdueCount: 0,
+      totalDueCents: 0,
+      nextOrder: null,
+    };
+    rows.forEach(function (order) {
+      var dueCents = order && order.amount_due_cents != null ? Number(order.amount_due_cents) : 0;
+      var paidCents = order && order.amount_paid_cents != null ? Number(order.amount_paid_cents) : 0;
+      var paymentState = String(order && order.payment_state || '').toLowerCase();
+      if (!(dueCents > 0)) return;
+      summary.openCount += 1;
+      summary.totalDueCents += dueCents;
+      if (paymentState === 'overdue') summary.overdueCount += 1;
+      if (!summary.nextOrder) {
+        summary.nextOrder = order;
+        return;
+      }
+      var nextState = String(summary.nextOrder.payment_state || '').toLowerCase();
+      var nextDue = summary.nextOrder.amount_due_cents != null ? Number(summary.nextOrder.amount_due_cents) : 0;
+      if (paymentState === 'overdue' && nextState !== 'overdue') {
+        summary.nextOrder = order;
+        return;
+      }
+      if (paymentState === nextState && dueCents > nextDue) {
+        summary.nextOrder = order;
+        return;
+      }
+      if (!paidCents && summary.nextOrder.amount_paid_cents && paymentState !== 'overdue' && nextState !== 'overdue') {
+        summary.nextOrder = order;
+      }
+    });
+    return summary;
+  }
+
+  function renderOrdersSummary(orders) {
+    var el = document.getElementById('ordersSummary');
+    if (!el) return;
+    if (!Array.isArray(orders) || !orders.length) {
+      el.className = 'orders-summary hidden';
+      el.innerHTML = '';
+      return;
+    }
+    var summary = summarizePortalPayments(orders);
+    if (!summary.openCount) {
+      el.className = 'orders-summary';
+      el.innerHTML =
+        '<div class="orders-summary-kicker">Payment summary</div>' +
+        '<div class="orders-summary-title">You are paid up right now.</div>' +
+        '<div class="orders-summary-copy">If the business sends another invoice or balance update, it will show here automatically.</div>';
+      el.classList.remove('hidden');
+      return;
+    }
+    var orderLabel = summary.openCount === 1 ? 'order still has a balance due' : 'orders still have balances due';
+    var overdueCopy = summary.overdueCount
+      ? ' ' + summary.overdueCount + ' ' + (summary.overdueCount === 1 ? 'is already overdue.' : 'are already overdue.')
+      : '';
+    var nextTitle = summary.overdueCount ? 'A payment needs attention.' : 'A balance is still open.';
+    var nextOrderTitle = summary.nextOrder && summary.nextOrder.title ? summary.nextOrder.title : 'your next order';
+    el.className = 'orders-summary orders-summary--attention';
+    el.innerHTML =
+      '<div class="orders-summary-kicker">Payment summary</div>' +
+      '<div class="orders-summary-title">' + escHtml(nextTitle) + '</div>' +
+      '<div class="orders-summary-copy">' +
+        escHtml(summary.openCount + ' ' + orderLabel + ' totaling ' + fmtCents(summary.totalDueCents) + '.' + overdueCopy) +
+      '</div>' +
+      '<div class="orders-summary-next">Next best step: Review ' + escHtml(nextOrderTitle) + ' and pay any amount still due.</div>';
+    el.classList.remove('hidden');
+  }
+
   function renderPackageBalance(orders) {
     var section = document.getElementById('packageBalanceSection');
     if (!section) return;
@@ -441,9 +550,11 @@
   function renderOrders(orders) {
     var el = document.getElementById('ordersList');
     if (!orders || !orders.length) {
+      renderOrdersSummary([]);
       el.innerHTML = '<p class="empty">No orders yet. When the business sends one, it will appear here.</p>';
       return;
     }
+    renderOrdersSummary(orders);
     el.innerHTML = orders.map(function (o) {
       // Prefer cents-based fields; fall back to total_amount (legacy float field)
       var totalCents   = (o.total_cents != null)       ? Number(o.total_cents)       : null;

@@ -48,6 +48,10 @@ test.describe("portal payment return smoke", () => {
     await page.goto("/portal.html?tenant=tenant_smoke&email=customer@example.com&checkout=cancel&order_id=order_smoke_1");
 
     await expect(page.getByText("No payment was made for Hydrovac daylighting.")).toBeVisible();
+    await expect(page.getByText("Payment summary")).toBeVisible();
+    await expect(page.locator('.orders-summary-title')).toHaveText("A balance is still open.");
+    await expect(page.getByText("1 order still has a balance due totaling $200.00.")).toBeVisible();
+    await expect(page.getByText("Next best step: Review Hydrovac daylighting and pay any amount still due.")).toBeVisible();
     await expect(page.getByRole("button", { name: "Pay now" })).toBeVisible();
     await expect(page.getByText("A balance is still open. You can pay the rest here any time from this page.")).toBeVisible();
     await expect(page.getByText("Customer account")).toBeVisible();
@@ -66,6 +70,8 @@ test.describe("portal payment return smoke", () => {
     await page.goto("/portal.html?tenant=tenant_smoke&email=customer@example.com&checkout=success&order_id=order_smoke_1");
 
     await expect(page.getByText("Your payment for Hydrovac daylighting was received.")).toBeVisible();
+    await expect(page.getByText("Payment summary")).toBeVisible();
+    await expect(page.getByText("You are paid up right now.")).toBeVisible();
     await expect(page.locator('.order-row[data-order-id="order_smoke_1"]')).toHaveClass(/order-row--highlight/);
     await expect(page.locator('.order-row[data-order-id="order_smoke_1"]')).toContainText("Paid in full");
     await expect(page.getByText("Paid in full. You are all set on this order.")).toBeVisible();

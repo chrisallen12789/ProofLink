@@ -28,6 +28,12 @@ describe("customer portal html", () => {
     expect(source).toContain('data-action="pay-now"');
     expect(source).not.toContain('onclick="handlePayNow(');
     expect(source).toContain("portalPaymentGuidance(order, dueCents, paidCents)");
+    expect(source).toContain("summarizePortalPayments(orders)");
+    expect(source).toContain("renderOrdersSummary(orders)");
+    expect(source).toContain('id="ordersSummary"');
+    expect(source).toContain("Payment summary");
+    expect(source).toContain("You are paid up right now.");
+    expect(source).toContain("Next best step: Review ");
     expect(source).toContain("Paid in full. You are all set on this order.");
     expect(source).toContain("A balance is still open.");
     expect(source).toContain("checkoutState === 'success'");
@@ -42,6 +48,7 @@ describe("customer portal html", () => {
 
   test("uses shared portal classes instead of inline return layouts", () => {
     expect(source).toContain('class="btn btn-ghost portal-back-btn"');
+    expect(source).toContain('class="orders-summary hidden"');
     expect(source).toContain('class="package-balance-panel"');
     expect(source).toContain('class="order-row order-row--top"');
     expect(source).toContain('class="order-row stacked-row stacked-row--tight"');
