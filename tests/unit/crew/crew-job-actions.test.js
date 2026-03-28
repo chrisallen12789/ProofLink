@@ -84,6 +84,27 @@ describe("crew job actions", () => {
     expect(ensureElement("jobActions").innerHTML).toContain("Report Issue");
   });
 
+  test("renderJobActions keeps field memory attached while work is active", () => {
+    const { context, ensureElement } = loadCrew();
+    ensureElement("jobActions");
+
+    context.renderJobActions("scheduled", {
+      service_address: "123 Main St",
+      customers: {
+        phone: "555-555-1212",
+        email: "owner@example.com",
+      },
+      notes: "Gate code 2468. Watch the back hydrant.",
+    });
+
+    expect(ensureElement("jobActions").innerHTML).toContain(
+      "Keep in mind before you move this job forward"
+    );
+    expect(ensureElement("jobActions").innerHTML).toContain("Service location: 123 Main St");
+    expect(ensureElement("jobActions").innerHTML).toContain("Customer contact: 555-555-1212 | owner@example.com");
+    expect(ensureElement("jobActions").innerHTML).toContain("Scope and notes: Gate code 2468. Watch the back hydrant.");
+  });
+
   test("renderJobActions uses clearer paused and completed field guidance", () => {
     const { context, ensureElement } = loadCrew();
     ensureElement("jobActions");
@@ -109,5 +130,15 @@ describe("crew job actions", () => {
     expect(context.fieldActionGuidance("blocked", { blocker_note: "Customer gate is locked" })).toBe(
       "Blocked: Customer gate is locked"
     );
+  });
+
+  test("crewJobMemoryItems fills in missing basics with clear prompts", () => {
+    const { context } = loadCrew();
+
+    const items = context.crewJobMemoryItems({});
+
+    expect(items).toContain("Service location is missing. Confirm the address with the office before you travel.");
+    expect(items).toContain("Customer contact is missing. Ask the office for the best number before access becomes a problem.");
+    expect(items).toContain("Scope and notes are still light. Add a field note if the work changes so the office can finish strong.");
   });
 });

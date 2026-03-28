@@ -292,6 +292,50 @@ function fieldActionGuidance(status, job = ACTIVE_JOB) {
   return '';
 }
 
+function crewJobMemoryItems(job = ACTIVE_JOB) {
+  const items = [];
+  const serviceAddress = String(job?.service_address || job?.address || '').trim();
+  const customerPhone = String(job?.customers?.phone || '').trim();
+  const customerEmail = String(job?.customers?.email || '').trim();
+  const workNotes = String(job?.description || job?.notes || '').trim();
+
+  if (serviceAddress) {
+    items.push(`Service location: ${serviceAddress}`);
+  } else {
+    items.push('Service location is missing. Confirm the address with the office before you travel.');
+  }
+
+  if (customerPhone || customerEmail) {
+    const contactParts = [];
+    if (customerPhone) contactParts.push(customerPhone);
+    if (customerEmail) contactParts.push(customerEmail);
+    items.push(`Customer contact: ${contactParts.join(' | ')}`);
+  } else {
+    items.push('Customer contact is missing. Ask the office for the best number before access becomes a problem.');
+  }
+
+  if (workNotes) {
+    items.push(`Scope and notes: ${workNotes}`);
+  } else {
+    items.push('Scope and notes are still light. Add a field note if the work changes so the office can finish strong.');
+  }
+
+  return items;
+}
+
+function renderCrewJobMemory(job = ACTIVE_JOB) {
+  const items = crewJobMemoryItems(job);
+  if (!items.length) return '';
+
+  return `
+    <div class="status-note">
+      <strong>Keep in mind before you move this job forward:</strong>
+      <ul>
+        ${items.map((item) => `<li>${escHtml(item)}</li>`).join('')}
+      </ul>
+    </div>`;
+}
+
 // ── Supabase Bootstrap ─────────────────────────────────────────────────────────
 
 function loadSupabaseScript() {
@@ -719,10 +763,13 @@ function renderJobActions(status, job = ACTIVE_JOB) {
 
   const guidance = fieldActionGuidance(status, job);
   const noteHtml = guidance
-    ? `<div class="status-note" style="margin-bottom:10px;">${escHtml(guidance)}</div>`
+    ? `<div class="status-note">${escHtml(guidance)}</div>`
+    : '';
+  const memoryHtml = (status === 'scheduled' || status === 'dispatched' || status === 'in_progress' || status === 'blocked')
+    ? renderCrewJobMemory(job)
     : '';
 
-  let html = noteHtml;
+  let html = noteHtml + memoryHtml;
 
   if (status === 'scheduled' || status === 'dispatched') {
     html += `
