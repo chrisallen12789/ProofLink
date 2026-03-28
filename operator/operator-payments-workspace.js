@@ -1,6 +1,53 @@
 // Payments workspace extracted from operator.js to keep the manual collection
 // flow in one domain-specific module.
 (function attachOperatorPaymentsWorkspace(global) {
+  function resolvePaymentContext(options = {}) {
+    const customerId = options.customerId ?? paymentCustomerId?.value ?? ACTIVE_CUSTOMER_ID ?? "";
+    const orderId = options.orderId ?? paymentOrderId?.value ?? ACTIVE_ORDER_ID ?? "";
+    const jobId = options.jobId ?? paymentJobId?.value ?? "";
+    const order = CRM_ORDERS_CACHE.find((row) => row.id === orderId) || CRM_ORDERS_CACHE.find((row) => row.customer_id === customerId) || null;
+    const customer = CUSTOMERS_CACHE.find((row) => row.id === customerId)
+      || CUSTOMERS_CACHE.find((row) => row.id === order?.customer_id)
+      || null;
+    const job = JOBS_CACHE.find((row) => row.id === jobId) || JOBS_CACHE.find((row) => row.order_id === order?.id) || null;
+    return { customer, order, job };
+  }
+
+  function buildPaymentContextMessage(options = {}) {
+    const blueprint = typeof currentWorkspaceBlueprint === "function" ? currentWorkspaceBlueprint() : { business: { key: "service_business" } };
+    const { customer, order, job } = resolvePaymentContext(options);
+    if (!customer && !order && !job) return "";
+
+    const sharedChecklist = global.PROOFLINK_OPERATOR_CUSTOMER_DETAIL?.customerMemoryChecklist;
+    const focus = customer && typeof sharedChecklist === "function"
+      ? sharedChecklist(customer, blueprint).slice(0, 2).map((item) => `${item.label}: ${item.note}`)
+      : [];
+    const customerName = customer?.name || order?.customer_name || "this customer";
+
+    if (focus.length) {
+      return `Recording payment for ${customerName}. Keep the follow-through tied to ${focus.join(" | ")}.`;
+    }
+
+    if (order?.payment_due_date) {
+      return `Recording payment for ${customerName}. This balance is tied to work due ${formatDateOnly(order.payment_due_date)}.`;
+    }
+
+    if (job?.service_address || job?.address) {
+      return `Recording payment for ${customerName}. Keep the service context attached to ${(job.service_address || job.address)} while you follow through.`;
+    }
+
+    return `Recording payment for ${customerName}. Keep the customer and work details attached while you close out the balance.`;
+  }
+
+  function applyPaymentContextMessage(options = {}) {
+    const message = buildPaymentContextMessage(options);
+    if (!message) {
+      setInlineMessage(paymentMsg, "");
+      return;
+    }
+    setInlineMessage(paymentMsg, message);
+  }
+
   function renderPaymentCustomerOptions(selectedCustomerId = "") {
     if (!paymentCustomerId) return;
     const options = sortedCustomers(CUSTOMERS_CACHE);
@@ -46,7 +93,11 @@
     if (paymentPaidAt) paymentPaidAt.value = options.paidAt || toDateTimeLocalValue(new Date().toISOString());
     if (paymentReference) paymentReference.value = options.reference || "";
     if (paymentNote) paymentNote.value = options.note || "";
-    setInlineMessage(paymentMsg, "");
+    applyPaymentContextMessage({
+      customerId: defaultCustomerId,
+      orderId: defaultOrderId,
+      jobId: options.jobId || "",
+    });
   }
 
   function loadPaymentIntoForm(payment) {
@@ -63,7 +114,11 @@
     if (paymentPaidAt) paymentPaidAt.value = toDateTimeLocalValue(payment.paid_at || payment.created_at || payment.updated_at);
     if (paymentReference) paymentReference.value = payment.metadata?.reference || "";
     if (paymentNote) paymentNote.value = payment.metadata?.note || "";
-    setInlineMessage(paymentMsg, "Editing a manual payment record.");
+    applyPaymentContextMessage({
+      customerId: payment.customer_id || "",
+      orderId: payment.order_id || "",
+      jobId: payment.job_id || "",
+    });
   }
 
   function renderPayments() {
@@ -115,6 +170,11 @@
 
   paymentCustomerId?.addEventListener("change", () => {
     renderPaymentOrderOptions(paymentCustomerId.value || "", paymentOrderId?.value || "");
+    applyPaymentContextMessage({
+      customerId: paymentCustomerId.value || "",
+      orderId: paymentOrderId?.value || "",
+      jobId: paymentJobId?.value || "",
+    });
   });
 
   paymentOrderId?.addEventListener("change", () => {
@@ -124,6 +184,11 @@
       if (paymentCustomerId) paymentCustomerId.value = order.customer_id;
       renderPaymentOrderOptions(order.customer_id, order.id);
     }
+    applyPaymentContextMessage({
+      customerId: paymentCustomerId?.value || order?.customer_id || "",
+      orderId: paymentOrderId.value || "",
+      jobId: paymentJobId?.value || "",
+    });
   });
 
   btnNewPayment?.addEventListener("click", () => {
@@ -225,6 +290,9 @@
   });
 
   const helpers = {
+    resolvePaymentContext,
+    buildPaymentContextMessage,
+    applyPaymentContextMessage,
     renderPaymentCustomerOptions,
     renderPaymentOrderOptions,
     clearPaymentForm,
