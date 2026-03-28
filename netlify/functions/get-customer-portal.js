@@ -43,6 +43,10 @@ function normalizeBidEstimate(bid) {
   };
 }
 
+function sortNewestFirst(rows) {
+  return [...rows].sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+}
+
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return respond(200, {});
   if (event.httpMethod !== 'POST')    return respond(405, { error: 'Method not allowed' });
@@ -100,12 +104,38 @@ exports.handler = async (event) => {
 
   const { data: customers } = await supabase
     .from('customers')
-    .select('id')
+    .select('id, name')
     .eq('tenant_id', tenant_id)
     .ilike('email', normalizedEmail)
     .limit(20);
 
   const customerIds = (customers || []).map((row) => row.id).filter(Boolean);
+  const customerNames = (customers || []).map((row) => String(row.name || '').trim()).filter(Boolean);
+  let linkedOrders = [];
+  if (customerIds.length) {
+    const { data } = await supabase
+      .from('orders')
+      .select('id, title, status, total_amount, total_cents, amount_paid_cents, amount_due_cents, payment_state, payment_due_date, created_at, customer_name, order_type, package_sessions_total, package_sessions_used, package_valid_until, customer_id')
+      .eq('tenant_id', tenant_id)
+      .in('customer_id', customerIds)
+      .order('created_at', { ascending: false })
+      .limit(50);
+    linkedOrders = data || [];
+  }
+  if (customerNames.length) {
+    const { data } = await supabase
+      .from('orders')
+      .select('id, title, status, total_amount, total_cents, amount_paid_cents, amount_due_cents, payment_state, payment_due_date, created_at, customer_name, order_type, package_sessions_total, package_sessions_used, package_valid_until, customer_id')
+      .eq('tenant_id', tenant_id)
+      .in('customer_name', customerNames)
+      .order('created_at', { ascending: false })
+      .limit(50);
+    linkedOrders = [...linkedOrders, ...(data || [])];
+  }
+  const mergedOrders = sortNewestFirst([
+    ...new Map([...(orders || []), ...linkedOrders].map((row) => [row.id, row])).values(),
+  ]);
+
   let bidEstimates = [];
   if (customerIds.length) {
     const { data: bids } = await supabase
@@ -128,7 +158,7 @@ exports.handler = async (event) => {
 
   return respond(200, {
     business_name: tenant.name,
-    orders  : orders   || [],
+    orders  : mergedOrders,
     bookings: bookings || [],
     quotes  : estimateRows,
   });

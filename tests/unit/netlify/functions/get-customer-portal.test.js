@@ -60,12 +60,17 @@ function createQueryChain(result, terminal = "limit") {
 }
 
 function createSupabaseMock() {
+  let ordersSelectCount = 0;
   const tenantsTable = createQueryChain({
     data: { id: "tenant_1", name: "Benkari Vacs" },
     error: null,
   }, "maybeSingle");
   const ordersTable = createQueryChain({
     data: [{ id: "order_1", title: "Hydrovac work", amount_due_cents: 25000, status: "confirmed" }],
+    error: null,
+  });
+  const linkedOrdersTable = createQueryChain({
+    data: [{ id: "order_linked_1", title: "Operator-created work", amount_due_cents: 12000, status: "confirmed", customer_id: "customer_1", created_at: "2026-03-24T10:00:00.000Z" }],
     error: null,
   });
   const bookingsTable = createQueryChain({
@@ -105,7 +110,14 @@ function createSupabaseMock() {
   return {
     from: vi.fn((table) => {
       if (table === "tenants") return tenantsTable;
-      if (table === "orders") return ordersTable;
+      if (table === "orders") {
+        return {
+          select: vi.fn(() => {
+            ordersSelectCount += 1;
+            return ordersSelectCount === 1 ? ordersTable : linkedOrdersTable;
+          }),
+        };
+      }
       if (table === "bookings") return bookingsTable;
       if (table === "quotes") return quotesTable;
       if (table === "customers") return customersTable;
@@ -143,7 +155,13 @@ describe("netlify/functions/get-customer-portal", () => {
       expect(res.statusCode).toBe(200);
       const body = JSON.parse(res.body);
       expect(body.business_name).toBe("Benkari Vacs");
-      expect(body.orders).toHaveLength(1);
+      expect(body.orders).toHaveLength(2);
+      expect(body.orders).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ id: "order_1", title: "Hydrovac work" }),
+          expect.objectContaining({ id: "order_linked_1", title: "Operator-created work", customer_id: "customer_1" }),
+        ])
+      );
       expect(body.bookings).toHaveLength(1);
       expect(body.quotes).toEqual([
         expect.objectContaining({
