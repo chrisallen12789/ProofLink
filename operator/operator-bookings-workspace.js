@@ -183,6 +183,152 @@ function renderBookingCustomerMemoryCard(booking, blueprint = bookingWorkspaceBl
   `;
 }
 
+function bookingPrepGuidanceItems(booking, blueprint = bookingWorkspaceBlueprint()) {
+  const customer = linkedCustomerForBooking(booking) || {};
+  const businessKey = String(blueprint?.business?.key || "service_business").trim().toLowerCase();
+  const filled = (...values) => values.some((value) => String(value || "").trim());
+  const firstFilled = (...values) => values.find((value) => String(value || "").trim()) || "";
+  const detail = (label, ready, readyNote, missingNote) => ({
+    label,
+    ready: !!ready,
+    note: ready ? readyNote : missingNote,
+  });
+
+  const landscaping = [
+    detail(
+      "Access ready",
+      filled(customer.access_notes, customer.gate_notes, customer.entry_notes),
+      firstFilled(customer.access_notes, customer.gate_notes, customer.entry_notes),
+      "Confirm gate codes, access notes, and where the crew should park before the visit starts."
+    ),
+    detail(
+      "Route and cadence",
+      filled(customer.service_schedule, customer.frequency, customer.recurring_notes),
+      firstFilled(customer.service_schedule, customer.frequency, customer.recurring_notes),
+      "Confirm whether this stop is a one-time cleanup, a route stop, or a seasonal follow-up."
+    ),
+    detail(
+      "Property focus",
+      filled(customer.seasonal_notes, customer.cleanup_notes, customer.service_notes, customer.notes),
+      firstFilled(customer.seasonal_notes, customer.cleanup_notes, customer.service_notes, customer.notes),
+      "Call out the property area, cleanup focus, or upsell opportunity the crew should remember."
+    ),
+  ];
+
+  const cleaning = [
+    detail(
+      "Entry ready",
+      filled(customer.access_notes, customer.alarm_notes, customer.entry_notes),
+      firstFilled(customer.access_notes, customer.alarm_notes, customer.entry_notes),
+      "Confirm entry, alarm, lockbox, or access instructions before dispatch."
+    ),
+    detail(
+      "Scope checked",
+      filled(customer.scope_notes, customer.checklist_notes, customer.room_notes, customer.preferences),
+      firstFilled(customer.scope_notes, customer.checklist_notes, customer.room_notes, customer.preferences),
+      "Confirm the rooms, checklist, and add-ons this visit needs before the team arrives."
+    ),
+    detail(
+      "Cadence and add-ons",
+      filled(customer.service_schedule, customer.frequency, customer.add_on_notes, customer.recurring_notes),
+      firstFilled(customer.service_schedule, customer.frequency, customer.add_on_notes, customer.recurring_notes),
+      "Call out repeat cadence and any add-ons so this visit matches what the customer expects."
+    ),
+  ];
+
+  const hvac = [
+    detail(
+      "System context",
+      filled(customer.equipment_notes, customer.system_notes, customer.asset_summary, customer.equipment_serial),
+      firstFilled(customer.equipment_notes, customer.system_notes, customer.asset_summary, customer.equipment_serial),
+      "Confirm the system, unit, or equipment details the technician should have before arrival."
+    ),
+    detail(
+      "Access and contact",
+      filled(customer.access_notes, customer.entry_notes, customer.tenant_notes, customer.phone),
+      firstFilled(customer.access_notes, customer.entry_notes, customer.tenant_notes, customer.phone),
+      "Confirm site access, tenant contact, and arrival instructions before dispatch."
+    ),
+    detail(
+      "Diagnostic prep",
+      filled(customer.diagnostic_notes, customer.failure_symptoms, customer.issue_summary, customer.maintenance_notes),
+      firstFilled(customer.diagnostic_notes, customer.failure_symptoms, customer.issue_summary, customer.maintenance_notes),
+      "Carry the symptom history and any maintenance-plan follow-up into this visit."
+    ),
+  ];
+
+  const plumbing = [
+    detail(
+      "Shutoff and access",
+      filled(customer.shutoff_notes, customer.access_notes, customer.entry_notes),
+      firstFilled(customer.shutoff_notes, customer.access_notes, customer.entry_notes),
+      "Confirm shutoff location, access instructions, and who will meet the technician."
+    ),
+    detail(
+      "Fixture and issue",
+      filled(customer.fixture_notes, customer.issue_summary, customer.leak_source, customer.system_notes),
+      firstFilled(customer.fixture_notes, customer.issue_summary, customer.leak_source, customer.system_notes),
+      "Call out the fixture, problem area, or leak source before the truck rolls."
+    ),
+    detail(
+      "Repair follow-through",
+      filled(customer.approval_notes, customer.restoration_notes, customer.follow_up_notes),
+      firstFilled(customer.approval_notes, customer.restoration_notes, customer.follow_up_notes),
+      "Confirm any approval, restoration, or return-visit context that could affect this repair."
+    ),
+  ];
+
+  const fallback = [
+    detail(
+      "Customer contact",
+      filled(customer.phone, customer.email),
+      firstFilled(customer.phone, customer.email),
+      "Make sure the team has a working customer contact before the visit starts."
+    ),
+    detail(
+      "Site context",
+      filled(customer.service_address, customer.address_line1, customer.notes),
+      firstFilled(customer.service_address, customer.address_line1, customer.notes),
+      "Capture the location details and service notes the team should not have to relearn."
+    ),
+    detail(
+      "Next-step note",
+      filled(customer.follow_up_notes, customer.service_notes, customer.preferences),
+      firstFilled(customer.follow_up_notes, customer.service_notes, customer.preferences),
+      "Add the one note that will help this visit go smoothly from arrival through closeout."
+    ),
+  ];
+
+  return ({
+    landscaping,
+    property_maintenance: landscaping,
+    pressure_washing: landscaping,
+    cleaning,
+    hvac,
+    plumbing,
+  })[businessKey] || fallback;
+}
+
+function renderBookingPrepGuidanceCard(booking, blueprint = bookingWorkspaceBlueprint()) {
+  const items = bookingPrepGuidanceItems(booking, blueprint);
+  if (!items.length) return "";
+  return `
+    <div class="detail-card detail-card--spaced">
+      <div class="kicker">Prep for this visit</div>
+      <div><strong>Give the next stop a cleaner handoff</strong></div>
+      <div class="detail-copy">Use these reminders to confirm the details that matter before the schedule becomes field work.</div>
+      <div class="memory-checklist">
+        ${items.map((item) => `
+          <div class="memory-checklist__item ${item.ready ? "memory-checklist__item--ready" : ""}">
+            <div class="memory-checklist__label">${escapeHtml(item.label || "Detail")}</div>
+            <div class="memory-checklist__note">${escapeHtml(item.note || "Still needs attention before this visit starts.")}</div>
+          </div>
+        `).join("")}
+      </div>
+    </div>
+  `;
+}
+
 function showBookingDetail(booking) {
   const existing = document.getElementById("bkDetailModal");
   if (existing) {
@@ -217,8 +363,9 @@ function showBookingDetail(booking) {
         </div>
         <button id="bkDetailClose" class="modal-close" type="button">Close</button>
       </div>
-        <div class="modal-stack">
+      <div class="modal-stack">
           ${renderBookingCustomerMemoryCard(booking)}
+          ${renderBookingPrepGuidanceCard(booking)}
           <div>
             <label class="field-note-label field-note-label--tight">Assigned to</label>
             <select id="bkAssignedOperator" class="input u-full-width">
@@ -851,6 +998,8 @@ const BOOKINGS_WORKSPACE_HELPERS = {
     linkedCustomerForBooking,
     bookingCustomerMemoryItems,
     renderBookingCustomerMemoryCard,
+    bookingPrepGuidanceItems,
+    renderBookingPrepGuidanceCard,
     showBookingDetail,
     renderBookingsList,
     renderBookings,

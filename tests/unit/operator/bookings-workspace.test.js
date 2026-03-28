@@ -121,7 +121,10 @@ describe("operator bookings workspace", () => {
     expect(source).toContain("No bookings here yet. New appointments will appear here as soon as they are scheduled.");
     expect(source).toContain('saveButton.textContent = "Saving..."');
     expect(source).toContain("Keep the trade details attached to this visit");
+    expect(source).toContain("Prep for this visit");
+    expect(source).toContain("Give the next stop a cleaner handoff");
     expect(source).toContain("bookingCustomerMemoryItems");
+    expect(source).toContain("bookingPrepGuidanceItems");
     expect(source).toContain(">Close</button>");
     expect(source).not.toContain("â€”");
     expect(source).not.toContain("Ã—");
@@ -149,6 +152,32 @@ describe("operator bookings workspace", () => {
     expect(items).toEqual([
       { label: "Property profile", ready: true, note: "Front lawn plus narrow side gate" },
       { label: "Access notes", ready: false, note: "Need the gate code before arrival" },
+    ]);
+  });
+
+  test("bookingPrepGuidanceItems turns landscaping context into visit prep guidance", () => {
+    const { context } = loadBookingsWorkspace({
+      CUSTOMERS_CACHE: [{
+        id: "customer_1",
+        name: "Logan's Lawn Care",
+        email: "logan@example.com",
+        gate_notes: "Side gate code 4421",
+        frequency: "Weekly",
+        seasonal_notes: "Front flower beds need spring cleanup",
+      }],
+    });
+
+    const items = context.window.bookingPrepGuidanceItems({
+      id: "booking_1",
+      customer_id: "customer_1",
+      customer_name: "Logan's Lawn Care",
+      customer_email: "logan@example.com",
+    });
+
+    expect(items).toEqual([
+      { label: "Access ready", ready: true, note: "Side gate code 4421" },
+      { label: "Route and cadence", ready: true, note: "Weekly" },
+      { label: "Property focus", ready: true, note: "Front flower beds need spring cleanup" },
     ]);
   });
 });
