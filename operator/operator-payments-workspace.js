@@ -469,12 +469,17 @@
         const freshOrder = CRM_ORDERS_CACHE.find((o) => o.id === syncOrderId);
         if (freshOrder) {
           const newState = orderPaymentState(freshOrder);
-          sb.from("orders")
-            .update({ payment_state: newState, updated_at: new Date().toISOString() })
-            .eq("id", syncOrderId)
-            .eq(TENANT_COLUMN, TENANT_ID)
-            .then(() => {})
-            .catch((e) => console.warn("[payments] order payment_state sync failed:", e.message));
+          try {
+            const { error: paymentStateError } = await sb.from("orders")
+              .update({ payment_state: newState, updated_at: new Date().toISOString() })
+              .eq("id", syncOrderId)
+              .eq(TENANT_COLUMN, TENANT_ID);
+            if (paymentStateError) {
+              console.warn("[payments] order payment_state sync failed:", paymentStateError.message);
+            }
+          } catch (e) {
+            console.warn("[payments] order payment_state sync failed:", e.message);
+          }
         }
       }
 

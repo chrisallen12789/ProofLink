@@ -66,10 +66,16 @@ exports.handler = async (event) => {
   if (!email || !tenant_id) return respond(400, { error: 'Missing email or tenant_id' });
 
   const ip = getClientIP(event);
-  const rl = checkRateLimit({ key: `get-customer-portal:${ip}`, maxRequests: 20, windowMs: 15 * 60 * 1000 });
-  if (!rl.allowed) return rateLimitResponse(rl.retryAfterMs);
-
   const normalizedEmail = String(email).trim().toLowerCase();
+  const ipWindow = checkRateLimit({ key: `get-customer-portal:${ip}`, maxRequests: 12, windowMs: 15 * 60 * 1000 });
+  if (!ipWindow.allowed) return rateLimitResponse(ipWindow.retryAfterMs);
+  const lookupWindow = checkRateLimit({
+    key: `get-customer-portal:${tenant_id}:${normalizedEmail}:${ip}`,
+    maxRequests: 8,
+    windowMs: 15 * 60 * 1000,
+  });
+  if (!lookupWindow.allowed) return rateLimitResponse(lookupWindow.retryAfterMs);
+
   const supabase = getAdminClient();
 
   // Verify tenant exists

@@ -25,22 +25,12 @@ function nextDate(current, frequency) {
   }
 }
 
-function startOfUtcDay(dateStr) {
-  return `${dateStr}T00:00:00.000Z`;
-}
-
-function endOfUtcDay(dateStr) {
-  return `${dateStr}T23:59:59.999Z`;
-}
-
 exports.handler = async (event) => {
   // Allow scheduled invocation or manual admin trigger
   if (event.httpMethod === 'OPTIONS') return respond(200, {});
 
   const supabase = getAdminClient();
   const today    = new Date().toISOString().slice(0, 10);
-  const todayStart = startOfUtcDay(today);
-  const todayEnd = endOfUtcDay(today);
 
   // Fetch all active recurring schedules due today or earlier
   const { data: schedules, error: schedErr } = await supabase
@@ -73,9 +63,8 @@ exports.handler = async (event) => {
         .select('id')
         .eq('tenant_id', schedule.tenant_id)
         .eq('recurring_id', schedule.id)
+        .eq('scheduled_date', schedule.next_date)
         .eq('source_type', 'recurring')
-        .gte('created_at', todayStart)
-        .lte('created_at', todayEnd)
         .maybeSingle();
 
       if (existingErr) {
@@ -105,6 +94,7 @@ exports.handler = async (event) => {
         status         : 'new',
         source_type    : 'recurring',
         recurring_id   : schedule.id,
+        scheduled_date : schedule.next_date,
         created_at     : new Date().toISOString(),
         updated_at     : new Date().toISOString(),
       };
@@ -114,6 +104,14 @@ exports.handler = async (event) => {
         .insert(record);
 
       if (insertErr) {
+        if (insertErr.code === '23505') {
+          await supabase
+            .from('recurring_orders')
+            .update({ next_date: nextDate(schedule.next_date, schedule.frequency), updated_at: new Date().toISOString() })
+            .eq('id', schedule.id);
+          skipped++;
+          continue;
+        }
         console.error('[process-recurring-orders] failed order schedule_id:', schedule.id, insertErr.message);
         failed++;
         continue;

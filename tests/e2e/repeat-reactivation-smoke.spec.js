@@ -326,9 +326,12 @@ test.describe("repeat reactivation smoke", () => {
         },
       };
       ACTIVE_CUSTOMER_ID = "customer_repeat_detail_request";
+      CUSTOMER_CREATING = false;
+      CUSTOMERS_TOTAL_COUNT = CUSTOMERS_CACHE.length;
+      fetchCustomers = async () => CUSTOMERS_CACHE;
       fetchCustomerInteractions = async () => [];
-      renderCustomerDetail("customer_repeat_detail_request");
       switchTab("customers", { force: true });
+      renderCustomersList("");
     });
 
     const nextMoveCard = page.locator(".detail-card").filter({ hasText: "Best next move" });
@@ -374,9 +377,12 @@ test.describe("repeat reactivation smoke", () => {
       PRODUCTS_CACHE = [];
       EXPENSES_CACHE = [];
       ACTIVE_CUSTOMER_ID = "customer_repeat_detail";
+      CUSTOMER_CREATING = false;
+      CUSTOMERS_TOTAL_COUNT = CUSTOMERS_CACHE.length;
+      fetchCustomers = async () => CUSTOMERS_CACHE;
       fetchCustomerInteractions = async () => [];
-      renderCustomerDetail("customer_repeat_detail");
       switchTab("customers", { force: true });
+      renderCustomersList("");
     });
 
     const nextMoveCard = page.locator(".detail-card").filter({ hasText: "Best next move" });
@@ -453,9 +459,12 @@ test.describe("repeat reactivation smoke", () => {
         },
       };
       ACTIVE_CUSTOMER_ID = "customer_repeat_generate";
+      CUSTOMER_CREATING = false;
+      CUSTOMERS_TOTAL_COUNT = CUSTOMERS_CACHE.length;
+      fetchCustomers = async () => CUSTOMERS_CACHE;
       fetchCustomerInteractions = async () => [];
-      renderCustomerDetail("customer_repeat_generate");
       switchTab("customers", { force: true });
+      renderCustomersList("");
     });
 
     const nextMoveCard = page.locator(".detail-card").filter({ hasText: "Best next move" });

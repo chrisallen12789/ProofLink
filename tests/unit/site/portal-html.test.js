@@ -53,6 +53,7 @@ describe("customer portal html", () => {
     expect(source).toContain("activatePortalTab('orders', true)");
     expect(source).toContain("Your payment for ");
     expect(source).toContain("No payment was made for ");
+    expect(source).toContain("portalLookupCooldownUntil");
     expect(source).toContain('data-order-id="');
     expect(source).toContain("order-row--highlight");
     expect(source).toContain("focusPortalOrder(checkoutOrderId)");

@@ -327,6 +327,44 @@ async function saveOrderToSupabase(payload) {
   return data;
 }
 
+async function sendOrderEmails(payload, { mailFrom, mailTo }) {
+  const jobs = [
+    {
+      key: "admin",
+      promise: sendResendEmail({
+        from: mailFrom,
+        to: mailTo,
+        replyTo: payload.email,
+        subject: `${payload.tenantBusinessName || DEFAULT_TENANT_BUSINESS_NAME} order request`,
+        html: buildAdminHtml(payload)
+      }),
+    },
+    {
+      key: "customer",
+      promise: sendResendEmail({
+        from: mailFrom,
+        to: payload.email,
+        subject: `${payload.tenantBusinessName || DEFAULT_TENANT_BUSINESS_NAME} received your request`,
+        html: buildCustomerHtml(payload)
+      }),
+    },
+  ];
+
+  const settled = await Promise.allSettled(jobs.map((job) => job.promise));
+  const failures = settled
+    .map((result, index) => ({ result, key: jobs[index].key }))
+    .filter(({ result }) => result.status === "rejected")
+    .map(({ result, key }) => ({
+      key,
+      message: result.reason?.message || String(result.reason || "Email send failed"),
+    }));
+
+  return {
+    ok: failures.length === 0,
+    failures,
+  };
+}
+
 exports.handler = async (event) => {
   if (event.httpMethod === "OPTIONS") return json(200, { ok: true });
   if (event.httpMethod !== "POST") return json(405, { ok: false, error: "Method not allowed" });
@@ -350,23 +388,17 @@ exports.handler = async (event) => {
     if (!mailFrom || !mailTo) throw new Error("Missing MAIL_FROM or MAIL_TO");
 
     const saveResult = await saveOrderToSupabase(payload);
+    const emailResult = await sendOrderEmails(payload, { mailFrom, mailTo });
+    if (!emailResult.ok) {
+      console.warn("[order] order saved but one or more emails failed:", emailResult.failures);
+    }
 
-    await sendResendEmail({
-      from: mailFrom,
-      to: mailTo,
-      replyTo: payload.email,
-      subject: `${payload.tenantBusinessName || DEFAULT_TENANT_BUSINESS_NAME} order request`,
-      html: buildAdminHtml(payload)
+    return json(200, {
+      ok: true,
+      orderId: saveResult?.orderId || null,
+      email_warning: !emailResult.ok,
+      email_failures: emailResult.failures.map((entry) => entry.key),
     });
-
-    await sendResendEmail({
-      from: mailFrom,
-      to: payload.email,
-      subject: `${payload.tenantBusinessName || DEFAULT_TENANT_BUSINESS_NAME} received your request`,
-      html: buildCustomerHtml(payload)
-    });
-
-    return json(200, { ok: true, orderId: saveResult?.orderId || null });
   } catch (e) {
     const statusCode = Number(e?.statusCode || 500);
     return json(statusCode, {

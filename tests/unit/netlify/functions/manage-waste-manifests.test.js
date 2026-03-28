@@ -100,6 +100,10 @@ describe("netlify/functions/manage-waste-manifests", () => {
               select() { return this; },
               maybeSingle: vi.fn(async () => makeResult({ ...existingManifest, ...patch })),
             })),
+            delete: vi.fn(() => ({
+              eq() { return this; },
+              maybeSingle: vi.fn(async () => makeResult({ ...existingManifest, status: "void" })),
+            })),
           };
         }
         if (table === "jobs") {
@@ -176,6 +180,10 @@ describe("netlify/functions/manage-waste-manifests", () => {
               select() { return this; },
               maybeSingle: vi.fn(async () => makeResult({ ...existingManifest, ...patch })),
             })),
+            delete: vi.fn(() => ({
+              eq() { return this; },
+              maybeSingle: vi.fn(async () => makeResult({ ...existingManifest, status: "void" })),
+            })),
           };
         }
         if (table === "jobs") {
@@ -213,5 +221,76 @@ describe("netlify/functions/manage-waste-manifests", () => {
       disposal_route: "North transfer route",
       audit_archived_at: "2026-03-28T15:00:00.000Z",
     }));
+  });
+
+  test("delete accepts the manifest id from query params and voids the record", async () => {
+    const existingManifest = {
+      id: "manifest_delete_1",
+      tenant_id: "tenant_1",
+      job_id: "job_delete_1",
+      status: "in_transit",
+    };
+    let wasteManifestSelectCalls = 0;
+    const deleteEq = vi.fn(function eq() { return this; });
+    const deleteChain = {
+      eq: deleteEq,
+      then(resolve) {
+        return Promise.resolve(makeResult(null)).then(resolve);
+      },
+    };
+    const adminSb = {
+      from: vi.fn((table) => {
+        if (table === "waste_manifests") {
+          return {
+            select: vi.fn(() => {
+              wasteManifestSelectCalls += 1;
+              if (wasteManifestSelectCalls === 1) {
+                return {
+                  eq() { return this; },
+                  maybeSingle: vi.fn(async () => makeResult(existingManifest)),
+                };
+              }
+              return {
+                eq() { return this; },
+                neq() { return this; },
+                in: vi.fn(() => this),
+                order: vi.fn(() => this),
+                then(resolve) { return Promise.resolve(makeResult([])).then(resolve); },
+              };
+            }),
+            update: vi.fn((patch) => ({
+              eq() { return this; },
+              select() { return this; },
+              maybeSingle: vi.fn(async () => makeResult({ ...existingManifest, ...patch })),
+            })),
+            delete: vi.fn(() => deleteChain),
+          };
+        }
+        if (table === "jobs") {
+          return {
+            update: vi.fn(() => ({
+              eq: vi.fn(() => ({
+                eq: vi.fn(() => Promise.resolve(makeResult(null))),
+              })),
+            })),
+          };
+        }
+        throw new Error(`Unexpected table ${table}`);
+      }),
+    };
+
+    installMocks({ adminSb });
+    const handler = require(handlerPath).handler;
+
+    const response = await handler({
+      httpMethod: "DELETE",
+      queryStringParameters: { id: "manifest_delete_1" },
+    });
+    const body = JSON.parse(response.body);
+
+    expect(response.statusCode).toBe(200);
+    expect(body.ok).toBe(true);
+    expect(deleteEq).toHaveBeenCalledWith("tenant_id", "tenant_1");
+    expect(deleteEq).toHaveBeenCalledWith("id", "manifest_delete_1");
   });
 });

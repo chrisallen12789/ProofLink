@@ -367,7 +367,15 @@
       return;
     }
 
-    const startsAt = new Date(date + 'T' + time + ':00').toISOString();
+    const localStart = new Date(date + 'T' + time + ':00');
+    const now = new Date();
+    if (!Number.isFinite(localStart.getTime()) || localStart.getTime() < (now.getTime() - 60000)) {
+      msg.textContent = 'Please choose a time in the future.';
+      msg.className   = 'msg error';
+      return;
+    }
+
+    const startsAt = localStart.toISOString();
     const endsAt   = new Date(new Date(startsAt).getTime() + dur * 60000).toISOString();
 
     btn.disabled    = true;

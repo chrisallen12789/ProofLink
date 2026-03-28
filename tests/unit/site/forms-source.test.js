@@ -14,5 +14,6 @@ describe("forms source", () => {
     expect(source).toContain("ensureTurnstileToken(form, raw)");
     expect(source).toContain("Spam protection is still loading. Please wait a moment, then try again.");
     expect(source).toContain("Please enter a valid 5-digit ZIP code.");
+    expect(source).toContain("We could not send an email confirmation just now");
   });
 });

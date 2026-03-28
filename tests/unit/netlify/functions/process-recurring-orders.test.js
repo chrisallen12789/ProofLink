@@ -64,23 +64,15 @@ describe("netlify/functions/process-recurring-orders", () => {
           };
         }
         if (table === "orders") {
-          return {
-            select: vi.fn(() => ({
-              eq: vi.fn(() => ({
-                eq: vi.fn(() => ({
-                  eq: vi.fn(() => ({
-                    gte: vi.fn(() => ({
-                      lte: vi.fn(() => ({
-                        maybeSingle: vi.fn(async () => ({
-                          data: { id: "order_existing_today" },
-                          error: null,
-                        })),
-                      })),
-                    })),
-                  })),
-                })),
-              })),
+          const duplicateOrderQuery = {
+            eq: vi.fn(function eq() { return this; }),
+            maybeSingle: vi.fn(async () => ({
+              data: { id: "order_existing_today" },
+              error: null,
             })),
+          };
+          return {
+            select: vi.fn(() => duplicateOrderQuery),
             insert: orderInsert,
           };
         }

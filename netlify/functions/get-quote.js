@@ -20,6 +20,7 @@ const BID_SELECT = [
   'cover_note',
   'status',
   'customer_id',
+  'lead_id',
   'created_at',
   'line_items',
 ].join(', ');
@@ -76,7 +77,7 @@ exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return respond(200, {});
 
   const ip = getClientIP(event);
-  const rl = checkRateLimit({ key: `get-quote:${ip}`, maxRequests: 30, windowMs: 15 * 60 * 1000 });
+  const rl = checkRateLimit({ key: `get-quote:${ip}`, maxRequests: 20, windowMs: 15 * 60 * 1000 });
   if (!rl.allowed) return rateLimitResponse(rl.retryAfterMs);
 
   // ── POST — customer accepts a proposal ───────────────────────────────────
@@ -90,13 +91,15 @@ exports.handler = async (event) => {
     const submittedCustomerEmail = String(body.customer_email || '').trim().toLowerCase();
     if (action !== 'accept') return respond(400, { error: 'Invalid action' });
     if (!bid_id) return respond(400, { error: 'bid_id is required' });
+    const bidWindow = checkRateLimit({ key: `get-quote:${ip}:${bid_id}`, maxRequests: 6, windowMs: 15 * 60 * 1000 });
+    if (!bidWindow.allowed) return rateLimitResponse(bidWindow.retryAfterMs);
 
     const supabase = getAdminClient();
 
     // Fetch the bid so we can read tenant_id, title, customer_id
     const { data: bid, error: bidFetchErr } = await supabase
       .from('bids')
-      .select('id, tenant_id, title, status, customer_id, valid_until')
+      .select('id, tenant_id, title, status, customer_id, lead_id, valid_until')
       .eq('id', bid_id)
       .maybeSingle();
 
@@ -147,8 +150,20 @@ exports.handler = async (event) => {
       if (customer?.name) customerName = customer.name;
       if (customer?.email) customerEmail = String(customer.email).trim().toLowerCase();
     }
+    if (!customerEmail && bid.lead_id) {
+      const { data: lead } = await supabase
+        .from('leads')
+        .select('contact_name, contact_email')
+        .eq('id', bid.lead_id)
+        .maybeSingle();
+      if (lead?.contact_name) customerName = lead.contact_name;
+      if (lead?.contact_email) customerEmail = String(lead.contact_email).trim().toLowerCase();
+    }
 
-    if (customerEmail && submittedCustomerEmail !== customerEmail) {
+    if (!customerEmail) {
+      return respond(409, { error: 'This estimate needs direct confirmation from the business before it can be approved online.' });
+    }
+    if (submittedCustomerEmail !== customerEmail) {
       return respond(403, { error: 'Please enter the same email address this estimate was sent to before approving it.' });
     }
 
@@ -191,6 +206,8 @@ exports.handler = async (event) => {
   // Accept ?token= or ?id= — token is the customer-safe alias for the bid id
   const bidId = String(params.token || params.id || '').trim();
   if (!bidId) return respond(400, { error: 'Missing token (bid id)' });
+  const bidWindow = checkRateLimit({ key: `get-quote:${ip}:${bidId}`, maxRequests: 6, windowMs: 15 * 60 * 1000 });
+  if (!bidWindow.allowed) return rateLimitResponse(bidWindow.retryAfterMs);
 
   const supabase = getAdminClient();
 
@@ -225,6 +242,15 @@ exports.handler = async (event) => {
       .maybeSingle();
     customerName = customer?.name || null;
     customerEmail = customer?.email || null;
+  }
+  if (!customerEmail && bid.lead_id) {
+    const { data: lead } = await supabase
+      .from('leads')
+      .select('contact_name, contact_email')
+      .eq('id', bid.lead_id)
+      .maybeSingle();
+    customerName = customerName || lead?.contact_name || null;
+    customerEmail = lead?.contact_email || null;
   }
 
   const publicStatus = String(bid.status || '').trim().toLowerCase() === 'approved' ? 'accepted' : bid.status;

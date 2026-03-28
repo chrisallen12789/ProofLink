@@ -361,9 +361,10 @@
   const checkoutOrderId = params.get('order_id');
   const PORTAL_SESSION_KEY = 'prooflink_portal_session';
   const PORTAL_CHECKOUT_KEY = 'prooflink_portal_checkout';
-  var portalEmail = '';
-  var ALL_ORDERS   = [];
-  var ALL_BOOKINGS = [];
+    var portalEmail = '';
+    var ALL_ORDERS   = [];
+    var ALL_BOOKINGS = [];
+    var portalLookupCooldownUntil = 0;
 
   if (prefill) document.getElementById('portalEmail').value = prefill;
   document.getElementById('newBookingLink').textContent = 'Schedule another appointment';
@@ -919,6 +920,12 @@
     msg.className = 'msg';
     msg.style.display = 'none';
 
+    if (Date.now() < portalLookupCooldownUntil) {
+      msg.textContent = 'Please wait a moment before trying again.';
+      msg.className = 'msg error';
+      return;
+    }
+
     if (!email) {
       msg.textContent = 'Please enter your email address.';
       msg.className = 'msg error';
@@ -932,6 +939,7 @@
 
     btn.disabled = true;
     btn.textContent = 'Loading...';
+    portalLookupCooldownUntil = Date.now() + 1500;
 
     fetch('/.netlify/functions/get-customer-portal', {
       method : 'POST',

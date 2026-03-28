@@ -238,6 +238,56 @@ describe("netlify/functions/order", () => {
     expect(proxyRequest[1].signal).toBeDefined();
   });
 
+  test("returns success when the order saves but confirmation email delivery fails", async () => {
+    process.env.ALLOW_LOCAL_TURNSTILE_BYPASS = "true";
+    global.fetch
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ ok: true, orderId: "ord_pltest" }),
+      })
+      .mockResolvedValueOnce({
+        ok: false,
+        text: async () => "Email service unavailable",
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ id: "mail_customer" }),
+        text: async () => "",
+      });
+
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const handler = await loadHandler();
+
+    try {
+      const res = await handler({
+        httpMethod: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tenantId: "tenant-1",
+          tenantSlug: "tenant-1",
+          tenantBusinessName: "ProofLink Test Tenant",
+          customer_name: "Test",
+          email: "test@example.com",
+          phone: "555-111-2222",
+          fulfillment: "pickup",
+          items: [{ name: "Item" }],
+          startedAt: Date.now() - 5000,
+        }),
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(JSON.parse(res.body)).toEqual(expect.objectContaining({
+        ok: true,
+        orderId: "ord_pltest",
+        email_warning: true,
+        email_failures: ["admin"],
+      }));
+      expect(warnSpy).toHaveBeenCalled();
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
   test("explicit local bypass remains controlled", async () => {
     process.env.ALLOW_LOCAL_TURNSTILE_BYPASS = "true";
     global.fetch
@@ -312,7 +362,7 @@ describe("netlify/functions/order", () => {
     expect(global.fetch).toHaveBeenCalledTimes(1);
   });
 
-  test("missing RESEND_API_KEY fails closed outside explicit local email mode", async () => {
+  test("missing RESEND_API_KEY returns success with an email warning after saving the order", async () => {
     process.env.TURNSTILE_SECRET_KEY = "turnstile-secret";
     process.env.RESEND_API_KEY = "";
     process.env.PUBLIC_SITE_URL = "https://app.prooflink.test";
@@ -346,8 +396,12 @@ describe("netlify/functions/order", () => {
       }),
     });
 
-    expect(res.statusCode).toBe(503);
-    expect(JSON.parse(res.body).error).toBe("configuration_error");
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(res.body)).toEqual(expect.objectContaining({
+      ok: true,
+      email_warning: true,
+      email_failures: ["admin", "customer"],
+    }));
     expect(global.fetch).toHaveBeenCalledTimes(2);
   });
 

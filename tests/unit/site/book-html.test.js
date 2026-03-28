@@ -18,6 +18,7 @@ describe("booking page html", () => {
     expect(source).toContain("dateInput.value = d.toISOString().slice(0, 10)");
     expect(source).toContain("dateInput.min = today.toISOString().slice(0, 10)");
     expect(source).toContain("We could not confirm availability right now.");
+    expect(source).toContain("Please choose a time in the future.");
     expect(source).toContain("referral_source: referralSource || undefined");
     expect(source).toContain("notes          : rawNotes || undefined");
     expect(source).toContain("sanitizeTelHref(phone)");

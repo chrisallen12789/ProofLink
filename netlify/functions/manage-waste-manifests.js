@@ -487,7 +487,15 @@ exports.handler = async (event) => {
   }
 
   if (event.httpMethod === 'DELETE') {
-    const id = clean(params.id);
+    let deleteBody = {};
+    if (event.body) {
+      try {
+        deleteBody = parseJsonBody(event);
+      } catch {
+        return respond(400, { error: 'Invalid JSON body' });
+      }
+    }
+    const id = clean(params.id || deleteBody.id);
     if (!id) return respond(400, { error: 'id is required' });
 
     const { data: existing, error: existingError } = await adminSb

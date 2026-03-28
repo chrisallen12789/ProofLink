@@ -72,17 +72,26 @@ function loadHandlerWithMocks({ authExports, emailExports, slugifyExports, seedT
 
 function createSupabaseMock({ existingOperator = null, listUsersError = null, listUsers = [], authCreateError = null } = {}) {
   const tenantsInsert = vi.fn(() => makeInsertSingle({ id: "tenant_pltest", slug: "prooflink-test", name: "ProofLink Test" }));
+  const tenantsDelete = vi.fn(() => ({
+    eq: vi.fn(async () => ({ error: null })),
+  }));
   const operatorsSelect = vi.fn(() => ({
     ilike: vi.fn(() => ({
       maybeSingle: vi.fn(async () => ({ data: existingOperator, error: null })),
     })),
   }));
   const operatorsInsert = vi.fn(() => makeInsertSingle({ id: "operator_pltest", tenant_id: "tenant_pltest", name: "Owner", role: "tenant_owner" }));
+  const operatorsDelete = vi.fn(() => ({
+    eq: vi.fn(async () => ({ error: null })),
+  }));
   const operatorMembersUpsert = vi.fn(async () => ({ error: null }));
   const operatorMembersUpdate = vi.fn(() => ({
     eq: vi.fn(() => ({
       eq: vi.fn(async () => ({ error: null })),
     })),
+  }));
+  const operatorMembersDelete = vi.fn(() => ({
+    eq: vi.fn(async () => ({ error: null })),
   }));
   const onboardingSelect = vi.fn(() => ({
     eq: vi.fn(() => ({
@@ -120,12 +129,14 @@ function createSupabaseMock({ existingOperator = null, listUsersError = null, li
             })),
           })),
           insert: tenantsInsert,
+          delete: tenantsDelete,
         };
       }
       if (table === "operators") {
         return {
           select: operatorsSelect,
           insert: operatorsInsert,
+          delete: operatorsDelete,
           update: vi.fn(() => ({
             eq: vi.fn(() => ({
               select: vi.fn(() => ({
@@ -139,6 +150,7 @@ function createSupabaseMock({ existingOperator = null, listUsersError = null, li
         return {
           upsert: operatorMembersUpsert,
           update: operatorMembersUpdate,
+          delete: operatorMembersDelete,
         };
       }
       throw new Error(`Unexpected table ${table}`);
@@ -147,12 +159,16 @@ function createSupabaseMock({ existingOperator = null, listUsersError = null, li
       admin: {
         createUser: vi.fn(async () => ({ data: null, error: authCreateError })),
         listUsers: vi.fn(async () => ({ data: { users: listUsers }, error: listUsersError })),
+        deleteUser: vi.fn(async () => ({ data: null, error: null })),
       },
     },
     _calls: {
       tenantsInsert,
+      tenantsDelete,
       operatorsInsert,
+      operatorsDelete,
       operatorMembersUpsert,
+      operatorMembersDelete,
     },
   };
 
@@ -223,6 +239,9 @@ describe("netlify/functions/provision-tenant", () => {
 
       expect(res.statusCode).toBe(500);
       expect(JSON.parse(res.body).error).toContain("Auth user creation failed");
+      expect(supabase._calls.operatorMembersDelete).toHaveBeenCalled();
+      expect(supabase._calls.tenantsDelete).toHaveBeenCalled();
+      expect(supabase._calls.operatorsDelete).toHaveBeenCalled();
     } finally {
       restore();
     }

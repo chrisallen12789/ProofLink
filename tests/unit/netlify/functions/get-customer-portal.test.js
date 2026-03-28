@@ -203,5 +203,36 @@ describe("netlify/functions/get-customer-portal", () => {
     expect(source).toContain(".ilike('email', normalizedEmail)");
     expect(source).not.toContain("customer_email.ilike");
     expect(source).toContain(".select('id, cart_summary, status");
+    expect(source).toContain("get-customer-portal:${tenant_id}:${normalizedEmail}:${ip}");
+    expect(source).toContain("maxRequests: 8");
+  });
+
+  test("rate limits repeated lookup attempts for the same tenant and email", async () => {
+    const supabase = createSupabaseMock();
+    const { handler, restore } = loadHandlerWithMocks({
+      authMockExports: {
+        getAdminClient: () => supabase,
+        respond: (statusCode, body) => ({ statusCode, body: JSON.stringify(body) }),
+      },
+      rateLimitMockExports: {
+        checkRateLimit: vi.fn()
+          .mockReturnValueOnce({ allowed: true })
+          .mockReturnValueOnce({ allowed: false, retryAfterMs: 60000 }),
+        rateLimitResponse: (retryAfterMs) => ({ statusCode: 429, body: JSON.stringify({ error: "rate limited", retryAfterMs }) }),
+        getClientIP: () => "127.0.0.1",
+      },
+    });
+
+    try {
+      const res = await handler({
+        httpMethod: "POST",
+        body: JSON.stringify({ email: "customer@example.com", tenant_id: "tenant_1" }),
+      });
+
+      expect(res.statusCode).toBe(429);
+      expect(JSON.parse(res.body).error).toBe("rate limited");
+    } finally {
+      restore();
+    }
   });
 });

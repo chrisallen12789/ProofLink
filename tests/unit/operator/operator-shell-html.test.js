@@ -13,6 +13,7 @@ describe("operator shell html", () => {
     expect(source).toContain("<h1>Business hub</h1>");
     expect(source).toContain("Business sign-in");
     expect(source).toContain("Secure owner access");
+    expect(source).toContain('alt="Business logo"');
     expect(source).toContain(">More tools<");
     expect(source).toContain('data-tab="dashboard"');
     expect(source).toContain(">Today<");
@@ -22,6 +23,7 @@ describe("operator shell html", () => {
     expect(source).not.toContain("Email me a sign-in link");
     expect(source).not.toContain("Quoted / booked");
     expect(source).not.toContain("quoted or booked work");
+    expect(source).not.toContain('href="#" id="btnForgotPassword"');
   });
 
   test("keeps obvious drift markers out of the operator entry surface", () => {

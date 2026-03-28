@@ -35,7 +35,7 @@ function loadHandlerWithAuthMock(authMockExports) {
   };
 }
 
-function createSupabaseMock({ bid, tenant, customer }) {
+function createSupabaseMock({ bid, tenant, customer, lead = null }) {
   const bidsTable = {
     select: vi.fn(() => bidsTable),
     eq: vi.fn(() => bidsTable),
@@ -62,11 +62,18 @@ function createSupabaseMock({ bid, tenant, customer }) {
     maybeSingle: vi.fn(async () => ({ data: customer, error: null })),
   };
 
+  const leadsTable = {
+    select: vi.fn(() => leadsTable),
+    eq: vi.fn(() => leadsTable),
+    maybeSingle: vi.fn(async () => ({ data: lead, error: null })),
+  };
+
   return {
     from: vi.fn((table) => {
       if (table === "bids") return bidsTable;
       if (table === "tenants") return tenantsTable;
       if (table === "customers") return customersTable;
+      if (table === "leads") return leadsTable;
       throw new Error(`Unexpected table: ${table}`);
     }),
     bidsTable,
@@ -153,7 +160,7 @@ describe("netlify/functions/get-quote", () => {
     }
   });
 
-  test("POST accept still works when the caller sends token instead of bid_id", async () => {
+  test("POST accept blocks public approval when no recipient email can be verified", async () => {
     const supabase = createSupabaseMock({
       bid: {
         id: "bid_pltest_2",
@@ -161,6 +168,7 @@ describe("netlify/functions/get-quote", () => {
         title: "Drain cleaning",
         status: "pending",
         customer_id: null,
+        lead_id: null,
       },
       tenant: {
         email: "office@example.com",
@@ -180,11 +188,8 @@ describe("netlify/functions/get-quote", () => {
         body: JSON.stringify({ action: "accept", token: "bid_pltest_2" }),
       });
 
-      expect(res.statusCode).toBe(200);
-      expect(JSON.parse(res.body).ok).toBe(true);
-      expect(supabase.bidsTable.update).toHaveBeenCalledWith(
-        expect.objectContaining({ status: "approved" })
-      );
+      expect(res.statusCode).toBe(409);
+      expect(JSON.parse(res.body).error).toContain("direct confirmation");
     } finally {
       restore();
     }
@@ -223,6 +228,46 @@ describe("netlify/functions/get-quote", () => {
 
       expect(res.statusCode).toBe(403);
       expect(JSON.parse(res.body).error).toContain("same email address");
+    } finally {
+      restore();
+    }
+  });
+
+  test("POST accept can verify against the linked lead email when no customer record exists", async () => {
+    const supabase = createSupabaseMock({
+      bid: {
+        id: "bid_pltest_4",
+        tenant_id: "tenant_pltest_4",
+        title: "Seasonal maintenance",
+        status: "pending",
+        customer_id: null,
+        lead_id: "lead_pltest_4",
+        valid_until: "2026-04-10",
+      },
+      tenant: {
+        email: "office@example.com",
+        notification_email: null,
+      },
+      customer: null,
+      lead: {
+        contact_name: "Chris Customer",
+        contact_email: "customer@example.com",
+      },
+    });
+
+    const { handler, restore } = loadHandlerWithAuthMock({
+      getAdminClient: () => supabase,
+      respond: (statusCode, body) => ({ statusCode, body: JSON.stringify(body) }),
+    });
+
+    try {
+      const res = await handler({
+        httpMethod: "POST",
+        body: JSON.stringify({ action: "accept", token: "bid_pltest_4", customer_email: "customer@example.com" }),
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(JSON.parse(res.body).ok).toBe(true);
     } finally {
       restore();
     }

@@ -16,6 +16,7 @@
   let CATALOG_BY_ID = catalog.buildIndex(CATALOG_CACHE);
   let SYNC_IN_FLIGHT = null;
   const MAX_TOASTS = 3;
+  let MEMORY_CART_STATE = { items: [] };
 
   function fulfillmentCopy() {
     const deliveryCfg = config?.storefront?.delivery || {};
@@ -40,20 +41,36 @@
   }
 
   function read() {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    let raw = "";
+    try {
+      raw = localStorage.getItem(STORAGE_KEY);
+    } catch (_) {
+      raw = "";
+    }
     const parsed = raw ? safeParse(raw) : null;
-    if (!parsed || !Array.isArray(parsed.items)) return { items: [] };
+    if (!parsed || !Array.isArray(parsed.items)) {
+      return {
+        items: Array.isArray(MEMORY_CART_STATE.items)
+          ? MEMORY_CART_STATE.items.map(cart.sanitizeItem).filter(Boolean)
+          : [],
+      };
+    }
 
-    return {
+    const nextState = {
       items: parsed.items.map(cart.sanitizeItem).filter(Boolean),
     };
+    MEMORY_CART_STATE = nextState;
+    return nextState;
   }
 
   function write(state) {
     const items = Array.isArray(state?.items)
       ? state.items.map(cart.sanitizeItem).filter(Boolean)
       : [];
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ items }));
+    MEMORY_CART_STATE = { items };
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ items }));
+    } catch (_) {}
   }
 
   function keyFor(item) {

@@ -2192,6 +2192,7 @@ function initBranding() {
 
   if (brandLogo) {
     brandLogo.src = b.tenantLogoUrl || "../assets/logo.png";
+    brandLogo.alt = `${b.tenantName || b.businessName || "Business"} logo`;
     brandLogo.style.display = "block";
   }
   if (platformLogo) {

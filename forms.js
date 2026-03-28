@@ -253,7 +253,10 @@
         }
 
         const orderId = response && response.orderId ? ` Order ID: ${response.orderId}.` : "";
-        setStatus(form, "success", `Sent. Check your email for confirmation.${orderId}`);
+        const orderSuccessMessage = response && response.email_warning
+          ? `Sent. Your request was saved.${orderId} We could not send an email confirmation just now, but the business still has your request.`
+          : `Sent. Check your email for confirmation.${orderId}`;
+        setStatus(form, "success", orderSuccessMessage);
         form.reset();
 
         if (typeof window.turnstile !== "undefined") {

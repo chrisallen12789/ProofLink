@@ -77,11 +77,72 @@ exports.handler = async (event) => {
     .update({ status: 'provisioning', provision_error: null, updated_at: new Date().toISOString() })
     .eq('id', id);
 
+  let createdTenantId = null;
+  let createdOperatorId = null;
+  let createdAuthUserId = null;
+
+  async function rollbackProvisionArtifacts() {
+    const rollbackIssues = [];
+
+    if (createdAuthUserId) {
+      try {
+        const { error } = await supabase.auth.admin.deleteUser(createdAuthUserId);
+        if (error) rollbackIssues.push(`Auth rollback failed: ${error.message}`);
+      } catch (err) {
+        rollbackIssues.push(`Auth rollback failed: ${err.message || err}`);
+      }
+    }
+
+    if (createdTenantId) {
+      try {
+        const { error } = await supabase
+          .from('operator_members')
+          .delete()
+          .eq('tenant_id', createdTenantId);
+        if (error) rollbackIssues.push(`Membership rollback failed: ${error.message}`);
+      } catch (err) {
+        rollbackIssues.push(`Membership rollback failed: ${err.message || err}`);
+      }
+
+      if (createdOperatorId) {
+        try {
+          const { error } = await supabase
+            .from('operators')
+            .delete()
+            .eq('id', createdOperatorId);
+          if (error) rollbackIssues.push(`Operator rollback failed: ${error.message}`);
+        } catch (err) {
+          rollbackIssues.push(`Operator rollback failed: ${err.message || err}`);
+        }
+      }
+
+      try {
+        const { error } = await supabase
+          .from('tenants')
+          .delete()
+          .eq('id', createdTenantId);
+        if (error) rollbackIssues.push(`Tenant rollback failed: ${error.message}`);
+      } catch (err) {
+        rollbackIssues.push(`Tenant rollback failed: ${err.message || err}`);
+      }
+    }
+
+    return rollbackIssues;
+  }
+
   async function failProvision(message) {
     console.error('provision-tenant failure:', message);
+    const rollbackIssues = await rollbackProvisionArtifacts();
+    if (rollbackIssues.length) {
+      console.error('provision-tenant rollback failure:', rollbackIssues);
+    }
     await supabase
       .from('tenant_onboarding_requests')
-      .update({ status: 'failed', provision_error: message, updated_at: new Date().toISOString() })
+      .update({
+        status: 'failed',
+        provision_error: rollbackIssues.length ? `${message} | Rollback issues: ${rollbackIssues.join('; ')}` : message,
+        updated_at: new Date().toISOString(),
+      })
       .eq('id', id);
     return respond(500, { error: message });
   }
@@ -129,6 +190,7 @@ exports.handler = async (event) => {
   }
 
   const tenantId = tenant.id;
+  createdTenantId = tenantId;
 
   const { data: existingOperator, error: operatorLookupErr } = await supabase
     .from('operators')
@@ -184,6 +246,7 @@ exports.handler = async (event) => {
       return failProvision('Operator creation failed: no record returned after insert');
     }
     operator = insertedOperator;
+    createdOperatorId = insertedOperator.id;
   }
 
   const newOperatorId = operator.id;
@@ -205,8 +268,6 @@ exports.handler = async (event) => {
   if (memberErr) {
     return failProvision(`Operator member creation failed: ${memberErr.message}`);
   }
-
-  await seedTemplateForTenant(supabase, tenantId, newOperatorId, req.seed_template_key);
 
   const redirectTo = `${siteUrl}/operator/onboarding.html?tenant=${encodeURIComponent(tenantSlug)}&plan=${encodeURIComponent(req.selected_plan || 'starter')}`;
   let authUserId = null;
@@ -230,6 +291,7 @@ exports.handler = async (event) => {
     }
   } else {
     authUserId = newAuthUser?.user?.id || null;
+    createdAuthUserId = authUserId;
   }
 
   if (authUserId) {
@@ -241,6 +303,12 @@ exports.handler = async (event) => {
     if (memberUserErr) {
       return failProvision(`Operator member auth link failed: ${memberUserErr.message}`);
     }
+  }
+
+  try {
+    await seedTemplateForTenant(supabase, tenantId, newOperatorId, req.seed_template_key);
+  } catch (err) {
+    return failProvision(`Template seeding failed: ${err.message}`);
   }
 
   let loginUrl = redirectTo;
