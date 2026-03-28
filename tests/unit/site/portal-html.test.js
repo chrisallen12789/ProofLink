@@ -27,6 +27,9 @@ describe("customer portal html", () => {
   test("uses delegated payment buttons and checkout return guidance", () => {
     expect(source).toContain('data-action="pay-now"');
     expect(source).not.toContain('onclick="handlePayNow(');
+    expect(source).toContain("portalPaymentGuidance(order, dueCents, paidCents)");
+    expect(source).toContain("Paid in full. You are all set on this order.");
+    expect(source).toContain("A balance is still open.");
     expect(source).toContain("checkoutState === 'success'");
     expect(source).toContain("checkoutState === 'cancel'");
     expect(source).toContain("Your payment for ");

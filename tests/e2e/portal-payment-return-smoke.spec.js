@@ -49,6 +49,7 @@ test.describe("portal payment return smoke", () => {
 
     await expect(page.getByText("No payment was made for Hydrovac daylighting.")).toBeVisible();
     await expect(page.getByRole("button", { name: "Pay now" })).toBeVisible();
+    await expect(page.getByText("A balance is still open. You can pay the rest here any time from this page.")).toBeVisible();
     await expect(page.getByText("Customer account")).toBeVisible();
     await expect(page.locator('.order-row[data-order-id="order_smoke_1"]')).toHaveClass(/order-row--highlight/);
   });
@@ -67,5 +68,6 @@ test.describe("portal payment return smoke", () => {
     await expect(page.getByText("Your payment for Hydrovac daylighting was received.")).toBeVisible();
     await expect(page.locator('.order-row[data-order-id="order_smoke_1"]')).toHaveClass(/order-row--highlight/);
     await expect(page.locator('.order-row[data-order-id="order_smoke_1"]')).toContainText("Paid in full");
+    await expect(page.getByText("Paid in full. You are all set on this order.")).toBeVisible();
   });
 });
