@@ -51,7 +51,13 @@ function buildDashboardCollectionGuidance({ outstandingBalance, overdueBalance, 
   };
 }
 
-function buildDashboardRepeatWorkGuidance({ duePlansCount = 0, activePlansCount = 0, todayBookingsCount = 0, blueprint = currentWorkspaceBlueprint() }) {
+function buildDashboardRepeatWorkGuidance({
+  duePlansCount = 0,
+  activePlansCount = 0,
+  todayBookingsCount = 0,
+  atRiskPlansCount = 0,
+  blueprint = currentWorkspaceBlueprint(),
+}) {
   const businessKey = String(blueprint?.business?.key || "service_business").trim().toLowerCase();
   if (duePlansCount > 0) {
     return {
@@ -59,6 +65,24 @@ function buildDashboardRepeatWorkGuidance({ duePlansCount = 0, activePlansCount 
       description: "Generate the next work record before repeat revenue slips back into memory and manual follow-up.",
       chips: [
         `${duePlansCount} recurring visit${duePlansCount === 1 ? "" : "s"} due`,
+        `${activePlansCount} active plan${activePlansCount === 1 ? "" : "s"}`,
+      ],
+    };
+  }
+  if (atRiskPlansCount > 0) {
+    const descriptions = {
+      landscaping: "Some repeat-property accounts still need the next visit or seasonal touch attached before they cool off.",
+      property_maintenance: "Some repeat sites still need the next walk, turnover, or maintenance touch attached before they drift out of rhythm.",
+      pressure_washing: "Some repeat properties still need the next wash cycle or seasonal follow-up attached before they fall out of rotation.",
+      cleaning: "Some repeat cleaning accounts still need the next visit locked in before the customer has to ask what comes next.",
+      hvac: "Some maintenance accounts still need the next visit or warranty follow-through attached before they fall back into reactive work.",
+      plumbing: "Some follow-up repairs still need the next visit, approval, or restoration step attached before the account goes quiet.",
+    };
+    return {
+      title: "Some repeat work is at renewal risk",
+      description: descriptions[businessKey] || "Some repeat accounts still need the next visit or renewal step attached before they slip back into manual follow-up.",
+      chips: [
+        `${atRiskPlansCount} plan${atRiskPlansCount === 1 ? "" : "s"} missing the next move`,
         `${activePlansCount} active plan${activePlansCount === 1 ? "" : "s"}`,
       ],
     };
@@ -91,6 +115,92 @@ function buildDashboardRepeatWorkGuidance({ duePlansCount = 0, activePlansCount 
   };
 }
 
+function buildDashboardReactivationGuidance({ dormantRepeatCount = 0, blueprint = currentWorkspaceBlueprint() }) {
+  const businessKey = String(blueprint?.business?.key || "service_business").trim().toLowerCase();
+  if (dormantRepeatCount <= 0) return null;
+  const descriptions = {
+    landscaping: "Some repeat properties have no next route, seasonal touch, or follow-up attached right now. Bring them back onto the calendar before they cool off.",
+    property_maintenance: "Some repeat sites have no next walk or maintenance touch attached right now. Bring them back into rotation before the property has to be relearned.",
+    pressure_washing: "Some repeat properties have no next wash cycle attached right now. Bring them back into rotation before the account falls quiet.",
+    cleaning: "Some recurring cleaning accounts have no next visit attached right now. Rebook them before the customer has to ask what happened to their cadence.",
+    hvac: "Some maintenance accounts have no next visit, parts follow-up, or warranty touch attached right now. Reactivate them before they turn back into emergency work.",
+    plumbing: "Some repair customers still need a return visit, restoration, or approval touch. Reactivate them before the repair history goes cold.",
+  };
+  return {
+    title: "Dormant repeat accounts need reactivation",
+    description: descriptions[businessKey] || "Some repeat-service accounts have no next move attached right now. Reactivate them before they drift out of sight.",
+    chips: [
+      `${dormantRepeatCount} account${dormantRepeatCount === 1 ? "" : "s"} need reactivation`,
+      "No next visit attached",
+    ],
+  };
+}
+
+function priorityReactivationCustomer({ customers = CUSTOMERS_CACHE, blueprint = currentWorkspaceBlueprint() } = {}) {
+  const businessKey = String(blueprint?.business?.key || "service_business").trim().toLowerCase();
+  const customerApi = window.PROOFLINK_OPERATOR_CUSTOMER_DETAIL || {};
+  const renewalRiskItemForCustomer = typeof customerApi.customerRenewalRiskItem === "function"
+    ? customerApi.customerRenewalRiskItem
+    : null;
+  const firstFilled = (...values) => values.find((value) => String(value || "").trim()) || "";
+  const activeCustomerIds = new Set(
+    [
+      ...SERVICE_PLANS_CACHE
+        .filter((row) => String(row.status || "").toLowerCase() === "active")
+        .map((row) => row.customer_id),
+      ...CRM_ORDERS_CACHE
+        .filter((row) => !["completed", "cancelled", "archived"].includes(String(row.status || "").toLowerCase()))
+        .map((row) => row.customer_id),
+      ...JOBS_CACHE
+        .filter((row) => !["completed", "cancelled", "archived"].includes(String(row.status || "").toLowerCase()))
+        .map((row) => row.customer_id),
+      ...LEADS_CACHE
+        .filter((row) => !["won", "closed", "archived", "cancelled"].includes(String(row.status || "").toLowerCase()))
+        .map((row) => row.customer_id),
+      ...BIDS_CACHE
+        .filter((row) => !["won", "lost", "archived", "rejected"].includes(String(row.status || "").toLowerCase()))
+        .map((row) => row.customer_id),
+    ].filter(Boolean)
+  );
+
+  const candidates = (customers || []).filter((customer) => {
+    const repeatSignal = [
+      customer?.service_schedule,
+      customer?.frequency,
+      customer?.recurring_notes,
+      customer?.service_plan_name,
+      customer?.maintenance_notes,
+      customer?.seasonal_notes,
+    ].some((value) => String(value || "").trim());
+    if (!repeatSignal) return false;
+    if (activeCustomerIds.has(customer.id)) return false;
+    const nextTouch = [customer?.next_service_on, customer?.follow_up_notes].some((value) => String(value || "").trim());
+    return !nextTouch;
+  });
+  if (!candidates.length) return null;
+
+  const ranked = [...candidates].sort((a, b) => {
+    const aTouched = new Date(firstFilled(a?.last_contact_at, a?.updated_at, a?.created_at, 0)).getTime();
+    const bTouched = new Date(firstFilled(b?.last_contact_at, b?.updated_at, b?.created_at, 0)).getTime();
+    return aTouched - bTouched;
+  });
+  const customer = ranked[0];
+  const renewalRiskItem = renewalRiskItemForCustomer
+    ? renewalRiskItemForCustomer({
+        customer,
+        businessKey,
+        openRequestsCount: 0,
+        openProposalCount: 0,
+        activeWorkCount: 0,
+        latestInteraction: null,
+      })
+    : null;
+  return {
+    customer,
+    note: renewalRiskItem?.note || firstFilled(customer?.follow_up_notes, customer?.recurring_notes, customer?.maintenance_notes, customer?.seasonal_notes) || "Bring this repeat account back onto the calendar before it cools off.",
+  };
+}
+
 function renderDashboard() {
   if (!dashboardWrap) return;
 
@@ -108,7 +218,15 @@ function renderDashboard() {
   const staleLeadRows = staleLeads();
   const completedUnpaid = completedUnpaidOrders();
   const duePlans = dueServicePlans();
-  const activePlansCount = SERVICE_PLANS_CACHE.filter((row) => String(row.status || "").toLowerCase() === "active").length;
+  const activePlans = SERVICE_PLANS_CACHE.filter((row) => String(row.status || "").toLowerCase() === "active");
+  const activePlansCount = activePlans.length;
+  const duePlanIds = new Set(duePlans.map((row) => row.id));
+  const atRiskPlansCount = activePlans.filter((row) => {
+    if (duePlanIds.has(row.id)) return false;
+    const nextRunValue = String(row?.next_run_on || "").trim();
+    if (!nextRunValue) return true;
+    return Number.isNaN(new Date(nextRunValue).getTime());
+  }).length;
   const depositRiskOrders = ordersMissingDeposits();
   const completedUnpaidBalance = completedUnpaid.reduce((sum, row) => sum + orderAmountDueCents(row), 0);
   const outstandingBalance = outstandingBalanceCents();
@@ -125,8 +243,47 @@ function renderDashboard() {
     duePlansCount: duePlans.length,
     activePlansCount,
     todayBookingsCount,
+    atRiskPlansCount,
     blueprint,
   });
+  const activeCustomerIds = new Set(
+    [
+      ...activePlans.map((row) => row.customer_id),
+      ...CRM_ORDERS_CACHE
+        .filter((row) => !["completed", "cancelled", "archived"].includes(String(row.status || "").toLowerCase()))
+        .map((row) => row.customer_id),
+      ...JOBS_CACHE
+        .filter((row) => !["completed", "cancelled", "archived"].includes(String(row.status || "").toLowerCase()))
+        .map((row) => row.customer_id),
+      ...LEADS_CACHE
+        .filter((row) => !["won", "closed", "archived", "cancelled"].includes(String(row.status || "").toLowerCase()))
+        .map((row) => row.customer_id),
+      ...BIDS_CACHE
+        .filter((row) => !["won", "lost", "archived", "rejected"].includes(String(row.status || "").toLowerCase()))
+        .map((row) => row.customer_id),
+    ].filter(Boolean)
+  );
+  const dormantRepeatCount = CUSTOMERS_CACHE.filter((customer) => {
+    const repeatSignal = [
+      customer?.service_schedule,
+      customer?.frequency,
+      customer?.recurring_notes,
+      customer?.service_plan_name,
+      customer?.maintenance_notes,
+      customer?.seasonal_notes,
+    ].some((value) => String(value || "").trim());
+    if (!repeatSignal) return false;
+    if (activeCustomerIds.has(customer.id)) return false;
+    const nextTouch = [customer?.next_service_on, customer?.follow_up_notes].some((value) => String(value || "").trim());
+    return !nextTouch;
+  }).length;
+  const reactivationGuidance = buildDashboardReactivationGuidance({
+    dormantRepeatCount,
+    blueprint,
+  });
+  const reactivationTarget = reactivationGuidance
+    ? priorityReactivationCustomer({ customers: CUSTOMERS_CACHE, blueprint })
+    : null;
   const orderLabel = workspaceOrderLabelLower(blueprint);
   const catalogLabel = workspaceCatalogLabelLower(blueprint);
   const hydrovacToday = isHydrovacWorkspace(blueprint) ? hydrovacDashboardSnapshot() : null;
@@ -267,6 +424,29 @@ function renderDashboard() {
         </div>
       </div>
     </div>
+
+    ${reactivationGuidance ? `
+      <div class="card dashboard-focus-card">
+        <div class="card-hd">
+          <strong>Reactivation focus</strong>
+          <span class="muted">The repeat accounts most likely to go quiet</span>
+        </div>
+        <div class="card-bd">
+          <div class="dashboard-focus-title">${escapeHtml(reactivationGuidance.title)}</div>
+          <div class="detail-copy dashboard-focus-copy">${escapeHtml(reactivationGuidance.description)}</div>
+          <div class="workspace-chip-row dashboard-focus-chips">
+            ${reactivationGuidance.chips.map((chip) => `<span class="pill">${escapeHtml(chip)}</span>`).join("")}
+          </div>
+          ${reactivationTarget ? `
+            <div class="detail-copy dashboard-focus-copy"><strong>${escapeHtml(reactivationTarget.customer?.name || reactivationTarget.customer?.email || "Repeat customer")}</strong> ${escapeHtml(reactivationTarget.note)}</div>
+            <div class="action-row action-row--wrap u-mt-10">
+              <button type="button" class="btn btn-primary btn-sm" data-dashboard-action="reactivate-repeat">Schedule next visit</button>
+              <button type="button" class="btn btn-ghost btn-sm" data-dashboard-action="open-reactivation-customer">Open customer</button>
+            </div>
+          ` : ""}
+        </div>
+      </div>
+    ` : ""}
 
     <div class="cards">
       <div class="card mini">
@@ -695,6 +875,24 @@ function renderDashboard() {
         clearPlanForm();
         renderPlanDetail(null).catch(console.error);
         switchTab("plans");
+        return;
+      }
+      if (action === "reactivate-repeat") {
+        const target = priorityReactivationCustomer({ customers: CUSTOMERS_CACHE, blueprint: currentWorkspaceBlueprint() });
+        if (!target?.customer) return;
+        const bookingsApi = window.PROOFLINK_OPERATOR_BOOKINGS_WORKSPACE || {};
+        if (typeof bookingsApi.openBookingDraftForCustomer === "function") {
+          bookingsApi.openBookingDraftForCustomer(target.customer, {}, currentWorkspaceBlueprint());
+        } else {
+          switchTab("bookings");
+        }
+        return;
+      }
+      if (action === "open-reactivation-customer") {
+        const target = priorityReactivationCustomer({ customers: CUSTOMERS_CACHE, blueprint: currentWorkspaceBlueprint() });
+        if (!target?.customer?.id) return;
+        ACTIVE_CUSTOMER_ID = target.customer.id;
+        switchTab("customers");
       }
     });
   });
@@ -1018,6 +1216,8 @@ function renderGuidance() {
 const COMMAND_CENTER_HELPERS = {
   buildDashboardCollectionGuidance,
   buildDashboardRepeatWorkGuidance,
+  buildDashboardReactivationGuidance,
+  priorityReactivationCustomer,
   renderDashboard,
   renderMoneyWorkspace,
   renderPipelineWorkspace,

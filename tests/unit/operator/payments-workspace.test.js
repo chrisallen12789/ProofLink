@@ -173,4 +173,34 @@ describe("operator payments workspace", () => {
     expect(message).toContain("Payment saved for Harbor Suites.");
     expect(message).toContain("Drywall repair still needs scheduling");
   });
+
+  test("buildPaymentReactivationActions turns a paid cleaning account into the next visit", () => {
+    const context = loadPaymentsWorkspace({
+      currentWorkspaceBlueprint: () => ({ business: { key: "cleaning" } }),
+      CUSTOMERS_CACHE: [{
+        id: "customer_1",
+        name: "Brightline Suites",
+        recurring_notes: "Weekly lobby clean",
+      }],
+      CRM_ORDERS_CACHE: [{
+        id: "order_1",
+        customer_id: "customer_1",
+        customer_name: "Brightline Suites",
+        status: "paid",
+      }],
+      JOBS_CACHE: [],
+      orderAmountDueCents: () => 0,
+    });
+
+    const actions = context.window.buildPaymentReactivationActions({
+      customerId: "customer_1",
+      orderId: "order_1",
+      blueprint: { business: { key: "cleaning" } },
+    });
+
+    expect(actions.map((action) => action.label)).toEqual([
+      "Schedule next cleaning visit",
+      "Open customer",
+    ]);
+  });
 });

@@ -9,6 +9,7 @@ function makeButton() {
     value: "",
     disabled: false,
     textContent: "",
+    focus: vi.fn(),
     classList: {
       add: vi.fn(),
       remove: vi.fn(),
@@ -35,12 +36,17 @@ function loadBookingsWorkspace(overrides = {}) {
     btnBkPrev: makeButton(),
     btnBkNext: makeButton(),
     btnSaveBooking: makeButton(),
+    bkCustomerName: makeButton(),
+    bkCustomerEmail: makeButton(),
+    bkTitle: makeButton(),
     bkRecurrenceRule: makeButton(),
-    bkRecurrenceOptions: { style: {} },
+    bkRecurrenceOptions: { style: {}, classList: { add: vi.fn(), remove: vi.fn(), toggle: vi.fn(), contains: vi.fn(() => false) } },
     bkRecurrenceEnd: makeButton(),
     bkRecurrenceCount: { textContent: "" },
     bkDate: makeButton(),
-    newBookingForm: { classList: { add: vi.fn(), toggle: vi.fn(), contains: vi.fn(() => false) } },
+    bkStart: makeButton(),
+    bkNotes: makeButton(),
+    newBookingForm: { classList: { add: vi.fn(), remove: vi.fn(), toggle: vi.fn(), contains: vi.fn(() => false) } },
     newBookingMsg: { textContent: "", className: "" },
   };
 
@@ -69,6 +75,7 @@ function loadBookingsWorkspace(overrides = {}) {
     formatDateTime: vi.fn(() => "Mar 26"),
     showToast: vi.fn(),
     notifyOperator: vi.fn(),
+    setInlineMessage: vi.fn(),
     opId: vi.fn(() => "operator_1"),
     currentWorkspaceBlueprint: vi.fn(() => ({
       business: {
@@ -78,6 +85,7 @@ function loadBookingsWorkspace(overrides = {}) {
       },
     })),
     $: vi.fn((id) => elements[id] || null),
+    switchTab: vi.fn(),
     setTimeout,
     clearTimeout,
     ...overrides,
@@ -253,5 +261,100 @@ describe("operator bookings workspace", () => {
       { label: "Customer update path", ready: true, note: "555-1212", tone: "" },
       { label: "Money follow-through", ready: false, note: "$185 is still open on the linked booked work. Keep the reminder or collection step attached while this visit is fresh.", tone: "warn" },
     ]);
+  });
+
+  test("bookingFollowThroughItems flags HVAC renewal risk when the next maintenance step is missing", () => {
+    const { context } = loadBookingsWorkspace({
+      currentWorkspaceBlueprint: vi.fn(() => ({
+        business: {
+          key: "hvac",
+          label: "HVAC",
+          recordFocus: [],
+        },
+      })),
+      CUSTOMERS_CACHE: [{
+        id: "customer_1",
+        name: "Harbor Suites",
+        email: "ops@example.com",
+        maintenance_notes: "Quarterly rooftop maintenance still expected",
+        tenant_notes: "Facilities lead handles approvals",
+      }],
+    });
+
+    const items = context.window.bookingFollowThroughItems({
+      id: "booking_1",
+      customer_id: "customer_1",
+      customer_name: "Harbor Suites",
+      customer_email: "ops@example.com",
+    });
+
+    expect(items).toEqual([
+      { label: "Maintenance follow-up", ready: true, note: "Quarterly rooftop maintenance still expected", tone: "" },
+      { label: "Customer update path", ready: true, note: "Facilities lead handles approvals", tone: "" },
+      { label: "Renewal risk", ready: false, note: "This account has repeat-service signals, but the next visit or follow-up step still needs to be attached before it goes quiet.", tone: "warn" },
+      { label: "Money follow-through", ready: true, note: "No booked-work balance is attached to this visit right now.", tone: "" },
+    ]);
+  });
+
+  test("openBookingDraftForCustomer opens the booking form with follow-up defaults", () => {
+    const { context, elements } = loadBookingsWorkspace({
+      currentWorkspaceBlueprint: vi.fn(() => ({
+        business: {
+          key: "cleaning",
+          label: "Cleaning",
+          recordFocus: [],
+        },
+      })),
+      todayDateValue: vi.fn(() => "2026-04-02"),
+    });
+
+    context.window.openBookingDraftForCustomer({
+      name: "Harbor Suites",
+      email: "ops@example.com",
+      recurring_notes: "Every other Tuesday",
+    });
+
+    expect(context.switchTab).toHaveBeenCalledWith("bookings");
+    expect(elements.newBookingForm.classList.remove).toHaveBeenCalledWith("hidden");
+    expect(elements.bkCustomerName.value).toBe("Harbor Suites");
+    expect(elements.bkCustomerEmail.value).toBe("ops@example.com");
+    expect(elements.bkTitle.value).toBe("Harbor Suites cleaning visit");
+    expect(elements.bkDate.value).toBe("2026-04-02");
+    expect(elements.bkNotes.value).toContain("Every other Tuesday");
+    expect(context.setInlineMessage).toHaveBeenCalled();
+  });
+
+  test("openBookingDraftForCustomer preloads recurrence and trade guidance for repeat HVAC work", () => {
+    const { context, elements } = loadBookingsWorkspace({
+      currentWorkspaceBlueprint: vi.fn(() => ({
+        business: {
+          key: "hvac",
+          label: "HVAC",
+          recordFocus: [],
+        },
+      })),
+      todayDateValue: vi.fn((days) => {
+        const map = { 7: "2026-04-02", 84: "2026-06-18" };
+        return map[days] || "2026-04-02";
+      }),
+    });
+
+    context.window.openBookingDraftForCustomer({
+      name: "Harbor Suites",
+      email: "ops@example.com",
+      frequency: "Weekly",
+      maintenance_notes: "Spring tune-up is due next visit",
+      parts_follow_up: "Bring capacitor approval paperwork",
+      equipment_notes: "Carrier rooftop unit RTU-2",
+    });
+
+    expect(elements.bkTitle.value).toBe("Harbor Suites maintenance visit");
+    expect(elements.bkDate.value).toBe("2026-04-02");
+    expect(elements.bkRecurrenceRule.value).toBe("WEEKLY");
+    expect(elements.bkRecurrenceEnd.value).toBe("2026-06-18");
+    expect(elements.bkNotes.value).toContain("Spring tune-up is due next visit");
+    expect(elements.bkNotes.value).toContain("Bring capacitor approval paperwork");
+    expect(elements.bkNotes.value).toContain("Carrier rooftop unit RTU-2");
+    expect(elements.bkRecurrenceOptions.classList.toggle).toHaveBeenCalledWith("u-hidden", false);
   });
 });

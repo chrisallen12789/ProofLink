@@ -79,6 +79,127 @@
     return `Payment saved for ${customerName}. ${followThrough}`;
   }
 
+  function buildPaymentReactivationActions(options = {}) {
+    const blueprint = options.blueprint || (typeof currentWorkspaceBlueprint === "function" ? currentWorkspaceBlueprint() : { business: { key: "service_business" } });
+    const businessKey = String(blueprint?.business?.key || "service_business").trim().toLowerCase();
+    const { customer, order } = resolvePaymentContext(options);
+    if (!customer) return [];
+
+    const firstFilled = (...values) => values.find((value) => String(value || "").trim()) || "";
+    const repeatSignal = firstFilled(
+      customer?.service_schedule,
+      customer?.frequency,
+      customer?.recurring_notes,
+      customer?.service_plan_name,
+      customer?.maintenance_notes,
+      customer?.seasonal_notes,
+      customer?.follow_up_notes
+    );
+    if (!repeatSignal) return [];
+
+    const nextTouch = firstFilled(
+      customer?.next_service_on,
+      customer?.service_plan_name,
+      customer?.follow_up_notes
+    );
+    if (nextTouch) return [];
+
+    const orderDueCents = order ? Number(orderAmountDueCents(order) || 0) : 0;
+    if (orderDueCents > 0) return [];
+
+    const activeOrderCount = (CRM_ORDERS_CACHE || []).filter((row) => {
+      if ((row.customer_id || "") !== customer.id) return false;
+      const status = String(row.status || "").trim().toLowerCase();
+      return !["cancelled", "completed", "paid", "fulfilled"].includes(status);
+    }).length;
+    const activeJobCount = (JOBS_CACHE || []).filter((row) => {
+      if ((row.customer_id || "") !== customer.id) return false;
+      const status = String(row.status || "").trim().toLowerCase();
+      return !["cancelled", "completed"].includes(status);
+    }).length;
+    if (activeOrderCount > 0 || activeJobCount > 0) return [];
+
+    const scheduleLabelMap = {
+      landscaping: "Schedule next property visit",
+      property_maintenance: "Schedule next site visit",
+      pressure_washing: "Schedule next wash visit",
+      cleaning: "Schedule next cleaning visit",
+      hvac: "Schedule next system visit",
+      plumbing: "Schedule next follow-up visit",
+    };
+
+    return [
+      { label: scheduleLabelMap[businessKey] || "Schedule next visit", action: "reactivate-repeat", className: "btn btn-primary btn-sm" },
+      { label: "Open customer", action: "open-reactivation-customer", className: "btn btn-ghost btn-sm" },
+    ];
+  }
+
+  function ensurePaymentNextActionsHost() {
+    if (!paymentMsg || typeof document === "undefined") return null;
+    const parent = paymentMsg.parentElement;
+    if (!parent) return null;
+    let host = parent.querySelector?.("#paymentNextActions") || null;
+    if (!host && typeof document.createElement === "function") {
+      host = document.createElement("div");
+      host.id = "paymentNextActions";
+      host.className = "action-row action-row--wrap u-mt-10 hidden";
+      if (typeof paymentMsg.insertAdjacentElement === "function") {
+        paymentMsg.insertAdjacentElement("afterend", host);
+      } else if (typeof parent.appendChild === "function") {
+        parent.appendChild(host);
+      }
+    }
+    return host;
+  }
+
+  function clearPaymentNextActions() {
+    const host = ensurePaymentNextActionsHost();
+    if (!host) return;
+    host.innerHTML = "";
+    host.className = "action-row action-row--wrap u-mt-10 hidden";
+  }
+
+  function renderPaymentNextActions(options = {}) {
+    const host = ensurePaymentNextActionsHost();
+    if (!host) return;
+    const actions = buildPaymentReactivationActions(options);
+    if (!actions.length) {
+      clearPaymentNextActions();
+      return;
+    }
+    host.className = "action-row action-row--wrap u-mt-10";
+    host.innerHTML = actions.map((action) => `
+      <button type="button" class="${escapeAttr(action.className || "btn btn-ghost btn-sm")}" data-payment-reactivation-action="${escapeAttr(action.action || "")}">
+        ${escapeHtml(action.label || "Take action")}
+      </button>
+    `).join("");
+
+    host.querySelectorAll?.("[data-payment-reactivation-action]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const action = button.getAttribute("data-payment-reactivation-action");
+        const { customer, order, job } = resolvePaymentContext(options);
+        if (!customer) return;
+
+        if (action === "open-reactivation-customer") {
+          ACTIVE_CUSTOMER_ID = customer.id;
+          switchTab("customers");
+          renderCustomerDetail(customer.id).catch(console.error);
+          return;
+        }
+
+        if (action === "reactivate-repeat") {
+          const bookingsApi = global.PROOFLINK_OPERATOR_BOOKINGS_WORKSPACE || {};
+          if (typeof bookingsApi.openBookingDraftForCustomer === "function") {
+            bookingsApi.openBookingDraftForCustomer(customer, {}, blueprint);
+            return;
+          }
+          ACTIVE_CUSTOMER_ID = customer.id;
+          switchTab("bookings");
+        }
+      });
+    });
+  }
+
   function applyPaymentContextMessage(options = {}) {
     const message = buildPaymentContextMessage(options);
     if (!message) {
@@ -133,6 +254,7 @@
     if (paymentPaidAt) paymentPaidAt.value = options.paidAt || toDateTimeLocalValue(new Date().toISOString());
     if (paymentReference) paymentReference.value = options.reference || "";
     if (paymentNote) paymentNote.value = options.note || "";
+    clearPaymentNextActions();
     applyPaymentContextMessage({
       customerId: defaultCustomerId,
       orderId: defaultOrderId,
@@ -155,6 +277,11 @@
     if (paymentReference) paymentReference.value = payment.metadata?.reference || "";
     if (paymentNote) paymentNote.value = payment.metadata?.note || "";
     applyPaymentContextMessage({
+      customerId: payment.customer_id || "",
+      orderId: payment.order_id || "",
+      jobId: payment.job_id || "",
+    });
+    renderPaymentNextActions({
       customerId: payment.customer_id || "",
       orderId: payment.order_id || "",
       jobId: payment.job_id || "",
@@ -332,7 +459,14 @@
         jobId: savedJob?.id || "",
         blueprint: typeof currentWorkspaceBlueprint === "function" ? currentWorkspaceBlueprint() : { business: { key: "service_business" } },
       }), "ok");
+      renderPaymentNextActions({
+        customerId: savedCustomer?.id || "",
+        orderId: savedOrder?.id || "",
+        jobId: savedJob?.id || "",
+        blueprint: typeof currentWorkspaceBlueprint === "function" ? currentWorkspaceBlueprint() : { business: { key: "service_business" } },
+      });
     } catch (err) {
+      clearPaymentNextActions();
       setInlineMessage(paymentMsg, err.message || String(err), "error");
     }
   });
@@ -342,7 +476,9 @@
     buildPaymentContextMessage,
     buildPaymentFollowThroughMessage,
     buildPaymentSavedMessage,
+    buildPaymentReactivationActions,
     applyPaymentContextMessage,
+    renderPaymentNextActions,
     renderPaymentCustomerOptions,
     renderPaymentOrderOptions,
     clearPaymentForm,

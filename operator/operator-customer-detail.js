@@ -219,6 +219,60 @@
     };
   }
 
+  function customerRenewalRiskItem({
+    customer = null,
+    businessKey = "service_business",
+    openRequestsCount = 0,
+    openProposalCount = 0,
+    activeWorkCount = 0,
+    latestInteraction = null,
+  } = {}) {
+    const firstFilled = (...values) => values.find((value) => String(value || "").trim()) || "";
+    const detail = (label, ready, readyNote, missingNote, tone = "") => ({
+      label,
+      ready: !!ready,
+      note: ready ? readyNote : missingNote,
+      tone: tone || (!ready ? "warn" : ""),
+    });
+    const repeatSignal = firstFilled(
+      customer?.service_schedule,
+      customer?.frequency,
+      customer?.recurring_notes,
+      customer?.service_plan_name,
+      customer?.maintenance_notes,
+      customer?.seasonal_notes,
+      customer?.follow_up_notes
+    );
+    if (!repeatSignal) return null;
+
+    const nextTouch = firstFilled(
+      customer?.next_service_on,
+      customer?.follow_up_notes,
+      customer?.service_plan_name,
+      latestInteraction?.summary
+    );
+    const protectedRenewal = openRequestsCount > 0
+      || openProposalCount > 0
+      || activeWorkCount > 0
+      || !!nextTouch;
+    const tradeMessages = {
+      landscaping: "This property has repeat-service history, but the next visit or seasonal touch still needs to be attached before the account cools off.",
+      property_maintenance: "This site has repeat-service history, but the next walk or maintenance touch still needs to be attached before it drifts.",
+      cleaning: "This account has repeat-service cadence, but the next visit still needs to be attached before the customer has to ask.",
+      hvac: "This system has maintenance history, but the next visit or warranty follow-through still needs to be attached before it turns reactive again.",
+      plumbing: "This repair history points to more follow-through, but the next approval, restoration, or return visit still needs to be attached.",
+    };
+
+    return detail(
+      "Renewal risk",
+      protectedRenewal,
+      activeWorkCount > 0
+        ? "The next visit or follow-through is already moving inside active work."
+        : `The next repeat touch is still visible here: ${nextTouch}.`,
+      tradeMessages[businessKey] || "This customer has repeat-service signals, but the next visit or renewal step still needs to be attached before the account goes quiet."
+    );
+  }
+
   function customerRelationshipGuidance({
     customer = null,
     openRequestsCount = 0,
@@ -240,6 +294,15 @@
       tone: tone || (!ready ? "warn" : ""),
     });
 
+    const renewalRiskItem = customerRenewalRiskItem({
+      customer,
+      businessKey,
+      openRequestsCount,
+      openProposalCount,
+      activeWorkCount,
+      latestInteraction,
+    });
+
     let title = "Protect the next piece of work";
     let description = "The relationship is in a healthy spot. Use the next move below to protect repeat work and keep the customer feeling looked after.";
     if (openRequestsCount > 0) {
@@ -254,6 +317,9 @@
     } else if (balance > 0) {
       title = "Close the money loop";
       description = "The work has moved farther than the payment. Make the balance easy to finish before this turns into avoidable collections drag.";
+    } else if (renewalRiskItem && !renewalRiskItem.ready) {
+      title = "Protect the next repeat visit";
+      description = "This account has repeat-work signals, but the next visit or renewal step is not fully attached yet. Keep it visible before the relationship cools off.";
     }
 
     const items = [
@@ -326,8 +392,61 @@
         "Capture the next follow-up step so this customer stays easy to serve and easy to retain."
       )
     );
+    if (renewalRiskItem) items.push(renewalRiskItem);
 
     return { title, description, items };
+  }
+
+  function customerReactivationActions({
+    customer = null,
+    openRequestsCount = 0,
+    openProposalCount = 0,
+    activeOrderCount = 0,
+    activeJobCount = 0,
+    blueprint = (typeof currentWorkspaceBlueprint === "function" ? currentWorkspaceBlueprint() : { business: { key: "service_business" } }),
+  } = {}) {
+    const businessKey = String(blueprint?.business?.key || "service_business").trim().toLowerCase();
+    const firstFilled = (...values) => values.find((value) => String(value || "").trim()) || "";
+    const repeatSignal = firstFilled(
+      customer?.service_schedule,
+      customer?.frequency,
+      customer?.recurring_notes,
+      customer?.service_plan_name,
+      customer?.maintenance_notes,
+      customer?.seasonal_notes,
+      customer?.follow_up_notes
+    );
+    if (!repeatSignal) return [];
+
+    const nextTouch = firstFilled(
+      customer?.next_service_on,
+      customer?.service_plan_name,
+      customer?.follow_up_notes
+    );
+    const activeWorkCount = Number(activeOrderCount || 0) + Number(activeJobCount || 0);
+    if (nextTouch || openRequestsCount > 0 || openProposalCount > 0 || activeWorkCount > 0) return [];
+
+    const scheduleLabelMap = {
+      landscaping: "Schedule next property visit",
+      property_maintenance: "Schedule next site visit",
+      pressure_washing: "Schedule next wash visit",
+      cleaning: "Schedule next cleaning visit",
+      hvac: "Schedule next system visit",
+      plumbing: "Schedule next follow-up visit",
+    };
+
+    return [
+      {
+        label: scheduleLabelMap[businessKey] || "Schedule next visit",
+        className: "btn btn-primary",
+        data: { "customer-action": "booking" },
+      },
+      {
+        label: "Draft follow-up request",
+        className: "btn btn-ghost",
+        data: { "customer-action": "request" },
+      },
+    ];
   }
 
   function customerPostWorkGuidance({
@@ -527,6 +646,17 @@
     setInlineMessage(paymentMsg, "Payment form opened for this customer.", "ok");
   }
 
+  function openCustomerBookingDraft(customer, blueprint = (typeof currentWorkspaceBlueprint === "function" ? currentWorkspaceBlueprint() : { business: { key: "service_business" } })) {
+    if (!customer) return;
+    const bookingApi = window.PROOFLINK_OPERATOR_BOOKINGS_WORKSPACE || {};
+    if (typeof bookingApi.openBookingDraftForCustomer === "function") {
+      bookingApi.openBookingDraftForCustomer(customer, {}, blueprint);
+      return;
+    }
+    switchTab("bookings");
+    showToast("Bookings opened. Schedule the next visit while this account is still warm.");
+  }
+
   function openCustomerRecordTab(tab, recordId) {
     if (!recordId) return;
     if (tab === "leads") ACTIVE_LEAD_ID = recordId;
@@ -603,6 +733,14 @@
       balance,
       latestInteraction,
       latestPayment,
+      blueprint,
+    });
+    const reactivationActions = customerReactivationActions({
+      customer,
+      openRequestsCount,
+      openProposalCount,
+      activeOrderCount,
+      activeJobCount,
       blueprint,
     });
     const postWorkGuidance = customerPostWorkGuidance({
@@ -820,6 +958,13 @@
               </div>
             `).join("")}
           </div>
+          ${reactivationActions.length ? `
+            <div class="customer-action-row action-row--wrap u-mt-10">
+              ${reactivationActions.map((action) => `
+                <button type="button" class="${escapeAttr(action.className || "btn btn-ghost")}" data-customer-action="${escapeAttr(action.data?.["customer-action"] || "")}">${escapeHtml(action.label || "Take action")}</button>
+              `).join("")}
+            </div>
+          ` : ""}
         </div>
         ${postWorkGuidance ? `
           <div class="detail-card customer-next-step-card">
@@ -918,6 +1063,7 @@
         const action = button.getAttribute("data-customer-action");
         if (action === "request") return openCustomerRequestDraft(customer);
         if (action === "bid") return openCustomerBidDraft(customer);
+        if (action === "booking") return openCustomerBookingDraft(customer, blueprint);
         if (action === "payment") return openCustomerPaymentDraft(customerIdValue);
         if (action === "requests") return switchTab("leads");
         if (action === "bids") return switchTab("bids");
@@ -988,10 +1134,13 @@
     customerJobs,
     customerMemoryChecklist,
     customerCollectionGuidance,
+    customerRenewalRiskItem,
     customerRelationshipGuidance,
+    customerReactivationActions,
     customerPostWorkGuidance,
     openCustomerRequestDraft,
     openCustomerBidDraft,
+    openCustomerBookingDraft,
     openCustomerPaymentDraft,
     openCustomerRecordTab,
     archiveCustomer,

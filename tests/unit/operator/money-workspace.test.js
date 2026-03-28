@@ -151,6 +151,30 @@ describe("operator money workspace", () => {
     expect(nextStep.items[1]).toContain("Mar 26");
   });
 
+  test("buildMoneyCollectionNextStep adds a reactivation move when repeat work has no next touch", () => {
+    const context = loadMoneyWorkspace({
+      CRM_ORDERS_CACHE: [
+        { id: "order_open", customer_id: "customer_1", customer_name: "Sparkle Suites", status: "completed", payment_due_date: "2026-03-20" },
+      ],
+      orderAmountDueCents: vi.fn(() => 8000),
+      orderPaymentState: vi.fn(() => "unpaid"),
+      customerById: vi.fn(() => ({
+        id: "customer_1",
+        name: "Sparkle Suites",
+        recurring_notes: "Every other Tuesday lobby touch-up",
+      })),
+      currentWorkspaceBlueprint: () => ({ business: { key: "cleaning" } }),
+    });
+
+    const nextStep = context.buildMoneyCollectionNextStep({ business: { key: "cleaning" } });
+
+    expect(nextStep.items.some((item) => item.includes("Reactivation move: put Sparkle Suites back onto the calendar"))).toBe(true);
+    expect(nextStep.actions.map((action) => action.label)).toEqual([
+      "Schedule next visit",
+      "Open customer",
+    ]);
+  });
+
   test("renderExpenseCustomerOptions builds customer choices", () => {
     const context = loadMoneyWorkspace({
       CUSTOMERS_CACHE: [

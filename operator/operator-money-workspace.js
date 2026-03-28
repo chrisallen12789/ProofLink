@@ -406,6 +406,15 @@ function buildMoneyCollectionNextStep(blueprint = currentWorkspaceBlueprint()) {
   const businessKey = String(blueprint?.business?.key || "service_business").trim().toLowerCase();
   const firstFilled = (...values) => values.find((value) => String(value || "").trim()) || "";
   const items = [];
+  const repeatSignal = [
+    customer?.service_schedule,
+    customer?.frequency,
+    customer?.recurring_notes,
+    customer?.service_plan_name,
+    customer?.maintenance_notes,
+    customer?.seasonal_notes,
+  ].some((value) => String(value || "").trim());
+  const nextTouch = firstFilled(customer?.next_service_on, customer?.follow_up_notes, customer?.service_plan_name);
 
   if (["landscaping", "property_maintenance", "pressure_washing"].includes(businessKey)) {
     items.push(firstFilled(customer?.seasonal_notes, customer?.follow_up_notes, customer?.service_schedule)
@@ -432,12 +441,20 @@ function buildMoneyCollectionNextStep(blueprint = currentWorkspaceBlueprint()) {
   } else if (order.cart_summary) {
     items.push(`Keep the work context attached: ${order.cart_summary}.`);
   }
+  if (repeatSignal && !nextTouch) {
+    items.push(`Reactivation move: put ${customerName} back onto the calendar before this repeat account cools off.`);
+  }
 
   return {
+    customerId: customer?.id || order.customer_id || "",
     customerName,
     title: "After this balance is handled",
     description: `When ${customerName} is paid up, the next move should go back to service follow-through instead of chasing the same money twice.`,
     items,
+    actions: repeatSignal && !nextTouch ? [
+      { label: "Schedule next visit", action: "reactivate-repeat", className: "btn btn-primary btn-sm" },
+      { label: "Open customer", action: "open-reactivation-customer", className: "btn btn-ghost btn-sm" },
+    ] : [],
   };
 }
 
@@ -586,6 +603,13 @@ async function renderMoney() {
               </div>
             `).join("")}
           </div>
+          ${collectionNextStep.actions?.length ? `
+            <div class="action-row action-row--wrap u-mt-10">
+              ${collectionNextStep.actions.map((action) => `
+                <button type="button" class="${escapeAttr(action.className || "btn btn-ghost btn-sm")}" data-money-reactivation-action="${escapeAttr(action.action || "")}">${escapeHtml(action.label || "Take action")}</button>
+              `).join("")}
+            </div>
+          ` : ""}
         ` : ""}
       </div>
     </div>
@@ -699,6 +723,28 @@ async function renderMoney() {
       </div>
     ` : ``}
   `;
+
+  moneyWrap.querySelectorAll("[data-money-reactivation-action]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const action = button.getAttribute("data-money-reactivation-action") || "";
+      const nextStep = buildMoneyCollectionNextStep(currentWorkspaceBlueprint());
+      if (!nextStep?.customerId) return;
+      if (action === "open-reactivation-customer") {
+        ACTIVE_CUSTOMER_ID = nextStep.customerId;
+        switchTab("customers");
+        return;
+      }
+      if (action === "reactivate-repeat") {
+        const customer = customerById(nextStep.customerId) || null;
+        const bookingsApi = window.PROOFLINK_OPERATOR_BOOKINGS_WORKSPACE || {};
+        if (customer && typeof bookingsApi.openBookingDraftForCustomer === "function") {
+          bookingsApi.openBookingDraftForCustomer(customer, {}, currentWorkspaceBlueprint());
+        } else {
+          switchTab("bookings");
+        }
+      }
+    });
+  });
 
   // AR aging
   const arEl = $("arAgingContent");

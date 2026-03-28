@@ -215,6 +215,61 @@ describe("operator jobs workspace", () => {
     ]);
   });
 
+  test("buildJobReactivationActions turns completed cleaning work into the next visit", () => {
+    const { context } = loadJobsWorkspace({
+      currentWorkspaceBlueprint: vi.fn(() => ({
+        business: {
+          key: "cleaning",
+          label: "Cleaning",
+          recordFocus: [],
+        },
+      })),
+      normalizeWorkflowStatusValue: vi.fn((value) => value),
+    });
+
+    const actions = context.buildJobReactivationActions(
+      { status: "completed" },
+      null,
+      {
+        recurring_notes: "Every other Tuesday lobby touch-up",
+      },
+      0,
+      { business: { key: "cleaning" } }
+    );
+
+    expect(actions.map((action) => action.label)).toEqual([
+      "Schedule next cleaning visit",
+      "Open customer",
+    ]);
+  });
+
+  test("buildJobCompletionActions adds review and rebooking for a completed paid visit", () => {
+    const { context } = loadJobsWorkspace({
+      currentWorkspaceBlueprint: vi.fn(() => ({
+        business: {
+          key: "cleaning",
+          label: "Cleaning",
+          recordFocus: [],
+        },
+      })),
+      normalizeWorkflowStatusValue: vi.fn((value) => value),
+    });
+
+    const actions = context.buildJobCompletionActions(
+      { status: "completed" },
+      { id: "order_1", customer_email: "owner@example.com" },
+      { recurring_notes: "Weekly lobby touch-up" },
+      0,
+      { business: { key: "cleaning" } }
+    );
+
+    expect(actions.map((action) => action.label)).toEqual([
+      "Request review",
+      "Schedule next cleaning visit",
+      "Open customer",
+    ]);
+  });
+
   test("jobCustomerMemoryItems reuses business-specific customer memory when it is available", () => {
     const { context } = loadJobsWorkspace({
       PROOFLINK_OPERATOR_CUSTOMER_DETAIL: {
@@ -249,6 +304,10 @@ describe("operator jobs workspace", () => {
     expect(source).toContain("renderJobCustomerMemoryCard");
     expect(source).toContain("jobCustomerMemoryItems");
     expect(source).toContain("jobCloseoutChecklistItems");
+    expect(source).toContain("buildJobCompletionActions");
+    expect(source).toContain("buildJobReactivationActions");
+    expect(source).toContain("data-job-reactivation-action");
+    expect(source).toContain("request-review");
     expect(source).toContain('class="memory-checklist u-mt-10"');
     expect(source).toContain('class="memory-checklist"');
     expect(source).toContain("memory-checklist__item--warn");

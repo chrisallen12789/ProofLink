@@ -16,6 +16,9 @@ function loadCustomerDetail(overrides = {}) {
     LEADS_CACHE: [],
     BIDS_CACHE: [],
     JOBS_CACHE: [],
+    switchTab: vi.fn(),
+    showToast: vi.fn(),
+    $: vi.fn(() => null),
     ...overrides,
   };
 
@@ -195,9 +198,67 @@ describe("operator customer detail", () => {
       "Active work",
       "Money follow-through",
       "System follow-through",
+      "Renewal risk",
     ]);
     expect(guidance.items[1].tone).toBe("warn");
     expect(guidance.items[4].note).toContain("Spring maintenance due in April");
+    expect(guidance.items[5].ready).toBe(true);
+  });
+
+  test("customerRelationshipGuidance flags dormant cleaning cadence before the account cools off", () => {
+    const api = loadCustomerDetail({
+      formatDateTime: (value) => `formatted:${value}`,
+      formatUsd: (value) => `$${value}`,
+    });
+
+    const guidance = api.customerRelationshipGuidance({
+      customer: {
+        recurring_notes: "Every other Tuesday",
+        checklist_notes: "Kitchen and upstairs bath",
+      },
+      openRequestsCount: 0,
+      openProposalCount: 0,
+      activeOrderCount: 0,
+      activeJobCount: 0,
+      balance: 0,
+      latestInteraction: null,
+      latestPayment: null,
+      blueprint: {
+        business: {
+          key: "cleaning",
+        },
+      },
+    });
+
+    expect(guidance.title).toBe("Protect the next repeat visit");
+    expect(guidance.items.at(-1).label).toBe("Renewal risk");
+    expect(guidance.items.at(-1).ready).toBe(false);
+    expect(guidance.items.at(-1).note).toContain("next visit");
+  });
+
+  test("customerReactivationActions recommends scheduling the next visit for a dormant repeat account", () => {
+    const api = loadCustomerDetail();
+
+    const actions = api.customerReactivationActions({
+      customer: {
+        recurring_notes: "Every other Tuesday",
+        checklist_notes: "Kitchen and upstairs bath",
+      },
+      openRequestsCount: 0,
+      openProposalCount: 0,
+      activeOrderCount: 0,
+      activeJobCount: 0,
+      blueprint: {
+        business: {
+          key: "cleaning",
+        },
+      },
+    });
+
+    expect(actions.map((action) => action.label)).toEqual([
+      "Schedule next cleaning visit",
+      "Draft follow-up request",
+    ]);
   });
 
   test("customerPostWorkGuidance keeps plumbing closeout and collection visible after the repair", () => {

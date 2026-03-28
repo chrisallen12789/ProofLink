@@ -322,6 +322,15 @@ function planFollowThroughChecklistItems(plan, customer, sourceOrder, lastOrder,
     note: ready ? readyNote : missingNote,
     tone: tone || (!ready ? "warn" : ""),
   });
+  const renewalReady = !!String(plan?.next_run_on || "").trim() && (!!lastOrder || !!sourceOrder || dueNow);
+  const renewalRiskItem = detail(
+    "Renewal risk",
+    renewalReady,
+    dueNow
+      ? "The next recurring visit is due now, so the renewal step is already visible."
+      : `The next recurring move is attached to ${scheduleLabel}.`,
+    "This plan is active, but the next visit or first generated work still needs to be attached before the account goes quiet."
+  );
 
   const items = [
     detail(
@@ -349,6 +358,7 @@ function planFollowThroughChecklistItems(plan, customer, sourceOrder, lastOrder,
         ? `The last generated work still has ${formatUsd(lastOrderDue)} open. Close that gap before this cadence gets harder to collect.`
         : "Generate the first recurring order once the schedule and amount are ready."
     ),
+    renewalRiskItem,
   ];
 
   const tradeItemMap = {
@@ -441,6 +451,14 @@ function planNextMoveItems(plan, customer, sourceOrder, lastOrder, dueNow, bluep
     "Set the next run date before this repeat work falls out of rhythm.",
     dueNow ? "warn" : ""
   );
+  const renewalRiskItem = detail(
+    "Renewal risk stays visible",
+    !!String(plan?.next_run_on || "").trim() && (!!lastOrder || !!sourceOrder || dueNow),
+    dueNow
+      ? "The next recurring visit is due now, so the renewal step is already in motion."
+      : `The next recurring move is attached to ${servicePlanNextRunLabel(plan) || "the current plan"}.`,
+    "Attach the next visit or first generated work before this recurring account drifts back into manual follow-up."
+  );
 
   const moneyItem = detail(
     "Collection stays attached",
@@ -453,6 +471,7 @@ function planNextMoveItems(plan, customer, sourceOrder, lastOrder, dueNow, bluep
 
   const landscaping = [
     cadenceItem,
+    renewalRiskItem,
     detail(
       "Seasonal upsell stays visible",
       !!firstFilled(customer?.seasonal_notes, customer?.upsell_notes, plan?.notes, sourceOrder?.notes),
@@ -464,6 +483,7 @@ function planNextMoveItems(plan, customer, sourceOrder, lastOrder, dueNow, bluep
 
   const cleaning = [
     cadenceItem,
+    renewalRiskItem,
     detail(
       "Visit handoff stays clear",
       !!firstFilled(customer?.checklist_notes, customer?.add_on_notes, customer?.access_notes, plan?.notes),
@@ -475,6 +495,7 @@ function planNextMoveItems(plan, customer, sourceOrder, lastOrder, dueNow, bluep
 
   const hvac = [
     cadenceItem,
+    renewalRiskItem,
     detail(
       "Maintenance follow-through stays visible",
       !!firstFilled(customer?.maintenance_notes, customer?.parts_follow_up, customer?.warranty_notes, plan?.notes),
@@ -486,6 +507,7 @@ function planNextMoveItems(plan, customer, sourceOrder, lastOrder, dueNow, bluep
 
   const plumbing = [
     cadenceItem,
+    renewalRiskItem,
     detail(
       "Repair follow-through stays visible",
       !!firstFilled(customer?.restoration_notes, customer?.approval_notes, customer?.follow_up_notes, plan?.notes),
@@ -497,6 +519,7 @@ function planNextMoveItems(plan, customer, sourceOrder, lastOrder, dueNow, bluep
 
   const fallback = [
     cadenceItem,
+    renewalRiskItem,
     detail(
       "Next customer step",
       !!firstFilled(customer?.follow_up_notes, customer?.service_notes, plan?.notes),
@@ -518,6 +541,7 @@ function planNextMoveItems(plan, customer, sourceOrder, lastOrder, dueNow, bluep
 
 function renderPlanNextMoveCard(plan, customer, sourceOrder, lastOrder, dueNow, blueprint = (typeof currentWorkspaceBlueprint === "function" ? currentWorkspaceBlueprint() : { business: { key: "service_business" } })) {
   const items = planNextMoveItems(plan, customer, sourceOrder, lastOrder, dueNow, blueprint);
+  const actions = planReactivationActions(plan, customer, sourceOrder, lastOrder, dueNow, blueprint);
   return `
     <div class="detail-card detail-card--spaced">
       <div class="kicker">Best next recurring move</div>
@@ -531,8 +555,46 @@ function renderPlanNextMoveCard(plan, customer, sourceOrder, lastOrder, dueNow, 
           </div>
         `).join("")}
       </div>
+      ${actions.length ? `
+        <div class="action-row action-row--wrap u-mt-10">
+          ${actions.map((action) => `
+            <button type="button" class="${escapeAttr(action.className || "btn btn-ghost")}" data-plan-reactivation-action="${escapeAttr(action.action || "")}">${escapeHtml(action.label || "Take action")}</button>
+          `).join("")}
+        </div>
+      ` : ""}
     </div>
   `;
+}
+
+function planReactivationActions(plan, customer, sourceOrder, lastOrder, dueNow, blueprint = (typeof currentWorkspaceBlueprint === "function" ? currentWorkspaceBlueprint() : { business: { key: "service_business" } })) {
+  const firstFilled = (...values) => values.find((value) => String(value || "").trim()) || "";
+  const actions = [];
+  const hasNextRun = !!String(plan?.next_run_on || "").trim();
+  const hasGeneratedWork = !!(lastOrder?.id || plan?.last_generated_order_id);
+  const repeatSignal = firstFilled(
+    customer?.service_schedule,
+    customer?.frequency,
+    customer?.recurring_notes,
+    customer?.service_plan_name,
+    customer?.maintenance_notes,
+    customer?.seasonal_notes,
+    customer?.follow_up_notes
+  );
+
+  if (!hasNextRun) {
+    actions.push({ label: "Set next visit timing", action: "focus-next-run", className: "btn btn-primary" });
+  } else if ((dueNow || !hasGeneratedWork) && String(plan?.status || "").toLowerCase() === "active") {
+    actions.push({ label: "Generate next booked work", action: "generate-next-order", className: "btn btn-primary" });
+  }
+
+  if (repeatSignal && customer) {
+    actions.push({ label: "Schedule follow-up visit", action: "schedule-follow-up", className: "btn btn-ghost" });
+  }
+  if (hasGeneratedWork) {
+    actions.push({ label: "Open booked work", action: "open-last-order", className: "btn btn-ghost" });
+  }
+
+  return actions;
 }
 
 async function renderPlanDetail(planIdValue) {
@@ -602,6 +664,45 @@ async function renderPlanDetail(planIdValue) {
         </div>
       ` : ""}
     `;
+
+  planDetailWrap.querySelectorAll("[data-plan-reactivation-action]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const action = button.getAttribute("data-plan-reactivation-action") || "";
+      if (action === "focus-next-run") {
+        planNextRunOn?.focus?.();
+        planNextRunOn?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+        return;
+      }
+      if (action === "generate-next-order") {
+        btnGeneratePlanOrder?.click?.();
+        return;
+      }
+      if (action === "open-last-order" && plan?.last_generated_order_id) {
+        ACTIVE_ORDER_ID = plan.last_generated_order_id;
+        renderOrders();
+        switchTab("orders");
+        return;
+      }
+      if (action === "schedule-follow-up" && customer) {
+        const bookingsApi = window.PROOFLINK_OPERATOR_BOOKINGS_WORKSPACE || {};
+        const followUpNote = [
+          plan?.notes,
+          plan?.summary,
+          customer?.follow_up_notes,
+          customer?.recurring_notes,
+        ].find((value) => String(value || "").trim()) || "";
+        if (typeof bookingsApi.openBookingDraftForCustomer === "function") {
+          bookingsApi.openBookingDraftForCustomer(customer, {
+            title: plan.title || "",
+            notes: followUpNote,
+            date: plan.next_run_on || "",
+          }, workspaceBlueprint);
+        } else {
+          switchTab("bookings");
+        }
+      }
+    });
+  });
   }
 
 function sortedServicePlans(filter = "") {
@@ -1140,6 +1241,7 @@ const LEAD_PLAN_WORKSPACE_HELPERS = {
   planFollowThroughChecklistItems,
   renderPlanFollowThroughCard,
   planNextMoveItems,
+  planReactivationActions,
   renderPlanNextMoveCard,
   renderPlanDetail,
   sortedServicePlans,

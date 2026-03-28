@@ -53,8 +53,8 @@ function loadLeadPlanWorkspace(overrides = {}) {
     leadCustomerId: makeField(),
     leadsList: { innerHTML: "", querySelectorAll: vi.fn(() => []) },
     plansList: { innerHTML: "", querySelectorAll: vi.fn(() => []) },
-    planDetailWrap: { innerHTML: "" },
-    leadDetailWrap: { innerHTML: "" },
+    planDetailWrap: { innerHTML: "", querySelectorAll: vi.fn(() => []) },
+    leadDetailWrap: { innerHTML: "", querySelectorAll: vi.fn(() => []) },
     leadId: makeField(),
     leadStatus: makeField(),
     leadPriority: makeField(),
@@ -354,10 +354,99 @@ describe("operator lead plan workspace", () => {
       "Next work timing",
       "Repeat-work scope",
       "Billing follow-through",
+      "Renewal risk",
       "System follow-through",
     ]);
     expect(items[0].tone).toBe("warn");
-    expect(items[3].note).toContain("Blower motor quote still open");
+    expect(items[4].note).toContain("Blower motor quote still open");
+  });
+
+  test("planNextMoveItems flags renewal risk when a recurring plan has no next run attached", () => {
+    const context = loadLeadPlanWorkspace();
+
+    const items = context.window.planNextMoveItems(
+      {
+        status: "active",
+        next_run_on: "",
+        notes: "Awaiting tenant approval for return visit",
+      },
+      {
+        recurring_notes: "Monthly kitchen deep clean",
+      },
+      null,
+      null,
+      false,
+      {
+        business: {
+          key: "cleaning",
+        },
+      }
+    );
+
+    expect(items.map((item) => item.label)).toEqual([
+      "Next recurring move",
+      "Renewal risk stays visible",
+      "Visit handoff stays clear",
+      "Collection stays attached",
+    ]);
+    expect(items[1].ready).toBe(false);
+    expect(items[1].note).toContain("Attach the next visit");
+  });
+
+  test("planReactivationActions points the operator to the next recurring move", () => {
+    const context = loadLeadPlanWorkspace();
+
+    const actions = context.window.planReactivationActions(
+      {
+        id: "plan_1",
+        status: "active",
+        next_run_on: "",
+      },
+      {
+        recurring_notes: "Monthly kitchen deep clean",
+      },
+      null,
+      null,
+      false,
+      {
+        business: {
+          key: "cleaning",
+        },
+      }
+    );
+
+    expect(actions.map((action) => action.label)).toEqual([
+      "Set next visit timing",
+      "Schedule follow-up visit",
+    ]);
+  });
+
+  test("planReactivationActions can generate the next booked work when timing is already set", () => {
+    const context = loadLeadPlanWorkspace();
+
+    const actions = context.window.planReactivationActions(
+      {
+        id: "plan_1",
+        status: "active",
+        next_run_on: "2026-04-20",
+      },
+      {
+        maintenance_notes: "Quarterly rooftop maintenance",
+      },
+      null,
+      null,
+      true,
+      {
+        business: {
+          key: "hvac",
+        },
+      }
+    );
+
+    expect(actions.map((action) => action.label)).toEqual([
+      "Generate next booked work",
+      "Schedule follow-up visit",
+    ]);
   });
 
   test("planNextMoveItems keeps cleaning repeat work pointed at the next visit and collection step", () => {
@@ -386,10 +475,12 @@ describe("operator lead plan workspace", () => {
 
     expect(items.map((item) => item.label)).toEqual([
       "Next recurring move",
+      "Renewal risk stays visible",
       "Visit handoff stays clear",
       "Collection stays attached",
     ]);
-    expect(items[1].note).toContain("Kitchen and two baths");
-    expect(items[2].ready).toBe(true);
+    expect(items[1].ready).toBe(true);
+    expect(items[2].note).toContain("Kitchen and two baths");
+    expect(items[3].ready).toBe(true);
   });
 });

@@ -372,6 +372,27 @@ function orderRetentionItems(order, customer, amountDueCents = 0, paymentState =
       ? "Leave a clear follow-up note so the work result and overdue collection step stay tied together."
       : "Leave the follow-up and payment note attached so the customer does not get a finished job with an unclear balance."
   );
+  const repeatSignal = firstFilled(
+    customer?.service_schedule,
+    customer?.frequency,
+    customer?.recurring_notes,
+    customer?.service_plan_name,
+    customer?.maintenance_notes,
+    customer?.seasonal_notes
+  );
+  const nextTouch = firstFilled(
+    customer?.next_service_on,
+    customer?.follow_up_notes,
+    customer?.service_plan_name
+  );
+  const renewalRiskItem = repeatSignal
+    ? detail(
+        "Renewal risk",
+        !!nextTouch,
+        `The next repeat step is still visible here: ${nextTouch}.`,
+        "This customer has repeat-service signals, but the next visit or follow-up step still needs to be attached before the account cools off."
+      )
+    : null;
 
   const landscaping = [
     detail(
@@ -386,8 +407,9 @@ function orderRetentionItems(order, customer, amountDueCents = 0, paymentState =
       firstFilled(customer?.upsell_notes, customer?.phone, customer?.email),
       "Leave the next customer-facing note attached so upsells and follow-up do not get lost after the visit."
     ),
+    renewalRiskItem,
     moneyItem,
-  ];
+  ].filter(Boolean);
 
   const cleaning = [
     detail(
@@ -402,8 +424,9 @@ function orderRetentionItems(order, customer, amountDueCents = 0, paymentState =
       firstFilled(customer?.checklist_notes, customer?.add_on_notes, order?.notes),
       "Keep the add-ons or closeout note attached so the next visit starts from real memory."
     ),
+    renewalRiskItem,
     moneyItem,
-  ];
+  ].filter(Boolean);
 
   const hvac = [
     detail(
@@ -418,8 +441,9 @@ function orderRetentionItems(order, customer, amountDueCents = 0, paymentState =
       firstFilled(customer?.tenant_notes, customer?.phone, customer?.email),
       "Keep the customer update path visible so the office can close out and rebook the next HVAC step cleanly."
     ),
+    renewalRiskItem,
     moneyItem,
-  ];
+  ].filter(Boolean);
 
   const plumbing = [
     detail(
@@ -434,8 +458,9 @@ function orderRetentionItems(order, customer, amountDueCents = 0, paymentState =
       firstFilled(customer?.phone, customer?.email, customer?.shutoff_notes),
       "Keep the update path and shutoff/repair note visible so the customer knows what comes next."
     ),
+    renewalRiskItem,
     moneyItem,
-  ];
+  ].filter(Boolean);
 
   const fallback = [
     detail(
@@ -444,8 +469,9 @@ function orderRetentionItems(order, customer, amountDueCents = 0, paymentState =
       firstFilled(customer?.follow_up_notes, customer?.service_notes, order?.notes),
       "Leave the next follow-up step attached so the customer relationship does not have to restart from memory."
     ),
+    renewalRiskItem,
     moneyItem,
-  ];
+  ].filter(Boolean);
 
   return ({
     landscaping,
@@ -457,8 +483,49 @@ function orderRetentionItems(order, customer, amountDueCents = 0, paymentState =
   })[businessKey] || fallback;
 }
 
+function orderRetentionActions(order, customer, amountDueCents = 0, blueprint = orderWorkspaceBlueprint()) {
+  const businessKey = String(blueprint?.business?.key || "service_business").trim().toLowerCase();
+  const firstFilled = (...values) => values.find((value) => String(value || "").trim()) || "";
+  const status = String(order?.status || "").trim().toLowerCase();
+  if (!["completed", "fulfilled", "paid"].includes(status)) return [];
+  if (!customer || Number(amountDueCents || 0) > 0) return [];
+
+  const repeatSignal = firstFilled(
+    customer?.service_schedule,
+    customer?.frequency,
+    customer?.recurring_notes,
+    customer?.service_plan_name,
+    customer?.maintenance_notes,
+    customer?.seasonal_notes,
+    customer?.follow_up_notes
+  );
+  if (!repeatSignal) return [];
+
+  const nextTouch = firstFilled(
+    customer?.next_service_on,
+    customer?.service_plan_name,
+    customer?.follow_up_notes
+  );
+  if (nextTouch) return [];
+
+  const scheduleLabelMap = {
+    landscaping: "Schedule next property visit",
+    property_maintenance: "Schedule next site visit",
+    pressure_washing: "Schedule next wash visit",
+    cleaning: "Schedule next cleaning visit",
+    hvac: "Schedule next system visit",
+    plumbing: "Schedule next follow-up visit",
+  };
+
+  return [
+    { label: scheduleLabelMap[businessKey] || "Schedule next visit", action: "reactivate-repeat", className: "btn btn-primary btn-sm" },
+    { label: "Open customer", action: "open-reactivation-customer", className: "btn btn-ghost btn-sm" },
+  ];
+}
+
 function renderOrderRetentionCard(order, customer, amountDueCents = 0, paymentState = "", blueprint = orderWorkspaceBlueprint()) {
   const items = orderRetentionItems(order, customer, amountDueCents, paymentState, blueprint);
+  const actions = orderRetentionActions(order, customer, amountDueCents, blueprint);
   if (!items.length) return "";
   return `
     <div class="detail-card detail-card--spaced">
@@ -473,6 +540,15 @@ function renderOrderRetentionCard(order, customer, amountDueCents = 0, paymentSt
           </div>
         `).join("")}
       </div>
+      ${actions.length ? `
+        <div class="action-row action-row--wrap u-mt-10">
+          ${actions.map((action) => `
+            <button type="button" class="${escapeAttr(action.className || "btn btn-ghost btn-sm")}" data-order-retention-action="${escapeAttr(action.action || "")}">
+              ${escapeHtml(action.label || "Take action")}
+            </button>
+          `).join("")}
+        </div>
+      ` : ""}
     </div>
   `;
 }
@@ -946,6 +1022,34 @@ function renderOrders() {
     if (customerPhone) customerPhone.value = active.phone || active.customer_phone || "";
     if (customerAddress) customerAddress.value = active.service_address || active.address || "";
     switchTab("customers");
+  });
+  orderDetailWrap.querySelectorAll("[data-order-retention-action]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const action = button.getAttribute("data-order-retention-action");
+      if (!existingCustomer?.id) {
+        if (action === "open-reactivation-customer" || action === "reactivate-repeat") {
+          $("btnOpenOrderCustomer")?.click();
+        }
+        return;
+      }
+
+      if (action === "open-reactivation-customer") {
+        ACTIVE_CUSTOMER_ID = existingCustomer.id;
+        CUSTOMER_CREATING = false;
+        switchTab("customers");
+        return;
+      }
+
+      if (action === "reactivate-repeat") {
+        const bookingsApi = window.PROOFLINK_OPERATOR_BOOKINGS_WORKSPACE || {};
+        if (typeof bookingsApi.openBookingDraftForCustomer === "function") {
+          bookingsApi.openBookingDraftForCustomer(existingCustomer, {}, blueprint);
+          return;
+        }
+        ACTIVE_CUSTOMER_ID = existingCustomer.id;
+        switchTab("bookings");
+      }
+    });
   });
   $("btnOpenOrderRequest")?.addEventListener("click", () => {
     if (linkedLead?.id) {

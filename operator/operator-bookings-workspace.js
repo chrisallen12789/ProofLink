@@ -491,6 +491,27 @@ function bookingFollowThroughItems(booking, blueprint = bookingWorkspaceBlueprin
       : "Attach this visit to booked work or leave a payment note so billing does not have to guess what happened after the stop.",
     linkedOrder && balanceDue > 0 ? "warn" : ""
   );
+  const repeatSignal = firstFilled(
+    customer?.service_schedule,
+    customer?.frequency,
+    customer?.recurring_notes,
+    customer?.service_plan_name,
+    customer?.maintenance_notes,
+    customer?.seasonal_notes
+  );
+  const nextTouch = firstFilled(
+    customer?.next_service_on,
+    customer?.follow_up_notes,
+    customer?.service_plan_name
+  );
+  const renewalRiskItem = repeatSignal
+    ? detail(
+        "Renewal risk",
+        !!nextTouch,
+        `The next repeat step is still visible here: ${nextTouch}.`,
+        "This account has repeat-service signals, but the next visit or follow-up step still needs to be attached before it goes quiet."
+      )
+    : null;
 
   const tradeItems = {
     landscaping: [
@@ -506,8 +527,9 @@ function bookingFollowThroughItems(booking, blueprint = bookingWorkspaceBlueprin
         firstFilled(customer?.seasonal_notes, customer?.cleanup_notes, customer?.upsell_notes),
         "Capture the next cleanup, mulch, or seasonal note before the property goes quiet."
       ),
+      renewalRiskItem,
       balanceItem,
-    ],
+    ].filter(Boolean),
     cleaning: [
       detail(
         "Next visit stays clear",
@@ -521,8 +543,9 @@ function bookingFollowThroughItems(booking, blueprint = bookingWorkspaceBlueprin
         firstFilled(customer?.checklist_notes, customer?.add_on_notes, booking?.notes_vehicle),
         "Leave one closeout or add-on note attached so the next cleaning visit starts from the last one."
       ),
+      renewalRiskItem,
       balanceItem,
-    ],
+    ].filter(Boolean),
     hvac: [
       detail(
         "Maintenance follow-up",
@@ -536,8 +559,9 @@ function bookingFollowThroughItems(booking, blueprint = bookingWorkspaceBlueprin
         firstFilled(customer?.tenant_notes, customer?.phone, customer?.email, customer?.follow_up_notes),
         "Confirm who should hear the outcome, approval need, or next step after the technician wraps."
       ),
+      renewalRiskItem,
       balanceItem,
-    ],
+    ].filter(Boolean),
     plumbing: [
       detail(
         "Repair follow-through",
@@ -551,8 +575,9 @@ function bookingFollowThroughItems(booking, blueprint = bookingWorkspaceBlueprin
         firstFilled(customer?.phone, customer?.email, customer?.shutoff_notes, customer?.follow_up_notes),
         "Confirm who should get the repair update and any next-step instructions after the visit wraps."
       ),
+      renewalRiskItem,
       balanceItem,
-    ],
+    ].filter(Boolean),
   };
 
   return tradeItems[businessKey] || [
@@ -568,8 +593,9 @@ function bookingFollowThroughItems(booking, blueprint = bookingWorkspaceBlueprin
       firstFilled(customer?.phone, customer?.email, customer?.follow_up_notes),
       "Confirm who should hear the result or next step after this visit wraps."
     ),
+    renewalRiskItem,
     balanceItem,
-  ];
+  ].filter(Boolean);
 }
 
 function renderBookingFollowThroughCard(booking, blueprint = bookingWorkspaceBlueprint()) {
@@ -855,6 +881,177 @@ async function renderBookings() {
     const slug = CURRENT_OPERATOR?.tenant_slug || OPERATOR_CONFIG?.tenantSlug || "";
     linkDisplay.textContent = slug ? `${window.location.origin}/${slug}/book.html` : "--";
   }
+}
+
+function bookingDraftTitle(customer = {}, options = {}, blueprint = bookingWorkspaceBlueprint()) {
+  const businessKey = String(blueprint?.business?.key || "service_business").trim().toLowerCase();
+  const customerName = String(customer?.name || customer?.customer_name || customer?.email || "Customer").trim();
+  const firstFilled = (...values) => values.find((value) => String(value || "").trim()) || "";
+  const maintenanceLike = firstFilled(customer?.service_plan_name, customer?.maintenance_notes, options?.notes).toLowerCase();
+  const fallbackTitleMap = {
+    landscaping: `${customerName} property visit`,
+    property_maintenance: `${customerName} site visit`,
+    pressure_washing: `${customerName} wash visit`,
+    cleaning: `${customerName} cleaning visit`,
+    hvac: /maintenance|tune/.test(maintenanceLike) ? `${customerName} maintenance visit` : `${customerName} system visit`,
+    plumbing: firstFilled(customer?.restoration_notes, customer?.approval_notes) ? `${customerName} repair follow-up` : `${customerName} plumbing follow-up`,
+  };
+  return firstFilled(
+    options?.title,
+    customer?.service_plan_name,
+    fallbackTitleMap[businessKey],
+    `${customerName} follow-up visit`
+  );
+}
+
+function bookingDraftRecurrenceRule(customer = {}, options = {}) {
+  const firstFilled = (...values) => values.find((value) => String(value || "").trim()) || "";
+  const raw = String(firstFilled(options?.recurrenceRule, customer?.frequency, customer?.service_schedule, customer?.recurring_notes)).trim().toLowerCase();
+  if (!raw) return "";
+  if (/every other|biweekly|bi-weekly|2 weeks|two weeks/.test(raw)) return "BIWEEKLY";
+  if (/weekly|every week/.test(raw)) return "WEEKLY";
+  if (/monthly|every month/.test(raw)) return "MONTHLY";
+  if (/daily|every day/.test(raw)) return "DAILY";
+  return "";
+}
+
+function bookingDraftDate(customer = {}, options = {}) {
+  const explicitDate = String(options?.date || customer?.next_service_on || "").trim();
+  if (explicitDate) return explicitDate;
+
+  const recurrenceRule = bookingDraftRecurrenceRule(customer, options);
+  const offsetDays = {
+    DAILY: 1,
+    WEEKLY: 7,
+    BIWEEKLY: 14,
+    MONTHLY: 30,
+  };
+  return typeof todayDateValue === "function" ? todayDateValue(offsetDays[recurrenceRule] || 7) : "";
+}
+
+function bookingDraftRecurrenceEnd(customer = {}, options = {}) {
+  const explicitEnd = String(options?.recurrenceEnd || "").trim();
+  if (explicitEnd) return explicitEnd;
+  const recurrenceRule = bookingDraftRecurrenceRule(customer, options);
+  if (!recurrenceRule || typeof todayDateValue !== "function") return "";
+  const offsetDays = {
+    DAILY: 14,
+    WEEKLY: 84,
+    BIWEEKLY: 112,
+    MONTHLY: 180,
+  };
+  return todayDateValue(offsetDays[recurrenceRule] || 84);
+}
+
+function bookingDraftNotes(customer = {}, options = {}, blueprint = bookingWorkspaceBlueprint()) {
+  const businessKey = String(blueprint?.business?.key || "service_business").trim().toLowerCase();
+  const firstFilled = (...values) => values.find((value) => String(value || "").trim()) || "";
+  const notesByTrade = {
+    landscaping: [
+      customer?.service_schedule,
+      customer?.seasonal_notes,
+      customer?.gate_notes,
+      customer?.access_notes,
+    ],
+    property_maintenance: [
+      customer?.service_schedule,
+      customer?.follow_up_notes,
+      customer?.access_notes,
+    ],
+    pressure_washing: [
+      customer?.service_schedule,
+      customer?.seasonal_notes,
+      customer?.service_notes,
+    ],
+    cleaning: [
+      customer?.recurring_notes,
+      customer?.checklist_notes,
+      customer?.add_on_notes,
+      customer?.entry_notes,
+    ],
+    hvac: [
+      customer?.maintenance_notes,
+      customer?.parts_follow_up,
+      customer?.warranty_notes,
+      customer?.equipment_notes,
+    ],
+    plumbing: [
+      customer?.restoration_notes,
+      customer?.approval_notes,
+      customer?.shutoff_notes,
+      customer?.follow_up_notes,
+    ],
+  };
+  const fallbackNoteMap = {
+    landscaping: "Keep the next route or seasonal property touch visible from this visit.",
+    property_maintenance: "Keep the next site walk or maintenance touch visible from this visit.",
+    pressure_washing: "Keep the next wash cycle or property follow-up visible from this visit.",
+    cleaning: "Keep the next visit cadence, access, and checklist visible from this visit.",
+    hvac: "Keep the next maintenance, diagnostic, or warranty touch visible from this visit.",
+    plumbing: "Keep the next approval, restoration, or return visit visible from this visit.",
+  };
+  const guidedNotes = (notesByTrade[businessKey] || [])
+    .filter((value, index, values) => {
+      const text = String(value || "").trim();
+      return text && values.findIndex((entry) => String(entry || "").trim() === text) === index;
+    })
+    .slice(0, 3)
+    .join(" | ");
+  return firstFilled(
+    options?.notes,
+    guidedNotes,
+    customer?.follow_up_notes,
+    customer?.recurring_notes,
+    customer?.maintenance_notes,
+    customer?.seasonal_notes,
+    customer?.service_notes,
+    fallbackNoteMap[businessKey],
+    "Keep the next customer promise visible from this visit."
+  );
+}
+
+function openBookingDraftForCustomer(customer = {}, options = {}, blueprint = bookingWorkspaceBlueprint()) {
+  if (typeof switchTab === "function") switchTab("bookings");
+  const form = $("newBookingForm");
+  form?.classList?.remove?.("hidden");
+
+  const bookingDate = String(bookingDraftDate(customer, options)).trim();
+  const recurrenceRule = String(bookingDraftRecurrenceRule(customer, options)).trim();
+  const recurrenceEnd = String(bookingDraftRecurrenceEnd(customer, options)).trim();
+  const customerName = String(customer?.name || customer?.customer_name || "").trim();
+  const customerEmail = String(customer?.email || customer?.customer_email || "").trim();
+
+  const customerNameField = $("bkCustomerName");
+  if (customerNameField) customerNameField.value = customerName;
+  const customerEmailField = $("bkCustomerEmail");
+  if (customerEmailField) customerEmailField.value = customerEmail;
+  const titleField = $("bkTitle");
+  if (titleField) titleField.value = bookingDraftTitle(customer, options, blueprint);
+  const dateField = $("bkDate");
+  if (dateField) dateField.value = bookingDate;
+  const startField = $("bkStart");
+  if (startField && !String(startField.value || "").trim()) startField.value = String(options?.start || "09:00");
+  const notesField = $("bkNotes");
+  if (notesField) notesField.value = bookingDraftNotes(customer, options, blueprint);
+  const recurrenceRuleField = $("bkRecurrenceRule");
+  if (recurrenceRuleField) recurrenceRuleField.value = recurrenceRule;
+  const recurrenceOptions = $("bkRecurrenceOptions");
+  if (recurrenceOptions?.classList?.toggle) recurrenceOptions.classList.toggle("u-hidden", !recurrenceRule);
+  const recurrenceEndField = $("bkRecurrenceEnd");
+  if (recurrenceEndField) recurrenceEndField.value = recurrenceEnd;
+  const recurrenceCountField = $("bkRecurrenceCount");
+  if (recurrenceCountField) {
+    const result = computeBookingRecurrenceCount(recurrenceRule, bookingDate, recurrenceEnd);
+    recurrenceCountField.textContent = result.message;
+  }
+
+  const message = $("newBookingMsg");
+  if (typeof setInlineMessage === "function") setInlineMessage(message, "Booking draft opened from the follow-up guidance.", "ok");
+  else if (message) {
+    message.textContent = "Booking draft opened from the follow-up guidance.";
+    message.className = "msg success";
+  }
+  dateField?.focus?.();
 }
 
 function openWalkInBookingModal() {
@@ -1258,6 +1455,12 @@ const BOOKINGS_WORKSPACE_HELPERS = {
     fetchBookings,
     fetchOperatorMembers,
     computeBookingRecurrenceCount,
+    bookingDraftTitle,
+    bookingDraftRecurrenceRule,
+    bookingDraftDate,
+    bookingDraftRecurrenceEnd,
+    bookingDraftNotes,
+    openBookingDraftForCustomer,
     renderBookingsCalendar,
     bookingWorkspaceBlueprint,
     linkedCustomerForBooking,

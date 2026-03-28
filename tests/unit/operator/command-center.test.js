@@ -173,6 +173,58 @@ describe("operator command center", () => {
     expect(guidance.chips).toContain("Nothing urgent to renew");
   });
 
+  test("buildDashboardRepeatWorkGuidance surfaces renewal risk before calling repeat work healthy", () => {
+    const { context } = loadCommandCenter();
+
+    const guidance = context.buildDashboardRepeatWorkGuidance({
+      duePlansCount: 0,
+      activePlansCount: 4,
+      todayBookingsCount: 0,
+      atRiskPlansCount: 2,
+      blueprint: { business: { key: "cleaning" } },
+    });
+
+    expect(guidance.title).toBe("Some repeat work is at renewal risk");
+    expect(guidance.description).toContain("next visit");
+    expect(guidance.chips).toContain("2 plans missing the next move");
+    expect(guidance.chips).toContain("4 active plans");
+  });
+
+  test("buildDashboardReactivationGuidance spotlights dormant cleaning accounts", () => {
+    const { context } = loadCommandCenter();
+
+    const guidance = context.buildDashboardReactivationGuidance({
+      dormantRepeatCount: 3,
+      blueprint: { business: { key: "cleaning" } },
+    });
+
+    expect(guidance.title).toBe("Dormant repeat accounts need reactivation");
+    expect(guidance.description).toContain("Rebook");
+    expect(guidance.chips).toContain("3 accounts need reactivation");
+  });
+
+  test("priorityReactivationCustomer picks the stalest dormant repeat account", () => {
+    const { context } = loadCommandCenter({
+      CUSTOMERS_CACHE: [
+        { id: "customer_recent", name: "Recent Repeat", recurring_notes: "Monthly", updated_at: "2026-03-26T12:00:00Z" },
+        { id: "customer_stale", name: "Quiet Cleaning", recurring_notes: "Every other Tuesday", updated_at: "2026-02-01T12:00:00Z" },
+      ],
+      SERVICE_PLANS_CACHE: [],
+      CRM_ORDERS_CACHE: [],
+      JOBS_CACHE: [],
+      LEADS_CACHE: [],
+      BIDS_CACHE: [],
+    });
+
+    const target = context.priorityReactivationCustomer({
+      customers: context.CUSTOMERS_CACHE,
+      blueprint: { business: { key: "cleaning" } },
+    });
+
+    expect(target.customer.name).toBe("Quiet Cleaning");
+    expect(target.note).toContain("Tuesday");
+  });
+
   test("renderDashboard shows repeat-service focus on shared dashboard classes", () => {
     const { context } = loadCommandCenter({
       dashboardWrap: { innerHTML: "", querySelectorAll: vi.fn(() => []), querySelector: vi.fn(() => null) },
@@ -205,9 +257,10 @@ describe("operator command center", () => {
       CRM_ORDERS_CACHE: [],
       PAYMENTS_CACHE: [],
       EXPENSES_CACHE: [],
-      CUSTOMERS_CACHE: [],
+      CUSTOMERS_CACHE: [{ id: "customer_1", recurring_notes: "Every other Tuesday" }],
       LEADS_CACHE: [],
       JOBS_CACHE: [],
+      BIDS_CACHE: [],
       DASHBOARD_LAUNCH_CHECKLIST: null,
       DASHBOARD_PAYMENT_STATE: null,
       renderTodayFocusSection: vi.fn(() => ""),
@@ -228,6 +281,9 @@ describe("operator command center", () => {
     context.window.renderDashboard();
 
     expect(context.dashboardWrap.innerHTML).toContain("Repeat-service focus");
+    expect(context.dashboardWrap.innerHTML).toContain("Reactivation focus");
+    expect(context.dashboardWrap.innerHTML).toContain("Schedule next visit");
+    expect(context.dashboardWrap.innerHTML).toContain("Open customer");
     expect(context.dashboardWrap.innerHTML).toContain("dashboard-focus-card");
     expect(context.dashboardWrap.innerHTML).toContain("dashboard-focus-title");
     expect(context.dashboardWrap.innerHTML).toContain("onboarding-card");

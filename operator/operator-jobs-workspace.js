@@ -382,6 +382,64 @@ function buildJobCloseoutGuidance(job, order, readiness, amountDueCents, linkedC
   };
 }
 
+function buildJobReactivationActions(job, order, linkedCustomer = null, amountDueCents = 0, blueprint = jobsWorkspaceBlueprint()) {
+  const fieldStatus = normalizeWorkflowStatusValue(job?.status || "scheduled");
+  if (fieldStatus !== "completed" || amountDueCents > 0 || !linkedCustomer) return [];
+
+  const businessKey = String(blueprint?.business?.key || "service_business").trim().toLowerCase();
+  const firstFilled = (...values) => values.find((value) => String(value || "").trim()) || "";
+  const repeatSignal = firstFilled(
+    linkedCustomer?.service_schedule,
+    linkedCustomer?.frequency,
+    linkedCustomer?.recurring_notes,
+    linkedCustomer?.service_plan_name,
+    linkedCustomer?.maintenance_notes,
+    linkedCustomer?.seasonal_notes,
+    linkedCustomer?.follow_up_notes
+  );
+  if (!repeatSignal) return [];
+
+  const nextTouch = firstFilled(
+    linkedCustomer?.next_service_on,
+    linkedCustomer?.follow_up_notes,
+    linkedCustomer?.service_plan_name
+  );
+  if (nextTouch) return [];
+
+  const scheduleLabelMap = {
+    landscaping: "Schedule next property visit",
+    property_maintenance: "Schedule next site visit",
+    pressure_washing: "Schedule next wash visit",
+    cleaning: "Schedule next cleaning visit",
+    hvac: "Schedule next system visit",
+    plumbing: "Schedule next follow-up visit",
+  };
+
+  return [
+    { label: scheduleLabelMap[businessKey] || "Schedule next visit", action: "reactivate-repeat", className: "btn btn-primary btn-sm" },
+    { label: "Open customer", action: "open-reactivation-customer", className: "btn btn-ghost btn-sm" },
+  ];
+}
+
+function buildJobCompletionActions(job, order, linkedCustomer = null, amountDueCents = 0, blueprint = jobsWorkspaceBlueprint()) {
+  const fieldStatus = normalizeWorkflowStatusValue(job?.status || "scheduled");
+  if (fieldStatus !== "completed") return [];
+
+  const actions = [];
+  if (order?.id && order?.customer_email && !order?.review_requested_at) {
+    actions.push({
+      label: "Request review",
+      action: "request-review",
+      className: "btn btn-ghost btn-sm",
+    });
+  }
+
+  return [
+    ...actions,
+    ...buildJobReactivationActions(job, order, linkedCustomer, amountDueCents, blueprint),
+  ];
+}
+
 function renderTemplateRecordFocusCard(blueprint = jobsWorkspaceBlueprint()) {
   const focus = jobTemplateRecordFocus(blueprint);
   if (!focus.length) return "";
@@ -462,6 +520,7 @@ async function renderJobDetail(jobIdValue) {
   const fieldStatus = normalizeWorkflowStatusValue(job.status || "scheduled");
   const fieldDueNow = Number(job.amount_due_cents || orderAmountDueCents(order) || 0);
   const closeoutGuidance = buildJobCloseoutGuidance(job, order, readiness, fieldDueNow, linkedCustomer, blueprint);
+  const completionActions = buildJobCompletionActions(job, order, linkedCustomer, fieldDueNow, blueprint);
   const fieldActionButtons = [
     ["scheduled", "dispatched"].includes(fieldStatus) ? { label: "Start work", className: "btn btn-primary", data: { "job-field-action": "start" } } : null,
     fieldStatus === "blocked" ? { label: "Resume work", className: "btn btn-primary", data: { "job-field-action": "resume" } } : null,
@@ -548,6 +607,13 @@ async function renderJobDetail(jobIdValue) {
           </div>
         `).join("")}
       </div>
+      ${completionActions.length ? `
+        <div class="action-row action-row--wrap u-mt-10">
+          ${completionActions.map((action) => `
+            <button type="button" class="${escapeAttr(action.className || "btn btn-ghost btn-sm")}" data-job-reactivation-action="${escapeAttr(action.action || "")}">${escapeHtml(action.label || "Take action")}</button>
+          `).join("")}
+        </div>
+      ` : ""}
     </div>
     <div class="detail-card u-mt-14">
       <div class="kicker">Job economics</div>
@@ -743,6 +809,55 @@ async function renderJobDetail(jobIdValue) {
       }
       if (action === "log-cost") {
         openExpenseForJob(job);
+      }
+    });
+  });
+  jobDetailWrap.querySelectorAll("[data-job-reactivation-action]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const action = button.getAttribute("data-job-reactivation-action") || "";
+      const msgEl = jobDetailWrap.querySelector("#jobFieldUpdateMsg");
+      if (action === "request-review") {
+        if (!order?.id) return;
+        try {
+          setInlineMessage(msgEl, "Requesting review...");
+          const tok = await getAccessToken();
+          const response = await fetch("/.netlify/functions/request-review", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${tok}`,
+            },
+            body: JSON.stringify({ order_id: order.id }),
+          });
+          const payload = await response.json().catch(() => ({}));
+          if (!response.ok) throw new Error(payload.error || "Could not request review.");
+          setInlineMessage(msgEl, "Review request sent.", "ok");
+          if (order) order.review_requested_at = payload.review_requested_at || new Date().toISOString();
+          await fetchCrmOrders();
+          renderJobs(jobSearch?.value || "");
+          renderOrders();
+          renderDashboard();
+          renderGuidance();
+        } catch (error) {
+          setInlineMessage(msgEl, error.message || String(error), "error");
+        }
+        return;
+      }
+      if (action === "open-reactivation-customer") {
+        if (linkedCustomer?.id) {
+          ACTIVE_CUSTOMER_ID = linkedCustomer.id;
+          CUSTOMER_CREATING = false;
+        }
+        switchTab("customers");
+        return;
+      }
+      if (action === "reactivate-repeat") {
+        const bookingsApi = window.PROOFLINK_OPERATOR_BOOKINGS_WORKSPACE || {};
+        if (linkedCustomer && typeof bookingsApi.openBookingDraftForCustomer === "function") {
+          bookingsApi.openBookingDraftForCustomer(linkedCustomer, {}, blueprint);
+        } else {
+          switchTab("bookings");
+        }
       }
     });
   });
@@ -969,6 +1084,8 @@ function renderJobs(filter = "") {
 const JOBS_WORKSPACE_HELPERS = {
   buildJobReadinessSummary,
   buildJobCloseoutGuidance,
+  buildJobCompletionActions,
+  buildJobReactivationActions,
   renderJobDetail,
   renderJobs,
 };
