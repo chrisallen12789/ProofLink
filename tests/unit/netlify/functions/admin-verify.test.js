@@ -8,12 +8,13 @@ const authUtilsPath = path.resolve(process.cwd(), "netlify/functions/utils/auth.
 function createSupabaseMock({ user, operatorRow, upsertRow, updateSucceeds = true }) {
   const operatorTable = {
     select: vi.fn(() => operatorTable),
+    eq: vi.fn(() => operatorTable),
     ilike: vi.fn(() => operatorTable),
     limit: vi.fn(() => operatorTable),
     maybeSingle: vi.fn(async () => ({ data: operatorRow, error: null })),
     upsert: vi.fn(() => ({
       select: () => ({
-        single: async () => ({ data: upsertRow, error: null }),
+        maybeSingle: async () => ({ data: upsertRow, error: null }),
       }),
     })),
     update: vi.fn(() => ({

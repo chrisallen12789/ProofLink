@@ -24,6 +24,8 @@ exports.handler = async (event) => {
 
   const { order_id } = body;
   if (!order_id) return respond(400, { error: 'Missing order_id' });
+  const manualSubject = String(body.manual_subject || '').trim();
+  const manualMessage = String(body.manual_message || '').trim();
 
   // Fetch order + tenant business name
   let { data: order, error: orderErr } = await supabase
@@ -95,7 +97,9 @@ exports.handler = async (event) => {
     customer_email: customerEmail,
     business_name : businessName,
     review_url    : reviewUrl,
+    subject_override: manualSubject,
+    message_override: manualMessage,
   })).catch((e) => console.warn('[request-review] email failed:', e.message));
 
-  return respond(200, { ok: true, message: 'Review request sent' });
+  return respond(200, { ok: true, message: 'Review request sent', review_requested_at: nowIso });
 };

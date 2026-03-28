@@ -21,7 +21,7 @@ describe("netlify/functions/submit-onboarding-request", () => {
   );
   const insertMock = vi.fn();
   const selectMock = vi.fn();
-  const singleMock = vi.fn();
+  const maybeSingleMock = vi.fn();
   const fromMock = vi.fn();
   const getAdminClientMock = vi.fn();
   const sendEmailMock = vi.fn().mockResolvedValue({ id: "email_123" });
@@ -38,7 +38,7 @@ describe("netlify/functions/submit-onboarding-request", () => {
     vi.resetModules();
     insertMock.mockReset();
     selectMock.mockReset();
-    singleMock.mockReset();
+    maybeSingleMock.mockReset();
     fromMock.mockReset();
     sendEmailMock.mockReset();
     sendEmailMock.mockResolvedValue({ id: "email_123" });
@@ -48,11 +48,11 @@ describe("netlify/functions/submit-onboarding-request", () => {
     getClientIPMock.mockClear();
     slugifyMock.mockClear();
 
-    singleMock.mockResolvedValue({
+    maybeSingleMock.mockResolvedValue({
       data: { id: "req_123", business_name: "Test Biz", status: "submitted" },
       error: null,
     });
-    selectMock.mockReturnValue({ single: singleMock });
+    selectMock.mockReturnValue({ maybeSingle: maybeSingleMock });
     insertMock.mockReturnValue({ select: selectMock });
     fromMock.mockReturnValue({ insert: insertMock });
     getAdminClientMock.mockReset();
@@ -133,7 +133,7 @@ describe("netlify/functions/submit-onboarding-request", () => {
     });
 
     expect(res.statusCode).toBe(400);
-    expect(JSON.parse(res.body)).toEqual({ error: "Invalid email address" });
+    expect(JSON.parse(res.body)).toEqual({ error: "owner_email is not a valid email address" });
   });
 
   test("returns 201 for a valid payload and lowercases email", async () => {

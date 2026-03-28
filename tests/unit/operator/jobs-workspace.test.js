@@ -166,7 +166,17 @@ describe("operator jobs workspace", () => {
       })),
     });
 
-    const summary = context.buildJobReadinessSummary(job, null, null, { tickets: [], manifests: [] });
+    const summary = context.buildJobReadinessSummary(job, null, null, {
+      tickets: [],
+      manifests: [],
+      truckLoads: [
+        {
+          id: "manifest_live",
+          manifest_number: "MAN-42",
+          customer_id: "customer_other",
+        },
+      ],
+    });
 
     expect(summary.title).toContain("blocker");
     expect(summary.blockers.map((item) => item.label)).toEqual(expect.arrayContaining([
@@ -177,6 +187,7 @@ describe("operator jobs workspace", () => {
       "Confined-space permit",
       "Compliance alerts",
       "Loads ready for closeout",
+      "Truck load carryover",
     ]));
     expect(summary.nextStep).toContain("Link a customer");
   });
@@ -248,7 +259,7 @@ describe("operator jobs workspace", () => {
 
     expect(actions.map((action) => action.label)).toEqual([
       "Schedule next cleaning visit",
-      "Draft cleaning follow-up request",
+      "Create cleaning follow-up request",
       "Open customer",
     ]);
   });
@@ -276,7 +287,42 @@ describe("operator jobs workspace", () => {
     expect(actions.map((action) => action.label)).toEqual([
       "Request review",
       "Schedule next cleaning visit",
-      "Draft cleaning follow-up request",
+      "Create cleaning follow-up request",
+      "Open customer",
+    ]);
+  });
+
+  test("buildJobCompletionActions can generate the next booked work when a recurring plan is due", () => {
+    const { context } = loadJobsWorkspace({
+      currentWorkspaceBlueprint: vi.fn(() => ({
+        business: {
+          key: "hvac",
+          label: "HVAC",
+          recordFocus: [],
+        },
+      })),
+      normalizeWorkflowStatusValue: vi.fn((value) => value),
+      PROOFLINK_OPERATOR_CUSTOMER_DETAIL: {
+        customerRetentionWorkflowActions: vi.fn(() => ([
+          { label: "Generate next booked work", action: "generate-next-order", className: "btn btn-primary btn-sm" },
+          { label: "Create maintenance follow-up request", action: "create-request", className: "btn btn-ghost btn-sm" },
+          { label: "Open customer", action: "open-reactivation-customer", className: "btn btn-ghost btn-sm" },
+        ])),
+      },
+    });
+
+    const actions = context.buildJobCompletionActions(
+      { status: "completed" },
+      { id: "order_1", customer_email: "ops@example.com" },
+      { id: "customer_1", maintenance_notes: "Quarterly rooftop maintenance is due now" },
+      0,
+      { business: { key: "hvac" } }
+    );
+
+    expect(actions.map((action) => action.label)).toEqual([
+      "Request review",
+      "Generate next booked work",
+      "Create maintenance follow-up request",
       "Open customer",
     ]);
   });
@@ -319,6 +365,7 @@ describe("operator jobs workspace", () => {
     expect(source).toContain("buildJobReactivationActions");
     expect(source).toContain("data-job-reactivation-action");
     expect(source).toContain("request-review");
+    expect(source).toContain("generate-next-order");
     expect(source).toContain("requestOrderReview(order.id");
     expect(source).toContain('class="memory-checklist u-mt-10"');
     expect(source).toContain('class="memory-checklist"');

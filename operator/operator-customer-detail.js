@@ -480,13 +480,19 @@
       activeJobCount,
       blueprint,
       includeOpenCustomer: false,
+      requestAction: "create-request",
+      requestLabel: customerCreateRequestActionLabel(blueprint),
       primaryClassName: "btn btn-primary",
       secondaryClassName: "btn btn-ghost",
     });
     return actions.map((action) => ({
       label: action.label,
       className: action.className,
-      data: { "customer-action": action.action === "reactivate-repeat" ? "booking" : "request" },
+      data: {
+        "customer-action": action.action === "reactivate-repeat"
+          ? "booking"
+          : (action.action === "generate-next-order" ? "plan-order" : (action.action === "create-request" ? "create-request" : "request")),
+      },
     }));
   }
 
@@ -516,13 +522,74 @@
     return requestLabelMap[businessKey] || "Draft follow-up request";
   }
 
+  function customerCreateRequestActionLabel(blueprint = (typeof currentWorkspaceBlueprint === "function" ? currentWorkspaceBlueprint() : { business: { key: "service_business" } })) {
+    const businessKey = String(blueprint?.business?.key || "service_business").trim().toLowerCase();
+    const requestLabelMap = {
+      landscaping: "Create seasonal follow-up request",
+      property_maintenance: "Create site follow-up request",
+      pressure_washing: "Create wash follow-up request",
+      cleaning: "Create cleaning follow-up request",
+      hvac: "Create maintenance follow-up request",
+      plumbing: "Create repair follow-up request",
+    };
+    return requestLabelMap[businessKey] || "Create follow-up request";
+  }
+
   function customerRepeatNextTouchValue(customer = null) {
     const firstFilled = (...values) => values.find((value) => String(value || "").trim()) || "";
     return firstFilled(
       customer?.next_service_on,
-      customer?.service_plan_name,
       customer?.follow_up_notes
     );
+  }
+
+  function customerRepeatPlanState(customer = null, now = new Date()) {
+    if (!customer?.id) {
+      return {
+        plan: null,
+        nextRunOn: "",
+        dueNow: false,
+        canGenerate: false,
+        hasOpenGeneratedWork: false,
+        generatedOrder: null,
+      };
+    }
+    const startOfToday = new Date(now);
+    startOfToday.setHours(0, 0, 0, 0);
+    const planRows = typeof SERVICE_PLANS_CACHE !== "undefined" && Array.isArray(SERVICE_PLANS_CACHE) ? SERVICE_PLANS_CACHE : [];
+    const orderRows = typeof CRM_ORDERS_CACHE !== "undefined" && Array.isArray(CRM_ORDERS_CACHE) ? CRM_ORDERS_CACHE : [];
+    const activePlans = planRows
+      .filter((plan) => (
+        String(plan?.customer_id || "") === String(customer.id)
+        && String(plan?.status || "").trim().toLowerCase() === "active"
+      ))
+      .sort((a, b) => {
+        const aDue = a?.next_run_on ? new Date(a.next_run_on).getTime() : Number.POSITIVE_INFINITY;
+        const bDue = b?.next_run_on ? new Date(b.next_run_on).getTime() : Number.POSITIVE_INFINITY;
+        if (aDue !== bDue) return aDue - bDue;
+        return new Date(b?.updated_at || b?.created_at || 0).getTime() - new Date(a?.updated_at || a?.created_at || 0).getTime();
+      });
+    const plan = activePlans[0] || null;
+    const nextRunOn = String(plan?.next_run_on || "").trim();
+    const dueNow = !!nextRunOn && new Date(nextRunOn).getTime() <= startOfToday.getTime();
+    const generatedOrder = plan?.last_generated_order_id
+      ? orderRows.find((row) => String(row?.id || "") === String(plan.last_generated_order_id)) || null
+      : null;
+    const generatedStatus = String(generatedOrder?.status || "").trim().toLowerCase();
+    const hasOpenGeneratedWork = !!generatedOrder && !["completed", "fulfilled", "paid", "cancelled", "void"].includes(generatedStatus);
+    const canGenerate = !!plan && !!nextRunOn && !hasOpenGeneratedWork && (dueNow || !generatedOrder);
+    return {
+      plan,
+      nextRunOn,
+      dueNow,
+      canGenerate,
+      hasOpenGeneratedWork,
+      generatedOrder,
+    };
+  }
+
+  function customerGenerateWorkActionLabel() {
+    return "Generate next booked work";
   }
 
   function customerRetentionWorkflowActions({
@@ -532,8 +599,11 @@
     activeOrderCount = 0,
     activeJobCount = 0,
     blueprint = (typeof currentWorkspaceBlueprint === "function" ? currentWorkspaceBlueprint() : { business: { key: "service_business" } }),
+    includeGenerateWork = true,
     includeSchedule = true,
     includeRequest = true,
+    requestAction = "request",
+    requestLabel = "",
     includeOpenCustomer = true,
     primaryClassName = "btn btn-primary btn-sm",
     secondaryClassName = "btn btn-ghost btn-sm",
@@ -541,12 +611,19 @@
     const repeatSignal = customerRepeatSignalValue(customer);
     if (!repeatSignal) return [];
 
+    const planState = customerRepeatPlanState(customer);
     const nextTouch = customerRepeatNextTouchValue(customer);
     const activeWorkCount = Number(activeOrderCount || 0) + Number(activeJobCount || 0);
-    if (nextTouch || openRequestsCount > 0 || openProposalCount > 0 || activeWorkCount > 0) return [];
+    if ((nextTouch && !planState.canGenerate) || openRequestsCount > 0 || openProposalCount > 0 || activeWorkCount > 0) return [];
 
     const actions = [];
-    if (includeSchedule) {
+    if (includeGenerateWork && planState.canGenerate) {
+      actions.push({
+        label: customerGenerateWorkActionLabel(),
+        action: "generate-next-order",
+        className: primaryClassName,
+      });
+    } else if (includeSchedule) {
       actions.push({
         label: customerScheduleActionLabel(blueprint),
         action: "reactivate-repeat",
@@ -555,8 +632,8 @@
     }
     if (includeRequest) {
       actions.push({
-        label: customerRequestActionLabel(blueprint),
-        action: "request",
+        label: requestLabel || customerRequestActionLabel(blueprint),
+        action: requestAction,
         className: secondaryClassName,
       });
     }
@@ -792,6 +869,44 @@
     setInlineMessage(leadMsg, draft.message || "New request draft opened from the customer record.", "ok");
   }
 
+  function createCustomerRequestRecord(customer, options = {}, blueprint = (typeof currentWorkspaceBlueprint === "function" ? currentWorkspaceBlueprint() : { business: { key: "service_business" } })) {
+    if (!customer) return false;
+    const leadPlanApi = global.PROOFLINK_OPERATOR_LEAD_PLAN_WORKSPACE || {};
+    if (typeof leadPlanApi.saveLeadRecord !== "function") {
+      openCustomerRequestDraft(customer, options, blueprint);
+      return true;
+    }
+    const draft = customerFollowUpRequestDraft(customer, options, blueprint) || {};
+    showToast(options.pendingMessage || "Creating follow-up request...");
+    Promise.resolve(leadPlanApi.saveLeadRecord({
+      customer_id: customer.id || "",
+      contact_name: customer.name || "",
+      contact_email: customer.email || "",
+      contact_phone: customer.phone || "",
+      preferred_contact: customer.preferred_contact || "phone",
+      title: draft.title || `${customer.name || "Customer"} follow-up request`,
+      requested_service_type: draft.requestedServiceType || "Follow-up request",
+      service_address: draft.serviceAddress || "",
+      summary: draft.summary || "",
+      notes: draft.notes || "",
+      metadata: {
+        created_from: "customer_retention",
+        source_action: options.sourceAction || "create-request",
+        source_record_type: options.sourceRecordType || "customer",
+        source_record_id: options.sourceRecordId || customer.id || "",
+      },
+    }))
+      .then((lead) => {
+        if (lead?.id) ACTIVE_LEAD_ID = lead.id;
+        switchTab("leads");
+        showToast(options.successMessage || "Follow-up request created from the customer record.");
+      })
+      .catch((error) => {
+        showToast(error?.message || "Could not create the follow-up request yet.");
+      });
+    return true;
+  }
+
   function openCustomerBidDraft(customer) {
     if (!customer) return;
     switchTab("bids");
@@ -829,8 +944,40 @@
     showToast("Bookings opened. Schedule the next visit while this account is still warm.");
   }
 
+  function openCustomerPlanOrder(customer, blueprint = (typeof currentWorkspaceBlueprint === "function" ? currentWorkspaceBlueprint() : { business: { key: "service_business" } })) {
+    if (!customer) return false;
+    const planState = customerRepeatPlanState(customer);
+    const plan = planState.plan;
+    if (!plan) return false;
+    const leadPlanApi = global.PROOFLINK_OPERATOR_LEAD_PLAN_WORKSPACE || {};
+    if (typeof leadPlanApi.runServicePlanRecord === "function" && planState.canGenerate) {
+      showToast("Generating the next booked work from the recurring plan...");
+      Promise.resolve(leadPlanApi.runServicePlanRecord(plan))
+        .then((result) => {
+          if (result?.order?.id) {
+            ACTIVE_ORDER_ID = result.order.id;
+            switchTab("orders");
+          }
+          showToast(result?.existing ? "The next booked work already existed, so it was reopened." : "Next booked work generated from the recurring plan.");
+        })
+        .catch((error) => {
+          showToast(error?.message || "Could not generate the next booked work yet.");
+        });
+      return true;
+    }
+    ACTIVE_PLAN_ID = plan.id || "";
+    switchTab("plans");
+    showToast(planState.canGenerate
+      ? "Recurring plan opened. Generate the next booked work from here."
+      : "Recurring plan opened. Set the next run timing before generating the next booked work.");
+    return true;
+  }
+
   function openCustomerRetentionAction(action, customer, blueprint = (typeof currentWorkspaceBlueprint === "function" ? currentWorkspaceBlueprint() : { business: { key: "service_business" } }), options = {}) {
     if (!customer) return false;
+    if (action === "generate-next-order") {
+      return openCustomerPlanOrder(customer, blueprint);
+    }
     if (action === "reactivate-repeat") {
       openCustomerBookingDraft(customer, blueprint);
       return true;
@@ -838,6 +985,9 @@
     if (action === "request") {
       openCustomerRequestDraft(customer, options.requestOptions || {}, blueprint);
       return true;
+    }
+    if (action === "create-request") {
+      return createCustomerRequestRecord(customer, options.requestOptions || {}, blueprint);
     }
     if (action === "open-reactivation-customer") {
       ACTIVE_CUSTOMER_ID = customer.id || "";
@@ -941,6 +1091,24 @@
       balance,
       blueprint,
     });
+    const postWorkActions = postWorkGuidance && balance <= 0
+      ? customerRetentionWorkflowActions({
+          customer,
+          openRequestsCount,
+          openProposalCount,
+          activeOrderCount,
+          activeJobCount,
+          blueprint,
+          includeGenerateWork: true,
+          includeSchedule: true,
+          includeRequest: true,
+          requestAction: "create-request",
+          requestLabel: customerCreateRequestActionLabel(blueprint),
+          includeOpenCustomer: false,
+          primaryClassName: "btn btn-primary",
+          secondaryClassName: "btn btn-ghost",
+        })
+      : [];
     const lastTouchValue = customer.last_contact_at || latestInteraction?.created_at || "";
     const hasActiveOrders = CRM_ORDERS_CACHE.some((o) => o.customer_id === customerIdValue && !["completed", "cancelled", "archived"].includes(String(o.status || "").toLowerCase()));
     const hasActiveJobs = JOBS_CACHE.some((job) => job.customer_id === customerIdValue && !["completed", "cancelled", "archived"].includes(String(job.status || "").toLowerCase()));
@@ -1170,6 +1338,13 @@
                 </div>
               `).join("")}
             </div>
+            ${postWorkActions.length ? `
+              <div class="customer-action-row action-row--wrap u-mt-10">
+                ${postWorkActions.map((action) => `
+                  <button type="button" class="${escapeAttr(action.className || "btn btn-ghost")}" data-customer-action="${escapeAttr(action.action === "reactivate-repeat" ? "booking" : (action.action === "generate-next-order" ? "plan-order" : action.action))}">${escapeHtml(action.label || "Take action")}</button>
+                `).join("")}
+              </div>
+            ` : ""}
           </div>
         ` : ""}
         ${renderRecordFollowThroughCard({
@@ -1253,8 +1428,18 @@
       button.addEventListener("click", () => {
         const action = button.getAttribute("data-customer-action");
         if (action === "request") return openCustomerRetentionAction("request", customer, blueprint);
+        if (action === "create-request") return openCustomerRetentionAction("create-request", customer, blueprint, {
+          requestOptions: {
+            message: "Follow-up request created from the customer record.",
+            successMessage: "Follow-up request created from the customer record.",
+            pendingMessage: "Creating follow-up request...",
+            sourceRecordType: "customer",
+            sourceRecordId: customerIdValue,
+          },
+        });
         if (action === "bid") return openCustomerBidDraft(customer);
         if (action === "booking") return openCustomerRetentionAction("reactivate-repeat", customer, blueprint);
+        if (action === "plan-order") return openCustomerRetentionAction("generate-next-order", customer, blueprint);
         if (action === "payment") return openCustomerPaymentDraft(customerIdValue);
         if (action === "requests") return switchTab("leads");
         if (action === "bids") return switchTab("bids");
@@ -1329,17 +1514,22 @@
     customerRepeatCadenceInsight,
     customerRepeatSignalValue,
     customerRepeatNextTouchValue,
+    customerRepeatPlanState,
     customerRenewalRiskItem,
     customerRelationshipGuidance,
     customerScheduleActionLabel,
     customerRequestActionLabel,
+    customerCreateRequestActionLabel,
+    customerGenerateWorkActionLabel,
     customerRetentionWorkflowActions,
     customerReactivationActions,
     customerPostWorkGuidance,
     customerFollowUpRequestDraft,
     openCustomerRequestDraft,
+    createCustomerRequestRecord,
     openCustomerBidDraft,
     openCustomerBookingDraft,
+    openCustomerPlanOrder,
     openCustomerPaymentDraft,
     openCustomerRetentionAction,
     openCustomerRecordTab,

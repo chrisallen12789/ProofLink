@@ -46,6 +46,11 @@ describe("operator core utils", () => {
     const button = { textContent: "Request review", disabled: false };
     const setStatus = vi.fn();
     const onSuccess = vi.fn();
+    const openComposer = vi.fn(async () => ({
+      confirmed: true,
+      subject: "How did we do?",
+      message: "Thanks for trusting us with the work.",
+    }));
     const fetch = vi.fn(async () => ({
       ok: true,
       json: async () => ({ ok: true, review_requested_at: "2026-03-28T14:15:00.000Z" }),
@@ -65,15 +70,26 @@ describe("operator core utils", () => {
       button,
       setStatus,
       onSuccess,
+      customerName: "Harbor Suites",
+      businessName: "ProofLink Test Tenant",
+      openComposer,
     });
 
     expect(fetch).toHaveBeenCalledWith("/.netlify/functions/request-review", expect.objectContaining({
       method: "POST",
-      body: JSON.stringify({ order_id: "order_1" }),
+      body: JSON.stringify({
+        order_id: "order_1",
+        manual_subject: "How did we do?",
+        manual_message: "Thanks for trusting us with the work.",
+      }),
+    }));
+    expect(openComposer).toHaveBeenCalledWith(expect.objectContaining({
+      title: "Review request",
+      recipientName: "Harbor Suites",
     }));
     expect(button.textContent).toBe("Review requested");
     expect(button.disabled).toBe(true);
-    expect(setStatus).toHaveBeenNthCalledWith(1, "Requesting review...");
+    expect(setStatus).toHaveBeenNthCalledWith(1, "Preparing review request...");
     expect(setStatus).toHaveBeenNthCalledWith(2, "Review request sent.", "ok");
     expect(onSuccess).toHaveBeenCalledWith(
       expect.objectContaining({ ok: true, review_requested_at: "2026-03-28T14:15:00.000Z" }),

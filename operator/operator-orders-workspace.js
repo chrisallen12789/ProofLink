@@ -504,6 +504,10 @@ function orderRetentionActions(order, customer, amountDueCents = 0, blueprint = 
       blueprint,
       includeSchedule: true,
       includeRequest: true,
+      requestAction: "create-request",
+      requestLabel: typeof customerApi.customerCreateRequestActionLabel === "function"
+        ? customerApi.customerCreateRequestActionLabel(blueprint)
+        : undefined,
       includeOpenCustomer: true,
       primaryClassName: "btn btn-primary btn-sm",
       secondaryClassName: "btn btn-ghost btn-sm",
@@ -528,7 +532,7 @@ function orderRetentionActions(order, customer, amountDueCents = 0, blueprint = 
   };
   return [
     { label: scheduleLabelMap[businessKey] || "Schedule next visit", action: "reactivate-repeat", className: "btn btn-primary btn-sm" },
-    { label: requestLabelMap[businessKey] || "Draft follow-up request", action: "request", className: "btn btn-ghost btn-sm" },
+    { label: (requestLabelMap[businessKey] || "Create follow-up request").replace(/^Draft\b/, "Create"), action: "create-request", className: "btn btn-ghost btn-sm" },
     { label: "Open customer", action: "open-reactivation-customer", className: "btn btn-ghost btn-sm" },
   ];
 }
@@ -996,6 +1000,8 @@ function renderOrders() {
       try {
         const reviewResult = await coreUtils.requestOrderReview(data.id, {
           successMessage: "",
+          customerName: data.customer_name || existingCustomer?.name || "there",
+          businessName: typeof bidBrandContext === "function" ? bidBrandContext().tenantName : "our team",
         });
         data.review_requested_at = reviewResult.review_requested_at;
         renderOrders();
@@ -1046,7 +1052,7 @@ function renderOrders() {
     button.addEventListener("click", () => {
       const action = button.getAttribute("data-order-retention-action");
       if (!existingCustomer?.id) {
-        if (action === "open-reactivation-customer" || action === "reactivate-repeat") {
+        if (action === "open-reactivation-customer" || action === "reactivate-repeat" || action === "generate-next-order") {
           $("btnOpenOrderCustomer")?.click();
         }
         return;
@@ -1059,12 +1065,16 @@ function renderOrders() {
         return;
       }
 
-      if (action === "reactivate-repeat" || action === "request") {
+      if (action === "reactivate-repeat" || action === "request" || action === "create-request" || action === "generate-next-order") {
         const customerApi = window.PROOFLINK_OPERATOR_CUSTOMER_DETAIL || {};
         if (typeof customerApi.openCustomerRetentionAction === "function") {
           customerApi.openCustomerRetentionAction(action, existingCustomer, blueprint, {
             requestOptions: {
-              message: "Follow-up request draft opened from booked work.",
+              message: action === "create-request" ? "Follow-up request created from booked work." : "Follow-up request draft opened from booked work.",
+              successMessage: "Follow-up request created from booked work.",
+              pendingMessage: "Creating follow-up request from booked work...",
+              sourceRecordType: "order",
+              sourceRecordId: active.id || "",
             },
           });
           return;
@@ -1144,6 +1154,8 @@ function renderOrders() {
       const reviewResult = await coreUtils.requestOrderReview(active.id, {
         button: btn,
         setStatus: setReviewStatus,
+        customerName: active.customer_name || existingCustomer?.name || "there",
+        businessName: typeof bidBrandContext === "function" ? bidBrandContext().tenantName : "our team",
         onSuccess: async (_payload, reviewRequestedAt) => {
           active.review_requested_at = reviewRequestedAt;
           renderOrders();

@@ -96,4 +96,23 @@ describe("netlify/functions/request-review", () => {
     expect(email.sendEmail).toHaveBeenCalled();
     expect(email.sendEmail.mock.calls[0][0].to).toBe("owner@example.com");
   });
+
+  test("passes manual subject and message overrides through to the email template", async () => {
+    const { handler, email } = loadHandler();
+
+    const response = await handler({
+      httpMethod: "POST",
+      body: JSON.stringify({
+        order_id: "order_1",
+        manual_subject: "Please review your hydrovac visit",
+        manual_message: "Hi Harbor Suites,\n\nThanks again for the work today.",
+      }),
+      headers: {},
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(email.sendEmail).toHaveBeenCalled();
+    expect(email.sendEmail.mock.calls[0][0].subject).toBe("Please review your hydrovac visit");
+    expect(email.sendEmail.mock.calls[0][0].html).toContain("Thanks again for the work today.");
+  });
 });

@@ -457,31 +457,50 @@ function buildMoneyCollectionNextStep(blueprint = currentWorkspaceBlueprint()) {
     }
   }
 
+  const actions = repeatSignal && !nextTouch
+    ? (typeof customerApi.customerRetentionWorkflowActions === "function"
+        ? customerApi.customerRetentionWorkflowActions({
+            customer,
+            blueprint,
+            includeGenerateWork: true,
+            includeSchedule: true,
+            includeRequest: true,
+            requestAction: "create-request",
+            requestLabel: typeof customerApi.customerCreateRequestActionLabel === "function"
+              ? customerApi.customerCreateRequestActionLabel(blueprint)
+              : undefined,
+            includeOpenCustomer: true,
+            primaryClassName: "btn btn-primary btn-sm",
+            secondaryClassName: "btn btn-ghost btn-sm",
+          })
+        : [
+            { label: typeof customerApi.customerScheduleActionLabel === "function" ? customerApi.customerScheduleActionLabel(blueprint) : ({
+              landscaping: "Schedule next property visit",
+              property_maintenance: "Schedule next site visit",
+              pressure_washing: "Schedule next wash visit",
+              cleaning: "Schedule next cleaning visit",
+              hvac: "Schedule next system visit",
+              plumbing: "Schedule next follow-up visit",
+            })[businessKey] || "Schedule next visit", action: "reactivate-repeat", className: "btn btn-primary btn-sm" },
+            { label: typeof customerApi.customerCreateRequestActionLabel === "function" ? customerApi.customerCreateRequestActionLabel(blueprint) : ({
+              landscaping: "Draft seasonal follow-up request",
+              property_maintenance: "Draft site follow-up request",
+              pressure_washing: "Draft wash follow-up request",
+              cleaning: "Draft cleaning follow-up request",
+              hvac: "Draft maintenance follow-up request",
+              plumbing: "Draft repair follow-up request",
+            })[businessKey]?.replace(/^Draft\b/, "Create") || "Create follow-up request", action: "create-request", className: "btn btn-ghost btn-sm" },
+            { label: "Open customer", action: "open-reactivation-customer", className: "btn btn-ghost btn-sm" },
+          ])
+    : [];
+
   return {
     customerId: customer?.id || order.customer_id || "",
     customerName,
     title: "After this balance is handled",
     description: `When ${customerName} is paid up, the next move should go back to service follow-through instead of chasing the same money twice.`,
     items,
-    actions: repeatSignal && !nextTouch ? [
-      { label: typeof customerApi.customerScheduleActionLabel === "function" ? customerApi.customerScheduleActionLabel(blueprint) : ({
-        landscaping: "Schedule next property visit",
-        property_maintenance: "Schedule next site visit",
-        pressure_washing: "Schedule next wash visit",
-        cleaning: "Schedule next cleaning visit",
-        hvac: "Schedule next system visit",
-        plumbing: "Schedule next follow-up visit",
-      })[businessKey] || "Schedule next visit", action: "reactivate-repeat", className: "btn btn-primary btn-sm" },
-      { label: typeof customerApi.customerRequestActionLabel === "function" ? customerApi.customerRequestActionLabel(blueprint) : ({
-        landscaping: "Draft seasonal follow-up request",
-        property_maintenance: "Draft site follow-up request",
-        pressure_washing: "Draft wash follow-up request",
-        cleaning: "Draft cleaning follow-up request",
-        hvac: "Draft maintenance follow-up request",
-        plumbing: "Draft repair follow-up request",
-      })[businessKey] || "Draft follow-up request", action: "draft-reactivation-request", className: "btn btn-ghost btn-sm" },
-      { label: "Open customer", action: "open-reactivation-customer", className: "btn btn-ghost btn-sm" },
-    ] : [],
+    actions,
   };
 }
 
@@ -761,11 +780,11 @@ async function renderMoney() {
         switchTab("customers");
         return;
       }
-      if (action === "reactivate-repeat") {
+      if (action === "reactivate-repeat" || action === "generate-next-order") {
         const customer = customerById(nextStep.customerId) || null;
         const customerApi = window.PROOFLINK_OPERATOR_CUSTOMER_DETAIL || {};
         if (customer && typeof customerApi.openCustomerRetentionAction === "function") {
-          customerApi.openCustomerRetentionAction("reactivate-repeat", customer, currentWorkspaceBlueprint());
+          customerApi.openCustomerRetentionAction(action, customer, currentWorkspaceBlueprint());
         } else {
           const bookingsApi = window.PROOFLINK_OPERATOR_BOOKINGS_WORKSPACE || {};
           if (customer && typeof bookingsApi.openBookingDraftForCustomer === "function") {
@@ -776,13 +795,17 @@ async function renderMoney() {
         }
         return;
       }
-      if (action === "draft-reactivation-request") {
+      if (action === "request" || action === "create-request") {
         const customer = customerById(nextStep.customerId) || null;
         const customerApi = window.PROOFLINK_OPERATOR_CUSTOMER_DETAIL || {};
         if (customer && typeof customerApi.openCustomerRetentionAction === "function") {
-          customerApi.openCustomerRetentionAction("request", customer, currentWorkspaceBlueprint(), {
+          customerApi.openCustomerRetentionAction(action === "create-request" ? "create-request" : "request", customer, currentWorkspaceBlueprint(), {
             requestOptions: {
-              message: "Follow-up request draft opened from Money.",
+              message: action === "create-request" ? "Follow-up request created from Money." : "Follow-up request draft opened from Money.",
+              successMessage: "Follow-up request created from Money.",
+              pendingMessage: "Creating follow-up request from Money...",
+              sourceRecordType: "money",
+              sourceRecordId: nextStep.customerId,
             },
           });
         }

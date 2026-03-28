@@ -1531,6 +1531,7 @@ function hydrovacJobDetailState(jobId) {
   return JOB_HYDROVAC_DETAIL_CACHE.get(jobId) || {
     tickets: [],
     manifests: [],
+    truckLoads: [],
     loading: false,
     error: "",
     loadedAt: 0,
@@ -1550,17 +1551,25 @@ async function fetchJobHydrovacDetails(jobId, options = {}) {
   if (!options.force && (existing.loading || freshEnough)) return existing;
   setHydrovacJobDetailState(cleanJobId, { loading: true, error: "" });
   try {
-    const [ticketData, manifestData] = await Promise.all([
+    const job = (JOBS_CACHE || []).find((row) => String(row.id || "") === cleanJobId) || null;
+    const truckQuery = String(job?.assigned_truck_id || "").trim();
+    const [ticketData, manifestData, truckManifestData] = await Promise.all([
       requestOperatorFunction("manage-locate-tickets", {
         query: `job_id=${encodeURIComponent(cleanJobId)}`,
       }),
       requestOperatorFunction("manage-waste-manifests", {
         query: `job_id=${encodeURIComponent(cleanJobId)}`,
       }),
+      truckQuery
+        ? requestOperatorFunction("manage-waste-manifests", {
+            query: `action=all&truck_id=${encodeURIComponent(truckQuery)}&live_only=1&limit=100`,
+          })
+        : Promise.resolve({ manifests: [] }),
     ]);
     return setHydrovacJobDetailState(cleanJobId, {
       tickets: Array.isArray(ticketData?.tickets) ? ticketData.tickets : [],
       manifests: Array.isArray(manifestData?.manifests) ? manifestData.manifests : [],
+      truckLoads: Array.isArray(truckManifestData?.manifests) ? truckManifestData.manifests : [],
       loading: false,
       error: "",
       loadedAt: Date.now(),
@@ -1600,6 +1609,28 @@ function hydrovacManifestQuantityLabel(manifest) {
   if (quantity == null || quantity === "") return "Qty pending";
   const unit = String(manifest?.quantity_unit || "gallons").replace(/_/g, " ");
   return `${Number(quantity)} ${unit}`;
+}
+function hydrovacManifestMeta(manifest) {
+  return manifest?.metadata && typeof manifest.metadata === "object" && !Array.isArray(manifest.metadata)
+    ? manifest.metadata
+    : {};
+}
+function hydrovacManifestBolNumber(manifest) {
+  const metadata = hydrovacManifestMeta(manifest);
+  return String(metadata.bol_number || metadata.bill_of_lading_number || "").trim();
+}
+function hydrovacManifestLiveLoad(manifest) {
+  const metadata = hydrovacManifestMeta(manifest);
+  if (metadata.load_still_in_truck === true) return true;
+  return String(metadata.load_state || "").trim().toLowerCase() === "live_in_truck";
+}
+function hydrovacManifestLiveHoldReason(manifest) {
+  const metadata = hydrovacManifestMeta(manifest);
+  return String(metadata.live_load_hold_reason || metadata.hold_reason || "").trim();
+}
+function hydrovacManifestDisposalReadyBy(manifest) {
+  const metadata = hydrovacManifestMeta(manifest);
+  return String(metadata.disposal_ready_by || "").trim();
 }
 function hydrovacManifestQuantityGallons(manifest) {
   const quantity = Number(manifest?.quantity_actual ?? manifest?.quantity_estimated ?? 0);
@@ -6836,6 +6867,28 @@ function dashboardClientTrackerRows(todayActions = []) {
 }
 async function sendQueuedFollowUp(item) {
   if (!item?.canSend) throw new Error("This follow-up does not have an email delivery path.");
+  const coreUtils = window.PROOFLINK_OPERATOR_UTILS || {};
+  const composer = typeof coreUtils.openManualEmailPrep === "function"
+    ? coreUtils.openManualEmailPrep
+    : null;
+  if (!composer) throw new Error("Manual email prep tools are not ready yet.");
+  const prepared = await composer({
+    title: item.kindLabel || "Customer follow-up",
+    recipientName: item.contactName || item.customerName || "Customer",
+    recipientEmail: item.contactEmail || "",
+    contextLabel: item.summary || item.title || "Follow-up",
+    reason: "ProofLink will not auto-send this. Review the subject and message before you confirm delivery.",
+    subject: item.subject || "",
+    message: item.message || "",
+    ctaLabel: item.ctaLabel || "",
+    ctaUrl: item.ctaUrl || "",
+    confirmText: "Send follow-up",
+    cancelText: "Keep for later",
+  });
+  if (!prepared?.confirmed) {
+    setFollowUpQueueMessage("Follow-up kept for later.", "");
+    return { ok: false, skipped: true, canceled: true };
+  }
   const response = await postOperatorFunction("send-follow-up", {
     tenant_id: TENANT_ID,
     customer_id: item.customerId,
@@ -6844,12 +6897,12 @@ async function sendQueuedFollowUp(item) {
     bid_id: item.bidId || null,
     order_id: item.orderId || null,
     job_id: item.jobId || null,
-    subject: item.subject,
-    message: item.message,
+    subject: prepared.subject,
+    message: prepared.message,
     contact_email: item.contactEmail,
     contact_name: item.contactName,
-    cta_label: item.ctaLabel || null,
-    cta_url: item.ctaUrl || null,
+    cta_label: prepared.ctaLabel || item.ctaLabel || null,
+    cta_url: prepared.ctaUrl || item.ctaUrl || null,
   });
   await fetchCustomers();
   setFollowUpQueueMessage(
@@ -6980,10 +7033,71 @@ function populateJobForm(job) {
   if (jobDisposalSite)         jobDisposalSite.value         = job.disposal_site ?? '';
   if (jobDisposalManifest)     jobDisposalManifest.value     = job.disposal_manifest_number ?? '';
 }
+function hydrovacTruckCarryoverWarnings(job, detailState) {
+  const truckLoads = Array.isArray(detailState?.truckLoads) ? detailState.truckLoads : [];
+  const carryoverLoads = truckLoads.filter((manifest) => String(manifest?.job_id || "") !== String(job?.id || ""));
+  const jobCustomerId = String(job?.customer_id || linkedOrderForJob(job)?.customer_id || "").trim();
+  return carryoverLoads.map((manifest) => {
+    const sameCustomer = jobCustomerId && String(manifest?.customer_id || "").trim() === jobCustomerId;
+    const number = manifest?.manifest_number || manifest?.id || "load";
+    return {
+      number,
+      crossContamination: !sameCustomer,
+      message: !sameCustomer
+        ? `Truck still carries ${number} from another account. Dispose or clear it before this job starts to avoid cross contamination.`
+        : `Truck still carries ${number}. Decide whether that live load stays with this work or needs disposal before start.`,
+      note: hydrovacManifestLiveHoldReason(manifest) || "No live-load hold reason recorded yet.",
+    };
+  });
+}
+function hydrovacManifestCustomerRecordsDraft(manifest, job, order, customer) {
+  const bol = hydrovacManifestBolNumber(manifest) || "Pending";
+  const live = hydrovacManifestLiveLoad(manifest);
+  const readyBy = hydrovacManifestDisposalReadyBy(manifest);
+  return {
+    subject: `${job?.title || "Hydrovac work"} load record`,
+    body: [
+      `Hi ${customer?.name || order?.customer_name || "there"},`,
+      "",
+      `For your records, here is the load and disposal summary tied to ${job?.title || "your hydrovac work"}.`,
+      "",
+      `Manifest / load reference: ${manifest?.manifest_number || manifest?.id || "Pending"}`,
+      `BOL / load reference: ${bol}`,
+      `Material: ${hydrovacMaterialLabel(manifest?.material_type)}`,
+      `Quantity: ${hydrovacManifestQuantityLabel(manifest)}`,
+      live
+        ? `Load status: Still live in the truck${readyBy ? ` until ${readyBy}` : ""}.`
+        : `Load status: ${titleCaseWords(String(manifest?.status || "in_transit").replace(/_/g, " "))}.`,
+      manifest?.disposal_facility_name ? `Disposal facility: ${manifest.disposal_facility_name}` : "Disposal facility: Pending",
+      manifest?.disposal_ticket_number ? `Facility ticket: ${manifest.disposal_ticket_number}` : "Facility ticket: Pending",
+      "",
+      "If you need the signed record package, just reply and we will send it over.",
+    ].join("\n"),
+  };
+}
+function hydrovacManifestAuditSummary(manifest, job, order, customer) {
+  return [
+    `Manifest: ${manifest?.manifest_number || manifest?.id || "Pending"}`,
+    `Customer: ${customer?.name || order?.customer_name || "Unknown"}`,
+    `Job: ${job?.title || "Unlinked job"}`,
+    `Truck: ${manifest?.truck_id || job?.assigned_truck_id || "Not linked"}`,
+    `Material: ${hydrovacMaterialLabel(manifest?.material_type)}`,
+    `Quantity: ${hydrovacManifestQuantityLabel(manifest)}`,
+    `BOL / load reference: ${hydrovacManifestBolNumber(manifest) || "Pending"}`,
+    `Status: ${titleCaseWords(String(manifest?.status || "in_transit").replace(/_/g, " "))}`,
+    `Still in truck: ${hydrovacManifestLiveLoad(manifest) ? "Yes" : "No"}`,
+    `Hold reason: ${hydrovacManifestLiveHoldReason(manifest) || "Not documented"}`,
+    `Disposal ready by: ${hydrovacManifestDisposalReadyBy(manifest) || "Not set"}`,
+    `Disposal facility: ${manifest?.disposal_facility_name || "Pending"}`,
+    `Facility ticket: ${manifest?.disposal_ticket_number || "Pending"}`,
+    `Notes: ${manifest?.notes || "None"}`,
+  ].join("\n");
+}
 function renderHydrovacJobOperations(job, order, detailState) {
   const tickets = Array.isArray(detailState?.tickets) ? detailState.tickets : [];
   const manifests = Array.isArray(detailState?.manifests) ? detailState.manifests : [];
   const summary = hydrovacOpsSummary(job, tickets, manifests);
+  const carryoverWarnings = hydrovacTruckCarryoverWarnings(job, detailState);
   return `
     <div class="detail-card job-hydrovac-card" style="margin-top:14px;">
       <div class="kicker">Hydrovac ops</div>
@@ -6997,6 +7111,20 @@ function renderHydrovacJobOperations(job, order, detailState) {
       </div>
       ${detailState?.error ? `<div class="msg error" style="margin-top:12px;">${escapeHtml(detailState.error)}</div>` : ``}
       ${detailState?.loading ? `<div class="detail-copy" style="margin-top:12px;">Loading hydrovac compliance and load records...</div>` : ``}
+      ${carryoverWarnings.length ? `
+        <div class="detail-card detail-card--spaced" style="margin-top:12px;background:rgba(200,75,47,.06);border-color:rgba(200,75,47,.18);">
+          <div class="kicker">Truck load warning</div>
+          <div><strong>${escapeHtml(carryoverWarnings.length === 1 ? "A live load is already in the truck" : "Live loads are already in the truck")}</strong></div>
+          <div class="memory-checklist u-mt-10">
+            ${carryoverWarnings.map((item) => `
+              <div class="memory-checklist__item ${item.crossContamination ? "memory-checklist__item--warn" : ""}">
+                <div class="memory-checklist__title">${escapeHtml(item.crossContamination ? `Cross-contamination risk: ${item.number}` : `Carryover load: ${item.number}`)}</div>
+                <div class="detail-copy memory-checklist__note">${escapeHtml(item.message)}</div>
+                <div class="detail-copy memory-checklist__note">${escapeHtml(item.note)}</div>
+              </div>
+            `).join("")}
+          </div>
+        </div>` : ``}
       <div class="job-hydrovac-grid">
         <div class="job-hydrovac-panel">
           <div class="job-hydrovac-panel__head">
@@ -7054,9 +7182,13 @@ function renderHydrovacJobOperations(job, order, detailState) {
                   <span class="pill ${hydrovacManifestToneClass(manifest)}">${escapeHtml(titleCaseWords(String(manifest.status || "in_transit").replace(/_/g, " ")))}</span>
                 </div>
                 <div class="job-hydrovac-row__meta">${escapeHtml(manifest.disposal_ticket_number ? `Facility ticket ${manifest.disposal_ticket_number}` : "Facility ticket pending")}</div>
+                <div class="job-hydrovac-row__meta">${escapeHtml(hydrovacManifestBolNumber(manifest) ? `BOL ${hydrovacManifestBolNumber(manifest)}` : "BOL pending")}${hydrovacManifestLiveLoad(manifest) ? ` | Still in truck${hydrovacManifestDisposalReadyBy(manifest) ? ` until ${hydrovacManifestDisposalReadyBy(manifest)}` : ""}` : ""}</div>
                 ${manifest.notes ? `<div class="job-hydrovac-row__meta">${escapeHtml(manifest.notes)}</div>` : ``}
+                ${hydrovacManifestLiveHoldReason(manifest) ? `<div class="job-hydrovac-row__meta">${escapeHtml(`Hold reason: ${hydrovacManifestLiveHoldReason(manifest)}`)}</div>` : ``}
                 <div class="job-hydrovac-mini-actions">
                   ${normalizeWorkflowStatusValue(manifest.status) === "in_transit" ? `<button type="button" class="btn btn-ghost btn-sm" data-hv-confirm-manifest="${escapeAttr(manifest.id)}">Confirm load</button><button type="button" class="btn btn-ghost btn-sm" data-hv-delete-manifest="${escapeAttr(manifest.id)}">Delete draft load</button>` : `<span class="pill pill-good">Load saved</span>`}
+                  <button type="button" class="btn btn-ghost btn-sm" data-hv-customer-records="${escapeAttr(manifest.id)}">Prepare customer records</button>
+                  <button type="button" class="btn btn-ghost btn-sm" data-hv-audit-summary="${escapeAttr(manifest.id)}">Copy audit summary</button>
                 </div>
               </div>
             `).join("") : `<div class="job-hydrovac-empty">No loads logged yet. Start with the first haul-off from this site.</div>`}
@@ -7095,6 +7227,21 @@ function renderHydrovacJobOperations(job, order, detailState) {
             </div>
             <label>Load note
               <input id="jobHydrovacManifestNote" placeholder="Catch basin debris, rear lot" />
+            </label>
+            <div class="grid three form-grid">
+              <label>BOL / load reference
+                <input id="jobHydrovacManifestBol" placeholder="BOL-1024" />
+              </label>
+              <label>Disposal ready by
+                <input id="jobHydrovacManifestReadyBy" type="date" value="${escapeAttr(todayDateValue(1))}" />
+              </label>
+              <label>Live-load hold reason
+                <input id="jobHydrovacManifestHoldReason" placeholder="Waiting for a fuller load before disposal" />
+              </label>
+            </div>
+            <label class="check">
+              <input id="jobHydrovacManifestStillLive" type="checkbox" />
+              Load is still live in the truck after this job
             </label>
             <div class="job-hydrovac-mini-actions">
               <button type="submit" class="btn btn-ghost">Log load</button>

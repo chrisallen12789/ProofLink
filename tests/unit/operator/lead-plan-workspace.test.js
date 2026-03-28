@@ -451,7 +451,7 @@ describe("operator lead plan workspace", () => {
     expect(actions.map((action) => action.label)).toEqual([
       "Set next visit timing",
       "Schedule next cleaning visit",
-      "Draft cleaning follow-up request",
+      "Create cleaning follow-up request",
     ]);
   });
 
@@ -480,7 +480,7 @@ describe("operator lead plan workspace", () => {
     expect(actions.map((action) => action.label)).toEqual([
       "Generate next booked work",
       "Schedule next system visit",
-      "Draft maintenance follow-up request",
+      "Create maintenance follow-up request",
     ]);
   });
 
@@ -510,7 +510,7 @@ describe("operator lead plan workspace", () => {
     expect(actions.map((action) => action.label)).toEqual([
       "Generate next booked work",
       "Schedule next follow-up visit",
-      "Draft repair follow-up request",
+      "Create repair follow-up request",
     ]);
   });
 

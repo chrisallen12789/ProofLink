@@ -158,6 +158,107 @@
     });
   }
 
+  function openManualEmailPrep(options = {}) {
+    return new Promise((resolve) => {
+      const {
+        title = "Prepare email",
+        recipientName = "Customer",
+        recipientEmail = "",
+        contextLabel = "",
+        reason = "Review this message before you send it.",
+        subject = "",
+        message = "",
+        ctaLabel = "",
+        ctaUrl = "",
+        confirmText = "Send email",
+        cancelText = "Cancel",
+      } = options;
+
+      const overlay = document.createElement("div");
+      overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.68);z-index:10000;display:flex;align-items:center;justify-content:center;padding:16px;";
+      overlay.innerHTML = `
+        <div style="background:#1e2029;border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:24px;max-width:720px;width:100%;box-shadow:0 12px 44px rgba(0,0,0,.52);">
+          <div style="display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:18px;">
+            <div>
+              <div style="font-size:.75rem;letter-spacing:.06em;text-transform:uppercase;color:rgba(255,255,255,.48);margin-bottom:6px;">Manual send</div>
+              <div style="font-size:1.1rem;font-weight:700;color:#f3f4f6;">${escapeHtml(title)}</div>
+              <div style="font-size:.88rem;color:rgba(255,255,255,.72);margin-top:6px;">${escapeHtml(reason)}</div>
+            </div>
+            <button type="button" id="manualEmailClose" style="background:transparent;border:none;color:rgba(255,255,255,.7);font-size:1.1rem;cursor:pointer;">×</button>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
+            <label style="display:block;font-size:.82rem;color:rgba(255,255,255,.72);">
+              To
+              <input id="manualEmailRecipient" readonly value="${escapeAttr([recipientName, recipientEmail].filter(Boolean).join(" | "))}" style="margin-top:6px;width:100%;background:#14161d;border:1px solid rgba(255,255,255,.14);border-radius:8px;color:#f3f4f6;padding:10px 12px;font-size:.9rem;" />
+            </label>
+            <label style="display:block;font-size:.82rem;color:rgba(255,255,255,.72);">
+              Why now
+              <input id="manualEmailContext" readonly value="${escapeAttr(contextLabel || "Customer follow-through")}" style="margin-top:6px;width:100%;background:#14161d;border:1px solid rgba(255,255,255,.14);border-radius:8px;color:#f3f4f6;padding:10px 12px;font-size:.9rem;" />
+            </label>
+          </div>
+          <label style="display:block;font-size:.82rem;color:rgba(255,255,255,.72);margin-bottom:12px;">
+            Subject
+            <input id="manualEmailSubject" value="${escapeAttr(subject)}" style="margin-top:6px;width:100%;background:#14161d;border:1px solid rgba(255,255,255,.14);border-radius:8px;color:#f3f4f6;padding:10px 12px;font-size:.95rem;" />
+          </label>
+          <label style="display:block;font-size:.82rem;color:rgba(255,255,255,.72);margin-bottom:12px;">
+            Message
+            <textarea id="manualEmailMessage" rows="10" style="margin-top:6px;width:100%;background:#14161d;border:1px solid rgba(255,255,255,.14);border-radius:8px;color:#f3f4f6;padding:12px;font-size:.92rem;line-height:1.55;resize:vertical;">${escapeHtml(message)}</textarea>
+          </label>
+          ${ctaUrl ? `
+            <div style="background:#14161d;border:1px solid rgba(255,255,255,.14);border-radius:8px;padding:12px;margin-bottom:14px;">
+              <div style="font-size:.78rem;letter-spacing:.05em;text-transform:uppercase;color:rgba(255,255,255,.46);margin-bottom:4px;">Call to action</div>
+              <div style="font-size:.9rem;color:#f3f4f6;">${escapeHtml(ctaLabel || "Open link")}</div>
+              <div style="font-size:.82rem;color:rgba(255,255,255,.66);margin-top:4px;word-break:break-word;">${escapeHtml(ctaUrl)}</div>
+            </div>` : ""}
+          <div id="manualEmailError" style="min-height:18px;font-size:.82rem;color:#fda4af;margin-bottom:10px;"></div>
+          <div style="display:flex;justify-content:flex-end;gap:10px;">
+            <button type="button" id="manualEmailCancel" style="background:transparent;border:1px solid rgba(255,255,255,.2);color:rgba(255,255,255,.76);border-radius:6px;padding:10px 18px;font-size:.85rem;cursor:pointer;">${cancelText}</button>
+            <button type="button" id="manualEmailSend" style="background:#c84b2f;color:#fff;border:none;border-radius:6px;padding:10px 18px;font-size:.85rem;font-weight:700;cursor:pointer;">${confirmText}</button>
+          </div>
+        </div>`;
+      document.body.appendChild(overlay);
+
+      const close = (result = { confirmed: false }) => {
+        overlay.remove();
+        resolve(result);
+      };
+      const errorEl = overlay.querySelector("#manualEmailError");
+      const subjectEl = overlay.querySelector("#manualEmailSubject");
+      const messageEl = overlay.querySelector("#manualEmailMessage");
+      const sendButton = overlay.querySelector("#manualEmailSend");
+
+      overlay.querySelector("#manualEmailClose").onclick = () => close({ confirmed: false });
+      overlay.querySelector("#manualEmailCancel").onclick = () => close({ confirmed: false });
+      overlay.addEventListener("click", (event) => {
+        if (event.target === overlay) close({ confirmed: false });
+      });
+      sendButton.onclick = () => {
+        const nextSubject = normalizePick(subjectEl?.value || "");
+        const nextMessage = normalizePick(messageEl?.value || "");
+        if (!nextSubject) {
+          if (errorEl) errorEl.textContent = "Add a subject before you send this email.";
+          subjectEl?.focus();
+          return;
+        }
+        if (!nextMessage) {
+          if (errorEl) errorEl.textContent = "Add the message you want the customer to receive.";
+          messageEl?.focus();
+          return;
+        }
+        close({
+          confirmed: true,
+          subject: nextSubject,
+          message: nextMessage,
+          ctaLabel: normalizePick(ctaLabel),
+          ctaUrl: cleanUrl(ctaUrl),
+        });
+      };
+
+      subjectEl?.focus();
+      subjectEl?.select?.();
+    });
+  }
+
   function setInlineMessage(el, message = "", tone = "") {
     if (!el) return;
     el.textContent = message || "";
@@ -178,12 +279,17 @@
   async function requestOrderReview(orderId, options = {}) {
     const {
       setStatus = null,
-      pendingMessage = "Requesting review...",
+      pendingMessage = "Preparing review request...",
       successMessage = "Review request sent.",
       successTone = "ok",
       button = null,
       requestedLabel = "Review requested",
       onSuccess = null,
+      subject = "How did we do?",
+      message = "",
+      customerName = "there",
+      businessName = "our team",
+      openComposer = null,
     } = options;
 
     if (!orderId) throw new Error("Missing order_id");
@@ -201,6 +307,31 @@
     }
     const token = await tokenProvider();
     const tenantId = String(global.TENANT_ID || "").trim();
+    const reviewMessage = normalizePick(message || [
+      `Hi ${customerName},`,
+      "",
+      `Thank you for choosing ${businessName}. If you have a moment, we would really appreciate a quick review.`,
+      "Your feedback helps us improve and helps future customers know what to expect.",
+      "",
+      "If there is anything we should make right first, just reply to this email and let us know.",
+    ].join("\n"));
+    const composer = openComposer || global.PROOFLINK_OPERATOR_UTILS?.openManualEmailPrep || openManualEmailPrep;
+    const prepared = await composer({
+      title: "Review request",
+      recipientName: customerName,
+      contextLabel: "Completed work follow-through",
+      reason: "Review this message before it goes out. ProofLink does not auto-send customer communication from here.",
+      subject,
+      message: reviewMessage,
+      confirmText: "Send review request",
+      cancelText: "Keep for later",
+    });
+    if (!prepared?.confirmed) {
+      if (typeof setStatus === "function") {
+        setStatus("Review request kept for later.");
+      }
+      return { ok: false, skipped: true, canceled: true };
+    }
     const response = await global.fetch("/.netlify/functions/request-review", {
       method: "POST",
       headers: {
@@ -209,6 +340,8 @@
       },
       body: JSON.stringify({
         order_id: orderId,
+        manual_subject: prepared.subject,
+        manual_message: prepared.message,
         ...(tenantId && tenantId !== "default" ? { tenant_id: tenantId } : {}),
       }),
     });
@@ -293,6 +426,7 @@
     formatTime12,
     showConfirmModal,
     showCopyModal,
+    openManualEmailPrep,
     setInlineMessage,
     markOrderReviewRequested,
     requestOrderReview,

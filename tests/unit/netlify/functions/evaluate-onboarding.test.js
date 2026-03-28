@@ -44,7 +44,11 @@ function createSupabaseMock() {
       },
       maybeSingle: vi.fn(async () => {
         if (table === "tenants") return { data: null, error: null };
-        if (table === "onboarding_requests") return { data: null, error: null };
+        if (table === "onboarding_requests") return { data: requestRow, error: null };
+        if (table === "tenant_onboarding_requests") {
+          const isFetchById = state.eqFilters.some(([column, value]) => column === "id" && value === "req_pltest_approved");
+          return { data: isFetchById ? requestRow : null, error: null };
+        }
         if (table === "pl_reserved_slugs") return { data: null, error: null };
         return { data: null, error: null };
       }),

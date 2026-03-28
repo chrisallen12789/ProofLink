@@ -92,6 +92,69 @@ function crewCustomerRef(job = ACTIVE_JOB) {
   return job?.customers || {};
 }
 
+function crewHydrovacManifestSummary(job = ACTIVE_JOB) {
+  const manifests = Array.isArray(job?.manifests)
+    ? job.manifests
+    : Array.isArray(job?.waste_manifests)
+      ? job.waste_manifests
+      : [];
+  const metadata = job?.manifest_metadata && typeof job.manifest_metadata === 'object' && !Array.isArray(job.manifest_metadata)
+    ? job.manifest_metadata
+    : {};
+  const liveManifest = manifests.find((manifest) => {
+    const manifestMeta = manifest?.metadata && typeof manifest.metadata === 'object' && !Array.isArray(manifest.metadata)
+      ? manifest.metadata
+      : {};
+    if (manifestMeta.load_still_in_truck === true) return true;
+    return String(manifestMeta.load_state || '').trim().toLowerCase() === 'live_in_truck';
+  }) || null;
+
+  const liveLoadCount = Number(
+    job?.truck_live_load_count
+    ?? job?.live_load_count
+    ?? metadata.truck_live_load_count
+    ?? (liveManifest ? 1 : 0)
+    ?? 0
+  );
+  const bolNumber = String(
+    job?.bol_number
+    || job?.bill_of_lading_number
+    || liveManifest?.metadata?.bol_number
+    || liveManifest?.metadata?.bill_of_lading_number
+    || metadata.bol_number
+    || ''
+  ).trim();
+  const holdReason = String(
+    job?.live_load_hold_reason
+    || job?.hold_reason
+    || liveManifest?.metadata?.live_load_hold_reason
+    || liveManifest?.metadata?.hold_reason
+    || metadata.live_load_hold_reason
+    || ''
+  ).trim();
+  const readyBy = String(
+    job?.disposal_ready_by
+    || liveManifest?.metadata?.disposal_ready_by
+    || metadata.disposal_ready_by
+    || ''
+  ).trim();
+  const isolationNote = String(
+    job?.load_isolation_note
+    || job?.cross_contamination_note
+    || metadata.load_isolation_note
+    || ''
+  ).trim();
+
+  return {
+    liveLoadCount: Number.isFinite(liveLoadCount) ? liveLoadCount : 0,
+    bolNumber,
+    holdReason,
+    readyBy,
+    isolationNote,
+    manifestNumber: String(liveManifest?.manifest_number || liveManifest?.id || '').trim(),
+  };
+}
+
 async function getToken() {
   if (!sb) return null;
   try {
@@ -289,6 +352,7 @@ function fieldActionGuidance(status, job = ACTIVE_JOB) {
   const accessNote = String(customer?.access_notes || customer?.entry_notes || customer?.alarm_notes || customer?.gate_notes || '').trim();
   const systemNote = String(customer?.equipment_notes || customer?.system_notes || customer?.diagnostic_notes || '').trim();
   const plumbingNote = String(customer?.shutoff_notes || customer?.issue_summary || customer?.approval_notes || '').trim();
+  const hydrovacManifest = crewHydrovacManifestSummary(job);
 
   if (complianceMessage) {
     return complianceMessage;
@@ -317,6 +381,14 @@ function fieldActionGuidance(status, job = ACTIVE_JOB) {
         ? `Clock in when you are on site. Keep the repair and shutoff note in mind before you begin: ${plumbingNote}`
         : 'Clock in when you are on site. Confirm shutoff access, fixture context, and approval limits before opening anything up.';
     }
+    if (['hydrovac', 'vactor', 'hydrovac_vactor'].includes(businessKey)) {
+      if (hydrovacManifest.liveLoadCount > 0) {
+        return hydrovacManifest.bolNumber && hydrovacManifest.holdReason
+          ? `Clock in when you are on site only after you confirm the live load plan. Truck still carries ${hydrovacManifest.manifestNumber || 'a documented load'} under BOL ${hydrovacManifest.bolNumber}, so keep that load isolated and follow the hold reason: ${hydrovacManifest.holdReason}`
+          : 'Clock in when you are on site only after the office confirms the live load is documented. Keep the truck isolated until the BOL and hold reason are attached.';
+      }
+      return 'Clock in when you are on site. Confirm the truck is cleared, the BOL packet is with the truck, and disposal timing will not stall this job before you begin.';
+    }
     return 'Clock in when you are on site. If access, scope, safety, or compliance is not ready, report the issue before work begins.';
   }
   if (status === 'in_progress') {
@@ -328,6 +400,9 @@ function fieldActionGuidance(status, job = ACTIVE_JOB) {
     }
     if (businessKey === 'plumbing') {
       return 'Keep the repair result, shutoff context, and any approval or restoration note current so closeout is clear and defensible.';
+    }
+    if (['hydrovac', 'vactor', 'hydrovac_vactor'].includes(businessKey)) {
+      return 'Keep the load record, BOL, disposal timing, and any live-load hold reason current so the office can prevent cross contamination before the next dispatch.';
     }
     return 'Keep notes, photos, and customer details current so closeout is quick and the office can invoice without guesswork.';
   }
@@ -351,6 +426,7 @@ function crewJobMemoryItems(job = ACTIVE_JOB) {
   const customerPhone = String(customer?.phone || '').trim();
   const customerEmail = String(customer?.email || '').trim();
   const workNotes = String(job?.description || job?.notes || '').trim();
+  const hydrovacManifest = crewHydrovacManifestSummary(job);
 
   if (serviceAddress) {
     items.push(`Service location: ${serviceAddress}`);
@@ -405,6 +481,24 @@ function crewJobMemoryItems(job = ACTIVE_JOB) {
     items.push(repairNote
       ? `Repair context: ${repairNote}`
       : 'Repair context is still light. Ask the office what fixture, issue, or approval limit should guide this visit.');
+  } else if (['hydrovac', 'vactor', 'hydrovac_vactor'].includes(businessKey)) {
+    if (hydrovacManifest.liveLoadCount > 0) {
+      items.push(`Live load on truck: ${hydrovacManifest.manifestNumber || `${hydrovacManifest.liveLoadCount} load${hydrovacManifest.liveLoadCount === 1 ? '' : 's'} still onboard`}`);
+      items.push(hydrovacManifest.bolNumber
+        ? `Bill of lading: ${hydrovacManifest.bolNumber}`
+        : 'Bill of lading is missing. Stop and confirm the BOL before this load moves to another job.');
+      items.push(hydrovacManifest.holdReason
+        ? `Live-load plan: ${hydrovacManifest.holdReason}`
+        : 'Live-load plan is missing. Ask the office why this load is still riding with the truck before you continue.');
+      if (hydrovacManifest.readyBy) {
+        items.push(`Disposal timing: Clear this load by ${hydrovacManifest.readyBy} so tomorrow does not get blocked.`);
+      }
+      if (hydrovacManifest.isolationNote) {
+        items.push(`Isolation note: ${hydrovacManifest.isolationNote}`);
+      }
+    } else {
+      items.push('Truck load status: Confirm the truck is cleared or the live-load packet is attached before hydrovac work begins.');
+    }
   }
 
   return items;

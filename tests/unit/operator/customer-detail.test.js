@@ -270,7 +270,7 @@ describe("operator customer detail", () => {
 
     expect(actions.map((action) => action.label)).toEqual([
       "Schedule next cleaning visit",
-      "Draft cleaning follow-up request",
+      "Create cleaning follow-up request",
     ]);
   });
 
@@ -295,8 +295,99 @@ describe("operator customer detail", () => {
 
     expect(actions.map((action) => action.label)).toEqual([
       "Schedule next system visit",
-      "Draft maintenance follow-up request",
+      "Create maintenance follow-up request",
     ]);
+  });
+
+  test("customerRetentionWorkflowActions prefers generating booked work when an active recurring plan is due", () => {
+    const api = loadCustomerDetail({
+      SERVICE_PLANS_CACHE: [{
+        id: "plan_1",
+        customer_id: "customer_1",
+        status: "active",
+        next_run_on: "2026-03-20",
+      }],
+      CRM_ORDERS_CACHE: [],
+    });
+
+    const actions = api.customerRetentionWorkflowActions({
+      customer: {
+        id: "customer_1",
+        recurring_notes: "Every other Tuesday",
+      },
+      blueprint: {
+        business: {
+          key: "cleaning",
+        },
+      },
+    });
+
+    expect(actions.map((action) => action.label)).toEqual([
+      "Generate next booked work",
+      "Draft cleaning follow-up request",
+      "Open customer",
+    ]);
+  });
+
+  test("customerRetentionWorkflowActions can switch into one-click request creation", () => {
+    const api = loadCustomerDetail();
+
+    const actions = api.customerRetentionWorkflowActions({
+      customer: {
+        id: "customer_1",
+        recurring_notes: "Every other Tuesday",
+      },
+      blueprint: {
+        business: {
+          key: "cleaning",
+        },
+      },
+      requestAction: "create-request",
+      requestLabel: api.customerCreateRequestActionLabel({ business: { key: "cleaning" } }),
+    });
+
+    expect(actions.map((action) => `${action.action}:${action.label}`)).toEqual([
+      "reactivate-repeat:Schedule next cleaning visit",
+      "create-request:Create cleaning follow-up request",
+      "open-reactivation-customer:Open customer",
+    ]);
+  });
+
+  test("openCustomerPlanOrder runs the linked recurring plan when the next booked work is ready", async () => {
+    const runServicePlanRecord = vi.fn(async () => ({
+      existing: false,
+      order: { id: "order_generated_1" },
+    }));
+    const switchTab = vi.fn();
+    const showToast = vi.fn();
+    const api = loadCustomerDetail({
+      switchTab,
+      showToast,
+      SERVICE_PLANS_CACHE: [{
+        id: "plan_1",
+        customer_id: "customer_1",
+        status: "active",
+        next_run_on: "2026-03-20",
+      }],
+      CRM_ORDERS_CACHE: [],
+      window: {
+        PROOFLINK_OPERATOR_LEAD_PLAN_WORKSPACE: {
+          runServicePlanRecord,
+        },
+      },
+    });
+
+    expect(api.openCustomerPlanOrder({
+      id: "customer_1",
+      name: "Quiet Cleaning",
+      recurring_notes: "Every other Tuesday",
+    })).toBe(true);
+
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(runServicePlanRecord).toHaveBeenCalledWith(expect.objectContaining({ id: "plan_1" }));
+    expect(showToast).toHaveBeenCalledWith("Generating the next booked work from the recurring plan...");
   });
 
   test("openCustomerRequestDraft prefills a smarter HVAC follow-up request", () => {
@@ -347,6 +438,48 @@ describe("operator customer detail", () => {
     expect(leadServiceAddress.value).toContain("455 Elm St");
     expect(leadSummary.value).toContain("Bring capacitor approval paperwork");
     expect(leadNotes.value).toContain("Carrier rooftop unit RTU-2");
+  });
+
+  test("createCustomerRequestRecord saves a real follow-up request when the lead workspace is ready", async () => {
+    const saveLeadRecord = vi.fn(async () => ({ id: "lead_created_1" }));
+    const switchTab = vi.fn();
+    const showToast = vi.fn();
+    const api = loadCustomerDetail({
+      switchTab,
+      showToast,
+      window: {
+        PROOFLINK_OPERATOR_LEAD_PLAN_WORKSPACE: {
+          saveLeadRecord,
+        },
+      },
+    });
+
+    expect(api.createCustomerRequestRecord({
+      id: "customer_1",
+      name: "Harbor Suites",
+      email: "ops@example.com",
+      phone: "555-111-2222",
+      preferred_contact: "email",
+      maintenance_notes: "Spring maintenance visit due next month",
+    }, {
+      successMessage: "Created from closeout.",
+      sourceRecordType: "job",
+      sourceRecordId: "job_1",
+    }, { business: { key: "hvac" } })).toBe(true);
+
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(saveLeadRecord).toHaveBeenCalledWith(expect.objectContaining({
+      customer_id: "customer_1",
+      contact_name: "Harbor Suites",
+      requested_service_type: "Maintenance follow-up",
+      metadata: expect.objectContaining({
+        created_from: "customer_retention",
+        source_record_type: "job",
+        source_record_id: "job_1",
+      }),
+    }));
   });
 
   test("customerPostWorkGuidance keeps plumbing closeout and collection visible after the repair", () => {
@@ -400,6 +533,11 @@ describe("operator customer detail", () => {
     expect(source).toContain("memory-checklist__item--ready");
     expect(source).toContain("customerRelationshipGuidance");
     expect(source).toContain("customerPostWorkGuidance");
+    expect(source).toContain("customerRepeatPlanState");
+    expect(source).toContain("customerCreateRequestActionLabel");
+    expect(source).toContain("createCustomerRequestRecord");
+    expect(source).toContain("Generate next booked work");
+    expect(source).toContain("create-request");
     expect(source).toContain("customer-next-step-card");
     expect(source).toContain("After the work wraps");
     expect(source).not.toContain('style="padding:10px 12px;border:1px solid rgba(255,255,255,.08);border-radius:10px;');

@@ -213,7 +213,7 @@ describe("operator payments workspace", () => {
 
     expect(actions.map((action) => action.label)).toEqual([
       "Schedule next cleaning visit",
-      "Draft cleaning follow-up request",
+      "Create cleaning follow-up request",
       "Open customer",
     ]);
   });
@@ -270,11 +270,11 @@ describe("operator payments workspace", () => {
     expect(host.innerHTML).toContain("Why now: The maintenance window is opening for this system");
   });
 
-  test("renderPaymentNextActions can open a follow-up request draft from the payment flow", () => {
+  test("renderPaymentNextActions can create a follow-up request from the payment flow", () => {
     const openCustomerRetentionAction = vi.fn();
     const host = makeElement({
       querySelectorAll: vi.fn(() => [{
-        getAttribute: () => "request",
+        getAttribute: () => "create-request",
         addEventListener: vi.fn((event, handler) => {
           if (event === "click") handler();
         }),
@@ -311,12 +311,13 @@ describe("operator payments workspace", () => {
     });
 
     expect(openCustomerRetentionAction).toHaveBeenCalledWith(
-      "request",
+      "create-request",
       expect.objectContaining({ id: "customer_1" }),
       expect.objectContaining({ business: expect.objectContaining({ key: "plumbing" }) }),
       expect.objectContaining({
         requestOptions: expect.objectContaining({
-          message: "Follow-up request draft opened from the payment flow.",
+          message: "Follow-up request created from the payment flow.",
+          successMessage: "Follow-up request created from the payment flow.",
         }),
       })
     );

@@ -112,6 +112,10 @@
         blueprint,
         includeSchedule: true,
         includeRequest: true,
+        requestAction: "create-request",
+        requestLabel: typeof customerApi.customerCreateRequestActionLabel === "function"
+          ? customerApi.customerCreateRequestActionLabel(blueprint)
+          : undefined,
         includeOpenCustomer: true,
         primaryClassName: "btn btn-primary btn-sm",
         secondaryClassName: "btn btn-ghost btn-sm",
@@ -136,7 +140,7 @@
     };
     return [
       { label: scheduleLabelMap[businessKey] || "Schedule next visit", action: "reactivate-repeat", className: "btn btn-primary btn-sm" },
-      { label: requestLabelMap[businessKey] || "Draft follow-up request", action: "request", className: "btn btn-ghost btn-sm" },
+      { label: (requestLabelMap[businessKey] || "Create follow-up request").replace(/^Draft\b/, "Create"), action: "create-request", className: "btn btn-ghost btn-sm" },
       { label: "Open customer", action: "open-reactivation-customer", className: "btn btn-ghost btn-sm" },
     ];
   }
@@ -196,12 +200,16 @@
         const { customer, order, job } = resolvePaymentContext(options);
         if (!customer) return;
 
-        if (action === "open-reactivation-customer" || action === "reactivate-repeat" || action === "request") {
+        if (action === "open-reactivation-customer" || action === "reactivate-repeat" || action === "request" || action === "create-request" || action === "generate-next-order") {
           const customerApi = global.PROOFLINK_OPERATOR_CUSTOMER_DETAIL || {};
           if (typeof customerApi.openCustomerRetentionAction === "function") {
             customerApi.openCustomerRetentionAction(action, customer, blueprint, {
               requestOptions: {
-                message: "Follow-up request draft opened from the payment flow.",
+                message: action === "create-request" ? "Follow-up request created from the payment flow." : "Follow-up request draft opened from the payment flow.",
+                successMessage: "Follow-up request created from the payment flow.",
+                pendingMessage: "Creating follow-up request from the payment flow...",
+                sourceRecordType: "payment",
+                sourceRecordId: order?.id || job?.id || customer.id || "",
               },
             });
             if (action === "open-reactivation-customer") {

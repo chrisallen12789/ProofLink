@@ -266,8 +266,13 @@ describe("operator command center", () => {
       dashboardWrap: { innerHTML: "", querySelectorAll: vi.fn(() => []), querySelector: vi.fn(() => null) },
       window: {
         PROOFLINK_OPERATOR_CUSTOMER_DETAIL: {
+          customerRetentionWorkflowActions: vi.fn(() => [
+            { label: "Generate next booked work", action: "generate-next-order", className: "btn btn-primary btn-sm" },
+            { label: "Create cleaning follow-up request", action: "create-request", className: "btn btn-ghost btn-sm" },
+            { label: "Open customer", action: "open-reactivation-customer", className: "btn btn-ghost btn-sm" },
+          ]),
           customerScheduleActionLabel: vi.fn(() => "Schedule next cleaning visit"),
-          customerRequestActionLabel: vi.fn(() => "Draft cleaning follow-up request"),
+          customerCreateRequestActionLabel: vi.fn(() => "Create cleaning follow-up request"),
         },
         PROOFLINK_OPERATOR_BOOKINGS_WORKSPACE: {
           bookingDraftTimingInsight: vi.fn(() => ({

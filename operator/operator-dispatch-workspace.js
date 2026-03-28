@@ -1,5 +1,197 @@
 // Hydrovac dispatch workspace extracted from operator.js
 // so crew assignment and readiness live in one focused module.
+const DISPATCH_TRUCK_LOAD_CACHE = new Map();
+
+function dispatchManifestMeta(row) {
+  return row?.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata)
+    ? row.metadata
+    : {};
+}
+
+function dispatchManifestIsLive(row) {
+  const metadata = dispatchManifestMeta(row);
+  if (metadata.load_still_in_truck === true) return true;
+  return String(metadata.load_state || "").trim().toLowerCase() === "live_in_truck";
+}
+
+function dispatchManifestBolNumber(row) {
+  const metadata = dispatchManifestMeta(row);
+  return String(metadata.bol_number || metadata.bill_of_lading_number || "").trim();
+}
+
+function dispatchManifestHoldReason(row) {
+  const metadata = dispatchManifestMeta(row);
+  return String(metadata.live_load_hold_reason || metadata.hold_reason || "").trim();
+}
+
+function dispatchManifestReadyBy(row) {
+  const metadata = dispatchManifestMeta(row);
+  return String(metadata.disposal_ready_by || "").trim();
+}
+
+function dispatchManifestLifecycleLabel(row) {
+  const status = String(row?.status || "").trim().toLowerCase();
+  const metadata = dispatchManifestMeta(row);
+  if (String(metadata.audit_archived_at || "").trim() || status === "archived") return "Archived for audit";
+  if (row?.invoiced === true) return "Billed";
+  if (dispatchManifestIsLive(row)) return "Live in truck";
+  if (status === "confirmed") return "Disposed";
+  if (["delivered", "in_transit"].includes(status)) return "Ready for disposal";
+  return "Loaded";
+}
+
+function dispatchTruckLoadState(truckId) {
+  return DISPATCH_TRUCK_LOAD_CACHE.get(String(truckId || "").trim()) || {
+    truckId: String(truckId || "").trim(),
+    rows: [],
+    loading: false,
+    error: "",
+    loadedAt: 0,
+  };
+}
+
+function setDispatchTruckLoadState(truckId, nextState = {}) {
+  const truckKey = String(truckId || "").trim();
+  const current = dispatchTruckLoadState(truckKey);
+  const merged = { ...current, ...nextState, truckId: truckKey };
+  DISPATCH_TRUCK_LOAD_CACHE.set(truckKey, merged);
+  return merged;
+}
+
+async function fetchDispatchTruckLoads(truckId, options = {}) {
+  const truckKey = String(truckId || "").trim();
+  if (!truckKey) return dispatchTruckLoadState("");
+  const existing = dispatchTruckLoadState(truckKey);
+  const freshEnough = existing.loadedAt && (Date.now() - existing.loadedAt) < 20000;
+  if (!options.force && (existing.loading || freshEnough)) return existing;
+
+  setDispatchTruckLoadState(truckKey, { loading: true, error: "" });
+  try {
+    const payload = await requestOperatorFunction("manage-waste-manifests", {
+      query: `action=all&truck_id=${encodeURIComponent(truckKey)}&live_only=1&limit=100`,
+    });
+    return setDispatchTruckLoadState(truckKey, {
+      rows: Array.isArray(payload?.manifests) ? payload.manifests : [],
+      loading: false,
+      error: "",
+      loadedAt: Date.now(),
+    });
+  } catch (error) {
+    return setDispatchTruckLoadState(truckKey, {
+      loading: false,
+      error: error?.message || "Failed to load truck manifests.",
+      loadedAt: Date.now(),
+    });
+  }
+}
+
+function dispatchTruckPlanner(truck, job = null, targetDate = "") {
+  const truckId = String(truck?.id || truck || "").trim();
+  const state = dispatchTruckLoadState(truckId);
+  const rows = Array.isArray(state.rows) ? state.rows : [];
+  const liveLoads = rows.filter((row) => dispatchManifestIsLive(row));
+  const carryoverLoads = liveLoads.filter((row) => String(row?.job_id || "") !== String(job?.id || ""));
+  const jobCustomerId = String(job?.customer_id || "").trim();
+  const sameCustomerLoads = carryoverLoads.filter((row) => jobCustomerId && String(row?.customer_id || "") === jobCustomerId);
+  const crossCustomerLoads = carryoverLoads.filter((row) => !jobCustomerId || String(row?.customer_id || "") !== jobCustomerId);
+  const undocumentedLoads = carryoverLoads.filter((row) => !dispatchManifestBolNumber(row) || !dispatchManifestHoldReason(row));
+  const overdueLoads = carryoverLoads.filter((row) => {
+    const readyBy = dispatchManifestReadyBy(row);
+    return readyBy && targetDate && readyBy < targetDate;
+  });
+  const dueLoads = carryoverLoads.filter((row) => {
+    const readyBy = dispatchManifestReadyBy(row);
+    return readyBy && targetDate && readyBy === targetDate;
+  });
+  const gallons = rows.reduce((sum, row) => (
+    sum + Number(row?.quantity_actual || row?.quantity_estimated || 0)
+  ), 0);
+  const capacityGallons = Number(truck?.debris_tank_capacity_gallons || 0);
+  const fillPercent = capacityGallons > 0
+    ? Math.max(0, Math.min(100, Math.round((gallons / capacityGallons) * 100)))
+    : 0;
+
+  const warnings = [];
+  if (crossCustomerLoads.length) {
+    warnings.push({
+      label: "Cross-contamination risk",
+      blocking: true,
+      note: `${crossCustomerLoads[0].manifest_number || crossCustomerLoads[0].id || "A live load"} still belongs to another account. Clear or dispose that load before this truck is assigned.`,
+    });
+  }
+  if (undocumentedLoads.length) {
+    warnings.push({
+      label: "Load records incomplete",
+      blocking: true,
+      note: `${undocumentedLoads[0].manifest_number || undocumentedLoads[0].id || "A live load"} still needs a BOL and live-load hold reason before it can stay on the truck.`,
+    });
+  }
+  if (sameCustomerLoads.length) {
+    warnings.push({
+      label: "Live load still attached",
+      blocking: false,
+      note: `${sameCustomerLoads[0].manifest_number || sameCustomerLoads[0].id || "A live load"} is still tied to this customer. Keep it isolated, confirm the waste stream, and decide whether it stays with this work or goes to disposal first.`,
+    });
+  }
+  if (overdueLoads.length) {
+    warnings.push({
+      label: "Disposal overdue",
+      blocking: false,
+      note: `${overdueLoads[0].manifest_number || overdueLoads[0].id || "A live load"} was supposed to be handled before today. Clear it before this truck becomes tomorrow's problem too.`,
+    });
+  } else if (dueLoads.length) {
+    warnings.push({
+      label: "Disposal due today",
+      blocking: false,
+      note: `${dueLoads[0].manifest_number || dueLoads[0].id || "A live load"} is marked ready for disposal today. Plan the dump run so this truck does not stall later in the day.`,
+    });
+  }
+
+  return {
+    truckId,
+    rows,
+    liveLoads,
+    carryoverLoads,
+    sameCustomerLoads,
+    crossCustomerLoads,
+    undocumentedLoads,
+    overdueLoads,
+    dueLoads,
+    warnings,
+    gallons,
+    capacityGallons,
+    fillPercent,
+    loading: state.loading,
+    error: state.error,
+  };
+}
+
+function dispatchTruckAuditPacket(truck, planner, jobs = JOBS_CACHE, customers = CUSTOMERS_CACHE) {
+  const rows = Array.isArray(planner?.rows) ? planner.rows : [];
+  return [
+    `Truck: ${truck?.unit_number || truck?.name || truck?.id || "Truck"}`,
+    `Live loads on board: ${planner?.liveLoads?.length || 0}`,
+    `Carryover loads: ${planner?.carryoverLoads?.length || 0}`,
+    `Tank load: ${planner?.capacityGallons ? `${Math.round(planner.gallons)} / ${planner.capacityGallons} gal` : `${Math.round(planner?.gallons || 0)} gal tracked`}`,
+    "",
+    ...rows.map((row) => {
+      const job = (jobs || []).find((candidate) => candidate.id === row.job_id) || null;
+      const customer = (customers || []).find((candidate) => candidate.id === row.customer_id) || null;
+      return [
+        `Manifest: ${row.manifest_number || row.id || "Pending"}`,
+        `Lifecycle: ${dispatchManifestLifecycleLabel(row)}`,
+        `Customer: ${customer?.name || job?.customer_name || "Unknown"}`,
+        `Job: ${job?.title || row.pickup_address || "Not linked"}`,
+        `BOL: ${dispatchManifestBolNumber(row) || "Pending"}`,
+        `Ready by: ${dispatchManifestReadyBy(row) || "Not set"}`,
+        `Hold reason: ${dispatchManifestHoldReason(row) || "Not documented"}`,
+        `Quantity: ${Number(row?.quantity_actual || row?.quantity_estimated || 0) || "Pending"}`,
+        "",
+      ].join("\n");
+    }),
+  ].join("\n");
+}
+
 function renderDispatchWorkspace() {
   if (!dispatchBoard || !dispatchDetail) return;
   const targetDate = dispatchDate?.value || new Date().toISOString().slice(0, 10);
@@ -13,12 +205,19 @@ function renderDispatchWorkspace() {
   const dispatched = hydrovacJobs.filter((job) => String(job.status || "").toLowerCase() === "dispatched").length;
   const inProgress = hydrovacJobs.filter((job) => String(job.status || "").toLowerCase() === "in_progress").length;
   const unassigned = hydrovacJobs.filter((job) => !job.assigned_truck_id).length;
+  const carryoverRisk = hydrovacJobs.filter((job) => {
+    if (!job.assigned_truck_id) return false;
+    return dispatchTruckPlanner(job.assigned_truck_id, job, targetDate).warnings.some((item) => item.blocking);
+  }).length;
+  const disposalDue = trucks.reduce((sum, truck) => sum + dispatchTruckPlanner(truck, null, targetDate).dueLoads.length, 0);
 
   if (dispatchStageStrip) {
     dispatchStageStrip.innerHTML = [
       { eyebrow: "Today", value: hydrovacJobs.length, title: "Hydrovac work", copy: "Scheduled hydrovac jobs on the selected day." },
       { eyebrow: "Queued", value: scheduled, title: "Still waiting", copy: "Scheduled jobs that still need truck or driver confirmation." },
       { eyebrow: "Rolling", value: dispatched + inProgress, title: "In motion", copy: "Jobs already dispatched or currently in progress." },
+      { eyebrow: "Carryover", value: carryoverRisk, title: "Truck conflict", copy: "Jobs whose assigned truck is still carrying a conflicting live load." },
+      { eyebrow: "Dump", value: disposalDue, title: "Due today", copy: "Live loads already marked ready for disposal today." },
       { eyebrow: "Open", value: unassigned, title: "Truck not assigned", copy: "Work that still needs a truck before it can roll." },
     ].map((stage) => `
       <div class="pipeline-stage-card is-active">
@@ -33,6 +232,7 @@ function renderDispatchWorkspace() {
   if (dispatchActionBar) {
     dispatchActionBar.innerHTML = `
       <button type="button" class="pipeline-action-chip" data-dispatch-action="jobs">Open jobs</button>
+      <button type="button" class="pipeline-action-chip" data-dispatch-action="manifests">Open disposal board</button>
       <button type="button" class="pipeline-action-chip" data-dispatch-action="locates">Open locate tickets</button>
       <button type="button" class="pipeline-action-chip" data-dispatch-action="team">Open team</button>
       <button type="button" class="pipeline-action-chip" data-dispatch-action="equipment">Open equipment</button>
@@ -41,6 +241,7 @@ function renderDispatchWorkspace() {
       button.addEventListener("click", () => {
         const action = button.getAttribute("data-dispatch-action");
         if (action === "jobs") return switchTab("jobs");
+        if (action === "manifests") return switchTab("manifests");
         if (action === "locates") return switchTab("locates");
         if (action === "team") return switchTab("team");
         if (action === "equipment") return switchTab("equipment");
@@ -56,8 +257,9 @@ function renderDispatchWorkspace() {
 
   dispatchBoard.innerHTML = columns.map((column) => {
     const columnJobs = hydrovacJobs.filter((job) => String(job.assigned_truck_id || "") === column.id);
+    const planner = column.unit ? dispatchTruckPlanner(column.unit, null, targetDate) : null;
     const warningCount = column.unit
-      ? ((HYDROVAC_EQUIPMENT_COMPLIANCE_CACHE.find((row) => row.id === column.unit.id)?.warnings || []).length)
+      ? ((HYDROVAC_EQUIPMENT_COMPLIANCE_CACHE.find((row) => row.id === column.unit.id)?.warnings || []).length) + (planner?.warnings?.length || 0)
       : 0;
     return `
       <div class="dispatch-column">
@@ -65,6 +267,7 @@ function renderDispatchWorkspace() {
           <div>
             <strong>${escapeHtml(column.label)}</strong>
             <div class="muted">${column.unit ? escapeHtml(column.unit.name || "Equipment record") : "Jobs still waiting on a truck"}</div>
+            ${column.unit && planner?.carryoverLoads?.length ? `<div class="muted">${escapeHtml(`${planner.carryoverLoads.length} live load${planner.carryoverLoads.length === 1 ? "" : "s"} still attached`)}</div>` : ``}
           </div>
           <span class="pill ${warningCount ? "pill-warn" : "pill-on"}">${warningCount ? `${warningCount} watch` : `${columnJobs.length} job${columnJobs.length === 1 ? "" : "s"}`}</span>
         </div>
@@ -72,6 +275,7 @@ function renderDispatchWorkspace() {
           ${columnJobs.length ? columnJobs.map((job) => {
             const member = (TEAM_MEMBERS_CACHE || []).find((row) => row.id === job.assigned_member_id) || null;
             const locateCount = (HYDROVAC_LOCATE_TICKETS_CACHE || []).filter((row) => row.job_id === job.id && ["active", "extended"].includes(String(row.status || "").toLowerCase())).length;
+            const plannerWarnings = column.unit ? dispatchTruckPlanner(column.unit, job, targetDate).warnings : [];
             return `
               <button type="button" class="dispatch-job-card ${job.id === ACTIVE_DISPATCH_JOB_ID ? "is-active" : ""}" data-dispatch-job-id="${escapeAttr(job.id)}">
                 <div class="dispatch-job-card__title">${escapeHtml(job.title || "Untitled job")}</div>
@@ -80,6 +284,7 @@ function renderDispatchWorkspace() {
                 <div class="dispatch-job-card__chips">
                   <span class="pill ${locateCount ? "pill-on" : "pill-warn"}">${locateCount ? `${locateCount} ticket` : "No locate"}</span>
                   <span class="pill">${escapeHtml(member ? teamMemberLabel(member) : "Driver open")}</span>
+                  ${plannerWarnings.some((item) => item.blocking) ? `<span class="pill pill-bad">Truck blocked</span>` : ``}
                 </div>
               </button>
             `;
@@ -162,6 +367,11 @@ function renderDispatchWorkspace() {
   const truckCompliance = currentTruckId
     ? (HYDROVAC_EQUIPMENT_COMPLIANCE_CACHE || []).find((row) => row.id === currentTruckId) || null
     : null;
+  if (currentTruckId) {
+    fetchDispatchTruckLoads(currentTruckId).then(() => renderDispatchWorkspace()).catch(() => {});
+  }
+  const truckPlanner = dispatchTruckPlanner(assignedTruck || currentTruckId, activeJob, targetDate);
+  const dispatchBlocked = truckPlanner.warnings.some((item) => item.blocking);
 
   dispatchDetail.innerHTML = `
     <div class="detail-card">
@@ -191,10 +401,11 @@ function renderDispatchWorkspace() {
         </label>
       </div>
       <div class="row" style="margin-top:12px;">
-        <button id="btnDispatchJobNow" class="btn btn-primary" type="button">${String(activeJob.status || "").toLowerCase() === "dispatched" ? "Refresh dispatch" : "Dispatch job"}</button>
+        <button id="btnDispatchJobNow" class="btn btn-primary" type="button"${dispatchBlocked ? " disabled" : ""}>${String(activeJob.status || "").toLowerCase() === "dispatched" ? "Refresh dispatch" : "Dispatch job"}</button>
         <button id="btnDispatchOpenJob" class="btn btn-ghost" type="button">Open job</button>
         <button id="btnDispatchOpenLocates" class="btn btn-ghost" type="button">Open locate tickets</button>
         <button id="btnDispatchOpenCompliance" class="btn btn-ghost" type="button">Open compliance</button>
+        <button id="btnDispatchOpenManifests" class="btn btn-ghost" type="button">Open disposal board</button>
       </div>
       <div id="dispatchMsg" class="msg"></div>
     </div>
@@ -220,6 +431,51 @@ function renderDispatchWorkspace() {
     `).join("");
     const secondGrid = dispatchCard.querySelectorAll(".detail-grid")[1];
     if (secondGrid) dispatchCard.insertBefore(readinessEl, secondGrid);
+
+    const plannerEl = document.createElement("div");
+    plannerEl.className = "detail-card detail-card--spaced";
+    plannerEl.innerHTML = `
+      <div class="kicker">Truck load planner</div>
+      <div><strong>${escapeHtml(currentTruckId ? "What is still in this truck?" : "Pick a truck to inspect the live-load plan")}</strong></div>
+      <div class="detail-copy">${escapeHtml(
+        currentTruckId
+          ? "ProofLink tracks live loads, BOLs, and disposal timing here so the office can prevent cross contamination before dispatch."
+          : "Once a truck is selected, this card shows live-load carryover, disposal timing, and the audit packet you should keep with the truck."
+      )}</div>
+      <div class="workspace-chip-row u-mt-10">
+        <span class="pill ${truckPlanner.carryoverLoads.length ? "pill-warn" : "pill-on"}">${escapeHtml(`${truckPlanner.carryoverLoads.length} carryover load${truckPlanner.carryoverLoads.length === 1 ? "" : "s"}`)}</span>
+        <span class="pill">${escapeHtml(truckPlanner.capacityGallons ? `${Math.round(truckPlanner.gallons)} / ${truckPlanner.capacityGallons} gal` : `${Math.round(truckPlanner.gallons)} gal tracked`)}</span>
+        <span class="pill ${truckPlanner.overdueLoads.length ? "pill-bad" : truckPlanner.dueLoads.length ? "pill-warn" : "pill"}">${escapeHtml(truckPlanner.overdueLoads.length ? `${truckPlanner.overdueLoads.length} overdue` : truckPlanner.dueLoads.length ? `${truckPlanner.dueLoads.length} due today` : "No disposal due today")}</span>
+      </div>
+      ${truckPlanner.loading ? `<div class="detail-copy u-mt-10">Loading truck loads...</div>` : ``}
+      ${truckPlanner.error ? `<div class="detail-copy u-mt-10">${escapeHtml(truckPlanner.error)}</div>` : ``}
+      <div class="memory-checklist u-mt-10">
+        ${(truckPlanner.warnings.length ? truckPlanner.warnings : [{
+          label: "Truck ready",
+          blocking: false,
+          note: currentTruckId ? "No conflicting live loads are currently attached to this truck." : "Choose a truck to see live-load guidance before dispatch.",
+        }]).map((item) => `
+          <div class="memory-checklist__item ${item.blocking ? "memory-checklist__item--warn" : "memory-checklist__item--ready"}">
+            <div class="memory-checklist__title">${escapeHtml(item.label)}</div>
+            <div class="detail-copy memory-checklist__note">${escapeHtml(item.note)}</div>
+          </div>
+        `).join("")}
+      </div>
+      ${truckPlanner.rows.length ? `
+        <div class="memory-checklist u-mt-10">
+          ${truckPlanner.rows.map((row) => `
+            <div class="memory-checklist__item ${dispatchManifestIsLive(row) ? "memory-checklist__item--warn" : "memory-checklist__item--ready"}">
+              <div class="memory-checklist__title">${escapeHtml(`${row.manifest_number || row.id || "Load"} - ${dispatchManifestLifecycleLabel(row)}`)}</div>
+              <div class="detail-copy memory-checklist__note">${escapeHtml(`BOL: ${dispatchManifestBolNumber(row) || "Pending"} | Ready by: ${dispatchManifestReadyBy(row) || "Not set"} | Hold reason: ${dispatchManifestHoldReason(row) || "Not documented"}`)}</div>
+            </div>
+          `).join("")}
+        </div>
+      ` : ``}
+      <div class="row u-mt-10">
+        <button id="btnDispatchCopyAuditPacket" class="btn btn-ghost" type="button"${currentTruckId ? "" : " disabled"}>Copy audit packet</button>
+      </div>
+    `;
+    dispatchCard.appendChild(plannerEl);
   }
 
   $("btnDispatchOpenJob")?.addEventListener("click", () => {
@@ -228,12 +484,39 @@ function renderDispatchWorkspace() {
   });
   $("btnDispatchOpenLocates")?.addEventListener("click", () => switchTab("locates"));
   $("btnDispatchOpenCompliance")?.addEventListener("click", () => switchTab("compliance"));
+  $("btnDispatchOpenManifests")?.addEventListener("click", () => switchTab("manifests"));
+  $("btnDispatchCopyAuditPacket")?.addEventListener("click", async () => {
+    const coreUtils = window.PROOFLINK_OPERATOR_UTILS || {};
+    if (typeof coreUtils.showCopyModal !== "function" || !currentTruckId) return;
+    await coreUtils.showCopyModal(
+      "Copy this truck-load audit packet into the binder, dispatch packet, or compliance email you keep for the truck.",
+      dispatchTruckAuditPacket(assignedTruck || { id: currentTruckId }, truckPlanner, JOBS_CACHE, CUSTOMERS_CACHE),
+      "Done"
+    );
+  });
   $("btnDispatchJobNow")?.addEventListener("click", async () => {
     const truckId = $("dispatchTruckSelect")?.value || "";
     const driverId = $("dispatchDriverSelect")?.value || "";
+    if (!truckId) {
+      setInlineMessage($("dispatchMsg"), "Pick a truck before dispatch.", "error");
+      return;
+    }
+    const selectedTruck = (EQUIPMENT_CACHE || []).find((unit) => unit.id === truckId) || { id: truckId };
+    const selectedPlannerState = await fetchDispatchTruckLoads(truckId, { force: true });
+    const selectedPlanner = dispatchTruckPlanner(selectedTruck, activeJob, targetDate);
+    const blockingWarning = selectedPlanner.warnings.find((item) => item.blocking);
+    if (selectedPlannerState.error) {
+      setInlineMessage($("dispatchMsg"), selectedPlannerState.error, "error");
+      return;
+    }
+    if (blockingWarning) {
+      setInlineMessage($("dispatchMsg"), blockingWarning.note, "error");
+      renderDispatchWorkspace();
+      return;
+    }
     setInlineMessage($("dispatchMsg"), "Dispatching...");
     try {
-      await requestOperatorFunction("dispatch-job", {
+      const response = await requestOperatorFunction("dispatch-job", {
         method: "POST",
         body: {
           job_id: activeJob.id,
@@ -243,9 +526,12 @@ function renderDispatchWorkspace() {
           scheduled_time: activeJob.scheduled_time || null,
         },
       });
-      await Promise.all([fetchJobs(), fetchEquipment(), fetchHydrovacComplianceData()]);
+      await Promise.all([fetchJobs(), fetchEquipment(), fetchHydrovacComplianceData(), fetchDispatchTruckLoads(truckId, { force: true })]);
       renderDispatchWorkspace();
-      setInlineMessage($("dispatchMsg"), "Job dispatched.", "ok");
+      const warningMessage = Array.isArray(response?.warnings) && response.warnings.length
+        ? response.warnings.map((warning) => warning.message || warning.type || "").filter(Boolean).join(" ")
+        : "";
+      setInlineMessage($("dispatchMsg"), warningMessage || "Job dispatched.", warningMessage ? "warn" : "ok");
     } catch (error) {
       setInlineMessage($("dispatchMsg"), error.message || String(error), "error");
     }
@@ -265,6 +551,17 @@ function initDispatchWorkspaceBindings() {
 }
 
 const DISPATCH_WORKSPACE_HELPERS = {
+  dispatchManifestMeta,
+  dispatchManifestIsLive,
+  dispatchManifestBolNumber,
+  dispatchManifestHoldReason,
+  dispatchManifestReadyBy,
+  dispatchManifestLifecycleLabel,
+  dispatchTruckLoadState,
+  setDispatchTruckLoadState,
+  fetchDispatchTruckLoads,
+  dispatchTruckPlanner,
+  dispatchTruckAuditPacket,
   renderDispatchWorkspace,
   initDispatchWorkspaceBindings,
 };

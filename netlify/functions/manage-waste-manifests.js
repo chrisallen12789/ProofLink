@@ -11,7 +11,52 @@ const {
   endOfUtcDay,
   toIsoOrNull,
 } = require('./utils/hydrovac');
-const { manifestConfirmationIssues, logComplianceAlerts, resolveComplianceAlerts } = require('./lib/hydrovac-compliance');
+const {
+  manifestConfirmationIssues,
+  logComplianceAlerts,
+  resolveComplianceAlerts,
+  manifestMarkedLive,
+  truckLoadIssuesForRows,
+} = require('./lib/hydrovac-compliance');
+
+function cleanManifestMetadata(value) {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+}
+
+function normalizeManifestMetadata(existingMetadata, body = {}) {
+  const current = cleanManifestMetadata(existingMetadata);
+  const next = { ...current };
+  if (body.bol_number !== undefined) next.bol_number = clean(body.bol_number) || null;
+  if (body.live_load_hold_reason !== undefined) next.live_load_hold_reason = clean(body.live_load_hold_reason) || null;
+  if (body.disposal_ready_by !== undefined) next.disposal_ready_by = clean(body.disposal_ready_by) || null;
+  if (body.load_still_in_truck === true) {
+    next.load_still_in_truck = true;
+    next.load_state = 'live_in_truck';
+  } else if (body.load_still_in_truck === false) {
+    next.load_still_in_truck = false;
+    if (String(next.load_state || '').toLowerCase() === 'live_in_truck') next.load_state = 'awaiting_disposal';
+  }
+  if (Array.isArray(body.carried_job_ids)) {
+    next.carried_job_ids = Array.from(new Set(body.carried_job_ids.map((value) => clean(value)).filter(Boolean)));
+  }
+  Object.keys(next).forEach((key) => {
+    if (next[key] == null || next[key] === '') delete next[key];
+  });
+  return next;
+}
+
+async function activeTruckLoads(adminSb, tenantId, truckId, excludeJobId = '') {
+  if (!truckId) return [];
+  const { data, error } = await adminSb
+    .from('waste_manifests')
+    .select('id, job_id, customer_id, truck_id, manifest_number, status, material_type, metadata')
+    .eq('tenant_id', tenantId)
+    .eq('truck_id', truckId)
+    .neq('status', 'void')
+    .in('status', ['in_transit', 'delivered']);
+  if (error) throw error;
+  return (Array.isArray(data) ? data : []).filter((row) => String(row.job_id || '') !== String(excludeJobId || ''));
+}
 
 async function nextManifestNumber(adminSb, tenantId, prefix) {
   const today = new Date();
@@ -127,12 +172,18 @@ exports.handler = async (event) => {
       if (clean(params.status)) query = query.eq('status', clean(params.status));
       if (clean(params.facility_id)) query = query.eq('disposal_facility_id', clean(params.facility_id));
       if (clean(params.customer_id)) query = query.eq('customer_id', clean(params.customer_id));
+      if (clean(params.truck_id)) query = query.eq('truck_id', clean(params.truck_id));
       const limit = Math.min(250, Math.max(1, parseInt(params.limit, 10) || 100));
       query = query.limit(limit);
 
       const { data, error } = await query;
       if (error) return respond(500, { error: error.message });
-      return respond(200, { manifests: data || [] });
+      const manifests = Array.isArray(data) ? data : [];
+      return respond(200, {
+        manifests: clean(params.live_only)
+          ? manifests.filter((manifest) => manifestMarkedLive(manifest) || ['in_transit', 'delivered'].includes(String(manifest.status || '').toLowerCase()))
+          : manifests,
+      });
     }
 
     const jobId = clean(params.job_id);
@@ -208,6 +259,16 @@ exports.handler = async (event) => {
       }
     }
 
+    const metadata = normalizeManifestMetadata(body.metadata, body);
+    const liveTruckLoads = await activeTruckLoads(adminSb, tenantId, clean(body.truck_id) || job.assigned_truck_id || null, job.id);
+    const truckIssues = truckLoadIssuesForRows(liveTruckLoads, {
+      id: job.id,
+      customer_id: clean(body.customer_id) || job.customer_id || null,
+    });
+    if (truckIssues.some((issue) => issue.code === 'truck_cross_contamination_risk')) {
+      return respond(409, { error: truckIssues[0].message, issues: truckIssues });
+    }
+
     const record = {
       tenant_id: tenantId,
       job_id: job.id,
@@ -254,7 +315,7 @@ exports.handler = async (event) => {
       state_submission_date: clean(body.state_submission_date) || null,
       status: clean(body.status || 'in_transit') || 'in_transit',
       notes: clean(body.notes) || null,
-      metadata: body.metadata && typeof body.metadata === 'object' ? body.metadata : {},
+      metadata,
     };
 
     if (record.departed_site_at && record.arrived_facility_at) {
@@ -315,6 +376,9 @@ exports.handler = async (event) => {
     ];
     for (const field of fields) {
       if (body[field] !== undefined) patch[field] = body[field];
+    }
+    if (body.metadata !== undefined || body.bol_number !== undefined || body.live_load_hold_reason !== undefined || body.disposal_ready_by !== undefined || body.load_still_in_truck !== undefined || body.carried_job_ids !== undefined) {
+      patch.metadata = normalizeManifestMetadata(existing.metadata, body);
     }
 
     if (patch.arrived_facility_at !== undefined) patch.arrived_facility_at = toIsoOrNull(patch.arrived_facility_at);

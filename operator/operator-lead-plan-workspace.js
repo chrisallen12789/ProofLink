@@ -642,6 +642,9 @@ function planReactivationActions(plan, customer, sourceOrder, lastOrder, dueNow,
       hvac: "Draft maintenance follow-up request",
       plumbing: "Draft repair follow-up request",
     })[businessKey] || "Draft follow-up request";
+  const createRequestLabel = typeof customerApi.customerCreateRequestActionLabel === "function"
+    ? customerApi.customerCreateRequestActionLabel(blueprint)
+    : requestLabel.replace(/^Draft\b/, "Create");
 
   if (!hasNextRun) {
     actions.push({ label: "Set next visit timing", action: "focus-next-run", className: "btn btn-primary" });
@@ -656,8 +659,8 @@ function planReactivationActions(plan, customer, sourceOrder, lastOrder, dueNow,
       className: "btn btn-ghost",
     });
     actions.push({
-      label: requestLabel,
-      action: "draft-follow-up-request",
+      label: createRequestLabel,
+      action: "create-follow-up-request",
       className: "btn btn-ghost",
     });
   }
@@ -790,6 +793,32 @@ async function renderPlanDetail(planIdValue) {
                 customer?.approval_notes,
               ].find((value) => String(value || "").trim()) || "",
               message: "Follow-up request draft opened from the recurring plan.",
+            },
+          });
+        }
+      }
+      if (action === "create-follow-up-request" && customer) {
+        const customerApi = window.PROOFLINK_OPERATOR_CUSTOMER_DETAIL || {};
+        if (typeof customerApi.openCustomerRetentionAction === "function") {
+          customerApi.openCustomerRetentionAction("create-request", customer, workspaceBlueprint, {
+            requestOptions: {
+              title: `${customer.name || "Customer"} follow-up request`,
+              summary: [
+                plan?.summary,
+                customer?.follow_up_notes,
+                customer?.recurring_notes,
+              ].find((value) => String(value || "").trim()) || "",
+              notes: [
+                plan?.notes,
+                customer?.maintenance_notes,
+                customer?.restoration_notes,
+                customer?.approval_notes,
+              ].find((value) => String(value || "").trim()) || "",
+              message: "Follow-up request created from the recurring plan.",
+              successMessage: "Follow-up request created from the recurring plan.",
+              pendingMessage: "Creating follow-up request from the recurring plan...",
+              sourceRecordType: "plan",
+              sourceRecordId: plan.id || "",
             },
           });
         }

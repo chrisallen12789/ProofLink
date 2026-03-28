@@ -23,6 +23,10 @@ const COMPLIANCE_ALERT_SEVERITY = {
   manifest_facility_missing: "warning",
   manifest_ticket_missing: "warning",
   manifest_quantity_missing: "warning",
+  manifest_bol_missing: "warning",
+  manifest_live_hold_reason_missing: "warning",
+  truck_live_load_open: "warning",
+  truck_cross_contamination_risk: "critical",
   cdl_expired_override: "expired",
   medical_expired_override: "expired",
   cdl_expiry: "expired",
@@ -35,6 +39,10 @@ const COMPLIANCE_ALERT_REFERENCE = {
   manifest_facility_missing: "job",
   manifest_ticket_missing: "job",
   manifest_quantity_missing: "job",
+  manifest_bol_missing: "job",
+  manifest_live_hold_reason_missing: "job",
+  truck_live_load_open: "job",
+  truck_cross_contamination_risk: "job",
   locate_ticket_missing: "job",
   confined_space_permit_missing: "job",
   cdl_expired_override: "job",
@@ -68,6 +76,133 @@ function manifestNeedsCloseout(job) {
   );
 }
 
+function manifestMetadata(manifest) {
+  const metadata = manifest?.metadata;
+  if (metadata && typeof metadata === "object" && !Array.isArray(metadata)) return metadata;
+  return {};
+}
+
+function manifestMarkedLive(manifest) {
+  const metadata = manifestMetadata(manifest);
+  if (metadata.load_still_in_truck === true) return true;
+  return String(metadata.load_state || "").trim().toLowerCase() === "live_in_truck";
+}
+
+function manifestBolNumber(manifest) {
+  const metadata = manifestMetadata(manifest);
+  return String(metadata.bol_number || metadata.bill_of_lading_number || "").trim();
+}
+
+function manifestLiveHoldReason(manifest) {
+  const metadata = manifestMetadata(manifest);
+  return String(metadata.live_load_hold_reason || metadata.hold_reason || "").trim();
+}
+
+function manifestLiveLoadIssues(manifest) {
+  if (!manifestMarkedLive(manifest)) return [];
+  const number = manifest?.manifest_number || manifest?.id || "load";
+  const issues = [];
+  if (!manifestLiveHoldReason(manifest)) {
+    issues.push({
+      code: "manifest_live_hold_reason_missing",
+      message: `Document why manifest ${number} is still live in the truck before closing out this job.`,
+    });
+  }
+  if (!String(manifest?.truck_id || "").trim()) {
+    issues.push({
+      code: "manifest_live_hold_reason_missing",
+      message: `Attach the truck carrying manifest ${number} before closing out this job.`,
+    });
+  }
+  return issues;
+}
+
+function manifestCloseoutIssuesForRows(manifests = [], job) {
+  const rows = Array.isArray(manifests) ? manifests : [];
+  const issues = [];
+
+  if (!rows.length && manifestNeedsCloseout(job)) {
+    issues.push({
+      code: "manifest_missing",
+      message: "Log the hauled load before closing out this hydrovac job.",
+    });
+    return issues;
+  }
+
+  for (const manifest of rows) {
+    const number = manifest.manifest_number || manifest.id;
+    const liveLoadIssues = manifestLiveLoadIssues(manifest);
+    if (liveLoadIssues.length) {
+      issues.push(...liveLoadIssues);
+      continue;
+    }
+    if (manifestMarkedLive(manifest)) {
+      if (!manifestBolNumber(manifest)) {
+        issues.push({
+          code: "manifest_bol_missing",
+          message: `Add the bill of lading or reference number for manifest ${number} before closeout or audit handoff.`,
+        });
+      }
+      continue;
+    }
+    if (String(manifest.status || "").toLowerCase() !== "confirmed") {
+      issues.push({
+        code: "manifest_unconfirmed",
+        message: `Confirm manifest ${number} before closing out the job.`,
+      });
+    }
+    if (!String(manifest.disposal_facility_id || manifest.disposal_facility_name || "").trim()) {
+      issues.push({
+        code: "manifest_facility_missing",
+        message: `Add the disposal facility for manifest ${number} before closing out the job.`,
+      });
+    }
+    if (!String(manifest.disposal_ticket_number || "").trim()) {
+      issues.push({
+        code: "manifest_ticket_missing",
+        message: `Add the disposal ticket number for manifest ${number} before closing out the job.`,
+      });
+    }
+    if (manifest.quantity_actual == null && manifest.quantity_estimated == null) {
+      issues.push({
+        code: "manifest_quantity_missing",
+        message: `Add the hauled quantity for manifest ${number} before closing out the job.`,
+      });
+    }
+    if (!manifestBolNumber(manifest)) {
+      issues.push({
+        code: "manifest_bol_missing",
+        message: `Add the bill of lading or reference number for manifest ${number} before closeout or audit handoff.`,
+      });
+    }
+  }
+
+  return issues;
+}
+
+function truckLoadIssuesForRows(loads = [], job = {}) {
+  const rows = Array.isArray(loads) ? loads : [];
+  const issues = [];
+  const jobCustomerId = String(job?.customer_id || "").trim();
+  for (const manifest of rows) {
+    if (String(manifest?.job_id || "") === String(job?.id || "")) continue;
+    const number = manifest?.manifest_number || manifest?.id || "load";
+    const sameCustomer = jobCustomerId && String(manifest?.customer_id || "").trim() === jobCustomerId;
+    if (!sameCustomer) {
+      issues.push({
+        code: "truck_cross_contamination_risk",
+        message: `Truck still carries manifest ${number} from another account. Dispose or clear that live load before this job starts to avoid cross contamination.`,
+      });
+      continue;
+    }
+    issues.push({
+      code: "truck_live_load_open",
+      message: `Truck still carries manifest ${number}. Decide whether that live load stays with this work or needs disposal before start.`,
+    });
+  }
+  return issues;
+}
+
 async function activeLocateTicketExists(adminSb, tenantId, jobId) {
   const { data, error } = await adminSb
     .from("utility_locate_tickets")
@@ -99,7 +234,7 @@ async function activePermitExists(adminSb, tenantId, jobId) {
 async function collectManifestCloseoutIssues(adminSb, tenantId, job) {
   const { data, error } = await adminSb
     .from("waste_manifests")
-    .select("id, manifest_number, status, disposal_facility_id, disposal_facility_name, disposal_ticket_number, quantity_actual, quantity_estimated")
+    .select("id, manifest_number, status, truck_id, disposal_facility_id, disposal_facility_name, disposal_ticket_number, quantity_actual, quantity_estimated, metadata")
     .eq("tenant_id", tenantId)
     .eq("job_id", job.id)
     .neq("status", "void");
@@ -107,45 +242,22 @@ async function collectManifestCloseoutIssues(adminSb, tenantId, job) {
   if (error) throw error;
 
   const manifests = Array.isArray(data) ? data : [];
-  const issues = [];
+  return manifestCloseoutIssuesForRows(manifests, job);
+}
 
-  if (!manifests.length && manifestNeedsCloseout(job)) {
-    issues.push({
-      code: "manifest_missing",
-      message: "Log the hauled load before closing out this hydrovac job.",
-    });
-    return issues;
-  }
+async function collectActiveTruckLoadIssues(adminSb, tenantId, job) {
+  const truckId = String(job?.assigned_truck_id || "").trim();
+  if (!truckId) return [];
+  const { data, error } = await adminSb
+    .from("waste_manifests")
+    .select("id, job_id, customer_id, truck_id, manifest_number, status, material_type, metadata")
+    .eq("tenant_id", tenantId)
+    .eq("truck_id", truckId)
+    .neq("status", "void")
+    .in("status", ["in_transit", "delivered"]);
 
-  for (const manifest of manifests) {
-    const number = manifest.manifest_number || manifest.id;
-    if (String(manifest.status || "").toLowerCase() !== "confirmed") {
-      issues.push({
-        code: "manifest_unconfirmed",
-        message: `Confirm manifest ${number} before closing out the job.`,
-      });
-    }
-    if (!String(manifest.disposal_facility_id || manifest.disposal_facility_name || "").trim()) {
-      issues.push({
-        code: "manifest_facility_missing",
-        message: `Add the disposal facility for manifest ${number} before closing out the job.`,
-      });
-    }
-    if (!String(manifest.disposal_ticket_number || "").trim()) {
-      issues.push({
-        code: "manifest_ticket_missing",
-        message: `Add the disposal ticket number for manifest ${number} before closing out the job.`,
-      });
-    }
-    if (manifest.quantity_actual == null && manifest.quantity_estimated == null) {
-      issues.push({
-        code: "manifest_quantity_missing",
-        message: `Add the hauled quantity for manifest ${number} before closing out the job.`,
-      });
-    }
-  }
-
-  return issues;
+  if (error) throw error;
+  return truckLoadIssuesForRows(Array.isArray(data) ? data : [], job);
 }
 
 async function collectHydrovacLifecycleIssues({ adminSb, tenantId, hydrovacSettings, job, targetStatus }) {
@@ -153,6 +265,9 @@ async function collectHydrovacLifecycleIssues({ adminSb, tenantId, hydrovacSetti
   const issues = [];
 
   if (status === "in_progress") {
+    const truckLoadIssues = await collectActiveTruckLoadIssues(adminSb, tenantId, job);
+    issues.push(...truckLoadIssues);
+
     if (jobRequiresLocateTicket(job, hydrovacSettings)) {
       const hasLocate = await activeLocateTicketExists(adminSb, tenantId, job.id);
       if (!hasLocate) {
@@ -280,10 +395,15 @@ module.exports = {
   complianceAlertReferenceType,
   complianceAlertSeverity,
   collectHydrovacLifecycleIssues,
+  manifestBolNumber,
+  manifestCloseoutIssuesForRows,
+  manifestLiveLoadIssues,
+  manifestMarkedLive,
   hydrovacJobType,
   jobRequiresConfinedSpacePermit,
   jobRequiresLocateTicket,
   logComplianceAlerts,
   manifestConfirmationIssues,
   resolveComplianceAlerts,
+  truckLoadIssuesForRows,
 };

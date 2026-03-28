@@ -2,7 +2,74 @@
 
 const { respond } = require('./utils/auth');
 const { asBoolean, asNumber, clean, parseJsonBody, requireHydrovacOperatorContext, daysUntil } = require('./utils/hydrovac');
-const { jobRequiresLocateTicket, logComplianceAlerts, resolveComplianceAlerts } = require('./lib/hydrovac-compliance');
+const {
+  jobRequiresLocateTicket,
+  logComplianceAlerts,
+  manifestBolNumber,
+  manifestLiveHoldReason,
+  manifestMarkedLive,
+  resolveComplianceAlerts,
+  truckLoadIssuesForRows,
+} = require('./lib/hydrovac-compliance');
+
+function manifestReadyBy(manifest) {
+  const metadata = manifest?.metadata && typeof manifest.metadata === 'object' && !Array.isArray(manifest.metadata)
+    ? manifest.metadata
+    : {};
+  return clean(metadata.disposal_ready_by);
+}
+
+function truckDispatchPlanner(loads = [], job = {}, dispatchDate = '') {
+  const liveLoads = (Array.isArray(loads) ? loads : []).filter((manifest) => manifestMarkedLive(manifest));
+  const carryoverLoads = liveLoads.filter((manifest) => String(manifest?.job_id || '') !== String(job?.id || ''));
+  const warnings = [];
+  const blockingIssues = [];
+  const riskIssues = truckLoadIssuesForRows(carryoverLoads, job);
+
+  riskIssues.forEach((issue) => {
+    if (issue.code === 'truck_cross_contamination_risk') {
+      blockingIssues.push(issue);
+      return;
+    }
+    warnings.push({
+      type: issue.code,
+      message: issue.message,
+    });
+  });
+
+  carryoverLoads.forEach((manifest) => {
+    const number = manifest?.manifest_number || manifest?.id || 'load';
+    if (!manifestBolNumber(manifest)) {
+      blockingIssues.push({
+        code: 'manifest_bol_missing',
+        message: `Dispatch is blocked until manifest ${number} has a bill of lading or reference number attached.`,
+      });
+    }
+    if (!manifestLiveHoldReason(manifest)) {
+      blockingIssues.push({
+        code: 'manifest_live_hold_reason_missing',
+        message: `Dispatch is blocked until manifest ${number} explains why the load is still live in the truck.`,
+      });
+    }
+    const readyBy = manifestReadyBy(manifest);
+    if (!readyBy || !dispatchDate) return;
+    if (readyBy < dispatchDate) {
+      warnings.push({
+        type: 'truck_disposal_overdue',
+        message: `Manifest ${number} should have been handled before ${dispatchDate}. Clear that load before it becomes tomorrow's bottleneck too.`,
+      });
+      return;
+    }
+    if (readyBy === dispatchDate) {
+      warnings.push({
+        type: 'truck_disposal_due_today',
+        message: `Manifest ${number} is already marked ready for disposal today. Plan the dump run before this truck stalls later in the shift.`,
+      });
+    }
+  });
+
+  return { liveLoads, carryoverLoads, warnings, blockingIssues };
+}
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return respond(200, {});
@@ -191,6 +258,34 @@ exports.handler = async (event) => {
     }
   }
 
+  const { data: truckLoads, error: truckLoadsError } = await adminSb
+    .from('waste_manifests')
+    .select('id, job_id, customer_id, truck_id, manifest_number, status, metadata')
+    .eq('tenant_id', tenantId)
+    .eq('truck_id', assignedTruckId)
+    .neq('status', 'void')
+    .in('status', ['in_transit', 'delivered']);
+
+  if (truckLoadsError) return respond(500, { error: truckLoadsError.message });
+
+  const truckPlanner = truckDispatchPlanner(Array.isArray(truckLoads) ? truckLoads : [], job, dispatchDate);
+  if (truckPlanner.blockingIssues.length) {
+    await logComplianceAlerts(adminSb, tenantId, truckPlanner.blockingIssues, {
+      referenceType: 'job',
+      referenceId: jobId,
+      actorLabel: ctx.email || 'operator',
+    });
+    return respond(409, {
+      error: truckPlanner.blockingIssues[0].message,
+      code: truckPlanner.blockingIssues[0].code,
+      warnings: truckPlanner.warnings,
+    });
+  }
+
+  if (truckPlanner.warnings.length) {
+    warnings.push(...truckPlanner.warnings);
+  }
+
   for (const field of ['next_dot_inspection_due', 'next_annual_inspection_due', 'next_tank_inspection_due', 'insurance_expiry_date', 'registration_expiry_date']) {
     const remaining = daysUntil(truck[field]);
     if (remaining != null && remaining >= 0 && remaining <= 30) {
@@ -231,6 +326,9 @@ exports.handler = async (event) => {
       'locate_ticket_missing',
       'cdl_expiry',
       'medical_certificate_expiry',
+      'truck_cross_contamination_risk',
+      'manifest_bol_missing',
+      'manifest_live_hold_reason_missing',
     ],
   });
 

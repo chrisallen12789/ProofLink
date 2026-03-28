@@ -154,6 +154,13 @@ describe("operator money workspace", () => {
   test("buildMoneyCollectionNextStep adds a reactivation move when repeat work has no next touch", () => {
     const context = loadMoneyWorkspace({
       window: {
+        PROOFLINK_OPERATOR_CUSTOMER_DETAIL: {
+          customerRetentionWorkflowActions: vi.fn(() => [
+            { label: "Generate next booked work", action: "generate-next-order", className: "btn btn-primary btn-sm" },
+            { label: "Create cleaning follow-up request", action: "create-request", className: "btn btn-ghost btn-sm" },
+            { label: "Open customer", action: "open-reactivation-customer", className: "btn btn-ghost btn-sm" },
+          ]),
+        },
         PROOFLINK_OPERATOR_BOOKINGS_WORKSPACE: {
           bookingDraftTimingInsight: vi.fn(() => ({
             reason: "This account usually runs about every 14 days and is roughly 9 days past that rhythm.",
@@ -179,8 +186,8 @@ describe("operator money workspace", () => {
     expect(nextStep.items.some((item) => item.includes("Reactivation move: put Sparkle Suites back onto the calendar"))).toBe(true);
     expect(nextStep.items.some((item) => item.includes("Why now: This account usually runs about every 14 days"))).toBe(true);
     expect(nextStep.actions.map((action) => action.label)).toEqual([
-      "Schedule next cleaning visit",
-      "Draft cleaning follow-up request",
+      "Generate next booked work",
+      "Create cleaning follow-up request",
       "Open customer",
     ]);
   });

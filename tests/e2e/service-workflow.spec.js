@@ -470,7 +470,7 @@ test.describe.serial("service workflow e2e", () => {
     await expect(page.locator("#portalContent")).not.toHaveClass(/hidden/, { timeout: 15000 });
     await expect(page.getByText("Payment summary")).toBeVisible({ timeout: 15000 });
     await expect(page.locator(".orders-summary-title")).toHaveText("A balance is still open.");
-    await expect(page.getByText("Next best step:")).toContainText(orderLabel);
+    await expect(page.locator(".orders-summary-next")).toContainText("pay any amount still due");
     await expect(page.locator(`.order-row[data-order-id="${state.orderId}"]`)).toContainText("Partially paid");
     await expect(page.locator(`.order-row[data-order-id="${state.orderId}"]`)).toContainText("$200.00");
     await expect(page.locator(`.order-row[data-order-id="${state.orderId}"]`)).toContainText("Once the remaining balance is paid, this order will show as fully closed here automatically.");

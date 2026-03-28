@@ -108,4 +108,78 @@ describe("operator dispatch workspace", () => {
     expect(btnRefreshDispatchBoard.addEventListener).toHaveBeenCalledTimes(1);
     expect(dispatchDate.addEventListener).toHaveBeenCalledTimes(1);
   });
+
+  test("dispatchTruckPlanner blocks cross-customer live loads and flags disposal timing", () => {
+    const { context } = loadDispatchWorkspace();
+
+    context.setDispatchTruckLoadState("truck_7", {
+      rows: [{
+        id: "manifest_a",
+        job_id: "job_old",
+        customer_id: "cust_old",
+        quantity_actual: 1200,
+        metadata: {
+          load_state: "live_in_truck",
+          bol_number: "BOL-7",
+          live_load_hold_reason: "Truck still filling",
+          disposal_ready_by: "2026-03-27",
+        },
+      }],
+      loading: false,
+      error: "",
+      loadedAt: Date.now(),
+    });
+
+    const planner = context.dispatchTruckPlanner(
+      { id: "truck_7", debris_tank_capacity_gallons: 2000 },
+      { id: "job_new", customer_id: "cust_new" },
+      "2026-03-28"
+    );
+
+    expect(planner.crossCustomerLoads).toHaveLength(1);
+    expect(planner.overdueLoads).toHaveLength(1);
+    expect(planner.warnings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ label: "Cross-contamination risk", blocking: true }),
+        expect.objectContaining({ label: "Disposal overdue", blocking: false }),
+      ])
+    );
+  });
+
+  test("dispatchTruckAuditPacket summarizes lifecycle, BOL, and hold reason", () => {
+    const { context } = loadDispatchWorkspace({
+      JOBS_CACHE: [{ id: "job_1", title: "Hydrovac trench" }],
+      CUSTOMERS_CACHE: [{ id: "cust_1", name: "North Utility" }],
+    });
+
+    const packet = context.dispatchTruckAuditPacket(
+      { id: "truck_1", unit_number: "HX-12", debris_tank_capacity_gallons: 2000 },
+      {
+        rows: [{
+          id: "manifest_1",
+          job_id: "job_1",
+          customer_id: "cust_1",
+          quantity_actual: 1200,
+          status: "delivered",
+          metadata: {
+            load_state: "live_in_truck",
+            bol_number: "BOL-12",
+            live_load_hold_reason: "Waiting on compatible second load",
+            disposal_ready_by: "2026-03-29",
+          },
+        }],
+        liveLoads: [{}],
+        carryoverLoads: [{}],
+        gallons: 1200,
+        capacityGallons: 2000,
+      },
+      [{ id: "job_1", title: "Hydrovac trench" }],
+      [{ id: "cust_1", name: "North Utility" }]
+    );
+
+    expect(packet).toContain("Truck: HX-12");
+    expect(packet).toContain("Lifecycle: Live in truck");
+    expect(packet).toContain("BOL: BOL-12");
+    expect(packet).toContain("Hold reason: Waiting on compatible second load");
+  });
 });

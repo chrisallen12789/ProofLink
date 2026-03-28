@@ -353,12 +353,28 @@ function renderDashboard() {
     reactivationTarget,
   });
   const customerApi = window.PROOFLINK_OPERATOR_CUSTOMER_DETAIL || {};
-  const reactivationScheduleLabel = reactivationTarget?.customer && typeof customerApi.customerScheduleActionLabel === "function"
-    ? customerApi.customerScheduleActionLabel(blueprint)
-    : "Schedule next visit";
-  const reactivationRequestLabel = reactivationTarget?.customer && typeof customerApi.customerRequestActionLabel === "function"
-    ? customerApi.customerRequestActionLabel(blueprint)
-    : "Draft follow-up request";
+  const reactivationActions = reactivationTarget?.customer
+    ? (typeof customerApi.customerRetentionWorkflowActions === "function"
+        ? customerApi.customerRetentionWorkflowActions({
+            customer: reactivationTarget.customer,
+            blueprint,
+            includeGenerateWork: true,
+            includeSchedule: true,
+            includeRequest: true,
+            requestAction: "create-request",
+            requestLabel: typeof customerApi.customerCreateRequestActionLabel === "function"
+              ? customerApi.customerCreateRequestActionLabel(blueprint)
+              : undefined,
+            includeOpenCustomer: true,
+            primaryClassName: "btn btn-primary btn-sm",
+            secondaryClassName: "btn btn-ghost btn-sm",
+          })
+        : [
+            { label: typeof customerApi.customerScheduleActionLabel === "function" ? customerApi.customerScheduleActionLabel(blueprint) : "Schedule next visit", action: "reactivate-repeat", className: "btn btn-primary btn-sm" },
+            { label: typeof customerApi.customerCreateRequestActionLabel === "function" ? customerApi.customerCreateRequestActionLabel(blueprint) : "Create follow-up request", action: "create-request", className: "btn btn-ghost btn-sm" },
+            { label: "Open customer", action: "open-reactivation-customer", className: "btn btn-ghost btn-sm" },
+          ])
+    : [];
   const orderLabel = workspaceOrderLabelLower(blueprint);
   const catalogLabel = workspaceCatalogLabelLower(blueprint);
   const hydrovacToday = isHydrovacWorkspace(blueprint) ? hydrovacDashboardSnapshot() : null;
@@ -518,9 +534,7 @@ function renderDashboard() {
           ${reactivationTarget ? `
             <div class="detail-copy dashboard-focus-copy"><strong>${escapeHtml(reactivationTarget.customer?.name || reactivationTarget.customer?.email || "Repeat customer")}</strong> ${escapeHtml(reactivationTarget.note)}</div>
             <div class="action-row action-row--wrap u-mt-10">
-              <button type="button" class="btn btn-primary btn-sm" data-dashboard-action="reactivate-repeat">${escapeHtml(reactivationScheduleLabel)}</button>
-              <button type="button" class="btn btn-ghost btn-sm" data-dashboard-action="draft-reactivation-request">${escapeHtml(reactivationRequestLabel)}</button>
-              <button type="button" class="btn btn-ghost btn-sm" data-dashboard-action="open-reactivation-customer">Open customer</button>
+              ${reactivationActions.map((action) => `<button type="button" class="${escapeAttr(action.className || "btn btn-ghost btn-sm")}" data-dashboard-action="${escapeAttr(action.action || "")}">${escapeHtml(action.label || "Take action")}</button>`).join("")}
             </div>
           ` : ""}
         </div>
@@ -956,12 +970,12 @@ function renderDashboard() {
         switchTab("plans");
         return;
       }
-      if (action === "reactivate-repeat") {
+      if (action === "reactivate-repeat" || action === "generate-next-order") {
         const target = priorityReactivationCustomer({ customers: CUSTOMERS_CACHE, blueprint: currentWorkspaceBlueprint() });
         if (!target?.customer) return;
         const customerApi = window.PROOFLINK_OPERATOR_CUSTOMER_DETAIL || {};
         if (typeof customerApi.openCustomerRetentionAction === "function") {
-          customerApi.openCustomerRetentionAction("reactivate-repeat", target.customer, currentWorkspaceBlueprint());
+          customerApi.openCustomerRetentionAction(action, target.customer, currentWorkspaceBlueprint());
         } else {
           const bookingsApi = window.PROOFLINK_OPERATOR_BOOKINGS_WORKSPACE || {};
           if (typeof bookingsApi.openBookingDraftForCustomer === "function") {
@@ -972,14 +986,18 @@ function renderDashboard() {
         }
         return;
       }
-      if (action === "draft-reactivation-request") {
+      if (action === "request" || action === "create-request") {
         const target = priorityReactivationCustomer({ customers: CUSTOMERS_CACHE, blueprint: currentWorkspaceBlueprint() });
         if (!target?.customer) return;
         const customerApi = window.PROOFLINK_OPERATOR_CUSTOMER_DETAIL || {};
         if (typeof customerApi.openCustomerRetentionAction === "function") {
-          customerApi.openCustomerRetentionAction("request", target.customer, currentWorkspaceBlueprint(), {
+          customerApi.openCustomerRetentionAction(action === "create-request" ? "create-request" : "request", target.customer, currentWorkspaceBlueprint(), {
             requestOptions: {
-              message: "Follow-up request draft opened from Today.",
+              message: action === "create-request" ? "Follow-up request created from Today." : "Follow-up request draft opened from Today.",
+              successMessage: "Follow-up request created from Today.",
+              pendingMessage: "Creating follow-up request from Today...",
+              sourceRecordType: "dashboard",
+              sourceRecordId: target.customer.id || "",
             },
           });
         }

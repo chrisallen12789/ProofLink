@@ -4,6 +4,16 @@ const path = require("path");
 
 describe("netlify/functions/order", () => {
   const handlerPath = path.resolve(process.cwd(), "netlify/functions/order.js");
+  const rateLimitModulePath = require.resolve(
+    path.resolve(process.cwd(), "netlify/functions/utils/rate-limit.js")
+  );
+  const checkRateLimitMock = vi.fn(() => ({ allowed: true }));
+  const rateLimitResponseMock = vi.fn((retryAfterMs) => ({
+    statusCode: 429,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ok: false, error: "Too many requests", retryAfterMs }),
+  }));
+  const getClientIPMock = vi.fn(() => "127.0.0.1");
 
   beforeEach(() => {
     vi.resetModules();
@@ -18,6 +28,14 @@ describe("netlify/functions/order", () => {
     process.env.ALLOW_LOCAL_TURNSTILE_BYPASS = "";
     process.env.ALLOW_LOCAL_EMAIL_SKIP = "";
     process.env.RESEND_API_KEY = "resend_pltest";
+    checkRateLimitMock.mockClear();
+    rateLimitResponseMock.mockClear();
+    getClientIPMock.mockClear();
+    delete require.cache[rateLimitModulePath];
+    const rateLimitModule = require(rateLimitModulePath);
+    rateLimitModule.checkRateLimit = checkRateLimitMock;
+    rateLimitModule.rateLimitResponse = rateLimitResponseMock;
+    rateLimitModule.getClientIP = getClientIPMock;
   });
 
   afterEach(() => {
@@ -26,6 +44,11 @@ describe("netlify/functions/order", () => {
 
   async function loadHandler() {
     delete require.cache[handlerPath];
+    delete require.cache[rateLimitModulePath];
+    const rateLimitModule = require(rateLimitModulePath);
+    rateLimitModule.checkRateLimit = checkRateLimitMock;
+    rateLimitModule.rateLimitResponse = rateLimitResponseMock;
+    rateLimitModule.getClientIP = getClientIPMock;
     return require(handlerPath).handler;
   }
 

@@ -84,6 +84,7 @@ describe("operator orders workspace", () => {
     expect(source).toContain("orderRetentionItems");
     expect(source).toContain("orderRetentionActions");
     expect(source).toContain("data-order-retention-action");
+    expect(source).toContain("generate-next-order");
     expect(source).toContain("requestOrderReview(active.id");
     expect(source).toContain("Keep the trade details attached to the booked work");
     expect(source).toContain("Prep before field handoff");
@@ -243,7 +244,7 @@ describe("operator orders workspace", () => {
 
     expect(actions).toEqual([
       { label: "Schedule next cleaning visit", action: "reactivate-repeat", className: "btn btn-primary btn-sm" },
-      { label: "Draft cleaning follow-up request", action: "request", className: "btn btn-ghost btn-sm" },
+      { label: "Create cleaning follow-up request", action: "create-request", className: "btn btn-ghost btn-sm" },
       { label: "Open customer", action: "open-reactivation-customer", className: "btn btn-ghost btn-sm" },
     ]);
   });

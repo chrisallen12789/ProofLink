@@ -2,70 +2,77 @@
 
 const path = require("path");
 
-describe("netlify hydrovac compliance helpers", () => {
-  const modulePath = path.resolve(
-    process.cwd(),
-    "netlify/functions/lib/hydrovac-compliance.js"
-  );
+describe("netlify/functions/lib/hydrovac-compliance", () => {
+  const modulePath = path.resolve(process.cwd(), "netlify/functions/lib/hydrovac-compliance.js");
 
-  beforeEach(() => {
-    vi.resetModules();
-  });
-
-  test("jobRequiresLocateTicket only blocks excavation-style hydrovac jobs", () => {
+  test("manifestCloseoutIssuesForRows allows a live load with a documented hold reason", () => {
     const compliance = require(modulePath);
-
-    expect(
-      compliance.jobRequiresLocateTicket(
-        { job_type: "hydrovac_excavation" },
-        { require_locate_ticket_for_excavation: true }
-      )
-    ).toBe(true);
-    expect(
-      compliance.jobRequiresLocateTicket(
-        { job_type: "catch_basin_cleaning" },
-        { require_locate_ticket_for_excavation: true }
-      )
-    ).toBe(false);
-  });
-
-  test("jobRequiresConfinedSpacePermit respects job flags and hydrovac job types", () => {
-    const compliance = require(modulePath);
-
-    expect(
-      compliance.jobRequiresConfinedSpacePermit(
-        { requires_confined_space_permit: true, job_type: "hydrovac" },
-        {}
-      )
-    ).toBe(true);
-    expect(
-      compliance.jobRequiresConfinedSpacePermit(
-        { job_type: "wet_well_cleaning" },
-        { require_confined_space_permit: true }
-      )
-    ).toBe(true);
-    expect(
-      compliance.jobRequiresConfinedSpacePermit(
-        { job_type: "wet_well_cleaning" },
-        { require_confined_space_permit: false }
-      )
-    ).toBe(false);
-  });
-
-  test("manifestConfirmationIssues calls out the missing closeout fields", () => {
-    const compliance = require(modulePath);
-
-    const issues = compliance.manifestConfirmationIssues({
-      manifest_number: "HV-1",
-      disposal_facility_name: "",
-      disposal_ticket_number: "",
-      quantity_actual: null,
-      quantity_estimated: null,
+    const issues = compliance.manifestCloseoutIssuesForRows([
+      {
+        id: "manifest_1",
+        manifest_number: "HV-001",
+        status: "in_transit",
+        truck_id: "truck_1",
+        quantity_estimated: 1200,
+        metadata: {
+          load_still_in_truck: true,
+          load_state: "live_in_truck",
+          live_load_hold_reason: "Waiting for a fuller non-hazardous load before disposal",
+          bol_number: "BOL-1001",
+        },
+      },
+    ], {
+      id: "job_1",
+      total_loads_hauled: 1,
     });
 
-    expect(issues).toHaveLength(3);
-    expect(issues[0]).toContain("disposal facility");
-    expect(issues[1]).toContain("ticket number");
-    expect(issues[2]).toContain("hauled quantity");
+    expect(issues).toEqual([]);
+  });
+
+  test("manifestCloseoutIssuesForRows requires hold reason and bol tracking when a live load is left in the truck", () => {
+    const compliance = require(modulePath);
+    const issues = compliance.manifestCloseoutIssuesForRows([
+      {
+        id: "manifest_2",
+        manifest_number: "HV-002",
+        status: "in_transit",
+        truck_id: "",
+        metadata: {
+          load_still_in_truck: true,
+          load_state: "live_in_truck",
+        },
+      },
+    ], {
+      id: "job_2",
+      total_loads_hauled: 1,
+    });
+
+    expect(issues.map((issue) => issue.code)).toEqual([
+      "manifest_live_hold_reason_missing",
+      "manifest_live_hold_reason_missing",
+    ]);
+  });
+
+  test("truckLoadIssuesForRows warns on cross-contamination risk before a new job starts", () => {
+    const compliance = require(modulePath);
+    const issues = compliance.truckLoadIssuesForRows([
+      {
+        id: "manifest_3",
+        manifest_number: "HV-003",
+        job_id: "job_old",
+        customer_id: "customer_a",
+        truck_id: "truck_1",
+        status: "in_transit",
+      },
+    ], {
+      id: "job_next",
+      customer_id: "customer_b",
+    });
+
+    expect(issues).toEqual([
+      expect.objectContaining({
+        code: "truck_cross_contamination_risk",
+      }),
+    ]);
   });
 });

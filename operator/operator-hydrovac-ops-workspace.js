@@ -33,6 +33,68 @@ function currentHydrovacManifest() {
 function currentHydrovacLocate() {
   return HYDROVAC_LOCATE_TICKETS_CACHE.find((row) => row.id === ACTIVE_LOCATE_ID) || null;
 }
+function hydrovacManifestMeta(row) {
+  return row?.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata)
+    ? row.metadata
+    : {};
+}
+function hydrovacManifestBolNumber(row) {
+  const metadata = hydrovacManifestMeta(row);
+  return String(metadata.bol_number || metadata.bill_of_lading_number || "").trim();
+}
+function hydrovacManifestIsLive(row) {
+  const metadata = hydrovacManifestMeta(row);
+  if (metadata.load_still_in_truck === true) return true;
+  return String(metadata.load_state || "").trim().toLowerCase() === "live_in_truck";
+}
+function hydrovacManifestHoldReason(row) {
+  const metadata = hydrovacManifestMeta(row);
+  return String(metadata.live_load_hold_reason || metadata.hold_reason || "").trim();
+}
+function hydrovacManifestReadyBy(row) {
+  const metadata = hydrovacManifestMeta(row);
+  return String(metadata.disposal_ready_by || "").trim();
+}
+function hydrovacManifestCustomerRecordsDraft(row, job = null, order = null, customer = null) {
+  return {
+    subject: `${job?.title || "Hydrovac work"} load record`,
+    body: [
+      `Hi ${customer?.name || order?.customer_name || "there"},`,
+      "",
+      `For your records, here is the load and disposal summary tied to ${job?.title || "your hydrovac work"}.`,
+      "",
+      `Manifest / load reference: ${row?.manifest_number || row?.id || "Pending"}`,
+      `BOL / load reference: ${hydrovacManifestBolNumber(row) || "Pending"}`,
+      `Material: ${hydrovacMaterialLabel(row?.material_type)}`,
+      `Quantity: ${hydrovacManifestQuantityLabel(row)}`,
+      hydrovacManifestIsLive(row)
+        ? `Load status: Still live in the truck${hydrovacManifestReadyBy(row) ? ` until ${hydrovacManifestReadyBy(row)}` : ""}.`
+        : `Load status: ${titleCaseWords(String(row?.status || "in_transit").replace(/_/g, " "))}.`,
+      row?.disposal_facility_name ? `Disposal facility: ${row.disposal_facility_name}` : "Disposal facility: Pending",
+      row?.disposal_ticket_number ? `Facility ticket: ${row.disposal_ticket_number}` : "Facility ticket: Pending",
+      "",
+      "If you need the signed record package, just reply and we will send it over.",
+    ].join("\n"),
+  };
+}
+function hydrovacManifestAuditSummary(row, job = null, order = null, customer = null) {
+  return [
+    `Manifest: ${row?.manifest_number || row?.id || "Pending"}`,
+    `Customer: ${customer?.name || order?.customer_name || "Unknown"}`,
+    `Job: ${job?.title || "Unlinked job"}`,
+    `Truck: ${row?.truck_id || "Not linked"}`,
+    `Material: ${hydrovacMaterialLabel(row?.material_type)}`,
+    `Quantity: ${hydrovacManifestQuantityLabel(row)}`,
+    `BOL / load reference: ${hydrovacManifestBolNumber(row) || "Pending"}`,
+    `Status: ${titleCaseWords(String(row?.status || "in_transit").replace(/_/g, " "))}`,
+    `Still in truck: ${hydrovacManifestIsLive(row) ? "Yes" : "No"}`,
+    `Hold reason: ${hydrovacManifestHoldReason(row) || "Not documented"}`,
+    `Disposal ready by: ${hydrovacManifestReadyBy(row) || "Not set"}`,
+    `Disposal facility: ${row?.disposal_facility_name || "Pending"}`,
+    `Facility ticket: ${row?.disposal_ticket_number || "Pending"}`,
+    `Notes: ${row?.notes || "None"}`,
+  ].join("\n");
+}
 function currentDriverQualification() {
   return HYDROVAC_DRIVER_COMPLIANCE_CACHE.find((row) => row.member_id === ACTIVE_DRIVER_QUAL_MEMBER_ID) || null;
 }
@@ -450,12 +512,14 @@ function renderHydrovacManifests() {
   if (!hydrovacManifestsList || !hydrovacManifestDetailWrap) return;
   const rows = Array.isArray(HYDROVAC_MANIFESTS_CACHE) ? HYDROVAC_MANIFESTS_CACHE : [];
   const openLoads = rows.filter((row) => ["in_transit", "delivered"].includes(String(row.status || "").toLowerCase())).length;
+  const liveLoads = rows.filter((row) => hydrovacManifestIsLive(row)).length;
   const confirmedUnbilled = rows.filter((row) => String(row.status || "").toLowerCase() === "confirmed" && row.invoiced !== true).length;
   const totalCharge = rows.filter((row) => row.invoiced !== true).reduce((sum, row) => sum + Number(row.disposal_charge_cents || 0), 0);
   const totalCost = rows.reduce((sum, row) => sum + Number(row.disposal_cost_cents || 0), 0);
   if (manifestStageStrip) {
     manifestStageStrip.innerHTML = [
       { eyebrow: "Rolling", value: openLoads, title: "Open loads", copy: "Loads still in transit or waiting to be fully confirmed." },
+      { eyebrow: "Live", value: liveLoads, title: "Still in truck", copy: "Loads intentionally left live in the truck until disposal is worth the run." },
       { eyebrow: "Billing", value: confirmedUnbilled, title: "Confirmed / uninvoiced", copy: "Disposal charges that still need to make it onto the invoice." },
       { eyebrow: "Charge", value: formatUsd(totalCharge), title: "Unbilled charge", copy: "Customer-facing disposal still waiting to be billed." },
       { eyebrow: "Cost", value: formatUsd(totalCost), title: "Tracked disposal cost", copy: "What the dumps have cost the business so far." },
@@ -503,6 +567,7 @@ function renderHydrovacManifests() {
         </div>
         <div class="li-meta">
           <span class="pill ${hydrovacManifestToneClass(row.status)}">${escapeHtml(titleCaseWords(String(row.status || "in_transit").replace(/_/g, " ")))}</span>
+          ${hydrovacManifestIsLive(row) ? `<span class="pill pill-warn">Still in truck</span>` : ""}
           <span class="pill">${escapeHtml(hydrovacManifestQuantityLabel(row) || "Qty pending")}</span>
         </div>
       </button>
@@ -534,6 +599,10 @@ function renderHydrovacManifests() {
         <div><span class="muted">Quantity</span><div>${escapeHtml(hydrovacManifestQuantityLabel(active) || "Pending")}</div></div>
         <div><span class="muted">Facility</span><div>${escapeHtml(active.disposal_facility_name || "Not set")}</div></div>
         <div><span class="muted">Ticket</span><div>${escapeHtml(active.disposal_ticket_number || "Pending")}</div></div>
+        <div><span class="muted">BOL</span><div>${escapeHtml(hydrovacManifestBolNumber(active) || "Pending")}</div></div>
+        <div><span class="muted">Load state</span><div>${escapeHtml(hydrovacManifestIsLive(active) ? "Still in truck" : titleCaseWords(String(active.status || "in_transit").replace(/_/g, " ")))}</div></div>
+        <div><span class="muted">Ready by</span><div>${escapeHtml(hydrovacManifestReadyBy(active) || "Not set")}</div></div>
+        <div><span class="muted">Hold reason</span><div>${escapeHtml(hydrovacManifestHoldReason(active) || "Not documented")}</div></div>
         <div><span class="muted">Charge</span><div>${formatUsd(Number(active.disposal_charge_cents || 0))}</div></div>
         <div><span class="muted">Cost</span><div>${formatUsd(Number(active.disposal_cost_cents || 0))}</div></div>
         <div><span class="muted">Margin</span><div>${formatUsd(marginCents)}</div></div>
@@ -547,6 +616,8 @@ function renderHydrovacManifests() {
         ${linkedOrder ? `<button type="button" class="pipeline-action-chip" data-manifest-open-order="${escapeAttr(linkedOrder.id)}">Open pipeline record</button>` : ""}
         ${linkedJob ? `<button type="button" class="pipeline-action-chip" data-manifest-open-invoice="${escapeAttr(linkedJob.id)}">Open invoice draft</button>` : ""}
         ${["in_transit", "delivered"].includes(String(active.status || "").toLowerCase()) ? `<button type="button" class="pipeline-action-chip" data-manifest-confirm="${escapeAttr(active.id)}">Confirm load</button>` : ""}
+        <button type="button" class="pipeline-action-chip" data-manifest-records="1">Prepare customer records</button>
+        <button type="button" class="pipeline-action-chip" data-manifest-audit="1">Copy audit summary</button>
         ${active.invoiced !== true ? `<button type="button" class="pipeline-action-chip" data-manifest-open-money="1">Open money</button>` : ""}
       </div>
     </div>
@@ -566,6 +637,17 @@ function renderHydrovacManifests() {
   hydrovacManifestDetailWrap.querySelector("[data-manifest-open-invoice]")?.addEventListener("click", (event) => {
     ACTIVE_JOB_ID = event.currentTarget.getAttribute("data-manifest-open-invoice") || null;
     switchTab("payments");
+  });
+  hydrovacManifestDetailWrap.querySelector("[data-manifest-records]")?.addEventListener("click", async () => {
+    const coreUtils = window.PROOFLINK_OPERATOR_UTILS || {};
+    if (typeof coreUtils.showCopyModal !== "function") return;
+    const draft = hydrovacManifestCustomerRecordsDraft(active, linkedJob, linkedOrder, linkedCustomer);
+    await coreUtils.showCopyModal("Prepare this customer-records email, then send it manually when you are ready.", `${draft.subject}\n\n${draft.body}`, "Done");
+  });
+  hydrovacManifestDetailWrap.querySelector("[data-manifest-audit]")?.addEventListener("click", async () => {
+    const coreUtils = window.PROOFLINK_OPERATOR_UTILS || {};
+    if (typeof coreUtils.showCopyModal !== "function") return;
+    await coreUtils.showCopyModal("Copy this audit summary into the packet, email, or binder you keep for compliance records.", hydrovacManifestAuditSummary(active, linkedJob, linkedOrder, linkedCustomer), "Done");
   });
   hydrovacManifestDetailWrap.querySelector("[data-manifest-open-money]")?.addEventListener("click", () => switchTab("payments"));
   hydrovacManifestDetailWrap.querySelector("[data-manifest-confirm]")?.addEventListener("click", async (event) => {
@@ -672,11 +754,23 @@ function renderHydrovacCompliance(expiringTickets = [], unbilledManifests = []) 
   const avgMargin = HYDROVAC_ANALYTICS_CACHE?.avg_job_margin != null
     ? `${Math.round(Number(HYDROVAC_ANALYTICS_CACHE.avg_job_margin || 0) * 100)}%`
     : "N/A";
+  const tomorrowKey = new Date(Date.now() + (24 * 60 * 60 * 1000)).toISOString().slice(0, 10);
+  const upcomingCarryoverJobs = (JOBS_CACHE || []).filter((job) => {
+    if (String(job?.scheduled_date || "") !== tomorrowKey) return false;
+    const truckId = String(job?.assigned_truck_id || "").trim();
+    if (!truckId) return false;
+    return (HYDROVAC_MANIFESTS_CACHE || []).some((manifest) => (
+      String(manifest?.truck_id || "").trim() === truckId
+      && String(manifest?.job_id || "") !== String(job?.id || "")
+      && ["in_transit", "delivered"].includes(String(manifest?.status || "").toLowerCase())
+    ));
+  });
   if (complianceStageStrip) {
     complianceStageStrip.innerHTML = [
       { eyebrow: "Critical", value: criticalCount, title: "Act now", copy: "Items that can stop dispatch, compliance, or billing if ignored." },
       { eyebrow: "Watch", value: warningCount, title: "Expiring soon", copy: "Documents and permits the office should get in front of this month." },
       { eyebrow: "Logged", value: loggedAlerts.length, title: "Audit trail", copy: "Blocked starts, closeout issues, and forced dispatches still waiting on follow-through." },
+      { eyebrow: "Tomorrow", value: upcomingCarryoverJobs.length, title: "Carryover risk", copy: "Tomorrow's jobs that still share a truck with an open load." },
       { eyebrow: "Billing", value: unbilledManifests.length, title: "Uninvoiced disposal", copy: "Confirmed manifests still waiting to make it onto an invoice." },
       { eyebrow: "Margin", value: avgMargin, title: "Average job margin", copy: "Recent hydrovac margin based on tracked costs already in the system." },
     ].map((stage) => `
@@ -758,6 +852,14 @@ function renderHydrovacCompliance(expiringTickets = [], unbilledManifests = []) 
       canResolve: true,
     });
   });
+  upcomingCarryoverJobs.forEach((job) => {
+    urgentItems.push({
+      label: `${job.title || "Hydrovac job"} needs the truck cleared`,
+      sub: "A live load is still assigned to the truck planned for tomorrow.",
+      tone: "pill-warn",
+      actionTab: "jobs",
+    });
+  });
   hydrovacComplianceUrgent.innerHTML = urgentItems.length ? urgentItems.slice(0, 20).map((item) => `
     <div class="list-item">
       <button type="button" class="li-main" data-compliance-tab="${escapeAttr(item.actionTab)}" style="background:none;border:0;padding:0;text-align:left;cursor:pointer;">
@@ -807,6 +909,10 @@ function renderHydrovacCompliance(expiringTickets = [], unbilledManifests = []) 
     <div class="list-item">
       <div class="li-main"><div class="li-title">Open compliance alerts</div><div class="li-sub muted">Issues the office still needs to clear or acknowledge after a block or forced dispatch.</div></div>
       <div class="li-meta"><span class="pill">${escapeHtml(String(loggedAlerts.length))}</span></div>
+    </div>
+    <div class="list-item">
+      <div class="li-main"><div class="li-title">Tomorrow's carryover warnings</div><div class="li-sub muted">Jobs that should not roll without disposal follow-through or a documented live-load plan.</div></div>
+      <div class="li-meta"><span class="pill">${escapeHtml(String(upcomingCarryoverJobs.length))}</span></div>
     </div>
   `;
   renderHydrovacPermitsWorkspace();

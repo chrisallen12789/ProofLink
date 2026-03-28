@@ -100,6 +100,10 @@ function buildJobReadinessSummary(job, order, linkedCustomer, hydrovacState = nu
     const manifestSnapshot = typeof hydrovacJobManifestSnapshot === "function"
       ? hydrovacJobManifestSnapshot(job.id)
       : { openLoads: 0, confirmedUnbilled: 0, manifests };
+    const truckLoads = Array.isArray(hydrovacState?.truckLoads)
+      ? hydrovacState.truckLoads.filter((manifest) => String(manifest?.job_id || "") !== String(job.id || ""))
+      : [];
+    const truckCarryoverWarning = truckLoads[0] || null;
     const now = Date.now();
     const hasValidLocate = tickets.some((ticket) => {
       const status = normalizeWorkflowStatusValue(ticket?.status || "");
@@ -161,6 +165,16 @@ function buildJobReadinessSummary(job, order, linkedCustomer, hydrovacState = nu
         manifestSnapshot.openLoads > 0
           ? `${manifestSnapshot.openLoads} hauled load${manifestSnapshot.openLoads === 1 ? "" : "s"} still need confirmation before closeout.`
           : (manifestIssues[0] || "Manifest details are ready for closeout."),
+      );
+    }
+    if (truckLoads.length) {
+      const sameCustomerTruckLoad = truckLoads.find((manifest) => String(manifest?.customer_id || "") === String(job?.customer_id || order?.customer_id || ""));
+      addItem(
+        "Truck load carryover",
+        false,
+        sameCustomerTruckLoad
+          ? `Truck still carries ${sameCustomerTruckLoad.manifest_number || sameCustomerTruckLoad.id || "a live load"}. Decide whether it stays with this work or needs disposal before start.`
+          : `Truck still carries ${truckCarryoverWarning?.manifest_number || "a live load"} from another account. Clear it before this job starts to avoid cross contamination.`
       );
     }
   }
@@ -430,6 +444,10 @@ function buildJobReactivationActions(job, order, linkedCustomer = null, amountDu
       blueprint,
       includeSchedule: true,
       includeRequest: true,
+      requestAction: "create-request",
+      requestLabel: typeof customerApi.customerCreateRequestActionLabel === "function"
+        ? customerApi.customerCreateRequestActionLabel(blueprint)
+        : undefined,
       includeOpenCustomer: true,
       primaryClassName: "btn btn-primary btn-sm",
       secondaryClassName: "btn btn-ghost btn-sm",
@@ -454,7 +472,7 @@ function buildJobReactivationActions(job, order, linkedCustomer = null, amountDu
   };
   return [
     { label: scheduleLabelMap[businessKey] || "Schedule next visit", action: "reactivate-repeat", className: "btn btn-primary btn-sm" },
-    { label: requestLabelMap[businessKey] || "Draft follow-up request", action: "request", className: "btn btn-ghost btn-sm" },
+    { label: (requestLabelMap[businessKey] || "Create follow-up request").replace(/^Draft\b/, "Create"), action: "create-request", className: "btn btn-ghost btn-sm" },
     { label: "Open customer", action: "open-reactivation-customer", className: "btn btn-ghost btn-sm" },
   ];
 }
@@ -865,6 +883,8 @@ async function renderJobDetail(jobIdValue) {
           const reviewResult = await coreUtils.requestOrderReview(order.id, {
             button,
             setStatus: (message = "", tone = "") => setInlineMessage(msgEl, message, tone),
+            customerName: order.customer_name || linkedCustomer?.name || "there",
+            businessName: typeof bidBrandContext === "function" ? bidBrandContext().tenantName : "our team",
             onSuccess: async (_payload, reviewRequestedAt) => {
               order.review_requested_at = reviewRequestedAt;
               await fetchCrmOrders();
@@ -879,12 +899,16 @@ async function renderJobDetail(jobIdValue) {
         }
         return;
       }
-      if (action === "open-reactivation-customer" || action === "reactivate-repeat" || action === "request") {
+      if (action === "open-reactivation-customer" || action === "reactivate-repeat" || action === "request" || action === "create-request" || action === "generate-next-order") {
         const customerApi = window.PROOFLINK_OPERATOR_CUSTOMER_DETAIL || {};
         if (linkedCustomer && typeof customerApi.openCustomerRetentionAction === "function") {
           customerApi.openCustomerRetentionAction(action, linkedCustomer, blueprint, {
             requestOptions: {
-              message: "Follow-up request draft opened from job closeout.",
+              message: action === "create-request" ? "Follow-up request created from job closeout." : "Follow-up request draft opened from job closeout.",
+              successMessage: "Follow-up request created from job closeout.",
+              pendingMessage: "Creating follow-up request from job closeout...",
+              sourceRecordType: "job",
+              sourceRecordId: job.id || "",
             },
           });
           return;
@@ -996,6 +1020,10 @@ async function renderJobDetail(jobIdValue) {
             departed_site_at: new Date().toISOString(),
             disposal_charge_cents: toCents(jobDetailWrap.querySelector('#jobHydrovacManifestCharge')?.value || 0),
             disposal_cost_cents: toCents(jobDetailWrap.querySelector('#jobHydrovacManifestCost')?.value || 0),
+            bol_number: jobDetailWrap.querySelector('#jobHydrovacManifestBol')?.value || "",
+            disposal_ready_by: jobDetailWrap.querySelector('#jobHydrovacManifestReadyBy')?.value || "",
+            live_load_hold_reason: jobDetailWrap.querySelector('#jobHydrovacManifestHoldReason')?.value || "",
+            load_still_in_truck: jobDetailWrap.querySelector('#jobHydrovacManifestStillLive')?.checked === true,
             notes: jobDetailWrap.querySelector('#jobHydrovacManifestNote')?.value || "",
           },
         });
@@ -1051,6 +1079,33 @@ async function renderJobDetail(jobIdValue) {
         } catch (error) {
           setInlineMessage(jobMsg, error?.message || "Failed to remove draft load.", "error");
         }
+      });
+    });
+    jobDetailWrap.querySelectorAll('[data-hv-customer-records]').forEach((button) => {
+      button.addEventListener("click", async () => {
+        const manifestId = button.getAttribute("data-hv-customer-records") || "";
+        const manifest = (hydrovacState?.manifests || []).find((row) => row.id === manifestId);
+        if (!manifest) return;
+        const coreUtils = window.PROOFLINK_OPERATOR_UTILS || {};
+        if (typeof hydrovacManifestCustomerRecordsDraft !== "function" || typeof coreUtils.showCopyModal !== "function") {
+          setInlineMessage(jobMsg, "Customer-record tools are not ready yet.", "error");
+          return;
+        }
+        const draft = hydrovacManifestCustomerRecordsDraft(manifest, job, order, linkedCustomer);
+        await coreUtils.showCopyModal("Prepare this customer-records email, then send it manually when you are ready.", `${draft.subject}\n\n${draft.body}`, "Done");
+      });
+    });
+    jobDetailWrap.querySelectorAll('[data-hv-audit-summary]').forEach((button) => {
+      button.addEventListener("click", async () => {
+        const manifestId = button.getAttribute("data-hv-audit-summary") || "";
+        const manifest = (hydrovacState?.manifests || []).find((row) => row.id === manifestId);
+        if (!manifest) return;
+        const coreUtils = window.PROOFLINK_OPERATOR_UTILS || {};
+        if (typeof hydrovacManifestAuditSummary !== "function" || typeof coreUtils.showCopyModal !== "function") {
+          setInlineMessage(jobMsg, "Audit-summary tools are not ready yet.", "error");
+          return;
+        }
+        await coreUtils.showCopyModal("Copy this audit summary into the packet, email, or binder you keep for compliance records.", hydrovacManifestAuditSummary(manifest, job, order, linkedCustomer), "Done");
       });
     });
     jobDetailWrap.querySelector('[data-hv-action="invoice"]')?.addEventListener("click", async () => {

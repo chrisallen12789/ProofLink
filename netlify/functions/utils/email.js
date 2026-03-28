@@ -767,6 +767,43 @@ const templates = {
 
 };
 
+templates.reviewRequest = function reviewRequest({
+  customer_name,
+  customer_email,
+  business_name,
+  review_url,
+  subject_override,
+  message_override,
+}) {
+  const reviewedSubject = String(subject_override || '').trim() || `How did we do? - ${business_name}`;
+  const overrideMessage = String(message_override || '').trim();
+  const reviewedCopy = overrideMessage
+    ? overrideMessage
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .map((line) => p(escHtml(line)))
+        .join('')
+    : `
+      ${sub(`Thanks for choosing ${business_name}. Your feedback helps us improve and helps other customers find great local services.`)}
+      ${p(`<span style="color:${T.hint};">If there is anything we should make right first, just reply to this email.</span>`)}
+    `;
+  return {
+    to: customer_email,
+    subject: reviewedSubject,
+    html: layout(`<table width="100%" cellpadding="0" cellspacing="0">${accentBar(T.amber)}${bodyWrap(`
+      ${h1(`How did we do, ${customer_name}?`)}
+      ${reviewedCopy}
+      <div style="text-align:center;margin:0 0 28px;">
+        <p style="margin:0 0 16px;font-size:15px;color:${T.muted};">It only takes 30 seconds.</p>
+        ${cta('Leave a quick review â†’', review_url, T.red)}
+      </div>
+      ${divider()}
+      ${p(`<span style="color:${T.hint};">If you have any questions or concerns, just reply to this email.</span>`)}
+    `)}</table>`, { preheader: `${business_name} would love to hear how your experience went.` }),
+  };
+};
+
 module.exports = { sendEmail, loggedSendEmail, templates, getChecklist, CHECKLIST_BY_TYPE, packageConfirmationEmail, retainerInvoiceEmail };
 
 function packageConfirmationEmail(opts) { return templates.packageConfirmationEmail(opts); }
@@ -803,5 +840,4 @@ module.exports.buildInvoiceHtml = function buildInvoiceHtml({
     ${p(`<span style="color:${T.hint};">Questions about this invoice? Just reply to this email.</span>`)}
   `)}</table>`, { preheader: `Invoice from ${business_name} — ${fmt()} due.` });
 };
-
 

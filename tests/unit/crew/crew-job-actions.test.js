@@ -146,6 +146,24 @@ describe("crew job actions", () => {
     })).toContain("diagnostic finding");
   });
 
+  test("fieldActionGuidance keeps hydrovac live-load rules visible in the field", () => {
+    const { context } = loadCrew();
+
+    expect(context.fieldActionGuidance("scheduled", {
+      business_key: "hydrovac",
+      truck_live_load_count: 1,
+      manifest_metadata: {
+        bol_number: "BOL-22",
+        live_load_hold_reason: "Minimum load not met yet",
+      },
+      manifests: [{ manifest_number: "MAN-9", metadata: { load_state: "live_in_truck" } }],
+    })).toContain("keep that load isolated");
+
+    expect(context.fieldActionGuidance("in_progress", {
+      business_key: "hydrovac",
+    })).toContain("BOL");
+  });
+
   test("crewJobMemoryItems fills in missing basics with clear prompts", () => {
     const { context } = loadCrew();
 
@@ -172,5 +190,28 @@ describe("crew job actions", () => {
 
     expect(items).toContain("Shutoff and access: Main shutoff is behind the laundry panel");
     expect(items).toContain("Repair context: Kitchen sink backs up when disposal runs");
+  });
+
+  test("crewJobMemoryItems adds hydrovac load memory when a truck is still carrying material", () => {
+    const { context } = loadCrew();
+
+    const items = context.crewJobMemoryItems({
+      business_key: "hydrovac",
+      service_address: "77 Trench Rd",
+      manifests: [{
+        manifest_number: "MAN-44",
+        metadata: {
+          load_state: "live_in_truck",
+          bol_number: "BOL-44",
+          live_load_hold_reason: "Waiting for a full compatible load",
+          disposal_ready_by: "2026-03-29",
+        },
+      }],
+    });
+
+    expect(items).toContain("Live load on truck: MAN-44");
+    expect(items).toContain("Bill of lading: BOL-44");
+    expect(items).toContain("Live-load plan: Waiting for a full compatible load");
+    expect(items).toContain("Disposal timing: Clear this load by 2026-03-29 so tomorrow does not get blocked.");
   });
 });
