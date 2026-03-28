@@ -29,6 +29,7 @@ describe("customer portal html", () => {
     expect(source).not.toContain('onclick="handlePayNow(');
     expect(source).toContain("portalPaymentGuidance(order, dueCents, paidCents)");
     expect(source).toContain("summarizePortalPayments(orders)");
+    expect(source).toContain("comparePortalOrders(a, b)");
     expect(source).toContain("renderOrdersSummary(orders)");
     expect(source).toContain('id="ordersSummary"');
     expect(source).toContain("Payment summary");
@@ -49,6 +50,7 @@ describe("customer portal html", () => {
   test("uses shared portal classes instead of inline return layouts", () => {
     expect(source).toContain('class="btn btn-ghost portal-back-btn"');
     expect(source).toContain('class="orders-summary hidden"');
+    expect(source).toContain("order-row--focus");
     expect(source).toContain('class="package-balance-panel"');
     expect(source).toContain('class="order-row order-row--top"');
     expect(source).toContain('class="order-row stacked-row stacked-row--tight"');

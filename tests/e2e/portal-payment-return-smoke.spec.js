@@ -17,6 +17,7 @@ test.describe("portal payment return smoke", () => {
       amount_due_cents: 20000,
       payment_state: "partial",
     }, options.order || {});
+    const orders = Array.isArray(options.orders) && options.orders.length ? options.orders : [order];
 
     await page.route("**/.netlify/functions/get-public-tenant-info?tenant_id=tenant_smoke", async (route) => {
       await route.fulfill({
@@ -34,7 +35,7 @@ test.describe("portal payment return smoke", () => {
         contentType: "application/json",
         body: JSON.stringify({
           business_name: "Benkari Vacs",
-          orders: [order],
+          orders,
           bookings: [],
           quotes: [],
         }),
@@ -75,5 +76,42 @@ test.describe("portal payment return smoke", () => {
     await expect(page.locator('.order-row[data-order-id="order_smoke_1"]')).toHaveClass(/order-row--highlight/);
     await expect(page.locator('.order-row[data-order-id="order_smoke_1"]')).toContainText("Paid in full");
     await expect(page.getByText("Paid in full. You are all set on this order.")).toBeVisible();
+  });
+
+  test("moves the most urgent balance to the top and marks it as the next payment to finish", async ({ page }) => {
+    await stubPortalRoutes(page, {
+      orders: [
+        {
+          id: "order_upcoming",
+          title: "Jetting follow-up",
+          created_at: "2026-03-20T16:00:00.000Z",
+          status: "confirmed",
+          total_cents: 15000,
+          amount_paid_cents: 0,
+          amount_due_cents: 15000,
+          payment_state: "unpaid",
+        },
+        {
+          id: "order_overdue",
+          title: "Emergency line locate",
+          created_at: "2026-03-10T16:00:00.000Z",
+          status: "confirmed",
+          total_cents: 40000,
+          amount_paid_cents: 5000,
+          amount_due_cents: 35000,
+          payment_state: "overdue",
+        },
+      ],
+    });
+
+    await page.goto("/portal.html?tenant=tenant_smoke&email=customer@example.com");
+    await page.getByRole("button", { name: "See my account" }).click();
+
+    await expect(page.locator('.orders-summary-title')).toHaveText("A payment needs attention.");
+    await expect(page.getByText("2 orders still have balances due totaling $500.00. 1 is already overdue.")).toBeVisible();
+    await expect(page.getByText("Next best step: Review Emergency line locate and pay any amount still due.")).toBeVisible();
+    await expect(page.locator('.order-row').first()).toHaveAttribute('data-order-id', 'order_overdue');
+    await expect(page.locator('.order-row[data-order-id="order_overdue"]')).toHaveClass(/order-row--focus/);
+    await expect(page.getByText("This is the best payment to finish next based on what is still due.")).toBeVisible();
   });
 });

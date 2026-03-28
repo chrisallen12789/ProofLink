@@ -122,6 +122,13 @@
       background: rgba(200,75,47,.08);
       box-shadow: 0 0 0 1px rgba(200,75,47,.1);
     }
+    .order-row--focus {
+      margin: 8px -12px 0;
+      padding: 16px 12px;
+      border-radius: 10px;
+      border: 1px solid rgba(251,191,36,.24);
+      background: rgba(251,191,36,.08);
+    }
     .order-title { font-weight: 500; font-size: .9rem; }
     .order-meta { font-size: .8rem; color: rgba(255,255,255,.5); margin-top: 2px; }
     .payment-guidance {
@@ -488,6 +495,23 @@
     return summary;
   }
 
+  function comparePortalOrders(a, b) {
+    var aDue = a && a.amount_due_cents != null ? Number(a.amount_due_cents) : 0;
+    var bDue = b && b.amount_due_cents != null ? Number(b.amount_due_cents) : 0;
+    var aState = String(a && a.payment_state || '').toLowerCase();
+    var bState = String(b && b.payment_state || '').toLowerCase();
+    var aOverdue = aState === 'overdue' ? 1 : 0;
+    var bOverdue = bState === 'overdue' ? 1 : 0;
+    if (aOverdue !== bOverdue) return bOverdue - aOverdue;
+    var aOpen = aDue > 0 ? 1 : 0;
+    var bOpen = bDue > 0 ? 1 : 0;
+    if (aOpen !== bOpen) return bOpen - aOpen;
+    if (aDue !== bDue) return bDue - aDue;
+    var aCreated = new Date(a && a.created_at || 0).getTime();
+    var bCreated = new Date(b && b.created_at || 0).getTime();
+    return bCreated - aCreated;
+  }
+
   function renderOrdersSummary(orders) {
     var el = document.getElementById('ordersSummary');
     if (!el) return;
@@ -554,8 +578,11 @@
       el.innerHTML = '<p class="empty">No orders yet. When the business sends one, it will appear here.</p>';
       return;
     }
-    renderOrdersSummary(orders);
-    el.innerHTML = orders.map(function (o) {
+    var ordered = orders.slice().sort(comparePortalOrders);
+    renderOrdersSummary(ordered);
+    var summary = summarizePortalPayments(ordered);
+    var focusOrderId = summary.nextOrder && summary.nextOrder.id ? summary.nextOrder.id : '';
+    el.innerHTML = ordered.map(function (o) {
       // Prefer cents-based fields; fall back to total_amount (legacy float field)
       var totalCents   = (o.total_cents != null)       ? Number(o.total_cents)       : null;
       var paidCents    = (o.amount_paid_cents != null)  ? Number(o.amount_paid_cents) : null;
@@ -604,13 +631,16 @@
 
       var orderClasses = ['order-row', 'stacked-row'];
       var isCheckoutOrder = checkoutOrderId && o.id === checkoutOrderId;
+      var isFocusOrder = !isCheckoutOrder && focusOrderId && o.id === focusOrderId;
       if (isCheckoutOrder) orderClasses.push('order-row--highlight');
+      if (isFocusOrder) orderClasses.push('order-row--focus');
       return '<div class="' + orderClasses.join(' ') + '" data-order-id="' + escHtml(o.id) + '">' +
         '<div class="stacked-row-main">' +
           '<div class="stacked-row-copy">' +
             '<div class="order-title">' + escHtml(o.title || 'Order') + '</div>' +
             '<div class="order-meta">' + fmtDate(o.created_at) + '</div>' +
             (isCheckoutOrder ? '<div class="order-return-note">This is the order you just came back to. You can keep paying here any time if there is still a balance due.</div>' : '') +
+            (isFocusOrder ? '<div class="order-return-note">This is the best payment to finish next based on what is still due.</div>' : '') +
           '</div>' +
           statusBadge(o.status) +
           (!hasFinancials && legacyTotal ? '<div class="amount">' + legacyTotal + '</div>' : '') +
