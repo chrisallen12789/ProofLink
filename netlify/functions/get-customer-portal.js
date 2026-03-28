@@ -43,6 +43,13 @@ function normalizeBidEstimate(bid) {
   };
 }
 
+function normalizePortalOrder(order) {
+  return {
+    ...order,
+    title: order.title || order.cart_summary || order.customer_name || 'Order',
+  };
+}
+
 function sortNewestFirst(rows) {
   return [...rows].sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
 }
@@ -78,9 +85,9 @@ exports.handler = async (event) => {
   // different sources (storefront uses `email`, operator-created use `customer_email`)
   const { data: orders } = await supabase
     .from('orders')
-    .select('id, title, status, total_amount, total_cents, amount_paid_cents, amount_due_cents, payment_state, payment_due_date, created_at, customer_name, order_type, package_sessions_total, package_sessions_used, package_valid_until')
+    .select('id, cart_summary, status, total_amount, total_cents, amount_paid_cents, amount_due_cents, payment_state, payment_due_date, created_at, customer_name, order_type, package_sessions_total, package_sessions_used, package_valid_until')
     .eq('tenant_id', tenant_id)
-    .or(`email.ilike.${normalizedEmail},customer_email.ilike.${normalizedEmail}`)
+    .ilike('email', normalizedEmail)
     .order('created_at', { ascending: false })
     .limit(50);
 
@@ -109,13 +116,28 @@ exports.handler = async (event) => {
     .ilike('email', normalizedEmail)
     .limit(20);
 
-  const customerIds = (customers || []).map((row) => row.id).filter(Boolean);
-  const customerNames = (customers || []).map((row) => String(row.name || '').trim()).filter(Boolean);
+  const { data: leads } = await supabase
+    .from('leads')
+    .select('id, customer_id, contact_name')
+    .eq('tenant_id', tenant_id)
+    .ilike('contact_email', normalizedEmail)
+    .order('created_at', { ascending: false })
+    .limit(50);
+
+  const customerIds = [
+    ...(customers || []).map((row) => row.id),
+    ...(leads || []).map((row) => row.customer_id),
+  ].filter(Boolean);
+  const customerNames = [
+    ...(customers || []).map((row) => String(row.name || '').trim()),
+    ...(leads || []).map((row) => String(row.contact_name || '').trim()),
+  ].filter(Boolean);
+  const leadIds = (leads || []).map((row) => row.id).filter(Boolean);
   let linkedOrders = [];
   if (customerIds.length) {
     const { data } = await supabase
       .from('orders')
-      .select('id, title, status, total_amount, total_cents, amount_paid_cents, amount_due_cents, payment_state, payment_due_date, created_at, customer_name, order_type, package_sessions_total, package_sessions_used, package_valid_until, customer_id')
+      .select('id, cart_summary, status, total_amount, total_cents, amount_paid_cents, amount_due_cents, payment_state, payment_due_date, created_at, customer_name, order_type, package_sessions_total, package_sessions_used, package_valid_until, customer_id')
       .eq('tenant_id', tenant_id)
       .in('customer_id', customerIds)
       .order('created_at', { ascending: false })
@@ -125,26 +147,42 @@ exports.handler = async (event) => {
   if (customerNames.length) {
     const { data } = await supabase
       .from('orders')
-      .select('id, title, status, total_amount, total_cents, amount_paid_cents, amount_due_cents, payment_state, payment_due_date, created_at, customer_name, order_type, package_sessions_total, package_sessions_used, package_valid_until, customer_id')
+      .select('id, cart_summary, status, total_amount, total_cents, amount_paid_cents, amount_due_cents, payment_state, payment_due_date, created_at, customer_name, order_type, package_sessions_total, package_sessions_used, package_valid_until, customer_id')
       .eq('tenant_id', tenant_id)
       .in('customer_name', customerNames)
       .order('created_at', { ascending: false })
       .limit(50);
     linkedOrders = [...linkedOrders, ...(data || [])];
   }
+  if (leadIds.length) {
+    const { data } = await supabase
+      .from('orders')
+      .select('id, cart_summary, status, total_amount, total_cents, amount_paid_cents, amount_due_cents, payment_state, payment_due_date, created_at, customer_name, order_type, package_sessions_total, package_sessions_used, package_valid_until, customer_id, lead_id')
+      .eq('tenant_id', tenant_id)
+      .in('lead_id', leadIds)
+      .order('created_at', { ascending: false })
+      .limit(50);
+    linkedOrders = [...linkedOrders, ...(data || [])];
+  }
   const mergedOrders = sortNewestFirst([
-    ...new Map([...(orders || []), ...linkedOrders].map((row) => [row.id, row])).values(),
+    ...new Map([...(orders || []), ...linkedOrders].map((row) => [row.id, normalizePortalOrder(row)])).values(),
   ]);
 
   let bidEstimates = [];
-  if (customerIds.length) {
-    const { data: bids } = await supabase
+  if (customerIds.length || leadIds.length) {
+    const bidQuery = supabase
       .from('bids')
-      .select('id, title, project_summary, total_cents, status, valid_until, created_at, customer_id')
+      .select('id, title, project_summary, total_cents, status, valid_until, created_at, customer_id, lead_id')
       .eq('tenant_id', tenant_id)
-      .in('customer_id', customerIds)
-      .order('created_at', { ascending: false })
-      .limit(10);
+      .order('created_at', { ascending: false });
+    if (customerIds.length && leadIds.length) {
+      bidQuery.or(`customer_id.in.(${customerIds.join(',')}),lead_id.in.(${leadIds.join(',')})`);
+    } else if (customerIds.length) {
+      bidQuery.in('customer_id', customerIds);
+    } else {
+      bidQuery.in('lead_id', leadIds);
+    }
+    const { data: bids } = await bidQuery.limit(10);
 
     bidEstimates = (bids || [])
       .filter((row) => ['sent', 'review', 'ready_to_send', 'pending', 'approved', 'expired'].includes(String(row.status || '').trim().toLowerCase()))

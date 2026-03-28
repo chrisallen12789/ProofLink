@@ -134,4 +134,43 @@ describe("operator payments workspace", () => {
     expect(context.paymentMsg.textContent).toContain("Recording payment for Logan's Lawn Care.");
     expect(context.paymentMsg.textContent).toContain("2026-03-29");
   });
+
+  test("buildPaymentFollowThroughMessage turns HVAC collection into the next system step", () => {
+    const context = loadPaymentsWorkspace({
+      currentWorkspaceBlueprint: () => ({ business: { key: "hvac" } }),
+    });
+
+    const message = context.window.buildPaymentFollowThroughMessage({
+      customer: {
+        maintenance_notes: "Spring maintenance visit due next month",
+        parts_follow_up: "Capacitor approval still pending",
+      },
+      order: null,
+      job: { id: "job_1", service_address: "455 Elm St" },
+      blueprint: { business: { key: "hvac" } },
+    });
+
+    expect(message).toContain("Once this is paid");
+    expect(message).toContain("Spring maintenance visit due next month");
+  });
+
+  test("buildPaymentSavedMessage turns a finished plumbing payment into the next repair step", () => {
+    const context = loadPaymentsWorkspace({
+      currentWorkspaceBlueprint: () => ({ business: { key: "plumbing" } }),
+      CUSTOMERS_CACHE: [{ id: "customer_1", name: "Harbor Suites", restoration_notes: "Drywall repair still needs scheduling" }],
+      CRM_ORDERS_CACHE: [{ id: "order_1", customer_id: "customer_1", customer_name: "Harbor Suites" }],
+      JOBS_CACHE: [{ id: "job_1", order_id: "order_1", service_address: "455 Elm St" }],
+      orderAmountDueCents: () => 0,
+    });
+
+    const message = context.window.buildPaymentSavedMessage({
+      customerId: "customer_1",
+      orderId: "order_1",
+      jobId: "job_1",
+      blueprint: { business: { key: "plumbing" } },
+    });
+
+    expect(message).toContain("Payment saved for Harbor Suites.");
+    expect(message).toContain("Drywall repair still needs scheduling");
+  });
 });

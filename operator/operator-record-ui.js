@@ -76,7 +76,7 @@
   } = {}) {
     const actionHtml = renderRecordActionButtons(actions);
     return `
-      <div class="record-action-rail detail-card" style="margin-top:14px;">
+      <div class="record-action-rail detail-card record-card-spaced">
         <div class="record-action-rail__head">
           <div>
             <div class="kicker">${escapeHtml(eyebrow)}</div>
@@ -108,7 +108,7 @@
       `)
       .join("");
     return `
-      <div class="record-linked detail-card" style="margin-top:14px;">
+      <div class="record-linked detail-card record-card-spaced">
         <div class="record-linked__head">
           <div>
             <div class="kicker">${escapeHtml(eyebrow)}</div>
@@ -143,7 +143,7 @@
       .join("");
     const actionsHtml = renderRecordActionButtons(actions);
     return `
-      <div class="record-follow-through detail-card" style="margin-top:14px;">
+      <div class="record-follow-through detail-card record-card-spaced">
         <div class="record-follow-through__head">
           <div>
             <div class="kicker">${escapeHtml(eyebrow)}</div>

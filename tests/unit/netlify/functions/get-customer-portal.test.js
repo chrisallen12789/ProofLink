@@ -1,6 +1,7 @@
 "use strict";
 
 const path = require("path");
+const fs = require("fs");
 
 const handlerPath = path.resolve(process.cwd(), "netlify/functions/get-customer-portal.js");
 const authUtilsPath = path.resolve(process.cwd(), "netlify/functions/utils/auth.js");
@@ -93,6 +94,14 @@ function createSupabaseMock() {
     data: [{ id: "customer_1" }],
     error: null,
   });
+  const leadsTable = createQueryChain({
+    data: [{
+      id: "lead_1",
+      customer_id: "customer_1",
+      contact_name: "Jamie Customer",
+    }],
+    error: null,
+  });
   const bidsTable = createQueryChain({
     data: [{
       id: "bid_1",
@@ -121,6 +130,7 @@ function createSupabaseMock() {
       if (table === "bookings") return bookingsTable;
       if (table === "quotes") return quotesTable;
       if (table === "customers") return customersTable;
+      if (table === "leads") return leadsTable;
       if (table === "bids") return bidsTable;
       throw new Error(`Unexpected table ${table}`);
     }),
@@ -184,5 +194,14 @@ describe("netlify/functions/get-customer-portal", () => {
     } finally {
       restore();
     }
+  });
+
+  test("uses the real orders schema instead of drifting back to missing columns", () => {
+    const source = fs.readFileSync(handlerPath, "utf8");
+    expect(source).toContain("function normalizePortalOrder(order)");
+    expect(source).toContain("title: order.title || order.cart_summary || order.customer_name || 'Order'");
+    expect(source).toContain(".ilike('email', normalizedEmail)");
+    expect(source).not.toContain("customer_email.ilike");
+    expect(source).toContain(".select('id, cart_summary, status");
   });
 });

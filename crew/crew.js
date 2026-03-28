@@ -76,6 +76,22 @@ function statusClass(status) {
   return map[status] || '';
 }
 
+function crewBusinessKey(job = ACTIVE_JOB) {
+  return String(
+    job?.business_key
+    || job?.business_type
+    || job?.profile
+    || job?.workspace_key
+    || job?.customers?.business_key
+    || job?.customers?.business_type
+    || 'service_business'
+  ).trim().toLowerCase();
+}
+
+function crewCustomerRef(job = ACTIVE_JOB) {
+  return job?.customers || {};
+}
+
 async function getToken() {
   if (!sb) return null;
   try {
@@ -267,6 +283,12 @@ function complianceIssueMessage(body = {}, fallback = '') {
 function fieldActionGuidance(status, job = ACTIVE_JOB) {
   const blockerNote = String(job?.blocker_note || '').trim();
   const complianceMessage = String(job?.compliance_message || '').trim();
+  const businessKey = crewBusinessKey(job);
+  const customer = crewCustomerRef(job);
+  const routeNote = String(customer?.service_schedule || customer?.frequency || '').trim();
+  const accessNote = String(customer?.access_notes || customer?.entry_notes || customer?.alarm_notes || customer?.gate_notes || '').trim();
+  const systemNote = String(customer?.equipment_notes || customer?.system_notes || customer?.diagnostic_notes || '').trim();
+  const plumbingNote = String(customer?.shutoff_notes || customer?.issue_summary || customer?.approval_notes || '').trim();
 
   if (complianceMessage) {
     return complianceMessage;
@@ -275,9 +297,38 @@ function fieldActionGuidance(status, job = ACTIVE_JOB) {
     return `Blocked: ${blockerNote}`;
   }
   if (status === 'scheduled' || status === 'dispatched') {
+    if (['landscaping', 'property_maintenance', 'pressure_washing'].includes(businessKey)) {
+      return routeNote
+        ? `Clock in when you are on site. Keep the route and property note in mind: ${routeNote}`
+        : 'Clock in when you are on site. Confirm gates, property access, and the exact area of work before unloading.';
+    }
+    if (businessKey === 'cleaning') {
+      return accessNote
+        ? `Clock in when you are on site. Confirm entry and visit access before you start: ${accessNote}`
+        : 'Clock in when you are on site. Confirm entry, alarm, or lockbox instructions before the visit begins.';
+    }
+    if (businessKey === 'hvac') {
+      return systemNote
+        ? `Clock in when you are on site. Start from the system note already attached to this call: ${systemNote}`
+        : 'Clock in when you are on site. Confirm the unit, system, and who is meeting you before diagnosis starts.';
+    }
+    if (businessKey === 'plumbing') {
+      return plumbingNote
+        ? `Clock in when you are on site. Keep the repair and shutoff note in mind before you begin: ${plumbingNote}`
+        : 'Clock in when you are on site. Confirm shutoff access, fixture context, and approval limits before opening anything up.';
+    }
     return 'Clock in when you are on site. If access, scope, safety, or compliance is not ready, report the issue before work begins.';
   }
   if (status === 'in_progress') {
+    if (businessKey === 'cleaning') {
+      return 'Keep the visit checklist, add-ons, and access details current so the office can close this cleaning visit out without guesswork.';
+    }
+    if (businessKey === 'hvac') {
+      return 'Keep the diagnostic finding, equipment details, and parts follow-up current so the office can invoice and schedule the next step without guesswork.';
+    }
+    if (businessKey === 'plumbing') {
+      return 'Keep the repair result, shutoff context, and any approval or restoration note current so closeout is clear and defensible.';
+    }
     return 'Keep notes, photos, and customer details current so closeout is quick and the office can invoice without guesswork.';
   }
   if (status === 'blocked') {
@@ -294,9 +345,11 @@ function fieldActionGuidance(status, job = ACTIVE_JOB) {
 
 function crewJobMemoryItems(job = ACTIVE_JOB) {
   const items = [];
+  const businessKey = crewBusinessKey(job);
+  const customer = crewCustomerRef(job);
   const serviceAddress = String(job?.service_address || job?.address || '').trim();
-  const customerPhone = String(job?.customers?.phone || '').trim();
-  const customerEmail = String(job?.customers?.email || '').trim();
+  const customerPhone = String(customer?.phone || '').trim();
+  const customerEmail = String(customer?.email || '').trim();
   const workNotes = String(job?.description || job?.notes || '').trim();
 
   if (serviceAddress) {
@@ -318,6 +371,40 @@ function crewJobMemoryItems(job = ACTIVE_JOB) {
     items.push(`Scope and notes: ${workNotes}`);
   } else {
     items.push('Scope and notes are still light. Add a field note if the work changes so the office can finish strong.');
+  }
+
+  if (['landscaping', 'property_maintenance', 'pressure_washing'].includes(businessKey)) {
+    const routeNote = String(customer?.service_schedule || customer?.frequency || customer?.seasonal_notes || '').trim();
+    items.push(routeNote
+      ? `Route and property note: ${routeNote}`
+      : 'Route or seasonal context is still light. Confirm the property focus before the crew loses time on the wrong area.');
+  } else if (businessKey === 'cleaning') {
+    const accessNote = String(customer?.access_notes || customer?.alarm_notes || customer?.entry_notes || '').trim();
+    const checklistNote = String(customer?.checklist_notes || customer?.scope_notes || customer?.add_on_notes || '').trim();
+    items.push(accessNote
+      ? `Entry and access: ${accessNote}`
+      : 'Entry instructions are still light. Confirm lockbox, alarm, or entry details before the crew gets stuck outside.');
+    items.push(checklistNote
+      ? `Visit checklist: ${checklistNote}`
+      : 'Checklist and add-ons are still light. Confirm the rooms or add-ons before the visit drifts off scope.');
+  } else if (businessKey === 'hvac') {
+    const systemNote = String(customer?.equipment_notes || customer?.system_notes || customer?.equipment_serial || '').trim();
+    const diagnosticNote = String(customer?.diagnostic_notes || customer?.failure_symptoms || customer?.parts_follow_up || '').trim();
+    items.push(systemNote
+      ? `System context: ${systemNote}`
+      : 'System details are still light. Confirm the unit or equipment details before diagnosis begins.');
+    items.push(diagnosticNote
+      ? `Diagnostic handoff: ${diagnosticNote}`
+      : 'Diagnostic context is still light. Ask the office what symptom or part follow-up already exists before starting.');
+  } else if (businessKey === 'plumbing') {
+    const shutoffNote = String(customer?.shutoff_notes || customer?.access_notes || customer?.entry_notes || '').trim();
+    const repairNote = String(customer?.issue_summary || customer?.fixture_notes || customer?.approval_notes || '').trim();
+    items.push(shutoffNote
+      ? `Shutoff and access: ${shutoffNote}`
+      : 'Shutoff or access details are still light. Confirm those before the repair gets riskier than it needs to be.');
+    items.push(repairNote
+      ? `Repair context: ${repairNote}`
+      : 'Repair context is still light. Ask the office what fixture, issue, or approval limit should guide this visit.');
   }
 
   return items;

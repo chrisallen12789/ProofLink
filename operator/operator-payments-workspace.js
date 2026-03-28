@@ -24,19 +24,59 @@
       : [];
     const customerName = customer?.name || order?.customer_name || "this customer";
 
+    const followThrough = buildPaymentFollowThroughMessage({ customer, order, job, blueprint });
+
     if (focus.length) {
-      return `Recording payment for ${customerName}. Keep the follow-through tied to ${focus.join(" | ")}.`;
+      return `Recording payment for ${customerName}. Keep the follow-through tied to ${focus.join(" | ")}. ${followThrough}`;
     }
 
     if (order?.payment_due_date) {
-      return `Recording payment for ${customerName}. This balance is tied to work due ${formatDateOnly(order.payment_due_date)}.`;
+      return `Recording payment for ${customerName}. This balance is tied to work due ${formatDateOnly(order.payment_due_date)}. ${followThrough}`;
     }
 
     if (job?.service_address || job?.address) {
-      return `Recording payment for ${customerName}. Keep the service context attached to ${(job.service_address || job.address)} while you follow through.`;
+      return `Recording payment for ${customerName}. Keep the service context attached to ${(job.service_address || job.address)} while you follow through. ${followThrough}`;
     }
 
-    return `Recording payment for ${customerName}. Keep the customer and work details attached while you close out the balance.`;
+    return `Recording payment for ${customerName}. ${followThrough}`;
+  }
+
+  function buildPaymentFollowThroughMessage({ customer = null, order = null, job = null, blueprint = { business: { key: "service_business" } } } = {}) {
+    const businessKey = String(blueprint?.business?.key || "service_business").trim().toLowerCase();
+    const dueCents = order ? Number(orderAmountDueCents(order) || 0) : 0;
+    const firstFilled = (...values) => values.find((value) => String(value || "").trim()) || "";
+
+    if (dueCents > 0) {
+      return `If this does not close the full ${formatUsd(dueCents)} balance, keep the next reminder tied to the same order before it ages out.`;
+    }
+
+    const tradeMap = {
+      landscaping: firstFilled(customer?.seasonal_notes, customer?.follow_up_notes)
+        ? `Once this is paid, carry the next property follow-up forward: ${firstFilled(customer?.seasonal_notes, customer?.follow_up_notes)}.`
+        : "Once this is paid, turn the next move into the next property visit or seasonal follow-up instead of leaving the account cold.",
+      cleaning: firstFilled(customer?.recurring_notes, customer?.add_on_notes)
+        ? `Once this is paid, keep the next cleaning visit clear: ${firstFilled(customer?.recurring_notes, customer?.add_on_notes)}.`
+        : "Once this is paid, keep the next cleaning cadence or add-on visible so repeat work stays easy.",
+      hvac: firstFilled(customer?.maintenance_notes, customer?.parts_follow_up, customer?.warranty_notes)
+        ? `Once this is paid, keep the next system follow-up visible: ${firstFilled(customer?.maintenance_notes, customer?.parts_follow_up, customer?.warranty_notes)}.`
+        : "Once this is paid, move the conversation back to maintenance, warranty, or parts follow-through instead of collections.",
+      plumbing: firstFilled(customer?.restoration_notes, customer?.follow_up_notes, customer?.approval_notes)
+        ? `Once this is paid, keep the repair follow-through visible: ${firstFilled(customer?.restoration_notes, customer?.follow_up_notes, customer?.approval_notes)}.`
+        : "Once this is paid, make the next move about repair follow-through, restoration, or the return visit instead of the balance.",
+    };
+
+    if (job?.service_address || job?.address) {
+      return tradeMap[businessKey] || "Once this is paid, keep the next service step tied to the same job and customer record.";
+    }
+    return tradeMap[businessKey] || "Once this is paid, keep the next service step tied to the same customer and work record.";
+  }
+
+  function buildPaymentSavedMessage(options = {}) {
+    const blueprint = options.blueprint || (typeof currentWorkspaceBlueprint === "function" ? currentWorkspaceBlueprint() : { business: { key: "service_business" } });
+    const { customer, order, job } = resolvePaymentContext(options);
+    const customerName = customer?.name || order?.customer_name || "this customer";
+    const followThrough = buildPaymentFollowThroughMessage({ customer, order, job, blueprint });
+    return `Payment saved for ${customerName}. ${followThrough}`;
   }
 
   function applyPaymentContextMessage(options = {}) {
@@ -283,7 +323,15 @@
       renderGuidance();
       if (ACTIVE_CUSTOMER_ID) renderCustomerDetail(ACTIVE_CUSTOMER_ID).catch(console.error);
       markWorkspaceClean("payments");
-      setInlineMessage(paymentMsg, "Payment saved.", "ok");
+      const savedOrder = CRM_ORDERS_CACHE.find((row) => row.id === (data.order_id || payload.order_id || "")) || null;
+      const savedCustomer = CUSTOMERS_CACHE.find((row) => row.id === (data.customer_id || payload.customer_id || savedOrder?.customer_id || "")) || null;
+      const savedJob = JOBS_CACHE.find((row) => row.id === (data.job_id || payload.job_id || "")) || JOBS_CACHE.find((row) => row.order_id === savedOrder?.id) || null;
+      setInlineMessage(paymentMsg, buildPaymentSavedMessage({
+        customerId: savedCustomer?.id || "",
+        orderId: savedOrder?.id || "",
+        jobId: savedJob?.id || "",
+        blueprint: typeof currentWorkspaceBlueprint === "function" ? currentWorkspaceBlueprint() : { business: { key: "service_business" } },
+      }), "ok");
     } catch (err) {
       setInlineMessage(paymentMsg, err.message || String(err), "error");
     }
@@ -292,6 +340,8 @@
   const helpers = {
     resolvePaymentContext,
     buildPaymentContextMessage,
+    buildPaymentFollowThroughMessage,
+    buildPaymentSavedMessage,
     applyPaymentContextMessage,
     renderPaymentCustomerOptions,
     renderPaymentOrderOptions,

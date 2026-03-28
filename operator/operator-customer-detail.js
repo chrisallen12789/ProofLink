@@ -219,6 +219,246 @@
     };
   }
 
+  function customerRelationshipGuidance({
+    customer = null,
+    openRequestsCount = 0,
+    openProposalCount = 0,
+    activeOrderCount = 0,
+    activeJobCount = 0,
+    balance = 0,
+    latestInteraction = null,
+    latestPayment = null,
+    blueprint = (typeof currentWorkspaceBlueprint === "function" ? currentWorkspaceBlueprint() : { business: { key: "service_business" } }),
+  } = {}) {
+    const businessKey = String(blueprint?.business?.key || "service_business").trim().toLowerCase();
+    const activeWorkCount = Number(activeOrderCount || 0) + Number(activeJobCount || 0);
+    const firstFilled = (...values) => values.find((value) => String(value || "").trim()) || "";
+    const detail = (label, ready, readyNote, missingNote, tone = "") => ({
+      label,
+      ready: !!ready,
+      note: ready ? readyNote : missingNote,
+      tone: tone || (!ready ? "warn" : ""),
+    });
+
+    let title = "Protect the next piece of work";
+    let description = "The relationship is in a healthy spot. Use the next move below to protect repeat work and keep the customer feeling looked after.";
+    if (openRequestsCount > 0) {
+      title = "Respond to the open work first";
+      description = "There is still intake waiting on scope or a response. Clearing that first keeps work from getting lost before it ever reaches pricing.";
+    } else if (openProposalCount > 0) {
+      title = "Move the live proposal to a decision";
+      description = "A proposal is still open. Follow up while the customer context is fresh so booked work does not stall here.";
+    } else if (activeWorkCount > 0) {
+      title = "Keep the active work moving cleanly";
+      description = "Work is already in motion. Use the next move below to keep execution, closeout, and customer communication aligned.";
+    } else if (balance > 0) {
+      title = "Close the money loop";
+      description = "The work has moved farther than the payment. Make the balance easy to finish before this turns into avoidable collections drag.";
+    }
+
+    const items = [
+      detail(
+        "Open requests",
+        openRequestsCount === 0,
+        "Nothing is waiting on a first response right now.",
+        `${openRequestsCount} request${openRequestsCount === 1 ? "" : "s"} still need scope, response, or a clear next step.`
+      ),
+      detail(
+        "Live proposals",
+        openProposalCount === 0,
+        "No proposal is waiting on approval right now.",
+        `${openProposalCount} proposal${openProposalCount === 1 ? "" : "s"} still need follow-up, approval, or a decision.`
+      ),
+      detail(
+        "Active work",
+        activeWorkCount === 0,
+        "No booked work or active job is still hanging open.",
+        `${activeWorkCount} work item${activeWorkCount === 1 ? "" : "s"} still need scheduling, execution, or closeout follow-through.`
+      ),
+      detail(
+        "Money follow-through",
+        balance <= 0,
+        latestPayment
+          ? `The latest payment landed ${formatDateTime(latestPayment.paid_at || latestPayment.created_at || latestPayment.updated_at)} and nothing is still due.`
+          : "Nothing is currently outstanding for this customer.",
+        `There is still ${formatUsd(balance)} open. Keep the next invoice, reminder, or payment step obvious from this record.`
+      ),
+    ];
+
+    const tradeItemMap = {
+      landscaping: detail(
+        "Seasonal follow-through",
+        !!firstFilled(customer?.seasonal_notes, customer?.upsell_notes, customer?.follow_up_notes),
+        firstFilled(customer?.seasonal_notes, customer?.upsell_notes, customer?.follow_up_notes),
+        "Capture the next cleanup, mowing, mulch, or seasonal upgrade timing before the property goes quiet."
+      ),
+      property_maintenance: detail(
+        "Site follow-through",
+        !!firstFilled(customer?.service_schedule, customer?.follow_up_notes, customer?.service_notes),
+        firstFilled(customer?.service_schedule, customer?.follow_up_notes, customer?.service_notes),
+        "Capture the next site walk, turnover, or recurring maintenance note before the property needs to be relearned."
+      ),
+      cleaning: detail(
+        "Repeat visit prep",
+        !!firstFilled(customer?.recurring_notes, customer?.add_on_notes, customer?.checklist_notes, customer?.access_notes),
+        firstFilled(customer?.recurring_notes, customer?.add_on_notes, customer?.checklist_notes, customer?.access_notes),
+        "Lock in cadence, access, and add-ons so the next cleaning visit is easy to schedule and deliver."
+      ),
+      hvac: detail(
+        "System follow-through",
+        !!firstFilled(customer?.maintenance_notes, customer?.parts_follow_up, customer?.warranty_notes, customer?.follow_up_notes),
+        firstFilled(customer?.maintenance_notes, customer?.parts_follow_up, customer?.warranty_notes, customer?.follow_up_notes),
+        "Capture maintenance timing, parts follow-up, or warranty notes before the next system visit slips."
+      ),
+      plumbing: detail(
+        "Repair follow-through",
+        !!firstFilled(customer?.restoration_notes, customer?.approval_notes, customer?.parts_follow_up, customer?.follow_up_notes),
+        firstFilled(customer?.restoration_notes, customer?.approval_notes, customer?.parts_follow_up, customer?.follow_up_notes),
+        "Capture restoration, approval, or return-visit follow-through before the repair goes quiet."
+      ),
+    };
+
+    items.push(
+      tradeItemMap[businessKey] || detail(
+        "Relationship follow-through",
+        !!firstFilled(customer?.follow_up_notes, latestInteraction?.summary, customer?.service_notes),
+        firstFilled(customer?.follow_up_notes, latestInteraction?.summary, customer?.service_notes),
+        "Capture the next follow-up step so this customer stays easy to serve and easy to retain."
+      )
+    );
+
+    return { title, description, items };
+  }
+
+  function customerPostWorkGuidance({
+    customer = null,
+    customerOrders = [],
+    customerJobs = [],
+    balance = 0,
+    blueprint = (typeof currentWorkspaceBlueprint === "function" ? currentWorkspaceBlueprint() : { business: { key: "service_business" } }),
+  } = {}) {
+    const businessKey = String(blueprint?.business?.key || "service_business").trim().toLowerCase();
+    const firstFilled = (...values) => values.find((value) => String(value || "").trim()) || "";
+    const detail = (label, ready, readyNote, missingNote, tone = "") => ({
+      label,
+      ready: !!ready,
+      note: ready ? readyNote : missingNote,
+      tone: tone || (!ready ? "warn" : ""),
+    });
+    const completedOrder = [...(customerOrders || [])]
+      .filter((order) => ["completed", "paid"].includes(String(order?.status || "").toLowerCase()))
+      .sort((a, b) => new Date(b.updated_at || b.completed_at || b.created_at || 0).getTime() - new Date(a.updated_at || a.completed_at || a.created_at || 0).getTime())[0] || null;
+    const completedJob = [...(customerJobs || [])]
+      .filter((job) => ["completed"].includes(String(job?.status || "").toLowerCase()))
+      .sort((a, b) => new Date(b.updated_at || b.completed_at || b.created_at || 0).getTime() - new Date(a.updated_at || a.completed_at || a.created_at || 0).getTime())[0] || null;
+    const latestCompletedAt = completedJob?.completed_at
+      || completedJob?.updated_at
+      || completedOrder?.completed_at
+      || completedOrder?.updated_at
+      || completedOrder?.created_at
+      || "";
+
+    if (!completedOrder && !completedJob) return null;
+
+    const moneyItem = detail(
+      "Final money step",
+      balance <= 0,
+      "The money side of the finished work is already closed.",
+      `There is still ${formatUsd(balance)} open after the work wrapped. Close that loop while the visit is still fresh.`
+    );
+
+    const landscaping = [
+      detail(
+        "Next property touch stays visible",
+        !!firstFilled(customer?.seasonal_notes, customer?.follow_up_notes, customer?.service_schedule),
+        firstFilled(customer?.seasonal_notes, customer?.follow_up_notes, customer?.service_schedule),
+        "Leave the next cleanup, seasonal upgrade, or repeat-service note attached before the property goes quiet."
+      ),
+      detail(
+        "Closeout note is reusable",
+        !!firstFilled(customer?.cleanup_notes, customer?.service_notes, completedOrder?.notes, completedJob?.notes),
+        firstFilled(customer?.cleanup_notes, customer?.service_notes, completedOrder?.notes, completedJob?.notes),
+        "Capture one plain-English note about what the crew finished so the next visit starts smarter."
+      ),
+      moneyItem,
+    ];
+
+    const cleaning = [
+      detail(
+        "Next visit expectation stays visible",
+        !!firstFilled(customer?.recurring_notes, customer?.add_on_notes, customer?.checklist_notes),
+        firstFilled(customer?.recurring_notes, customer?.add_on_notes, customer?.checklist_notes),
+        "Lock in the next cleaning cadence, add-ons, or checklist update before the customer has to restate it."
+      ),
+      detail(
+        "Access and closeout stay together",
+        !!firstFilled(customer?.access_notes, customer?.alarm_notes, customer?.follow_up_notes),
+        firstFilled(customer?.access_notes, customer?.alarm_notes, customer?.follow_up_notes),
+        "Carry the access and closeout note forward so the next visit is still easy to deliver."
+      ),
+      moneyItem,
+    ];
+
+    const hvac = [
+      detail(
+        "System follow-through stays visible",
+        !!firstFilled(customer?.maintenance_notes, customer?.parts_follow_up, customer?.warranty_notes),
+        firstFilled(customer?.maintenance_notes, customer?.parts_follow_up, customer?.warranty_notes),
+        "Leave the maintenance, parts, or warranty note attached so the next HVAC visit starts informed."
+      ),
+      detail(
+        "Diagnostic history is reusable",
+        !!firstFilled(customer?.diagnostic_notes, customer?.equipment_notes, customer?.follow_up_notes),
+        firstFilled(customer?.diagnostic_notes, customer?.equipment_notes, customer?.follow_up_notes),
+        "Capture what changed, what was recommended, or what still needs approval before the system issue goes quiet."
+      ),
+      moneyItem,
+    ];
+
+    const plumbing = [
+      detail(
+        "Repair closeout stays visible",
+        !!firstFilled(customer?.restoration_notes, customer?.approval_notes, customer?.follow_up_notes),
+        firstFilled(customer?.restoration_notes, customer?.approval_notes, customer?.follow_up_notes),
+        "Leave the restoration, approval, or return-visit note attached so the repair closes out cleanly."
+      ),
+      detail(
+        "Issue history is reusable",
+        !!firstFilled(customer?.issue_summary, customer?.fixture_notes, customer?.shutoff_notes),
+        firstFilled(customer?.issue_summary, customer?.fixture_notes, customer?.shutoff_notes),
+        "Capture the issue and shutoff context before the next plumbing call starts from scratch."
+      ),
+      moneyItem,
+    ];
+
+    const fallback = [
+      detail(
+        "Next customer step",
+        !!firstFilled(customer?.follow_up_notes, customer?.service_notes, completedOrder?.notes, completedJob?.notes),
+        firstFilled(customer?.follow_up_notes, customer?.service_notes, completedOrder?.notes, completedJob?.notes),
+        "Leave one clear next step attached so completed work turns into an easier next move."
+      ),
+      moneyItem,
+    ];
+
+    const items = ({
+      landscaping,
+      property_maintenance: landscaping,
+      pressure_washing: landscaping,
+      cleaning,
+      hvac,
+      plumbing,
+    })[businessKey] || fallback;
+
+    return {
+      title: "Turn finished work into the next easy step",
+      description: latestCompletedAt
+        ? `The latest completed work wrapped ${formatDateTime(latestCompletedAt)}. Keep the follow-through, repeat opportunity, and money step attached while it is still fresh.`
+        : "Keep the follow-through, repeat opportunity, and money step attached while the finished work is still fresh.",
+      items,
+    };
+  }
+
   function renderCustomerRecordFocusCard() {
     const customer = global.CURRENT_CUSTOMER_DETAIL_CUSTOMER || null;
     const blueprint = typeof currentWorkspaceBlueprint === "function"
@@ -351,6 +591,27 @@
     const latestInteraction = interactions[0] || null;
     const latestPayment = customerPayments[0] || null;
     const collectionGuidance = customerCollectionGuidance(customer, customerOrders, customerPayments, balance);
+    const blueprint = typeof currentWorkspaceBlueprint === "function"
+      ? currentWorkspaceBlueprint()
+      : { business: { key: "service_business" } };
+    const nextMoveGuidance = customerRelationshipGuidance({
+      customer,
+      openRequestsCount,
+      openProposalCount,
+      activeOrderCount,
+      activeJobCount,
+      balance,
+      latestInteraction,
+      latestPayment,
+      blueprint,
+    });
+    const postWorkGuidance = customerPostWorkGuidance({
+      customer,
+      customerOrders,
+      customerJobs: customerJobsRows,
+      balance,
+      blueprint,
+    });
     const lastTouchValue = customer.last_contact_at || latestInteraction?.created_at || "";
     const hasActiveOrders = CRM_ORDERS_CACHE.some((o) => o.customer_id === customerIdValue && !["completed", "cancelled", "archived"].includes(String(o.status || "").toLowerCase()));
     const hasActiveJobs = JOBS_CACHE.some((job) => job.customer_id === customerIdValue && !["completed", "cancelled", "archived"].includes(String(job.status || "").toLowerCase()));
@@ -363,8 +624,7 @@
     if (!hasActiveOrders && !hasActiveJobs) {
       customerQuickActions.push({
         label: "Archive customer",
-        className: "btn btn-ghost",
-        style: "font-size:.75rem;color:#fbbf24;",
+        className: "btn btn-ghost btn-compact customer-archive-action u-color-warn",
         data: { "customer-action": "archive" },
       });
     }
@@ -522,7 +782,7 @@
             <button type="button" class="btn btn-primary" data-customer-action="payment">Record payment</button>
             <button type="button" class="btn btn-ghost" data-customer-action="payments">Open payments</button>
           </div>
-          <div class="detail-copy" style="margin-top:10px;">${escapeHtml(collectionGuidance.description)}</div>
+          <div class="detail-copy u-mt-10">${escapeHtml(collectionGuidance.description)}</div>
           <div class="customer-money-grid">
             <div class="customer-money-card">
               <span>Total billed</span>
@@ -543,16 +803,39 @@
         </div>
       </div>
 
-      <div class="grid two" style="margin-top:14px;">
-        <div class="detail-card">
-          <div class="kicker">Collection guidance</div>
-          <div><strong>${escapeHtml(collectionGuidance.title)}</strong></div>
-          <div class="detail-copy">${escapeHtml(collectionGuidance.description)}</div>
-          <div class="workspace-chip-row" style="margin-top:10px;">
+      <div class="grid two u-mt-14">
+        <div class="detail-card customer-next-step-card">
+          <div class="kicker">Best next move</div>
+          <div><strong>${escapeHtml(nextMoveGuidance.title)}</strong></div>
+          <div class="detail-copy">${escapeHtml(nextMoveGuidance.description)}</div>
+          <div class="workspace-chip-row u-mt-10">
             <span class="pill ${balance > 0 ? "pill-bad" : "pill-good"}">${escapeHtml(balance > 0 ? `${formatUsd(balance)} still open` : "Nothing outstanding")}</span>
-            <span class="pill">${escapeHtml(latestPayment ? `Recent payment ${formatUsd(paymentAmountCents(latestPayment))}` : "No payment recorded yet")}</span>
+            <span class="pill">${escapeHtml(lastTouchValue ? `Last touch ${formatDateTime(lastTouchValue)}` : "No touchpoint logged yet")}</span>
+          </div>
+          <div class="memory-checklist">
+            ${nextMoveGuidance.items.map((item) => `
+              <div class="memory-checklist__item ${item.ready ? "memory-checklist__item--ready" : ""} ${item.tone === "warn" ? "memory-checklist__item--warn" : ""}">
+                <div class="memory-checklist__label">${escapeHtml(item.label || "Next step")}</div>
+                <div class="memory-checklist__note">${escapeHtml(item.note || "Keep the next move visible here.")}</div>
+              </div>
+            `).join("")}
           </div>
         </div>
+        ${postWorkGuidance ? `
+          <div class="detail-card customer-next-step-card">
+            <div class="kicker">After the work wraps</div>
+            <div><strong>${escapeHtml(postWorkGuidance.title)}</strong></div>
+            <div class="detail-copy">${escapeHtml(postWorkGuidance.description)}</div>
+            <div class="memory-checklist">
+              ${postWorkGuidance.items.map((item) => `
+                <div class="memory-checklist__item ${item.ready ? "memory-checklist__item--ready" : ""} ${item.tone === "warn" ? "memory-checklist__item--warn" : ""}">
+                  <div class="memory-checklist__label">${escapeHtml(item.label || "Next step")}</div>
+                  <div class="memory-checklist__note">${escapeHtml(item.note || "Keep the next move visible here.")}</div>
+                </div>
+              `).join("")}
+            </div>
+          </div>
+        ` : ""}
         ${renderRecordFollowThroughCard({
           eyebrow: "Follow-through",
           title: "Keep the relationship warm and collectible",
@@ -565,10 +848,10 @@
           ],
           controlsHtml: `
             <div class="row">
-              <select id="customerInteractionType" style="max-width:200px;">
+              <select id="customerInteractionType" class="customer-follow-through-controls__type">
                 ${customerInteractionOptionsMarkup("note")}
               </select>
-              <input id="customerInteractionSummary" class="input" style="flex:1;max-width:none;" placeholder="${escapeHtml(customerInteractionPlaceholder("note"))}" />
+              <input id="customerInteractionSummary" class="input customer-follow-through-controls__summary" placeholder="${escapeHtml(customerInteractionPlaceholder("note"))}" />
               <button id="btnAddCustomerInteraction" class="btn btn-primary" type="button">Add interaction</button>
             </div>
           `,
@@ -602,7 +885,7 @@
           </div>
           <div class="card-bd">
             ${customerOrders.length ? `
-              <div class="table" style="margin-bottom:10px;">
+              <div class="table u-mb-10">
                 <div class="tr th"><div>Order</div><div class="right">Amount</div><div class="right">Status</div></div>
                 ${customerOrders.slice(0, 4).map((order) => `
                   <div class="tr">
@@ -612,13 +895,13 @@
                   </div>
                 `).join("")}
               </div>
-            ` : `<div class="muted" style="margin-bottom:10px;">No orders yet for this customer.</div>`}
+            ` : `<div class="muted u-mb-10">No orders yet for this customer.</div>`}
             ${customerPayments.length ? `
               <div class="table">
                 <div class="tr th"><div>Date</div><div class="right">Amount</div><div>Mode</div></div>
                 ${customerPayments.slice(0, 4).map((payment) => `
                   <div class="tr">
-                    <div class="muted" style="font-size:.8rem;">${escapeHtml(formatDateTime(payment.paid_at || payment.created_at || payment.updated_at))}</div>
+                    <div class="muted muted-small">${escapeHtml(formatDateTime(payment.paid_at || payment.created_at || payment.updated_at))}</div>
                     <div class="right">${formatUsd(paymentAmountCents(payment))}</div>
                     <div>${escapeHtml(formatPaymentMode(payment.payment_mode))}</div>
                   </div>
@@ -705,6 +988,8 @@
     customerJobs,
     customerMemoryChecklist,
     customerCollectionGuidance,
+    customerRelationshipGuidance,
+    customerPostWorkGuidance,
     openCustomerRequestDraft,
     openCustomerBidDraft,
     openCustomerPaymentDraft,

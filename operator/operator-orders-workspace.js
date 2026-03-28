@@ -82,6 +82,401 @@ function renderOrderCustomerMemoryCard(customer, blueprint = orderWorkspaceBluep
   `;
 }
 
+function orderPrepGuidanceItems(order, customer, blueprint = orderWorkspaceBlueprint()) {
+  const businessKey = String(blueprint?.business?.key || "service_business").trim().toLowerCase();
+  const filled = (...values) => values.some((value) => String(value || "").trim());
+  const firstFilled = (...values) => values.find((value) => String(value || "").trim()) || "";
+  const detail = (label, ready, readyNote, missingNote) => ({
+    label,
+    ready: !!ready,
+    note: ready ? readyNote : missingNote,
+  });
+
+  const landscaping = [
+    detail(
+      "Access and arrival",
+      filled(customer?.access_notes, customer?.gate_notes, order?.service_address),
+      firstFilled(customer?.access_notes, customer?.gate_notes, order?.service_address),
+      "Confirm the property access notes and arrival details before this booked work becomes a field stop."
+    ),
+    detail(
+      "Route and timing",
+      filled(order?.scheduled_date, order?.scheduled_time, customer?.service_schedule, customer?.frequency),
+      firstFilled(
+        order?.scheduled_date && order?.scheduled_time ? `${order.scheduled_date} at ${order.scheduled_time}` : "",
+        order?.scheduled_date,
+        customer?.service_schedule,
+        customer?.frequency
+      ),
+      "Lock in the service window and route cadence so the crew knows when this work really lands."
+    ),
+    detail(
+      "Property focus",
+      filled(customer?.seasonal_notes, customer?.cleanup_notes, order?.notes, customer?.service_notes),
+      firstFilled(customer?.seasonal_notes, customer?.cleanup_notes, order?.notes, customer?.service_notes),
+      "Call out the property area, seasonal work, or upsell detail that should stay attached to this booked work."
+    ),
+  ];
+
+  const cleaning = [
+    detail(
+      "Entry and access",
+      filled(customer?.access_notes, customer?.alarm_notes, customer?.entry_notes),
+      firstFilled(customer?.access_notes, customer?.alarm_notes, customer?.entry_notes),
+      "Confirm entry, alarm, lockbox, or access instructions before the visit is handed off."
+    ),
+    detail(
+      "Scope for this visit",
+      filled(customer?.scope_notes, customer?.checklist_notes, customer?.room_notes, order?.notes),
+      firstFilled(customer?.scope_notes, customer?.checklist_notes, customer?.room_notes, order?.notes),
+      "Carry the room-by-room scope, checklist, and add-ons into this booked work."
+    ),
+    detail(
+      "Repeat cadence",
+      filled(customer?.service_schedule, customer?.frequency, customer?.recurring_notes, customer?.add_on_notes),
+      firstFilled(customer?.service_schedule, customer?.frequency, customer?.recurring_notes, customer?.add_on_notes),
+      "Make sure the cadence and add-ons for this cleaning visit are clear before the team arrives."
+    ),
+  ];
+
+  const hvac = [
+    detail(
+      "System context",
+      filled(customer?.equipment_notes, customer?.system_notes, customer?.asset_summary, customer?.equipment_serial),
+      firstFilled(customer?.equipment_notes, customer?.system_notes, customer?.asset_summary, customer?.equipment_serial),
+      "Confirm the unit, system, or equipment details that should stay attached to this booked work."
+    ),
+    detail(
+      "Access and contact",
+      filled(customer?.access_notes, customer?.entry_notes, customer?.tenant_notes, order?.customer_phone, customer?.phone),
+      firstFilled(customer?.access_notes, customer?.entry_notes, customer?.tenant_notes, order?.customer_phone, customer?.phone),
+      "Confirm who is meeting the technician and how they get into the site."
+    ),
+    detail(
+      "Diagnostic handoff",
+      filled(customer?.diagnostic_notes, customer?.failure_symptoms, customer?.issue_summary, order?.notes),
+      firstFilled(customer?.diagnostic_notes, customer?.failure_symptoms, customer?.issue_summary, order?.notes),
+      "Carry the symptom history and diagnostic context into scheduling so the visit starts informed."
+    ),
+  ];
+
+  const plumbing = [
+    detail(
+      "Access and shutoff",
+      filled(customer?.shutoff_notes, customer?.access_notes, customer?.entry_notes),
+      firstFilled(customer?.shutoff_notes, customer?.access_notes, customer?.entry_notes),
+      "Confirm shutoff, entry, and arrival instructions before dispatch."
+    ),
+    detail(
+      "Fixture and issue",
+      filled(customer?.fixture_notes, customer?.issue_summary, customer?.leak_source, order?.notes),
+      firstFilled(customer?.fixture_notes, customer?.issue_summary, customer?.leak_source, order?.notes),
+      "Keep the fixture, leak, or repair context attached to this booked work."
+    ),
+    detail(
+      "Repair follow-through",
+      filled(customer?.approval_notes, customer?.restoration_notes, customer?.follow_up_notes),
+      firstFilled(customer?.approval_notes, customer?.restoration_notes, customer?.follow_up_notes),
+      "Call out any approval or restoration context before the job gets built from this work record."
+    ),
+  ];
+
+  const fallback = [
+    detail(
+      "Customer contact",
+      filled(order?.customer_phone, customer?.phone, order?.customer_email, customer?.email),
+      firstFilled(order?.customer_phone, customer?.phone, order?.customer_email, customer?.email),
+      "Confirm how the customer should be reached while this booked work is being scheduled and followed through."
+    ),
+    detail(
+      "Site details",
+      filled(order?.service_address, customer?.service_address, customer?.address_line1),
+      firstFilled(order?.service_address, customer?.service_address, customer?.address_line1),
+      "Keep the service address and site notes attached before the work becomes a field visit."
+    ),
+    detail(
+      "Next handoff note",
+      filled(order?.notes, customer?.follow_up_notes, customer?.service_notes),
+      firstFilled(order?.notes, customer?.follow_up_notes, customer?.service_notes),
+      "Add the one note the next person should not have to rediscover on their own."
+    ),
+  ];
+
+  return ({
+    landscaping,
+    property_maintenance: landscaping,
+    pressure_washing: landscaping,
+    cleaning,
+    hvac,
+    plumbing,
+  })[businessKey] || fallback;
+}
+
+function renderOrderPrepGuidanceCard(order, customer, blueprint = orderWorkspaceBlueprint()) {
+  const items = orderPrepGuidanceItems(order, customer, blueprint);
+  if (!items.length) return "";
+  return `
+    <div class="detail-card detail-card--spaced">
+      <div class="kicker">Prep before field handoff</div>
+      <div><strong>Make this booked work easier to execute well</strong></div>
+      <div class="detail-copy">Use these reminders to confirm the details that matter before this record turns into scheduling, dispatch, and field execution.</div>
+      <div class="memory-checklist">
+        ${items.map((item) => `
+          <div class="memory-checklist__item ${item.ready ? "memory-checklist__item--ready" : ""}">
+            <div class="memory-checklist__title">${escapeHtml(item.ready ? `Ready: ${item.label}` : `Still needed: ${item.label}`)}</div>
+            <div class="detail-copy memory-checklist__note">${escapeHtml(item.note || "")}</div>
+          </div>
+        `).join("")}
+      </div>
+    </div>
+  `;
+}
+
+function orderNextMoveItems(order, customer, amountDueCents = 0, paymentState = "", blueprint = orderWorkspaceBlueprint()) {
+  const businessKey = String(blueprint?.business?.key || "service_business").trim().toLowerCase();
+  const filled = (...values) => values.some((value) => String(value || "").trim());
+  const firstFilled = (...values) => values.find((value) => String(value || "").trim()) || "";
+  const detail = (label, ready, readyNote, missingNote) => ({
+    label,
+    ready: !!ready,
+    note: ready ? readyNote : missingNote,
+  });
+  const moneyItem = detail(
+    "Money follow-through",
+    amountDueCents <= 0,
+    "No balance is left open on this booked work.",
+    paymentState === "overdue"
+      ? "Payment follow-up is overdue. Keep the reminder and collection path attached to this record now."
+      : "A balance is still open. Keep the reminder or payment step attached to this booked work."
+  );
+
+  const landscaping = [
+    detail(
+      "Crew prep note",
+      filled(customer?.seasonal_notes, customer?.cleanup_notes, order?.notes),
+      firstFilled(customer?.seasonal_notes, customer?.cleanup_notes, order?.notes),
+      "Leave the next crew one plain-English property or seasonal note before this work turns into a field stop."
+    ),
+    detail(
+      "Return-service plan",
+      filled(customer?.service_schedule, customer?.frequency, customer?.follow_up_notes),
+      firstFilled(customer?.service_schedule, customer?.frequency, customer?.follow_up_notes),
+      "Confirm the repeat cadence or next service window so this property does not rely on memory alone."
+    ),
+    moneyItem,
+  ];
+
+  const cleaning = [
+    detail(
+      "Visit scope confirmed",
+      filled(customer?.checklist_notes, customer?.scope_notes, customer?.add_on_notes, order?.notes),
+      firstFilled(customer?.checklist_notes, customer?.scope_notes, customer?.add_on_notes, order?.notes),
+      "Confirm the checklist or add-ons that make this visit successful before the team arrives."
+    ),
+    detail(
+      "Next visit protected",
+      filled(customer?.service_schedule, customer?.frequency, customer?.follow_up_notes),
+      firstFilled(customer?.service_schedule, customer?.frequency, customer?.follow_up_notes),
+      "Leave the next cleaning cadence or follow-up note visible so this customer does not have to reteach the routine."
+    ),
+    moneyItem,
+  ];
+
+  const hvac = [
+    detail(
+      "System follow-through",
+      filled(customer?.parts_follow_up, customer?.maintenance_notes, customer?.diagnostic_notes),
+      firstFilled(customer?.parts_follow_up, customer?.maintenance_notes, customer?.diagnostic_notes),
+      "Call out the next diagnostic, parts, or maintenance step so this visit hands off cleanly."
+    ),
+    detail(
+      "Customer contact path",
+      filled(customer?.tenant_notes, customer?.access_notes, order?.customer_phone, customer?.phone),
+      firstFilled(customer?.tenant_notes, customer?.access_notes, order?.customer_phone, customer?.phone),
+      "Confirm who the office should reach and how the next HVAC step gets scheduled without churn."
+    ),
+    moneyItem,
+  ];
+
+  const plumbing = [
+    detail(
+      "Repair follow-through",
+      filled(customer?.approval_notes, customer?.restoration_notes, customer?.follow_up_notes),
+      firstFilled(customer?.approval_notes, customer?.restoration_notes, customer?.follow_up_notes),
+      "Leave the approval, restoration, or return-visit note visible before this repair moves to the next stage."
+    ),
+    detail(
+      "Site risk note",
+      filled(customer?.shutoff_notes, customer?.issue_summary, customer?.fixture_notes),
+      firstFilled(customer?.shutoff_notes, customer?.issue_summary, customer?.fixture_notes),
+      "Keep the shutoff or issue note attached so the next visit starts safer and faster."
+    ),
+    moneyItem,
+  ];
+
+  const fallback = [
+    detail(
+      "Next office note",
+      filled(order?.notes, customer?.follow_up_notes, customer?.service_notes),
+      firstFilled(order?.notes, customer?.follow_up_notes, customer?.service_notes),
+      "Leave the next person one clear note so this booked work does not depend on memory."
+    ),
+    moneyItem,
+  ];
+
+  return ({
+    landscaping,
+    property_maintenance: landscaping,
+    pressure_washing: landscaping,
+    cleaning,
+    hvac,
+    plumbing,
+  })[businessKey] || fallback;
+}
+
+function renderOrderNextMoveCard(order, customer, amountDueCents = 0, paymentState = "", blueprint = orderWorkspaceBlueprint()) {
+  const items = orderNextMoveItems(order, customer, amountDueCents, paymentState, blueprint);
+  if (!items.length) return "";
+  return `
+    <div class="detail-card detail-card--spaced">
+      <div class="kicker">Best next office move</div>
+      <div><strong>Keep the booked work, field handoff, and money follow-through together</strong></div>
+      <div class="detail-copy">Use this to keep the next trade-specific move attached to the same record instead of relying on memory or side notes.</div>
+      <div class="memory-checklist">
+        ${items.map((item) => `
+          <div class="memory-checklist__item ${item.ready ? "memory-checklist__item--ready" : "memory-checklist__item--warn"}">
+            <div class="memory-checklist__title">${escapeHtml(item.ready ? `Ready: ${item.label}` : `Needs attention: ${item.label}`)}</div>
+            <div class="detail-copy memory-checklist__note">${escapeHtml(item.note || "")}</div>
+          </div>
+        `).join("")}
+      </div>
+    </div>
+  `;
+}
+
+function orderRetentionItems(order, customer, amountDueCents = 0, paymentState = "", blueprint = orderWorkspaceBlueprint()) {
+  const businessKey = String(blueprint?.business?.key || "service_business").trim().toLowerCase();
+  const filled = (...values) => values.some((value) => String(value || "").trim());
+  const firstFilled = (...values) => values.find((value) => String(value || "").trim()) || "";
+  const detail = (label, ready, readyNote, missingNote, tone = "") => ({
+    label,
+    ready: !!ready,
+    note: ready ? readyNote : missingNote,
+    tone: tone || (!ready ? "warn" : ""),
+  });
+  const moneyItem = detail(
+    "Account closes cleanly",
+    amountDueCents <= 0,
+    "The money side is already in a good place, so the next move can stay focused on retention and repeat work.",
+    paymentState === "overdue"
+      ? "Leave a clear follow-up note so the work result and overdue collection step stay tied together."
+      : "Leave the follow-up and payment note attached so the customer does not get a finished job with an unclear balance."
+  );
+
+  const landscaping = [
+    detail(
+      "Next property touch",
+      filled(customer?.seasonal_notes, customer?.service_schedule, customer?.follow_up_notes),
+      firstFilled(customer?.seasonal_notes, customer?.service_schedule, customer?.follow_up_notes),
+      "Capture the next route, cleanup, or seasonal note before this property falls out of rhythm."
+    ),
+    detail(
+      "Customer follow-up",
+      filled(customer?.upsell_notes, customer?.phone, customer?.email),
+      firstFilled(customer?.upsell_notes, customer?.phone, customer?.email),
+      "Leave the next customer-facing note attached so upsells and follow-up do not get lost after the visit."
+    ),
+    moneyItem,
+  ];
+
+  const cleaning = [
+    detail(
+      "Next visit stays easy",
+      filled(customer?.frequency, customer?.recurring_notes, customer?.follow_up_notes),
+      firstFilled(customer?.frequency, customer?.recurring_notes, customer?.follow_up_notes),
+      "Leave the next cleaning cadence attached so the customer does not have to restate the routine."
+    ),
+    detail(
+      "Checklist memory sticks",
+      filled(customer?.checklist_notes, customer?.add_on_notes, order?.notes),
+      firstFilled(customer?.checklist_notes, customer?.add_on_notes, order?.notes),
+      "Keep the add-ons or closeout note attached so the next visit starts from real memory."
+    ),
+    moneyItem,
+  ];
+
+  const hvac = [
+    detail(
+      "Maintenance follow-up",
+      filled(customer?.maintenance_notes, customer?.parts_follow_up, customer?.warranty_notes),
+      firstFilled(customer?.maintenance_notes, customer?.parts_follow_up, customer?.warranty_notes),
+      "Leave the maintenance, parts, or warranty note attached before the next system visit slips."
+    ),
+    detail(
+      "Customer update stays clear",
+      filled(customer?.tenant_notes, customer?.phone, customer?.email),
+      firstFilled(customer?.tenant_notes, customer?.phone, customer?.email),
+      "Keep the customer update path visible so the office can close out and rebook the next HVAC step cleanly."
+    ),
+    moneyItem,
+  ];
+
+  const plumbing = [
+    detail(
+      "Repair follow-through",
+      filled(customer?.restoration_notes, customer?.approval_notes, customer?.follow_up_notes),
+      firstFilled(customer?.restoration_notes, customer?.approval_notes, customer?.follow_up_notes),
+      "Leave the restoration, approval, or return-visit note attached so the repair does not stall after completion."
+    ),
+    detail(
+      "Customer handoff",
+      filled(customer?.phone, customer?.email, customer?.shutoff_notes),
+      firstFilled(customer?.phone, customer?.email, customer?.shutoff_notes),
+      "Keep the update path and shutoff/repair note visible so the customer knows what comes next."
+    ),
+    moneyItem,
+  ];
+
+  const fallback = [
+    detail(
+      "Next customer step",
+      filled(customer?.follow_up_notes, customer?.service_notes, order?.notes),
+      firstFilled(customer?.follow_up_notes, customer?.service_notes, order?.notes),
+      "Leave the next follow-up step attached so the customer relationship does not have to restart from memory."
+    ),
+    moneyItem,
+  ];
+
+  return ({
+    landscaping,
+    property_maintenance: landscaping,
+    pressure_washing: landscaping,
+    cleaning,
+    hvac,
+    plumbing,
+  })[businessKey] || fallback;
+}
+
+function renderOrderRetentionCard(order, customer, amountDueCents = 0, paymentState = "", blueprint = orderWorkspaceBlueprint()) {
+  const items = orderRetentionItems(order, customer, amountDueCents, paymentState, blueprint);
+  if (!items.length) return "";
+  return `
+    <div class="detail-card detail-card--spaced">
+      <div class="kicker">After this work is done</div>
+      <div><strong>Keep the next customer promise attached</strong></div>
+      <div class="detail-copy">Use this to protect the repeat-service step, customer update, and account closeout while the work is still fresh.</div>
+      <div class="memory-checklist">
+        ${items.map((item) => `
+          <div class="memory-checklist__item ${item.ready ? "memory-checklist__item--ready" : "memory-checklist__item--warn"}">
+            <div class="memory-checklist__title">${escapeHtml(item.ready ? `Ready: ${item.label}` : `Needs attention: ${item.label}`)}</div>
+            <div class="detail-copy memory-checklist__note">${escapeHtml(item.note || "")}</div>
+          </div>
+        `).join("")}
+      </div>
+    </div>
+  `;
+}
+
 function renderOrders() {
   if (!ordersList) return;
   renderPipelineWorkspace();
@@ -247,6 +642,9 @@ function renderOrders() {
       actions: orderActionButtons,
     })}
     ${renderOrderCustomerMemoryCard(existingCustomer, blueprint)}
+    ${renderOrderPrepGuidanceCard(active, existingCustomer, blueprint)}
+    ${renderOrderNextMoveCard(active, existingCustomer, amountDue, paymentState, blueprint)}
+    ${renderOrderRetentionCard(active, existingCustomer, amountDue, paymentState, blueprint)}
 
     ${(active.order_type === 'package' || active.order_type === 'retainer') ? `
     <div class="detail-card detail-card--spaced">

@@ -51,6 +51,46 @@ function buildDashboardCollectionGuidance({ outstandingBalance, overdueBalance, 
   };
 }
 
+function buildDashboardRepeatWorkGuidance({ duePlansCount = 0, activePlansCount = 0, todayBookingsCount = 0, blueprint = currentWorkspaceBlueprint() }) {
+  const businessKey = String(blueprint?.business?.key || "service_business").trim().toLowerCase();
+  if (duePlansCount > 0) {
+    return {
+      title: "Recurring work is due right now",
+      description: "Generate the next work record before repeat revenue slips back into memory and manual follow-up.",
+      chips: [
+        `${duePlansCount} recurring visit${duePlansCount === 1 ? "" : "s"} due`,
+        `${activePlansCount} active plan${activePlansCount === 1 ? "" : "s"}`,
+      ],
+    };
+  }
+  if (todayBookingsCount > 0) {
+    return {
+      title: "Today's schedule is carrying the repeat relationship",
+      description: "Use today's booked visits to confirm the next cadence, closeout note, or renewal step before the account cools off.",
+      chips: [
+        `${todayBookingsCount} appointment${todayBookingsCount === 1 ? "" : "s"} today`,
+        `${activePlansCount} active plan${activePlansCount === 1 ? "" : "s"}`,
+      ],
+    };
+  }
+  const descriptions = {
+    landscaping: "Use the breathing room to line up the next property visit, seasonal upgrade, or route touch before the account goes quiet.",
+    property_maintenance: "Use the breathing room to line up the next property walk, turnover, or maintenance touch before the site needs to be relearned.",
+    pressure_washing: "Use the breathing room to line up the next wash cycle or seasonal follow-up before the property falls out of rotation.",
+    cleaning: "Use the breathing room to keep the next visit cadence, add-ons, and checklist expectations visible before the customer has to restate them.",
+    hvac: "Use the breathing room to move the customer back into maintenance, warranty, or parts follow-through instead of waiting for the next emergency.",
+    plumbing: "Use the breathing room to keep repair follow-through, restoration, or return-visit planning visible before the issue goes quiet.",
+  };
+  return {
+    title: "Repeat work is in a healthy place",
+    description: descriptions[businessKey] || "Use the breathing room to keep the next service step and repeat-work rhythm visible before it slips.",
+    chips: [
+      `${activePlansCount} active plan${activePlansCount === 1 ? "" : "s"}`,
+      "Nothing urgent to renew",
+    ],
+  };
+}
+
 function renderDashboard() {
   if (!dashboardWrap) return;
 
@@ -68,6 +108,7 @@ function renderDashboard() {
   const staleLeadRows = staleLeads();
   const completedUnpaid = completedUnpaidOrders();
   const duePlans = dueServicePlans();
+  const activePlansCount = SERVICE_PLANS_CACHE.filter((row) => String(row.status || "").toLowerCase() === "active").length;
   const depositRiskOrders = ordersMissingDeposits();
   const completedUnpaidBalance = completedUnpaid.reduce((sum, row) => sum + orderAmountDueCents(row), 0);
   const outstandingBalance = outstandingBalanceCents();
@@ -78,6 +119,13 @@ function renderDashboard() {
     overdueBalance,
     missingDepositBalance,
     completedUnpaidBalance,
+  });
+  const todayBookingsCount = BOOKINGS_CACHE.filter((b) => b.starts_at && b.starts_at.slice(0, 10) === new Date().toISOString().slice(0, 10) && b.status !== 'cancelled').length;
+  const repeatWorkGuidance = buildDashboardRepeatWorkGuidance({
+    duePlansCount: duePlans.length,
+    activePlansCount,
+    todayBookingsCount,
+    blueprint,
   });
   const orderLabel = workspaceOrderLabelLower(blueprint);
   const catalogLabel = workspaceCatalogLabelLower(blueprint);
@@ -123,40 +171,32 @@ function renderDashboard() {
   const step4Done = BOOKINGS_CACHE.length > 0;
   const stepsComplete = [step1Done, step2Done, step3Done, step4Done].filter(Boolean).length;
   const showOnboarding = !onboardingDismissed && stepsComplete < 3;
+  const onboardingProgressPercent = Math.round(stepsComplete / 4 * 100);
+  const renderOnboardingStep = ({ done, label, tab }) => `
+    <div class="onboarding-step">
+      <span class="onboarding-step__icon ${done ? "is-done" : ""}">${done ? "&#10003;" : "&#9711;"}</span>
+      <span class="onboarding-step__label ${done ? "onboarding-step__label--done" : ""}">${label}</span>
+      ${!done ? `<button data-tab="${escapeAttr(tab)}" class="btn btn-ghost onboarding-step__action">Open</button>` : ""}
+    </div>
+  `;
 
   const onboardingHtml = showOnboarding ? `
-    <div class="card" id="onboardingCard" style="margin-bottom:16px;border:1px solid rgba(200,75,47,.3);background:rgba(200,75,47,.04);">
+    <div class="card onboarding-card" id="onboardingCard">
       <div class="card-hd">
         <strong>Get your first wins</strong>
-        <button id="btnDismissOnboarding" style="font-size:.75rem;color:rgba(255,255,255,.3);background:none;border:none;cursor:pointer;">Dismiss</button>
+        <button id="btnDismissOnboarding" class="onboarding-card__dismiss">Dismiss</button>
       </div>
       <div class="card-bd">
-        <div style="display:flex;flex-direction:column;gap:8px;">
-          <div style="display:flex;align-items:center;gap:10px;">
-            <span style="font-size:1.1rem;color:${step1Done ? "#4ade80" : "rgba(255,255,255,.3)"};">${step1Done ? "&#10003;" : "&#9711;"}</span>
-            <span style="color:${step1Done ? "rgba(255,255,255,.5)" : "inherit"};text-decoration:${step1Done ? "line-through" : "none"};">Add your first customer</span>
-            ${!step1Done ? `<button data-tab="customers" class="btn btn-ghost" style="margin-left:auto;font-size:.75rem;padding:3px 10px;">Open</button>` : ""}
-          </div>
-          <div style="display:flex;align-items:center;gap:10px;">
-            <span style="font-size:1.1rem;color:${step2Done ? "#4ade80" : "rgba(255,255,255,.3)"};">${step2Done ? "&#10003;" : "&#9711;"}</span>
-            <span style="color:${step2Done ? "rgba(255,255,255,.5)" : "inherit"};text-decoration:${step2Done ? "line-through" : "none"};">Capture your first request</span>
-            ${!step2Done ? `<button data-tab="leads" class="btn btn-ghost" style="margin-left:auto;font-size:.75rem;padding:3px 10px;">Open</button>` : ""}
-          </div>
-          <div style="display:flex;align-items:center;gap:10px;">
-            <span style="font-size:1.1rem;color:${step3Done ? "#4ade80" : "rgba(255,255,255,.3)"};">${step3Done ? "&#10003;" : "&#9711;"}</span>
-            <span style="color:${step3Done ? "rgba(255,255,255,.5)" : "inherit"};text-decoration:${step3Done ? "line-through" : "none"};">Send your first invoice</span>
-            ${!step3Done ? `<button data-tab="payments" class="btn btn-ghost" style="margin-left:auto;font-size:.75rem;padding:3px 10px;">Open</button>` : ""}
-          </div>
-          <div style="display:flex;align-items:center;gap:10px;">
-            <span style="font-size:1.1rem;color:${step4Done ? "#4ade80" : "rgba(255,255,255,.3)"};">${step4Done ? "&#10003;" : "&#9711;"}</span>
-            <span style="color:${step4Done ? "rgba(255,255,255,.5)" : "inherit"};text-decoration:${step4Done ? "line-through" : "none"};">Schedule a booking</span>
-            ${!step4Done ? `<button data-tab="bookings" class="btn btn-ghost" style="margin-left:auto;font-size:.75rem;padding:3px 10px;">Open</button>` : ""}
-          </div>
+        <div class="onboarding-steps">
+          ${renderOnboardingStep({ done: step1Done, label: "Add your first customer", tab: "customers" })}
+          ${renderOnboardingStep({ done: step2Done, label: "Capture your first request", tab: "leads" })}
+          ${renderOnboardingStep({ done: step3Done, label: "Send your first invoice", tab: "payments" })}
+          ${renderOnboardingStep({ done: step4Done, label: "Schedule a booking", tab: "bookings" })}
         </div>
-        <div style="margin-top:12px;background:rgba(255,255,255,.06);border-radius:4px;height:4px;overflow:hidden;">
-          <div style="width:${Math.round(stepsComplete / 4 * 100)}%;height:100%;background:var(--accent);border-radius:4px;"></div>
+        <div class="onboarding-progress">
+          <div class="onboarding-progress__fill" style="width:${onboardingProgressPercent}%;"></div>
         </div>
-        <div style="font-size:.75rem;color:rgba(255,255,255,.3);margin-top:4px;">${stepsComplete} of 4 steps complete</div>
+        <div class="onboarding-progress__meta">${stepsComplete} of 4 steps complete</div>
       </div>
     </div>` : "";
 
@@ -200,16 +240,30 @@ function renderDashboard() {
       </div>
     </div>
 
-    <div class="card" style="margin-top:14px;">
+    <div class="card dashboard-focus-card">
       <div class="card-hd">
         <strong>Collection focus</strong>
         <span class="muted">The clearest next money move</span>
       </div>
       <div class="card-bd">
-        <div style="font-weight:700;">${escapeHtml(collectionGuidance.title)}</div>
-        <div class="detail-copy" style="margin-top:6px;">${escapeHtml(collectionGuidance.description)}</div>
-        <div class="workspace-chip-row" style="margin-top:10px;">
+        <div class="dashboard-focus-title">${escapeHtml(collectionGuidance.title)}</div>
+        <div class="detail-copy dashboard-focus-copy">${escapeHtml(collectionGuidance.description)}</div>
+        <div class="workspace-chip-row dashboard-focus-chips">
           ${collectionGuidance.chips.map((chip) => `<span class="pill">${escapeHtml(chip)}</span>`).join("")}
+        </div>
+      </div>
+    </div>
+
+    <div class="card dashboard-focus-card">
+      <div class="card-hd">
+        <strong>Repeat-service focus</strong>
+        <span class="muted">The next renewal or return visit to protect</span>
+      </div>
+      <div class="card-bd">
+        <div class="dashboard-focus-title">${escapeHtml(repeatWorkGuidance.title)}</div>
+        <div class="detail-copy dashboard-focus-copy">${escapeHtml(repeatWorkGuidance.description)}</div>
+        <div class="workspace-chip-row dashboard-focus-chips">
+          ${repeatWorkGuidance.chips.map((chip) => `<span class="pill">${escapeHtml(chip)}</span>`).join("")}
         </div>
       </div>
     </div>
@@ -963,6 +1017,7 @@ function renderGuidance() {
 
 const COMMAND_CENTER_HELPERS = {
   buildDashboardCollectionGuidance,
+  buildDashboardRepeatWorkGuidance,
   renderDashboard,
   renderMoneyWorkspace,
   renderPipelineWorkspace,

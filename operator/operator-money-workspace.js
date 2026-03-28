@@ -397,6 +397,50 @@ function buildMoneyCollectionMemory(blueprint = currentWorkspaceBlueprint()) {
   };
 }
 
+function buildMoneyCollectionNextStep(blueprint = currentWorkspaceBlueprint()) {
+  const order = priorityCollectionOrder();
+  if (!order) return null;
+
+  const customer = customerById(order.customer_id) || null;
+  const customerName = customer?.name || order.customer_name || "this customer";
+  const businessKey = String(blueprint?.business?.key || "service_business").trim().toLowerCase();
+  const firstFilled = (...values) => values.find((value) => String(value || "").trim()) || "";
+  const items = [];
+
+  if (["landscaping", "property_maintenance", "pressure_washing"].includes(businessKey)) {
+    items.push(firstFilled(customer?.seasonal_notes, customer?.follow_up_notes, customer?.service_schedule)
+      ? `Carry the next property touch forward: ${firstFilled(customer?.seasonal_notes, customer?.follow_up_notes, customer?.service_schedule)}`
+      : "Turn the next move back into the next property visit or seasonal follow-up.");
+  } else if (businessKey === "cleaning") {
+    items.push(firstFilled(customer?.recurring_notes, customer?.add_on_notes, customer?.checklist_notes)
+      ? `Keep the next cleaning visit clear: ${firstFilled(customer?.recurring_notes, customer?.add_on_notes, customer?.checklist_notes)}`
+      : "Turn the next move back into visit cadence, checklist follow-through, or add-ons.");
+  } else if (businessKey === "hvac") {
+    items.push(firstFilled(customer?.maintenance_notes, customer?.parts_follow_up, customer?.warranty_notes)
+      ? `Move back to system follow-through: ${firstFilled(customer?.maintenance_notes, customer?.parts_follow_up, customer?.warranty_notes)}`
+      : "Once the balance closes, move back to maintenance, parts, or warranty follow-through.");
+  } else if (businessKey === "plumbing") {
+    items.push(firstFilled(customer?.restoration_notes, customer?.approval_notes, customer?.follow_up_notes)
+      ? `Keep the repair follow-through visible: ${firstFilled(customer?.restoration_notes, customer?.approval_notes, customer?.follow_up_notes)}`
+      : "Once the balance closes, keep the next repair, restoration, or return-visit step visible.");
+  } else {
+    items.push("Once this balance closes, keep the next service step attached to the same customer and work record.");
+  }
+
+  if (order.payment_due_date) {
+    items.push(`Keep the timing visible too: this balance is tied to work due ${formatDateOnly(order.payment_due_date)}.`);
+  } else if (order.cart_summary) {
+    items.push(`Keep the work context attached: ${order.cart_summary}.`);
+  }
+
+  return {
+    customerName,
+    title: "After this balance is handled",
+    description: `When ${customerName} is paid up, the next move should go back to service follow-through instead of chasing the same money twice.`,
+    items,
+  };
+}
+
 async function renderMoney() {
   if (!moneyWrap) return;
 
@@ -450,6 +494,7 @@ async function renderMoney() {
     unpaidCompletedCount,
   });
   const collectionMemory = buildMoneyCollectionMemory(blueprint);
+  const collectionNextStep = buildMoneyCollectionNextStep(blueprint);
 
   moneyWrap.innerHTML = `
     <div class="cards">
@@ -509,22 +554,33 @@ async function renderMoney() {
       </div>
     </div>
 
-    <div class="card" style="margin-top:14px;">
+    <div class="card money-focus-card">
       <div class="card-hd">
         <strong>Collection focus</strong>
         <span class="muted">The clearest next money move</span>
       </div>
       <div class="card-bd">
-        <div style="font-weight:700;">${escapeHtml(collectionGuidance.title)}</div>
-        <div class="detail-copy" style="margin-top:6px;">${escapeHtml(collectionGuidance.description)}</div>
-        <div class="workspace-chip-row" style="margin-top:10px;">
+        <div class="money-focus-title">${escapeHtml(collectionGuidance.title)}</div>
+        <div class="detail-copy money-focus-copy">${escapeHtml(collectionGuidance.description)}</div>
+        <div class="workspace-chip-row money-focus-chips">
           ${collectionGuidance.chips.map((chip) => `<span class="pill">${escapeHtml(chip)}</span>`).join("")}
         </div>
         ${collectionMemory ? `
-          <div class="detail-copy" style="margin-top:12px;"><strong>Keep the follow-through tied to ${escapeHtml(collectionMemory.customerName)}</strong></div>
-          <div class="detail-copy" style="margin-top:6px;">${escapeHtml(collectionMemory.description)}</div>
-          <div class="memory-checklist" style="margin-top:10px;">
+          <div class="detail-copy money-focus-section-title"><strong>Keep the follow-through tied to ${escapeHtml(collectionMemory.customerName)}</strong></div>
+          <div class="detail-copy money-focus-copy">${escapeHtml(collectionMemory.description)}</div>
+          <div class="memory-checklist money-focus-checklist">
             ${collectionMemory.items.map((item) => `
+              <div class="memory-checklist__item memory-checklist__item--ready">
+                <div class="detail-copy memory-checklist__note">${escapeHtml(item)}</div>
+              </div>
+            `).join("")}
+          </div>
+        ` : ""}
+        ${collectionNextStep ? `
+          <div class="detail-copy money-focus-section-title"><strong>${escapeHtml(collectionNextStep.title)}</strong></div>
+          <div class="detail-copy money-focus-copy">${escapeHtml(collectionNextStep.description)}</div>
+          <div class="memory-checklist money-focus-checklist">
+            ${collectionNextStep.items.map((item) => `
               <div class="memory-checklist__item memory-checklist__item--ready">
                 <div class="detail-copy memory-checklist__note">${escapeHtml(item)}</div>
               </div>
@@ -1116,6 +1172,7 @@ const MONEY_WORKSPACE_HELPERS = {
   buildMoneyCollectionGuidance,
   priorityCollectionOrder,
   buildMoneyCollectionMemory,
+  buildMoneyCollectionNextStep,
   renderExpenseCustomerOptions,
   renderExpenseOrderOptions,
   renderExpenseJobOptions,

@@ -59,6 +59,8 @@ function loadBookingsWorkspace(overrides = {}) {
     OPERATOR_CONFIG: {},
     TENANT_ID: "tenant_123",
     TIME_ENTRIES_CACHE: [],
+    orderAmountDueCents: vi.fn((order) => Number(order?.amount_due_cents || 0)),
+    formatUsd: vi.fn((value) => `$${Number(value || 0) / 100}`),
     _tabAbortController: null,
     getAccessToken: vi.fn(async () => "token"),
     fetch: vi.fn(),
@@ -122,9 +124,14 @@ describe("operator bookings workspace", () => {
     expect(source).toContain('saveButton.textContent = "Saving..."');
     expect(source).toContain("Keep the trade details attached to this visit");
     expect(source).toContain("Prep for this visit");
+    expect(source).toContain("Best next scheduling move");
+    expect(source).toContain("Turn this booking into a cleaner field handoff");
     expect(source).toContain("Give the next stop a cleaner handoff");
     expect(source).toContain("bookingCustomerMemoryItems");
     expect(source).toContain("bookingPrepGuidanceItems");
+    expect(source).toContain("bookingAssignmentGuidanceItems");
+    expect(source).toContain("bookingFollowThroughItems");
+    expect(source).toContain("After this visit");
     expect(source).toContain(">Close</button>");
     expect(source).not.toContain("â€”");
     expect(source).not.toContain("Ã—");
@@ -178,6 +185,73 @@ describe("operator bookings workspace", () => {
       { label: "Access ready", ready: true, note: "Side gate code 4421" },
       { label: "Route and cadence", ready: true, note: "Weekly" },
       { label: "Property focus", ready: true, note: "Front flower beds need spring cleanup" },
+    ]);
+  });
+
+  test("bookingAssignmentGuidanceItems keeps HVAC dispatch context attached to the visit", () => {
+    const { context } = loadBookingsWorkspace({
+      currentWorkspaceBlueprint: vi.fn(() => ({
+        business: {
+          key: "hvac",
+          label: "HVAC",
+          recordFocus: [],
+        },
+      })),
+      CUSTOMERS_CACHE: [{
+        id: "customer_1",
+        name: "Harbor Suites",
+        email: "ops@example.com",
+        equipment_notes: "Carrier rooftop unit RTU-2",
+        tenant_notes: "Meet building engineer at north stairwell",
+      }],
+    });
+
+    const items = context.window.bookingAssignmentGuidanceItems({
+      id: "booking_1",
+      customer_id: "customer_1",
+      assigned_operator_name: "Chris",
+      customer_name: "Harbor Suites",
+      customer_email: "ops@example.com",
+    });
+
+    expect(items).toEqual([
+      { label: "Crew assignment", ready: true, note: "Someone is already attached to this visit, so the handoff can stay specific.", tone: "" },
+      { label: "Tech handoff", ready: true, note: "Carrier rooftop unit RTU-2", tone: "" },
+      { label: "Customer contact path", ready: true, note: "Meet building engineer at north stairwell", tone: "" },
+    ]);
+  });
+
+  test("bookingFollowThroughItems keeps plumbing repair follow-through attached after the visit", () => {
+    const { context } = loadBookingsWorkspace({
+      currentWorkspaceBlueprint: vi.fn(() => ({
+        business: {
+          key: "plumbing",
+          label: "Plumbing",
+          recordFocus: [],
+        },
+      })),
+      CRM_ORDERS_CACHE: [{ id: "order_1", amount_due_cents: 18500 }],
+      CUSTOMERS_CACHE: [{
+        id: "customer_1",
+        name: "Harbor Suites",
+        email: "ops@example.com",
+        restoration_notes: "Drywall patch crew comes after pipe repair",
+        phone: "555-1212",
+      }],
+    });
+
+    const items = context.window.bookingFollowThroughItems({
+      id: "booking_1",
+      order_id: "order_1",
+      customer_id: "customer_1",
+      customer_name: "Harbor Suites",
+      customer_email: "ops@example.com",
+    });
+
+    expect(items).toEqual([
+      { label: "Repair follow-through", ready: true, note: "Drywall patch crew comes after pipe repair", tone: "" },
+      { label: "Customer update path", ready: true, note: "555-1212", tone: "" },
+      { label: "Money follow-through", ready: false, note: "$185 is still open on the linked booked work. Keep the reminder or collection step attached while this visit is fresh.", tone: "warn" },
     ]);
   });
 });

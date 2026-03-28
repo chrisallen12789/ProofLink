@@ -309,6 +309,232 @@ function populatePlanForm(plan) {
   if (btnOpenPlanOrder) btnOpenPlanOrder.disabled = !plan.last_generated_order_id;
 }
 
+function planFollowThroughChecklistItems(plan, customer, sourceOrder, lastOrder, dueNow, blueprint = (typeof currentWorkspaceBlueprint === "function" ? currentWorkspaceBlueprint() : { business: { key: "service_business" } })) {
+  const businessKey = String(blueprint?.business?.key || "service_business").trim().toLowerCase();
+  const scheduleLabel = servicePlanNextRunLabel(plan) || "No next run scheduled";
+  const lastOrderDue = lastOrder ? Number(orderAmountDueCents(lastOrder) || 0) : 0;
+  const repeatNote = String(plan?.notes || plan?.summary || sourceOrder?.notes || sourceOrder?.cart_summary || "").trim();
+  const hasRepeatNote = !!repeatNote;
+  const firstFilled = (...values) => values.find((value) => String(value || "").trim()) || "";
+  const detail = (label, ready, readyNote, missingNote, tone = "") => ({
+    label,
+    ready: !!ready,
+    note: ready ? readyNote : missingNote,
+    tone: tone || (!ready ? "warn" : ""),
+  });
+
+  const items = [
+    detail(
+      "Next work timing",
+      !!String(plan?.next_run_on || "").trim(),
+      dueNow
+        ? "Due now. Generate the next booked work while this repeat visit is still top of mind."
+        : `Next run ${scheduleLabel}. Keep this cadence visible so the work does not slip back into manual follow-up.`,
+      "Add the next run date before this repeat work drifts out of sight.",
+      dueNow ? "warn" : ""
+    ),
+    detail(
+      "Repeat-work scope",
+      hasRepeatNote,
+      repeatNote,
+      "Capture the repeat scope, seasonal shift, or visit summary so the next order does not have to be rebuilt from memory."
+    ),
+    detail(
+      "Billing follow-through",
+      !lastOrder || lastOrderDue <= 0,
+      lastOrder
+        ? "The most recent recurring order is paid up or ready for the next visit."
+        : `No recurring order has been generated yet. Deposit policy is ${Number(plan?.deposit_required_cents || 0) > 0 ? "already attached to the plan." : "still optional."}`,
+      lastOrder
+        ? `The last generated work still has ${formatUsd(lastOrderDue)} open. Close that gap before this cadence gets harder to collect.`
+        : "Generate the first recurring order once the schedule and amount are ready."
+    ),
+  ];
+
+  const tradeItemMap = {
+    landscaping: detail(
+      "Seasonal follow-through",
+      !!firstFilled(customer?.seasonal_notes, customer?.upsell_notes, customer?.follow_up_notes, plan?.notes),
+      firstFilled(customer?.seasonal_notes, customer?.upsell_notes, customer?.follow_up_notes, plan?.notes),
+      "Capture the next cleanup, mulch, mowing, or seasonal upgrade timing before the property goes cold."
+    ),
+    property_maintenance: detail(
+      "Site follow-through",
+      !!firstFilled(customer?.service_schedule, customer?.follow_up_notes, customer?.service_notes, plan?.notes),
+      firstFilled(customer?.service_schedule, customer?.follow_up_notes, customer?.service_notes, plan?.notes),
+      "Capture the next site walk, turnover, or repeat maintenance note before the property needs to be relearned."
+    ),
+    pressure_washing: detail(
+      "Seasonal follow-through",
+      !!firstFilled(customer?.seasonal_notes, customer?.follow_up_notes, customer?.service_notes, plan?.notes),
+      firstFilled(customer?.seasonal_notes, customer?.follow_up_notes, customer?.service_notes, plan?.notes),
+      "Capture the next wash cycle, before-and-after follow-up, or seasonal timing before the property falls out of rotation."
+    ),
+    cleaning: detail(
+      "Visit prep stays clear",
+      !!firstFilled(customer?.recurring_notes, customer?.add_on_notes, customer?.checklist_notes, plan?.notes),
+      firstFilled(customer?.recurring_notes, customer?.add_on_notes, customer?.checklist_notes, plan?.notes),
+      "Lock in access, add-ons, and checklist notes so the next cleaning visit stays easy to schedule and deliver."
+    ),
+    hvac: detail(
+      "System follow-through",
+      !!firstFilled(customer?.maintenance_notes, customer?.parts_follow_up, customer?.warranty_notes, plan?.notes),
+      firstFilled(customer?.parts_follow_up, customer?.maintenance_notes, customer?.warranty_notes, plan?.notes),
+      "Capture maintenance-plan timing, parts follow-up, or warranty notes before the next system visit slips."
+    ),
+    plumbing: detail(
+      "Repair follow-through",
+      !!firstFilled(customer?.restoration_notes, customer?.approval_notes, customer?.follow_up_notes, plan?.notes),
+      firstFilled(customer?.restoration_notes, customer?.approval_notes, customer?.follow_up_notes, plan?.notes),
+      "Capture restoration, approval, or return-visit notes before the repair history goes quiet."
+    ),
+  };
+
+  items.push(
+    tradeItemMap[businessKey] || detail(
+      "Next customer step",
+      !!firstFilled(customer?.follow_up_notes, customer?.service_notes, plan?.notes),
+      firstFilled(customer?.follow_up_notes, customer?.service_notes, plan?.notes),
+      "Capture the next follow-up step so this recurring account stays easy to renew and collect."
+    )
+  );
+
+  return items;
+}
+
+function renderPlanFollowThroughCard(plan, customer, sourceOrder, lastOrder, dueNow, blueprint = (typeof currentWorkspaceBlueprint === "function" ? currentWorkspaceBlueprint() : { business: { key: "service_business" } })) {
+  const items = planFollowThroughChecklistItems(plan, customer, sourceOrder, lastOrder, dueNow, blueprint);
+  return `
+    <div class="detail-card detail-card--spaced">
+      <div class="kicker">Plan follow-through</div>
+      <div><strong>Keep this recurring rhythm healthy</strong></div>
+      <div class="detail-copy">Use this checklist to keep repeat work, billing, and the next visit from slipping back into manual follow-up.</div>
+      <div class="memory-checklist">
+        ${items.map((item) => `
+          <div class="memory-checklist__item ${item.ready ? "memory-checklist__item--ready" : ""} ${item.tone === "warn" ? "memory-checklist__item--warn" : ""}">
+            <div class="memory-checklist__label">${escapeHtml(item.label || "Detail")}</div>
+            <div class="memory-checklist__note">${escapeHtml(item.note || "Still needs attention before the next repeat visit.")}</div>
+          </div>
+        `).join("")}
+      </div>
+    </div>
+  `;
+}
+
+function planNextMoveItems(plan, customer, sourceOrder, lastOrder, dueNow, blueprint = (typeof currentWorkspaceBlueprint === "function" ? currentWorkspaceBlueprint() : { business: { key: "service_business" } })) {
+  const businessKey = String(blueprint?.business?.key || "service_business").trim().toLowerCase();
+  const firstFilled = (...values) => values.find((value) => String(value || "").trim()) || "";
+  const lastOrderDue = lastOrder ? Number(orderAmountDueCents(lastOrder) || 0) : 0;
+  const detail = (label, ready, readyNote, missingNote, tone = "") => ({
+    label,
+    ready: !!ready,
+    note: ready ? readyNote : missingNote,
+    tone: tone || (!ready ? "warn" : ""),
+  });
+
+  const cadenceItem = detail(
+    "Next recurring move",
+    !!String(plan?.next_run_on || "").trim(),
+    dueNow
+      ? "Generate the next booked work now so the repeat visit does not fall back into manual follow-up."
+      : `The next run is already set for ${servicePlanNextRunLabel(plan)}.`,
+    "Set the next run date before this repeat work falls out of rhythm.",
+    dueNow ? "warn" : ""
+  );
+
+  const moneyItem = detail(
+    "Collection stays attached",
+    !lastOrder || lastOrderDue <= 0,
+    lastOrder
+      ? "The last recurring order is paid up, so the next visit can move without a money blind spot."
+      : "No recurring order has been generated yet, so nothing is left open behind this plan.",
+    `The most recent recurring work still has ${formatUsd(lastOrderDue)} open. Keep the reminder and next visit tied together.`
+  );
+
+  const landscaping = [
+    cadenceItem,
+    detail(
+      "Seasonal upsell stays visible",
+      !!firstFilled(customer?.seasonal_notes, customer?.upsell_notes, plan?.notes, sourceOrder?.notes),
+      firstFilled(customer?.seasonal_notes, customer?.upsell_notes, plan?.notes, sourceOrder?.notes),
+      "Leave the next cleanup, mulch, mowing, or seasonal upsell note attached before the property needs to be re-sold."
+    ),
+    moneyItem,
+  ];
+
+  const cleaning = [
+    cadenceItem,
+    detail(
+      "Visit handoff stays clear",
+      !!firstFilled(customer?.checklist_notes, customer?.add_on_notes, customer?.access_notes, plan?.notes),
+      firstFilled(customer?.checklist_notes, customer?.add_on_notes, customer?.access_notes, plan?.notes),
+      "Keep the checklist, add-ons, and access notes together so the next cleaning visit is easy to book and deliver."
+    ),
+    moneyItem,
+  ];
+
+  const hvac = [
+    cadenceItem,
+    detail(
+      "Maintenance follow-through stays visible",
+      !!firstFilled(customer?.maintenance_notes, customer?.parts_follow_up, customer?.warranty_notes, plan?.notes),
+      firstFilled(customer?.maintenance_notes, customer?.parts_follow_up, customer?.warranty_notes, plan?.notes),
+      "Keep the maintenance, parts, or warranty note attached so the next HVAC visit starts informed."
+    ),
+    moneyItem,
+  ];
+
+  const plumbing = [
+    cadenceItem,
+    detail(
+      "Repair follow-through stays visible",
+      !!firstFilled(customer?.restoration_notes, customer?.approval_notes, customer?.follow_up_notes, plan?.notes),
+      firstFilled(customer?.restoration_notes, customer?.approval_notes, customer?.follow_up_notes, plan?.notes),
+      "Keep the approval, restoration, or return-visit note attached so the next plumbing step is easy to schedule."
+    ),
+    moneyItem,
+  ];
+
+  const fallback = [
+    cadenceItem,
+    detail(
+      "Next customer step",
+      !!firstFilled(customer?.follow_up_notes, customer?.service_notes, plan?.notes),
+      firstFilled(customer?.follow_up_notes, customer?.service_notes, plan?.notes),
+      "Leave one clear next step attached so the plan stays easy to renew and collect."
+    ),
+    moneyItem,
+  ];
+
+  return ({
+    landscaping,
+    property_maintenance: landscaping,
+    pressure_washing: landscaping,
+    cleaning,
+    hvac,
+    plumbing,
+  })[businessKey] || fallback;
+}
+
+function renderPlanNextMoveCard(plan, customer, sourceOrder, lastOrder, dueNow, blueprint = (typeof currentWorkspaceBlueprint === "function" ? currentWorkspaceBlueprint() : { business: { key: "service_business" } })) {
+  const items = planNextMoveItems(plan, customer, sourceOrder, lastOrder, dueNow, blueprint);
+  return `
+    <div class="detail-card detail-card--spaced">
+      <div class="kicker">Best next recurring move</div>
+      <div><strong>Keep the next visit, the customer promise, and the money step together</strong></div>
+      <div class="detail-copy">Use this to keep recurring work easy to renew, easy to schedule, and easy to collect without rebuilding context each cycle.</div>
+      <div class="memory-checklist">
+        ${items.map((item) => `
+          <div class="memory-checklist__item ${item.ready ? "memory-checklist__item--ready" : ""} ${item.tone === "warn" ? "memory-checklist__item--warn" : ""}">
+            <div class="memory-checklist__label">${escapeHtml(item.label || "Next step")}</div>
+            <div class="memory-checklist__note">${escapeHtml(item.note || "Keep the next move visible before this repeat work slips.")}</div>
+          </div>
+        `).join("")}
+      </div>
+    </div>
+  `;
+}
+
 async function renderPlanDetail(planIdValue) {
   if (!planDetailWrap) return;
   if (!SERVICE_PLANS_FEATURE_READY) {
@@ -358,6 +584,8 @@ async function renderPlanDetail(planIdValue) {
         <div class="detail-copy">${lastOrder ? `${escapeHtml(formatWorkflowPaymentState(orderPaymentState(lastOrder)))} | ${formatUsd(orderAmountDueCents(lastOrder))} due` : "Generate the next order when this plan is ready to create work."}</div>
         <div class="detail-copy">${escapeHtml(plan.notes || "Use notes for site access, seasonal adjustments, and handoff reminders.")}</div>
       </div>
+      ${renderPlanFollowThroughCard(plan, customer, sourceOrder, lastOrder, dueNow, workspaceBlueprint)}
+      ${renderPlanNextMoveCard(plan, customer, sourceOrder, lastOrder, dueNow, workspaceBlueprint)}
       ${planCustomerMemory.length ? `
         <div class="detail-card detail-card--spaced">
           <div class="kicker">Customer memory</div>
@@ -909,6 +1137,10 @@ const LEAD_PLAN_WORKSPACE_HELPERS = {
   renderPlanOrderOptions,
   clearPlanForm,
   populatePlanForm,
+  planFollowThroughChecklistItems,
+  renderPlanFollowThroughCard,
+  planNextMoveItems,
+  renderPlanNextMoveCard,
   renderPlanDetail,
   sortedServicePlans,
   renderPlans,

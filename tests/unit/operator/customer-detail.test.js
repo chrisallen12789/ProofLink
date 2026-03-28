@@ -163,6 +163,83 @@ describe("operator customer detail", () => {
     expect(guidance.description).toContain("Send the invoice");
   });
 
+  test("customerRelationshipGuidance keeps HVAC follow-through visible before the next visit slips", () => {
+    const api = loadCustomerDetail({
+      formatDateTime: (value) => `formatted:${value}`,
+      formatUsd: (value) => `$${value}`,
+    });
+
+    const guidance = api.customerRelationshipGuidance({
+      customer: {
+        maintenance_notes: "Spring maintenance due in April",
+        parts_follow_up: "Control board still waiting on approval",
+      },
+      openRequestsCount: 0,
+      openProposalCount: 1,
+      activeOrderCount: 0,
+      activeJobCount: 0,
+      balance: 12000,
+      latestInteraction: { summary: "Customer asked for parts ETA" },
+      latestPayment: { paid_at: "2026-03-20" },
+      blueprint: {
+        business: {
+          key: "hvac",
+        },
+      },
+    });
+
+    expect(guidance.title).toBe("Move the live proposal to a decision");
+    expect(guidance.items.map((item) => item.label)).toEqual([
+      "Open requests",
+      "Live proposals",
+      "Active work",
+      "Money follow-through",
+      "System follow-through",
+    ]);
+    expect(guidance.items[1].tone).toBe("warn");
+    expect(guidance.items[4].note).toContain("Spring maintenance due in April");
+  });
+
+  test("customerPostWorkGuidance keeps plumbing closeout and collection visible after the repair", () => {
+    const api = loadCustomerDetail({
+      formatDateTime: (value) => `formatted:${value}`,
+      formatUsd: (value) => `$${value}`,
+    });
+
+    const guidance = api.customerPostWorkGuidance({
+      customer: {
+        restoration_notes: "Drywall patch visit still needs scheduling",
+        issue_summary: "Leak was isolated under the upstairs vanity",
+      },
+      customerOrders: [{
+        id: "order_1",
+        status: "completed",
+        updated_at: "2026-03-26T15:00:00Z",
+      }],
+      customerJobs: [{
+        id: "job_1",
+        status: "completed",
+        completed_at: "2026-03-26T16:00:00Z",
+      }],
+      balance: 8400,
+      blueprint: {
+        business: {
+          key: "plumbing",
+        },
+      },
+    });
+
+    expect(guidance.title).toBe("Turn finished work into the next easy step");
+    expect(guidance.description).toContain("formatted:2026-03-26T16:00:00Z");
+    expect(guidance.items.map((item) => item.label)).toEqual([
+      "Repair closeout stays visible",
+      "Issue history is reusable",
+      "Final money step",
+    ]);
+    expect(guidance.items[0].note).toContain("Drywall patch visit still needs scheduling");
+    expect(guidance.items[2].note).toContain("$8400");
+  });
+
   test("customer detail source uses shared memory checklist classes", () => {
     const source = fs.readFileSync(
       path.resolve(process.cwd(), "operator/operator-customer-detail.js"),
@@ -172,7 +249,14 @@ describe("operator customer detail", () => {
     expect(source).toContain("memory-checklist");
     expect(source).toContain("memory-checklist__item");
     expect(source).toContain("memory-checklist__item--ready");
+    expect(source).toContain("customerRelationshipGuidance");
+    expect(source).toContain("customerPostWorkGuidance");
+    expect(source).toContain("customer-next-step-card");
+    expect(source).toContain("After the work wraps");
     expect(source).not.toContain('style="padding:10px 12px;border:1px solid rgba(255,255,255,.08);border-radius:10px;');
     expect(source).not.toContain('background:${item.ready ? "rgba(46,125,50,.10)" : "rgba(255,255,255,.03)"}');
+    expect(source).not.toContain('style="margin-top:10px;"');
+    expect(source).not.toContain('style="margin-top:14px;"');
+    expect(source).not.toContain('style="font-size:.8rem;"');
   });
 });

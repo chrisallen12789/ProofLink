@@ -558,6 +558,22 @@ body{
 .detail-card--spaced{
   margin-top:14px;
 }
+.record-card-spaced{
+  margin-top:14px;
+}
+.customer-archive-action{
+  font-size:.75rem;
+}
+.customer-follow-through-controls__type{
+  max-width:200px;
+}
+.customer-follow-through-controls__summary{
+  flex:1;
+  max-width:none;
+}
+.customer-next-step-card .memory-checklist{
+  margin-top:12px;
+}
 .btn-block{
   width:100%;
 }
@@ -3184,6 +3200,91 @@ input:focus, textarea:focus, select:focus{
   flex-wrap:wrap;
   gap:8px;
   margin-top:12px;
+}
+.money-focus-card{
+  margin-top:14px;
+}
+.money-focus-title{
+  font-weight:700;
+}
+.dashboard-focus-card{
+  margin-top:14px;
+}
+.dashboard-focus-title{
+  font-weight:700;
+}
+.dashboard-focus-copy{
+  margin-top:6px;
+}
+.dashboard-focus-chips{
+  margin-top:10px;
+}
+.onboarding-card{
+  margin-bottom:16px;
+  border:1px solid rgba(200,75,47,.3);
+  background:rgba(200,75,47,.04);
+}
+.onboarding-card__dismiss{
+  font-size:.75rem;
+  color:rgba(255,255,255,.3);
+  background:none;
+  border:none;
+  cursor:pointer;
+}
+.onboarding-steps{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+.onboarding-step{
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+.onboarding-step__icon{
+  font-size:1.1rem;
+  color:rgba(255,255,255,.3);
+}
+.onboarding-step__icon.is-done{
+  color:#4ade80;
+}
+.onboarding-step__label--done{
+  color:rgba(255,255,255,.5);
+  text-decoration:line-through;
+}
+.onboarding-step__action{
+  margin-left:auto;
+  font-size:.75rem;
+  padding:3px 10px;
+}
+.onboarding-progress{
+  margin-top:12px;
+  background:rgba(255,255,255,.06);
+  border-radius:4px;
+  height:4px;
+  overflow:hidden;
+}
+.onboarding-progress__fill{
+  height:100%;
+  background:var(--accent);
+  border-radius:4px;
+}
+.onboarding-progress__meta{
+  font-size:.75rem;
+  color:rgba(255,255,255,.3);
+  margin-top:4px;
+}
+.money-focus-copy{
+  margin-top:6px;
+}
+.money-focus-chips{
+  margin-top:10px;
+}
+.money-focus-section-title{
+  margin-top:12px;
+}
+.money-focus-checklist{
+  margin-top:10px;
 }
 .customer-action-row{
   display:flex;

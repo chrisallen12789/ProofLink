@@ -185,18 +185,34 @@ describe("operator jobs workspace", () => {
     const { context } = loadJobsWorkspace({
       formatUsd: vi.fn((value) => `$${value}`),
       normalizeWorkflowStatusValue: vi.fn((value) => value),
+      currentWorkspaceBlueprint: vi.fn(() => ({
+        business: {
+          key: "hvac",
+          label: "HVAC",
+          recordFocus: [],
+        },
+      })),
     });
 
     const guidance = context.buildJobCloseoutGuidance(
       { status: "completed" },
       null,
       { blockers: [], nextStep: "" },
-      8500
+      8500,
+      {
+        diagnostic_notes: "Low suction pressure confirmed",
+        parts_follow_up: "Compressor contactor needs follow-up",
+      }
     );
 
     expect(guidance.title).toBe("Field work is done, and payment is the next move");
     expect(guidance.description).toContain("invoice");
     expect(guidance.chips).toContain("$8500 still open");
+    expect(guidance.items).toEqual([
+      { label: "Findings logged", ready: true, note: "Low suction pressure confirmed" },
+      { label: "Parts or return visit", ready: true, note: "Compressor contactor needs follow-up" },
+      { label: "Approval or payment", ready: false, note: "Confirm whether approval, estimate follow-up, or payment collection is the next move after the technician leaves." },
+    ]);
   });
 
   test("jobCustomerMemoryItems reuses business-specific customer memory when it is available", () => {
@@ -232,9 +248,12 @@ describe("operator jobs workspace", () => {
 
     expect(source).toContain("renderJobCustomerMemoryCard");
     expect(source).toContain("jobCustomerMemoryItems");
+    expect(source).toContain("jobCloseoutChecklistItems");
+    expect(source).toContain('class="memory-checklist u-mt-10"');
     expect(source).toContain('class="memory-checklist"');
     expect(source).toContain("memory-checklist__item--warn");
     expect(source).not.toContain('background:${item.ready ? "rgba(46,125,50,.10)" : "rgba(200,75,47,.08)"}');
     expect(source).not.toContain('background:rgba(255,255,255,.03);');
+    expect(source).not.toContain('style="margin-top:14px;"');
   });
 });

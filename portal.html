@@ -137,6 +137,19 @@
       margin-top: 8px;
       line-height: 1.45;
     }
+    .payment-next-step-note {
+      font-size: .78rem;
+      color: rgba(255,255,255,.72);
+      margin-top: 6px;
+      font-weight: 600;
+      line-height: 1.45;
+    }
+    .payment-state-note {
+      font-size: .78rem;
+      color: rgba(255,255,255,.68);
+      margin-top: 6px;
+      font-weight: 600;
+    }
     .order-return-note {
       font-size: .78rem;
       color: rgba(255,255,255,.62);
@@ -296,6 +309,7 @@
 
     <div class="tab-panel" id="tab-bookings">
       <div class="search-row"><input type="text" id="bookingSearch" placeholder="Search appointments..." /></div>
+      <div id="bookingsSummary" class="orders-summary hidden"></div>
       <div id="packageBalanceSection" class="hidden portal-notice">
         <div class="package-balance-panel">
           <div class="package-balance-kicker">Active Package</div>
@@ -458,6 +472,32 @@
     return "";
   }
 
+  function portalAfterPaymentGuidance(order, dueCents, paidCents) {
+    var pState = String(order && order.payment_state || "").toLowerCase();
+    if (pState === "paid" || dueCents === 0) {
+      return "The business can now keep your next visit, closeout, or follow-up moving from here.";
+    }
+    if (pState === "partial" || pState === "partially_paid" || (paidCents > 0 && dueCents > 0)) {
+      return "Once the remaining balance is paid, this order will show as fully closed here automatically.";
+    }
+    if (pState === "overdue") {
+      return "Paying here updates this order in the business system, so they can move back to the work instead of chasing the balance.";
+    }
+    if (dueCents > 0) {
+      return "Once this balance is paid, this order will stay here as your finished record.";
+    }
+    return "";
+  }
+
+  function portalPaymentStateLabel(order, dueCents, paidCents) {
+    var pState = String(order && order.payment_state || "").toLowerCase();
+    if (pState === "paid" || dueCents === 0) return "Paid in full";
+    if (pState === "overdue") return "Overdue";
+    if (pState === "partial" || pState === "partially_paid" || (paidCents > 0 && dueCents > 0)) return "Partially paid";
+    if (dueCents > 0) return "Balance due";
+    return "";
+  }
+
   function summarizePortalPayments(orders) {
     var rows = Array.isArray(orders) ? orders : [];
     var summary = {
@@ -547,6 +587,66 @@
     el.classList.remove('hidden');
   }
 
+  function summarizePortalBookings(bookings) {
+    var rows = Array.isArray(bookings) ? bookings.slice() : [];
+    var now = Date.now();
+    var active = rows.filter(function (booking) {
+      return !['cancelled', 'completed', 'no_show'].includes(String(booking && booking.status || '').toLowerCase());
+    });
+    var upcoming = active
+      .filter(function (booking) {
+        return booking && booking.starts_at && new Date(booking.starts_at).getTime() >= now;
+      })
+      .sort(function (a, b) {
+        return new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime();
+      })[0] || null;
+    var completed = rows.filter(function (booking) {
+      return String(booking && booking.status || '').toLowerCase() === 'completed';
+    }).length;
+    return {
+      total: rows.length,
+      active: active.length,
+      completed: completed,
+      upcoming: upcoming,
+    };
+  }
+
+  function renderBookingsSummary(bookings) {
+    var el = document.getElementById('bookingsSummary');
+    if (!el) return;
+    var summary = summarizePortalBookings(bookings);
+    if (!summary.total) {
+      el.className = 'orders-summary hidden';
+      el.innerHTML = '';
+      return;
+    }
+    var title = '';
+    var copy = '';
+    var next = '';
+    if (summary.upcoming) {
+      title = 'Your next appointment is on the calendar';
+      copy = 'You can keep track of the next visit here, and if anything changes the business will keep your updates tied to this account.';
+      next = 'Next best step: Be ready for ' + fmtDate(summary.upcoming.starts_at) + ' at ' + new Date(summary.upcoming.starts_at).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) + '.';
+      el.className = 'orders-summary orders-summary--attention';
+    } else if (summary.active > 0) {
+      title = 'A visit is still open';
+      copy = 'The business still has active appointment work tied to your account. Check the status below or message them if anything looks off.';
+      next = 'Next best step: Keep an eye on the active appointment updates below.';
+      el.className = 'orders-summary orders-summary--attention';
+    } else {
+      title = 'Your recent appointments are wrapped up';
+      copy = 'Completed and canceled visits stay here so you can look back without guessing what happened.';
+      next = 'Next best step: Book another visit here whenever you are ready.';
+      el.className = 'orders-summary';
+    }
+    el.innerHTML =
+      '<div class="orders-summary-kicker">Appointment summary</div>' +
+      '<div class="orders-summary-title">' + escHtml(title) + '</div>' +
+      '<div class="orders-summary-copy">' + escHtml(copy) + '</div>' +
+      '<div class="orders-summary-next">' + escHtml(next) + '</div>';
+    el.classList.remove('hidden');
+  }
+
   function renderPackageBalance(orders) {
     var section = document.getElementById('packageBalanceSection');
     if (!section) return;
@@ -601,6 +701,7 @@
         var dueClass = pState === 'overdue' ? 'overdue' : pState === 'paid' ? 'paid' : 'due';
         var items = [];
         var paymentGuidance = '';
+        var paymentStateLabel = '';
 
         if (totalCents != null && totalCents > 0) {
           items.push('<div class="fin-item"><span class="fin-label">Total</span><span class="fin-value">' + fmtCents(totalCents) + '</span></div>');
@@ -618,8 +719,12 @@
         }
 
         paymentGuidance = portalPaymentGuidance(o, dueCents, paidCents);
+        paymentStateLabel = portalPaymentStateLabel(o, dueCents, paidCents);
+        var afterPaymentGuidance = portalAfterPaymentGuidance(o, dueCents, paidCents);
         financialsHtml = '<div class="order-financials">' + items.join('') + '</div>' +
-          (paymentGuidance ? '<div class="payment-guidance">' + escHtml(paymentGuidance) + '</div>' : '');
+          (paymentStateLabel ? '<div class="payment-state-note">Payment status: ' + escHtml(paymentStateLabel) + '</div>' : '') +
+          (paymentGuidance ? '<div class="payment-guidance">' + escHtml(paymentGuidance) + '</div>' : '') +
+          (afterPaymentGuidance ? '<div class="payment-next-step-note">' + escHtml(afterPaymentGuidance) + '</div>' : '');
       }
 
       // Show a "Pay Now" button only when there is an outstanding balance (and the order isn't void/cancelled)
@@ -654,20 +759,37 @@
   function renderBookings(bookings) {
     var el = document.getElementById('bookingsList');
     if (!bookings || !bookings.length) {
+      renderBookingsSummary([]);
       el.innerHTML = '<p class="empty">No appointments yet. Confirmed appointments will appear here.</p>';
       return;
     }
+    function portalBookingGuidance(booking) {
+      var status = String(booking && booking.status || '').toLowerCase();
+      if (status === 'cancelled') {
+        return 'This appointment was cancelled. When you are ready, you can book another visit from this page.';
+      }
+      if (status === 'completed') {
+        return 'This visit is complete. The business will keep any follow-up, payment, or next-service step attached from here.';
+      }
+      if (status === 'no_show') {
+        return 'This visit was marked as missed. Contact the business if you want help getting it back on the schedule.';
+      }
+      return 'You are booked. If anything changes, you can cancel here or message the business from this account.';
+    }
+    renderBookingsSummary(bookings);
     el.innerHTML = bookings.map(function (b) {
       var start = b.starts_at ? new Date(b.starts_at) : null;
       var timeStr = start ? start.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }) + ' at ' +
         start.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) : '-';
       var isFuture = start && start > new Date();
       var canCancel = isFuture && !['cancelled','completed','no_show'].includes(b.status);
+      var bookingGuidance = portalBookingGuidance(b);
       return '<div class="order-row order-row--top">' +
         '<div class="stacked-row-copy">' +
           '<div class="order-title">' + escHtml(b.title || 'Appointment') + '</div>' +
           '<div class="order-meta">' + timeStr + '</div>' +
           (b.notes ? '<div class="stacked-row-note">' + escHtml(b.notes) + '</div>' : '') +
+          (bookingGuidance ? '<div class="payment-guidance">' + escHtml(bookingGuidance) + '</div>' : '') +
         '</div>' +
         statusBadge(b.status) +
         (canCancel ? '<button class="btn btn-danger cancel-booking-btn" data-id="' + escHtml(b.id) + '" type="button">Cancel</button>' : '') +

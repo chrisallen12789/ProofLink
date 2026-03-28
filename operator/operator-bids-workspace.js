@@ -822,6 +822,103 @@ function renderBidCustomerMemoryCard(draft, blueprint = bidWorkspaceBlueprint())
     </div>
   `;
 }
+function bidFollowThroughItems(draft, blueprint = bidWorkspaceBlueprint()) {
+  const customer = draft?.customer_id ? findBidCustomer(draft.customer_id) : null;
+  const businessKey = String(blueprint?.business?.key || "service_business").trim().toLowerCase();
+  const statusValue = String(draft?.status || "draft").trim().toLowerCase();
+  const hasPricedScope = bidIncludedLineItemsForOrder(draft).some((item) => bidLineItemTotalCents(item) > 0);
+  const hasNarrative = !!String(draft?.project_summary || "").trim() && !!String(draft?.scope_of_work || "").trim();
+  const hasPhotos = Array.isArray(draft?.photos) && draft.photos.length > 0;
+  const detail = (label, ready, readyNote, missingNote, tone = "") => ({
+    label,
+    ready: !!ready,
+    note: ready ? readyNote : missingNote,
+    tone: tone || (!ready ? "warn" : ""),
+  });
+  const firstFilled = (...values) => values.find((value) => String(value || "").trim()) || "";
+
+  const sentOrBetter = ["sent", "approved"].includes(statusValue);
+  const approvedOrConverted = statusValue === "approved" || !!draft?.converted_order_id;
+  const items = [
+    detail(
+      "Client decision path",
+      approvedOrConverted,
+      draft?.converted_order_id
+        ? "This proposal is already tied to booked work, so operations can carry it the rest of the way."
+        : "The customer has approved the proposal and it is ready to move into booked work.",
+      sentOrBetter
+        ? `The proposal is out with the customer${draft?.valid_until ? ` and valid through ${formatDateOnly(draft.valid_until)}` : ""}. Follow up before it cools off.`
+        : "Finish the delivery note and get this proposal in front of the customer while the walkthrough is still fresh."
+    ),
+    detail(
+      "Scope and pricing confidence",
+      hasNarrative && hasPricedScope,
+      "The proposal explains the problem and already carries real pricing on the included scope.",
+      "Tighten the problem summary, scope, and priced base work so the customer can say yes without guessing what is included."
+    ),
+    detail(
+      "Proof and professionalism",
+      hasPhotos && !!String(draft?.cover_note || "").trim(),
+      "Field proof and delivery notes are in place, which makes the proposal easier to trust and easier to send.",
+      "Add walkthrough proof and a plain-language delivery note so the proposal feels grounded and professional."
+    ),
+  ];
+
+  const tradeItemMap = {
+    landscaping: detail(
+      "Property handoff",
+      !!firstFilled(customer?.access_notes, customer?.seasonal_notes, customer?.service_notes),
+      firstFilled(customer?.access_notes, customer?.seasonal_notes, customer?.service_notes),
+      "Capture gate, seasonal, or property-focus notes before this proposal becomes booked work."
+    ),
+    cleaning: detail(
+      "Visit expectations",
+      !!firstFilled(customer?.checklist_notes, customer?.access_notes, customer?.add_on_notes),
+      firstFilled(customer?.checklist_notes, customer?.access_notes, customer?.add_on_notes),
+      "Capture access, add-ons, and checklist expectations before the quote turns into repeat work."
+    ),
+    hvac: detail(
+      "System follow-through",
+      !!firstFilled(customer?.diagnostic_notes, customer?.parts_follow_up, customer?.maintenance_notes),
+      firstFilled(customer?.parts_follow_up, customer?.diagnostic_notes, customer?.maintenance_notes),
+      "Capture system findings, parts follow-up, or maintenance notes before the field handoff."
+    ),
+    plumbing: detail(
+      "Repair follow-through",
+      !!firstFilled(customer?.issue_summary, customer?.approval_notes, customer?.restoration_notes),
+      firstFilled(customer?.issue_summary, customer?.approval_notes, customer?.restoration_notes),
+      "Capture repair urgency, approval, or restoration follow-through before the proposal becomes booked work."
+    ),
+  };
+  items.push(
+    tradeItemMap[businessKey] || detail(
+      "Customer handoff",
+      !!firstFilled(customer?.follow_up_notes, customer?.service_notes),
+      firstFilled(customer?.follow_up_notes, customer?.service_notes),
+      "Capture the next customer-facing detail before this proposal moves into operations."
+    )
+  );
+  return items;
+}
+function renderBidFollowThroughCard(draft, blueprint = bidWorkspaceBlueprint()) {
+  if (!draft) return "";
+  const items = bidFollowThroughItems(draft, blueprint);
+  return `
+    <div class="detail-card detail-card--spaced">
+      <div class="kicker">Proposal follow-through</div>
+      <div><strong>Keep the decision path obvious</strong></div>
+      <div class="detail-copy">Use this checklist to see what still needs tightening before the proposal is easy to send, easy to approve, and easy to move into booked work.</div>
+      <div class="memory-checklist">
+        ${items.map((item) => `
+          <div class="memory-checklist__item ${item.ready ? "memory-checklist__item--ready" : ""} ${item.tone === "warn" ? "memory-checklist__item--warn" : ""}">
+            <div class="memory-checklist__label">${escapeHtml(item.label || "Detail")}</div>
+            <div class="memory-checklist__note">${escapeHtml(item.note || "This part still needs attention before the proposal is ready.")}</div>
+          </div>
+        `).join("")}
+      </div>
+    </div>
+  `;
+}
 function renderBidDeliveryCard(draft) {
   if (!bidDeliveryWrap) return;
   if (!draft) {
@@ -841,7 +938,7 @@ function renderBidDeliveryCard(draft) {
   const readinessMarkup = items.length
     ? `<ul class="bid-readiness-list">${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`
     : `<div class="note-item"><strong>Ready to deliver</strong><div class="muted">This draft has the essentials for a professional client proposal.</div></div>`;
-  bidDeliveryWrap.innerHTML = `${readinessMarkup}${renderBidCustomerMemoryCard(draft, blueprint)}`;
+  bidDeliveryWrap.innerHTML = `${readinessMarkup}${renderBidFollowThroughCard(draft, blueprint)}${renderBidCustomerMemoryCard(draft, blueprint)}`;
 }
 function renderBidList(filter = "") {
   if (!bidsList) return;
@@ -1848,9 +1945,11 @@ const BID_WORKSPACE_HELPERS = {
   addBidCatalogStarter,
   renderBidCatalogStarters,
     renderBidStatsCard,
-    bidWorkspaceBlueprint,
-    bidCustomerMemoryItems,
-    renderBidCustomerMemoryCard,
+  bidWorkspaceBlueprint,
+  bidCustomerMemoryItems,
+  bidFollowThroughItems,
+  renderBidFollowThroughCard,
+  renderBidCustomerMemoryCard,
     renderBidDeliveryCard,
   renderBidList,
   renderBidPhotos,

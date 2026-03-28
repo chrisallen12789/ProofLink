@@ -128,6 +128,29 @@ describe("operator money workspace", () => {
     expect(memory.items).toContain("Repeat-service memory: Thursday afternoon route");
   });
 
+  test("buildMoneyCollectionNextStep turns HVAC collection back into service follow-through", () => {
+    const context = loadMoneyWorkspace({
+      CRM_ORDERS_CACHE: [
+        { id: "order_overdue", customer_id: "customer_1", customer_name: "Harbor Suites", status: "completed", payment_due_date: "2026-03-20" },
+      ],
+      orderAmountDueCents: vi.fn(() => 18000),
+      orderPaymentState: vi.fn(() => "overdue"),
+      customerById: vi.fn(() => ({
+        id: "customer_1",
+        name: "Harbor Suites",
+        maintenance_notes: "Quarterly rooftop maintenance is next",
+      })),
+      currentWorkspaceBlueprint: () => ({ business: { key: "hvac" } }),
+    });
+
+    const nextStep = context.buildMoneyCollectionNextStep({ business: { key: "hvac" } });
+
+    expect(nextStep.title).toBe("After this balance is handled");
+    expect(nextStep.description).toContain("Harbor Suites");
+    expect(nextStep.items[0]).toContain("Quarterly rooftop maintenance is next");
+    expect(nextStep.items[1]).toContain("Mar 26");
+  });
+
   test("renderExpenseCustomerOptions builds customer choices", () => {
     const context = loadMoneyWorkspace({
       CUSTOMERS_CACHE: [
@@ -166,7 +189,23 @@ describe("operator money workspace", () => {
     expect(paymentsSource).toContain('paymentFormTitle.textContent = options.title || "Record payment"');
     expect(paymentsSource).toContain("No payments recorded yet. Record a deposit, final payment, or manual collection to see it here.");
     expect(paymentsSource).toContain("Online payments stay read-only here. Use this form for cash, check, or other manual collections.");
+    expect(paymentsSource).toContain("buildPaymentSavedMessage");
     expect(paymentsSource).not.toContain("Manual payment entry");
     expect(paymentsSource).not.toContain("Stripe-created payment records are read-only here.");
+  });
+
+  test("money workspace keeps collection focus on shared classes instead of inline layout", () => {
+    const source = fs.readFileSync(
+      path.resolve(process.cwd(), "operator/operator-money-workspace.js"),
+      "utf8"
+    );
+
+    expect(source).toContain("money-focus-card");
+    expect(source).toContain("money-focus-title");
+    expect(source).toContain("money-focus-copy");
+    expect(source).toContain("money-focus-checklist");
+    expect(source).not.toContain('<div class="card" style="margin-top:14px;">');
+    expect(source).not.toContain('<div style="font-weight:700;">${escapeHtml(collectionGuidance.title)}</div>');
+    expect(source).not.toContain('class="workspace-chip-row" style="margin-top:10px;"');
   });
 });

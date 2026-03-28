@@ -434,6 +434,48 @@ test.describe.serial("service workflow e2e", () => {
     await expect(page.locator("#orderDetailWrap")).toContainText("$200.00 still open");
   });
 
+  test("customer portal shows the remaining balance after a partial payment", async ({ page }) => {
+    const admin = createAdminClient();
+    const orderLookup = await admin.from("orders").select("id,cart_summary,customer_name,customer_id,lead_id,email").eq("id", state.orderId).single();
+    expect(orderLookup.error).toBeNull();
+    const orderLabel = orderLookup.data.cart_summary || orderLookup.data.customer_name || "your service";
+    const customerLookup = await admin.from("customers").select("id,email,name").eq("id", state.customerId).single();
+    expect(customerLookup.error).toBeNull();
+    const leadLookup = await admin.from("leads").select("id,contact_email,customer_id").eq("id", state.leadId).single();
+    expect(leadLookup.error).toBeNull();
+    const portalResponse = await page.request.post("/.netlify/functions/get-customer-portal", {
+      data: {
+        email: state.customerEmail,
+        tenant_id: state.tenantId,
+      },
+    });
+    expect(portalResponse.ok()).toBeTruthy();
+    const portalBody = await portalResponse.json();
+    expect(Array.isArray(portalBody.orders)).toBeTruthy();
+    expect(
+      portalBody.orders.some((order) => order.id === state.orderId),
+      JSON.stringify({
+        tenantId: state.tenantId,
+        customerEmail: state.customerEmail,
+        order: orderLookup.data,
+        customer: customerLookup.data,
+        lead: leadLookup.data,
+        portalOrders: portalBody.orders,
+        portalQuotes: portalBody.quotes,
+      }, null, 2),
+    ).toBeTruthy();
+
+    await page.goto(`/portal.html?tenant=${encodeURIComponent(state.tenantId)}&email=${encodeURIComponent(state.customerEmail)}`);
+    await page.locator("#btnPortalLookup").click();
+    await expect(page.locator("#portalContent")).not.toHaveClass(/hidden/, { timeout: 15000 });
+    await expect(page.getByText("Payment summary")).toBeVisible({ timeout: 15000 });
+    await expect(page.locator(".orders-summary-title")).toHaveText("A balance is still open.");
+    await expect(page.getByText("Next best step:")).toContainText(orderLabel);
+    await expect(page.locator(`.order-row[data-order-id="${state.orderId}"]`)).toContainText("Partially paid");
+    await expect(page.locator(`.order-row[data-order-id="${state.orderId}"]`)).toContainText("$200.00");
+    await expect(page.locator(`.order-row[data-order-id="${state.orderId}"]`)).toContainText("Once the remaining balance is paid, this order will show as fully closed here automatically.");
+  });
+
   test("complete payment and show paid state in the UI", async ({ page }) => {
     const admin = createAdminClient();
 
@@ -456,6 +498,48 @@ test.describe.serial("service workflow e2e", () => {
     await page.locator(`#ordersList button[data-order-id="${state.orderId}"]`).click();
     await expect(page.locator("#orderDetailWrap")).toContainText("Paid");
     await expect(page.locator("#orderDetailWrap")).toContainText("$0.00");
+  });
+
+  test("customer portal shows the order as paid after the balance is closed", async ({ page }) => {
+    const admin = createAdminClient();
+    const orderLookup = await admin.from("orders").select("id,cart_summary,customer_name,customer_id,lead_id,email").eq("id", state.orderId).single();
+    expect(orderLookup.error).toBeNull();
+    const orderLabel = orderLookup.data.cart_summary || orderLookup.data.customer_name || "your service";
+    const customerLookup = await admin.from("customers").select("id,email,name").eq("id", state.customerId).single();
+    expect(customerLookup.error).toBeNull();
+    const leadLookup = await admin.from("leads").select("id,contact_email,customer_id").eq("id", state.leadId).single();
+    expect(leadLookup.error).toBeNull();
+    const portalResponse = await page.request.post("/.netlify/functions/get-customer-portal", {
+      data: {
+        email: state.customerEmail,
+        tenant_id: state.tenantId,
+      },
+    });
+    expect(portalResponse.ok()).toBeTruthy();
+    const portalBody = await portalResponse.json();
+    expect(Array.isArray(portalBody.orders)).toBeTruthy();
+    expect(
+      portalBody.orders.some((order) => order.id === state.orderId),
+      JSON.stringify({
+        tenantId: state.tenantId,
+        customerEmail: state.customerEmail,
+        order: orderLookup.data,
+        customer: customerLookup.data,
+        lead: leadLookup.data,
+        portalOrders: portalBody.orders,
+        portalQuotes: portalBody.quotes,
+      }, null, 2),
+    ).toBeTruthy();
+
+    await page.goto(`/portal.html?tenant=${encodeURIComponent(state.tenantId)}&email=${encodeURIComponent(state.customerEmail)}`);
+    await page.locator("#btnPortalLookup").click();
+    await expect(page.locator("#portalContent")).not.toHaveClass(/hidden/, { timeout: 15000 });
+    await expect(page.getByText("Payment summary")).toBeVisible({ timeout: 15000 });
+    await expect(page.locator(".orders-summary-title")).toHaveText("You are paid up right now.");
+    await expect(page.locator(`.order-row[data-order-id="${state.orderId}"]`)).toContainText("Paid in full");
+    await expect(page.locator(`.order-row[data-order-id="${state.orderId}"]`)).toContainText(orderLabel);
+    await expect(page.locator(`.order-row[data-order-id="${state.orderId}"]`)).toContainText("Paid in full. You are all set on this order.");
+    await expect(page.locator(`.order-row[data-order-id="${state.orderId}"]`)).toContainText("The business can now keep your next visit, closeout, or follow-up moving from here.");
   });
 
   test("simulate overdue and show overdue state in the UI", async ({ page }) => {

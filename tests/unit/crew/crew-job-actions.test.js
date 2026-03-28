@@ -132,6 +132,20 @@ describe("crew job actions", () => {
     );
   });
 
+  test("fieldActionGuidance turns trade context into clearer crew prompts", () => {
+    const { context } = loadCrew();
+
+    expect(context.fieldActionGuidance("scheduled", {
+      business_key: "cleaning",
+      customers: { access_notes: "Use the side door lockbox before 9 AM" },
+    })).toContain("Use the side door lockbox before 9 AM");
+
+    expect(context.fieldActionGuidance("in_progress", {
+      business_key: "hvac",
+      customers: { diagnostic_notes: "Unit freezes after 20 minutes" },
+    })).toContain("diagnostic finding");
+  });
+
   test("crewJobMemoryItems fills in missing basics with clear prompts", () => {
     const { context } = loadCrew();
 
@@ -140,5 +154,23 @@ describe("crew job actions", () => {
     expect(items).toContain("Service location is missing. Confirm the address with the office before you travel.");
     expect(items).toContain("Customer contact is missing. Ask the office for the best number before access becomes a problem.");
     expect(items).toContain("Scope and notes are still light. Add a field note if the work changes so the office can finish strong.");
+  });
+
+  test("crewJobMemoryItems adds trade-specific field memory where it matters", () => {
+    const { context } = loadCrew();
+
+    const items = context.crewJobMemoryItems({
+      business_key: "plumbing",
+      service_address: "44 Pipe St",
+      customers: {
+        phone: "555-333-1111",
+        shutoff_notes: "Main shutoff is behind the laundry panel",
+        issue_summary: "Kitchen sink backs up when disposal runs",
+      },
+      notes: "Bring disposal adapter",
+    });
+
+    expect(items).toContain("Shutoff and access: Main shutoff is behind the laundry panel");
+    expect(items).toContain("Repair context: Kitchen sink backs up when disposal runs");
   });
 });

@@ -139,6 +139,7 @@ function loadBidsWorkspace(overrides = {}) {
     cloneJson: (value, fallback = null) => (value == null ? fallback : JSON.parse(JSON.stringify(value))),
     money: (value) => Number(value || 0).toFixed(2),
     toCents: (value) => Math.round(Number(value || 0) * 100),
+    formatDateOnly: (value) => String(value),
     opId: vi.fn(() => "operator_1"),
     sb: {
       from: vi.fn(() => ({
@@ -179,6 +180,7 @@ function loadBidsWorkspace(overrides = {}) {
     hydrateBidPhotoCategoryOptions: vi.fn(),
     calculateBidTotals: vi.fn(() => ({ total: 0 })),
     bidIncludedLineItemsForOrder: vi.fn(() => []),
+    bidLineItemTotalCents: vi.fn((item) => Number(item?.quantity || 0) * Number(item?.unit_price_cents || 0)),
     formatBidStatus: vi.fn((value) => value),
     slugify: (value) => String(value || "").toLowerCase().replace(/\s+/g, "-"),
     fileToDataUrl: vi.fn(() => Promise.resolve("data:image/png;base64,abc")),
@@ -207,6 +209,8 @@ describe("operator bids workspace", () => {
     expect(source).toContain("Open booked work");
     expect(source).toContain("Keep the trade details attached to the proposal");
     expect(source).toContain("bidCustomerMemoryItems");
+    expect(source).toContain("Keep the decision path obvious");
+    expect(source).toContain("bidFollowThroughItems");
     expect(source).toContain("No proposal drafts yet.");
     expect(source).toContain("Proposal emailed to ${customer.email}.");
     expect(source).not.toContain("quoted / booked");
@@ -260,5 +264,42 @@ describe("operator bids workspace", () => {
       { label: "Property profile", ready: true, note: "Front yard beds and stone border" },
       { label: "Access notes", ready: false, note: "Need the gate code before the crew arrives" },
     ]);
+  });
+
+  test("bidFollowThroughItems turns HVAC proposal context into a send-and-follow-up checklist", () => {
+    const context = loadBidsWorkspace({
+      findBidCustomer: vi.fn(() => ({
+        id: "customer_1",
+        name: "Benkari Mechanical",
+        diagnostic_notes: "Compressor tripping on hot afternoons",
+        parts_follow_up: "Capacitor quote still waiting on approval",
+      })),
+      bidIncludedLineItemsForOrder: vi.fn(() => ([{ quantity: 1, unit_price_cents: 32000 }])),
+    });
+
+    const items = context.window.bidFollowThroughItems({
+      id: "bid_1",
+      customer_id: "customer_1",
+      status: "sent",
+      valid_until: "2026-04-05",
+      project_summary: "Cooling is dropping off during peak heat",
+      scope_of_work: "Replace failing capacitor and verify system draw",
+      cover_note: "Here is the repair proposal from today's site visit.",
+      photos: [{ id: "photo_1" }],
+    }, {
+      business: {
+        key: "hvac",
+      },
+    });
+
+    expect(items.map((item) => item.label)).toEqual([
+      "Client decision path",
+      "Scope and pricing confidence",
+      "Proof and professionalism",
+      "System follow-through",
+    ]);
+    expect(items[0].tone).toBe("warn");
+    expect(items[0].note).toContain("valid through");
+    expect(items[3].note).toContain("Capacitor quote still waiting on approval");
   });
 });

@@ -210,7 +210,140 @@ function renderJobReadinessCard(summary) {
   `;
 }
 
-function buildJobCloseoutGuidance(job, order, readiness, amountDueCents) {
+function jobCloseoutChecklistItems(job, order, linkedCustomer, blueprint = jobsWorkspaceBlueprint(), amountDueCents = 0, readiness = null) {
+  const businessKey = String(blueprint?.business?.key || "service_business").trim().toLowerCase();
+  const filled = (...values) => values.some((value) => String(value || "").trim());
+  const firstFilled = (...values) => values.find((value) => String(value || "").trim()) || "";
+  const detail = (label, ready, readyNote, missingNote) => ({
+    label,
+    ready: !!ready,
+    note: ready ? readyNote : missingNote,
+  });
+
+  if (readiness?.blockers?.length) {
+    return readiness.blockers.slice(0, 3).map((item) => ({
+      label: item.label,
+      ready: false,
+      note: item.note || "Clear this before closeout.",
+    }));
+  }
+
+  const landscaping = [
+    detail(
+      "Site note saved",
+      filled(job?.notes, linkedCustomer?.service_notes, linkedCustomer?.follow_up_notes),
+      firstFilled(job?.notes, linkedCustomer?.service_notes, linkedCustomer?.follow_up_notes),
+      "Leave a field note about what was finished, what changed, or what should happen next at the property."
+    ),
+    detail(
+      "Follow-up opportunity",
+      filled(linkedCustomer?.seasonal_notes, linkedCustomer?.upsell_notes, linkedCustomer?.cleanup_notes),
+      firstFilled(linkedCustomer?.seasonal_notes, linkedCustomer?.upsell_notes, linkedCustomer?.cleanup_notes),
+      "Capture the next cleanup, route opportunity, or upsell while the crew context is still fresh."
+    ),
+    detail(
+      "Money follow-through",
+      amountDueCents <= 0,
+      "No balance is left open on this work.",
+      "Decide whether payment should be collected now or followed up right away after the visit."
+    ),
+  ];
+
+  const cleaning = [
+    detail(
+      "Checklist and scope note",
+      filled(job?.notes, linkedCustomer?.checklist_notes, linkedCustomer?.scope_notes),
+      firstFilled(job?.notes, linkedCustomer?.checklist_notes, linkedCustomer?.scope_notes),
+      "Save the visit note or checklist summary before this cleaning job is closed."
+    ),
+    detail(
+      "Entry secured",
+      filled(linkedCustomer?.access_notes, linkedCustomer?.alarm_notes, linkedCustomer?.entry_notes),
+      firstFilled(linkedCustomer?.access_notes, linkedCustomer?.alarm_notes, linkedCustomer?.entry_notes),
+      "Confirm any lockup, alarm, or access detail that the office should remember after the crew leaves."
+    ),
+    detail(
+      "Money follow-through",
+      amountDueCents <= 0,
+      "No balance is left open on this visit.",
+      "Keep payment or reminder follow-through attached so this visit closes out cleanly for the customer."
+    ),
+  ];
+
+  const hvac = [
+    detail(
+      "Findings logged",
+      filled(job?.notes, linkedCustomer?.diagnostic_notes, linkedCustomer?.system_notes),
+      firstFilled(job?.notes, linkedCustomer?.diagnostic_notes, linkedCustomer?.system_notes),
+      "Log the diagnostic finding or repair result before closeout so the next tech starts informed."
+    ),
+    detail(
+      "Parts or return visit",
+      filled(linkedCustomer?.parts_follow_up, linkedCustomer?.follow_up_notes, linkedCustomer?.maintenance_notes),
+      firstFilled(linkedCustomer?.parts_follow_up, linkedCustomer?.follow_up_notes, linkedCustomer?.maintenance_notes),
+      "Call out any parts hold, maintenance-plan follow-up, or return-visit need before closing this job."
+    ),
+    detail(
+      "Approval or payment",
+      amountDueCents <= 0 || filled(linkedCustomer?.approval_notes),
+      amountDueCents <= 0 ? "Money is closed or already handled." : firstFilled(linkedCustomer?.approval_notes),
+      "Confirm whether approval, estimate follow-up, or payment collection is the next move after the technician leaves."
+    ),
+  ];
+
+  const plumbing = [
+    detail(
+      "Repair result logged",
+      filled(job?.notes, linkedCustomer?.issue_summary, linkedCustomer?.fixture_notes),
+      firstFilled(job?.notes, linkedCustomer?.issue_summary, linkedCustomer?.fixture_notes),
+      "Save the repair outcome so the next person knows what was fixed and what still needs attention."
+    ),
+    detail(
+      "Restoration follow-through",
+      filled(linkedCustomer?.restoration_notes, linkedCustomer?.follow_up_notes, linkedCustomer?.approval_notes),
+      firstFilled(linkedCustomer?.restoration_notes, linkedCustomer?.follow_up_notes, linkedCustomer?.approval_notes),
+      "Call out any restoration risk, approval, or return-visit follow-through before closing this job."
+    ),
+    detail(
+      "Money follow-through",
+      amountDueCents <= 0,
+      "No balance is left open on this repair.",
+      "Keep payment or reminder follow-through attached so the repair closes out cleanly."
+    ),
+  ];
+
+  const fallback = [
+    detail(
+      "Field note saved",
+      filled(job?.notes),
+      job?.notes,
+      "Save the field note before closing this job so the office is not guessing later."
+    ),
+    detail(
+      "Customer context retained",
+      !!linkedCustomer,
+      `${linkedCustomer?.name || "Customer"} is still linked to this work.`,
+      "Link the customer so future service and payment history stay attached."
+    ),
+    detail(
+      "Money follow-through",
+      amountDueCents <= 0,
+      "No balance is left open on this job.",
+      "Decide whether payment should be collected now or followed up right away."
+    ),
+  ];
+
+  return ({
+    landscaping,
+    property_maintenance: landscaping,
+    pressure_washing: landscaping,
+    cleaning,
+    hvac,
+    plumbing,
+  })[businessKey] || fallback;
+}
+
+function buildJobCloseoutGuidance(job, order, readiness, amountDueCents, linkedCustomer = null, blueprint = jobsWorkspaceBlueprint()) {
   const fieldStatus = normalizeWorkflowStatusValue(job?.status || "scheduled");
   if (readiness?.blockers?.length) {
     return {
@@ -220,6 +353,7 @@ function buildJobCloseoutGuidance(job, order, readiness, amountDueCents) {
         `${readiness.blockers.length} blocker${readiness.blockers.length === 1 ? "" : "s"} open`,
         amountDueCents > 0 ? `${formatUsd(amountDueCents)} still open` : "No payment blocker",
       ],
+      items: jobCloseoutChecklistItems(job, order, linkedCustomer, blueprint, amountDueCents, readiness),
     };
   }
   if (fieldStatus === "completed") {
@@ -232,6 +366,7 @@ function buildJobCloseoutGuidance(job, order, readiness, amountDueCents) {
         "Crew updates captured",
         amountDueCents > 0 ? `${formatUsd(amountDueCents)} still open` : "Nothing outstanding",
       ],
+      items: jobCloseoutChecklistItems(job, order, linkedCustomer, blueprint, amountDueCents, readiness),
     };
   }
   return {
@@ -243,6 +378,7 @@ function buildJobCloseoutGuidance(job, order, readiness, amountDueCents) {
       titleCaseWords(String(job?.status || "scheduled").replace(/_/g, " ")),
       amountDueCents > 0 ? `${formatUsd(amountDueCents)} still open` : "No balance open",
     ],
+    items: jobCloseoutChecklistItems(job, order, linkedCustomer, blueprint, amountDueCents, readiness),
   };
 }
 
@@ -325,7 +461,7 @@ async function renderJobDetail(jobIdValue) {
     : null;
   const fieldStatus = normalizeWorkflowStatusValue(job.status || "scheduled");
   const fieldDueNow = Number(job.amount_due_cents || orderAmountDueCents(order) || 0);
-  const closeoutGuidance = buildJobCloseoutGuidance(job, order, readiness, fieldDueNow);
+  const closeoutGuidance = buildJobCloseoutGuidance(job, order, readiness, fieldDueNow, linkedCustomer, blueprint);
   const fieldActionButtons = [
     ["scheduled", "dispatched"].includes(fieldStatus) ? { label: "Start work", className: "btn btn-primary", data: { "job-field-action": "start" } } : null,
     fieldStatus === "blocked" ? { label: "Resume work", className: "btn btn-primary", data: { "job-field-action": "resume" } } : null,
@@ -397,15 +533,23 @@ async function renderJobDetail(jobIdValue) {
         <div id="jobFieldUpdateMsg" class="msg" style="margin-top:8px;"></div>
       `,
     })}
-    <div class="detail-card" style="margin-top:14px;">
+    <div class="detail-card u-mt-14">
       <div class="kicker">Closeout guidance</div>
       <div><strong>${escapeHtml(closeoutGuidance.title)}</strong></div>
       <div class="detail-copy">${escapeHtml(closeoutGuidance.description)}</div>
-      <div class="workspace-chip-row" style="margin-top:10px;">
+      <div class="workspace-chip-row u-mt-10">
         ${closeoutGuidance.chips.map((chip) => `<span class="pill">${escapeHtml(chip)}</span>`).join("")}
       </div>
+      <div class="memory-checklist u-mt-10">
+        ${(closeoutGuidance.items || []).map((item) => `
+          <div class="memory-checklist__item ${item.ready ? "memory-checklist__item--ready" : "memory-checklist__item--warn"}">
+            <div class="memory-checklist__title">${escapeHtml(item.ready ? `Ready: ${item.label}` : `Still needed: ${item.label}`)}</div>
+            <div class="detail-copy memory-checklist__note">${escapeHtml(item.note || "")}</div>
+          </div>
+        `).join("")}
+      </div>
     </div>
-    <div class="detail-card" style="margin-top:14px;">
+    <div class="detail-card u-mt-14">
       <div class="kicker">Job economics</div>
       <div class="workspace-chip-row">
         <span class="pill">Revenue ${escapeHtml(formatUsd(revenueCents))}</span>
@@ -464,13 +608,13 @@ async function renderJobDetail(jobIdValue) {
         ? Math.round((new Date(job.actual_end_at) - new Date(job.actual_start_at)) / 60000)
         : null;
       return `
-        <div class="detail-card" style="margin-top:14px;">
+        <div class="detail-card u-mt-14">
           <div class="kicker">Crew &amp; Hours</div>
           <div class="detail-copy"><strong>${escapeHtml(memberName)}</strong>${member?.role ? ` &middot; ${escapeHtml(member.role)}` : ''}</div>
           ${actualMins != null ? `<div class="detail-copy">Actual time: <strong>${(actualMins / 60).toFixed(1)}h</strong> &middot; ${escapeHtml(formatDateTime(job.actual_start_at))} &rarr; ${escapeHtml(formatDateTime(job.actual_end_at))}</div>` : ''}
           ${job.billable_hours ? `<div class="detail-copy">Estimated: ${job.billable_hours}h</div>` : ''}
-          ${job.check_in_lat ? `<div class="detail-copy muted" style="font-size:.8rem;">Check-in: ${job.check_in_lat}, ${job.check_in_lng}</div>` : ''}
-          <div class="row" style="margin-top:10px;">
+          ${job.check_in_lat ? `<div class="detail-copy muted muted-small">Check-in: ${job.check_in_lat}, ${job.check_in_lng}</div>` : ''}
+          <div class="row u-mt-10">
             <button type="button" class="btn btn-ghost btn-sm" id="btnJobLogHours">Log hours for ${escapeHtml(memberName)}</button>
           </div>
         </div>`;

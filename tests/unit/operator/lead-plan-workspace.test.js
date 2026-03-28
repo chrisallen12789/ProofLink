@@ -187,6 +187,8 @@ describe("operator lead plan workspace", () => {
     expect(source).toContain("Open work pipeline");
     expect(source).toContain("the quote, booked work, and job that follow");
     expect(source).toContain("Keep the trade details attached to the request");
+    expect(source).toContain("Keep this recurring rhythm healthy");
+    expect(source).toContain("planFollowThroughChecklistItems");
     expect(source).not.toContain("Open quoted / booked");
     expect(source).not.toContain("quoted work");
   });
@@ -321,5 +323,73 @@ describe("operator lead plan workspace", () => {
     expect(context.planDetailWrap.innerHTML).toContain("Keep the trade details attached to the recurring rhythm");
     expect(context.planDetailWrap.innerHTML).toContain("Front lawn plus fenced back yard");
     expect(context.planDetailWrap.innerHTML).toContain("Spring mulch refresh coming up next month");
+  });
+
+  test("planFollowThroughChecklistItems turns HVAC repeat work into a healthy recurring checklist", () => {
+    const context = loadLeadPlanWorkspace();
+
+    const items = context.window.planFollowThroughChecklistItems(
+      {
+        next_run_on: "2026-04-01",
+        summary: "Quarterly rooftop maintenance",
+        deposit_required_cents: 12000,
+      },
+      {
+        maintenance_notes: "Filter swap every quarter",
+        parts_follow_up: "Blower motor quote still open",
+      },
+      null,
+      {
+        id: "order_1",
+      },
+      true,
+      {
+        business: {
+          key: "hvac",
+        },
+      }
+    );
+
+    expect(items.map((item) => item.label)).toEqual([
+      "Next work timing",
+      "Repeat-work scope",
+      "Billing follow-through",
+      "System follow-through",
+    ]);
+    expect(items[0].tone).toBe("warn");
+    expect(items[3].note).toContain("Blower motor quote still open");
+  });
+
+  test("planNextMoveItems keeps cleaning repeat work pointed at the next visit and collection step", () => {
+    const context = loadLeadPlanWorkspace();
+
+    const items = context.window.planNextMoveItems(
+      {
+        next_run_on: "2026-04-09",
+        notes: "Bring the extra inside-fridge clean add-on back next time",
+      },
+      {
+        checklist_notes: "Kitchen and two baths",
+        add_on_notes: "Inside fridge clean",
+      },
+      null,
+      {
+        id: "order_1",
+      },
+      false,
+      {
+        business: {
+          key: "cleaning",
+        },
+      }
+    );
+
+    expect(items.map((item) => item.label)).toEqual([
+      "Next recurring move",
+      "Visit handoff stays clear",
+      "Collection stays attached",
+    ]);
+    expect(items[1].note).toContain("Kitchen and two baths");
+    expect(items[2].ready).toBe(true);
   });
 });

@@ -76,7 +76,17 @@ describe("operator orders workspace", () => {
     expect(source).toContain("btn-block u-mt-12");
     expect(source).toContain("renderOrderCustomerMemoryCard");
     expect(source).toContain("orderCustomerMemoryItems");
+    expect(source).toContain("renderOrderPrepGuidanceCard");
+    expect(source).toContain("orderPrepGuidanceItems");
+    expect(source).toContain("renderOrderNextMoveCard");
+    expect(source).toContain("orderNextMoveItems");
+    expect(source).toContain("renderOrderRetentionCard");
+    expect(source).toContain("orderRetentionItems");
     expect(source).toContain("Keep the trade details attached to the booked work");
+    expect(source).toContain("Prep before field handoff");
+    expect(source).toContain("Best next office move");
+    expect(source).toContain("After this work is done");
+    expect(source).toContain("Make this booked work easier to execute well");
     expect(source).not.toContain('style="display:none;margin-top:12px;background:rgba(255,255,255,.03);');
     expect(source).not.toContain('style="cursor:pointer;user-select:none;display:flex;align-items:center;justify-content:space-between;"');
     expect(source).not.toContain("style.cssText");
@@ -111,6 +121,93 @@ describe("operator orders workspace", () => {
     expect(items).toEqual([
       { label: "Property profile", ready: true, note: "123 Main St" },
       { label: "Access notes", ready: false, note: "Gate code still missing" },
+    ]);
+  });
+
+  test("orderPrepGuidanceItems turns HVAC customer context into a booked-work handoff checklist", () => {
+    const api = loadOrdersWorkspace({
+      currentWorkspaceBlueprint: vi.fn(() => ({
+        business: {
+          key: "hvac",
+          label: "HVAC",
+          recordFocus: [],
+        },
+      })),
+    });
+
+    const items = api.orderPrepGuidanceItems(
+      {
+        customer_phone: "555-111-2222",
+        notes: "Second-floor unit has intermittent cooling issue",
+      },
+      {
+        equipment_notes: "Carrier rooftop unit RTU-2",
+        entry_notes: "Call tenant before rooftop access",
+        diagnostic_notes: "Cooling drops out after 20 minutes",
+      }
+    );
+
+    expect(items).toEqual([
+      { label: "System context", ready: true, note: "Carrier rooftop unit RTU-2" },
+      { label: "Access and contact", ready: true, note: "Call tenant before rooftop access" },
+      { label: "Diagnostic handoff", ready: true, note: "Cooling drops out after 20 minutes" },
+    ]);
+  });
+
+  test("orderNextMoveItems turns plumbing context into the next office move", () => {
+    const api = loadOrdersWorkspace({
+      currentWorkspaceBlueprint: vi.fn(() => ({
+        business: {
+          key: "plumbing",
+          label: "Plumbing",
+          recordFocus: [],
+        },
+      })),
+    });
+
+    const items = api.orderNextMoveItems(
+      { notes: "Water damage photo already texted in" },
+      {
+        approval_notes: "Customer needs approval before wall access",
+        restoration_notes: "Drywall repair follows if leak is behind wall",
+        shutoff_notes: "Use hallway shutoff",
+      },
+      9500,
+      "partially_paid"
+    );
+
+    expect(items).toEqual([
+      { label: "Repair follow-through", ready: true, note: "Customer needs approval before wall access" },
+      { label: "Site risk note", ready: true, note: "Use hallway shutoff" },
+      { label: "Money follow-through", ready: false, note: "A balance is still open. Keep the reminder or payment step attached to this booked work." },
+    ]);
+  });
+
+  test("orderRetentionItems keeps HVAC maintenance follow-through attached after booked work", () => {
+    const api = loadOrdersWorkspace({
+      currentWorkspaceBlueprint: vi.fn(() => ({
+        business: {
+          key: "hvac",
+          label: "HVAC",
+          recordFocus: [],
+        },
+      })),
+    });
+
+    const items = api.orderRetentionItems(
+      { notes: "Return visit may need motor approval" },
+      {
+        maintenance_notes: "Quarterly tune-up stays active",
+        tenant_notes: "Call facilities lead before rooftop return",
+      },
+      0,
+      "paid"
+    );
+
+    expect(items).toEqual([
+      { label: "Maintenance follow-up", ready: true, note: "Quarterly tune-up stays active", tone: "" },
+      { label: "Customer update stays clear", ready: true, note: "Call facilities lead before rooftop return", tone: "" },
+      { label: "Account closes cleanly", ready: true, note: "The money side is already in a good place, so the next move can stay focused on retention and repeat work.", tone: "" },
     ]);
   });
 });

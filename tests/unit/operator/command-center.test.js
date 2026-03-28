@@ -70,6 +70,7 @@ function loadCommandCenter(overrides = {}) {
         repeatWork: "Turn wins into repeat work.",
       },
     })),
+    TENANT_ID: "tenant_1",
     workspaceBidLabel: vi.fn(() => "Walkthrough Bids"),
     workspaceTabLabel: vi.fn((tab) => `Label ${tab}`),
     workspaceJobsNavLabel: vi.fn(() => "Active Jobs"),
@@ -97,13 +98,18 @@ function loadCommandCenter(overrides = {}) {
     renderPayments: vi.fn(),
     ACTIVE_LEAD_ID: "existing-lead",
     ACTIVE_CUSTOMER_ID: "customer_1",
+    FOLLOW_UP_QUEUE_MESSAGE: "",
+    FOLLOW_UP_QUEUE_MESSAGE_TONE: "",
+    setFollowUpQueueMessage: vi.fn(),
     sortedPayments: vi.fn((rows) => rows),
     currentPayment: vi.fn(() => null),
     orderPaymentState: vi.fn(() => "unpaid"),
     normalizeWorkflowStatusValue: vi.fn((value) => String(value || "").trim().toLowerCase()),
     orderDepositGapCents: vi.fn(() => 0),
+    forecastMonthOrders: vi.fn(() => 0),
     escapeAttr: (value) => String(value),
     escapeHtml: (value) => String(value),
+    $: vi.fn(() => null),
     ...overrides,
   };
 
@@ -134,6 +140,100 @@ describe("operator command center", () => {
 
     expect(guidance.title).toBe("Overdue money needs attention first");
     expect(guidance.chips).toContain("$9000 overdue");
+  });
+
+  test("buildDashboardRepeatWorkGuidance prioritizes due recurring work before passive renewals", () => {
+    const { context } = loadCommandCenter();
+
+    const guidance = context.buildDashboardRepeatWorkGuidance({
+      duePlansCount: 2,
+      activePlansCount: 5,
+      todayBookingsCount: 1,
+      blueprint: { business: { key: "cleaning" } },
+    });
+
+    expect(guidance.title).toBe("Recurring work is due right now");
+    expect(guidance.chips).toContain("2 recurring visits due");
+    expect(guidance.chips).toContain("5 active plans");
+  });
+
+  test("buildDashboardRepeatWorkGuidance turns healthy HVAC renewals into maintenance follow-through", () => {
+    const { context } = loadCommandCenter();
+
+    const guidance = context.buildDashboardRepeatWorkGuidance({
+      duePlansCount: 0,
+      activePlansCount: 3,
+      todayBookingsCount: 0,
+      blueprint: { business: { key: "hvac" } },
+    });
+
+    expect(guidance.title).toBe("Repeat work is in a healthy place");
+    expect(guidance.description).toContain("maintenance");
+    expect(guidance.chips).toContain("3 active plans");
+    expect(guidance.chips).toContain("Nothing urgent to renew");
+  });
+
+  test("renderDashboard shows repeat-service focus on shared dashboard classes", () => {
+    const { context } = loadCommandCenter({
+      dashboardWrap: { innerHTML: "", querySelectorAll: vi.fn(() => []), querySelector: vi.fn(() => null) },
+      workspaceSummaryData: vi.fn(() => ({ priorityOutcomes: ["Keep the next renewal visible."] })),
+      servicePipelineSnapshot: vi.fn(() => ({ leads: 1, quoted: 2, booked: 3, inProgress: 1, completed: 0, paid: 0 })),
+      todayActionItems: vi.fn(() => []),
+      dashboardClientTrackerRows: vi.fn(() => []),
+      buildFollowUpQueue: vi.fn(() => []),
+      currentMonthExpenseCents: vi.fn(() => 0),
+      quotedRevenueCents: vi.fn(() => 0),
+      PRODUCTS_CACHE: [],
+      sortedCustomers: vi.fn(() => []),
+      staleLeads: vi.fn(() => []),
+      completedUnpaidOrders: vi.fn(() => []),
+      dueServicePlans: vi.fn(() => [{ id: "plan_1" }]),
+      SERVICE_PLANS_CACHE: [{ id: "plan_1", status: "active" }],
+      ordersMissingDeposits: vi.fn(() => []),
+      orderAmountDueCents: vi.fn(() => 0),
+      outstandingBalanceCents: vi.fn(() => 0),
+      overdueBalanceCents: vi.fn(() => 0),
+      formatUsd: vi.fn((value) => `$${value}`),
+      workspaceOrderLabelLower: vi.fn(() => "booked work"),
+      workspaceCatalogLabelLower: vi.fn(() => "services"),
+      openOrdersCount: vi.fn(() => 0),
+      currentMonthRevenueCents: vi.fn(() => 0),
+      currentMonthOrderCount: vi.fn(() => 0),
+      averageOrderValueCents: vi.fn(() => 0),
+      currentMonthCustomerCount: vi.fn(() => 0),
+      BOOKINGS_CACHE: [],
+      CRM_ORDERS_CACHE: [],
+      PAYMENTS_CACHE: [],
+      EXPENSES_CACHE: [],
+      CUSTOMERS_CACHE: [],
+      LEADS_CACHE: [],
+      JOBS_CACHE: [],
+      DASHBOARD_LAUNCH_CHECKLIST: null,
+      DASHBOARD_PAYMENT_STATE: null,
+      renderTodayFocusSection: vi.fn(() => ""),
+      hydrovacDashboardSnapshot: vi.fn(() => null),
+      localStorage: {
+        getItem: vi.fn((key) => (key === "pl_onboarding_dismissed" ? "false" : "")),
+        setItem: vi.fn(),
+      },
+      location: { origin: "https://prooflink.co" },
+      navigator: { clipboard: { writeText: vi.fn(() => Promise.resolve()) } },
+      money: vi.fn((value) => `$${value}`),
+      monthKeyFromDate: vi.fn(() => "2026-03"),
+      yyyymm: vi.fn(() => "2026-03"),
+      paymentRevenueContributionCents: vi.fn(() => 0),
+      workspaceSummaryData: vi.fn(() => ({ priorityOutcomes: ["Keep the next renewal visible."] })),
+    });
+
+    context.window.renderDashboard();
+
+    expect(context.dashboardWrap.innerHTML).toContain("Repeat-service focus");
+    expect(context.dashboardWrap.innerHTML).toContain("dashboard-focus-card");
+    expect(context.dashboardWrap.innerHTML).toContain("dashboard-focus-title");
+    expect(context.dashboardWrap.innerHTML).toContain("onboarding-card");
+    expect(context.dashboardWrap.innerHTML).toContain("onboarding-progress__fill");
+    expect(context.dashboardWrap.innerHTML).not.toContain('style="font-weight:700;"');
+    expect(context.dashboardWrap.innerHTML).not.toContain('style="margin-bottom:16px;border:1px solid rgba(200,75,47,.3);background:rgba(200,75,47,.04);"');
   });
 
   test("renderGuidance shows hydrovac operations and hides invisible tabs", () => {
