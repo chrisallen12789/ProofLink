@@ -209,8 +209,10 @@ describe("operator hydrovac ops workspace", () => {
     context.window.renderHydrovacCompliance([], []);
 
     expect(context.complianceStageStrip.innerHTML).toContain("Carryover risk");
+    expect(context.complianceStageStrip.innerHTML).toContain("Disposal due");
     expect(context.hydrovacComplianceUrgent.innerHTML).toContain("Downtown dig needs the truck cleared");
     expect(context.hydrovacComplianceCoverage.innerHTML).toContain("Tomorrow's carryover warnings");
+    expect(context.hydrovacComplianceCoverage.innerHTML).toContain("Disposal workflow board");
   });
 
   test("renderHydrovacManifests shows live-load records and audit actions", () => {
@@ -264,11 +266,15 @@ describe("operator hydrovac ops workspace", () => {
     context.window.renderHydrovacManifests();
 
     expect(context.manifestStageStrip.innerHTML).toContain("Still in truck");
+    expect(context.manifestStageStrip.innerHTML).toContain("Packets missing");
+    expect(hydrovacManifestsList.innerHTML).toContain("Disposal workflow board");
     expect(hydrovacManifestsList.innerHTML).toContain("MAN-100");
-    expect(hydrovacManifestsList.innerHTML).toContain("Still in truck");
+    expect(hydrovacManifestsList.innerHTML).toContain("Live in truck");
     expect(hydrovacManifestDetailWrap.innerHTML).toContain("BOL-88");
-    expect(hydrovacManifestDetailWrap.innerHTML).toContain("Prepare customer records");
-    expect(hydrovacManifestDetailWrap.innerHTML).toContain("Copy audit summary");
+    expect(hydrovacManifestDetailWrap.innerHTML).toContain("Prepare customer records email");
+    expect(hydrovacManifestDetailWrap.innerHTML).toContain("Prepare audit handoff");
+    expect(hydrovacManifestDetailWrap.innerHTML).toContain("Copy full audit packet");
     expect(hydrovacManifestDetailWrap.innerHTML).toContain("Minimum dump threshold not met");
+    expect(hydrovacManifestDetailWrap.innerHTML).toContain("Customer records not prepared");
   });
 });

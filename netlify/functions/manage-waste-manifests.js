@@ -29,6 +29,11 @@ function normalizeManifestMetadata(existingMetadata, body = {}) {
   if (body.bol_number !== undefined) next.bol_number = clean(body.bol_number) || null;
   if (body.live_load_hold_reason !== undefined) next.live_load_hold_reason = clean(body.live_load_hold_reason) || null;
   if (body.disposal_ready_by !== undefined) next.disposal_ready_by = clean(body.disposal_ready_by) || null;
+  if (body.load_isolation_note !== undefined) next.load_isolation_note = clean(body.load_isolation_note) || null;
+  if (body.customer_records_prepared_at !== undefined) next.customer_records_prepared_at = clean(body.customer_records_prepared_at) || null;
+  if (body.audit_packet_prepared_at !== undefined) next.audit_packet_prepared_at = clean(body.audit_packet_prepared_at) || null;
+  if (body.audit_archived_at !== undefined) next.audit_archived_at = clean(body.audit_archived_at) || null;
+  if (body.disposal_handoff_prepared_at !== undefined) next.disposal_handoff_prepared_at = clean(body.disposal_handoff_prepared_at) || null;
   if (body.load_still_in_truck === true) {
     next.load_still_in_truck = true;
     next.load_state = 'live_in_truck';
@@ -377,7 +382,7 @@ exports.handler = async (event) => {
     for (const field of fields) {
       if (body[field] !== undefined) patch[field] = body[field];
     }
-    if (body.metadata !== undefined || body.bol_number !== undefined || body.live_load_hold_reason !== undefined || body.disposal_ready_by !== undefined || body.load_still_in_truck !== undefined || body.carried_job_ids !== undefined) {
+    if (body.metadata !== undefined || body.bol_number !== undefined || body.live_load_hold_reason !== undefined || body.disposal_ready_by !== undefined || body.load_still_in_truck !== undefined || body.carried_job_ids !== undefined || body.load_isolation_note !== undefined || body.customer_records_prepared_at !== undefined || body.audit_packet_prepared_at !== undefined || body.audit_archived_at !== undefined || body.disposal_handoff_prepared_at !== undefined) {
       patch.metadata = normalizeManifestMetadata(existing.metadata, body);
     }
 
