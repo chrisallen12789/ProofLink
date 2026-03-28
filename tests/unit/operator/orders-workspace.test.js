@@ -84,11 +84,13 @@ describe("operator orders workspace", () => {
     expect(source).toContain("orderRetentionItems");
     expect(source).toContain("orderRetentionActions");
     expect(source).toContain("data-order-retention-action");
+    expect(source).toContain("requestOrderReview(active.id");
     expect(source).toContain("Keep the trade details attached to the booked work");
     expect(source).toContain("Prep before field handoff");
     expect(source).toContain("Best next office move");
     expect(source).toContain("After this work is done");
     expect(source).toContain("Make this booked work easier to execute well");
+    expect(source).not.toContain('fetch("/.netlify/functions/request-review"');
     expect(source).not.toContain('style="display:none;margin-top:12px;background:rgba(255,255,255,.03);');
     expect(source).not.toContain('style="cursor:pointer;user-select:none;display:flex;align-items:center;justify-content:space-between;"');
     expect(source).not.toContain("style.cssText");
@@ -187,6 +189,14 @@ describe("operator orders workspace", () => {
 
   test("orderRetentionItems keeps HVAC maintenance follow-through attached after booked work", () => {
     const api = loadOrdersWorkspace({
+      window: {
+        PROOFLINK_OPERATOR_BOOKINGS_WORKSPACE: {
+          bookingDraftTimingInsight: vi.fn(() => ({
+            reason: "The maintenance window is opening for this system, so the next visit should be queued now.",
+            bookingDate: "2026-04-15",
+          })),
+        },
+      },
       currentWorkspaceBlueprint: vi.fn(() => ({
         business: {
           key: "hvac",
@@ -209,7 +219,7 @@ describe("operator orders workspace", () => {
     expect(items).toEqual([
       { label: "Maintenance follow-up", ready: true, note: "Quarterly tune-up stays active", tone: "" },
       { label: "Customer update stays clear", ready: true, note: "Call facilities lead before rooftop return", tone: "" },
-      { label: "Renewal risk", ready: false, note: "This customer has repeat-service signals, but the next visit or follow-up step still needs to be attached before the account cools off.", tone: "warn" },
+      { label: "Renewal risk", ready: false, note: "The maintenance window is opening for this system, so the next visit should be queued now. Suggested next visit: 2026-04-15.", tone: "warn" },
       { label: "Account closes cleanly", ready: true, note: "The money side is already in a good place, so the next move can stay focused on retention and repeat work.", tone: "" },
     ]);
   });
@@ -233,6 +243,7 @@ describe("operator orders workspace", () => {
 
     expect(actions).toEqual([
       { label: "Schedule next cleaning visit", action: "reactivate-repeat", className: "btn btn-primary btn-sm" },
+      { label: "Draft cleaning follow-up request", action: "request", className: "btn btn-ghost btn-sm" },
       { label: "Open customer", action: "open-reactivation-customer", className: "btn btn-ghost btn-sm" },
     ]);
   });

@@ -11,6 +11,9 @@ function makeElement(overrides = {}) {
     textContent: "",
     addEventListener: vi.fn(),
     appendChild: vi.fn(),
+    querySelector: vi.fn(() => null),
+    querySelectorAll: vi.fn(() => []),
+    insertAdjacentElement: vi.fn(),
     ...overrides,
   };
 }
@@ -161,6 +164,14 @@ describe("operator payments workspace", () => {
       CRM_ORDERS_CACHE: [{ id: "order_1", customer_id: "customer_1", customer_name: "Harbor Suites" }],
       JOBS_CACHE: [{ id: "job_1", order_id: "order_1", service_address: "455 Elm St" }],
       orderAmountDueCents: () => 0,
+      window: {
+        PROOFLINK_OPERATOR_BOOKINGS_WORKSPACE: {
+          bookingDraftTimingInsight: vi.fn(() => ({
+            reason: "This repair follow-up still has restoration or approval attached, so it should stay within the next few days.",
+            bookingDate: "2026-04-02",
+          })),
+        },
+      },
     });
 
     const message = context.window.buildPaymentSavedMessage({
@@ -172,6 +183,8 @@ describe("operator payments workspace", () => {
 
     expect(message).toContain("Payment saved for Harbor Suites.");
     expect(message).toContain("Drywall repair still needs scheduling");
+    expect(message).toContain("next few days");
+    expect(message).toContain("Suggested next visit: 2026-04-02");
   });
 
   test("buildPaymentReactivationActions turns a paid cleaning account into the next visit", () => {
@@ -200,7 +213,112 @@ describe("operator payments workspace", () => {
 
     expect(actions.map((action) => action.label)).toEqual([
       "Schedule next cleaning visit",
+      "Draft cleaning follow-up request",
       "Open customer",
     ]);
+  });
+
+  test("renderPaymentNextActions can reopen repeat service from the payment flow", () => {
+    const bookingOpen = vi.fn();
+    const host = makeElement({
+      querySelectorAll: vi.fn(() => [{
+        getAttribute: () => "reactivate-repeat",
+        addEventListener: vi.fn((event, handler) => {
+          if (event === "click") handler();
+        }),
+      }]),
+    });
+    const paymentParent = makeElement({
+      querySelector: vi.fn(() => host),
+    });
+    const context = loadPaymentsWorkspace({
+      currentWorkspaceBlueprint: () => ({ business: { key: "hvac" } }),
+      paymentMsg: makeElement({ parentElement: paymentParent }),
+      CUSTOMERS_CACHE: [{
+        id: "customer_1",
+        name: "Harbor Suites",
+        frequency: "Weekly maintenance",
+      }],
+      CRM_ORDERS_CACHE: [{
+        id: "order_1",
+        customer_id: "customer_1",
+        customer_name: "Harbor Suites",
+        status: "paid",
+      }],
+      window: {
+        PROOFLINK_OPERATOR_BOOKINGS_WORKSPACE: {
+          bookingDraftTimingInsight: vi.fn(() => ({
+            reason: "The maintenance window is opening for this system, so the next visit should be queued now.",
+            bookingDate: "2026-04-15",
+          })),
+          openBookingDraftForCustomer: bookingOpen,
+        },
+      },
+    });
+
+    context.window.renderPaymentNextActions({
+      customerId: "customer_1",
+      orderId: "order_1",
+      blueprint: { business: { key: "hvac" } },
+    });
+
+    expect(bookingOpen).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "customer_1" }),
+      {},
+      expect.objectContaining({ business: expect.objectContaining({ key: "hvac" }) })
+    );
+    expect(host.innerHTML).toContain("Why now: The maintenance window is opening for this system");
+  });
+
+  test("renderPaymentNextActions can open a follow-up request draft from the payment flow", () => {
+    const openCustomerRetentionAction = vi.fn();
+    const host = makeElement({
+      querySelectorAll: vi.fn(() => [{
+        getAttribute: () => "request",
+        addEventListener: vi.fn((event, handler) => {
+          if (event === "click") handler();
+        }),
+      }]),
+    });
+    const paymentParent = makeElement({
+      querySelector: vi.fn(() => host),
+    });
+    const context = loadPaymentsWorkspace({
+      currentWorkspaceBlueprint: () => ({ business: { key: "plumbing" } }),
+      paymentMsg: makeElement({ parentElement: paymentParent }),
+      CUSTOMERS_CACHE: [{
+        id: "customer_1",
+        name: "Harbor Suites",
+        restoration_notes: "Drywall patch follow-up still needs scheduling",
+      }],
+      CRM_ORDERS_CACHE: [{
+        id: "order_1",
+        customer_id: "customer_1",
+        customer_name: "Harbor Suites",
+        status: "paid",
+      }],
+      window: {
+        PROOFLINK_OPERATOR_CUSTOMER_DETAIL: {
+          openCustomerRetentionAction,
+        },
+      },
+    });
+
+    context.window.renderPaymentNextActions({
+      customerId: "customer_1",
+      orderId: "order_1",
+      blueprint: { business: { key: "plumbing" } },
+    });
+
+    expect(openCustomerRetentionAction).toHaveBeenCalledWith(
+      "request",
+      expect.objectContaining({ id: "customer_1" }),
+      expect.objectContaining({ business: expect.objectContaining({ key: "plumbing" }) }),
+      expect.objectContaining({
+        requestOptions: expect.objectContaining({
+          message: "Follow-up request draft opened from the payment flow.",
+        }),
+      })
+    );
   });
 });

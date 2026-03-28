@@ -356,8 +356,12 @@ function renderOrderNextMoveCard(order, customer, amountDueCents = 0, paymentSta
 
 function orderRetentionItems(order, customer, amountDueCents = 0, paymentState = "", blueprint = orderWorkspaceBlueprint()) {
   const businessKey = String(blueprint?.business?.key || "service_business").trim().toLowerCase();
+  const bookingsApi = window.PROOFLINK_OPERATOR_BOOKINGS_WORKSPACE || {};
   const filled = (...values) => values.some((value) => String(value || "").trim());
   const firstFilled = (...values) => values.find((value) => String(value || "").trim()) || "";
+  const timingInsight = customer && typeof bookingsApi.bookingDraftTimingInsight === "function"
+    ? bookingsApi.bookingDraftTimingInsight(customer, {}, blueprint)
+    : null;
   const detail = (label, ready, readyNote, missingNote, tone = "") => ({
     label,
     ready: !!ready,
@@ -378,7 +382,11 @@ function orderRetentionItems(order, customer, amountDueCents = 0, paymentState =
     customer?.recurring_notes,
     customer?.service_plan_name,
     customer?.maintenance_notes,
-    customer?.seasonal_notes
+    customer?.seasonal_notes,
+    customer?.parts_follow_up,
+    customer?.warranty_notes,
+    customer?.restoration_notes,
+    customer?.approval_notes
   );
   const nextTouch = firstFilled(
     customer?.next_service_on,
@@ -390,7 +398,9 @@ function orderRetentionItems(order, customer, amountDueCents = 0, paymentState =
         "Renewal risk",
         !!nextTouch,
         `The next repeat step is still visible here: ${nextTouch}.`,
-        "This customer has repeat-service signals, but the next visit or follow-up step still needs to be attached before the account cools off."
+        timingInsight?.reason
+          ? `${timingInsight.reason}${timingInsight.bookingDate ? ` Suggested next visit: ${timingInsight.bookingDate}.` : ""}`
+          : "This customer has repeat-service signals, but the next visit or follow-up step still needs to be attached before the account cools off."
       )
     : null;
 
@@ -484,30 +494,22 @@ function orderRetentionItems(order, customer, amountDueCents = 0, paymentState =
 }
 
 function orderRetentionActions(order, customer, amountDueCents = 0, blueprint = orderWorkspaceBlueprint()) {
-  const businessKey = String(blueprint?.business?.key || "service_business").trim().toLowerCase();
-  const firstFilled = (...values) => values.find((value) => String(value || "").trim()) || "";
   const status = String(order?.status || "").trim().toLowerCase();
   if (!["completed", "fulfilled", "paid"].includes(status)) return [];
   if (!customer || Number(amountDueCents || 0) > 0) return [];
-
-  const repeatSignal = firstFilled(
-    customer?.service_schedule,
-    customer?.frequency,
-    customer?.recurring_notes,
-    customer?.service_plan_name,
-    customer?.maintenance_notes,
-    customer?.seasonal_notes,
-    customer?.follow_up_notes
-  );
-  if (!repeatSignal) return [];
-
-  const nextTouch = firstFilled(
-    customer?.next_service_on,
-    customer?.service_plan_name,
-    customer?.follow_up_notes
-  );
-  if (nextTouch) return [];
-
+  const customerApi = window.PROOFLINK_OPERATOR_CUSTOMER_DETAIL || {};
+  if (typeof customerApi.customerRetentionWorkflowActions === "function") {
+    return customerApi.customerRetentionWorkflowActions({
+      customer,
+      blueprint,
+      includeSchedule: true,
+      includeRequest: true,
+      includeOpenCustomer: true,
+      primaryClassName: "btn btn-primary btn-sm",
+      secondaryClassName: "btn btn-ghost btn-sm",
+    });
+  }
+  const businessKey = String(blueprint?.business?.key || "service_business").trim().toLowerCase();
   const scheduleLabelMap = {
     landscaping: "Schedule next property visit",
     property_maintenance: "Schedule next site visit",
@@ -516,9 +518,17 @@ function orderRetentionActions(order, customer, amountDueCents = 0, blueprint = 
     hvac: "Schedule next system visit",
     plumbing: "Schedule next follow-up visit",
   };
-
+  const requestLabelMap = {
+    landscaping: "Draft seasonal follow-up request",
+    property_maintenance: "Draft site follow-up request",
+    pressure_washing: "Draft wash follow-up request",
+    cleaning: "Draft cleaning follow-up request",
+    hvac: "Draft maintenance follow-up request",
+    plumbing: "Draft repair follow-up request",
+  };
   return [
     { label: scheduleLabelMap[businessKey] || "Schedule next visit", action: "reactivate-repeat", className: "btn btn-primary btn-sm" },
+    { label: requestLabelMap[businessKey] || "Draft follow-up request", action: "request", className: "btn btn-ghost btn-sm" },
     { label: "Open customer", action: "open-reactivation-customer", className: "btn btn-ghost btn-sm" },
   ];
 }
@@ -656,8 +666,9 @@ function renderOrders() {
   const orderPayments = sortedPayments(PAYMENTS_CACHE.filter((payment) => payment.order_id === active.id));
   const recentOrderPayment = orderPayments[0] || null;
   const collectionGuidance = orderCollectionGuidance(active, amountDue, paymentState, depositGap, recentOrderPayment);
+  const reviewEmail = String(active.customer_email || active.email || "").trim();
   const orderFollowThroughActions = [
-    ["completed", "fulfilled"].includes(String(active.status || "").toLowerCase()) && active.customer_email
+    ["completed", "fulfilled"].includes(String(active.status || "").toLowerCase()) && reviewEmail
       ? { id: "btnRequestReview", label: active.review_requested_at ? "Review requested" : "Request review", className: "btn btn-ghost btn-sm", disabled: !!active.review_requested_at }
       : null,
     active.customer_email ? { id: "btnNotifyCustomer", label: "Notify customer", className: "btn btn-ghost btn-sm" } : null,
@@ -816,7 +827,7 @@ function renderOrders() {
     ${renderRecordFollowThroughCard({
       eyebrow: "Follow-through",
       title: "Keep status, reminders, and collection aligned",
-      description: active.customer_email
+      description: reviewEmail
         ? "Update the workflow stage, send the right customer message, and keep money follow-through visible from one place."
         : "Update the workflow stage here. Add a customer email to unlock reminders, invoice email, and review follow-up.",
       summary: [
@@ -833,7 +844,7 @@ function renderOrders() {
               ${statusOptions.map((status) => `<option value="${status}" ${String(active.status || "new").toLowerCase() === status ? "selected" : ""}>${escapeHtml(formatOrderWorkflowStatus(status))}</option>`).join("")}
             </select>
           </label>
-          ${active.customer_email ? `<label class="modal-check"><input type="checkbox" id="chkNotifyOnStatusChange" class="modal-check__input" checked /><span class="modal-check__label">Notify customer</span></label>` : ""}
+          ${reviewEmail ? `<label class="modal-check"><input type="checkbox" id="chkNotifyOnStatusChange" class="modal-check__input" checked /><span class="modal-check__label">Notify customer</span></label>` : ""}
           <button id="btnSaveOrderStatus" class="btn btn-primary" type="button">Save status</button>
         </div>
       `,
@@ -973,15 +984,23 @@ function renderOrders() {
     renderDashboard();
     renderGuidance();
 
+    const coreUtils = window.PROOFLINK_OPERATOR_UTILS || {};
+
     // Auto-send review request when order is marked complete/fulfilled
-    if (["completed", "fulfilled"].includes(nextStatus) && data.customer_email && !data.review_requested_at) {
+    if (
+      ["completed", "fulfilled"].includes(nextStatus)
+      && String(data.customer_email || data.email || "").trim()
+      && !data.review_requested_at
+      && typeof coreUtils.requestOrderReview === "function"
+    ) {
       try {
-        const tok = await getAccessToken();
-        await fetch("/.netlify/functions/request-review", {
-          method : "POST",
-          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${tok}` },
-          body   : JSON.stringify({ order_id: data.id }),
+        const reviewResult = await coreUtils.requestOrderReview(data.id, {
+          successMessage: "",
         });
+        data.review_requested_at = reviewResult.review_requested_at;
+        renderOrders();
+        renderDashboard();
+        renderGuidance();
       } catch (e) {
         console.warn("[review] auto-request failed:", e.message);
       }
@@ -989,7 +1008,7 @@ function renderOrders() {
 
     // Notify customer of status change if checkbox is checked
     const shouldNotify = $("chkNotifyOnStatusChange")?.checked;
-    if (shouldNotify && data.customer_email) {
+    if (shouldNotify && String(data.customer_email || data.email || "").trim()) {
       try {
         const tok = await getAccessToken();
         fetch("/.netlify/functions/send-order-notification", {
@@ -1040,14 +1059,25 @@ function renderOrders() {
         return;
       }
 
-      if (action === "reactivate-repeat") {
-        const bookingsApi = window.PROOFLINK_OPERATOR_BOOKINGS_WORKSPACE || {};
-        if (typeof bookingsApi.openBookingDraftForCustomer === "function") {
-          bookingsApi.openBookingDraftForCustomer(existingCustomer, {}, blueprint);
+      if (action === "reactivate-repeat" || action === "request") {
+        const customerApi = window.PROOFLINK_OPERATOR_CUSTOMER_DETAIL || {};
+        if (typeof customerApi.openCustomerRetentionAction === "function") {
+          customerApi.openCustomerRetentionAction(action, existingCustomer, blueprint, {
+            requestOptions: {
+              message: "Follow-up request draft opened from booked work.",
+            },
+          });
           return;
         }
-        ACTIVE_CUSTOMER_ID = existingCustomer.id;
-        switchTab("bookings");
+        if (action === "reactivate-repeat") {
+          const bookingsApi = window.PROOFLINK_OPERATOR_BOOKINGS_WORKSPACE || {};
+          if (typeof bookingsApi.openBookingDraftForCustomer === "function") {
+            bookingsApi.openBookingDraftForCustomer(existingCustomer, {}, blueprint);
+            return;
+          }
+          ACTIVE_CUSTOMER_ID = existingCustomer.id;
+          switchTab("bookings");
+        }
       }
     });
   });
@@ -1099,20 +1129,29 @@ function renderOrders() {
   $("btnRequestReview")?.addEventListener("click", async () => {
     const btn = $("btnRequestReview");
     if (!btn || active.review_requested_at) return;
+    const msg = $("orderNotifyMsg");
+    const coreUtils = window.PROOFLINK_OPERATOR_UTILS || {};
     btn.disabled = true;
     try {
-      const tok = await getAccessToken();
-      const res = await fetch("/.netlify/functions/request-review", {
-        method : "POST",
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${tok}` },
-        body   : JSON.stringify({ order_id: active.id }),
+      const setReviewStatus = (message = "", tone = "") => {
+        if (!msg) return;
+        msg.textContent = message;
+        msg.className = tone ? `msg ${tone === "ok" ? "success" : tone}` : "msg";
+      };
+      if (typeof coreUtils.requestOrderReview !== "function") {
+        throw new Error("Review request tools are not ready yet.");
+      }
+      const reviewResult = await coreUtils.requestOrderReview(active.id, {
+        button: btn,
+        setStatus: setReviewStatus,
+        onSuccess: async (_payload, reviewRequestedAt) => {
+          active.review_requested_at = reviewRequestedAt;
+          renderOrders();
+          renderDashboard();
+          renderGuidance();
+        },
       });
-      const d = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(d.error || "Failed to send review request");
-      btn.textContent = "Review requested";
-      CRM_ORDERS_CACHE = CRM_ORDERS_CACHE.map((row) =>
-        row.id === active.id ? { ...row, review_requested_at: new Date().toISOString() } : row
-      );
+      active.review_requested_at = reviewResult.review_requested_at;
     } catch (err) {
       notifyOperator(err.message || String(err));
       btn.disabled = false;

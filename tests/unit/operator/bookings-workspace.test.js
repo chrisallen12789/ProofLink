@@ -351,10 +351,199 @@ describe("operator bookings workspace", () => {
     expect(elements.bkTitle.value).toBe("Harbor Suites maintenance visit");
     expect(elements.bkDate.value).toBe("2026-04-02");
     expect(elements.bkRecurrenceRule.value).toBe("WEEKLY");
-    expect(elements.bkRecurrenceEnd.value).toBe("2026-06-18");
+    expect(elements.bkRecurrenceEnd.value).toBe("2026-06-25");
     expect(elements.bkNotes.value).toContain("Spring tune-up is due next visit");
     expect(elements.bkNotes.value).toContain("Bring capacitor approval paperwork");
     expect(elements.bkNotes.value).toContain("Carrier rooftop unit RTU-2");
     expect(elements.bkRecurrenceOptions.classList.toggle).toHaveBeenCalledWith("u-hidden", false);
+  });
+
+  test("bookingDraftDate uses the expected cadence when the account is still on rhythm", () => {
+    const { context } = loadBookingsWorkspace({
+      PROOFLINK_OPERATOR_CUSTOMER_DETAIL: {
+        customerRepeatCadenceInsight: vi.fn(() => ({
+          cadenceDays: 14,
+          overdueDays: 0,
+          message: "This account usually runs about every 14 days.",
+        })),
+      },
+    });
+
+    const date = context.window.bookingDraftDate({
+      recurring_notes: "Every other Tuesday",
+      last_service_on: "2026-04-10T12:00:00Z",
+    }, {}, {
+      business: {
+        key: "cleaning",
+      },
+    });
+
+    expect(date).toBe("2026-04-24");
+  });
+
+  test("bookingDraftDate pulls overdue repeat work forward instead of using the full cadence", () => {
+    const { context } = loadBookingsWorkspace({
+      todayDateValue: vi.fn((days) => `offset-${days}`),
+      PROOFLINK_OPERATOR_CUSTOMER_DETAIL: {
+        customerRepeatCadenceInsight: vi.fn(() => ({
+          cadenceDays: 14,
+          overdueDays: 12,
+          message: "This account usually runs about every 14 days and is roughly 12 days past that rhythm.",
+        })),
+      },
+    });
+
+    const date = context.window.bookingDraftDate({
+      recurring_notes: "Every other Tuesday",
+      last_service_on: "2026-03-01T12:00:00Z",
+    }, {}, {
+      business: {
+        key: "cleaning",
+      },
+    });
+
+    expect(date).toBe("offset-3");
+  });
+
+  test("bookingDraftTradeTimingInsight keeps HVAC parts follow-up inside the next week", () => {
+    const { context } = loadBookingsWorkspace({
+      currentWorkspaceBlueprint: vi.fn(() => ({
+        business: {
+          key: "hvac",
+        },
+      })),
+    });
+
+    const insight = context.window.bookingDraftTradeTimingInsight({
+      parts_follow_up: "Capacitor approval still pending",
+      warranty_notes: "Warranty photo still needed",
+    }, {}, {
+      business: {
+        key: "hvac",
+      },
+    }, new Date("2026-03-28T00:00:00.000Z"));
+
+    expect(insight.offsetDays).toBe(7);
+    expect(insight.message).toContain("next week");
+  });
+
+  test("bookingDraftTradeTimingInsight pulls plumbing emergencies into the next day", () => {
+    const { context } = loadBookingsWorkspace({
+      currentWorkspaceBlueprint: vi.fn(() => ({
+        business: {
+          key: "plumbing",
+        },
+      })),
+    });
+
+    const insight = context.window.bookingDraftTradeTimingInsight({
+      restoration_notes: "Emergency leak over kitchen ceiling",
+    }, {}, {
+      business: {
+        key: "plumbing",
+      },
+    }, new Date("2026-03-28T00:00:00.000Z"));
+
+    expect(insight.offsetDays).toBe(1);
+    expect(insight.message).toContain("almost immediately");
+  });
+
+  test("bookingDraftTradeTimingInsight spots seasonal property timing when spring is opening", () => {
+    const { context } = loadBookingsWorkspace({
+      currentWorkspaceBlueprint: vi.fn(() => ({
+        business: {
+          key: "landscaping",
+        },
+      })),
+    });
+
+    const insight = context.window.bookingDraftTradeTimingInsight({
+      seasonal_notes: "Spring mulch refresh and bed cleanup",
+    }, {}, {
+      business: {
+        key: "landscaping",
+      },
+    }, new Date("2026-03-28T00:00:00.000Z"));
+
+    expect(insight.offsetDays).toBe(14);
+    expect(insight.message).toContain("seasonal window is opening");
+  });
+
+  test("openBookingDraftForCustomer explains why the draft timing was chosen", () => {
+    const { context } = loadBookingsWorkspace({
+      todayDateValue: vi.fn((days) => `offset-${days}`),
+      PROOFLINK_OPERATOR_CUSTOMER_DETAIL: {
+        customerRepeatCadenceInsight: vi.fn(() => ({
+          cadenceDays: 14,
+          overdueDays: 9,
+          message: "This account usually runs about every 14 days and is roughly 9 days past that rhythm.",
+        })),
+      },
+    });
+
+    context.window.openBookingDraftForCustomer({
+      name: "Quiet Cleaning",
+      email: "quiet@example.com",
+      recurring_notes: "Every other Tuesday",
+      last_service_on: "2026-03-01T12:00:00Z",
+    }, {}, {
+      business: {
+        key: "cleaning",
+      },
+    });
+
+    expect(context.setInlineMessage).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.stringContaining("9 days past that rhythm"),
+      "ok"
+    );
+  });
+
+  test("openBookingDraftForCustomer explains trade timing when there is no cadence signal yet", () => {
+    const { context } = loadBookingsWorkspace({
+      todayDateValue: vi.fn((days) => `offset-${days}`),
+    });
+
+    context.window.openBookingDraftForCustomer({
+      name: "Harbor Suites",
+      email: "ops@example.com",
+      parts_follow_up: "Capacitor approval still pending",
+      warranty_notes: "Warranty photo still needed",
+    }, {}, {
+      business: {
+        key: "hvac",
+      },
+    });
+
+    expect(context.setInlineMessage).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.stringContaining("next week"),
+      "ok"
+    );
+  });
+
+  test("bookingDraftTimingInsight exposes the plain-language reason and suggested date together", () => {
+    const { context } = loadBookingsWorkspace({
+      todayDateValue: vi.fn((days) => `offset-${days}`),
+      PROOFLINK_OPERATOR_CUSTOMER_DETAIL: {
+        customerRepeatCadenceInsight: vi.fn(() => ({
+          cadenceDays: 14,
+          overdueDays: 9,
+          message: "This account usually runs about every 14 days and is roughly 9 days past that rhythm.",
+        })),
+      },
+    });
+
+    const insight = context.window.bookingDraftTimingInsight({
+      recurring_notes: "Every other Tuesday",
+      last_service_on: "2026-03-01T12:00:00Z",
+    }, {}, {
+      business: {
+        key: "cleaning",
+      },
+    });
+
+    expect(insight.reason).toContain("9 days past that rhythm");
+    expect(insight.bookingDate).toBe("offset-3");
   });
 });

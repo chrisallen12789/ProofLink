@@ -142,6 +142,9 @@ function priorityReactivationCustomer({ customers = CUSTOMERS_CACHE, blueprint =
   const renewalRiskItemForCustomer = typeof customerApi.customerRenewalRiskItem === "function"
     ? customerApi.customerRenewalRiskItem
     : null;
+  const cadenceInsightForCustomer = typeof customerApi.customerRepeatCadenceInsight === "function"
+    ? customerApi.customerRepeatCadenceInsight
+    : null;
   const firstFilled = (...values) => values.find((value) => String(value || "").trim()) || "";
   const activeCustomerIds = new Set(
     [
@@ -170,7 +173,11 @@ function priorityReactivationCustomer({ customers = CUSTOMERS_CACHE, blueprint =
       customer?.recurring_notes,
       customer?.service_plan_name,
       customer?.maintenance_notes,
+      customer?.parts_follow_up,
+      customer?.warranty_notes,
       customer?.seasonal_notes,
+      customer?.restoration_notes,
+      customer?.approval_notes,
     ].some((value) => String(value || "").trim());
     if (!repeatSignal) return false;
     if (activeCustomerIds.has(customer.id)) return false;
@@ -195,9 +202,60 @@ function priorityReactivationCustomer({ customers = CUSTOMERS_CACHE, blueprint =
         latestInteraction: null,
       })
     : null;
+  const cadenceInsight = cadenceInsightForCustomer ? cadenceInsightForCustomer(customer) : null;
   return {
     customer,
-    note: renewalRiskItem?.note || firstFilled(customer?.follow_up_notes, customer?.recurring_notes, customer?.maintenance_notes, customer?.seasonal_notes) || "Bring this repeat account back onto the calendar before it cools off.",
+    note: renewalRiskItem?.note
+      || cadenceInsight?.message
+      || firstFilled(customer?.follow_up_notes, customer?.recurring_notes, customer?.maintenance_notes, customer?.seasonal_notes)
+      || "Bring this repeat account back onto the calendar before it cools off.",
+  };
+}
+
+function repeatWorkReasonContext({
+  duePlans = [],
+  activePlans = SERVICE_PLANS_CACHE,
+  blueprint = currentWorkspaceBlueprint(),
+  reactivationTarget = null,
+} = {}) {
+  const bookingsApi = window.PROOFLINK_OPERATOR_BOOKINGS_WORKSPACE || {};
+  const timingInsightForCustomer = typeof bookingsApi.bookingDraftTimingInsight === "function"
+    ? bookingsApi.bookingDraftTimingInsight
+    : null;
+  const firstFilled = (...values) => values.find((value) => String(value || "").trim()) || "";
+  const atRiskPlan = (activePlans || []).find((plan) => {
+    const nextRunValue = String(plan?.next_run_on || "").trim();
+    return !nextRunValue || Number.isNaN(new Date(nextRunValue).getTime());
+  }) || null;
+  const focusPlan = duePlans[0] || atRiskPlan || null;
+  const focusCustomer = reactivationTarget?.customer
+    || (focusPlan?.customer_id ? CUSTOMERS_CACHE.find((row) => row.id === focusPlan.customer_id) : null)
+    || null;
+  if (!focusCustomer && !reactivationTarget?.note) return null;
+
+  const timingInsight = focusCustomer && timingInsightForCustomer
+    ? timingInsightForCustomer(focusCustomer, {}, blueprint)
+    : null;
+  const note = timingInsight?.reason
+    || reactivationTarget?.note
+    || firstFilled(
+      focusCustomer?.follow_up_notes,
+      focusCustomer?.recurring_notes,
+      focusCustomer?.maintenance_notes,
+      focusCustomer?.parts_follow_up,
+      focusCustomer?.warranty_notes,
+      focusCustomer?.seasonal_notes,
+      focusCustomer?.restoration_notes,
+      focusCustomer?.approval_notes
+    )
+    || "";
+  if (!note) return null;
+
+  return {
+    customerId: focusCustomer?.id || "",
+    customerName: focusCustomer?.name || focusCustomer?.email || "",
+    note,
+    suggestedDate: timingInsight?.bookingDate || firstFilled(focusPlan?.next_run_on, focusCustomer?.next_service_on),
   };
 }
 
@@ -270,7 +328,11 @@ function renderDashboard() {
       customer?.recurring_notes,
       customer?.service_plan_name,
       customer?.maintenance_notes,
+      customer?.parts_follow_up,
+      customer?.warranty_notes,
       customer?.seasonal_notes,
+      customer?.restoration_notes,
+      customer?.approval_notes,
     ].some((value) => String(value || "").trim());
     if (!repeatSignal) return false;
     if (activeCustomerIds.has(customer.id)) return false;
@@ -284,6 +346,19 @@ function renderDashboard() {
   const reactivationTarget = reactivationGuidance
     ? priorityReactivationCustomer({ customers: CUSTOMERS_CACHE, blueprint })
     : null;
+  const repeatWorkReason = repeatWorkReasonContext({
+    duePlans,
+    activePlans,
+    blueprint,
+    reactivationTarget,
+  });
+  const customerApi = window.PROOFLINK_OPERATOR_CUSTOMER_DETAIL || {};
+  const reactivationScheduleLabel = reactivationTarget?.customer && typeof customerApi.customerScheduleActionLabel === "function"
+    ? customerApi.customerScheduleActionLabel(blueprint)
+    : "Schedule next visit";
+  const reactivationRequestLabel = reactivationTarget?.customer && typeof customerApi.customerRequestActionLabel === "function"
+    ? customerApi.customerRequestActionLabel(blueprint)
+    : "Draft follow-up request";
   const orderLabel = workspaceOrderLabelLower(blueprint);
   const catalogLabel = workspaceCatalogLabelLower(blueprint);
   const hydrovacToday = isHydrovacWorkspace(blueprint) ? hydrovacDashboardSnapshot() : null;
@@ -422,6 +497,9 @@ function renderDashboard() {
         <div class="workspace-chip-row dashboard-focus-chips">
           ${repeatWorkGuidance.chips.map((chip) => `<span class="pill">${escapeHtml(chip)}</span>`).join("")}
         </div>
+        ${repeatWorkReason ? `
+          <div class="detail-copy dashboard-focus-copy"><strong>${escapeHtml(repeatWorkReason.customerName || "Next repeat customer")}</strong> ${escapeHtml(repeatWorkReason.note)}${repeatWorkReason.suggestedDate ? ` Suggested next visit: ${escapeHtml(formatDateOnly(repeatWorkReason.suggestedDate))}.` : ""}</div>
+        ` : ""}
       </div>
     </div>
 
@@ -440,7 +518,8 @@ function renderDashboard() {
           ${reactivationTarget ? `
             <div class="detail-copy dashboard-focus-copy"><strong>${escapeHtml(reactivationTarget.customer?.name || reactivationTarget.customer?.email || "Repeat customer")}</strong> ${escapeHtml(reactivationTarget.note)}</div>
             <div class="action-row action-row--wrap u-mt-10">
-              <button type="button" class="btn btn-primary btn-sm" data-dashboard-action="reactivate-repeat">Schedule next visit</button>
+              <button type="button" class="btn btn-primary btn-sm" data-dashboard-action="reactivate-repeat">${escapeHtml(reactivationScheduleLabel)}</button>
+              <button type="button" class="btn btn-ghost btn-sm" data-dashboard-action="draft-reactivation-request">${escapeHtml(reactivationRequestLabel)}</button>
               <button type="button" class="btn btn-ghost btn-sm" data-dashboard-action="open-reactivation-customer">Open customer</button>
             </div>
           ` : ""}
@@ -880,11 +959,29 @@ function renderDashboard() {
       if (action === "reactivate-repeat") {
         const target = priorityReactivationCustomer({ customers: CUSTOMERS_CACHE, blueprint: currentWorkspaceBlueprint() });
         if (!target?.customer) return;
-        const bookingsApi = window.PROOFLINK_OPERATOR_BOOKINGS_WORKSPACE || {};
-        if (typeof bookingsApi.openBookingDraftForCustomer === "function") {
-          bookingsApi.openBookingDraftForCustomer(target.customer, {}, currentWorkspaceBlueprint());
+        const customerApi = window.PROOFLINK_OPERATOR_CUSTOMER_DETAIL || {};
+        if (typeof customerApi.openCustomerRetentionAction === "function") {
+          customerApi.openCustomerRetentionAction("reactivate-repeat", target.customer, currentWorkspaceBlueprint());
         } else {
-          switchTab("bookings");
+          const bookingsApi = window.PROOFLINK_OPERATOR_BOOKINGS_WORKSPACE || {};
+          if (typeof bookingsApi.openBookingDraftForCustomer === "function") {
+            bookingsApi.openBookingDraftForCustomer(target.customer, {}, currentWorkspaceBlueprint());
+          } else {
+            switchTab("bookings");
+          }
+        }
+        return;
+      }
+      if (action === "draft-reactivation-request") {
+        const target = priorityReactivationCustomer({ customers: CUSTOMERS_CACHE, blueprint: currentWorkspaceBlueprint() });
+        if (!target?.customer) return;
+        const customerApi = window.PROOFLINK_OPERATOR_CUSTOMER_DETAIL || {};
+        if (typeof customerApi.openCustomerRetentionAction === "function") {
+          customerApi.openCustomerRetentionAction("request", target.customer, currentWorkspaceBlueprint(), {
+            requestOptions: {
+              message: "Follow-up request draft opened from Today.",
+            },
+          });
         }
         return;
       }

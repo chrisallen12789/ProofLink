@@ -234,15 +234,9 @@
       note: ready ? readyNote : missingNote,
       tone: tone || (!ready ? "warn" : ""),
     });
-    const repeatSignal = firstFilled(
-      customer?.service_schedule,
-      customer?.frequency,
-      customer?.recurring_notes,
-      customer?.service_plan_name,
-      customer?.maintenance_notes,
-      customer?.seasonal_notes,
-      customer?.follow_up_notes
-    );
+    const repeatCadenceDays = customerRepeatCadenceDays(customer);
+    const cadenceInsight = customerRepeatCadenceInsight(customer);
+    const repeatSignal = customerRepeatSignalValue(customer);
     if (!repeatSignal) return null;
 
     const nextTouch = firstFilled(
@@ -268,8 +262,81 @@
       protectedRenewal,
       activeWorkCount > 0
         ? "The next visit or follow-through is already moving inside active work."
-        : `The next repeat touch is still visible here: ${nextTouch}.`,
-      tradeMessages[businessKey] || "This customer has repeat-service signals, but the next visit or renewal step still needs to be attached before the account goes quiet."
+        : repeatCadenceDays && nextTouch
+          ? `The next repeat touch is still visible here: ${nextTouch}. That stays in step with the usual ${repeatCadenceDays}-day rhythm.`
+          : `The next repeat touch is still visible here: ${nextTouch}.`,
+      cadenceInsight?.message || tradeMessages[businessKey] || "This customer has repeat-service signals, but the next visit or renewal step still needs to be attached before the account goes quiet."
+    );
+  }
+
+  function customerRepeatCadenceDays(customer = null) {
+    const firstFilled = (...values) => values.find((value) => String(value || "").trim()) || "";
+    const raw = String(firstFilled(
+      customer?.service_schedule,
+      customer?.frequency,
+      customer?.recurring_notes,
+      customer?.service_plan_name
+    )).trim().toLowerCase();
+    if (!raw) return null;
+    if (/every other|biweekly|bi-weekly|2 weeks|two weeks/.test(raw)) return 14;
+    if (/weekly|every week/.test(raw)) return 7;
+    if (/monthly|every month/.test(raw)) return 30;
+    if (/quarterly|every quarter|every 3 months|three months/.test(raw)) return 90;
+    const dayMatch = raw.match(/(\d+)\s*day/);
+    if (dayMatch) return Number(dayMatch[1]);
+    const weekMatch = raw.match(/(\d+)\s*week/);
+    if (weekMatch) return Number(weekMatch[1]) * 7;
+    const monthMatch = raw.match(/(\d+)\s*month/);
+    if (monthMatch) return Number(monthMatch[1]) * 30;
+    return null;
+  }
+
+  function customerRepeatCadenceInsight(customer = null, now = new Date()) {
+    const firstFilled = (...values) => values.find((value) => String(value || "").trim()) || "";
+    const cadenceDays = customerRepeatCadenceDays(customer);
+    if (!cadenceDays) return null;
+    const lastTouchValue = firstFilled(
+      customer?.last_service_on,
+      customer?.last_contact_at,
+      customer?.updated_at,
+      customer?.created_at
+    );
+    if (!lastTouchValue) return null;
+    const lastTouch = new Date(lastTouchValue);
+    const current = now instanceof Date ? now : new Date(now);
+    if (Number.isNaN(lastTouch.getTime()) || Number.isNaN(current.getTime())) return null;
+    const ageDays = Math.max(0, Math.floor((current.getTime() - lastTouch.getTime()) / 86400000));
+    const overdueDays = ageDays - cadenceDays;
+    if (overdueDays <= 0) {
+      return {
+        cadenceDays,
+        ageDays,
+        overdueDays: 0,
+        message: `This account usually runs about every ${cadenceDays} days, so the next visit should be attached before that rhythm slips.`,
+      };
+    }
+    return {
+      cadenceDays,
+      ageDays,
+      overdueDays,
+      message: `This account usually runs about every ${cadenceDays} days and is roughly ${overdueDays} days past that rhythm.`,
+    };
+  }
+
+  function customerRepeatSignalValue(customer = null) {
+    const firstFilled = (...values) => values.find((value) => String(value || "").trim()) || "";
+    return firstFilled(
+      customer?.service_schedule,
+      customer?.frequency,
+      customer?.recurring_notes,
+      customer?.service_plan_name,
+      customer?.maintenance_notes,
+      customer?.seasonal_notes,
+      customer?.follow_up_notes,
+      customer?.parts_follow_up,
+      customer?.warranty_notes,
+      customer?.restoration_notes,
+      customer?.approval_notes
     );
   }
 
@@ -405,27 +472,26 @@
     activeJobCount = 0,
     blueprint = (typeof currentWorkspaceBlueprint === "function" ? currentWorkspaceBlueprint() : { business: { key: "service_business" } }),
   } = {}) {
+    const actions = customerRetentionWorkflowActions({
+      customer,
+      openRequestsCount,
+      openProposalCount,
+      activeOrderCount,
+      activeJobCount,
+      blueprint,
+      includeOpenCustomer: false,
+      primaryClassName: "btn btn-primary",
+      secondaryClassName: "btn btn-ghost",
+    });
+    return actions.map((action) => ({
+      label: action.label,
+      className: action.className,
+      data: { "customer-action": action.action === "reactivate-repeat" ? "booking" : "request" },
+    }));
+  }
+
+  function customerScheduleActionLabel(blueprint = (typeof currentWorkspaceBlueprint === "function" ? currentWorkspaceBlueprint() : { business: { key: "service_business" } })) {
     const businessKey = String(blueprint?.business?.key || "service_business").trim().toLowerCase();
-    const firstFilled = (...values) => values.find((value) => String(value || "").trim()) || "";
-    const repeatSignal = firstFilled(
-      customer?.service_schedule,
-      customer?.frequency,
-      customer?.recurring_notes,
-      customer?.service_plan_name,
-      customer?.maintenance_notes,
-      customer?.seasonal_notes,
-      customer?.follow_up_notes
-    );
-    if (!repeatSignal) return [];
-
-    const nextTouch = firstFilled(
-      customer?.next_service_on,
-      customer?.service_plan_name,
-      customer?.follow_up_notes
-    );
-    const activeWorkCount = Number(activeOrderCount || 0) + Number(activeJobCount || 0);
-    if (nextTouch || openRequestsCount > 0 || openProposalCount > 0 || activeWorkCount > 0) return [];
-
     const scheduleLabelMap = {
       landscaping: "Schedule next property visit",
       property_maintenance: "Schedule next site visit",
@@ -434,19 +500,122 @@
       hvac: "Schedule next system visit",
       plumbing: "Schedule next follow-up visit",
     };
+    return scheduleLabelMap[businessKey] || "Schedule next visit";
+  }
 
-    return [
-      {
-        label: scheduleLabelMap[businessKey] || "Schedule next visit",
-        className: "btn btn-primary",
-        data: { "customer-action": "booking" },
-      },
-      {
-        label: "Draft follow-up request",
-        className: "btn btn-ghost",
-        data: { "customer-action": "request" },
-      },
-    ];
+  function customerRequestActionLabel(blueprint = (typeof currentWorkspaceBlueprint === "function" ? currentWorkspaceBlueprint() : { business: { key: "service_business" } })) {
+    const businessKey = String(blueprint?.business?.key || "service_business").trim().toLowerCase();
+    const requestLabelMap = {
+      landscaping: "Draft seasonal follow-up request",
+      property_maintenance: "Draft site follow-up request",
+      pressure_washing: "Draft wash follow-up request",
+      cleaning: "Draft cleaning follow-up request",
+      hvac: "Draft maintenance follow-up request",
+      plumbing: "Draft repair follow-up request",
+    };
+    return requestLabelMap[businessKey] || "Draft follow-up request";
+  }
+
+  function customerRepeatNextTouchValue(customer = null) {
+    const firstFilled = (...values) => values.find((value) => String(value || "").trim()) || "";
+    return firstFilled(
+      customer?.next_service_on,
+      customer?.service_plan_name,
+      customer?.follow_up_notes
+    );
+  }
+
+  function customerRetentionWorkflowActions({
+    customer = null,
+    openRequestsCount = 0,
+    openProposalCount = 0,
+    activeOrderCount = 0,
+    activeJobCount = 0,
+    blueprint = (typeof currentWorkspaceBlueprint === "function" ? currentWorkspaceBlueprint() : { business: { key: "service_business" } }),
+    includeSchedule = true,
+    includeRequest = true,
+    includeOpenCustomer = true,
+    primaryClassName = "btn btn-primary btn-sm",
+    secondaryClassName = "btn btn-ghost btn-sm",
+  } = {}) {
+    const repeatSignal = customerRepeatSignalValue(customer);
+    if (!repeatSignal) return [];
+
+    const nextTouch = customerRepeatNextTouchValue(customer);
+    const activeWorkCount = Number(activeOrderCount || 0) + Number(activeJobCount || 0);
+    if (nextTouch || openRequestsCount > 0 || openProposalCount > 0 || activeWorkCount > 0) return [];
+
+    const actions = [];
+    if (includeSchedule) {
+      actions.push({
+        label: customerScheduleActionLabel(blueprint),
+        action: "reactivate-repeat",
+        className: primaryClassName,
+      });
+    }
+    if (includeRequest) {
+      actions.push({
+        label: customerRequestActionLabel(blueprint),
+        action: "request",
+        className: secondaryClassName,
+      });
+    }
+    if (includeOpenCustomer) {
+      actions.push({
+        label: "Open customer",
+        action: "open-reactivation-customer",
+        className: secondaryClassName,
+      });
+    }
+    return actions;
+  }
+
+  function customerFollowUpRequestDraft(customer = null, options = {}, blueprint = (typeof currentWorkspaceBlueprint === "function" ? currentWorkspaceBlueprint() : { business: { key: "service_business" } })) {
+    if (!customer) return null;
+    const businessKey = String(blueprint?.business?.key || "service_business").trim().toLowerCase();
+    const firstFilled = (...values) => values.find((value) => String(value || "").trim()) || "";
+    const address = customerDisplayAddress(customer);
+    const requestTitles = {
+      landscaping: `${customer.name || "Customer"} seasonal follow-up`,
+      property_maintenance: `${customer.name || "Customer"} site follow-up`,
+      pressure_washing: `${customer.name || "Customer"} wash follow-up`,
+      cleaning: `${customer.name || "Customer"} cleaning follow-up`,
+      hvac: `${customer.name || "Customer"} maintenance follow-up`,
+      plumbing: `${customer.name || "Customer"} repair follow-up`,
+    };
+    const requestedServiceTypes = {
+      landscaping: "Seasonal property follow-up",
+      property_maintenance: "Site maintenance follow-up",
+      pressure_washing: "Wash follow-up",
+      cleaning: "Cleaning follow-up",
+      hvac: "Maintenance follow-up",
+      plumbing: "Repair follow-up",
+    };
+    const summaryByTrade = {
+      landscaping: firstFilled(customer?.seasonal_notes, customer?.follow_up_notes, customer?.service_schedule, customer?.service_notes),
+      property_maintenance: firstFilled(customer?.service_schedule, customer?.follow_up_notes, customer?.access_notes, customer?.service_notes),
+      pressure_washing: firstFilled(customer?.seasonal_notes, customer?.service_schedule, customer?.service_notes),
+      cleaning: firstFilled(customer?.recurring_notes, customer?.checklist_notes, customer?.add_on_notes, customer?.entry_notes),
+      hvac: firstFilled(customer?.parts_follow_up, customer?.warranty_notes, customer?.maintenance_notes, customer?.equipment_notes),
+      plumbing: firstFilled(customer?.restoration_notes, customer?.approval_notes, customer?.shutoff_notes, customer?.follow_up_notes),
+    };
+    const notesByTrade = {
+      landscaping: firstFilled(customer?.gate_notes, customer?.access_notes, customer?.service_notes),
+      property_maintenance: firstFilled(customer?.access_notes, customer?.follow_up_notes, customer?.service_notes),
+      pressure_washing: firstFilled(customer?.access_notes, customer?.service_notes, customer?.follow_up_notes),
+      cleaning: firstFilled(customer?.entry_notes, customer?.access_notes, customer?.alarm_notes),
+      hvac: firstFilled(customer?.equipment_notes, customer?.diagnostic_notes, customer?.follow_up_notes),
+      plumbing: firstFilled(customer?.issue_summary, customer?.fixture_notes, customer?.follow_up_notes),
+    };
+
+    return {
+      title: options.title || requestTitles[businessKey] || `${customer.name || "Customer"} follow-up request`,
+      requestedServiceType: options.requestedServiceType || requestedServiceTypes[businessKey] || "Follow-up request",
+      serviceAddress: address === "No service address yet." ? "" : address,
+      summary: options.summary || summaryByTrade[businessKey] || firstFilled(customer?.follow_up_notes, customer?.service_notes, customer?.notes),
+      notes: options.notes || notesByTrade[businessKey] || "",
+      message: options.message || "Follow-up request draft opened from the customer record.",
+    };
   }
 
   function customerPostWorkGuidance({
@@ -602,8 +771,9 @@
     `;
   }
 
-  function openCustomerRequestDraft(customer) {
+  function openCustomerRequestDraft(customer, options = {}, blueprint = (typeof currentWorkspaceBlueprint === "function" ? currentWorkspaceBlueprint() : { business: { key: "service_business" } })) {
     if (!customer) return;
+    const draft = customerFollowUpRequestDraft(customer, options, blueprint) || {};
     switchTab("leads");
     ACTIVE_LEAD_ID = null;
     clearLeadForm();
@@ -613,11 +783,13 @@
     if (leadContactEmail) leadContactEmail.value = customer.email || "";
     if (leadContactPhone) leadContactPhone.value = customer.phone || "";
     if (leadPreferredContact) leadPreferredContact.value = customer.preferred_contact || "phone";
-    if (leadTitle) leadTitle.value = `${customer.name || "Customer"} request`;
-    const address = customerDisplayAddress(customer);
-    if (leadServiceAddress) leadServiceAddress.value = address === "No service address yet." ? "" : address;
+    if (leadRequestedService) leadRequestedService.value = draft.requestedServiceType || "";
+    if (leadTitle) leadTitle.value = draft.title || `${customer.name || "Customer"} request`;
+    if (leadServiceAddress) leadServiceAddress.value = draft.serviceAddress || "";
+    if (leadSummary) leadSummary.value = draft.summary || "";
+    if (leadNotes) leadNotes.value = draft.notes || "";
     if (leadSummary) leadSummary.focus();
-    setInlineMessage(leadMsg, "New request draft opened from the customer record.", "ok");
+    setInlineMessage(leadMsg, draft.message || "New request draft opened from the customer record.", "ok");
   }
 
   function openCustomerBidDraft(customer) {
@@ -655,6 +827,25 @@
     }
     switchTab("bookings");
     showToast("Bookings opened. Schedule the next visit while this account is still warm.");
+  }
+
+  function openCustomerRetentionAction(action, customer, blueprint = (typeof currentWorkspaceBlueprint === "function" ? currentWorkspaceBlueprint() : { business: { key: "service_business" } }), options = {}) {
+    if (!customer) return false;
+    if (action === "reactivate-repeat") {
+      openCustomerBookingDraft(customer, blueprint);
+      return true;
+    }
+    if (action === "request") {
+      openCustomerRequestDraft(customer, options.requestOptions || {}, blueprint);
+      return true;
+    }
+    if (action === "open-reactivation-customer") {
+      ACTIVE_CUSTOMER_ID = customer.id || "";
+      CUSTOMER_CREATING = false;
+      switchTab("customers");
+      return true;
+    }
+    return false;
   }
 
   function openCustomerRecordTab(tab, recordId) {
@@ -1061,9 +1252,9 @@
     customerDetailWrap.querySelectorAll("[data-customer-action]").forEach((button) => {
       button.addEventListener("click", () => {
         const action = button.getAttribute("data-customer-action");
-        if (action === "request") return openCustomerRequestDraft(customer);
+        if (action === "request") return openCustomerRetentionAction("request", customer, blueprint);
         if (action === "bid") return openCustomerBidDraft(customer);
-        if (action === "booking") return openCustomerBookingDraft(customer, blueprint);
+        if (action === "booking") return openCustomerRetentionAction("reactivate-repeat", customer, blueprint);
         if (action === "payment") return openCustomerPaymentDraft(customerIdValue);
         if (action === "requests") return switchTab("leads");
         if (action === "bids") return switchTab("bids");
@@ -1134,14 +1325,23 @@
     customerJobs,
     customerMemoryChecklist,
     customerCollectionGuidance,
+    customerRepeatCadenceDays,
+    customerRepeatCadenceInsight,
+    customerRepeatSignalValue,
+    customerRepeatNextTouchValue,
     customerRenewalRiskItem,
     customerRelationshipGuidance,
+    customerScheduleActionLabel,
+    customerRequestActionLabel,
+    customerRetentionWorkflowActions,
     customerReactivationActions,
     customerPostWorkGuidance,
+    customerFollowUpRequestDraft,
     openCustomerRequestDraft,
     openCustomerBidDraft,
     openCustomerBookingDraft,
     openCustomerPaymentDraft,
+    openCustomerRetentionAction,
     openCustomerRecordTab,
     archiveCustomer,
     renderCustomerDetailWorkspace,

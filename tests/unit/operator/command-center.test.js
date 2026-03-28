@@ -105,6 +105,7 @@ function loadCommandCenter(overrides = {}) {
     currentPayment: vi.fn(() => null),
     orderPaymentState: vi.fn(() => "unpaid"),
     normalizeWorkflowStatusValue: vi.fn((value) => String(value || "").trim().toLowerCase()),
+    formatDateOnly: vi.fn((value) => String(value)),
     orderDepositGapCents: vi.fn(() => 0),
     forecastMonthOrders: vi.fn(() => 0),
     escapeAttr: (value) => String(value),
@@ -205,6 +206,13 @@ describe("operator command center", () => {
 
   test("priorityReactivationCustomer picks the stalest dormant repeat account", () => {
     const { context } = loadCommandCenter({
+      window: {
+        PROOFLINK_OPERATOR_CUSTOMER_DETAIL: {
+          customerRepeatCadenceInsight: (customer) => customer.id === "customer_stale"
+            ? { message: "This account usually runs about every 14 days and is roughly 20 days past that rhythm." }
+            : null,
+        },
+      },
       CUSTOMERS_CACHE: [
         { id: "customer_recent", name: "Recent Repeat", recurring_notes: "Monthly", updated_at: "2026-03-26T12:00:00Z" },
         { id: "customer_stale", name: "Quiet Cleaning", recurring_notes: "Every other Tuesday", updated_at: "2026-02-01T12:00:00Z" },
@@ -222,12 +230,52 @@ describe("operator command center", () => {
     });
 
     expect(target.customer.name).toBe("Quiet Cleaning");
-    expect(target.note).toContain("Tuesday");
+    expect(target.note).toContain("20 days past that rhythm");
+  });
+
+  test("repeatWorkReasonContext reuses booking timing intelligence for the next repeat account", () => {
+    const { context } = loadCommandCenter({
+      window: {
+        PROOFLINK_OPERATOR_BOOKINGS_WORKSPACE: {
+          bookingDraftTimingInsight: vi.fn(() => ({
+            reason: "The maintenance window is opening for this system, so the next visit should be queued now.",
+            bookingDate: "2026-04-15",
+          })),
+        },
+      },
+      CUSTOMERS_CACHE: [
+        { id: "customer_1", name: "Harbor Suites", maintenance_notes: "Spring cooling tune-up" },
+      ],
+      SERVICE_PLANS_CACHE: [
+        { id: "plan_1", customer_id: "customer_1", status: "active" },
+      ],
+    });
+
+    const reason = context.repeatWorkReasonContext({
+      activePlans: context.SERVICE_PLANS_CACHE,
+      blueprint: { business: { key: "hvac" } },
+    });
+
+    expect(reason.customerName).toBe("Harbor Suites");
+    expect(reason.note).toContain("maintenance window is opening");
+    expect(reason.suggestedDate).toBe("2026-04-15");
   });
 
   test("renderDashboard shows repeat-service focus on shared dashboard classes", () => {
     const { context } = loadCommandCenter({
       dashboardWrap: { innerHTML: "", querySelectorAll: vi.fn(() => []), querySelector: vi.fn(() => null) },
+      window: {
+        PROOFLINK_OPERATOR_CUSTOMER_DETAIL: {
+          customerScheduleActionLabel: vi.fn(() => "Schedule next cleaning visit"),
+          customerRequestActionLabel: vi.fn(() => "Draft cleaning follow-up request"),
+        },
+        PROOFLINK_OPERATOR_BOOKINGS_WORKSPACE: {
+          bookingDraftTimingInsight: vi.fn(() => ({
+            reason: "The seasonal window is opening, so this property follow-up should be queued now.",
+            bookingDate: "2026-04-11",
+          })),
+        },
+      },
       workspaceSummaryData: vi.fn(() => ({ priorityOutcomes: ["Keep the next renewal visible."] })),
       servicePipelineSnapshot: vi.fn(() => ({ leads: 1, quoted: 2, booked: 3, inProgress: 1, completed: 0, paid: 0 })),
       todayActionItems: vi.fn(() => []),
@@ -239,8 +287,8 @@ describe("operator command center", () => {
       sortedCustomers: vi.fn(() => []),
       staleLeads: vi.fn(() => []),
       completedUnpaidOrders: vi.fn(() => []),
-      dueServicePlans: vi.fn(() => [{ id: "plan_1" }]),
-      SERVICE_PLANS_CACHE: [{ id: "plan_1", status: "active" }],
+      dueServicePlans: vi.fn(() => [{ id: "plan_1", customer_id: "customer_1" }]),
+      SERVICE_PLANS_CACHE: [{ id: "plan_1", customer_id: "customer_1", status: "active" }],
       ordersMissingDeposits: vi.fn(() => []),
       orderAmountDueCents: vi.fn(() => 0),
       outstandingBalanceCents: vi.fn(() => 0),
@@ -257,7 +305,7 @@ describe("operator command center", () => {
       CRM_ORDERS_CACHE: [],
       PAYMENTS_CACHE: [],
       EXPENSES_CACHE: [],
-      CUSTOMERS_CACHE: [{ id: "customer_1", recurring_notes: "Every other Tuesday" }],
+      CUSTOMERS_CACHE: [{ id: "customer_1", name: "Logan's Lawn Care", recurring_notes: "Every other Tuesday" }],
       LEADS_CACHE: [],
       JOBS_CACHE: [],
       BIDS_CACHE: [],
@@ -281,11 +329,10 @@ describe("operator command center", () => {
     context.window.renderDashboard();
 
     expect(context.dashboardWrap.innerHTML).toContain("Repeat-service focus");
-    expect(context.dashboardWrap.innerHTML).toContain("Reactivation focus");
-    expect(context.dashboardWrap.innerHTML).toContain("Schedule next visit");
-    expect(context.dashboardWrap.innerHTML).toContain("Open customer");
     expect(context.dashboardWrap.innerHTML).toContain("dashboard-focus-card");
     expect(context.dashboardWrap.innerHTML).toContain("dashboard-focus-title");
+    expect(context.dashboardWrap.innerHTML).toContain("seasonal window is opening");
+    expect(context.dashboardWrap.innerHTML).toContain("Suggested next visit: 2026-04-11");
     expect(context.dashboardWrap.innerHTML).toContain("onboarding-card");
     expect(context.dashboardWrap.innerHTML).toContain("onboarding-progress__fill");
     expect(context.dashboardWrap.innerHTML).not.toContain('style="font-weight:700;"');

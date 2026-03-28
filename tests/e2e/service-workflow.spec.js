@@ -530,16 +530,31 @@ test.describe.serial("service workflow e2e", () => {
         portalQuotes: portalBody.quotes,
       }, null, 2),
     ).toBeTruthy();
+    const otherOpenBalances = portalBody.orders.some((order) => (
+      order
+      && order.id !== state.orderId
+      && Number(order.amount_due_cents || 0) > 0
+    ));
 
     await page.goto(`/portal.html?tenant=${encodeURIComponent(state.tenantId)}&email=${encodeURIComponent(state.customerEmail)}`);
     await page.locator("#btnPortalLookup").click();
     await expect(page.locator("#portalContent")).not.toHaveClass(/hidden/, { timeout: 15000 });
     await expect(page.getByText("Payment summary")).toBeVisible({ timeout: 15000 });
-    await expect(page.locator(".orders-summary-title")).toHaveText("You are paid up right now.");
+    await expect(page.locator(".orders-summary-title")).toHaveText(
+      otherOpenBalances ? "A balance is still open." : "You are paid up right now."
+    );
     await expect(page.locator(`.order-row[data-order-id="${state.orderId}"]`)).toContainText("Paid in full");
     await expect(page.locator(`.order-row[data-order-id="${state.orderId}"]`)).toContainText(orderLabel);
     await expect(page.locator(`.order-row[data-order-id="${state.orderId}"]`)).toContainText("Paid in full. You are all set on this order.");
     await expect(page.locator(`.order-row[data-order-id="${state.orderId}"]`)).toContainText("The business can now keep your next visit, closeout, or follow-up moving from here.");
+  });
+
+  test("completed work surfaces the review action from job closeout", async ({ page }) => {
+    await loginAsTenantA(page);
+    await openTab(page, "jobs");
+    await page.locator(`#jobsList [data-job-id="${state.jobId}"]`).click();
+    await page.locator('[data-job-field-action="complete"]').click();
+    await expect(page.getByRole("button", { name: "Request review" })).toBeVisible({ timeout: 15000 });
   });
 
   test("simulate overdue and show overdue state in the UI", async ({ page }) => {

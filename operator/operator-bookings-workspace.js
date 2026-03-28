@@ -915,32 +915,219 @@ function bookingDraftRecurrenceRule(customer = {}, options = {}) {
   return "";
 }
 
-function bookingDraftDate(customer = {}, options = {}) {
-  const explicitDate = String(options?.date || customer?.next_service_on || "").trim();
-  if (explicitDate) return explicitDate;
+function addDaysToIsoDate(baseDate, days) {
+  const value = String(baseDate || "").trim();
+  if (!value) return "";
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return "";
+  date.setDate(date.getDate() + Number(days || 0));
+  return date.toISOString().slice(0, 10);
+}
 
+function bookingDraftCadenceInsight(customer = {}, options = {}) {
+  const customerApi = window.PROOFLINK_OPERATOR_CUSTOMER_DETAIL || {};
+  if (typeof customerApi.customerRepeatCadenceInsight === "function") {
+    return customerApi.customerRepeatCadenceInsight(customer);
+  }
   const recurrenceRule = bookingDraftRecurrenceRule(customer, options);
-  const offsetDays = {
+  if (!recurrenceRule) return null;
+  const cadenceDays = {
     DAILY: 1,
     WEEKLY: 7,
     BIWEEKLY: 14,
     MONTHLY: 30,
+  }[recurrenceRule] || null;
+  if (!cadenceDays) return null;
+  const firstFilled = (...values) => values.find((value) => String(value || "").trim()) || "";
+  const lastTouchValue = firstFilled(customer?.last_service_on, customer?.last_contact_at, customer?.updated_at, customer?.created_at);
+  if (!lastTouchValue) return { cadenceDays, overdueDays: 0, message: `This repeat work usually runs about every ${cadenceDays} days.` };
+  const lastTouch = new Date(lastTouchValue);
+  if (Number.isNaN(lastTouch.getTime())) return { cadenceDays, overdueDays: 0, message: `This repeat work usually runs about every ${cadenceDays} days.` };
+  const ageDays = Math.max(0, Math.floor((Date.now() - lastTouch.getTime()) / 86400000));
+  const overdueDays = Math.max(0, ageDays - cadenceDays);
+  return {
+    cadenceDays,
+    overdueDays,
+    message: overdueDays > 0
+      ? `This account usually runs about every ${cadenceDays} days and is roughly ${overdueDays} days past that rhythm.`
+      : `This account usually runs about every ${cadenceDays} days, so the next visit should stay close to that rhythm.`,
   };
-  return typeof todayDateValue === "function" ? todayDateValue(offsetDays[recurrenceRule] || 7) : "";
 }
 
-function bookingDraftRecurrenceEnd(customer = {}, options = {}) {
+function bookingDraftTradeTimingInsight(customer = {}, options = {}, blueprint = bookingWorkspaceBlueprint(), now = new Date()) {
+  const businessKey = String(blueprint?.business?.key || "service_business").trim().toLowerCase();
+  const firstFilled = (...values) => values.find((value) => String(value || "").trim()) || "";
+  const hasFilled = (...values) => values.some((value) => String(value || "").trim());
+  const tradeNotes = String(firstFilled(
+    customer?.maintenance_notes,
+    customer?.parts_follow_up,
+    customer?.warranty_notes,
+    customer?.restoration_notes,
+    customer?.approval_notes,
+    customer?.seasonal_notes,
+    customer?.cleanup_notes,
+    options?.notes
+  )).toLowerCase();
+  const month = now instanceof Date && !Number.isNaN(now.getTime()) ? now.getMonth() + 1 : new Date().getMonth() + 1;
+
+  if (businessKey === "plumbing") {
+    if (/emergency|leak|burst|flood/.test(tradeNotes)) {
+      return {
+        offsetDays: 1,
+        message: "This repair follow-up looks urgent, so the callback should land almost immediately.",
+      };
+    }
+    if (hasFilled(customer?.restoration_notes, customer?.approval_notes) || /restoration|approval|repair|return/.test(tradeNotes)) {
+      return {
+        offsetDays: 3,
+        message: "This repair follow-up still has restoration or approval attached, so it should stay within the next few days.",
+      };
+    }
+    return {
+      offsetDays: 7,
+      message: "This plumbing follow-up should stay on the schedule while the repair context is still fresh.",
+    };
+  }
+  if (businessKey === "hvac") {
+    if (hasFilled(customer?.parts_follow_up, customer?.warranty_notes) || /parts|warranty/.test(tradeNotes)) {
+      return {
+        offsetDays: 7,
+        message: "This system follow-up still has parts or warranty work attached, so it should stay within the next week.",
+      };
+    }
+    if ((/spring|cooling/.test(tradeNotes) && month >= 2 && month <= 5) || (/fall|heating/.test(tradeNotes) && month >= 8 && month <= 11)) {
+      return {
+        offsetDays: 14,
+        message: "The maintenance window is opening for this system, so the next visit should be queued now.",
+      };
+    }
+    if (hasFilled(customer?.maintenance_notes) || /maintenance|tune-up|tune up/.test(tradeNotes)) {
+      return {
+        offsetDays: 21,
+        message: "This system should stay on a proactive maintenance rhythm, so the next visit is being staged a few weeks out.",
+      };
+    }
+    return {
+      offsetDays: 7,
+      message: "This system follow-up should stay visible while the service context is still warm.",
+    };
+  }
+  if (["landscaping", "property_maintenance", "pressure_washing"].includes(businessKey)) {
+    if ((/spring/.test(tradeNotes) && month >= 2 && month <= 5) || (/fall|autumn/.test(tradeNotes) && month >= 8 && month <= 11)) {
+      return {
+        offsetDays: 14,
+        message: "The seasonal window is opening, so this property follow-up should be queued now.",
+      };
+    }
+    if (businessKey === "pressure_washing" && (hasFilled(customer?.seasonal_notes) || /season|wash/.test(tradeNotes))) {
+      return {
+        offsetDays: 21,
+        message: "This property looks ready for its next wash cycle soon, so the follow-up is being staged ahead of the season.",
+      };
+    }
+    if (hasFilled(customer?.seasonal_notes, customer?.cleanup_notes) || /season|cleanup|mulch|route|property/.test(tradeNotes)) {
+      return {
+        offsetDays: 14,
+        message: "This property follow-up should stay visible before the route or seasonal work slips.",
+      };
+    }
+    return {
+      offsetDays: 7,
+      message: "This property follow-up should stay on the calendar while the last visit is still easy to remember.",
+    };
+  }
+  if (businessKey === "cleaning") {
+    return {
+      offsetDays: 7,
+      message: "This cleaning follow-up should stay visible while the routine and add-ons are still fresh.",
+    };
+  }
+  return {
+    offsetDays: 7,
+    message: "The next service follow-up is ready to schedule.",
+  };
+}
+
+function bookingDraftDefaultOffsetDays(customer = {}, options = {}, blueprint = bookingWorkspaceBlueprint()) {
+  return Number(bookingDraftTradeTimingInsight(customer, options, blueprint)?.offsetDays || 7);
+}
+
+function bookingDraftDate(customer = {}, options = {}, blueprint = bookingWorkspaceBlueprint()) {
+  const explicitDate = String(options?.date || customer?.next_service_on || "").trim();
+  if (explicitDate) return explicitDate;
+
+  const cadenceInsight = bookingDraftCadenceInsight(customer, options);
+  const firstFilled = (...values) => values.find((value) => String(value || "").trim()) || "";
+  const lastTouchValue = firstFilled(customer?.last_service_on, customer?.last_contact_at, customer?.updated_at, customer?.created_at);
+  if (cadenceInsight?.cadenceDays && lastTouchValue) {
+    const suggested = addDaysToIsoDate(String(lastTouchValue).slice(0, 10), cadenceInsight.cadenceDays);
+    const today = typeof todayDateValue === "function" ? todayDateValue(0) : new Date().toISOString().slice(0, 10);
+    if (suggested && suggested >= today) return suggested;
+  }
+
+  const defaultOffset = bookingDraftDefaultOffsetDays(customer, options, blueprint);
+  const urgentOffset = cadenceInsight?.overdueDays > 0 ? Math.min(defaultOffset, 3) : defaultOffset;
+  return typeof todayDateValue === "function" ? todayDateValue(urgentOffset) : "";
+}
+
+function bookingDraftRecurrenceEnd(customer = {}, options = {}, bookingDate = "") {
   const explicitEnd = String(options?.recurrenceEnd || "").trim();
   if (explicitEnd) return explicitEnd;
   const recurrenceRule = bookingDraftRecurrenceRule(customer, options);
-  if (!recurrenceRule || typeof todayDateValue !== "function") return "";
+  if (!recurrenceRule) return "";
   const offsetDays = {
     DAILY: 14,
     WEEKLY: 84,
     BIWEEKLY: 112,
     MONTHLY: 180,
   };
-  return todayDateValue(offsetDays[recurrenceRule] || 84);
+  const baseDate = String(bookingDate || "").trim();
+  if (baseDate) return addDaysToIsoDate(baseDate, offsetDays[recurrenceRule] || 84);
+  return typeof todayDateValue === "function" ? todayDateValue(offsetDays[recurrenceRule] || 84) : "";
+}
+
+function bookingDraftTimingReason(customer = {}, options = {}, blueprint = bookingWorkspaceBlueprint()) {
+  const cadenceInsight = bookingDraftCadenceInsight(customer, options);
+  const recurrenceRule = bookingDraftRecurrenceRule(customer, options);
+  const tradeTimingInsight = bookingDraftTradeTimingInsight(customer, options, blueprint);
+  const businessKey = String(blueprint?.business?.key || "service_business").trim().toLowerCase();
+  const tradeLabelMap = {
+    landscaping: "property follow-up",
+    property_maintenance: "site follow-up",
+    pressure_washing: "property follow-up",
+    cleaning: "cleaning follow-up",
+    hvac: "system follow-up",
+    plumbing: "repair follow-up",
+  };
+  if (cadenceInsight?.overdueDays > 0) {
+    return cadenceInsight.message;
+  }
+  if (cadenceInsight?.cadenceDays) {
+    return cadenceInsight.message;
+  }
+  if (recurrenceRule) {
+    return `This ${tradeLabelMap[businessKey] || "repeat follow-up"} stays on a ${recurrenceRule.toLowerCase()} rhythm.`;
+  }
+  if (tradeTimingInsight?.message) {
+    return tradeTimingInsight.message;
+  }
+  return `The next ${tradeLabelMap[businessKey] || "service follow-up"} is ready to schedule.`;
+}
+
+function bookingDraftTimingInsight(customer = {}, options = {}, blueprint = bookingWorkspaceBlueprint()) {
+  const bookingDate = bookingDraftDate(customer, options, blueprint);
+  return {
+    bookingDate,
+    reason: bookingDraftTimingReason(customer, options, blueprint),
+    cadenceInsight: bookingDraftCadenceInsight(customer, options),
+    tradeInsight: bookingDraftTradeTimingInsight(customer, options, blueprint),
+  };
+}
+
+function bookingDraftTimingMessage(customer = {}, options = {}, blueprint = bookingWorkspaceBlueprint(), bookingDate = "") {
+  const reason = bookingDraftTimingReason(customer, options, blueprint);
+  const targetLabel = bookingDate ? ` It is queued for ${bookingDate}.` : "";
+  return `Booking draft opened from the follow-up guidance. ${reason}${targetLabel}`;
 }
 
 function bookingDraftNotes(customer = {}, options = {}, blueprint = bookingWorkspaceBlueprint()) {
@@ -997,9 +1184,12 @@ function bookingDraftNotes(customer = {}, options = {}, blueprint = bookingWorks
     })
     .slice(0, 3)
     .join(" | ");
+  const extraNotes = [options?.extraNotes]
+    .filter((value) => String(value || "").trim())
+    .join(" | ");
   return firstFilled(
     options?.notes,
-    guidedNotes,
+    [guidedNotes, extraNotes].filter((value) => String(value || "").trim()).join(" | "),
     customer?.follow_up_notes,
     customer?.recurring_notes,
     customer?.maintenance_notes,
@@ -1015,9 +1205,9 @@ function openBookingDraftForCustomer(customer = {}, options = {}, blueprint = bo
   const form = $("newBookingForm");
   form?.classList?.remove?.("hidden");
 
-  const bookingDate = String(bookingDraftDate(customer, options)).trim();
+  const bookingDate = String(bookingDraftDate(customer, options, blueprint)).trim();
   const recurrenceRule = String(bookingDraftRecurrenceRule(customer, options)).trim();
-  const recurrenceEnd = String(bookingDraftRecurrenceEnd(customer, options)).trim();
+  const recurrenceEnd = String(bookingDraftRecurrenceEnd(customer, options, bookingDate)).trim();
   const customerName = String(customer?.name || customer?.customer_name || "").trim();
   const customerEmail = String(customer?.email || customer?.customer_email || "").trim();
 
@@ -1046,9 +1236,10 @@ function openBookingDraftForCustomer(customer = {}, options = {}, blueprint = bo
   }
 
   const message = $("newBookingMsg");
-  if (typeof setInlineMessage === "function") setInlineMessage(message, "Booking draft opened from the follow-up guidance.", "ok");
+  const timingMessage = bookingDraftTimingMessage(customer, options, blueprint, bookingDate);
+  if (typeof setInlineMessage === "function") setInlineMessage(message, timingMessage, "ok");
   else if (message) {
-    message.textContent = "Booking draft opened from the follow-up guidance.";
+    message.textContent = timingMessage;
     message.className = "msg success";
   }
   dateField?.focus?.();
@@ -1457,8 +1648,14 @@ const BOOKINGS_WORKSPACE_HELPERS = {
     computeBookingRecurrenceCount,
     bookingDraftTitle,
     bookingDraftRecurrenceRule,
+    bookingDraftCadenceInsight,
+    bookingDraftTradeTimingInsight,
+    bookingDraftDefaultOffsetDays,
     bookingDraftDate,
     bookingDraftRecurrenceEnd,
+    bookingDraftTimingReason,
+    bookingDraftTimingInsight,
+    bookingDraftTimingMessage,
     bookingDraftNotes,
     openBookingDraftForCustomer,
     renderBookingsCalendar,

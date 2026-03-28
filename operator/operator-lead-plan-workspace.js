@@ -322,14 +322,15 @@ function planFollowThroughChecklistItems(plan, customer, sourceOrder, lastOrder,
     note: ready ? readyNote : missingNote,
     tone: tone || (!ready ? "warn" : ""),
   });
+  const planCadence = planCadenceInsight(plan, customer);
   const renewalReady = !!String(plan?.next_run_on || "").trim() && (!!lastOrder || !!sourceOrder || dueNow);
   const renewalRiskItem = detail(
     "Renewal risk",
     renewalReady,
     dueNow
       ? "The next recurring visit is due now, so the renewal step is already visible."
-      : `The next recurring move is attached to ${scheduleLabel}.`,
-    "This plan is active, but the next visit or first generated work still needs to be attached before the account goes quiet."
+      : planCadence?.attachedMessage || `The next recurring move is attached to ${scheduleLabel}.`,
+    planCadence?.riskMessage || "This plan is active, but the next visit or first generated work still needs to be attached before the account goes quiet."
   );
 
   const items = [
@@ -338,8 +339,8 @@ function planFollowThroughChecklistItems(plan, customer, sourceOrder, lastOrder,
       !!String(plan?.next_run_on || "").trim(),
       dueNow
         ? "Due now. Generate the next booked work while this repeat visit is still top of mind."
-        : `Next run ${scheduleLabel}. Keep this cadence visible so the work does not slip back into manual follow-up.`,
-      "Add the next run date before this repeat work drifts out of sight.",
+        : planCadence?.attachedMessage || `Next run ${scheduleLabel}. Keep this cadence visible so the work does not slip back into manual follow-up.`,
+      planCadence?.riskMessage || "Add the next run date before this repeat work drifts out of sight.",
       dueNow ? "warn" : ""
     ),
     detail(
@@ -412,6 +413,40 @@ function planFollowThroughChecklistItems(plan, customer, sourceOrder, lastOrder,
   return items;
 }
 
+function planCadenceInsight(plan, customer, now = new Date()) {
+  const customerApi = window.PROOFLINK_OPERATOR_CUSTOMER_DETAIL || {};
+  const cadenceInsightForCustomer = typeof customerApi.customerRepeatCadenceInsight === "function"
+    ? customerApi.customerRepeatCadenceInsight
+    : null;
+  const current = now instanceof Date ? now : new Date(now);
+  const nextRunValue = String(plan?.next_run_on || "").trim();
+  if (nextRunValue) {
+    const nextRun = new Date(nextRunValue);
+    if (!Number.isNaN(nextRun.getTime()) && !Number.isNaN(current.getTime())) {
+      const deltaDays = Math.floor((current.getTime() - nextRun.getTime()) / 86400000);
+      if (deltaDays > 0) {
+        return {
+          overdueDays: deltaDays,
+          riskMessage: `This recurring plan is roughly ${deltaDays} day${deltaDays === 1 ? "" : "s"} past the scheduled rhythm, so the next visit should be recovered now.`,
+          attachedMessage: `The next recurring move is attached to ${servicePlanNextRunLabel(plan) || nextRunValue}.`,
+        };
+      }
+      return {
+        overdueDays: 0,
+        riskMessage: null,
+        attachedMessage: `The next recurring move is attached to ${servicePlanNextRunLabel(plan) || nextRunValue}, which keeps the schedule in rhythm.`,
+      };
+    }
+  }
+  const cadenceInsight = cadenceInsightForCustomer ? cadenceInsightForCustomer(customer, current) : null;
+  if (!cadenceInsight) return null;
+  return {
+    overdueDays: cadenceInsight.overdueDays || 0,
+    riskMessage: cadenceInsight.message,
+    attachedMessage: `The next recurring move is attached to ${servicePlanNextRunLabel(plan) || "the current plan"}, which stays in step with the usual ${cadenceInsight.cadenceDays}-day rhythm.`,
+  };
+}
+
 function renderPlanFollowThroughCard(plan, customer, sourceOrder, lastOrder, dueNow, blueprint = (typeof currentWorkspaceBlueprint === "function" ? currentWorkspaceBlueprint() : { business: { key: "service_business" } })) {
   const items = planFollowThroughChecklistItems(plan, customer, sourceOrder, lastOrder, dueNow, blueprint);
   return `
@@ -441,14 +476,15 @@ function planNextMoveItems(plan, customer, sourceOrder, lastOrder, dueNow, bluep
     note: ready ? readyNote : missingNote,
     tone: tone || (!ready ? "warn" : ""),
   });
+  const planCadence = planCadenceInsight(plan, customer);
 
   const cadenceItem = detail(
     "Next recurring move",
     !!String(plan?.next_run_on || "").trim(),
     dueNow
       ? "Generate the next booked work now so the repeat visit does not fall back into manual follow-up."
-      : `The next run is already set for ${servicePlanNextRunLabel(plan)}.`,
-    "Set the next run date before this repeat work falls out of rhythm.",
+      : planCadence?.attachedMessage || `The next run is already set for ${servicePlanNextRunLabel(plan)}.`,
+    planCadence?.riskMessage || "Set the next run date before this repeat work falls out of rhythm.",
     dueNow ? "warn" : ""
   );
   const renewalRiskItem = detail(
@@ -456,8 +492,8 @@ function planNextMoveItems(plan, customer, sourceOrder, lastOrder, dueNow, bluep
     !!String(plan?.next_run_on || "").trim() && (!!lastOrder || !!sourceOrder || dueNow),
     dueNow
       ? "The next recurring visit is due now, so the renewal step is already in motion."
-      : `The next recurring move is attached to ${servicePlanNextRunLabel(plan) || "the current plan"}.`,
-    "Attach the next visit or first generated work before this recurring account drifts back into manual follow-up."
+      : planCadence?.attachedMessage || `The next recurring move is attached to ${servicePlanNextRunLabel(plan) || "the current plan"}.`,
+    planCadence?.riskMessage || "Attach the next visit or first generated work before this recurring account drifts back into manual follow-up."
   );
 
   const moneyItem = detail(
@@ -571,6 +607,8 @@ function planReactivationActions(plan, customer, sourceOrder, lastOrder, dueNow,
   const actions = [];
   const hasNextRun = !!String(plan?.next_run_on || "").trim();
   const hasGeneratedWork = !!(lastOrder?.id || plan?.last_generated_order_id);
+  const businessKey = String(blueprint?.business?.key || "service_business").trim().toLowerCase();
+  const customerApi = window.PROOFLINK_OPERATOR_CUSTOMER_DETAIL || {};
   const repeatSignal = firstFilled(
     customer?.service_schedule,
     customer?.frequency,
@@ -578,8 +616,32 @@ function planReactivationActions(plan, customer, sourceOrder, lastOrder, dueNow,
     customer?.service_plan_name,
     customer?.maintenance_notes,
     customer?.seasonal_notes,
-    customer?.follow_up_notes
+    customer?.follow_up_notes,
+    customer?.parts_follow_up,
+    customer?.warranty_notes,
+    customer?.restoration_notes,
+    customer?.approval_notes
   );
+  const scheduleLabel = typeof customerApi.customerScheduleActionLabel === "function"
+    ? customerApi.customerScheduleActionLabel(blueprint)
+    : ({
+      landscaping: "Schedule next property visit",
+      property_maintenance: "Schedule next site visit",
+      pressure_washing: "Schedule next wash visit",
+      cleaning: "Schedule next cleaning visit",
+      hvac: "Schedule next system visit",
+      plumbing: "Schedule next follow-up visit",
+    })[businessKey] || "Schedule follow-up visit";
+  const requestLabel = typeof customerApi.customerRequestActionLabel === "function"
+    ? customerApi.customerRequestActionLabel(blueprint)
+    : ({
+      landscaping: "Draft seasonal follow-up request",
+      property_maintenance: "Draft site follow-up request",
+      pressure_washing: "Draft wash follow-up request",
+      cleaning: "Draft cleaning follow-up request",
+      hvac: "Draft maintenance follow-up request",
+      plumbing: "Draft repair follow-up request",
+    })[businessKey] || "Draft follow-up request";
 
   if (!hasNextRun) {
     actions.push({ label: "Set next visit timing", action: "focus-next-run", className: "btn btn-primary" });
@@ -588,7 +650,16 @@ function planReactivationActions(plan, customer, sourceOrder, lastOrder, dueNow,
   }
 
   if (repeatSignal && customer) {
-    actions.push({ label: "Schedule follow-up visit", action: "schedule-follow-up", className: "btn btn-ghost" });
+    actions.push({
+      label: scheduleLabel,
+      action: "schedule-follow-up",
+      className: "btn btn-ghost",
+    });
+    actions.push({
+      label: requestLabel,
+      action: "draft-follow-up-request",
+      className: "btn btn-ghost",
+    });
   }
   if (hasGeneratedWork) {
     actions.push({ label: "Open booked work", action: "open-last-order", className: "btn btn-ghost" });
@@ -693,12 +764,34 @@ async function renderPlanDetail(planIdValue) {
         ].find((value) => String(value || "").trim()) || "";
         if (typeof bookingsApi.openBookingDraftForCustomer === "function") {
           bookingsApi.openBookingDraftForCustomer(customer, {
-            title: plan.title || "",
-            notes: followUpNote,
             date: plan.next_run_on || "",
+            extraNotes: followUpNote,
           }, workspaceBlueprint);
         } else {
           switchTab("bookings");
+        }
+        return;
+      }
+      if (action === "draft-follow-up-request" && customer) {
+        const customerApi = window.PROOFLINK_OPERATOR_CUSTOMER_DETAIL || {};
+        if (typeof customerApi.openCustomerRetentionAction === "function") {
+          customerApi.openCustomerRetentionAction("request", customer, workspaceBlueprint, {
+            requestOptions: {
+              title: `${customer.name || "Customer"} follow-up request`,
+              summary: [
+                plan?.summary,
+                customer?.follow_up_notes,
+                customer?.recurring_notes,
+              ].find((value) => String(value || "").trim()) || "",
+              notes: [
+                plan?.notes,
+                customer?.maintenance_notes,
+                customer?.restoration_notes,
+                customer?.approval_notes,
+              ].find((value) => String(value || "").trim()) || "",
+              message: "Follow-up request draft opened from the recurring plan.",
+            },
+          });
         }
       }
     });

@@ -402,10 +402,15 @@ function buildMoneyCollectionNextStep(blueprint = currentWorkspaceBlueprint()) {
   if (!order) return null;
 
   const customer = customerById(order.customer_id) || null;
+  const customerApi = window.PROOFLINK_OPERATOR_CUSTOMER_DETAIL || {};
   const customerName = customer?.name || order.customer_name || "this customer";
   const businessKey = String(blueprint?.business?.key || "service_business").trim().toLowerCase();
   const firstFilled = (...values) => values.find((value) => String(value || "").trim()) || "";
   const items = [];
+  const bookingsApi = window.PROOFLINK_OPERATOR_BOOKINGS_WORKSPACE || {};
+  const timingInsight = customer && typeof bookingsApi.bookingDraftTimingInsight === "function"
+    ? bookingsApi.bookingDraftTimingInsight(customer, {}, blueprint)
+    : null;
   const repeatSignal = [
     customer?.service_schedule,
     customer?.frequency,
@@ -413,6 +418,10 @@ function buildMoneyCollectionNextStep(blueprint = currentWorkspaceBlueprint()) {
     customer?.service_plan_name,
     customer?.maintenance_notes,
     customer?.seasonal_notes,
+    customer?.parts_follow_up,
+    customer?.warranty_notes,
+    customer?.restoration_notes,
+    customer?.approval_notes,
   ].some((value) => String(value || "").trim());
   const nextTouch = firstFilled(customer?.next_service_on, customer?.follow_up_notes, customer?.service_plan_name);
 
@@ -443,6 +452,9 @@ function buildMoneyCollectionNextStep(blueprint = currentWorkspaceBlueprint()) {
   }
   if (repeatSignal && !nextTouch) {
     items.push(`Reactivation move: put ${customerName} back onto the calendar before this repeat account cools off.`);
+    if (timingInsight?.reason) {
+      items.push(`Why now: ${timingInsight.reason}${timingInsight.bookingDate ? ` Suggested next visit: ${formatDateOnly(timingInsight.bookingDate)}.` : ""}`);
+    }
   }
 
   return {
@@ -452,7 +464,22 @@ function buildMoneyCollectionNextStep(blueprint = currentWorkspaceBlueprint()) {
     description: `When ${customerName} is paid up, the next move should go back to service follow-through instead of chasing the same money twice.`,
     items,
     actions: repeatSignal && !nextTouch ? [
-      { label: "Schedule next visit", action: "reactivate-repeat", className: "btn btn-primary btn-sm" },
+      { label: typeof customerApi.customerScheduleActionLabel === "function" ? customerApi.customerScheduleActionLabel(blueprint) : ({
+        landscaping: "Schedule next property visit",
+        property_maintenance: "Schedule next site visit",
+        pressure_washing: "Schedule next wash visit",
+        cleaning: "Schedule next cleaning visit",
+        hvac: "Schedule next system visit",
+        plumbing: "Schedule next follow-up visit",
+      })[businessKey] || "Schedule next visit", action: "reactivate-repeat", className: "btn btn-primary btn-sm" },
+      { label: typeof customerApi.customerRequestActionLabel === "function" ? customerApi.customerRequestActionLabel(blueprint) : ({
+        landscaping: "Draft seasonal follow-up request",
+        property_maintenance: "Draft site follow-up request",
+        pressure_washing: "Draft wash follow-up request",
+        cleaning: "Draft cleaning follow-up request",
+        hvac: "Draft maintenance follow-up request",
+        plumbing: "Draft repair follow-up request",
+      })[businessKey] || "Draft follow-up request", action: "draft-reactivation-request", className: "btn btn-ghost btn-sm" },
       { label: "Open customer", action: "open-reactivation-customer", className: "btn btn-ghost btn-sm" },
     ] : [],
   };
@@ -736,11 +763,28 @@ async function renderMoney() {
       }
       if (action === "reactivate-repeat") {
         const customer = customerById(nextStep.customerId) || null;
-        const bookingsApi = window.PROOFLINK_OPERATOR_BOOKINGS_WORKSPACE || {};
-        if (customer && typeof bookingsApi.openBookingDraftForCustomer === "function") {
-          bookingsApi.openBookingDraftForCustomer(customer, {}, currentWorkspaceBlueprint());
+        const customerApi = window.PROOFLINK_OPERATOR_CUSTOMER_DETAIL || {};
+        if (customer && typeof customerApi.openCustomerRetentionAction === "function") {
+          customerApi.openCustomerRetentionAction("reactivate-repeat", customer, currentWorkspaceBlueprint());
         } else {
-          switchTab("bookings");
+          const bookingsApi = window.PROOFLINK_OPERATOR_BOOKINGS_WORKSPACE || {};
+          if (customer && typeof bookingsApi.openBookingDraftForCustomer === "function") {
+            bookingsApi.openBookingDraftForCustomer(customer, {}, currentWorkspaceBlueprint());
+          } else {
+            switchTab("bookings");
+          }
+        }
+        return;
+      }
+      if (action === "draft-reactivation-request") {
+        const customer = customerById(nextStep.customerId) || null;
+        const customerApi = window.PROOFLINK_OPERATOR_CUSTOMER_DETAIL || {};
+        if (customer && typeof customerApi.openCustomerRetentionAction === "function") {
+          customerApi.openCustomerRetentionAction("request", customer, currentWorkspaceBlueprint(), {
+            requestOptions: {
+              message: "Follow-up request draft opened from Money.",
+            },
+          });
         }
       }
     });

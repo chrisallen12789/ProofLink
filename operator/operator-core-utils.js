@@ -164,6 +164,79 @@
     el.className = tone ? `msg ${tone}` : "msg";
   }
 
+  function markOrderReviewRequested(orderId, reviewRequestedAt = new Date().toISOString()) {
+    if (!orderId) return reviewRequestedAt;
+    if (!Array.isArray(global.CRM_ORDERS_CACHE)) return reviewRequestedAt;
+    global.CRM_ORDERS_CACHE = global.CRM_ORDERS_CACHE.map((row) => (
+      String(row?.id || "") === String(orderId)
+        ? { ...row, review_requested_at: reviewRequestedAt }
+        : row
+    ));
+    return reviewRequestedAt;
+  }
+
+  async function requestOrderReview(orderId, options = {}) {
+    const {
+      setStatus = null,
+      pendingMessage = "Requesting review...",
+      successMessage = "Review request sent.",
+      successTone = "ok",
+      button = null,
+      requestedLabel = "Review requested",
+      onSuccess = null,
+    } = options;
+
+    if (!orderId) throw new Error("Missing order_id");
+    if (typeof setStatus === "function" && pendingMessage) {
+      setStatus(pendingMessage);
+    }
+
+    const tokenProvider =
+      (typeof global.getAccessToken === "function" && global.getAccessToken)
+      || (typeof global.getOperatorAccessToken === "function" && global.getOperatorAccessToken)
+      || (typeof global.PROOFLINK_OPERATOR_RUNTIME?.getAccessToken === "function"
+        && global.PROOFLINK_OPERATOR_RUNTIME.getAccessToken.bind(global.PROOFLINK_OPERATOR_RUNTIME));
+    if (typeof tokenProvider !== "function") {
+      throw new Error("Operator auth is not ready yet.");
+    }
+    const token = await tokenProvider();
+    const tenantId = String(global.TENANT_ID || "").trim();
+    const response = await global.fetch("/.netlify/functions/request-review", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        order_id: orderId,
+        ...(tenantId && tenantId !== "default" ? { tenant_id: tenantId } : {}),
+      }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload.error || "Could not request review.");
+    }
+
+    const reviewRequestedAt = payload.review_requested_at || new Date().toISOString();
+    markOrderReviewRequested(orderId, reviewRequestedAt);
+
+    if (button) {
+      button.textContent = requestedLabel;
+      button.disabled = true;
+    }
+    if (typeof onSuccess === "function") {
+      await onSuccess(payload, reviewRequestedAt);
+    }
+    if (typeof setStatus === "function" && successMessage) {
+      setStatus(successMessage, successTone);
+    }
+
+    return {
+      ...payload,
+      review_requested_at: reviewRequestedAt,
+    };
+  }
+
   function downloadCsv(filename, headers, rows) {
     const escape = (value) => {
       const text = String(value ?? "").replace(/"/g, '""');
@@ -221,6 +294,8 @@
     showConfirmModal,
     showCopyModal,
     setInlineMessage,
+    markOrderReviewRequested,
+    requestOrderReview,
     downloadCsv,
     getCurrentPositionSafe,
   };

@@ -76,33 +76,20 @@
     const { customer, order, job } = resolvePaymentContext(options);
     const customerName = customer?.name || order?.customer_name || "this customer";
     const followThrough = buildPaymentFollowThroughMessage({ customer, order, job, blueprint });
-    return `Payment saved for ${customerName}. ${followThrough}`;
+    const bookingsApi = global.PROOFLINK_OPERATOR_BOOKINGS_WORKSPACE || {};
+    const timingInsight = customer && typeof bookingsApi.bookingDraftTimingInsight === "function"
+      ? bookingsApi.bookingDraftTimingInsight(customer, {}, blueprint)
+      : null;
+    const nextVisitReason = timingInsight?.reason
+      ? ` ${timingInsight.reason}${timingInsight.bookingDate ? ` Suggested next visit: ${timingInsight.bookingDate}.` : ""}`
+      : "";
+    return `Payment saved for ${customerName}. ${followThrough}${nextVisitReason}`;
   }
 
   function buildPaymentReactivationActions(options = {}) {
     const blueprint = options.blueprint || (typeof currentWorkspaceBlueprint === "function" ? currentWorkspaceBlueprint() : { business: { key: "service_business" } });
-    const businessKey = String(blueprint?.business?.key || "service_business").trim().toLowerCase();
     const { customer, order } = resolvePaymentContext(options);
     if (!customer) return [];
-
-    const firstFilled = (...values) => values.find((value) => String(value || "").trim()) || "";
-    const repeatSignal = firstFilled(
-      customer?.service_schedule,
-      customer?.frequency,
-      customer?.recurring_notes,
-      customer?.service_plan_name,
-      customer?.maintenance_notes,
-      customer?.seasonal_notes,
-      customer?.follow_up_notes
-    );
-    if (!repeatSignal) return [];
-
-    const nextTouch = firstFilled(
-      customer?.next_service_on,
-      customer?.service_plan_name,
-      customer?.follow_up_notes
-    );
-    if (nextTouch) return [];
 
     const orderDueCents = order ? Number(orderAmountDueCents(order) || 0) : 0;
     if (orderDueCents > 0) return [];
@@ -118,7 +105,19 @@
       return !["cancelled", "completed"].includes(status);
     }).length;
     if (activeOrderCount > 0 || activeJobCount > 0) return [];
-
+    const customerApi = global.PROOFLINK_OPERATOR_CUSTOMER_DETAIL || {};
+    if (typeof customerApi.customerRetentionWorkflowActions === "function") {
+      return customerApi.customerRetentionWorkflowActions({
+        customer,
+        blueprint,
+        includeSchedule: true,
+        includeRequest: true,
+        includeOpenCustomer: true,
+        primaryClassName: "btn btn-primary btn-sm",
+        secondaryClassName: "btn btn-ghost btn-sm",
+      });
+    }
+    const businessKey = String(blueprint?.business?.key || "service_business").trim().toLowerCase();
     const scheduleLabelMap = {
       landscaping: "Schedule next property visit",
       property_maintenance: "Schedule next site visit",
@@ -127,9 +126,17 @@
       hvac: "Schedule next system visit",
       plumbing: "Schedule next follow-up visit",
     };
-
+    const requestLabelMap = {
+      landscaping: "Draft seasonal follow-up request",
+      property_maintenance: "Draft site follow-up request",
+      pressure_washing: "Draft wash follow-up request",
+      cleaning: "Draft cleaning follow-up request",
+      hvac: "Draft maintenance follow-up request",
+      plumbing: "Draft repair follow-up request",
+    };
     return [
       { label: scheduleLabelMap[businessKey] || "Schedule next visit", action: "reactivate-repeat", className: "btn btn-primary btn-sm" },
+      { label: requestLabelMap[businessKey] || "Draft follow-up request", action: "request", className: "btn btn-ghost btn-sm" },
       { label: "Open customer", action: "open-reactivation-customer", className: "btn btn-ghost btn-sm" },
     ];
   }
@@ -162,17 +169,26 @@
   function renderPaymentNextActions(options = {}) {
     const host = ensurePaymentNextActionsHost();
     if (!host) return;
+    const blueprint = options.blueprint || (typeof currentWorkspaceBlueprint === "function" ? currentWorkspaceBlueprint() : { business: { key: "service_business" } });
     const actions = buildPaymentReactivationActions(options);
+    const { customer } = resolvePaymentContext(options);
+    const bookingsApi = global.PROOFLINK_OPERATOR_BOOKINGS_WORKSPACE || {};
+    const timingInsight = customer && typeof bookingsApi.bookingDraftTimingInsight === "function"
+      ? bookingsApi.bookingDraftTimingInsight(customer, {}, blueprint)
+      : null;
     if (!actions.length) {
       clearPaymentNextActions();
       return;
     }
     host.className = "action-row action-row--wrap u-mt-10";
-    host.innerHTML = actions.map((action) => `
+    host.innerHTML = `
+      ${timingInsight?.reason ? `<div class="detail-copy u-flex-full">${escapeHtml(`Why now: ${timingInsight.reason}${timingInsight.bookingDate ? ` Suggested next visit: ${timingInsight.bookingDate}.` : ""}`)}</div>` : ""}
+      ${actions.map((action) => `
       <button type="button" class="${escapeAttr(action.className || "btn btn-ghost btn-sm")}" data-payment-reactivation-action="${escapeAttr(action.action || "")}">
         ${escapeHtml(action.label || "Take action")}
       </button>
-    `).join("");
+      `).join("")}
+    `;
 
     host.querySelectorAll?.("[data-payment-reactivation-action]").forEach((button) => {
       button.addEventListener("click", () => {
@@ -180,21 +196,34 @@
         const { customer, order, job } = resolvePaymentContext(options);
         if (!customer) return;
 
-        if (action === "open-reactivation-customer") {
-          ACTIVE_CUSTOMER_ID = customer.id;
-          switchTab("customers");
-          renderCustomerDetail(customer.id).catch(console.error);
-          return;
-        }
-
-        if (action === "reactivate-repeat") {
-          const bookingsApi = global.PROOFLINK_OPERATOR_BOOKINGS_WORKSPACE || {};
-          if (typeof bookingsApi.openBookingDraftForCustomer === "function") {
-            bookingsApi.openBookingDraftForCustomer(customer, {}, blueprint);
+        if (action === "open-reactivation-customer" || action === "reactivate-repeat" || action === "request") {
+          const customerApi = global.PROOFLINK_OPERATOR_CUSTOMER_DETAIL || {};
+          if (typeof customerApi.openCustomerRetentionAction === "function") {
+            customerApi.openCustomerRetentionAction(action, customer, blueprint, {
+              requestOptions: {
+                message: "Follow-up request draft opened from the payment flow.",
+              },
+            });
+            if (action === "open-reactivation-customer") {
+              renderCustomerDetail(customer.id).catch(console.error);
+            }
             return;
           }
-          ACTIVE_CUSTOMER_ID = customer.id;
-          switchTab("bookings");
+          if (action === "open-reactivation-customer") {
+            ACTIVE_CUSTOMER_ID = customer.id;
+            switchTab("customers");
+            renderCustomerDetail(customer.id).catch(console.error);
+            return;
+          }
+          if (action === "reactivate-repeat") {
+            const bookingsApi = global.PROOFLINK_OPERATOR_BOOKINGS_WORKSPACE || {};
+            if (typeof bookingsApi.openBookingDraftForCustomer === "function") {
+              bookingsApi.openBookingDraftForCustomer(customer, {}, blueprint);
+              return;
+            }
+            ACTIVE_CUSTOMER_ID = customer.id;
+            switchTab("bookings");
+          }
         }
       });
     });

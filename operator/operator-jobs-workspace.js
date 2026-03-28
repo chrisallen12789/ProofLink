@@ -212,8 +212,12 @@ function renderJobReadinessCard(summary) {
 
 function jobCloseoutChecklistItems(job, order, linkedCustomer, blueprint = jobsWorkspaceBlueprint(), amountDueCents = 0, readiness = null) {
   const businessKey = String(blueprint?.business?.key || "service_business").trim().toLowerCase();
+  const bookingsApi = window.PROOFLINK_OPERATOR_BOOKINGS_WORKSPACE || {};
   const filled = (...values) => values.some((value) => String(value || "").trim());
   const firstFilled = (...values) => values.find((value) => String(value || "").trim()) || "";
+  const timingInsight = linkedCustomer && typeof bookingsApi.bookingDraftTimingInsight === "function"
+    ? bookingsApi.bookingDraftTimingInsight(linkedCustomer, {}, blueprint)
+    : null;
   const detail = (label, ready, readyNote, missingNote) => ({
     label,
     ready: !!ready,
@@ -227,6 +231,35 @@ function jobCloseoutChecklistItems(job, order, linkedCustomer, blueprint = jobsW
       note: item.note || "Clear this before closeout.",
     }));
   }
+
+  const repeatSignal = firstFilled(
+    linkedCustomer?.service_schedule,
+    linkedCustomer?.frequency,
+    linkedCustomer?.recurring_notes,
+    linkedCustomer?.service_plan_name,
+    linkedCustomer?.maintenance_notes,
+    linkedCustomer?.seasonal_notes,
+    linkedCustomer?.parts_follow_up,
+    linkedCustomer?.warranty_notes,
+    linkedCustomer?.restoration_notes,
+    linkedCustomer?.approval_notes,
+    linkedCustomer?.follow_up_notes
+  );
+  const nextTouch = firstFilled(
+    linkedCustomer?.next_service_on,
+    linkedCustomer?.follow_up_notes,
+    linkedCustomer?.service_plan_name
+  );
+  const renewalRiskItem = repeatSignal
+    ? detail(
+        "Renewal risk",
+        !!nextTouch,
+        `The next repeat step is already visible here: ${nextTouch}.`,
+        timingInsight?.reason
+          ? `${timingInsight.reason}${timingInsight.bookingDate ? ` Suggested next visit: ${timingInsight.bookingDate}.` : ""}`
+          : "This account has repeat-service signals, but the next visit or follow-up step still needs to be attached before it cools off."
+      )
+    : null;
 
   const landscaping = [
     detail(
@@ -247,6 +280,7 @@ function jobCloseoutChecklistItems(job, order, linkedCustomer, blueprint = jobsW
       "No balance is left open on this work.",
       "Decide whether payment should be collected now or followed up right away after the visit."
     ),
+    renewalRiskItem,
   ];
 
   const cleaning = [
@@ -268,6 +302,7 @@ function jobCloseoutChecklistItems(job, order, linkedCustomer, blueprint = jobsW
       "No balance is left open on this visit.",
       "Keep payment or reminder follow-through attached so this visit closes out cleanly for the customer."
     ),
+    renewalRiskItem,
   ];
 
   const hvac = [
@@ -289,6 +324,7 @@ function jobCloseoutChecklistItems(job, order, linkedCustomer, blueprint = jobsW
       amountDueCents <= 0 ? "Money is closed or already handled." : firstFilled(linkedCustomer?.approval_notes),
       "Confirm whether approval, estimate follow-up, or payment collection is the next move after the technician leaves."
     ),
+    renewalRiskItem,
   ];
 
   const plumbing = [
@@ -310,6 +346,7 @@ function jobCloseoutChecklistItems(job, order, linkedCustomer, blueprint = jobsW
       "No balance is left open on this repair.",
       "Keep payment or reminder follow-through attached so the repair closes out cleanly."
     ),
+    renewalRiskItem,
   ];
 
   const fallback = [
@@ -331,6 +368,7 @@ function jobCloseoutChecklistItems(job, order, linkedCustomer, blueprint = jobsW
       "No balance is left open on this job.",
       "Decide whether payment should be collected now or followed up right away."
     ),
+    renewalRiskItem,
   ];
 
   return ({
@@ -340,7 +378,7 @@ function jobCloseoutChecklistItems(job, order, linkedCustomer, blueprint = jobsW
     cleaning,
     hvac,
     plumbing,
-  })[businessKey] || fallback;
+  })[businessKey]?.filter(Boolean) || fallback.filter(Boolean);
 }
 
 function buildJobCloseoutGuidance(job, order, readiness, amountDueCents, linkedCustomer = null, blueprint = jobsWorkspaceBlueprint()) {
@@ -385,27 +423,19 @@ function buildJobCloseoutGuidance(job, order, readiness, amountDueCents, linkedC
 function buildJobReactivationActions(job, order, linkedCustomer = null, amountDueCents = 0, blueprint = jobsWorkspaceBlueprint()) {
   const fieldStatus = normalizeWorkflowStatusValue(job?.status || "scheduled");
   if (fieldStatus !== "completed" || amountDueCents > 0 || !linkedCustomer) return [];
-
+  const customerApi = window.PROOFLINK_OPERATOR_CUSTOMER_DETAIL || {};
+  if (typeof customerApi.customerRetentionWorkflowActions === "function") {
+    return customerApi.customerRetentionWorkflowActions({
+      customer: linkedCustomer,
+      blueprint,
+      includeSchedule: true,
+      includeRequest: true,
+      includeOpenCustomer: true,
+      primaryClassName: "btn btn-primary btn-sm",
+      secondaryClassName: "btn btn-ghost btn-sm",
+    });
+  }
   const businessKey = String(blueprint?.business?.key || "service_business").trim().toLowerCase();
-  const firstFilled = (...values) => values.find((value) => String(value || "").trim()) || "";
-  const repeatSignal = firstFilled(
-    linkedCustomer?.service_schedule,
-    linkedCustomer?.frequency,
-    linkedCustomer?.recurring_notes,
-    linkedCustomer?.service_plan_name,
-    linkedCustomer?.maintenance_notes,
-    linkedCustomer?.seasonal_notes,
-    linkedCustomer?.follow_up_notes
-  );
-  if (!repeatSignal) return [];
-
-  const nextTouch = firstFilled(
-    linkedCustomer?.next_service_on,
-    linkedCustomer?.follow_up_notes,
-    linkedCustomer?.service_plan_name
-  );
-  if (nextTouch) return [];
-
   const scheduleLabelMap = {
     landscaping: "Schedule next property visit",
     property_maintenance: "Schedule next site visit",
@@ -414,9 +444,17 @@ function buildJobReactivationActions(job, order, linkedCustomer = null, amountDu
     hvac: "Schedule next system visit",
     plumbing: "Schedule next follow-up visit",
   };
-
+  const requestLabelMap = {
+    landscaping: "Draft seasonal follow-up request",
+    property_maintenance: "Draft site follow-up request",
+    pressure_washing: "Draft wash follow-up request",
+    cleaning: "Draft cleaning follow-up request",
+    hvac: "Draft maintenance follow-up request",
+    plumbing: "Draft repair follow-up request",
+  };
   return [
     { label: scheduleLabelMap[businessKey] || "Schedule next visit", action: "reactivate-repeat", className: "btn btn-primary btn-sm" },
+    { label: requestLabelMap[businessKey] || "Draft follow-up request", action: "request", className: "btn btn-ghost btn-sm" },
     { label: "Open customer", action: "open-reactivation-customer", className: "btn btn-ghost btn-sm" },
   ];
 }
@@ -424,9 +462,10 @@ function buildJobReactivationActions(job, order, linkedCustomer = null, amountDu
 function buildJobCompletionActions(job, order, linkedCustomer = null, amountDueCents = 0, blueprint = jobsWorkspaceBlueprint()) {
   const fieldStatus = normalizeWorkflowStatusValue(job?.status || "scheduled");
   if (fieldStatus !== "completed") return [];
+  const reviewEmail = String(order?.customer_email || order?.email || "").trim();
 
   const actions = [];
-  if (order?.id && order?.customer_email && !order?.review_requested_at) {
+  if (order?.id && reviewEmail && !order?.review_requested_at) {
     actions.push({
       label: "Request review",
       action: "request-review",
@@ -819,44 +858,52 @@ async function renderJobDetail(jobIdValue) {
       if (action === "request-review") {
         if (!order?.id) return;
         try {
-          setInlineMessage(msgEl, "Requesting review...");
-          const tok = await getAccessToken();
-          const response = await fetch("/.netlify/functions/request-review", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${tok}`,
+          const coreUtils = window.PROOFLINK_OPERATOR_UTILS || {};
+          if (typeof coreUtils.requestOrderReview !== "function") {
+            throw new Error("Review request tools are not ready yet.");
+          }
+          const reviewResult = await coreUtils.requestOrderReview(order.id, {
+            button,
+            setStatus: (message = "", tone = "") => setInlineMessage(msgEl, message, tone),
+            onSuccess: async (_payload, reviewRequestedAt) => {
+              order.review_requested_at = reviewRequestedAt;
+              await fetchCrmOrders();
+              renderOrders();
+              renderDashboard();
+              renderGuidance();
             },
-            body: JSON.stringify({ order_id: order.id }),
           });
-          const payload = await response.json().catch(() => ({}));
-          if (!response.ok) throw new Error(payload.error || "Could not request review.");
-          setInlineMessage(msgEl, "Review request sent.", "ok");
-          if (order) order.review_requested_at = payload.review_requested_at || new Date().toISOString();
-          await fetchCrmOrders();
-          renderJobs(jobSearch?.value || "");
-          renderOrders();
-          renderDashboard();
-          renderGuidance();
+          order.review_requested_at = reviewResult.review_requested_at;
         } catch (error) {
           setInlineMessage(msgEl, error.message || String(error), "error");
         }
         return;
       }
-      if (action === "open-reactivation-customer") {
-        if (linkedCustomer?.id) {
-          ACTIVE_CUSTOMER_ID = linkedCustomer.id;
-          CUSTOMER_CREATING = false;
+      if (action === "open-reactivation-customer" || action === "reactivate-repeat" || action === "request") {
+        const customerApi = window.PROOFLINK_OPERATOR_CUSTOMER_DETAIL || {};
+        if (linkedCustomer && typeof customerApi.openCustomerRetentionAction === "function") {
+          customerApi.openCustomerRetentionAction(action, linkedCustomer, blueprint, {
+            requestOptions: {
+              message: "Follow-up request draft opened from job closeout.",
+            },
+          });
+          return;
         }
-        switchTab("customers");
-        return;
-      }
-      if (action === "reactivate-repeat") {
-        const bookingsApi = window.PROOFLINK_OPERATOR_BOOKINGS_WORKSPACE || {};
-        if (linkedCustomer && typeof bookingsApi.openBookingDraftForCustomer === "function") {
-          bookingsApi.openBookingDraftForCustomer(linkedCustomer, {}, blueprint);
-        } else {
-          switchTab("bookings");
+        if (action === "open-reactivation-customer") {
+          if (linkedCustomer?.id) {
+            ACTIVE_CUSTOMER_ID = linkedCustomer.id;
+            CUSTOMER_CREATING = false;
+          }
+          switchTab("customers");
+          return;
+        }
+        if (action === "reactivate-repeat") {
+          const bookingsApi = window.PROOFLINK_OPERATOR_BOOKINGS_WORKSPACE || {};
+          if (linkedCustomer && typeof bookingsApi.openBookingDraftForCustomer === "function") {
+            bookingsApi.openBookingDraftForCustomer(linkedCustomer, {}, blueprint);
+          } else {
+            switchTab("bookings");
+          }
         }
       }
     });

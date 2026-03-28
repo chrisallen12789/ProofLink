@@ -393,6 +393,39 @@ describe("operator lead plan workspace", () => {
     expect(items[1].note).toContain("Attach the next visit");
   });
 
+  test("planNextMoveItems explains when a recurring plan is past its normal rhythm", () => {
+    const context = loadLeadPlanWorkspace({
+      PROOFLINK_OPERATOR_CUSTOMER_DETAIL: {
+        customerRepeatCadenceInsight: vi.fn(() => ({
+          cadenceDays: 14,
+          overdueDays: 10,
+          message: "This account usually runs about every 14 days and is roughly 10 days past that rhythm.",
+        })),
+      },
+    });
+
+    const items = context.window.planNextMoveItems(
+      {
+        status: "active",
+        next_run_on: "",
+      },
+      {
+        recurring_notes: "Every other Tuesday",
+      },
+      null,
+      null,
+      false,
+      {
+        business: {
+          key: "cleaning",
+        },
+      }
+    );
+
+    expect(items[0].note).toContain("10 days past that rhythm");
+    expect(items[1].note).toContain("10 days past that rhythm");
+  });
+
   test("planReactivationActions points the operator to the next recurring move", () => {
     const context = loadLeadPlanWorkspace();
 
@@ -417,7 +450,8 @@ describe("operator lead plan workspace", () => {
 
     expect(actions.map((action) => action.label)).toEqual([
       "Set next visit timing",
-      "Schedule follow-up visit",
+      "Schedule next cleaning visit",
+      "Draft cleaning follow-up request",
     ]);
   });
 
@@ -445,7 +479,38 @@ describe("operator lead plan workspace", () => {
 
     expect(actions.map((action) => action.label)).toEqual([
       "Generate next booked work",
-      "Schedule follow-up visit",
+      "Schedule next system visit",
+      "Draft maintenance follow-up request",
+    ]);
+  });
+
+  test("planReactivationActions treats plumbing restoration follow-through as repeat-work recovery", () => {
+    const context = loadLeadPlanWorkspace();
+
+    const actions = context.window.planReactivationActions(
+      {
+        id: "plan_1",
+        status: "active",
+        next_run_on: "2026-04-20",
+      },
+      {
+        restoration_notes: "Return for drywall patch after leak repair",
+        approval_notes: "Customer approved the follow-up window",
+      },
+      null,
+      null,
+      false,
+      {
+        business: {
+          key: "plumbing",
+        },
+      }
+    );
+
+    expect(actions.map((action) => action.label)).toEqual([
+      "Generate next booked work",
+      "Schedule next follow-up visit",
+      "Draft repair follow-up request",
     ]);
   });
 

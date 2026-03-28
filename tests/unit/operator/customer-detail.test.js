@@ -236,6 +236,19 @@ describe("operator customer detail", () => {
     expect(guidance.items.at(-1).note).toContain("next visit");
   });
 
+  test("customerRepeatCadenceInsight reports how far a repeat account is past its usual rhythm", () => {
+    const api = loadCustomerDetail();
+
+    const insight = api.customerRepeatCadenceInsight({
+      recurring_notes: "Every other Tuesday",
+      last_service_on: "2026-02-15T00:00:00.000Z",
+    }, new Date("2026-03-28T00:00:00.000Z"));
+
+    expect(insight.cadenceDays).toBe(14);
+    expect(insight.overdueDays).toBe(27);
+    expect(insight.message).toContain("27 days past that rhythm");
+  });
+
   test("customerReactivationActions recommends scheduling the next visit for a dormant repeat account", () => {
     const api = loadCustomerDetail();
 
@@ -257,8 +270,83 @@ describe("operator customer detail", () => {
 
     expect(actions.map((action) => action.label)).toEqual([
       "Schedule next cleaning visit",
-      "Draft follow-up request",
+      "Draft cleaning follow-up request",
     ]);
+  });
+
+  test("customerReactivationActions treats HVAC parts follow-up as a real repeat-service recovery signal", () => {
+    const api = loadCustomerDetail();
+
+    const actions = api.customerReactivationActions({
+      customer: {
+        parts_follow_up: "Bring capacitor approval paperwork",
+        warranty_notes: "Warranty visit can be staged next week",
+      },
+      openRequestsCount: 0,
+      openProposalCount: 0,
+      activeOrderCount: 0,
+      activeJobCount: 0,
+      blueprint: {
+        business: {
+          key: "hvac",
+        },
+      },
+    });
+
+    expect(actions.map((action) => action.label)).toEqual([
+      "Schedule next system visit",
+      "Draft maintenance follow-up request",
+    ]);
+  });
+
+  test("openCustomerRequestDraft prefills a smarter HVAC follow-up request", () => {
+    const leadCustomerId = { value: "" };
+    const leadContactName = { value: "" };
+    const leadContactEmail = { value: "" };
+    const leadContactPhone = { value: "" };
+    const leadPreferredContact = { value: "" };
+    const leadRequestedService = { value: "" };
+    const leadTitle = { value: "" };
+    const leadServiceAddress = { value: "" };
+    const leadSummary = { value: "", focus: vi.fn() };
+    const leadNotes = { value: "" };
+    const api = loadCustomerDetail({
+      clearLeadForm: vi.fn(),
+      renderLeadCustomerOptions: vi.fn(),
+      setInlineMessage: vi.fn(),
+      leadMsg: {},
+      leadCustomerId,
+      leadContactName,
+      leadContactEmail,
+      leadContactPhone,
+      leadPreferredContact,
+      leadRequestedService,
+      leadTitle,
+      leadServiceAddress,
+      leadSummary,
+      leadNotes,
+    });
+
+    api.openCustomerRequestDraft({
+      id: "customer_1",
+      name: "Harbor Suites",
+      email: "ops@example.com",
+      phone: "555-111-2222",
+      preferred_contact: "email",
+      address_line1: "455 Elm St",
+      city: "Dallas",
+      state: "TX",
+      zip: "75001",
+      maintenance_notes: "Spring maintenance visit due next month",
+      parts_follow_up: "Bring capacitor approval paperwork",
+      equipment_notes: "Carrier rooftop unit RTU-2",
+    }, {}, { business: { key: "hvac" } });
+
+    expect(leadRequestedService.value).toBe("Maintenance follow-up");
+    expect(leadTitle.value).toBe("Harbor Suites maintenance follow-up");
+    expect(leadServiceAddress.value).toContain("455 Elm St");
+    expect(leadSummary.value).toContain("Bring capacitor approval paperwork");
+    expect(leadNotes.value).toContain("Carrier rooftop unit RTU-2");
   });
 
   test("customerPostWorkGuidance keeps plumbing closeout and collection visible after the repair", () => {

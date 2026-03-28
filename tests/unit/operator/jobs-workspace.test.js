@@ -183,6 +183,14 @@ describe("operator jobs workspace", () => {
 
   test("buildJobCloseoutGuidance keeps payment follow-through visible after field work is done", () => {
     const { context } = loadJobsWorkspace({
+      window: {
+        PROOFLINK_OPERATOR_BOOKINGS_WORKSPACE: {
+          bookingDraftTimingInsight: vi.fn(() => ({
+            reason: "The maintenance window is opening for this system, so the next visit should be queued now.",
+            bookingDate: "2026-04-15",
+          })),
+        },
+      },
       formatUsd: vi.fn((value) => `$${value}`),
       normalizeWorkflowStatusValue: vi.fn((value) => value),
       currentWorkspaceBlueprint: vi.fn(() => ({
@@ -212,6 +220,7 @@ describe("operator jobs workspace", () => {
       { label: "Findings logged", ready: true, note: "Low suction pressure confirmed" },
       { label: "Parts or return visit", ready: true, note: "Compressor contactor needs follow-up" },
       { label: "Approval or payment", ready: false, note: "Confirm whether approval, estimate follow-up, or payment collection is the next move after the technician leaves." },
+      { label: "Renewal risk", ready: false, note: "The maintenance window is opening for this system, so the next visit should be queued now. Suggested next visit: 2026-04-15." },
     ]);
   });
 
@@ -239,6 +248,7 @@ describe("operator jobs workspace", () => {
 
     expect(actions.map((action) => action.label)).toEqual([
       "Schedule next cleaning visit",
+      "Draft cleaning follow-up request",
       "Open customer",
     ]);
   });
@@ -266,6 +276,7 @@ describe("operator jobs workspace", () => {
     expect(actions.map((action) => action.label)).toEqual([
       "Request review",
       "Schedule next cleaning visit",
+      "Draft cleaning follow-up request",
       "Open customer",
     ]);
   });
@@ -308,9 +319,11 @@ describe("operator jobs workspace", () => {
     expect(source).toContain("buildJobReactivationActions");
     expect(source).toContain("data-job-reactivation-action");
     expect(source).toContain("request-review");
+    expect(source).toContain("requestOrderReview(order.id");
     expect(source).toContain('class="memory-checklist u-mt-10"');
     expect(source).toContain('class="memory-checklist"');
     expect(source).toContain("memory-checklist__item--warn");
+    expect(source).not.toContain('fetch("/.netlify/functions/request-review"');
     expect(source).not.toContain('background:${item.ready ? "rgba(46,125,50,.10)" : "rgba(200,75,47,.08)"}');
     expect(source).not.toContain('background:rgba(255,255,255,.03);');
     expect(source).not.toContain('style="margin-top:14px;"');

@@ -12,30 +12,52 @@ exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return respond(200, {});
   if (event.httpMethod !== 'POST')    return respond(405, { error: 'Method not allowed' });
 
-  let ctx;
-  try { ctx = await requireOperatorContext(event); }
-  catch (err) { return respond(err.statusCode || 401, { error: err.message }); }
-
-  const { supabase, operatorId: _operatorId, tenantId } = ctx;
-
   let body;
   try { body = JSON.parse(event.body || '{}'); }
   catch { return respond(400, { error: 'Invalid JSON' }); }
+
+  let ctx;
+  try { ctx = await requireOperatorContext(event, body.tenant_id || body.tenantId || ''); }
+  catch (err) { return respond(err.statusCode || 401, { error: err.message }); }
+
+  const { supabase, operatorId, tenantId } = ctx;
 
   const { order_id } = body;
   if (!order_id) return respond(400, { error: 'Missing order_id' });
 
   // Fetch order + tenant business name
-  const { data: order, error: orderErr } = await supabase
+  let { data: order, error: orderErr } = await supabase
     .from('orders')
-    .select('id, customer_name, customer_email, status, review_requested_at, tenant_id')
+    .select('id, customer_name, customer_email, email, status, review_requested_at, tenant_id, operator_id')
     .eq('id', order_id)
     .eq('tenant_id', tenantId)
     .maybeSingle();
 
+  if (!orderErr && !order && operatorId) {
+    const legacyLookup = await supabase
+      .from('orders')
+      .select('id, customer_name, customer_email, email, status, review_requested_at, tenant_id, operator_id')
+      .eq('id', order_id)
+      .eq('operator_id', operatorId)
+      .maybeSingle();
+    order = legacyLookup.data || null;
+    orderErr = legacyLookup.error || null;
+  }
+
+  if (!orderErr && !order) {
+    const directLookup = await supabase
+      .from('orders')
+      .select('id, customer_name, customer_email, email, status, review_requested_at, tenant_id, operator_id')
+      .eq('id', order_id)
+      .maybeSingle();
+    order = directLookup.data || null;
+    orderErr = directLookup.error || null;
+  }
+
   if (orderErr || !order) return respond(404, { error: 'Order not found' });
 
-  if (!order.customer_email) {
+  const customerEmail = String(order.customer_email || order.email || '').trim();
+  if (!customerEmail) {
     return respond(400, { error: 'No customer email on this order' });
   }
 
@@ -70,7 +92,7 @@ exports.handler = async (event) => {
   // Send email (non-fatal)
   sendEmail(templates.reviewRequest({
     customer_name : order.customer_name || 'there',
-    customer_email: order.customer_email,
+    customer_email: customerEmail,
     business_name : businessName,
     review_url    : reviewUrl,
   })).catch((e) => console.warn('[request-review] email failed:', e.message));
