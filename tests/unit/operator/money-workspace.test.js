@@ -48,7 +48,11 @@ function loadMoneyWorkspace(overrides = {}) {
     escapeAttr: (value) => String(value),
     escapeHtml: (value) => String(value),
     formatUsd: (value) => `$${value}`,
+    formatDateOnly: vi.fn((value) => String(value)),
     orderTotalCents: vi.fn(() => 0),
+    orderAmountDueCents: vi.fn(() => 0),
+    orderPaymentState: vi.fn(() => "unpaid"),
+    orderDepositGapCents: vi.fn(() => 0),
     customerById: vi.fn(() => null),
     linkedOrderForJob: vi.fn(() => null),
     normalizeExpenseType: vi.fn((value) => value),
@@ -97,6 +101,31 @@ describe("operator money workspace", () => {
 
     expect(guidance.title).toBe("Collect the open deposits next");
     expect(guidance.chips).toContain("1 deposit open");
+  });
+
+  test("buildMoneyCollectionMemory reuses business-specific customer context for the top collection risk", () => {
+    const context = loadMoneyWorkspace({
+      CRM_ORDERS_CACHE: [
+        { id: "order_paid", customer_id: "customer_2", customer_name: "Later Account", status: "completed", payment_due_date: "2026-03-29" },
+        { id: "order_overdue", customer_id: "customer_1", customer_name: "Logan's Lawn Care", status: "completed", payment_due_date: "2026-03-20" },
+      ],
+      orderAmountDueCents: vi.fn((order) => (order.id === "order_overdue" ? 18000 : 4000)),
+      orderPaymentState: vi.fn((order) => (order.id === "order_overdue" ? "overdue" : "unpaid")),
+      customerById: vi.fn((id) => id === "customer_1" ? { id, name: "Logan's Lawn Care" } : null),
+    });
+    context.window.PROOFLINK_OPERATOR_CUSTOMER_DETAIL = {
+      customerMemoryChecklist: vi.fn(() => [
+        { label: "Access notes", note: "Back gate code 2468", ready: true },
+        { label: "Repeat-service memory", note: "Thursday afternoon route", ready: true },
+      ]),
+    };
+
+    const memory = context.buildMoneyCollectionMemory({ business: { key: "landscaping" } });
+
+    expect(memory.customerName).toBe("Logan's Lawn Care");
+    expect(memory.description).toContain("clearest collection risk");
+    expect(memory.items).toContain("Access notes: Back gate code 2468");
+    expect(memory.items).toContain("Repeat-service memory: Thursday afternoon route");
   });
 
   test("renderExpenseCustomerOptions builds customer choices", () => {

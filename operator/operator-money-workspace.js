@@ -334,6 +334,69 @@ function buildMoneyCollectionGuidance({ outstandingBalance, overdueBalance, dueP
   };
 }
 
+function priorityCollectionOrder() {
+  return [...CRM_ORDERS_CACHE]
+    .filter((row) => orderAmountDueCents(row) > 0)
+    .sort((a, b) => {
+      const overdueA = orderPaymentState(a) === "overdue" ? 1 : 0;
+      const overdueB = orderPaymentState(b) === "overdue" ? 1 : 0;
+      if (overdueA !== overdueB) return overdueB - overdueA;
+
+      const depositA = typeof orderDepositGapCents === "function" ? orderDepositGapCents(a) : 0;
+      const depositB = typeof orderDepositGapCents === "function" ? orderDepositGapCents(b) : 0;
+      if (depositA !== depositB) return depositB - depositA;
+
+      const completedA = ["completed", "fulfilled"].includes(String(a.status || "").toLowerCase()) ? 1 : 0;
+      const completedB = ["completed", "fulfilled"].includes(String(b.status || "").toLowerCase()) ? 1 : 0;
+      if (completedA !== completedB) return completedB - completedA;
+
+      return orderAmountDueCents(b) - orderAmountDueCents(a);
+    })[0] || null;
+}
+
+function buildMoneyCollectionMemory(blueprint = currentWorkspaceBlueprint()) {
+  const order = priorityCollectionOrder();
+  if (!order) return null;
+
+  const customer = customerById(order.customer_id) || null;
+  const sharedChecklist = window.PROOFLINK_OPERATOR_CUSTOMER_DETAIL?.customerMemoryChecklist;
+  const focus = customer && typeof sharedChecklist === "function"
+    ? sharedChecklist(customer, blueprint)
+    : [];
+  const customerName = customer?.name || order.customer_name || "this customer";
+  const items = [];
+
+  if (focus.length) {
+    focus.slice(0, 2).forEach((item) => {
+      items.push(`${item.label}: ${item.note}`);
+    });
+  }
+
+  if (!items.length && order.payment_due_date) {
+    items.push(`Payment timing: due ${formatDateOnly(order.payment_due_date)}.`);
+  }
+  if (!items.length && order.cart_summary) {
+    items.push(`Work in motion: ${order.cart_summary}`);
+  }
+  if (!items.length) {
+    items.push("Keep the customer record, work summary, and payment timing aligned while you follow up.");
+  }
+
+  const paymentState = orderPaymentState(order);
+  const depositGap = typeof orderDepositGapCents === "function" ? orderDepositGapCents(order) : 0;
+  const description = paymentState === "overdue"
+    ? `${customerName} is the clearest collection risk right now. Keep the follow-through tied to what this account actually needs.`
+    : depositGap > 0
+      ? `${customerName} still has money missing before the work is fully protected. Keep the deposit ask tied to the job context.`
+      : `Use the details already attached to ${customerName} so payment follow-through stays specific and easy to trust.`;
+
+  return {
+    customerName,
+    description,
+    items,
+  };
+}
+
 async function renderMoney() {
   if (!moneyWrap) return;
 
@@ -386,6 +449,7 @@ async function renderMoney() {
     openDepositCount: openDepositOrders.length,
     unpaidCompletedCount,
   });
+  const collectionMemory = buildMoneyCollectionMemory(blueprint);
 
   moneyWrap.innerHTML = `
     <div class="cards">
@@ -456,6 +520,17 @@ async function renderMoney() {
         <div class="workspace-chip-row" style="margin-top:10px;">
           ${collectionGuidance.chips.map((chip) => `<span class="pill">${escapeHtml(chip)}</span>`).join("")}
         </div>
+        ${collectionMemory ? `
+          <div class="detail-copy" style="margin-top:12px;"><strong>Keep the follow-through tied to ${escapeHtml(collectionMemory.customerName)}</strong></div>
+          <div class="detail-copy" style="margin-top:6px;">${escapeHtml(collectionMemory.description)}</div>
+          <div class="memory-checklist" style="margin-top:10px;">
+            ${collectionMemory.items.map((item) => `
+              <div class="memory-checklist__item memory-checklist__item--ready">
+                <div class="detail-copy memory-checklist__note">${escapeHtml(item)}</div>
+              </div>
+            `).join("")}
+          </div>
+        ` : ""}
       </div>
     </div>
 
@@ -1039,6 +1114,8 @@ function initMoneyWorkspaceBindings() {
 const MONEY_WORKSPACE_HELPERS = {
   fetchExpenses,
   buildMoneyCollectionGuidance,
+  priorityCollectionOrder,
+  buildMoneyCollectionMemory,
   renderExpenseCustomerOptions,
   renderExpenseOrderOptions,
   renderExpenseJobOptions,
