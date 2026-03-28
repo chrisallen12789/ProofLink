@@ -129,6 +129,60 @@ function renderBookingsCalendar(bookings) {
   });
 }
 
+function bookingWorkspaceBlueprint() {
+  if (typeof currentWorkspaceBlueprint === "function") return currentWorkspaceBlueprint();
+  return { business: { key: "other", label: "Business", recordFocus: [] } };
+}
+
+function linkedCustomerForBooking(booking) {
+  if (!booking) return null;
+  if (booking.customer_id) {
+    const byId = (CUSTOMERS_CACHE || []).find((row) => row.id === booking.customer_id);
+    if (byId) return byId;
+  }
+  const bookingEmail = String(booking.customer_email || "").trim().toLowerCase();
+  const bookingName = String(booking.customer_name || "").trim().toLowerCase();
+  return (CUSTOMERS_CACHE || []).find((row) => {
+    const rowEmail = String(row.email || "").trim().toLowerCase();
+    const rowName = String(row.name || "").trim().toLowerCase();
+    return (bookingEmail && rowEmail && rowEmail === bookingEmail) || (bookingName && rowName && rowName === bookingName);
+  }) || null;
+}
+
+function bookingCustomerMemoryItems(booking, blueprint = bookingWorkspaceBlueprint()) {
+  const customer = linkedCustomerForBooking(booking);
+  if (!customer) return [];
+  const sharedChecklist = window.PROOFLINK_OPERATOR_CUSTOMER_DETAIL?.customerMemoryChecklist;
+  if (typeof sharedChecklist === "function") {
+    return sharedChecklist(customer, blueprint).slice(0, 4);
+  }
+  return (blueprint?.business?.recordFocus || []).slice(0, 4).map((item) => ({
+    label: item.label,
+    note: item.description || "",
+    ready: false,
+  }));
+}
+
+function renderBookingCustomerMemoryCard(booking, blueprint = bookingWorkspaceBlueprint()) {
+  const items = bookingCustomerMemoryItems(booking, blueprint);
+  if (!items.length) return "";
+  return `
+    <div class="detail-card detail-card--spaced">
+      <div class="kicker">Customer memory</div>
+      <div><strong>Keep the trade details attached to this visit</strong></div>
+      <div class="detail-copy">Keep the property, access, equipment, or repair context visible while you assign the visit and hand it off to the field.</div>
+      <div class="memory-checklist">
+        ${items.map((item) => `
+          <div class="memory-checklist__item ${item.ready ? "memory-checklist__item--ready" : ""}">
+            <div class="memory-checklist__label">${escapeHtml(item.label || "Detail")}</div>
+            <div class="memory-checklist__note">${escapeHtml(item.note || "Still needs attention before this visit starts.")}</div>
+          </div>
+        `).join("")}
+      </div>
+    </div>
+  `;
+}
+
 function showBookingDetail(booking) {
   const existing = document.getElementById("bkDetailModal");
   if (existing) {
@@ -155,18 +209,19 @@ function showBookingDetail(booking) {
   overlay.id = "bkDetailModal";
   overlay.className = "modal-overlay";
   overlay.innerHTML = `
-    <div class="modal-card">
-      <div class="modal-head">
+      <div class="modal-card">
+        <div class="modal-head">
         <div>
           <div class="modal-title">${escapeHtml(booking.title || "Booking")}</div>
           <div class="modal-subtitle">${escapeHtml(booking.customer_name || booking.customer_email || "Customer")}</div>
         </div>
         <button id="bkDetailClose" class="modal-close" type="button">Close</button>
       </div>
-      <div class="modal-stack">
-        <div>
-          <label class="field-note-label field-note-label--tight">Assigned to</label>
-          <select id="bkAssignedOperator" class="input u-full-width">
+        <div class="modal-stack">
+          ${renderBookingCustomerMemoryCard(booking)}
+          <div>
+            <label class="field-note-label field-note-label--tight">Assigned to</label>
+            <select id="bkAssignedOperator" class="input u-full-width">
             ${operatorOptions.join("")}
           </select>
         </div>
@@ -788,13 +843,17 @@ function initBookingsWorkspaceBindings() {
 }
 
 const BOOKINGS_WORKSPACE_HELPERS = {
-  fetchBookings,
-  fetchOperatorMembers,
-  computeBookingRecurrenceCount,
-  renderBookingsCalendar,
-  showBookingDetail,
-  renderBookingsList,
-  renderBookings,
+    fetchBookings,
+    fetchOperatorMembers,
+    computeBookingRecurrenceCount,
+    renderBookingsCalendar,
+    bookingWorkspaceBlueprint,
+    linkedCustomerForBooking,
+    bookingCustomerMemoryItems,
+    renderBookingCustomerMemoryCard,
+    showBookingDetail,
+    renderBookingsList,
+    renderBookings,
   openWalkInBookingModal,
   openTimeLogModal,
   initBookingsWorkspaceBindings,

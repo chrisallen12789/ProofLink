@@ -68,11 +68,22 @@ function loadBookingsWorkspace(overrides = {}) {
     showToast: vi.fn(),
     notifyOperator: vi.fn(),
     opId: vi.fn(() => "operator_1"),
+    currentWorkspaceBlueprint: vi.fn(() => ({
+      business: {
+        key: "landscaping",
+        label: "Landscaping",
+        recordFocus: [{ label: "Property profile", description: "Gate, beds, and side access" }],
+      },
+    })),
     $: vi.fn((id) => elements[id] || null),
     setTimeout,
     clearTimeout,
     ...overrides,
   };
+
+  if (overrides.PROOFLINK_OPERATOR_CUSTOMER_DETAIL) {
+    context.window.PROOFLINK_OPERATOR_CUSTOMER_DETAIL = overrides.PROOFLINK_OPERATOR_CUSTOMER_DETAIL;
+  }
 
   vm.createContext(context);
   vm.runInContext(source, context);
@@ -109,10 +120,35 @@ describe("operator bookings workspace", () => {
     expect(source).toContain('message: "--"');
     expect(source).toContain("No bookings here yet. New appointments will appear here as soon as they are scheduled.");
     expect(source).toContain('saveButton.textContent = "Saving..."');
+    expect(source).toContain("Keep the trade details attached to this visit");
+    expect(source).toContain("bookingCustomerMemoryItems");
     expect(source).toContain(">Close</button>");
     expect(source).not.toContain("â€”");
     expect(source).not.toContain("Ã—");
     expect(source).not.toContain("Savingâ€¦");
     expect(source).not.toContain("Â·");
+  });
+  test("bookingCustomerMemoryItems reuses business-specific customer memory when available", () => {
+    const { context } = loadBookingsWorkspace({
+      CUSTOMERS_CACHE: [{ id: "customer_1", name: "Logan's Lawn Care", email: "logan@example.com" }],
+      PROOFLINK_OPERATOR_CUSTOMER_DETAIL: {
+        customerMemoryChecklist: vi.fn(() => ([
+          { label: "Property profile", ready: true, note: "Front lawn plus narrow side gate" },
+          { label: "Access notes", ready: false, note: "Need the gate code before arrival" },
+        ])),
+      },
+    });
+
+    const items = context.window.bookingCustomerMemoryItems({
+      id: "booking_1",
+      customer_id: "customer_1",
+      customer_name: "Logan's Lawn Care",
+      customer_email: "logan@example.com",
+    });
+
+    expect(items).toEqual([
+      { label: "Property profile", ready: true, note: "Front lawn plus narrow side gate" },
+      { label: "Access notes", ready: false, note: "Need the gate code before arrival" },
+    ]);
   });
 });
