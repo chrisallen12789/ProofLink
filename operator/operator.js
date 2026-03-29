@@ -4047,13 +4047,13 @@ btnSetPassword?.addEventListener("click", async () => {
 
 loginForm?.addEventListener("submit", async (e) => {
   e.preventDefault();
-  if (loginMsg) loginMsg.textContent = "Signing in...";
+  if (loginMsg) { loginMsg.textContent = "Signing in..."; loginMsg.className = "msg"; }
   const { error } = await sb.auth.signInWithPassword({
     email: loginEmail.value.trim().toLowerCase(),
     password: loginPassword.value,
   });
   if (error) {
-    if (loginMsg) loginMsg.textContent = error.message;
+    if (loginMsg) { loginMsg.textContent = error.message; loginMsg.className = "msg error"; }
     return;
   }
   await boot();
@@ -4092,7 +4092,7 @@ btnSendReset?.addEventListener("click", async () => {
 
   try {
     const { error } = await sb.auth.resetPasswordForEmail(email, {
-      redirectTo: getOperatorRedirectUrl() + "?type=recovery",
+      redirectTo: getOperatorRedirectUrl(),
     });
     if (error) throw error;
     if (forgotMsg) {
