@@ -31,7 +31,7 @@
       priceSuffix: '/month',
       eyebrow: 'For the growing shop',
       bestFor: 'For busy service businesses that need stronger workflow control, more operator capacity, and clearer money visibility before the mess gets expensive.',
-      limits: ['100 products', '1,000 customers', '500 monthly orders', '5 operator seats'],
+      limits: ['Unlimited products', 'Unlimited customers', 'Unlimited orders', '5 operator seats'],
       highlights: [
         'Everything in Starter',
         'Take orders online and run service workflow in one system',

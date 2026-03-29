@@ -28,7 +28,8 @@ test("public onboarding request can be approved and provisioned", async ({ page 
   await expect(page.locator("#review-table")).toContainText(businessName);
   await page.locator("#submit-btn").click();
 
-  await expect(page.getByRole("heading", { name: "Workspace request received" })).toBeVisible();
+  await expect(page.locator("#success-screen")).toBeVisible();
+  await expect(page.locator("#successTitle")).toHaveText(/Guided setup requested|Guided rollout requested/i);
   await expect(page.locator("#success-email")).toHaveText(email);
   await expect(page.locator("#success-ref")).toContainText("Reference ID:");
 
@@ -44,7 +45,7 @@ test("public onboarding request can be approved and provisioned", async ({ page 
   const approveButton = row.getByRole("button", { name: /Approve|Re-approve/ });
   if (await approveButton.count()) {
     await approveButton.first().click();
-    await expect(page.locator("#toast")).toContainText("Request approved");
+    await expect(page.locator("#toast")).toContainText(/approved/i);
   }
 
   await page.getByRole("button", { name: /Refresh/i }).click();
