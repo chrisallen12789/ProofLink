@@ -184,5 +184,5 @@ select
   cmd
 from pg_policies
 where schemaname = 'public'
-  and roles @> array['authenticated']
+  and roles @> array['authenticated']::name[]
 order by tablename, policyname;
