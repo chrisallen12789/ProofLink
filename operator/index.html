@@ -11,26 +11,7 @@
   <script src="../prooflink.tenant.js"></script>
   <script src="../prooflink.config.js"></script>
   <script src="./operator.brand.js"></script>
-
-  <script>
-    (function () {
-      const b = window.PROOFLINK_BRAND || null;
-      if (!b) return;
-      const r = document.documentElement.style;
-      r.setProperty("--accent", b.accent || "#c84b2f");
-      r.setProperty("--bg0", b.bg0 || "#0b0b0b");
-      r.setProperty("--bg1", b.bg1 || "#121212");
-      r.setProperty("--panel", b.panel || "#161616");
-      r.setProperty("--text", b.text || "#f5f2ea");
-      r.setProperty("--muted", b.muted || "#b8b1a5");
-      r.setProperty("--border", b.border || "rgba(255,255,255,.08)");
-      document.documentElement.setAttribute("data-brand", "1");
-
-      const tenant = (b.tenantName || "Tenant").trim();
-      const product = (b.productName || "ProofLink").trim();
-      document.title = `${tenant} - ${product} Operator`;
-    })();
-  </script>
+  <script src="./operator.brand-init.js"></script>
 
   <link rel="stylesheet" href="./operator.css" />
   <script defer src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
@@ -3003,20 +2984,6 @@
     <!-- Live region for toast/status notifications (FIX 2) -->
     <div id="globalToastRegion" class="toast-region" aria-live="polite" aria-atomic="true"></div>
   </div>
-
-  <!-- FIX 10: Sign-out confirmation — intercepts before operator.js listener fires -->
-  <script>
-  (function () {
-    document.addEventListener('click', function (e) {
-      var btn = e.target.closest('#btnSignOut');
-      if (!btn) return;
-      if (!confirm('Sign out of ProofLink?')) {
-        e.stopImmediatePropagation();
-        e.preventDefault();
-      }
-    }, true);
-  })();
-  </script>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <script src="/platform/plan-rules.js" defer></script>

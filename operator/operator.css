@@ -1501,6 +1501,8 @@ input, textarea, select{
   padding: 10px 12px;
   outline:none;
   margin-top: 6px;
+  /* 16px minimum prevents iOS auto-zoom on focus */
+  font-size: max(1rem, 16px);
 }
 select{
   color-scheme: dark;
@@ -3935,6 +3937,54 @@ input:focus, textarea:focus, select:focus{
   .mbn-item {
     min-height: 56px;
     min-width: 44px;
+  }
+}
+
+/* ── Mobile field-use hardening ───────────────────────────────────────────── */
+
+/* Tables overflow horizontally rather than breaking layout */
+.table-wrap{
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+}
+/* Apply table-wrap behaviour to any standalone table on mobile */
+@media (max-width: 768px){
+  table{
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    max-width: 100%;
+  }
+  /* Buttons and action icons: minimum 44×44 tap target */
+  .btn, button:not(.mbn-item){
+    min-height: 44px;
+  }
+  /* Compact action buttons (icon-only) still need a tap area */
+  .btn-icon, .action-btn, [class*="btn-sm"]{
+    min-width: 44px;
+    min-height: 44px;
+  }
+  /* Cards and panels don't overflow the screen */
+  .card, .panel, .card-bd, .modal-content{
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+  /* Modals fill the screen on mobile */
+  .modal-content{
+    width: 100% !important;
+    max-height: 90dvh;
+    overflow-y: auto;
+    border-radius: 16px 16px 0 0;
+  }
+  /* Fix fixed-width inputs that would overflow */
+  .input, input.input{
+    width: 100%;
+    max-width: 100%;
+  }
+  /* Ensure grid panels don't overflow */
+  .grid{
+    overflow-x: hidden;
   }
 }
 

@@ -4105,7 +4105,8 @@ btnSendReset?.addEventListener("click", async () => {
     if (btnSendReset) btnSendReset.disabled = false;
   }
 });
-btnSignOut?.addEventListener("click", async () => {
+btnSignOut?.addEventListener("click", async (e) => {
+  if (!confirm("Sign out of ProofLink?")) return;
   stopRealtime();
   await sb.auth.signOut();
   CURRENT_OPERATOR = null;
