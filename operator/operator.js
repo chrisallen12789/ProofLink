@@ -4229,11 +4229,13 @@ async function requireOperatorContext() {
 // This keeps the console readable even when tenant branding is dramatic.
 (function initializeReadableOperatorTheme() {
   const root = document.documentElement;
+  const themeChoiceKey = "pl_theme_choice_v2";
   window.__prooflinkThemeManaged = true;
   const savedTheme = localStorage.getItem("pl_theme");
-  if (!savedTheme) {
-    root.setAttribute("data-theme", "light");
-  }
+  const hasExplicitThemeChoice = localStorage.getItem(themeChoiceKey) === "1";
+  const preferredTheme = hasExplicitThemeChoice && ["light", "dark"].includes(savedTheme) ? savedTheme : "light";
+  root.setAttribute("data-theme", preferredTheme);
+  localStorage.setItem("pl_theme", preferredTheme);
 
   const originalButton = $("btnDarkMode");
   if (!originalButton) return;
@@ -4243,8 +4245,8 @@ async function requireOperatorContext() {
 
   function syncThemeButton() {
     const activeTheme = root.getAttribute("data-theme") || "light";
-    replacementButton.textContent = activeTheme === "light" ? "◐" : "☀";
     replacementButton.title = activeTheme === "light" ? "Switch to dark mode" : "Switch to light mode";
+    replacementButton.textContent = activeTheme === "light" ? "Dark mode" : "Light mode";
   }
 
   syncThemeButton();
@@ -4254,6 +4256,7 @@ async function requireOperatorContext() {
     const nextTheme = currentTheme === "light" ? "dark" : "light";
     root.setAttribute("data-theme", nextTheme);
     localStorage.setItem("pl_theme", nextTheme);
+    localStorage.setItem(themeChoiceKey, "1");
     syncThemeButton();
   });
 })();

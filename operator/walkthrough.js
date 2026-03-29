@@ -3,7 +3,6 @@
 
   var STORAGE_KEY = 'prooflink_tour_completed_v2';
   var TOUR = null;
-  var AUTO_STARTED = false;
 
   function isLoggedIn() {
     var app = document.getElementById('viewApp');
@@ -291,13 +290,6 @@
     TOUR.start({ force: !!force });
   }
 
-  function tryAutoStart() {
-    if (AUTO_STARTED) return;
-    if (!isLoggedIn()) return;
-    AUTO_STARTED = true;
-    bootTour(false);
-  }
-
   window.PROOFLINK_WALKTHROUGH = {
     start: function (opts) { bootTour(!!(opts && opts.force)); },
     restart: function () { bootTour(true); },
@@ -311,17 +303,4 @@
     if (TOUR) setTimeout(function () { renderStep(TOUR); }, 180);
   });
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', function () { setTimeout(tryAutoStart, 1400); });
-  } else {
-    setTimeout(tryAutoStart, 1400);
-  }
-
-  var originalSetItem = sessionStorage.setItem.bind(sessionStorage);
-  sessionStorage.setItem = function (key, value) {
-    originalSetItem(key, value);
-    if (key === 'pl_op_token' && value) {
-      setTimeout(tryAutoStart, 450);
-    }
-  };
 })();

@@ -2,8 +2,6 @@
   var TOUR_KEY = 'pl_tour_v1';
   var step = 1;
   var TOTAL = 4;
-  var autoShowAttempts = 0;
-  var maxAutoShowAttempts = 20;
 
   function modal(){ return document.getElementById('tourModal'); }
   function viewApp(){ return document.getElementById('viewApp'); }
@@ -50,24 +48,5 @@
 
   document.querySelector('.tour-backdrop').addEventListener('click', window.tourFinish);
 
-  // Exposed so operator.js can re-trigger the tour check after a post-password-setup boot,
-  // by which point the page-load poll may have already expired.
-  window.__plTourReady = maybeAutoShowTour;
-
-  function maybeAutoShowTour(){
-    if (canAutoShowTour()) {
-      goTo(1);
-      modal().classList.remove('hidden');
-      return;
-    }
-
-    autoShowAttempts += 1;
-    if (autoShowAttempts < maxAutoShowAttempts && !localStorage.getItem(TOUR_KEY)) {
-      setTimeout(maybeAutoShowTour, 600);
-    }
-  }
-
-  if (!localStorage.getItem(TOUR_KEY)) {
-    setTimeout(maybeAutoShowTour, 900);
-  }
+  window.__plTourReady = function(){};
 })();
