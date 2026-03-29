@@ -20,5 +20,33 @@ module.exports = defineConfig({
         ...devices["Desktop Chrome"],
       },
     },
+    {
+      name: "firefox-smoke",
+      testMatch: /operator-cross-device-smoke\.spec\.js/,
+      use: {
+        ...devices["Desktop Firefox"],
+      },
+    },
+    {
+      name: "webkit-smoke",
+      testMatch: /operator-cross-device-smoke\.spec\.js/,
+      use: {
+        ...devices["Desktop Safari"],
+      },
+    },
+    {
+      name: "iphone-smoke",
+      testMatch: /operator-cross-device-smoke\.spec\.js/,
+      use: {
+        ...devices["iPhone 13"],
+      },
+    },
+    {
+      name: "pixel-smoke",
+      testMatch: /operator-cross-device-smoke\.spec\.js/,
+      use: {
+        ...devices["Pixel 7"],
+      },
+    },
   ],
 });

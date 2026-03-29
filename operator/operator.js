@@ -203,6 +203,8 @@ const viewApp = $("viewApp");
 const btnSignOut = $("btnSignOut");
 const btnStartTour = $("btnStartTour");
 const sessionEmail = $("sessionEmail");
+const mobileBottomNav = $("mobileBottomNav");
+const headerSearch = $("globalSearch");
 
 const loginForm = $("loginForm");
 const loginEmail = $("loginEmail");
@@ -3768,6 +3770,8 @@ function showLogin(message = "") {
   viewForgotPassword?.classList.add("hidden");
   btnSignOut?.classList.add("hidden");
   btnStartTour?.classList.add("hidden");
+  mobileBottomNav?.setAttribute("hidden", "hidden");
+  headerSearch?.setAttribute("hidden", "hidden");
   if (sessionEmail) sessionEmail.textContent = "";
   if (loginPassword) loginPassword.type = "password";
   passwordToggleButtons
@@ -3782,6 +3786,8 @@ function showApp(user) {
   viewForgotPassword?.classList.add("hidden");
   btnSignOut?.classList.remove("hidden");
   btnStartTour?.classList.remove("hidden");
+  mobileBottomNav?.removeAttribute("hidden");
+  headerSearch?.removeAttribute("hidden");
   if (sessionEmail) sessionEmail.textContent = user?.email || "";
   if (loginMsg) loginMsg.textContent = "";
 }
@@ -3928,6 +3934,8 @@ async function showPasswordSetup(mode) {
   viewForgotPassword?.classList.add("hidden");
   btnSignOut?.classList.remove("hidden");
   btnStartTour?.classList.remove("hidden");
+  mobileBottomNav?.setAttribute("hidden", "hidden");
+  headerSearch?.setAttribute("hidden", "hidden");
   if (newPasswordInput) newPasswordInput.value = "";
   if (confirmPasswordInput) confirmPasswordInput.value = "";
   if (btnSetPassword) btnSetPassword.disabled = false;
@@ -3966,6 +3974,8 @@ function showForgotPassword() {
   viewForgotPassword?.classList.remove("hidden");
   btnSignOut?.classList.add("hidden");
   btnStartTour?.classList.add("hidden");
+  mobileBottomNav?.setAttribute("hidden", "hidden");
+  headerSearch?.setAttribute("hidden", "hidden");
   if (forgotMsg) forgotMsg.textContent = "";
   if (forgotEmail) forgotEmail.value = loginEmail?.value || "";
 }
