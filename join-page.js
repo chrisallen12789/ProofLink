@@ -592,12 +592,16 @@
       const inputId = btn.getAttribute("data-password-toggle");
       const input = inputId ? $(inputId) : null;
       if (!input) return;
-      btn.addEventListener("click", () => {
+      // Prevent the keyboard-dismiss/layout-shift that eats taps on all mobile browsers
+      btn.addEventListener("mousedown", (e) => e.preventDefault());
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
         input.type = input.type === "password" ? "text" : "password";
         const showing = input.type === "text";
         btn.textContent = showing ? "Hide" : "Show";
         btn.setAttribute("aria-pressed", showing ? "true" : "false");
         btn.setAttribute("aria-label", (showing ? "Hide" : "Show") + " password");
+        input.focus();
       });
     });
   }

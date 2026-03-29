@@ -3808,9 +3808,19 @@ function bindPasswordToggle(button) {
   const input = inputId ? $(inputId) : null;
   if (!input) return;
   updatePasswordToggleButton(button, input);
-  button.addEventListener("click", () => {
+
+  // Prevent mousedown from triggering a blur/focus cycle on the adjacent input.
+  // Without this, tapping the button on mobile causes the keyboard to dismiss
+  // and re-appear mid-gesture, which shifts the layout and eats the tap on
+  // Chrome Android, Firefox Mobile, Samsung Internet, and iOS Safari alike.
+  button.addEventListener("mousedown", (e) => e.preventDefault());
+
+  button.addEventListener("click", (e) => {
+    e.preventDefault();
     input.type = input.type === "password" ? "text" : "password";
     updatePasswordToggleButton(button, input);
+    // Return focus to the input so the cursor position is preserved
+    input.focus();
   });
 }
 
