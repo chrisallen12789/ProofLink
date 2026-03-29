@@ -2238,6 +2238,7 @@ input:focus, textarea:focus, select:focus{
 }
 .password-toggle{
   min-width:64px;
+  min-height:44px;
   padding:.6rem .75rem;
   border-radius:12px;
   border:1px solid var(--border);
@@ -2247,6 +2248,9 @@ input:focus, textarea:focus, select:focus{
   font-size:.8rem;
   font-weight:600;
   cursor:pointer;
+  touch-action:manipulation;
+  -webkit-tap-highlight-color:transparent;
+  user-select:none;
 }
 .password-toggle[aria-pressed="true"]{
   background:rgba(200,75,47,.18);

@@ -21,6 +21,7 @@
     phone: "",
     couponCode: "",
     setupMode: "self_serve",
+    ownerPassword: "",
   };
 
   const fallbackTypeLabels = {
@@ -307,6 +308,28 @@
       setFieldError("phone", "err-phone", false);
     }
 
+    // Password required for self-serve instant signup
+    if (isSelfServePlan() && resolvedSetupMode() === "self_serve") {
+      const password = $("owner_password")?.value || "";
+      const confirm = $("owner_password_confirm")?.value || "";
+      const complexityRe = /[0-9!@#$%^&*()\-_=+[\]{};:'",.<>?/\\|`~]/;
+      if (!password || password.length < 8 || !complexityRe.test(password)) {
+        setFieldError("owner_password", "err-owner_password", true);
+        valid = false;
+      } else {
+        setFieldError("owner_password", "err-owner_password", false);
+      }
+      if (valid && password !== confirm) {
+        setFieldError("owner_password_confirm", "err-owner_password_confirm", true);
+        valid = false;
+      } else {
+        setFieldError("owner_password_confirm", "err-owner_password_confirm", false);
+      }
+      if (valid) state.ownerPassword = password;
+    } else {
+      state.ownerPassword = "";
+    }
+
     if (!valid) return false;
 
     state.ownerName = ownerName;
@@ -358,6 +381,7 @@
       coupon_code: state.couponCode || undefined,
       requested_help: resolvedSetupMode() === "guided",
       intake_mode: resolvedSetupMode(),
+      owner_password: state.ownerPassword || undefined,
     };
   }
 
@@ -523,6 +547,7 @@
         state.setupMode = mode;
         renderSetupModeCards();
         renderPlanContext();
+        updateJoinPasswordVisibility();
       });
     });
   }
@@ -547,6 +572,47 @@
 
     $("backFromStep4")?.addEventListener("click", () => showSection(3));
     $("submit-btn")?.addEventListener("click", submitForm);
+  }
+
+  function updateJoinPasswordVisibility() {
+    const selfServe = isSelfServePlan() && resolvedSetupMode() === "self_serve";
+    const pwRow = $("join-password-row");
+    const confirmRow = $("join-password-confirm-row");
+    if (pwRow) pwRow.style.display = selfServe ? "" : "none";
+    if (confirmRow) confirmRow.style.display = selfServe ? "" : "none";
+    if (!selfServe) {
+      if ($("owner_password")) $("owner_password").value = "";
+      if ($("owner_password_confirm")) $("owner_password_confirm").value = "";
+      state.ownerPassword = "";
+    }
+  }
+
+  function bindJoinPasswordToggles() {
+    document.querySelectorAll(".join-password-toggle[data-password-toggle]").forEach((btn) => {
+      const inputId = btn.getAttribute("data-password-toggle");
+      const input = inputId ? $(inputId) : null;
+      if (!input) return;
+      btn.addEventListener("click", () => {
+        input.type = input.type === "password" ? "text" : "password";
+        const showing = input.type === "text";
+        btn.textContent = showing ? "Hide" : "Show";
+        btn.setAttribute("aria-pressed", showing ? "true" : "false");
+        btn.setAttribute("aria-label", (showing ? "Hide" : "Show") + " password");
+      });
+    });
+  }
+
+  function bindJoinPasswordStrength() {
+    const passwordInput = $("owner_password");
+    if (!passwordInput) return;
+    const ruleLength = $("join-rule-length");
+    const ruleComplexity = $("join-rule-complexity");
+    const complexityRe = /[0-9!@#$%^&*()\-_=+[\]{};:'",.<>?/\\|`~]/;
+    passwordInput.addEventListener("input", () => {
+      const val = passwordInput.value;
+      if (ruleLength) ruleLength.classList.toggle("ok", val.length >= 8);
+      if (ruleComplexity) ruleComplexity.classList.toggle("ok", complexityRe.test(val));
+    });
   }
 
   function bindCouponField() {
@@ -583,6 +649,9 @@
     bindSlugChecker();
     bindNavigation();
     bindCouponField();
+    bindJoinPasswordToggles();
+    bindJoinPasswordStrength();
+    updateJoinPasswordVisibility();
     updateProgress(1);
   }
 

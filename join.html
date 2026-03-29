@@ -194,6 +194,32 @@
           </div>
         </div>
 
+        <!-- Password fields — shown only for self-serve plans -->
+        <div class="field-row single" id="join-password-row">
+          <div class="field">
+            <label for="owner_password">Create a password</label>
+            <div class="join-password-wrap">
+              <input type="password" id="owner_password" placeholder="At least 8 characters" autocomplete="new-password" aria-required="true" aria-describedby="join-password-rules" />
+              <button type="button" class="join-password-toggle" data-password-toggle="owner_password" aria-label="Show password" aria-pressed="false">Show</button>
+            </div>
+            <div id="join-password-rules" class="join-password-rules">
+              <span id="join-rule-length">At least 8 characters</span>
+              <span id="join-rule-complexity">One number or symbol</span>
+            </div>
+            <p class="field-error" id="err-owner_password">Create a password (8+ characters, include a number or symbol).</p>
+          </div>
+        </div>
+        <div class="field-row single" id="join-password-confirm-row">
+          <div class="field">
+            <label for="owner_password_confirm">Confirm password</label>
+            <div class="join-password-wrap">
+              <input type="password" id="owner_password_confirm" placeholder="Repeat your password" autocomplete="new-password" aria-required="true" />
+              <button type="button" class="join-password-toggle" data-password-toggle="owner_password_confirm" aria-label="Show password" aria-pressed="false">Show</button>
+            </div>
+            <p class="field-error" id="err-owner_password_confirm">Passwords do not match.</p>
+          </div>
+        </div>
+
         <div class="setup-mode-grid" id="setupModeGrid">
           <button class="setup-mode-card selected" type="button" data-setup-mode="self_serve">
             <span class="setup-mode-card__eyebrow">Recommended</span>

@@ -389,6 +389,46 @@ textarea {
   font-size: 0.8rem;
 }
 
+.join-password-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.join-password-wrap input {
+  flex: 1;
+}
+.join-password-toggle {
+  min-width: 64px;
+  min-height: 44px;
+  padding: 0.55rem 0.75rem;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+.join-password-toggle[aria-pressed="true"] {
+  background: rgba(200, 75, 47, 0.12);
+  border-color: rgba(200, 75, 47, 0.4);
+}
+.join-password-rules {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin-top: 0.2rem;
+}
+.join-password-rules span.ok {
+  color: var(--success, #22c55e);
+}
+
 .setup-mode-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

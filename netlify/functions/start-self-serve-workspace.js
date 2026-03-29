@@ -59,8 +59,9 @@ function validatePayload(payload) {
   }
 }
 
-async function findOrCreateAuthUser(supabase, email) {
+async function findOrCreateAuthUser(supabase, email, password = null) {
   const normalized = clean(email).toLowerCase();
+  // Check if user already exists (paginated search)
   let page = 1;
   while (page <= 10) {
     const { data, error } = await supabase.auth.admin.listUsers({ page, perPage: 500 });
@@ -71,12 +72,16 @@ async function findOrCreateAuthUser(supabase, email) {
     page += 1;
   }
 
-  const { data, error } = await supabase.auth.admin.createUser({
+  const createParams = {
     email: normalized,
     email_confirm: true,
-  });
+  };
+  if (password) createParams.password = password;
+
+  const { data, error } = await supabase.auth.admin.createUser(createParams);
   if (error) throw error;
-  return data?.user || null;
+  if (!data?.user?.id) throw new Error('Auth user created but returned no user ID');
+  return data.user;
 }
 
 async function recordProvisionedRequest(supabase, payload, tenantSlug) {
@@ -123,100 +128,122 @@ exports.handler = async (event) => {
     const payload = normalizePayload(body);
     validatePayload(payload);
     const supabase = getAdminClient();
+    const ownerPassword = clean(body.owner_password) || null;
+    const siteUrl = getConfiguredSiteUrl();
 
+    // ── Step 1: Create or recover auth user FIRST ────────────────────────────
+    // We create the auth user before the bundle so we can pass user_id into
+    // operator_members in one shot. This prevents the user_id=NULL lockout bug.
+    const authUser = await findOrCreateAuthUser(supabase, payload.owner_email, ownerPassword);
+    if (!authUser?.id) {
+      throw Object.assign(
+        new Error('Could not create or retrieve auth user for this email.'),
+        { statusCode: 500 }
+      );
+    }
+
+    // ── Step 2: Provision the tenant bundle ──────────────────────────────────
     const subdomain = payload.requested_subdomain || slugify(payload.business_name);
-    const rpcPayload = {
-      business_name: payload.business_name,
-      owner_name: payload.owner_name,
-      email: payload.owner_email,
-      phone: payload.phone,
+    const bundlePayload = {
+      ...payload,
+      requested_subdomain: subdomain,
       business_category: payload.business_type,
-      selected_plan: payload.selected_plan,
-      fulfillment_model: 'service',
-      service_area: payload.city_state || '',
+      service_area: payload.city_state,
       brand_color: '',
       logo_url: '',
-      subdomain_preference: subdomain,
-      platform_name: 'ProofLink',
       notes: 'Self-serve join flow',
+      user_id: authUser.id,           // included so operator_members gets user_id upfront
     };
+
     let result;
     try {
-      result = await supabaseAdmin('/rest/v1/rpc/create_tenant_bundle', 'POST', rpcPayload);
+      result = await supabaseAdmin('/rest/v1/rpc/create_tenant_bundle', 'POST', {
+        business_name     : payload.business_name,
+        owner_name        : payload.owner_name,
+        email             : payload.owner_email,
+        phone             : payload.phone,
+        business_category : payload.business_type,
+        selected_plan     : payload.selected_plan,
+        fulfillment_model : 'service',
+        service_area      : payload.city_state || '',
+        brand_color       : '',
+        logo_url          : '',
+        subdomain_preference: subdomain,
+        platform_name     : 'ProofLink',
+        notes             : 'Self-serve join flow',
+      });
     } catch (error) {
       if (!isMissingCreateTenantBundleRpcError(error)) throw error;
-
-      result = await provisionTenantBundle({
-        supabase,
-        payload: {
-          ...payload,
-          requested_subdomain: subdomain,
-          business_category: payload.business_type,
-          service_area: payload.city_state,
-          brand_color: '',
-          logo_url: '',
-          notes: 'Self-serve join flow',
-        },
-      });
+      result = await provisionTenantBundle({ supabase, payload: bundlePayload });
     }
 
-    const tenantId = clean(result?.tenant_id || result?.tenantId);
-    const tenantSlug = clean(result?.tenant_slug || result?.tenantSlug || subdomain);
-    const operatorId = clean(result?.operator_id || result?.operatorId);
+    const tenantId   = clean(result?.tenant_id   || result?.tenantId);
+    const tenantSlug = clean(result?.tenant_slug  || result?.tenantSlug  || subdomain);
+    const operatorId = clean(result?.operator_id  || result?.operatorId);
     if (!tenantId || !tenantSlug) {
-      throw Object.assign(new Error('Workspace was created but the tenant record did not return correctly.'), {
-        statusCode: 500,
-      });
+      throw Object.assign(
+        new Error('Workspace was created but the tenant record did not return correctly.'),
+        { statusCode: 500 }
+      );
     }
 
-    const siteUrl = getConfiguredSiteUrl();
-    const onboardingUrl = `${siteUrl}/operator/onboarding.html?tenant=${encodeURIComponent(tenantSlug)}&plan=${encodeURIComponent(payload.selected_plan)}&selfServe=1`;
-    const authUser = await findOrCreateAuthUser(supabase, payload.owner_email);
-
-    if (authUser?.id && tenantId && operatorId) {
+    // ── Step 3: Guarantee user_id is linked ──────────────────────────────────
+    // The JS bundle path reads user_id from bundlePayload; the RPC path may not.
+    // This update is targeted and skips rows already linked (is null guard).
+    if (tenantId && operatorId) {
       const { error: memberError } = await supabase
         .from('operator_members')
-        .update({ user_id: authUser.id, updated_at: new Date().toISOString() })
+        .update({ user_id: authUser.id })
         .eq('tenant_id', tenantId)
-        .eq('operator_id', operatorId);
+        .eq('operator_id', operatorId)
+        .is('user_id', null);
       if (memberError) {
-        console.warn('[start-self-serve-workspace] operator_members user link non-fatal:', memberError.message);
+        // Hard fail — a customer who can't log in is worse than a failed provision
+        throw Object.assign(
+          new Error(`Could not link auth user to membership: ${memberError.message}`),
+          { statusCode: 500 }
+        );
       }
     }
 
-    let loginUrl = onboardingUrl;
-    let passwordSetupUrl = `${siteUrl}/operator/`;
-    try {
-      loginUrl = await buildMagicLinkUrl(supabase, payload.owner_email, onboardingUrl);
-    } catch (error) {
-      console.warn('[start-self-serve-workspace] magic link generation non-fatal:', error.message);
-    }
-    try {
-      passwordSetupUrl = await buildPasswordSetupUrl(supabase, payload.owner_email, `${siteUrl}/operator/`);
-    } catch (error) {
-      console.warn('[start-self-serve-workspace] password setup link generation non-fatal:', error.message);
+    // ── Step 4: Build the login URL ──────────────────────────────────────────
+    const onboardingUrl = `${siteUrl}/operator/onboarding.html?tenant=${encodeURIComponent(tenantSlug)}&plan=${encodeURIComponent(payload.selected_plan)}&selfServe=1`;
+    let loginUrl = `${siteUrl}/operator/`;
+
+    if (!ownerPassword) {
+      // No password set at signup — send a one-time setup link
+      try {
+        loginUrl = await buildPasswordSetupUrl(supabase, payload.owner_email, `${siteUrl}/operator/`);
+      } catch (error) {
+        console.warn('[start-self-serve-workspace] password setup link non-fatal:', error.message);
+        try {
+          loginUrl = await buildMagicLinkUrl(supabase, payload.owner_email, onboardingUrl);
+        } catch (err) {
+          console.warn('[start-self-serve-workspace] magic link non-fatal:', err.message);
+        }
+      }
     }
 
     await recordProvisionedRequest(supabase, payload, tenantSlug);
 
     sendEmail(templates.provisioned({
-      owner_name: payload.owner_name,
+      owner_name   : payload.owner_name,
       business_name: payload.business_name,
-      owner_email: payload.owner_email,
-      login_url: passwordSetupUrl || loginUrl,
-      store_slug: tenantSlug,
+      owner_email  : payload.owner_email,
+      login_url    : loginUrl,
+      store_slug   : tenantSlug,
       business_type: payload.business_type || null,
     })).catch((error) => console.warn('[start-self-serve-workspace] email failed:', error.message));
 
     return respond(201, {
-      mode: 'self_serve',
-      message: 'Workspace created successfully',
-      tenant_id: tenantId,
-      tenant_slug: tenantSlug,
-      operator_id: operatorId || null,
-      login_url: loginUrl,
+      mode          : 'self_serve',
+      message       : 'Workspace created successfully',
+      tenant_id     : tenantId,
+      tenant_slug   : tenantSlug,
+      operator_id   : operatorId || null,
+      login_url     : loginUrl,
       onboarding_url: onboardingUrl,
-      selected_plan: payload.selected_plan,
+      selected_plan : payload.selected_plan,
     });
   } catch (error) {
     return respond(error.statusCode || 500, { error: error.message || 'Unable to create workspace' });

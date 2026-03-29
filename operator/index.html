@@ -158,15 +158,14 @@
                 <input id="loginEmail" type="email" autocomplete="username" required />
               </label>
 
-              <label>Password
-                <div class="password-input-wrap">
-                  <input id="loginPassword" type="password" autocomplete="current-password" aria-describedby="loginMsg" required />
-                  <button type="button" class="password-toggle" data-password-toggle="loginPassword" aria-label="Show password" aria-pressed="false">Show</button>
-                </div>
-              </label>
+              <label for="loginPassword">Password</label>
+              <div class="password-input-wrap">
+                <input id="loginPassword" type="password" autocomplete="current-password" aria-describedby="loginMsg" required />
+                <button type="button" class="password-toggle" data-password-toggle="loginPassword" aria-label="Show password" aria-pressed="false">Show</button>
+              </div>
 
               <div class="auth-inline-action">
-                <a href="javascript:void(0)" id="btnForgotPassword" class="link-inline">Forgot password?</a>
+                <button type="button" id="btnForgotPassword" class="link-inline">Forgot password?</button>
               </div>
 
               <div class="row">
