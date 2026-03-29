@@ -4246,6 +4246,7 @@ async function requireOperatorContext() {
   const preferredTheme = hasExplicitThemeChoice && ["light", "dark"].includes(savedTheme) ? savedTheme : "light";
   root.setAttribute("data-theme", preferredTheme);
   localStorage.setItem("pl_theme", preferredTheme);
+  window.applyProoflinkBrandTheme?.(preferredTheme);
 
   const originalButton = $("btnDarkMode");
   if (!originalButton) return;
@@ -4267,6 +4268,7 @@ async function requireOperatorContext() {
     root.setAttribute("data-theme", nextTheme);
     localStorage.setItem("pl_theme", nextTheme);
     localStorage.setItem(themeChoiceKey, "1");
+    window.applyProoflinkBrandTheme?.(nextTheme);
     syncThemeButton();
   });
 })();
