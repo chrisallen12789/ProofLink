@@ -4,6 +4,7 @@ const { uniqueTenantSlug } = require('./utils/slugify');
 const { seedTemplateForTenant } = require('./lib/seed-templates');
 const { getConfiguredSiteUrl } = require('./utils/runtime-config');
 const { buildPasswordSetupUrl } = require('./utils/auth-links');
+const { getDefaultApplicationFeeBps } = require('./utils/payment-policy');
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return respond(200, {});
@@ -203,6 +204,7 @@ exports.handler = async (event) => {
         onboarding_request_id: id,
         setup_complete       : false,
         active               : true,
+        application_fee_bps  : getDefaultApplicationFeeBps(),
         billing_exempt       : couponApplied,
         billing_exempt_until : exemptUntil,
       },

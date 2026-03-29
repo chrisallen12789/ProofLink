@@ -113,6 +113,10 @@ describe("netlify/functions/portal-checkout", () => {
       paymentsMockExports: {
         stripeRequest,
         getBaseUrl: () => "https://prooflink.co",
+        ensureTenantApplicationFeeBps: vi.fn(async (tenant) => ({
+          ...tenant,
+          application_fee_bps: 750,
+        })),
       },
     });
 
@@ -136,6 +140,7 @@ describe("netlify/functions/portal-checkout", () => {
         expect.objectContaining({
           success_url: "https://prooflink.co/portal.html?tenant=tenant_123&email=customer%40example.com&order_id=order_123&checkout=success&session_id=%7BCHECKOUT_SESSION_ID%7D",
           cancel_url: "https://prooflink.co/portal.html?tenant=tenant_123&email=customer%40example.com&order_id=order_123&checkout=cancel",
+          "payment_intent_data[application_fee_amount]": 3000,
         })
       );
     } finally {
@@ -189,6 +194,7 @@ describe("netlify/functions/portal-checkout", () => {
       paymentsMockExports: {
         stripeRequest,
         getBaseUrl: () => "https://prooflink.co",
+        ensureTenantApplicationFeeBps: vi.fn(async (tenant) => tenant),
       },
     });
 

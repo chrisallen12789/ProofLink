@@ -1,5 +1,9 @@
 // FILE: netlify/functions/_prooflink_payments.js
 const crypto = require('crypto');
+const {
+  needsApplicationFeeBackfill,
+  resolveApplicationFeeBps,
+} = require('./utils/payment-policy');
 
 function json(statusCode, body) {
   return {
@@ -244,6 +248,37 @@ async function patchTenant(tenantId, patch) {
   ).catch(() => null);
 }
 
+async function ensureTenantApplicationFeeBps(tenant = {}) {
+  const currentTenant = tenant && typeof tenant === 'object' ? tenant : {};
+  const resolvedBps = resolveApplicationFeeBps(currentTenant.application_fee_bps);
+
+  if (!needsApplicationFeeBackfill(currentTenant.application_fee_bps)) {
+    return {
+      ...currentTenant,
+      application_fee_bps: resolvedBps,
+    };
+  }
+
+  const tenantKey = clean(currentTenant.id || currentTenant.tenant_id || currentTenant.slug);
+  if (!tenantKey) {
+    return {
+      ...currentTenant,
+      application_fee_bps: resolvedBps,
+    };
+  }
+
+  const patched = await patchTenant(tenantKey, {
+    application_fee_bps: resolvedBps,
+    updated_at: new Date().toISOString(),
+  }).catch(() => null);
+
+  return {
+    ...currentTenant,
+    ...(patched || {}),
+    application_fee_bps: resolveApplicationFeeBps(patched?.application_fee_bps, resolvedBps),
+  };
+}
+
 async function upsertPaymentRecord(payload) {
   return supabaseAdmin('/rest/v1/payments', 'POST', payload);
 }
@@ -418,6 +453,7 @@ module.exports = {
   patchTenant,
   readJson,
   requireOperatorContext,
+  ensureTenantApplicationFeeBps,
   stripeRequest,
   supabaseAdmin,
   upsertPaymentRecord,

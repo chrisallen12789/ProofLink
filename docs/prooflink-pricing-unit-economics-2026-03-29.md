@@ -118,8 +118,9 @@ That means the software subscription should stay flat-rate, while tenant transac
 
 Important implementation note:
 
-- The repo still needs one explicit production rule for how this is enforced in Stripe Connect, because the current code path supports platform fees but the tenant database default for `application_fee_bps` is still `0`.
-- I am treating this as a business policy that still needs final technical enforcement, not as something fully guaranteed by the current code.
+- The codebase now enforces a default tenant application fee policy through provisioning and checkout flows.
+- The default is `750` basis points unless overridden by `PROOFLINK_DEFAULT_APPLICATION_FEE_BPS`.
+- Legacy tenants with missing or zero `application_fee_bps` are also backfilled in the payment path so ProofLink does not silently absorb those checkout costs.
 
 ## Flat-rate recommendation
 

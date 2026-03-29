@@ -332,6 +332,11 @@ describe("netlify/functions/provision-tenant", () => {
       });
 
       expect(res.statusCode).toBe(201);
+      expect(supabase._calls.tenantsInsert).toHaveBeenCalledWith([
+        expect.objectContaining({
+          application_fee_bps: 750,
+        }),
+      ]);
       expect(JSON.parse(res.body).operator_id).toBe("operator_existing");
       expect(supabase._calls.operatorsInsert).not.toHaveBeenCalled();
       expect(supabase._calls.operatorMembersUpsert).toHaveBeenCalled();

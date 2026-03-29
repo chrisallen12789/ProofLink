@@ -2,6 +2,7 @@
 const {
   buildTenantPaymentState,
   clean,
+  ensureTenantApplicationFeeBps,
   getBaseUrl,
   json,
   readJson,
@@ -44,7 +45,8 @@ exports.handler = async (event) => {
       throw Object.assign(new Error('Order not found inside this tenant scope.'), { statusCode: 404 });
     }
 
-    const tenant = await findTenantById(tenantId).catch(() => null);
+    const tenantRecord = await findTenantById(tenantId).catch(() => null);
+    const tenant = await ensureTenantApplicationFeeBps(tenantRecord || {});
     const paymentState = buildTenantPaymentState(tenant || {});
     const stripeAccountId = clean(
       body.stripeAccountId ||
@@ -69,7 +71,7 @@ exports.handler = async (event) => {
       throw Object.assign(new Error('Order total must be at least $0.50 to create checkout.'), { statusCode: 400 });
     }
 
-    const feeBps = Math.max(0, Number(body.applicationFeeBps ?? tenant?.application_fee_bps ?? 0));
+    const feeBps = Math.max(0, Number(tenant?.application_fee_bps || 0));
     const applicationFee = feeBps > 0 ? Math.round(amount * (feeBps / 10000)) : 0;
     const currency = clean(body.currency || tenant?.currency || 'usd').toLowerCase();
     const baseUrl = getBaseUrl(event);

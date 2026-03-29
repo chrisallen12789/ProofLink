@@ -66,6 +66,7 @@ describe("netlify/functions/create-tenant-bundle", () => {
     const { handler, restore } = loadHandlerWithMocks({
       paymentsExports: {
         clean: (value) => String(value || "").trim(),
+        ensureTenantApplicationFeeBps: vi.fn(async (tenant) => tenant),
         json: (statusCode, body) => ({ statusCode, body: JSON.stringify(body) }),
         readJson: () => ({
           business_name: "Fallback Plumbing",

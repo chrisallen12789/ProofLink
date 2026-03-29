@@ -3,6 +3,7 @@
 const { uniqueTenantSlug } = require("../utils/slugify");
 const { normalizeBusinessTypeKey } = require("../utils/business-type");
 const { seedTemplateForTenant } = require("./seed-templates");
+const { getDefaultApplicationFeeBps } = require("../utils/payment-policy");
 
 function clean(value) {
   return String(value || "").trim();
@@ -117,6 +118,7 @@ async function provisionTenantBundle({ supabase, payload, invitedByOperatorId = 
       prooflink_plan_key: selectedPlan,
       billing_status: "onboarding",
       connect_status: "connect_not_started",
+      application_fee_bps: getDefaultApplicationFeeBps(),
       payments_enabled: false,
       online_payments_enabled: false,
       billing_exempt: couponApplied,

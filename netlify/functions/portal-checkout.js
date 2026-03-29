@@ -5,7 +5,7 @@
 // GET ?order_id=<uuid>&email=<customer_email>
 
 const { getAdminClient, respond } = require('./utils/auth');
-const { stripeRequest, getBaseUrl } = require('./_prooflink_payments');
+const { stripeRequest, getBaseUrl, ensureTenantApplicationFeeBps } = require('./_prooflink_payments');
 const { checkRateLimit, rateLimitResponse, getClientIP } = require('./utils/rate-limit');
 
 const TERMINAL_STATUSES = new Set(['cancelled', 'canceled', 'void', 'paid']);
@@ -88,7 +88,7 @@ exports.handler = async (event) => {
     // --- Fetch tenant Stripe account ---
     const { data: tenantRows, error: tenantErr } = await supabase
       .from('tenants')
-      .select('id, stripe_connect_account_id, stripe_account_id')
+      .select('id, stripe_connect_account_id, stripe_account_id, application_fee_bps')
       .eq('id', order.tenant_id)
       .limit(1);
 
@@ -102,9 +102,10 @@ exports.handler = async (event) => {
       console.error('[portal-checkout] tenant not found for order tenant_id:', order.tenant_id);
       return respond(404, { ok: false, error: 'Provider not found' });
     }
+    const tenantWithFeePolicy = await ensureTenantApplicationFeeBps(tenant || {});
     const stripeAccountId = (
-      tenant?.stripe_connect_account_id ||
-      tenant?.stripe_account_id         ||
+      tenantWithFeePolicy?.stripe_connect_account_id ||
+      tenantWithFeePolicy?.stripe_account_id         ||
       ''
     ).trim();
 
@@ -131,6 +132,11 @@ exports.handler = async (event) => {
     const successUrl = `${baseUrl}/portal.html?${successParams.toString()}`;
     const cancelUrl = `${baseUrl}/portal.html?${cancelParams.toString()}`;
 
+    const applicationFeeBps = Number(tenantWithFeePolicy?.application_fee_bps || 0);
+    const applicationFee = applicationFeeBps > 0
+      ? Math.round(balanceCents * (applicationFeeBps / 10000))
+      : 0;
+
     // --- Create Stripe Checkout session ---
     const productName = (order.title || 'Outstanding Balance').trim();
 
@@ -143,6 +149,7 @@ exports.handler = async (event) => {
       'line_items[0][price_data][unit_amount]'          : balanceCents,
       'line_items[0][price_data][product_data][name]'   : productName,
       'line_items[0][quantity]'                         : 1,
+      'payment_intent_data[application_fee_amount]'     : applicationFee,
       'payment_intent_data[transfer_data][destination]' : stripeAccountId,
       'payment_intent_data[metadata][order_id]'         : orderId,
       'payment_intent_data[metadata][tenant_id]'        : order.tenant_id,

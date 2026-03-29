@@ -7,6 +7,7 @@
 
 const { getAdminClient, respond } = require('./utils/auth');
 const { normalizeBusinessTypeKey } = require('./utils/business-type');
+const { resolveApplicationFeeBps } = require('./utils/payment-policy');
 const { checkRateLimit, rateLimitResponse, getClientIP } = require('./utils/rate-limit');
 
 function clean(value) {
@@ -254,7 +255,7 @@ function toResponse(tenant, cfg) {
         },
         commerce: {
           connectPath: '/.netlify/functions/stripe-connect-link',
-          applicationFeeBps: 750,
+          applicationFeeBps: resolveApplicationFeeBps(tenant.application_fee_bps),
           allowedModes: ['invoice', 'checkout'],
           defaultMode: 'invoice',
         },
@@ -294,7 +295,7 @@ exports.handler = async (event) => {
 
   let tenantQuery = supabase
     .from('tenants')
-    .select('id, name, slug, owner_email, owner_name, logo_url, business_type, city_state, prooflink_plan_key, active')
+    .select('id, name, slug, owner_email, owner_name, logo_url, business_type, city_state, prooflink_plan_key, application_fee_bps, active')
     .eq('active', true)
     .limit(1);
 

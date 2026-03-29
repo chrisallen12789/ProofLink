@@ -1,4 +1,4 @@
-const { clean, json, readJson, requireOperatorContext, supabaseAdmin } = require('./_prooflink_payments');
+const { clean, ensureTenantApplicationFeeBps, json, readJson, requireOperatorContext, supabaseAdmin } = require('./_prooflink_payments');
 const { getAdminClient } = require("./utils/auth");
 const {
   isMissingCreateTenantBundleRpcError,
@@ -55,6 +55,11 @@ exports.handler = async (event) => {
         },
         invitedByOperatorId: ctx.operatorId,
       });
+    }
+
+    const tenantId = clean(result?.tenant_id || result?.tenantId);
+    if (tenantId) {
+      await ensureTenantApplicationFeeBps({ id: tenantId, application_fee_bps: result?.application_fee_bps }).catch(() => null);
     }
 
     return json(200, {

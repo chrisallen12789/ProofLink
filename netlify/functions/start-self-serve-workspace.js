@@ -4,7 +4,7 @@ const { getConfiguredSiteUrl } = require('./utils/runtime-config');
 const { slugify } = require('./utils/slugify');
 const { checkRateLimit, rateLimitResponse, getClientIP } = require('./utils/rate-limit');
 const { buildMagicLinkUrl, buildPasswordSetupUrl } = require('./utils/auth-links');
-const { supabaseAdmin } = require('./_prooflink_payments');
+const { ensureTenantApplicationFeeBps, supabaseAdmin } = require('./_prooflink_payments');
 const {
   isMissingCreateTenantBundleRpcError,
   provisionTenantBundle,
@@ -216,6 +216,7 @@ exports.handler = async (event) => {
         { statusCode: 500 }
       );
     }
+    await ensureTenantApplicationFeeBps({ id: tenantId, application_fee_bps: result?.application_fee_bps });
 
     // ── Step 3: Guarantee user_id is linked ──────────────────────────────────
     // The JS bundle path reads user_id from bundlePayload; the RPC path may not.

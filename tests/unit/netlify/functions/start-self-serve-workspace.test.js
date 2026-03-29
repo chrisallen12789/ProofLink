@@ -150,6 +150,7 @@ describe("netlify/functions/start-self-serve-workspace", () => {
         })),
       },
       paymentsExports: {
+        ensureTenantApplicationFeeBps: vi.fn(async (tenant) => tenant),
         supabaseAdmin: vi.fn(async () => {
           throw new Error('{"code":"PGRST202","message":"Could not find the function public.create_tenant_bundle"}');
         }),
@@ -241,6 +242,7 @@ describe("netlify/functions/start-self-serve-workspace", () => {
         })),
       },
       paymentsExports: {
+        ensureTenantApplicationFeeBps: vi.fn(async (tenant) => tenant),
         supabaseAdmin: vi.fn(async () => ({
           tenant_id: "tenant_pltest_rpc",
           tenant_slug: "rpc-slug",
