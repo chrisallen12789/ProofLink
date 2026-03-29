@@ -40,7 +40,6 @@ grant select, insert, update, delete  on public.availability           to authen
 grant select, insert, update, delete  on public.expenses               to authenticated;
 grant select, insert, update, delete  on public.payments               to authenticated;
 grant select, insert, update, delete  on public.customer_interactions  to authenticated;
-grant select, insert, update, delete  on public.services               to authenticated;
 grant select, insert, update, delete  on public.quotes                 to authenticated;
 grant select, insert, update, delete  on public.bookings               to authenticated;
 grant select, insert, update, delete  on public.leads                  to authenticated;
@@ -57,7 +56,6 @@ alter table public.availability          enable row level security;
 alter table public.expenses              enable row level security;
 alter table public.payments              enable row level security;
 alter table public.customer_interactions enable row level security;
-alter table public.services              enable row level security;
 alter table public.quotes                enable row level security;
 alter table public.bookings              enable row level security;
 alter table public.leads                 enable row level security;
@@ -149,14 +147,6 @@ exception when duplicate_object then null; end $$;
 do $$ begin
   create policy "customer_interactions_operator_all"
     on public.customer_interactions for all to authenticated
-    using     (public.operator_member_access(operator_id))
-    with check(public.operator_member_access(operator_id));
-exception when duplicate_object then null; end $$;
-
--- ── services ──────────────────────────────────────────────────────────────────
-do $$ begin
-  create policy "services_operator_all"
-    on public.services for all to authenticated
     using     (public.operator_member_access(operator_id))
     with check(public.operator_member_access(operator_id));
 exception when duplicate_object then null; end $$;
