@@ -1,15 +1,15 @@
 :root {
-  --ink: #111820;
+  --ink: var(--pl-color-ink, #111820);
   --ink-soft: #2f3940;
   --muted: #5d6972;
   --line: #d8dfe4;
   --line-strong: #b8c3cb;
   --surface: #f3f5f7;
-  --panel: #ffffff;
+  --panel: var(--pl-color-panel, #ffffff);
   --panel-soft: #eef2f4;
-  --accent: #164f63;
-  --accent-strong: #103b49;
-  --accent-soft: #dbe8ed;
+  --accent: var(--pl-color-brand, #164f63);
+  --accent-strong: var(--pl-color-brand-strong, #103b49);
+  --accent-soft: var(--pl-color-brand-soft, #dbe8ed);
   --danger: #c6493b;
   --success: #2d7a52;
   --radius-lg: 18px;
@@ -54,11 +54,24 @@ a {
 
 .brand {
   text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.7rem;
   font: 800 1.2rem/1 var(--font-display);
   letter-spacing: -0.04em;
 }
 
-.brand span {
+.brand__mark {
+  width: 2.15rem;
+  height: 2.15rem;
+  flex: 0 0 auto;
+}
+
+.brand__word {
+  display: inline-flex;
+}
+
+.brand__word span {
   color: var(--accent);
 }
 

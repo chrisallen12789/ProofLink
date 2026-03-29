@@ -1,0 +1,21 @@
+:root {
+  --pl-color-ink: #132027;
+  --pl-color-ink-soft: #30424a;
+  --pl-color-sand: #f4efe6;
+  --pl-color-panel: #fffaf2;
+  --pl-color-panel-soft: #efe7db;
+  --pl-color-brand: #0f6370;
+  --pl-color-brand-strong: #0b4650;
+  --pl-color-brand-soft: #d8ebe7;
+  --pl-color-signal: #d26e39;
+  --pl-color-gold: #f1b24a;
+  --pl-color-line: rgba(19, 32, 39, 0.12);
+  --pl-color-line-strong: rgba(19, 32, 39, 0.22);
+  --pl-shadow-soft: 0 18px 40px rgba(19, 32, 39, 0.08);
+  --pl-shadow-brand: 0 28px 72px rgba(11, 28, 33, 0.18);
+  --pl-radius-lg: 24px;
+  --pl-radius-md: 16px;
+  --pl-radius-sm: 12px;
+  --pl-font-display: 'Google Sans', ui-sans-serif, system-ui, sans-serif;
+  --pl-font-body: 'Google Sans Text', ui-sans-serif, system-ui, sans-serif;
+}

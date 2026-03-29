@@ -1,0 +1,25 @@
+<svg width="608" height="164" viewBox="0 0 608 164" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="lockup-bg" x1="18" y1="18" x2="146" y2="146" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#12323B"/>
+      <stop offset="0.52" stop-color="#184B57"/>
+      <stop offset="1" stop-color="#0D171C"/>
+    </linearGradient>
+    <linearGradient id="lockup-core" x1="55" y1="48" x2="108" y2="116" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F1B24A"/>
+      <stop offset="1" stop-color="#D26E39"/>
+    </linearGradient>
+  </defs>
+  <rect x="18" y="18" width="128" height="128" rx="32" fill="url(#lockup-bg)"/>
+  <circle cx="82" cy="82" r="40" stroke="rgba(255,255,255,0.18)" stroke-width="2"/>
+  <ellipse cx="82" cy="82" rx="53" ry="24" transform="rotate(-18 82 82)" stroke="rgba(143,212,220,0.55)" stroke-width="4"/>
+  <ellipse cx="82" cy="82" rx="53" ry="24" transform="rotate(31 82 82)" stroke="rgba(210,110,57,0.42)" stroke-width="3"/>
+  <rect x="59" y="63" width="26" height="39" rx="11" fill="url(#lockup-core)"/>
+  <rect x="76" y="63" width="26" height="39" rx="11" fill="url(#lockup-core)"/>
+  <rect x="68" y="73" width="24" height="20" rx="9" fill="#FFF5E8"/>
+  <circle cx="51" cy="66" r="5" fill="#8FD4DC"/>
+  <circle cx="114" cy="62" r="5" fill="#F1B24A"/>
+  <circle cx="116" cy="101" r="5" fill="#D26E39"/>
+  <text x="176" y="92" fill="#132027" font-family="'Google Sans', 'Segoe UI', sans-serif" font-size="62" font-weight="800" letter-spacing="-3.4">Proof<tspan fill="#0F6370">Link</tspan></text>
+  <text x="178" y="122" fill="#60717A" font-family="'Google Sans Text', 'Segoe UI', sans-serif" font-size="21" font-weight="600" letter-spacing="0.4">Business clarity for service operators</text>
+</svg>

@@ -11,7 +11,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;600;700;800&family=Google+Sans+Text:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/assets/brand/prooflink-tokens.css" />
   <link rel="stylesheet" href="/landing-page.css" />
+  <link rel="icon" type="image/svg+xml" href="/assets/brand/prooflink-mark.svg" />
   <link rel="manifest" href="/manifest.webmanifest" />
   <meta name="theme-color" content="#c84b2f" />
   <link rel="apple-touch-icon" href="/assets/pwa-192.png" />
@@ -59,7 +61,10 @@
 
   <div class="site-nav-wrap">
     <nav class="site-nav">
-      <a href="/" class="brand">Proof<span>Link</span></a>
+      <a href="/" class="brand" aria-label="ProofLink home">
+        <img class="brand__mark" src="/assets/brand/prooflink-mark.svg" alt="" />
+        <span class="brand__word">Proof<span>Link</span></span>
+      </a>
       <button id="navToggle" class="nav-toggle" aria-expanded="false">Menu</button>
       <div id="navLinks" class="nav-links">
         <a href="#platform">What it solves</a>
@@ -114,6 +119,46 @@
             <div class="ops-subtitle">The page now leads with real account visibility instead of generic software chrome.</div>
           </div>
           <div class="ops-indicator">Operator view</div>
+        </div>
+
+        <div class="brand-lab">
+          <div class="brand-lab__copy">
+            <div class="brand-lab__eyebrow">Brand signal engine</div>
+            <h3>The visual system should say the same thing the product says: account, work, and money stay linked.</h3>
+            <p>The team recommendation was to make the brand feel steady, premium, and operational. This orbit object carries that theme without adding a heavy 3D dependency.</p>
+            <div class="brand-lab__chips">
+              <span>Customer account</span>
+              <span>Tracked work</span>
+              <span>Open money</span>
+            </div>
+          </div>
+
+          <div class="brand-cosmos" data-brand-cosmos aria-hidden="true">
+            <div class="brand-cosmos__scene">
+              <div class="brand-cosmos__glow"></div>
+              <div class="brand-cosmos__plane"></div>
+              <div class="brand-cosmos__ring brand-cosmos__ring--alpha"></div>
+              <div class="brand-cosmos__ring brand-cosmos__ring--beta"></div>
+              <div class="brand-cosmos__ring brand-cosmos__ring--gamma"></div>
+              <div class="brand-cosmos__core">
+                <img src="/assets/brand/prooflink-mark.svg" alt="" />
+                <strong>ProofLink</strong>
+                <span>One calm operating system</span>
+              </div>
+              <div class="brand-cosmos__node brand-cosmos__node--account">
+                <strong>Account</strong>
+                <span>history + context</span>
+              </div>
+              <div class="brand-cosmos__node brand-cosmos__node--work">
+                <strong>Work</strong>
+                <span>scope + status</span>
+              </div>
+              <div class="brand-cosmos__node brand-cosmos__node--money">
+                <strong>Money</strong>
+                <span>due + paid</span>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div class="hero-stage-grid">
@@ -452,7 +497,10 @@
     </section>
 
     <footer class="footer">
-      <div class="brand">Proof<span>Link</span></div>
+      <div class="brand brand--footer">
+        <img class="brand__mark" src="/assets/brand/prooflink-mark.svg" alt="" />
+        <span class="brand__word">Proof<span>Link</span></span>
+      </div>
       <div class="footer-links">
         <a href="#platform">What it solves</a>
         <a href="#pricing">Pricing</a>

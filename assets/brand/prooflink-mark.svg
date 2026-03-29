@@ -1,0 +1,24 @@
+<svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="prooflink-bg" x1="36" y1="28" x2="224" y2="232" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#12323B"/>
+      <stop offset="0.52" stop-color="#184B57"/>
+      <stop offset="1" stop-color="#0D171C"/>
+    </linearGradient>
+    <linearGradient id="prooflink-core" x1="81" y1="73" x2="171" y2="185" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F1B24A"/>
+      <stop offset="1" stop-color="#D26E39"/>
+    </linearGradient>
+  </defs>
+  <rect x="16" y="16" width="224" height="224" rx="56" fill="url(#prooflink-bg)"/>
+  <circle cx="128" cy="128" r="78" stroke="rgba(255,255,255,0.18)" stroke-width="2"/>
+  <ellipse cx="128" cy="128" rx="94" ry="42" transform="rotate(-18 128 128)" stroke="rgba(143,212,220,0.55)" stroke-width="6"/>
+  <ellipse cx="128" cy="128" rx="94" ry="42" transform="rotate(31 128 128)" stroke="rgba(210,110,57,0.42)" stroke-width="4"/>
+  <rect x="88" y="90" width="48" height="74" rx="20" fill="url(#prooflink-core)"/>
+  <rect x="120" y="90" width="48" height="74" rx="20" fill="url(#prooflink-core)"/>
+  <rect x="106" y="108" width="44" height="38" rx="18" fill="#FFF5E8"/>
+  <circle cx="71" cy="98" r="10" fill="#8FD4DC"/>
+  <circle cx="186" cy="92" r="9" fill="#F1B24A"/>
+  <circle cx="188" cy="163" r="10" fill="#D26E39"/>
+  <circle cx="79" cy="178" r="8" fill="#FFF5E8"/>
+</svg>

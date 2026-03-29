@@ -84,6 +84,33 @@
     });
   }
 
+  function wireBrandCosmos() {
+    const cosmos = $('[data-brand-cosmos]');
+    if (!cosmos) return;
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+    const setTilt = (x, y) => {
+      cosmos.style.setProperty('--brand-tilt-x', `${x}deg`);
+      cosmos.style.setProperty('--brand-tilt-y', `${y}deg`);
+    };
+
+    setTilt(-10, 10);
+
+    cosmos.addEventListener('pointermove', (event) => {
+      const rect = cosmos.getBoundingClientRect();
+      const px = (event.clientX - rect.left) / rect.width;
+      const py = (event.clientY - rect.top) / rect.height;
+      const tiltY = clamp((px - 0.5) * 22, -11, 11);
+      const tiltX = clamp((0.5 - py) * 18 - 6, -14, 8);
+      setTilt(tiltX, tiltY);
+    });
+
+    cosmos.addEventListener('pointerleave', () => {
+      setTilt(-10, 10);
+    });
+  }
+
   function setFooterYear() {
     const year = $('#footerYear');
     if (year) year.textContent = String(new Date().getFullYear());
@@ -93,6 +120,7 @@
     renderPricingCards();
     wirePlanLinks();
     wireNav();
+    wireBrandCosmos();
     setFooterYear();
   }
 

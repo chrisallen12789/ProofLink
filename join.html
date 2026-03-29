@@ -11,14 +11,19 @@
     name="description"
     content="Choose a ProofLink plan, start your account, and decide whether you want to begin right away or use a guided setup path."
   />
+  <link rel="stylesheet" href="/assets/brand/prooflink-tokens.css" />
   <link rel="stylesheet" href="/join-page.css" />
+  <link rel="icon" type="image/svg+xml" href="/assets/brand/prooflink-mark.svg" />
   <link rel="manifest" href="/manifest.webmanifest" />
   <meta name="theme-color" content="#c84b2f" />
   <link rel="apple-touch-icon" href="/assets/pwa-192.png" />
 </head>
 <body>
   <nav class="site-nav">
-    <a href="/" class="brand">Proof<span>Link</span></a>
+    <a href="/" class="brand" aria-label="ProofLink home">
+      <img class="brand__mark" src="/assets/brand/prooflink-mark.svg" alt="" />
+      <span class="brand__word">Proof<span>Link</span></span>
+    </a>
     <a href="/#pricing" class="nav-back">View pricing</a>
   </nav>
 
