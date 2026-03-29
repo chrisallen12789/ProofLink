@@ -29,6 +29,7 @@ grant execute on function public.operator_member_access(uuid) to authenticated, 
 grant usage on schema public to authenticated;
 
 -- ── Table grants ─────────────────────────────────────────────────────────────
+grant select                          on public.tenants                to authenticated;
 grant select                          on public.operator_members       to authenticated;
 grant select                          on public.operators              to authenticated;
 grant select, insert, update, delete  on public.orders                 to authenticated;
@@ -45,6 +46,7 @@ grant select, insert, update, delete  on public.bookings               to authen
 grant select, insert, update, delete  on public.leads                  to authenticated;
 
 -- ── Enable RLS on all tables ─────────────────────────────────────────────────
+alter table public.tenants               enable row level security;
 alter table public.operator_members      enable row level security;
 alter table public.operators             enable row level security;
 alter table public.orders                enable row level security;
@@ -59,6 +61,19 @@ alter table public.services              enable row level security;
 alter table public.quotes                enable row level security;
 alter table public.bookings              enable row level security;
 alter table public.leads                 enable row level security;
+
+-- ── tenants: member can read their own tenant record ─────────────────────────
+do $$ begin
+  create policy "tenants_member_read"
+    on public.tenants for select to authenticated
+    using (
+      exists (
+        select 1 from public.operator_members om
+        where om.user_id    = auth.uid()
+          and om.tenant_id  = id
+      )
+    );
+exception when duplicate_object then null; end $$;
 
 -- ── operator_members: user can read their own membership rows ─────────────────
 do $$ begin

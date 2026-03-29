@@ -161,6 +161,7 @@ body{
 .btn-compact{
   font-size:.8rem;
   padding:6px 12px;
+  min-height: 44px;
 }
 .row-tight{ gap:8px; }
 .row-tight-end{
@@ -396,6 +397,11 @@ body{
   z-index:9999;
   pointer-events:none;
 }
+@media (max-width: 768px){
+  .toast-region{
+    bottom: calc(72px + env(safe-area-inset-bottom, 0) + 8px);
+  }
+}
 .modal-overlay{
   position:fixed;
   inset:0;
@@ -436,7 +442,10 @@ body{
   color:rgba(255,255,255,.5);
   font-size:1.2rem;
   cursor:pointer;
-  padding:0 4px;
+  padding:8px;
+  min-width: 44px;
+  min-height: 44px;
+  touch-action: manipulation;
 }
 .modal-stack{
   display:flex;
@@ -810,6 +819,8 @@ body{
   cursor:pointer;
   font-size:13.5px;
   transition: background .15s ease, border-color .15s ease;
+  touch-action: manipulation;
+  min-height: 44px;
 }
 .tab:hover{
   background: rgba(255,255,255,.12);
@@ -1074,6 +1085,7 @@ body{
   padding: 10px 12px;
   border-radius: 14px;
   cursor:pointer;
+  touch-action: manipulation;
 }
 .btn:hover{ border-color: rgba(200,75,47,.34); background: rgba(255,255,255,.16); }
 .btn-ghost{
