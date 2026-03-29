@@ -39,7 +39,11 @@ exports.handler = async (event) => {
   if (!tenant.owner_email)  return respond(400, { error: 'Tenant has no owner email on record' });
 
   const email      = tenant.owner_email.toLowerCase().trim();
-  const redirectTo = `${siteUrl}/operator/`;
+  // Append ?type=recovery so the operator page can detect the recovery flow
+  // regardless of whether Supabase uses PKCE (?code=xxx) or implicit (#access_token=xxx).
+  // Supabase appends the code/token to the existing query string, resulting in
+  // ?type=recovery&code=xxx — which getAuthCallbackType() already checks for.
+  const redirectTo = `${siteUrl}/operator/?type=recovery`;
 
   // ── 2. Ensure the auth user exists ────────────────────────────────────────
   // resetPasswordForEmail fails silently (no email sent) when the user does not

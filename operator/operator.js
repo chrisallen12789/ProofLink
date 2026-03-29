@@ -22,9 +22,7 @@ const resolveOperatorTenantId = OPERATOR_BOOT_UTILS.resolveOperatorTenantId || (
   return isRealTenantId(current) ? current : "";
 });
 
-window.sb = window.sb || window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-  auth: { flowType: "implicit" },
-});
+window.sb = window.sb || window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const sb = window.sb;
 
 let TENANT_ID = OPERATOR_CONFIG.tenantId || "default";
@@ -4094,7 +4092,7 @@ btnSendReset?.addEventListener("click", async () => {
 
   try {
     const { error } = await sb.auth.resetPasswordForEmail(email, {
-      redirectTo: getOperatorRedirectUrl(),
+      redirectTo: getOperatorRedirectUrl() + "?type=recovery",
     });
     if (error) throw error;
     if (forgotMsg) {
