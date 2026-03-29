@@ -9,7 +9,11 @@
   Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
   Referrer-Policy: strict-origin-when-cross-origin
   X-Content-Type-Options: nosniff
-  Cache-Control: no-store, no-cache, must-revalidate, max-age=0
+  # Workspace module scripts: 5-minute cache with revalidation.
+  # Browsers use ETag/Last-Modified for conditional requests — they only
+  # re-download when a file actually changes. Field techs won't re-download
+  # 1.8MB of JS on every page visit over mobile data.
+  Cache-Control: public, max-age=300, must-revalidate
 
 /operator/index.html
   Cache-Control: no-store, no-cache, must-revalidate, max-age=0
