@@ -112,7 +112,9 @@ async function upsertTenant(tenant) {
     customer_count: tenant.customerCount,
     max_customers: tenant.maxCustomers,
     operator_seat_count: tenant.operatorSeatCount,
-    max_operator_seats: tenant.maxOperatorSeats,
+    // Temporarily lift seat capacity during fixture upserts so stale hosted rows
+    // do not block the seed pass before we restore the intended near-limit values.
+    max_operator_seats: Math.max(Number(tenant.maxOperatorSeats || 0), 25),
     current_month_order_count: tenant.currentMonthOrderCount,
     max_orders_per_month: tenant.maxOrdersPerMonth,
     storage_used_mb: tenant.storageUsedMb,

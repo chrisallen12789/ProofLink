@@ -12,6 +12,7 @@
 10. Run `npx playwright install chromium`.
 11. Start Netlify dev against the same environment.
 12. Run `npm run test:e2e:service-workflow`.
+13. Run `npm run test:e2e:operator-cross-device` for Chrome, Firefox, Safari/WebKit, iPhone, and Android operator smoke coverage.
 
 Notes:
 - All deterministic test data uses the `pltest-` prefix.

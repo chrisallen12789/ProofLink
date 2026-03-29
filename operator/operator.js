@@ -8127,7 +8127,6 @@ async function boot() {
     switchTab(panelFromLocation(), { updateHash: false });
 
     window.PROOFLINK_BOOT_READY = true;
-    maybeShowSetupWizard().catch(console.warn);
     startRealtime();
     registerPushNotifications();
 

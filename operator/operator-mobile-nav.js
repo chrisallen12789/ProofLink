@@ -1,6 +1,12 @@
 (function () {
   var mbn = document.getElementById('mobileBottomNav');
   if (!mbn) return;
+  var sidebar = document.querySelector('.sidebar');
+
+  function closeSidebar() {
+    if (sidebar) sidebar.classList.remove('mobile-open');
+    document.body.classList.remove('sidebar-overlay-open');
+  }
 
   function syncMbn(tab) {
     mbn.querySelectorAll('.mbn-item').forEach(function (btn) {
@@ -12,7 +18,6 @@
     btn.addEventListener('click', async function () {
       var tab = btn.dataset.mbnTab;
       if (tab === '__menu') {
-        var sidebar = document.querySelector('.sidebar');
         if (sidebar) {
           sidebar.classList.toggle('mobile-open');
           document.body.classList.toggle('sidebar-overlay-open');
@@ -22,8 +27,14 @@
       var switched = true;
       if (typeof switchTab === 'function') switched = await switchTab(tab);
       if (switched !== false) syncMbn(tab);
-      var sidebar = document.querySelector('.sidebar');
-      if (sidebar) { sidebar.classList.remove('mobile-open'); document.body.classList.remove('sidebar-overlay-open'); }
+      closeSidebar();
+    });
+  });
+
+  sidebar?.querySelectorAll('.tab[data-tab]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      if (!document.body.classList.contains('sidebar-overlay-open')) return;
+      window.setTimeout(closeSidebar, 0);
     });
   });
 
@@ -40,8 +51,7 @@
   // Close sidebar overlay on outside tap
   document.addEventListener('click', function (e) {
     if (document.body.classList.contains('sidebar-overlay-open') && !e.target.closest('.sidebar') && !e.target.closest('#mbnMenuBtn')) {
-      document.querySelector('.sidebar')?.classList.remove('mobile-open');
-      document.body.classList.remove('sidebar-overlay-open');
+      closeSidebar();
     }
   });
 })();
