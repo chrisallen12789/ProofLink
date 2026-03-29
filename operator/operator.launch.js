@@ -430,8 +430,12 @@
     renderPayments();
 
     try {
-      await refreshPaymentState();
-      renderPayments();
+      const runtime = window.PROOFLINK_OPERATOR_RUNTIME || {};
+      const token = typeof runtime.getAccessToken === 'function' ? await runtime.getAccessToken() : '';
+      if (token) {
+        await refreshPaymentState();
+        renderPayments();
+      }
     } catch (err) {
       setPaymentMsg(err.message || String(err), true);
       renderPayments();
