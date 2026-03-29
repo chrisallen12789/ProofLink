@@ -139,7 +139,8 @@ async function cleanup(admin, created) {
 async function login(page, siteUrl, user) {
   await page.addInitScript(() => {
     window.localStorage.setItem("pl_tour_v1", "1");
-    window.localStorage.setItem("pl_theme_choice_v2", "dark");
+    window.localStorage.setItem("pl_theme", "dark");
+    window.localStorage.setItem("pl_theme_choice_v2", "1");
   });
   await page.goto(`${siteUrl}/operator/`, { waitUntil: "networkidle" });
   await page.locator("#loginForm").waitFor();
