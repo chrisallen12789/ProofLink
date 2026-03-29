@@ -67,7 +67,15 @@ async function findOrCreateAuthUser(supabase, email, password = null) {
     const { data, error } = await supabase.auth.admin.listUsers({ page, perPage: 500 });
     if (error) throw error;
     const match = (data?.users || []).find((user) => clean(user.email).toLowerCase() === normalized);
-    if (match) return match;
+    if (match) {
+      // User already exists — if a password was provided, update it so the
+      // customer can log in immediately without a setup-link email.
+      if (password) {
+        const { error: updateErr } = await supabase.auth.admin.updateUserById(match.id, { password });
+        if (updateErr) throw new Error(`Failed to set password for existing user: ${updateErr.message}`);
+      }
+      return match;
+    }
     if (!data?.users || data.users.length < 500) break;
     page += 1;
   }

@@ -4049,7 +4049,7 @@ loginForm?.addEventListener("submit", async (e) => {
   e.preventDefault();
   if (loginMsg) loginMsg.textContent = "Signing in...";
   const { error } = await sb.auth.signInWithPassword({
-    email: loginEmail.value.trim(),
+    email: loginEmail.value.trim().toLowerCase(),
     password: loginPassword.value,
   });
   if (error) {
