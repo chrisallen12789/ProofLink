@@ -98,6 +98,41 @@ exports.handler = async (event) => {
     return respond(500, { error: 'Server configuration error' });
   }
 
+  // ── Duplicate guard: reject if a provisioned/active account already exists
+  const normalizedEmail = owner_email.trim().toLowerCase();
+  const { data: existingTenant } = await supabase
+    .from('tenants')
+    .select('id, business_name, status')
+    .ilike('owner_email', normalizedEmail)
+    .eq('status', 'active')
+    .limit(1)
+    .maybeSingle();
+
+  if (existingTenant) {
+    console.warn(`[submit] duplicate blocked: active tenant already exists for ${normalizedEmail}`);
+    return respond(409, {
+      error  : 'An account already exists for this email address.',
+      detail : 'If you need access, use the operator login page. Contact support if you have forgotten your password.',
+    });
+  }
+
+  const { data: pendingRequest } = await supabase
+    .from('tenant_onboarding_requests')
+    .select('id, status')
+    .ilike('owner_email', normalizedEmail)
+    .in('status', ['provisioned', 'approved', 'submitted', 'needs_review'])
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (pendingRequest) {
+    console.warn(`[submit] duplicate blocked: ${pendingRequest.status} request already exists for ${normalizedEmail}`);
+    return respond(409, {
+      error  : 'A signup request for this email is already in progress.',
+      detail : `Your existing request has status: ${pendingRequest.status}. Please check your email or contact support.`,
+    });
+  }
+
   const { data, error } = await supabase
     .from('tenant_onboarding_requests')
     .insert([{

@@ -169,7 +169,7 @@ async function resolveTenantId(supabase, email) {
     .from('tenants')
     .select('id')
     .ilike('owner_email', email)
-    .eq('active', true)
+    .eq('status', 'active')
     .limit(1)
     .maybeSingle();
 

@@ -279,25 +279,12 @@ exports.handler = async (event) => {
 
   const newOperatorId = operator.id;
 
-  const { error: memberErr } = await supabase
-    .from('operator_members')
-    .upsert(
-      [
-        {
-          operator_id: newOperatorId,
-          tenant_id: tenantId,
-          role: 'owner',
-          invited_by: operatorId,
-        },
-      ],
-      { onConflict: 'operator_id,tenant_id' }
-    );
-
-  if (memberErr) {
-    return failProvision(`Operator member creation failed: ${memberErr.message}`);
-  }
-
   const redirectTo = `${siteUrl}/operator/onboarding.html?tenant=${encodeURIComponent(tenantSlug)}&plan=${encodeURIComponent(req.selected_plan || 'starter')}`;
+
+  // ── Create (or recover) the auth user BEFORE writing operator_members ────────
+  // This guarantees user_id is always set in the membership row.
+  // A silent null here (no error but no ID) used to cause user_id=NULL and lock
+  // paying customers out of their accounts — we now fail loudly instead.
   let authUserId = null;
 
   const { data: newAuthUser, error: createAuthErr } = await supabase.auth.admin.createUser({
@@ -306,12 +293,14 @@ exports.handler = async (event) => {
   });
 
   if (createAuthErr) {
+    // User may already exist (re-run / duplicate request that slipped through).
+    // Recover the existing auth user ID rather than failing.
     const { data: listData, error: listUsersErr } = await supabase.auth.admin.listUsers({ perPage: 1000 });
     if (listUsersErr) {
       return failProvision(`Auth user creation failed: ${createAuthErr.message}`);
     }
     const match = (listData?.users || []).find(
-      (user) => user.email?.toLowerCase() === ownerEmail
+      (u) => u.email?.toLowerCase() === ownerEmail
     );
     authUserId = match?.id || null;
     if (!authUserId) {
@@ -322,15 +311,31 @@ exports.handler = async (event) => {
     createdAuthUserId = authUserId;
   }
 
-  if (authUserId) {
-    const { error: memberUserErr } = await supabase
-      .from('operator_members')
-      .update({ user_id: authUserId, updated_at: new Date().toISOString() })
-      .eq('operator_id', newOperatorId)
-      .eq('tenant_id', tenantId);
-    if (memberUserErr) {
-      return failProvision(`Operator member auth link failed: ${memberUserErr.message}`);
-    }
+  // Hard stop — do not create a membership without a valid user ID.
+  if (!authUserId) {
+    return failProvision(
+      'Auth user was created but returned no user ID — aborting to prevent unlinked membership'
+    );
+  }
+
+  // ── Upsert operator_members with user_id already populated ───────────────────
+  const { error: memberErr } = await supabase
+    .from('operator_members')
+    .upsert(
+      [
+        {
+          operator_id: newOperatorId,
+          tenant_id  : tenantId,
+          role       : 'owner',
+          invited_by : operatorId,
+          user_id    : authUserId,
+        },
+      ],
+      { onConflict: 'operator_id,tenant_id', ignoreDuplicates: false }
+    );
+
+  if (memberErr) {
+    return failProvision(`Operator member creation failed: ${memberErr.message}`);
   }
 
   try {
