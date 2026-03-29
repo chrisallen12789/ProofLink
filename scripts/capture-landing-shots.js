@@ -139,6 +139,7 @@ async function cleanup(admin, created) {
 async function login(page, siteUrl, user) {
   await page.addInitScript(() => {
     window.localStorage.setItem("pl_tour_v1", "1");
+    window.localStorage.setItem("pl_theme_choice_v2", "dark");
   });
   await page.goto(`${siteUrl}/operator/`, { waitUntil: "networkidle" });
   await page.locator("#loginForm").waitFor();
@@ -152,6 +153,14 @@ async function clickListItem(page, listSelector, text) {
   const locator = page.locator(`${listSelector} .list-item`, { hasText: text }).first();
   await locator.waitFor({ state: "visible", timeout: 20000 });
   await locator.click();
+}
+
+async function tryClickListItem(page, listSelector, text) {
+  try {
+    await clickListItem(page, listSelector, text);
+  } catch (error) {
+    console.warn(`Landing shot list click skipped for ${listSelector} / ${text}: ${error.message}`);
+  }
 }
 
 async function main() {
@@ -348,6 +357,18 @@ async function main() {
       await clickListItem(page, "#customersList", mason.name);
       await page.locator('[data-panel="customers"]').screenshot({
         path: path.join(OUTPUT_DIR, "operator-customers.png"),
+      });
+
+      await page.goto(`${siteUrl}/operator/#payments`, { waitUntil: "networkidle" });
+      await tryClickListItem(page, "#paymentsList", riverfront.name);
+      await page.locator('[data-panel="payments"]').screenshot({
+        path: path.join(OUTPUT_DIR, "operator-payments.png"),
+      });
+
+      await page.goto(`${siteUrl}/operator/#jobs`, { waitUntil: "networkidle" });
+      await tryClickListItem(page, "#jobsList", riverfront.name);
+      await page.locator('[data-panel="jobs"]').screenshot({
+        path: path.join(OUTPUT_DIR, "operator-jobs.png"),
       });
     } finally {
       await browser.close();
