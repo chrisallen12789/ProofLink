@@ -117,6 +117,28 @@ async function recordProvisionedRequest(supabase, payload, tenantSlug) {
   }
 }
 
+async function resolveOperatorIdForTenant(supabase, tenantId, email) {
+  const normalizedEmail = clean(email).toLowerCase();
+  if (!tenantId || !normalizedEmail) return '';
+
+  const { data, error } = await supabase
+    .from('operators')
+    .select('id')
+    .eq('tenant_id', tenantId)
+    .ilike('email', normalizedEmail)
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    throw Object.assign(
+      new Error(`Could not resolve operator for tenant membership link: ${error.message}`),
+      { statusCode: 500 }
+    );
+  }
+
+  return clean(data?.id);
+}
+
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return respond(200, {});
   if (event.httpMethod !== 'POST') return respond(405, { error: 'Method not allowed' });
@@ -185,9 +207,9 @@ exports.handler = async (event) => {
       result = await provisionTenantBundle({ supabase, payload: bundlePayload });
     }
 
-    const tenantId   = clean(result?.tenant_id   || result?.tenantId);
-    const tenantSlug = clean(result?.tenant_slug  || result?.tenantSlug  || subdomain);
-    const operatorId = clean(result?.operator_id  || result?.operatorId);
+    const tenantId = clean(result?.tenant_id || result?.tenantId);
+    const tenantSlug = clean(result?.tenant_slug || result?.tenantSlug || subdomain);
+    let operatorId = clean(result?.operator_id || result?.operatorId);
     if (!tenantId || !tenantSlug) {
       throw Object.assign(
         new Error('Workspace was created but the tenant record did not return correctly.'),
@@ -198,7 +220,17 @@ exports.handler = async (event) => {
     // ── Step 3: Guarantee user_id is linked ──────────────────────────────────
     // The JS bundle path reads user_id from bundlePayload; the RPC path may not.
     // This update is targeted and skips rows already linked (is null guard).
-    if (tenantId && operatorId) {
+    if (!operatorId) {
+      operatorId = await resolveOperatorIdForTenant(supabase, tenantId, payload.owner_email);
+    }
+    if (!operatorId) {
+      throw Object.assign(
+        new Error('Workspace was created but the operator membership could not be resolved for auth linking.'),
+        { statusCode: 500 }
+      );
+    }
+
+    {
       const { error: memberError } = await supabase
         .from('operator_members')
         .update({ user_id: authUser.id })

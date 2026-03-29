@@ -7,6 +7,7 @@ const {
   readJson,
   requireOperatorContext,
 } = require("./_prooflink_payments");
+const { getConfiguredSiteUrl } = require("./utils/runtime-config");
 
 async function resolveScopedTenant(body) {
   const tenantId = clean(body.tenantId || body.tenant_id);
@@ -58,9 +59,10 @@ exports.handler = async function(event) {
     }
 
     const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+    const siteUrl = getConfiguredSiteUrl();
     const session = await stripe.billingPortal.sessions.create({
       customer: customerId,
-      return_url: `${process.env.URL}/operator/billing.html`
+      return_url: `${siteUrl}/operator/billing.html`
     });
 
     return json(200, { ok: true, url: session.url });

@@ -9,6 +9,7 @@
 'use strict';
 
 const { requireAdminContext, respond, getAdminClient } = require('./utils/auth');
+const { getConfiguredSiteUrl } = require('./utils/runtime-config');
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return respond(204, {});
@@ -26,7 +27,7 @@ exports.handler = async (event) => {
   if (!tenant_id) return respond(400, { error: 'tenant_id is required' });
 
   const supabase = getAdminClient();
-  const siteUrl  = process.env.URL || 'https://prooflink.co';
+  const siteUrl = getConfiguredSiteUrl();
 
   // ── 1. Load the tenant ─────────────────────────────────────────────────────
   const { data: tenant, error: tenantErr } = await supabase
@@ -53,6 +54,7 @@ exports.handler = async (event) => {
   );
 
   let isNewUser = false;
+  let authUserId = existing?.id || null;
 
   if (!existing) {
     // Auth user was deleted — recreate it.
@@ -69,22 +71,27 @@ exports.handler = async (event) => {
     }
 
     isNewUser = true;
-    const newUid = created.user.id;
+    authUserId = created.user.id;
+  }
 
-    // Re-link operator_members.user_id so the workspace boots correctly.
-    const { data: operator } = await supabase
-      .from('operators')
-      .select('id')
-      .ilike('email', email)
-      .limit(1)
-      .maybeSingle();
+  // Re-link operator_members.user_id so the workspace boots correctly.
+  const { data: operator } = await supabase
+    .from('operators')
+    .select('id')
+    .ilike('email', email)
+    .eq('tenant_id', tenant_id)
+    .limit(1)
+    .maybeSingle();
 
-    if (operator?.id) {
-      await supabase
-        .from('operator_members')
-        .update({ user_id: newUid, updated_at: new Date().toISOString() })
-        .eq('operator_id', operator.id)
-        .eq('tenant_id', tenant_id);
+  if (operator?.id && authUserId) {
+    const { error: linkErr } = await supabase
+      .from('operator_members')
+      .update({ user_id: authUserId })
+      .eq('operator_id', operator.id)
+      .eq('tenant_id', tenant_id);
+
+    if (linkErr) {
+      return respond(502, { error: 'Failed to link auth user to membership: ' + linkErr.message });
     }
   }
 

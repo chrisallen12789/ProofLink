@@ -86,6 +86,10 @@ function makeSupabaseTableChain(result = { data: null, error: null }) {
     insert: vi.fn(() => chain),
     update: vi.fn(() => chain),
     eq: vi.fn(() => chain),
+    ilike: vi.fn(() => chain),
+    limit: vi.fn(() => chain),
+    maybeSingle: vi.fn(async () => result),
+    is: vi.fn(async () => result),
     select: vi.fn(() => chain),
     single: vi.fn(async () => result),
   };
@@ -186,6 +190,92 @@ describe("netlify/functions/start-self-serve-workspace", () => {
         tenant_slug: "fallback-self-serve",
         operator_id: "operator_pltest_456",
         login_url: "https://prooflink.test/magic",
+      }));
+    } finally {
+      restore();
+    }
+  });
+
+  test("looks up the operator when RPC provisioning omits operator_id", async () => {
+    const operatorLookupChain = makeSupabaseTableChain({ data: { id: "operator_pltest_rpc" }, error: null });
+    const operatorMembersChain = makeSupabaseTableChain();
+    const onboardingRequestsChain = makeSupabaseTableChain();
+    const authAdmin = {
+      listUsers: vi.fn(async () => ({ data: { users: [] }, error: null })),
+      createUser: vi.fn(async () => ({ data: { user: { id: "auth_pltest_rpc" } }, error: null })),
+      generateLink: vi.fn(async () => ({
+        data: { properties: { action_link: "https://prooflink.test/recovery" } },
+        error: null,
+      })),
+    };
+    const adminClient = {
+      auth: { admin: authAdmin },
+      from: vi.fn((table) => {
+        if (table === "operators") return operatorLookupChain;
+        if (table === "operator_members") return operatorMembersChain;
+        if (table === "tenant_onboarding_requests") return onboardingRequestsChain;
+        throw new Error(`Unexpected table: ${table}`);
+      }),
+    };
+
+    const { handler, restore } = loadHandlerWithMocks({
+      authExports: {
+        getAdminClient: vi.fn(() => adminClient),
+        respond: (statusCode, body) => ({ statusCode, body: JSON.stringify(body) }),
+      },
+      emailExports: {
+        sendEmail: vi.fn(() => Promise.resolve()),
+        templates: {
+          provisioned: vi.fn(() => ({ subject: "ready" })),
+        },
+      },
+      runtimeConfigExports: {
+        getConfiguredSiteUrl: vi.fn(() => "https://prooflink.test"),
+      },
+      rateLimitExports: {
+        getClientIP: vi.fn(() => "127.0.0.1"),
+        checkRateLimit: vi.fn(() => ({ allowed: true })),
+        rateLimitResponse: vi.fn((retryAfterMs) => ({
+          statusCode: 429,
+          body: JSON.stringify({ error: `retry in ${retryAfterMs}` }),
+        })),
+      },
+      paymentsExports: {
+        supabaseAdmin: vi.fn(async () => ({
+          tenant_id: "tenant_pltest_rpc",
+          tenant_slug: "rpc-slug",
+        })),
+      },
+      provisionExports: {
+        isMissingCreateTenantBundleRpcError: vi.fn(() => false),
+        provisionTenantBundle: vi.fn(),
+      },
+    });
+
+    try {
+      const response = await handler({
+        httpMethod: "POST",
+        headers: {},
+        body: JSON.stringify({
+          business_name: "RPC Service Co",
+          owner_name: "Chris Proof",
+          owner_email: "owner@example.com",
+          phone: "555-0101",
+          business_type: "plumbing",
+          city_state: "Detroit, MI",
+          selected_plan: "starter",
+        }),
+      });
+
+      expect(response.statusCode).toBe(201);
+      expect(operatorLookupChain.eq).toHaveBeenCalledWith("tenant_id", "tenant_pltest_rpc");
+      expect(operatorLookupChain.ilike).toHaveBeenCalledWith("email", "owner@example.com");
+      expect(operatorMembersChain.update).toHaveBeenCalledWith({ user_id: "auth_pltest_rpc" });
+      expect(operatorMembersChain.eq).toHaveBeenCalledWith("tenant_id", "tenant_pltest_rpc");
+      expect(operatorMembersChain.eq).toHaveBeenCalledWith("operator_id", "operator_pltest_rpc");
+      expect(JSON.parse(response.body)).toEqual(expect.objectContaining({
+        tenant_id: "tenant_pltest_rpc",
+        operator_id: "operator_pltest_rpc",
       }));
     } finally {
       restore();

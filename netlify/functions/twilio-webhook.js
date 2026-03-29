@@ -6,11 +6,11 @@
 
 'use strict';
 
-const twilio      = require('twilio');
+const twilio = require('twilio');
 const querystring = require('querystring');
 const { getAdminClient, respond } = require('./utils/auth');
-const { sendEmail }               = require('./utils/email');
-const { getConfiguredSiteUrl }    = require('./utils/runtime-config');
+const { sendEmail } = require('./utils/email');
+const { getConfiguredSiteUrl } = require('./utils/runtime-config');
 
 function validateTwilio(event) {
   const secret = process.env.TWILIO_AUTH_TOKEN;
@@ -19,7 +19,7 @@ function validateTwilio(event) {
   const signature = event.headers?.['x-twilio-signature'] || event.headers?.['X-Twilio-Signature'];
   if (!signature) return false;
 
-  const url    = (process.env.SITE_URL || process.env.URL || 'https://prooflink.co') + '/.netlify/functions/twilio-webhook';
+  const url = `${getConfiguredSiteUrl()}/.netlify/functions/twilio-webhook`;
   const params = querystring.parse(event.body || '');
   return twilio.validateRequest(secret, signature, url, params);
 }
@@ -27,8 +27,8 @@ function validateTwilio(event) {
 function twimlOk(message) {
   return {
     statusCode: 200,
-    headers   : { 'Content-Type': 'text/xml' },
-    body      : message
+    headers: { 'Content-Type': 'text/xml' },
+    body: message
       ? `<?xml version="1.0" encoding="UTF-8"?><Response><Message>${message}</Message></Response>`
       : `<?xml version="1.0" encoding="UTF-8"?><Response></Response>`,
   };
@@ -36,30 +36,32 @@ function twimlOk(message) {
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return respond(200, {});
-  if (event.httpMethod !== 'POST')    return twimlOk();
+  if (event.httpMethod !== 'POST') return twimlOk();
 
-  // Validate Twilio signature in production
   if (process.env.NODE_ENV !== 'test' && !validateTwilio(event)) {
     const from = querystring.parse(event.body || '').From || 'unknown';
-    console.error(`[twilio-webhook] signature validation failed — From: ${from.replace(/\d(?=\d{4})/g, '*')}, URL: ${process.env.SITE_URL || process.env.URL || 'unknown'}`);
+    let siteUrl = 'unknown';
+    try {
+      siteUrl = getConfiguredSiteUrl();
+    } catch (_) {}
+    console.error(`[twilio-webhook] signature validation failed - From: ${from.replace(/\d(?=\d{4})/g, '*')}, URL: ${siteUrl}`);
     return { statusCode: 403, body: 'Forbidden' };
   }
 
   const params = querystring.parse(event.body || '');
-  const from   = params.From  || '';
-  const to     = params.To    || '';
-  const body   = params.Body  || '';
-  const sid    = params.MessageSid || '';
+  const from = params.From || '';
+  const to = params.To || '';
+  const body = params.Body || '';
+  const sid = params.MessageSid || '';
 
   if (!from || !body) {
-    console.warn('[twilio-webhook] missing From or Body — params:', JSON.stringify({ from, sid, bodyLength: body.length }));
+    console.warn('[twilio-webhook] missing From or Body - params:', JSON.stringify({ from, sid, bodyLength: body.length }));
     return twimlOk();
   }
 
   const supabase = getAdminClient();
 
-  // Attempt to find a matching tenant by looking up recent outbound messages to this number
-  let tenantId   = null;
+  let tenantId = null;
   let customerId = null;
   const { data: recent } = await supabase
     .from('sms_messages')
@@ -71,37 +73,34 @@ exports.handler = async (event) => {
     .maybeSingle();
 
   if (recent) {
-    tenantId   = recent.tenant_id;
+    tenantId = recent.tenant_id;
     customerId = recent.customer_id;
   }
 
-  // Store the inbound message
   const { error } = await supabase
     .from('sms_messages')
     .insert({
-      tenant_id  : tenantId,
+      tenant_id: tenantId,
       operator_id: null,
-      direction  : 'inbound',
+      direction: 'inbound',
       from_number: from,
-      to_number  : to,
+      to_number: to,
       body,
-      status     : 'received',
-      twilio_sid : sid || null,
+      status: 'received',
+      twilio_sid: sid || null,
       customer_id: customerId || null,
-      order_id   : null,
-      created_at : new Date().toISOString(),
+      order_id: null,
+      created_at: new Date().toISOString(),
     });
 
   if (error) console.error('[twilio-webhook] db error:', error);
 
-  // Send push notification + email to operator(s) about inbound SMS
   if (tenantId) {
     try {
-      // Push notification to all operator subscriptions for this tenant
       const webpush = require('web-push');
-      const vapidPublic  = process.env.VAPID_PUBLIC_KEY;
+      const vapidPublic = process.env.VAPID_PUBLIC_KEY;
       const vapidPrivate = process.env.VAPID_PRIVATE_KEY;
-      const vapidEmail   = process.env.VAPID_EMAIL || 'mailto:support@prooflink.co';
+      const vapidEmail = process.env.VAPID_EMAIL || 'mailto:support@prooflink.co';
       if (vapidPublic && vapidPrivate) {
         webpush.setVapidDetails(vapidEmail, vapidPublic, vapidPrivate);
         const { data: subs } = await supabase
@@ -112,13 +111,15 @@ exports.handler = async (event) => {
           const maskedFrom = from.replace(/\d(?=\d{4})/g, '*');
           const payload = JSON.stringify({ title: 'New SMS reply', body: `From ${maskedFrom}: ${body.slice(0, 80)}`, url: '/operator/#orders' });
           await Promise.allSettled(subs.map((s) => {
-            try { return webpush.sendNotification(JSON.parse(s.subscription), payload); }
-            catch { return Promise.resolve(); }
+            try {
+              return webpush.sendNotification(JSON.parse(s.subscription), payload);
+            } catch {
+              return Promise.resolve();
+            }
           }));
         }
       }
 
-      // Email the operator(s) about the reply
       const { data: operators } = await supabase
         .from('operators')
         .select('email')
@@ -130,9 +131,9 @@ exports.handler = async (event) => {
           if (!op.email) continue;
           const maskedFromEmail = from.replace(/\d(?=\d{4})/g, '*');
           sendEmail({
-            to     : op.email,
+            to: op.email,
             subject: `New SMS reply from ${maskedFromEmail}`,
-            html   : `<p>A customer replied via SMS:</p><p><strong>${maskedFromEmail}</strong>: ${body}</p><p><a href="${siteUrl}/operator/">View in dashboard →</a></p>`,
+            html: `<p>A customer replied via SMS:</p><p><strong>${maskedFromEmail}</strong>: ${body}</p><p><a href="${siteUrl}/operator/">View in dashboard -&gt;</a></p>`,
           }).catch(() => {});
         }
       }
@@ -141,6 +142,5 @@ exports.handler = async (event) => {
     }
   }
 
-  // No auto-reply — operator handles it from the dashboard
   return twimlOk();
 };

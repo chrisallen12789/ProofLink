@@ -108,7 +108,7 @@ exports.handler = async (event) => {
     if (!existingMember.user_id || existingMember.user_id !== user.id) {
       const { error: updateErr } = await supabase
         .from('operator_members')
-        .update({ user_id: user.id, updated_at: new Date().toISOString() })
+        .update({ user_id: user.id })
         .eq('operator_id', operator.id);
 
       if (updateErr) {
