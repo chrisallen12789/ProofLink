@@ -34,7 +34,17 @@ describe("netlify/functions/submit-onboarding-request", () => {
   const getClientIPMock = vi.fn(() => "127.0.0.1");
   const slugifyMock = vi.fn((value) => `slug-${value}`);
 
-  beforeEach(() => {
+  
+  function createSelectChain(result) {
+    const chain = {};
+    chain.ilike = vi.fn(() => chain);
+    chain.eq = vi.fn(() => chain);
+    chain.in = vi.fn(() => chain);
+    chain.order = vi.fn(() => chain);
+    chain.limit = vi.fn(() => chain);
+    chain.maybeSingle = vi.fn(async () => result);
+    return chain;
+  }beforeEach(() => {
     vi.resetModules();
     insertMock.mockReset();
     selectMock.mockReset();
@@ -54,7 +64,20 @@ describe("netlify/functions/submit-onboarding-request", () => {
     });
     selectMock.mockReturnValue({ maybeSingle: maybeSingleMock });
     insertMock.mockReturnValue({ select: selectMock });
-    fromMock.mockReturnValue({ insert: insertMock });
+    fromMock.mockImplementation((tableName) => {
+      if (tableName === "tenants") {
+        return {
+          select: vi.fn(() => createSelectChain({ data: null, error: null })),
+        };
+      }
+      if (tableName === "tenant_onboarding_requests") {
+        return {
+          select: vi.fn(() => createSelectChain({ data: null, error: null })),
+          insert: insertMock,
+        };
+      }
+      throw new Error(`Unexpected table ${tableName}`);
+    });
     getAdminClientMock.mockReset();
     getAdminClientMock.mockReturnValue({ from: fromMock });
 

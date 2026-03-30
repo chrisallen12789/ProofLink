@@ -82,6 +82,18 @@ describe("netlify/functions/request-review", () => {
       email,
     };
   }
+  beforeEach(() => {
+    process.env.SITE_URL = "https://example.test";
+    process.env.PUBLIC_SITE_URL = "https://example.test";
+    process.env.URL = "https://example.test";
+  });
+
+  afterEach(() => {
+    delete process.env.SITE_URL;
+    delete process.env.PUBLIC_SITE_URL;
+    delete process.env.URL;
+  });
+
 
   test("uses the fallback email column when customer_email is blank", async () => {
     const { handler, email } = loadHandler();
