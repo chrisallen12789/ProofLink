@@ -5,7 +5,7 @@
   const {
     catalog,
     pricing,
-    helpers: { escapeHtml, toFiniteCents },
+    helpers: { escapeHtml },
   } = CL;
 
   const featuredGrid = document.getElementById("siteHomeFeaturedGrid");
