@@ -18,7 +18,7 @@ if (-Not (Test-Path $envFile)) {
 # Load environment variables from the .env file
 Get-Content $envFile | ForEach-Object {
     if ($_.Contains('=') -and -not $_.StartsWith('#')) {
-        $name, $value = $_ -split '=';
+        $name, $value = $_ -split '=', 2;
         [System.Environment]::SetEnvironmentVariable($name.Trim(), $value.Trim());
     }
 }

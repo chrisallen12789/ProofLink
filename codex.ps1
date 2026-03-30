@@ -1,5 +1,7 @@
 param([string]$Command, [string[]]$Args)
 
+$ErrorActionPreference = 'Stop'
+
 switch ($Command) {
     "generate" {
         Write-Host "Generating Codex documentation from docs/..."
@@ -20,14 +22,14 @@ switch ($Command) {
             ("netlify.toml exists", (Test-Path ".\netlify.toml")),
             (".env.local or .env.example exists", ((Test-Path ".\.env.local") -or (Test-Path ".\.env.example")))
         )
-        
+
         $allValid = $true
         foreach ($check in $checks) {
             $status = if ($check[1]) { "✓" } else { "✗" }
             Write-Host "$status $($check[0])"
             if (-not $check[1]) { $allValid = $false }
         }
-        
+
         if ($allValid) {
             Write-Host "`nAll validations passed!"
         } else {
@@ -36,7 +38,20 @@ switch ($Command) {
     }
     "run-tests" {
         Write-Host "Running ProofLink tests..."
-        npm run test:unit
+        if (-not (Get-Command npm -ErrorAction SilentlyContinue)) {
+            Write-Error "npm not found. Please install Node.js from https://nodejs.org"
+            exit 1
+        }
+        try {
+            npm run test:unit
+            if ($LASTEXITCODE -ne 0) {
+                Write-Error "Tests failed with exit code $LASTEXITCODE"
+                exit $LASTEXITCODE
+            }
+        } catch {
+            Write-Error "Failed to run tests: $_"
+            exit 1
+        }
     }
     default {
         Write-Host "ProofLink Codex CLI"

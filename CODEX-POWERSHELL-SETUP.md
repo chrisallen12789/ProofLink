@@ -1,50 +1,71 @@
 # CODEX PowerShell Setup Documentation
 
 ## Introduction
-This document provides instructions on how to use the new PowerShell scripts to run CODEX locally.
+This document provides instructions on how to use the PowerShell scripts to run CODEX locally on Windows.
 
 ## Prerequisites
-- Make sure you have PowerShell installed on your machine.
-- Clone the repository containing the PowerShell scripts.
+- PowerShell 5.1 or later (built into Windows 10/11)
+- [Node.js](https://nodejs.org) (includes npm)
+- [Netlify CLI](https://docs.netlify.com/cli/get-started/): `npm install -g netlify-cli`
 
 ## Setup Instructions
-1. **Clone the Repository:**  
-   Open PowerShell and run the following command:
+
+1. **Clone the Repository:**
    ```powershell
    git clone https://github.com/chrisallen12789/ProofLink.git
+   cd ProofLink
    ```
 
-2. **Navigate to the Scripts Directory:**  
+2. **Allow Script Execution (one-time):**
+   Open PowerShell as your normal user and run:
    ```powershell
-   cd ProofLink/path_to_scripts_directory
+   Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
    ```
 
-3. **Run the PowerShell Script:**  
-   Depending on your requirement, you can invoke the required script. For example:
+3. **Set Up the Dev Environment:**
    ```powershell
-   .\run_codex.ps1
+   .\setup-dev.ps1
+   ```
+   This installs npm dependencies and creates `.env.local` from `.env.example`.
+   Fill in your actual values in `.env.local` before continuing.
+
+4. **Start the Dev Server:**
+   ```powershell
+   .\dev.ps1
+   ```
+   Optionally pass a custom port:
+   ```powershell
+   .\dev.ps1 9000
    ```
 
-4. **Follow on-screen instructions** to complete the setup.
+## Codex CLI Commands
+
+Run project tasks with `codex.ps1`:
+
+```powershell
+# Validate project structure
+.\codex.ps1 validate
+
+# Generate documentation index
+.\codex.ps1 generate
+
+# Run unit tests
+.\codex.ps1 run-tests
+```
 
 ## Useful Commands
-- To check the current directory:
-  ```powershell
-  Get-Location
-  ```
 
-- To list files in the current directory:
-  ```powershell
-  Get-ChildItem
-  ```
+- Check your current directory: `Get-Location`
+- List files: `Get-ChildItem`
+- Load env vars manually: `.\load-env.ps1` (defaults to `.env.local`, falls back to `.env.example`)
 
 ## Troubleshooting
-- If you encounter any issues, ensure that your PowerShell's execution policy allows running scripts. You can set it by running:
-  ```powershell
-  Set-ExecutionPolicy RemoteSigned
-  ```
 
-For more information or additional support, refer to the repository's README or contact the maintainers.
+| Problem | Fix |
+|---------|-----|
+| "cannot be loaded because running scripts is disabled" | Run `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` |
+| "netlify CLI not found" | Run `npm install -g netlify-cli` |
+| "npm not found" | Install Node.js from https://nodejs.org |
+| `.env.local` missing | Run `.\setup-dev.ps1` or copy `.env.example` manually |
 
-## Conclusion
-This documentation will help you get started with running CODEX locally using PowerShell scripts. For further details, please refer to other documents in the repository.
+For more information, refer to the repository README or open an issue on GitHub.
