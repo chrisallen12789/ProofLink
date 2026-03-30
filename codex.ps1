@@ -25,7 +25,7 @@ switch ($Command) {
 
         $allValid = $true
         foreach ($check in $checks) {
-            $status = if ($check[1]) { "✓" } else { "✗" }
+            $status = if ($check[1]) { "[OK]  " } else { "[FAIL]" }
             Write-Host "$status $($check[0])"
             if (-not $check[1]) { $allValid = $false }
         }
@@ -55,7 +55,8 @@ switch ($Command) {
     }
     default {
         Write-Host "ProofLink Codex CLI"
-        Write-Host "Usage: .\codex.ps1 <command>`n"
+        Write-Host "Usage: .\codex.ps1 {command}"
+        Write-Host ""
         Write-Host "Commands:"
         Write-Host "  generate     Generate Codex documentation"
         Write-Host "  validate     Validate project structure"
