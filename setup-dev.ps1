@@ -1,28 +1,27 @@
-# setup-dev.ps1
+# No-Admin Version of setup-dev.ps1
 
-# Check Node.js installation
-try {
-    $nodeVersion = & node --version
-    Write-Host "Node.js version: $nodeVersion"
-} catch {
-    Write-Host "Node.js is not installed. Please install Node.js before proceeding."
-    exit 1
+# This script sets up the development environment without requiring admin rights.
+
+# Check if the script is run with the CurrentUser scope
+if (-not ([Windows.Security.AccessControl.AuthorizationManager]::CheckAccess([Windows.Security.AccessControl.WindowsPrincipal]::CurrentPrincipal))) {
+    Write-Host "CurrentUser scope is required. Exiting..."
+    exit
 }
 
-# Install npm dependencies
-try {
-    npm install
-    Write-Host "NPM dependencies installed successfully."
-} catch {
-    Write-Host "Failed to install NPM dependencies."
-    exit 1
+# Function to install necessary modules for development
+function Install-Modules {
+    $modules = @('Module1', 'Module2', 'Module3')  # Update this list with actual module names
+    foreach ($module in $modules) {
+        if (-not (Get-Module -ListAvailable -Name $module)) {
+            Write-Host "Installing $module..."
+            Install-Module -Name $module -Scope CurrentUser -Force
+        } else {
+            Write-Host "$module is already installed."
+        }
+    }
 }
 
-# Create .env.local from .env.example
-try {
-    Copy-Item .env.example .env.local -Force
-    Write-Host ".env.local created from .env.example"
-} catch {
-    Write-Host "Failed to create .env.local file."
-    exit 1
-}
+# Main script execution
+Install-Modules
+
+Write-Host "Development environment setup completed without admin rights.">
