@@ -82,7 +82,7 @@ async function deleteRowsMaybe(table, column, values) {
   const filtered = values.filter(Boolean);
   if (!filtered.length) return;
   const { error } = await supabase.from(table).delete().in(column, filtered);
-  if (error && !isMissingRelationError(error)) throw error;
+  if (error && !isIgnorableCleanupError(error)) throw error;
 }
 
 async function main() {
