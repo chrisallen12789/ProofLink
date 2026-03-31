@@ -123,6 +123,26 @@ It adds:
 - tenant-scoped RLS coverage for the new hydrovac tables
 - manifest-to-job rollup helpers and triggers
 
+### `rebuild_supabase_full.sql`
+Generated full rebuild bundle for a fresh Supabase project.
+
+Build/update it with:
+
+```bash
+npm run sql:build:rebuild
+```
+
+The bundle currently concatenates, in this exact order:
+
+1. `catchup_run_this.sql`
+2. `service_workflow_phase1.sql`
+3. `service_recurring_plans.sql`
+4. `provision_failures.sql`
+5. `service_deposit_control.sql`
+6. `hydrovac_module_foundation.sql`
+
+Do not edit `rebuild_supabase_full.sql` by hand. Update the source SQL files above and rebuild.
+
 ### `get_tenant_plan_limits_compat.sql`
 Targeted repair script for older hosted environments that already have most governance schema, but need the final `get_tenant_plan_limits(...)` overloads reconciled without rerunning the full catch-up file.
 

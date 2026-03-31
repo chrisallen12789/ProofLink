@@ -20,8 +20,8 @@ describe("netlify/functions/submit-onboarding-request", () => {
     path.resolve(process.cwd(), "netlify/functions/utils/slugify.js")
   );
   const insertMock = vi.fn();
-  const selectMock = vi.fn();
-  const maybeSingleMock = vi.fn();
+  const insertSelectMock = vi.fn();
+  const insertMaybeSingleMock = vi.fn();
   const fromMock = vi.fn();
   const getAdminClientMock = vi.fn();
   const sendEmailMock = vi.fn().mockResolvedValue({ id: "email_123" });
@@ -34,7 +34,6 @@ describe("netlify/functions/submit-onboarding-request", () => {
   const getClientIPMock = vi.fn(() => "127.0.0.1");
   const slugifyMock = vi.fn((value) => `slug-${value}`);
 
-  
   function createSelectChain(result) {
     const chain = {};
     chain.ilike = vi.fn(() => chain);
@@ -44,11 +43,13 @@ describe("netlify/functions/submit-onboarding-request", () => {
     chain.limit = vi.fn(() => chain);
     chain.maybeSingle = vi.fn(async () => result);
     return chain;
-  }beforeEach(() => {
+  }
+
+  beforeEach(() => {
     vi.resetModules();
     insertMock.mockReset();
-    selectMock.mockReset();
-    maybeSingleMock.mockReset();
+    insertSelectMock.mockReset();
+    insertMaybeSingleMock.mockReset();
     fromMock.mockReset();
     sendEmailMock.mockReset();
     sendEmailMock.mockResolvedValue({ id: "email_123" });
@@ -58,12 +59,14 @@ describe("netlify/functions/submit-onboarding-request", () => {
     getClientIPMock.mockClear();
     slugifyMock.mockClear();
 
-    maybeSingleMock.mockResolvedValue({
+    insertMaybeSingleMock.mockResolvedValue({
       data: { id: "req_123", business_name: "Test Biz", status: "submitted" },
       error: null,
     });
-    selectMock.mockReturnValue({ maybeSingle: maybeSingleMock });
-    insertMock.mockReturnValue({ select: selectMock });
+
+    insertSelectMock.mockReturnValue({ maybeSingle: insertMaybeSingleMock });
+    insertMock.mockReturnValue({ select: insertSelectMock });
+
     fromMock.mockImplementation((tableName) => {
       if (tableName === "tenants") {
         return {
