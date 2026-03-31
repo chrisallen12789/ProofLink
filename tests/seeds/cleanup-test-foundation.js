@@ -78,6 +78,16 @@ function isMissingRelationError(error) {
     || message.includes("does not exist");
 }
 
+function isMissingTenantUsageSyncError(error) {
+  const code = String(error?.code || "").trim().toUpperCase();
+  const message = String(error?.message || "").toLowerCase();
+  return code === "P0002" && message.includes("tenant not found for usage sync");
+}
+
+function isIgnorableCleanupError(error) {
+  return isMissingRelationError(error) || isMissingTenantUsageSyncError(error);
+}
+
 async function deleteRowsMaybe(table, column, values) {
   const filtered = values.filter(Boolean);
   if (!filtered.length) return;
