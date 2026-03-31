@@ -70,7 +70,7 @@ jobs:
         id: hosted_secrets
         shell: bash
         run: |
-          missing="$(node -e "const { REQUIRED_ENV_KEYS } = require('./tests/setup/env.test.js'); const missing = REQUIRED_ENV_KEYS.filter((key) => !process.env[key]); process.stdout.write(missing.join(','));")"
+          missing="$(node -e "const required = ['TEST_SUPABASE_URL','TEST_SUPABASE_SERVICE_ROLE_KEY','TEST_SUPABASE_ANON_KEY','TEST_SITE_URL','TEST_PLATFORM_ADMIN_EMAIL','TEST_PLATFORM_ADMIN_PASSWORD','TEST_TENANT_A_ADMIN_EMAIL','TEST_TENANT_A_ADMIN_PASSWORD','TEST_TENANT_B_ADMIN_EMAIL','TEST_TENANT_B_ADMIN_PASSWORD']; const missing = required.filter((key) => !process.env[key]); process.stdout.write(missing.join(','));")"
 
           if [ -n "$missing" ]; then
             echo "ready=false" >> "$GITHUB_OUTPUT"
