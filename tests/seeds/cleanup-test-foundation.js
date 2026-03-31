@@ -51,7 +51,7 @@ async function findAuthUserByEmail(email) {
   let page = 1;
   while (page < 20) {
     const { data, error } = await supabase.auth.admin.listUsers({ page, perPage: 200 });
-    if (error) throw error;
+    if (error && !isMissingTenantUsageSyncError(error)) throw error;
     const match = (data.users || []).find(
       (user) => String(user.email || "").toLowerCase() === String(email || "").toLowerCase()
     );
