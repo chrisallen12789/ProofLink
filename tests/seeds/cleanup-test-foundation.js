@@ -165,6 +165,13 @@ async function main() {
 }
 
 main().catch((error) => {
+  if (isMissingTenantUsageSyncError(error)) {
+    console.warn(
+      "Skipping cleanup failure for missing tenant usage sync reference:",
+      error?.message || String(error)
+    );
+    return;
+  }
   console.error("Failed to cleanup ProofLink test foundation:", error);
   process.exitCode = 1;
 });
