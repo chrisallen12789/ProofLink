@@ -17,6 +17,53 @@ const REQUIRED_ENV_KEYS = [
   "TEST_TENANT_B_ADMIN_EMAIL",
   "TEST_TENANT_B_ADMIN_PASSWORD",
 ];
+const PLACEHOLDER_RULES = [
+  {
+    key: "TEST_SUPABASE_URL",
+    reason: "must point to a real Supabase project URL",
+    matches: (value) => /your-project\.supabase\.co/i.test(value),
+  },
+  {
+    key: "TEST_SUPABASE_SERVICE_ROLE_KEY",
+    reason: "must be a real service role key",
+    matches: (value) => /^your-service-role-key$/i.test(value),
+  },
+  {
+    key: "TEST_SUPABASE_ANON_KEY",
+    reason: "must be a real anon key",
+    matches: (value) => /^your-anon-key$/i.test(value),
+  },
+  {
+    key: "TEST_PLATFORM_ADMIN_EMAIL",
+    reason: "must not use template placeholder email",
+    matches: (value) => /^platform-admin@example\.com$/i.test(value),
+  },
+  {
+    key: "TEST_TENANT_A_ADMIN_EMAIL",
+    reason: "must not use template placeholder email",
+    matches: (value) => /^tenant-a-admin@example\.com$/i.test(value),
+  },
+  {
+    key: "TEST_TENANT_B_ADMIN_EMAIL",
+    reason: "must not use template placeholder email",
+    matches: (value) => /^tenant-b-admin@example\.com$/i.test(value),
+  },
+  {
+    key: "TEST_PLATFORM_ADMIN_PASSWORD",
+    reason: "must be a real test password (not change-me)",
+    matches: (value) => /^change-me$/i.test(value),
+  },
+  {
+    key: "TEST_TENANT_A_ADMIN_PASSWORD",
+    reason: "must be a real test password (not change-me)",
+    matches: (value) => /^change-me$/i.test(value),
+  },
+  {
+    key: "TEST_TENANT_B_ADMIN_PASSWORD",
+    reason: "must be a real test password (not change-me)",
+    matches: (value) => /^change-me$/i.test(value),
+  },
+];
 
 let loaded = false;
 
@@ -41,9 +88,19 @@ function loadTestEnv() {
 function assertRequiredEnv(extraKeys = []) {
   loadTestEnv();
   const missing = [...REQUIRED_ENV_KEYS, ...extraKeys].filter((key) => !process.env[key]);
+  const placeholders = PLACEHOLDER_RULES.filter((rule) => {
+    const value = process.env[rule.key];
+    return value && rule.matches(value);
+  });
   if (missing.length) {
     throw new Error(
       `Missing required test environment variables: ${missing.join(", ")}. Create .env.test from .env.test.example.`
+    );
+  }
+  if (placeholders.length) {
+    const placeholderMessage = placeholders.map((rule) => `${rule.key} (${rule.reason})`).join(", ");
+    throw new Error(
+      `Placeholder test environment values detected: ${placeholderMessage}. Replace placeholder values in .env.test before running hosted tests.`
     );
   }
 }

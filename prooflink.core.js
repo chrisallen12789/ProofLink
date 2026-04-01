@@ -214,7 +214,7 @@
         } else {
           throw new Error(`Public catalog function failed (${fnRes.status})`);
         }
-      } catch (functionError) {
+      } catch {
         const supabaseBaseUrl = String(supabase.url || "").replace(/\/+$/, "");
         const rpcName = String(supabase.publicCatalogRpc || "get_public_catalog_by_tenant").trim();
         const url = `${supabaseBaseUrl}/rest/v1/rpc/${rpcName}`;

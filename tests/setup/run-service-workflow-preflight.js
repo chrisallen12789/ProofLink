@@ -19,8 +19,15 @@ function printRemediation() {
 }
 
 async function main() {
-  loadTestEnv();
-  assertRequiredEnv();
+  try {
+    loadTestEnv();
+    assertRequiredEnv();
+  } catch (error) {
+    console.error(error.message || String(error));
+    console.error("Set TEST_* env vars (or create .env.test from .env.test.example), then rerun preflight.");
+    process.exitCode = 1;
+    return;
+  }
 
   try {
     const status = await assertServiceWorkflowFoundation();

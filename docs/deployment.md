@@ -21,6 +21,7 @@ Do not skip the catch-up file and do not run archive migrations instead. `servic
 From the repo root, point `.env.test` or the `TEST_*` environment variables at the same hosted Supabase project, then run:
 
 ```bash
+npm run test:preflight:env-contract
 npm run test:preflight:service-workflow
 ```
 

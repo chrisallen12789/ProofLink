@@ -72,13 +72,20 @@ function loadHandlerWithMocks({ authExports, emailExports, slugifyExports, seedT
 
 function createSupabaseMock({
   existingOperator = null,
+  existingTenant = null,
+  onboardingStatus = "approved",
   listUsersError = null,
   listUsers = [],
   authCreateError = null,
+  tenantInsertError = null,
+  tenantInsertData = { id: "tenant_pltest", slug: "prooflink-test", name: "ProofLink Test" },
+  operatorInsertError = null,
+  operatorInsertData = { id: "operator_pltest", tenant_id: "tenant_pltest", name: "Owner", role: "tenant_owner" },
+  operatorMembersUpsertError = null,
   tenantRollbackError = null,
   provisionFailureInsertError = null,
 } = {}) {
-  const tenantsInsert = vi.fn(() => makeInsertSingle({ id: "tenant_pltest", slug: "prooflink-test", name: "ProofLink Test" }));
+  const tenantsInsert = vi.fn(() => makeInsertSingle(tenantInsertData, tenantInsertError));
   const tenantsDelete = vi.fn(() => ({
     eq: vi.fn(async () => ({ error: tenantRollbackError })),
   }));
@@ -87,11 +94,11 @@ function createSupabaseMock({
       maybeSingle: vi.fn(async () => ({ data: existingOperator, error: null })),
     })),
   }));
-  const operatorsInsert = vi.fn(() => makeInsertSingle({ id: "operator_pltest", tenant_id: "tenant_pltest", name: "Owner", role: "tenant_owner" }));
+  const operatorsInsert = vi.fn(() => makeInsertSingle(operatorInsertData, operatorInsertError));
   const operatorsDelete = vi.fn(() => ({
     eq: vi.fn(async () => ({ error: null })),
   }));
-  const operatorMembersUpsert = vi.fn(async () => ({ error: null }));
+  const operatorMembersUpsert = vi.fn(async () => ({ error: operatorMembersUpsertError }));
   const operatorMembersUpdate = vi.fn(() => ({
     eq: vi.fn(() => ({
       eq: vi.fn(async () => ({ error: null })),
@@ -105,7 +112,7 @@ function createSupabaseMock({
       maybeSingle: vi.fn(async () => ({
         data: {
           id: "req_pltest",
-          status: "approved",
+          status: onboardingStatus,
           business_name: "ProofLink Test",
           business_slug: "prooflink-test",
           owner_email: "owner@example.com",
@@ -133,7 +140,7 @@ function createSupabaseMock({
         return {
           select: vi.fn(() => ({
             eq: vi.fn(() => ({
-              maybeSingle: vi.fn(async () => ({ data: null, error: null })),
+              maybeSingle: vi.fn(async () => ({ data: existingTenant, error: null })),
             })),
           })),
           insert: tenantsInsert,
@@ -183,6 +190,7 @@ function createSupabaseMock({
       operatorMembersUpsert,
       operatorMembersDelete,
       provisionFailuresInsert,
+      onboardingUpdate,
     },
   };
 
@@ -340,6 +348,262 @@ describe("netlify/functions/provision-tenant", () => {
       expect(JSON.parse(res.body).operator_id).toBe("operator_existing");
       expect(supabase._calls.operatorsInsert).not.toHaveBeenCalled();
       expect(supabase._calls.operatorMembersUpsert).toHaveBeenCalled();
+    } finally {
+      restore();
+    }
+  });
+
+  test("returns idempotent success when tenant already exists for onboarding request", async () => {
+    process.env.PUBLIC_SITE_URL = "https://app.prooflink.test";
+    const supabase = createSupabaseMock({
+      existingTenant: { id: "tenant_existing", slug: "prooflink-test", name: "ProofLink Test" },
+    });
+
+    const { handler, restore } = loadHandlerWithMocks({
+      authExports: {
+        requireOnboardingAdminContext: vi.fn(async () => ({ operatorId: "op_pltest_admin", supabase })),
+        respond: (statusCode, body) => ({ statusCode, body: JSON.stringify(body) }),
+      },
+      emailExports: { sendEmail: vi.fn(async () => ({ id: "email_pltest" })), templates: { provisioned: vi.fn(() => ({})) } },
+      slugifyExports: { uniqueTenantSlug: vi.fn(async () => "prooflink-test") },
+      seedTemplateExports: { seedTemplateForTenant: vi.fn(async () => {}) },
+      authLinksExports: { buildPasswordSetupUrl: vi.fn(async () => "https://app.prooflink.test/operator/") },
+    });
+
+    try {
+      const res = await handler({
+        httpMethod: "POST",
+        headers: {},
+        body: JSON.stringify({ id: "req_pltest" }),
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(JSON.parse(res.body)).toEqual(expect.objectContaining({
+        message: "Tenant already provisioned (idempotent)",
+        tenant_id: "tenant_existing",
+        slug: "prooflink-test",
+      }));
+      expect(supabase._calls.tenantsInsert).not.toHaveBeenCalled();
+      expect(supabase._calls.onboardingUpdate).toHaveBeenCalled();
+    } finally {
+      restore();
+    }
+  });
+
+  test("rejects provisioning when onboarding request is not approved or failed", async () => {
+    process.env.PUBLIC_SITE_URL = "https://app.prooflink.test";
+    const supabase = createSupabaseMock({ onboardingStatus: "submitted" });
+
+    const { handler, restore } = loadHandlerWithMocks({
+      authExports: {
+        requireOnboardingAdminContext: vi.fn(async () => ({ operatorId: "op_pltest_admin", supabase })),
+        respond: (statusCode, body) => ({ statusCode, body: JSON.stringify(body) }),
+      },
+      emailExports: { sendEmail: vi.fn(async () => ({ id: "email_pltest" })), templates: { provisioned: vi.fn(() => ({})) } },
+      slugifyExports: { uniqueTenantSlug: vi.fn(async () => "prooflink-test") },
+      seedTemplateExports: { seedTemplateForTenant: vi.fn(async () => {}) },
+      authLinksExports: { buildPasswordSetupUrl: vi.fn(async () => "https://app.prooflink.test/operator/") },
+    });
+
+    try {
+      const res = await handler({
+        httpMethod: "POST",
+        headers: {},
+        body: JSON.stringify({ id: "req_pltest" }),
+      });
+
+      expect(res.statusCode).toBe(400);
+      expect(JSON.parse(res.body)).toEqual({
+        error: "Request must be in approved or failed status to provision",
+        current_status: "submitted",
+      });
+      expect(supabase._calls.tenantsInsert).not.toHaveBeenCalled();
+    } finally {
+      restore();
+    }
+  });
+
+  test("fails provisioning cleanly when slug generation fails", async () => {
+    process.env.PUBLIC_SITE_URL = "https://app.prooflink.test";
+    const supabase = createSupabaseMock();
+
+    const { handler, restore } = loadHandlerWithMocks({
+      authExports: {
+        requireOnboardingAdminContext: vi.fn(async () => ({ operatorId: "op_pltest_admin", supabase })),
+        respond: (statusCode, body) => ({ statusCode, body: JSON.stringify(body) }),
+      },
+      emailExports: { sendEmail: vi.fn(async () => ({ id: "email_pltest" })), templates: { provisioned: vi.fn(() => ({})) } },
+      slugifyExports: { uniqueTenantSlug: vi.fn(async () => { throw new Error("slug unavailable"); }) },
+      seedTemplateExports: { seedTemplateForTenant: vi.fn(async () => {}) },
+      authLinksExports: { buildPasswordSetupUrl: vi.fn(async () => "https://app.prooflink.test/operator/") },
+    });
+
+    try {
+      const res = await handler({
+        httpMethod: "POST",
+        headers: {},
+        body: JSON.stringify({ id: "req_pltest" }),
+      });
+
+      expect(res.statusCode).toBe(500);
+      expect(JSON.parse(res.body).error).toContain("Slug generation failed");
+      expect(supabase._calls.tenantsInsert).not.toHaveBeenCalled();
+      expect(supabase._calls.onboardingUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({ status: "failed" })
+      );
+    } finally {
+      restore();
+    }
+  });
+
+  test("fails provisioning cleanly when tenant insert fails", async () => {
+    process.env.PUBLIC_SITE_URL = "https://app.prooflink.test";
+    const supabase = createSupabaseMock({
+      tenantInsertError: { message: "duplicate key value violates unique constraint" },
+      tenantInsertData: null,
+    });
+
+    const { handler, restore } = loadHandlerWithMocks({
+      authExports: {
+        requireOnboardingAdminContext: vi.fn(async () => ({ operatorId: "op_pltest_admin", supabase })),
+        respond: (statusCode, body) => ({ statusCode, body: JSON.stringify(body) }),
+      },
+      emailExports: { sendEmail: vi.fn(async () => ({ id: "email_pltest" })), templates: { provisioned: vi.fn(() => ({})) } },
+      slugifyExports: { uniqueTenantSlug: vi.fn(async () => "prooflink-test") },
+      seedTemplateExports: { seedTemplateForTenant: vi.fn(async () => {}) },
+      authLinksExports: { buildPasswordSetupUrl: vi.fn(async () => "https://app.prooflink.test/operator/") },
+    });
+
+    try {
+      const res = await handler({
+        httpMethod: "POST",
+        headers: {},
+        body: JSON.stringify({ id: "req_pltest" }),
+      });
+
+      expect(res.statusCode).toBe(500);
+      expect(JSON.parse(res.body).error).toContain("Tenant creation failed");
+      expect(supabase._calls.onboardingUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: "failed",
+          provision_error: expect.stringContaining("Tenant creation failed"),
+        })
+      );
+    } finally {
+      restore();
+    }
+  });
+
+  test("fails provisioning cleanly when operator insert fails", async () => {
+    process.env.PUBLIC_SITE_URL = "https://app.prooflink.test";
+    const supabase = createSupabaseMock({
+      operatorInsertError: { message: "operator insert failed" },
+      operatorInsertData: null,
+    });
+
+    const { handler, restore } = loadHandlerWithMocks({
+      authExports: {
+        requireOnboardingAdminContext: vi.fn(async () => ({ operatorId: "op_pltest_admin", supabase })),
+        respond: (statusCode, body) => ({ statusCode, body: JSON.stringify(body) }),
+      },
+      emailExports: { sendEmail: vi.fn(async () => ({ id: "email_pltest" })), templates: { provisioned: vi.fn(() => ({})) } },
+      slugifyExports: { uniqueTenantSlug: vi.fn(async () => "prooflink-test") },
+      seedTemplateExports: { seedTemplateForTenant: vi.fn(async () => {}) },
+      authLinksExports: { buildPasswordSetupUrl: vi.fn(async () => "https://app.prooflink.test/operator/") },
+    });
+
+    try {
+      const res = await handler({
+        httpMethod: "POST",
+        headers: {},
+        body: JSON.stringify({ id: "req_pltest" }),
+      });
+
+      expect(res.statusCode).toBe(500);
+      expect(JSON.parse(res.body).error).toContain("Operator creation failed");
+      expect(supabase._calls.onboardingUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: "failed",
+          provision_error: expect.stringContaining("Operator creation failed"),
+        })
+      );
+    } finally {
+      restore();
+    }
+  });
+
+  test("fails provisioning cleanly when operator member upsert fails", async () => {
+    process.env.PUBLIC_SITE_URL = "https://app.prooflink.test";
+    const supabase = createSupabaseMock({
+      operatorMembersUpsertError: { message: "member upsert denied" },
+      authCreateError: { message: "already registered" },
+      listUsers: [{ id: "auth_existing", email: "owner@example.com" }],
+    });
+
+    const { handler, restore } = loadHandlerWithMocks({
+      authExports: {
+        requireOnboardingAdminContext: vi.fn(async () => ({ operatorId: "op_pltest_admin", supabase })),
+        respond: (statusCode, body) => ({ statusCode, body: JSON.stringify(body) }),
+      },
+      emailExports: { sendEmail: vi.fn(async () => ({ id: "email_pltest" })), templates: { provisioned: vi.fn(() => ({})) } },
+      slugifyExports: { uniqueTenantSlug: vi.fn(async () => "prooflink-test") },
+      seedTemplateExports: { seedTemplateForTenant: vi.fn(async () => {}) },
+      authLinksExports: { buildPasswordSetupUrl: vi.fn(async () => "https://app.prooflink.test/operator/") },
+    });
+
+    try {
+      const res = await handler({
+        httpMethod: "POST",
+        headers: {},
+        body: JSON.stringify({ id: "req_pltest" }),
+      });
+
+      expect(res.statusCode).toBe(500);
+      expect(JSON.parse(res.body).error).toContain("Operator member creation failed");
+      expect(supabase._calls.onboardingUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: "failed",
+          provision_error: expect.stringContaining("Operator member creation failed"),
+        })
+      );
+    } finally {
+      restore();
+    }
+  });
+
+  test("fails provisioning cleanly when template seeding fails", async () => {
+    process.env.PUBLIC_SITE_URL = "https://app.prooflink.test";
+    const supabase = createSupabaseMock({
+      authCreateError: { message: "already registered" },
+      listUsers: [{ id: "auth_existing", email: "owner@example.com" }],
+    });
+
+    const { handler, restore } = loadHandlerWithMocks({
+      authExports: {
+        requireOnboardingAdminContext: vi.fn(async () => ({ operatorId: "op_pltest_admin", supabase })),
+        respond: (statusCode, body) => ({ statusCode, body: JSON.stringify(body) }),
+      },
+      emailExports: { sendEmail: vi.fn(async () => ({ id: "email_pltest" })), templates: { provisioned: vi.fn(() => ({})) } },
+      slugifyExports: { uniqueTenantSlug: vi.fn(async () => "prooflink-test") },
+      seedTemplateExports: { seedTemplateForTenant: vi.fn(async () => { throw new Error("seed template missing"); }) },
+      authLinksExports: { buildPasswordSetupUrl: vi.fn(async () => "https://app.prooflink.test/operator/") },
+    });
+
+    try {
+      const res = await handler({
+        httpMethod: "POST",
+        headers: {},
+        body: JSON.stringify({ id: "req_pltest" }),
+      });
+
+      expect(res.statusCode).toBe(500);
+      expect(JSON.parse(res.body).error).toContain("Template seeding failed");
+      expect(supabase._calls.onboardingUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: "failed",
+          provision_error: expect.stringContaining("Template seeding failed"),
+        })
+      );
     } finally {
       restore();
     }

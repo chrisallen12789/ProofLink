@@ -1,0 +1,86 @@
+name: Hosted test flake triage
+about: Report and triage intermittent hosted integration failures.
+title: "[flake] <brief symptom>"
+labels:
+  - type: bug
+  - area: ci
+  - flake
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template for non-deterministic hosted integration failures.
+        Include concrete run links and enough context to reproduce.
+
+  - type: input
+    id: run_url
+    attributes:
+      label: Failing run URL
+      description: Link to the failing GitHub Actions run.
+      placeholder: https://github.com/<org>/<repo>/actions/runs/<id>
+    validations:
+      required: true
+
+  - type: input
+    id: first_seen
+    attributes:
+      label: First seen (UTC date)
+      placeholder: YYYY-MM-DD
+    validations:
+      required: true
+
+  - type: dropdown
+    id: frequency
+    attributes:
+      label: Failure frequency
+      options:
+        - 1 of 20+ runs
+        - 1 of 10 runs
+        - 1 of 5 runs
+        - 1 of 2 runs
+        - Always failing
+    validations:
+      required: true
+
+  - type: textarea
+    id: failure_step
+    attributes:
+      label: Failing step and error snippet
+      description: Paste the exact step name and short error snippet.
+      placeholder: |
+        Step: Seed hosted test data
+        Error: relation "tenant_usage_sync" does not exist
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction notes
+      description: Include branch, commit SHA, environment keys present/missing, and rerun behavior.
+      placeholder: |
+        - Branch: main
+        - SHA: abc1234
+        - TEST_* present: yes
+        - Re-run #1 passed / failed
+    validations:
+      required: true
+
+  - type: textarea
+    id: suspected_scope
+    attributes:
+      label: Suspected scope
+      description: Which area is likely responsible?
+      placeholder: seed script / cleanup script / preflight / schema drift / transient API
+
+  - type: checkboxes
+    id: done_checklist
+    attributes:
+      label: Triage checklist
+      options:
+        - label: I re-ran the same commit at least once.
+          required: true
+        - label: I confirmed whether required TEST_* secrets were present.
+          required: true
+        - label: I included a run URL and failing step snippet.
+          required: true

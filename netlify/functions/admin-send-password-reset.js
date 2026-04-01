@@ -15,8 +15,7 @@ exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return respond(204, {});
   if (event.httpMethod !== 'POST')    return respond(405, { error: 'Method not allowed' });
 
-  let ctx;
-  try { ctx = await requireAdminContext(event); }
+  try { await requireAdminContext(event); }
   catch (err) { return respond(err.statusCode || 401, { error: err.message }); }
 
   let body;

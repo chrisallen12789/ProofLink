@@ -82,7 +82,6 @@ async function provisionTenantBundle({ supabase, payload, invitedByOperatorId = 
   const businessName = clean(payload.business_name || payload.businessName);
   const ownerName = clean(payload.owner_name || payload.ownerName);
   const ownerEmail = clean(payload.owner_email || payload.email).toLowerCase();
-  const phone = clean(payload.phone) || null;
   const businessType = normalizeBusinessType(payload);
   const cityState = clean(payload.city_state || payload.cityState || payload.service_area || payload.serviceArea) || null;
   const selectedPlan = normalizePlan(payload.selected_plan || payload.selectedPlan);

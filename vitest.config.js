@@ -10,7 +10,15 @@ module.exports = defineConfig({
     include: ["tests/unit/**/*.test.js", "tests/integration/**/*.int.test.js"],
     coverage: {
       provider: "v8",
-      reporter: ["text", "html"],
+      reporter: ["text", "html", "json-summary"],
+      reportsDirectory: "coverage/unit",
+      all: false,
+      thresholds: {
+        lines: 70,
+        statements: 70,
+        functions: 65,
+        branches: 40,
+      },
     },
   },
 });

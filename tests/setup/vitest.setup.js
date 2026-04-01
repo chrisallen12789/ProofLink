@@ -1,9 +1,16 @@
 "use strict";
 
-const { loadTestEnv } = require("./env.test");
+const { assertRequiredEnv, loadTestEnv } = require("./env.test");
+
+function isIntegrationRun() {
+  return process.argv.some((arg) => arg.includes("tests/integration"));
+}
 
 beforeAll(() => {
   loadTestEnv();
+  if (isIntegrationRun()) {
+    assertRequiredEnv();
+  }
 });
 
 afterEach(() => {

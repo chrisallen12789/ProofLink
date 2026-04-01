@@ -522,6 +522,35 @@ describe("operator customer detail", () => {
     expect(guidance.items[2].note).toContain("$8400");
   });
 
+
+
+
+  test("customerMaintenanceQueueBuckets separates overdue and due-soon assets", () => {
+    const api = loadCustomerDetail();
+    const buckets = api.customerMaintenanceQueueBuckets([
+      { id: "a1", asset_name: "Pit A", address: "Building A", next_service_due_date: "2026-03-01" },
+      { id: "a2", asset_name: "Pit B", address: "Building B", next_service_due_date: "2026-04-10" },
+      { id: "a3", asset_name: "Pit C", address: "Building C", next_service_due_date: "2026-06-15" },
+    ], new Date("2026-03-31T00:00:00Z"));
+
+    expect(buckets.overdue).toHaveLength(1);
+    expect(buckets.dueSoon).toHaveLength(1);
+    expect(buckets.scheduledLater).toHaveLength(1);
+  });
+
+  test("addDaysToIsoDate computes next maintenance date from a closeout date", () => {
+    const api = loadCustomerDetail();
+    expect(api.addDaysToIsoDate("2026-03-31", 30)).toBe("2026-04-30");
+  });
+
+  test("customer workspace helper builds query string for API drilldown", () => {
+    const api = loadCustomerDetail();
+    const query = api.customerWorkspaceQueryString("cust_123");
+
+    expect(query).toContain("customer_id=cust_123");
+    expect(query).toContain("include_closed=true");
+  });
+
   test("customer detail source uses shared memory checklist classes", () => {
     const source = fs.readFileSync(
       path.resolve(process.cwd(), "operator/operator-customer-detail.js"),
@@ -535,6 +564,20 @@ describe("operator customer detail", () => {
     expect(source).toContain("customerPostWorkGuidance");
     expect(source).toContain("customerRepeatPlanState");
     expect(source).toContain("customerCreateRequestActionLabel");
+    expect(source).toContain("/.netlify/functions/get-customer-workspace");
+    expect(source).toContain("Customer operations hub");
+    expect(source).toContain("Photos & docs");
+    expect(source).toContain("Open full job workspace");
+    expect(source).toContain("customer-job-detail-card");
+    expect(source).toContain("btnApplyCustomerWorkspaceFilters");
+    expect(source).toContain("Building filter");
+    expect(source).toContain("Job type filter");
+    expect(source).toContain("Save maintenance window");
+    expect(source).toContain("Maintenance follow-up");
+    expect(source).toContain("applyCustomerJobMaintenanceWindow");
+    expect(source).toContain("customerMaintenanceQueueBuckets");
+    expect(source).toContain("Maintenance queue");
+    expect(source).toContain("due in 30 days");
     expect(source).toContain("createCustomerRequestRecord");
     expect(source).toContain("Generate next booked work");
     expect(source).toContain("create-request");

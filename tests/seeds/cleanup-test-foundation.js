@@ -66,7 +66,7 @@ async function deleteRows(table, column, values) {
   const filtered = values.filter(Boolean);
   if (!filtered.length) return;
   const { error } = await supabase.from(table).delete().in(column, filtered);
-  if (error) throw error;
+  if (error && !isMissingTenantUsageSyncError(error)) throw error;
 }
 
 function isMissingRelationError(error) {
@@ -78,11 +78,21 @@ function isMissingRelationError(error) {
     || message.includes("does not exist");
 }
 
+function isMissingTenantUsageSyncError(error) {
+  const code = String(error?.code || "").trim().toUpperCase();
+  const message = String(error?.message || "").toLowerCase();
+  return code === "P0002" && message.includes("tenant not found for usage sync");
+}
+
+function isIgnorableCleanupError(error) {
+  return isMissingRelationError(error) || isMissingTenantUsageSyncError(error);
+}
+
 async function deleteRowsMaybe(table, column, values) {
   const filtered = values.filter(Boolean);
   if (!filtered.length) return;
   const { error } = await supabase.from(table).delete().in(column, filtered);
-  if (error && !isMissingRelationError(error)) throw error;
+  if (error && !isIgnorableCleanupError(error)) throw error;
 }
 
 async function main() {
@@ -155,6 +165,13 @@ async function main() {
 }
 
 main().catch((error) => {
+  if (isMissingTenantUsageSyncError(error)) {
+    console.warn(
+      "Skipping cleanup failure for missing tenant usage sync reference:",
+      error?.message || String(error)
+    );
+    return;
+  }
   console.error("Failed to cleanup ProofLink test foundation:", error);
   process.exitCode = 1;
 });

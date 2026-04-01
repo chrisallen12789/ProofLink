@@ -1028,6 +1028,374 @@
     }
   }
 
+
+  const CUSTOMER_WORKSPACE_FILTERS_BY_CUSTOMER = new Map();
+
+  function customerWorkspaceQueryString(customerIdValue, filters = {}) {
+    if (!customerIdValue) return "";
+    const params = [
+      `customer_id=${encodeURIComponent(customerIdValue)}`,
+      `include_closed=${filters.include_closed === false ? "false" : "true"}`,
+    ];
+    if (filters.building) params.push(`building=${encodeURIComponent(filters.building)}`);
+    if (filters.job_type) params.push(`job_type=${encodeURIComponent(filters.job_type)}`);
+    if (filters.date_from) params.push(`date_from=${encodeURIComponent(filters.date_from)}`);
+    if (filters.date_to) params.push(`date_to=${encodeURIComponent(filters.date_to)}`);
+    if (filters.search) params.push(`search=${encodeURIComponent(filters.search)}`);
+    return params.join("&");
+  }
+
+  function getCustomerWorkspaceFilters(customerIdValue) {
+    return CUSTOMER_WORKSPACE_FILTERS_BY_CUSTOMER.get(customerIdValue) || {};
+  }
+
+  function setCustomerWorkspaceFilters(customerIdValue, filters = {}) {
+    if (!customerIdValue) return;
+    CUSTOMER_WORKSPACE_FILTERS_BY_CUSTOMER.set(customerIdValue, {
+      ...getCustomerWorkspaceFilters(customerIdValue),
+      ...filters,
+    });
+  }
+
+  function clearCustomerWorkspaceFilters(customerIdValue) {
+    if (!customerIdValue) return;
+    CUSTOMER_WORKSPACE_FILTERS_BY_CUSTOMER.delete(customerIdValue);
+  }
+
+  async function fetchCustomerWorkspaceData(customerIdValue, filters = {}) {
+    if (!customerIdValue || typeof fetch !== "function") return null;
+    try {
+      const tok = await getAccessToken();
+      const query = customerWorkspaceQueryString(customerIdValue, filters);
+      const response = await fetch(`/.netlify/functions/get-customer-workspace?${query}`, {
+        headers: tok ? { Authorization: `Bearer ${tok}` } : {},
+      });
+      if (!response.ok) return null;
+      return await response.json();
+    } catch (error) {
+      console.warn("[customer-detail] get-customer-workspace failed:", error?.message || error);
+      return null;
+    }
+  }
+
+  function addDaysToIsoDate(baseDateValue, daysValue) {
+    const base = String(baseDateValue || "").slice(0, 10);
+    const days = Number(daysValue || 0);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(base) || !Number.isFinite(days)) return "";
+    const date = new Date(`${base}T00:00:00Z`);
+    date.setUTCDate(date.getUTCDate() + Math.max(0, Math.round(days)));
+    return date.toISOString().slice(0, 10);
+  }
+
+  async function applyCustomerJobMaintenanceWindow({ assetId, intervalDays, nextServiceDate }) {
+    if (!assetId) throw new Error("Asset id is required to set maintenance window.");
+    const tok = await getAccessToken();
+    const response = await fetch("/.netlify/functions/manage-infrastructure-assets", {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        ...(tok ? { Authorization: `Bearer ${tok}` } : {}),
+      },
+      body: JSON.stringify({
+        id: assetId,
+        service_frequency_days: Number(intervalDays) || null,
+        next_service_due_date: nextServiceDate || null,
+      }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload?.error || "Failed to update maintenance window");
+    }
+    return payload;
+  }
+
+  function customerMaintenanceQueueBuckets(assets, now = new Date()) {
+    const rows = Array.isArray(assets) ? assets : [];
+    const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+    const dueSoonCutoff = new Date(today);
+    dueSoonCutoff.setUTCDate(dueSoonCutoff.getUTCDate() + 30);
+
+    const overdue = [];
+    const dueSoon = [];
+    const scheduledLater = [];
+
+    rows.forEach((asset) => {
+      const due = String(asset?.next_service_due_date || "").slice(0, 10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(due)) return;
+      const dueDate = new Date(`${due}T00:00:00Z`);
+      const entry = {
+        id: asset.id,
+        asset_name: asset.asset_name || asset.asset_type || "Asset",
+        building: asset.address || "Unspecified building",
+        due_date: due,
+      };
+      if (dueDate < today) {
+        overdue.push(entry);
+      } else if (dueDate <= dueSoonCutoff) {
+        dueSoon.push(entry);
+      } else {
+        scheduledLater.push(entry);
+      }
+    });
+
+    overdue.sort((a, b) => a.due_date.localeCompare(b.due_date));
+    dueSoon.sort((a, b) => a.due_date.localeCompare(b.due_date));
+    scheduledLater.sort((a, b) => a.due_date.localeCompare(b.due_date));
+
+    return { overdue, dueSoon, scheduledLater };
+  }
+
+  function renderCustomerWorkspaceOpsCard(workspace) {
+    if (!workspace) return "";
+    const buildings = Array.isArray(workspace.buildings) ? workspace.buildings.slice(0, 6) : [];
+    const jobs = Array.isArray(workspace.jobs) ? workspace.jobs.slice(0, 6) : [];
+    const assets = Array.isArray(workspace.assets) ? workspace.assets : [];
+    const maintenanceQueue = customerMaintenanceQueueBuckets(assets);
+    const summary = workspace.summary || {};
+
+    return `
+      <div class="detail-card u-mt-14">
+        <div class="kicker">Customer operations hub</div>
+        <div><strong>Buildings, jobs, expenses, and service cadence in one timeline.</strong></div>
+        <div class="detail-copy">Use this to review service history by building and jump straight into the jobs tab for full records.</div>
+
+        <div class="grid two u-mt-10">
+          <label>
+            <span class="kicker">Building filter</span>
+            <input id="customerWorkspaceBuilding" class="input" value="${escapeAttr(workspace.filters?.building || "")}" placeholder="Engineering Building" />
+          </label>
+          <label>
+            <span class="kicker">Job type filter</span>
+            <input id="customerWorkspaceJobType" class="input" value="${escapeAttr(workspace.filters?.job_type || "")}" placeholder="Ejection pit cleanout" />
+          </label>
+          <label>
+            <span class="kicker">From date</span>
+            <input id="customerWorkspaceDateFrom" class="input" type="date" value="${escapeAttr(workspace.filters?.date_from || "")}" />
+          </label>
+          <label>
+            <span class="kicker">To date</span>
+            <input id="customerWorkspaceDateTo" class="input" type="date" value="${escapeAttr(workspace.filters?.date_to || "")}" />
+          </label>
+        </div>
+        <div class="customer-action-row u-mt-10">
+          <button type="button" class="btn btn-primary" id="btnApplyCustomerWorkspaceFilters">Apply filters</button>
+          <button type="button" class="btn btn-ghost" id="btnClearCustomerWorkspaceFilters">Clear filters</button>
+        </div>
+
+        <div class="workspace-chip-row u-mt-10">
+          <span class="pill">${escapeHtml(String(summary.total_buildings || 0))} buildings</span>
+          <span class="pill">${escapeHtml(String(summary.total_assets || 0))} assets</span>
+          <span class="pill">${escapeHtml(String(summary.total_jobs || 0))} jobs</span>
+          <span class="pill pill-on">${escapeHtml(formatUsd(summary.total_expense_cents || 0))} expenses</span>
+        </div>
+
+        <div class="detail-card u-mt-10 customer-maintenance-queue">
+          <div class="kicker">Maintenance queue</div>
+          <div><strong>Know what is overdue and what is due in the next 30 days.</strong></div>
+          <div class="workspace-chip-row u-mt-8">
+            <span class="pill pill-bad">${escapeHtml(String(maintenanceQueue.overdue.length))} overdue</span>
+            <span class="pill">${escapeHtml(String(maintenanceQueue.dueSoon.length))} due in 30 days</span>
+            <span class="pill">${escapeHtml(String(maintenanceQueue.scheduledLater.length))} scheduled later</span>
+          </div>
+          <div class="grid two u-mt-10">
+            <div>
+              <div class="kicker">Overdue assets</div>
+              ${maintenanceQueue.overdue.length ? `
+                <div class="list u-mt-6">
+                  ${maintenanceQueue.overdue.slice(0, 5).map((asset) => `
+                    <div class="list-item">
+                      <div class="li-main">
+                        <div class="li-title">${escapeHtml(asset.asset_name)}</div>
+                        <div class="li-sub muted">${escapeHtml(asset.building)}</div>
+                      </div>
+                      <div class="li-meta"><span class="pill pill-bad">${escapeHtml(asset.due_date)}</span></div>
+                    </div>
+                  `).join("")}
+                </div>
+              ` : `<div class="muted u-mt-6">No overdue maintenance assets.</div>`}
+            </div>
+            <div>
+              <div class="kicker">Due soon</div>
+              ${maintenanceQueue.dueSoon.length ? `
+                <div class="list u-mt-6">
+                  ${maintenanceQueue.dueSoon.slice(0, 5).map((asset) => `
+                    <div class="list-item">
+                      <div class="li-main">
+                        <div class="li-title">${escapeHtml(asset.asset_name)}</div>
+                        <div class="li-sub muted">${escapeHtml(asset.building)}</div>
+                      </div>
+                      <div class="li-meta"><span class="pill">${escapeHtml(asset.due_date)}</span></div>
+                    </div>
+                  `).join("")}
+                </div>
+              ` : `<div class="muted u-mt-6">No assets due in the next 30 days.</div>`}
+            </div>
+          </div>
+        </div>
+
+        <div class="grid two u-mt-10">
+          <div>
+            <div class="kicker">Buildings</div>
+            ${buildings.length ? `
+              <div class="list u-mt-6">
+                ${buildings.map((building) => `
+                  <div class="list-item">
+                    <div class="li-main">
+                      <div class="li-title">${escapeHtml(building.building_key || "Unspecified building")}</div>
+                      <div class="li-sub muted">${escapeHtml(String(building.job_count || 0))} jobs &middot; ${escapeHtml(formatUsd(building.expense_total_cents || 0))}</div>
+                    </div>
+                    <div class="li-meta">
+                      <span class="pill">${escapeHtml(building.last_service_at ? formatDateTime(building.last_service_at) : "No service yet")}</span>
+                    </div>
+                  </div>
+                `).join("")}
+              </div>
+            ` : `<div class="muted u-mt-6">No building-linked jobs yet.</div>`}
+          </div>
+          <div>
+            <div class="kicker">Recent jobs</div>
+            ${jobs.length ? `
+              <div class="list u-mt-6">
+                ${jobs.map((job) => {
+                  const expenseRows = Array.isArray(job.expenses) ? [...job.expenses].sort((a, b) => String(b.date || "").localeCompare(String(a.date || ""))) : [];
+                  const photoRows = Array.isArray(job.photos) ? [...job.photos].sort((a, b) => String(b.created_at || "").localeCompare(String(a.created_at || ""))) : [];
+                  return `
+                    <details class="detail-card u-mt-6 customer-job-detail-card">
+                      <summary class="customer-job-detail-summary">
+                        <span>
+                          <strong>${escapeHtml(job.title || "Job")}</strong>
+                          <span class="muted">${escapeHtml(job.service_address || "No building on file")} &middot; ${escapeHtml(job.job_type || "Service")}</span>
+                        </span>
+                        <span class="pill">${escapeHtml(job.scheduled_date || "No date")}</span>
+                      </summary>
+
+                      <div class="u-mt-10 customer-job-detail-grid">
+                        <div>
+                          <div class="kicker">Expenses</div>
+                          <div class="muted u-mb-6">${escapeHtml(formatUsd(job.expense_total_cents || 0))} total</div>
+                          ${expenseRows.length ? `
+                            <div class="list">
+                              ${expenseRows.slice(0, 6).map((expense) => `
+                                <div class="list-item">
+                                  <div class="li-main">
+                                    <div class="li-title">${escapeHtml(expense.expense_type || "Expense")}</div>
+                                    <div class="li-sub muted">${escapeHtml(expense.description || "No description")}</div>
+                                  </div>
+                                  <div class="li-meta">
+                                    <span class="pill">${escapeHtml(expense.date || "")}</span>
+                                    <span class="pill">${escapeHtml(formatUsd(expense.amount_cents || 0))}</span>
+                                  </div>
+                                </div>
+                              `).join("")}
+                            </div>
+                          ` : `<div class="muted">No expenses captured for this job yet.</div>`}
+                        </div>
+                        <div>
+                          <div class="kicker">Photos & docs</div>
+                          <div class="muted u-mb-6">${escapeHtml(String(photoRows.length))} photo${photoRows.length === 1 ? "" : "s"} logged</div>
+                          ${photoRows.length ? `
+                            <div class="list">
+                              ${photoRows.slice(0, 6).map((photo) => `
+                                <a class="list-item" href="${escapeAttr(photo.url || "#")}" target="_blank" rel="noopener">
+                                  <div class="li-main">
+                                    <div class="li-title">${escapeHtml(photo.caption || "Job photo")}</div>
+                                    <div class="li-sub muted">${escapeHtml(photo.created_at ? formatDateTime(photo.created_at) : "Unknown date")}</div>
+                                  </div>
+                                  <div class="li-meta"><span class="pill">Open</span></div>
+                                </a>
+                              `).join("")}
+                            </div>
+                          ` : `<div class="muted">No photos/docs linked yet for this job.</div>`}
+                        </div>
+                      </div>
+
+                      ${job.asset_id ? `
+                        <div class="u-mt-10">
+                          <div class="kicker">Maintenance follow-up</div>
+                          <div class="grid two u-mt-6">
+                            <label>
+                              <span class="muted muted-small">Recommended interval (days)</span>
+                              <input class="input" id="jobMaintenanceDays_${escapeAttr(job.id || "")}" type="number" min="1" step="1" value="${escapeAttr(String(job.asset?.service_frequency_days || 90))}" />
+                            </label>
+                            <label>
+                              <span class="muted muted-small">Next maintenance date</span>
+                              <input class="input" id="jobMaintenanceDate_${escapeAttr(job.id || "")}" type="date" value="${escapeAttr(job.asset?.next_service_due_date || "")}" />
+                            </label>
+                          </div>
+                          <div class="customer-action-row u-mt-6">
+                            <button type="button" class="btn btn-primary" data-maintenance-apply="${escapeAttr(job.id || "")}" data-maintenance-asset-id="${escapeAttr(job.asset_id || "")}" data-maintenance-base-date="${escapeAttr(job.completed_at || job.scheduled_date || "")}">Save maintenance window</button>
+                          </div>
+                        </div>
+                      ` : `<div class="muted u-mt-10">Link this job to an asset to schedule the next maintenance window.</div>`}
+
+                      <div class="customer-action-row u-mt-10">
+                        <button type="button" class="btn btn-ghost" data-customer-open-tab="jobs" data-customer-open-id="${escapeAttr(job.id || "")}">Open full job workspace</button>
+                      </div>
+                    </details>
+                  `;
+                }).join("")}
+              </div>
+            ` : `<div class="muted u-mt-6">No jobs yet for this customer.</div>`}
+          </div>
+        </div>
+
+        ${(workspace.warnings || []).length ? `
+          <div class="muted u-mt-10">${escapeHtml((workspace.warnings || []).join(" | "))}</div>
+        ` : ""}
+      </div>
+    `;
+  }
+
+
+
+  function bindCustomerJobMaintenanceControls(customerIdValue) {
+    customerDetailWrap?.querySelectorAll("[data-maintenance-apply]").forEach((button) => {
+      button.addEventListener("click", async () => {
+        const jobId = button.getAttribute("data-maintenance-apply") || "";
+        const assetId = button.getAttribute("data-maintenance-asset-id") || "";
+        const baseDate = button.getAttribute("data-maintenance-base-date") || "";
+        const daysInput = $(`jobMaintenanceDays_${jobId}`);
+        const dateInput = $(`jobMaintenanceDate_${jobId}`);
+        const intervalDays = Number(daysInput?.value || 0);
+        const computedDate = dateInput?.value || addDaysToIsoDate(baseDate, intervalDays);
+
+        try {
+          await applyCustomerJobMaintenanceWindow({
+            assetId,
+            intervalDays,
+            nextServiceDate: computedDate,
+          });
+          showToast("Maintenance window saved.");
+          setCustomerWorkspaceFilters(customerIdValue, { ...getCustomerWorkspaceFilters(customerIdValue) });
+          await renderCustomerDetailWorkspace(customerIdValue, global.CURRENT_CUSTOMER_DETAIL_CUSTOMER);
+        } catch (error) {
+          notifyOperator(error?.message || String(error));
+        }
+      });
+    });
+  }
+
+  function bindCustomerWorkspaceFilterControls(customerIdValue) {
+    const applyButton = $("btnApplyCustomerWorkspaceFilters");
+    const clearButton = $("btnClearCustomerWorkspaceFilters");
+
+    applyButton?.addEventListener("click", async () => {
+      const filters = {
+        building: $("customerWorkspaceBuilding")?.value?.trim() || "",
+        job_type: $("customerWorkspaceJobType")?.value?.trim() || "",
+        date_from: $("customerWorkspaceDateFrom")?.value || "",
+        date_to: $("customerWorkspaceDateTo")?.value || "",
+      };
+      setCustomerWorkspaceFilters(customerIdValue, filters);
+      await renderCustomerDetailWorkspace(customerIdValue, global.CURRENT_CUSTOMER_DETAIL_CUSTOMER);
+    });
+
+    clearButton?.addEventListener("click", async () => {
+      clearCustomerWorkspaceFilters(customerIdValue);
+      await renderCustomerDetailWorkspace(customerIdValue, global.CURRENT_CUSTOMER_DETAIL_CUSTOMER);
+    });
+  }
+
   async function renderCustomerDetailWorkspace(customerIdValue, customer) {
     if (!customerDetailWrap) return;
     global.CURRENT_CUSTOMER_DETAIL_CUSTOMER = customer || null;
@@ -1041,6 +1409,10 @@
       `;
       return;
     }
+
+    const workspaceFilters = getCustomerWorkspaceFilters(customerIdValue);
+    const customerWorkspaceData = await fetchCustomerWorkspaceData(customerIdValue, workspaceFilters);
+    const customerWorkspaceCard = renderCustomerWorkspaceOpsCard(customerWorkspaceData);
 
     const customerRequestsRows = customerRequests(customerIdValue).slice(0, 12);
     const customerBidRows = customerBids(customerIdValue).slice(0, 12);
@@ -1178,6 +1550,7 @@
         actions: customerQuickActions,
       })}
       ${renderCustomerRecordFocusCard()}
+      ${customerWorkspaceCard}
 
       <div class="customer-flow-grid">
         <div class="customer-flow-card">
@@ -1424,6 +1797,9 @@
       </div>
     `;
 
+    bindCustomerWorkspaceFilterControls(customerIdValue);
+    bindCustomerJobMaintenanceControls(customerIdValue);
+
     customerDetailWrap.querySelectorAll("[data-customer-action]").forEach((button) => {
       button.addEventListener("click", () => {
         const action = button.getAttribute("data-customer-action");
@@ -1534,6 +1910,17 @@
     openCustomerRetentionAction,
     openCustomerRecordTab,
     archiveCustomer,
+    customerWorkspaceQueryString,
+    getCustomerWorkspaceFilters,
+    setCustomerWorkspaceFilters,
+    clearCustomerWorkspaceFilters,
+    fetchCustomerWorkspaceData,
+    addDaysToIsoDate,
+    applyCustomerJobMaintenanceWindow,
+    customerMaintenanceQueueBuckets,
+    renderCustomerWorkspaceOpsCard,
+    bindCustomerJobMaintenanceControls,
+    bindCustomerWorkspaceFilterControls,
     renderCustomerDetailWorkspace,
   };
 

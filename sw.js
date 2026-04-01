@@ -1,13 +1,6 @@
-const CACHE = 'prooflink-v2';
+const CACHE = 'prooflink-v3';
 
 const PRECACHE = [
-  '/',
-  '/join.html',
-  '/landing-page.css',
-  '/join-page.css',
-  '/join-page.js',
-  '/prooflink-plan-intent.js',
-  '/prooflink-workspace-architecture.js',
   '/assets/favicon.png',
   '/assets/pwa-192.png',
   '/assets/pwa-512.png',
@@ -140,16 +133,9 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Public marketing/site pages use network-first without writing to cache
+  // so layout and style updates are visible immediately after deploy.
   event.respondWith(
-    fetch(request)
-      .then((response) => {
-        // Cache a copy of successful responses
-        if (response.ok) {
-          const clone = response.clone();
-          caches.open(CACHE).then((cache) => cache.put(request, clone));
-        }
-        return response;
-      })
-      .catch(() => caches.match(request))
+    fetch(request).catch(() => caches.match(request))
   );
 });
