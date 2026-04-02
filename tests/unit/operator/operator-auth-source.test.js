@@ -34,4 +34,11 @@ describe("operator auth source", () => {
     expect(js).toContain('Password must include at least one number or symbol.');
     expect(js).toContain("passwordToggleButtons.forEach(bindPasswordToggle)");
   });
+
+  test("password sign-in suppresses overlapping auth boot and normalizes lock errors", () => {
+    expect(js).toContain("let passwordLoginInFlight = false;");
+    expect(js).toContain('if (passwordLoginInFlight && _event === "SIGNED_IN") {');
+    expect(js).toContain('normalized.includes("another request stole it")');
+    expect(js).toContain("Another sign-in request was already in progress. Please wait a moment and try again.");
+  });
 });

@@ -76,6 +76,7 @@ let BOOKING_PAGE_ENABLED = true;
 window.PROOFLINK_BOOT_READY = false;
 // Tracks which password-setup flow is active: "reset" | "first-time" | null
 let passwordSetupMode = null;
+let passwordLoginInFlight = false;
 let ACTIVE_ORDER_ID = null;
 let ACTIVE_BID_ID = null;
 let ACTIVE_CUSTOMER_ID = null;
@@ -4008,6 +4009,22 @@ function showForgotPassword() {
   if (forgotMsg) forgotMsg.textContent = "";
   if (forgotEmail) forgotEmail.value = loginEmail?.value || "";
 }
+
+function getFriendlyAuthMessage(error, fallback = "Something went wrong. Please try again.") {
+  const message = String(error?.message || error || "").trim();
+  if (!message) return fallback;
+
+  const normalized = message.toLowerCase();
+  if (normalized.includes("another request stole it")) {
+    return "Another sign-in request was already in progress. Please wait a moment and try again.";
+  }
+  if (normalized.includes("invalid login credentials")) {
+    return "The email or password looks incorrect.";
+  }
+
+  return message;
+}
+
 passwordToggleButtons.forEach(bindPasswordToggle);
 newPasswordInput?.addEventListener("input", () => {
   updatePasswordStrengthFeedback();
@@ -4060,7 +4077,10 @@ btnSetPassword?.addEventListener("click", async () => {
   const { error } = await sb.auth.updateUser({ password: pw });
 
   if (error) {
-    if (passwordSetupMsg) { passwordSetupMsg.textContent = error.message || "Could not set password."; passwordSetupMsg.className = "msg auth-msg error"; }
+    if (passwordSetupMsg) {
+      passwordSetupMsg.textContent = getFriendlyAuthMessage(error, "Could not set password.");
+      passwordSetupMsg.className = "msg auth-msg error";
+    }
     if (btnSetPassword) btnSetPassword.disabled = false;
     return;
   }
@@ -4079,23 +4099,38 @@ btnSetPassword?.addEventListener("click", async () => {
       window.__plTourReady?.();
     }).catch((err) => {
       console.error(err);
-      showLogin(err?.message || String(err));
+      showLogin(getFriendlyAuthMessage(err, "Please sign in to continue."));
     });
   }, 800);
 });
 
 loginForm?.addEventListener("submit", async (e) => {
   e.preventDefault();
+  if (passwordLoginInFlight) return;
+  passwordLoginInFlight = true;
   if (loginMsg) { loginMsg.textContent = "Signing in..."; loginMsg.className = "msg"; }
-  const { error } = await sb.auth.signInWithPassword({
-    email: loginEmail.value.trim().toLowerCase(),
-    password: loginPassword.value,
-  });
-  if (error) {
-    if (loginMsg) { loginMsg.textContent = error.message; loginMsg.className = "msg error"; }
-    return;
+  try {
+    const { error } = await sb.auth.signInWithPassword({
+      email: loginEmail.value.trim().toLowerCase(),
+      password: loginPassword.value,
+    });
+    if (error) {
+      if (loginMsg) {
+        loginMsg.textContent = getFriendlyAuthMessage(error, "Could not sign in. Please try again.");
+        loginMsg.className = "msg error";
+      }
+      return;
+    }
+    if (loginMsg) { loginMsg.textContent = "Loading your business hub..."; loginMsg.className = "msg"; }
+    await boot();
+  } catch (err) {
+    if (loginMsg) {
+      loginMsg.textContent = getFriendlyAuthMessage(err, "Could not sign in. Please try again.");
+      loginMsg.className = "msg error";
+    }
+  } finally {
+    passwordLoginInFlight = false;
   }
-  await boot();
 });
 btnMagicLink?.addEventListener("click", async () => {
   const email = loginEmail.value.trim();
@@ -4108,7 +4143,7 @@ btnMagicLink?.addEventListener("click", async () => {
     await sendMagicLink(email);
     if (loginMsg) loginMsg.textContent = "Check your inbox for the newest sign-in link.";
   } catch (err) {
-    if (loginMsg) loginMsg.textContent = err?.message || String(err);
+    if (loginMsg) loginMsg.textContent = getFriendlyAuthMessage(err, "Could not send a sign-in link.");
   }
 });
 
@@ -4139,7 +4174,10 @@ btnSendReset?.addEventListener("click", async () => {
       forgotMsg.className = "msg auth-msg ok";
     }
   } catch (err) {
-    if (forgotMsg) { forgotMsg.textContent = err?.message || String(err); forgotMsg.className = "msg auth-msg error"; }
+    if (forgotMsg) {
+      forgotMsg.textContent = getFriendlyAuthMessage(err, "Could not send a reset link.");
+      forgotMsg.className = "msg auth-msg error";
+    }
   } finally {
     if (btnSendReset) btnSendReset.disabled = false;
   }
@@ -4156,6 +4194,10 @@ sb.auth.onAuthStateChange((_event, session) => {
     CURRENT_OPERATOR = null;
     pendingAuthCallback = null;
     showLogin("");
+    return;
+  }
+
+  if (passwordLoginInFlight && _event === "SIGNED_IN") {
     return;
   }
 
@@ -4191,7 +4233,7 @@ sb.auth.onAuthStateChange((_event, session) => {
   pendingAuthCallback = null;
   boot().catch((err) => {
     console.error(err);
-    showLogin(err?.message || String(err));
+    showLogin(getFriendlyAuthMessage(err, "Please sign in to continue."));
   });
 });
 
@@ -9204,7 +9246,7 @@ try {
 
 boot().catch((err) => {
   console.error(err);
-  showLogin(err?.message || String(err));
+  showLogin(getFriendlyAuthMessage(err, "Please sign in to continue."));
 });
 
 // ── Availability blocks ────────────────────────────────────────────────────────
