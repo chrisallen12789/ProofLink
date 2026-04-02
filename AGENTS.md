@@ -116,9 +116,9 @@ ProofLink/
 ├── book.html                  # Customer appointment booking
 ├── contact.html               # Contact form
 ├── cart.js                    # Storefront cart management
-├── cottagelink.config.js      # Storefront config builder
-├── cottagelink.core.js        # Storefront core utilities
-├── cottagelink.tenant.js      # Tenant hydration
+├── prooflink.config.js        # Storefront config builder
+├── prooflink.core.js          # Storefront core utilities
+├── prooflink.tenant.js        # Tenant hydration
 ├── netlify.toml               # Netlify config (build, redirects, schedules)
 ├── _headers                   # Netlify response headers (CSP, HSTS)
 └── package.json               # Node deps: @supabase/supabase-js, stripe, twilio, web-push
@@ -249,6 +249,7 @@ export const handler = async (event) => {
 - `check-slug.js` — GET: `?slug=foo` returns `{available: bool}`. Checks `tenants`, `tenant_onboarding_requests`, and `pl_reserved_slugs`.
 - `get-public-catalog.js` — GET: `?tenant=slug` returns product catalog for storefront.
 - `get-public-tenant-info.js` — GET: `?tenant=slug` returns storefront branding/settings.
+- `create-booking.js` — Creates public bookings when no Bearer token is supplied; the same endpoint also serves authenticated operator-created bookings.
 - `blog-comment.js` / `blog-subscribe.js` — Rate-limited public submissions.
 - `cancel-booking.js` — Public booking cancellation.
 
@@ -256,7 +257,7 @@ export const handler = async (event) => {
 - `get-operator-setup.js` — Full dashboard bootstrap: tenant info, settings, plan limits, Stripe status.
 - `get-launch-checklist.js` — 7-step onboarding progress tracker.
 - `get-tenant-limit-health.js` — Usage percentages vs plan limits.
-- `create-booking.js` / `update-booking.js` / `get-bookings.js` — Booking CRUD.
+- `update-booking.js` / `get-bookings.js` — Operator booking management.
 - `create-quote.js` / `get-quote.js` / `get-quotes.js` — Quote management.
 - `generate-invoice.js` / `generate-hydrovac-invoice.js` — Invoice generation.
 - `dispatch-job.js` — Hydrovac job dispatch with compliance pre-check.

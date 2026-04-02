@@ -77,4 +77,15 @@ describe("prooflink workspace architecture", () => {
     expect(Array.isArray(blueprint.priorityViews)).toBe(true);
     expect(Array.isArray(blueprint.hiddenByDefault)).toBe(true);
   });
+
+  test("business profiles only reference known feature keys", () => {
+    const architecture = loadWorkspaceArchitecture();
+    const featureKeys = new Set(Object.keys(architecture.FEATURE_CATALOG));
+
+    Object.values(architecture.BUSINESS_PROFILES).forEach((profile) => {
+      [...(profile.defaultFeatures || []), ...(profile.advancedFeatures || [])].forEach((featureKey) => {
+        expect(featureKeys.has(featureKey)).toBe(true);
+      });
+    });
+  });
 });

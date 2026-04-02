@@ -4,6 +4,8 @@
 **Prepared by:** ProofLink Phase 2 Review Board (multi-discipline panel)
 **Codebase reviewed:** `/operator/operator.js`, `/netlify/functions/*`, `/sql/catchup_run_this.sql`, `/docs/hydrovac-codex-master-prompt.md`, `/operator/index.html`, `/join.html`, `/index.html`, `/onboarding.html`, `prooflink-workspace-architecture.js`, `prooflink-plan-intent.js`
 
+> Historical snapshot: this report captures the repo state reviewed on March 26, 2026. Verify current behavior against live code, `package.json`, `AGENTS.md`, and `sql/readme.md` before treating any finding here as a present-day requirement.
+
 ---
 
 ## SECTION 1 — EXECUTIVE VERDICT
@@ -68,7 +70,7 @@ The path to category-defining is narrow and specific:
 
 **F-007** The `onboarding.js` function uses a direct Supabase REST API fetch with the service role key rather than the shared `getAdminClient()` helper. This bypasses the auth utility pattern and creates two code paths for service-role database access.
 
-**F-008** No automated test suite exists — no unit tests, no integration tests, no end-to-end tests. Every change requires manual verification across every module.
+**F-008** Historical finding: at review time, the board did not identify an automated test suite. The current repo now includes `npm run test:unit`, `npm run test:integration`, `npm run test:preflight:service-workflow`, and Playwright coverage, so verify current test posture against `package.json` instead of relying on this note alone.
 
 **F-009** No migration versioning system exists. The `catchup_run_this.sql` file is a single cumulative patch. If it is run against a partially migrated database, some operations succeed and some are no-ops, with no record of what state the database was in beforehand.
 

@@ -1,52 +1,49 @@
 # ProofLink
 
-**Multi-tenant SaaS platform for service and trade businesses.**
+ProofLink is a multi-tenant SaaS platform for service and trade businesses. It gives each operator a branded storefront, CRM, scheduling and job workflows, Stripe-powered billing, and a private back-office dashboard backed by Netlify Functions and Supabase.
 
-ProofLink gives field service operators a unified storefront, order management system, customer CRM, job documentation tools, and Stripe-powered payments — all under one roof. Each business gets their own isolated tenant environment with a public storefront and a private operator dashboard.
+## What It Does
 
----
+- Public storefront and booking flows
+- Operator CRM, orders, jobs, quotes, invoices, and payments
+- Admin-reviewed onboarding and tenant provisioning
+- Stripe subscriptions plus Stripe Connect tenant payments
+- Vertical modules, including hydrovac compliance and dispatch workflows
 
-## What it does
-
-- **Storefront** — Public-facing product/service catalog with cart, checkout, and order submission
-- **Operator Dashboard** — Full back-office for managing products, orders, customers, expenses, and availability
-- **CRM** — Customer records with lifetime value tracking and a timestamped interaction log per customer
-- **Job Documentation** — Per-job note logging, before/after records, and proof trails via the interaction system
-- **Stripe Payments** — Platform billing (subscriptions) + tenant customer payments via Stripe Connect Express
-- **Onboarding Pipeline** — Automated rule-engine evaluation, admin approval, and full tenant provisioning
-- **Admin Panel** — Platform-level oversight of tenants, onboarding requests, billing, and conduct
-
----
-
-## Tech stack
+## Tech Stack
 
 | Layer | Technology |
-|---|---|
-| Hosting & functions | Netlify (serverless) |
-| Database | Supabase (PostgreSQL + RLS) |
+| --- | --- |
+| Hosting and backend | Netlify + Netlify Functions |
+| Database | Supabase PostgreSQL with RLS |
 | Auth | Supabase Auth |
-| Payments | Stripe (Subscriptions + Connect Express) |
+| Payments | Stripe |
 | Email | Resend |
-| Spam protection | Cloudflare Turnstile + honeypot + timing gates |
+| Frontend | Plain HTML, CSS, and vanilla JavaScript |
 
----
-
-## Repository structure
+## Repo Map
 
 ```
-/admin              Platform admin panel (HTML + JS)
-/operator           Tenant operator dashboard (HTML + JS)
-/public             Public storefront pages
-/netlify/functions  All serverless backend functions
-/sql                Database migrations (see sql/readme.md)
-/assets             Static assets
+/admin                    Platform admin panel
+/operator                 Operator dashboard SPA
+/crew                     Field crew PWA
+/netlify/functions        Serverless backend and shared function helpers
+/sql                      Core schema plus additive migrations
+/assets                   Brand assets and shared static files
+/index.html               Main storefront / landing experience
+/join.html                Public onboarding form
+/book.html                Public booking page
+/contact.html             Public contact page
+/prooflink.config.js      Storefront runtime config
+/prooflink.core.js        Storefront core helpers
+/prooflink.tenant.js      Storefront tenant hydration
 ```
 
----
+## Environment Variables
 
-## Environment variables
+Copy `.env.example` and set the same values in Netlify for the deployed site.
 
-Copy `.env.example` and set all values in your Netlify dashboard under **Site → Environment variables**.
+Required platform variables include:
 
 ```
 STRIPE_SECRET_KEY
@@ -59,75 +56,82 @@ SUPABASE_SERVICE_ROLE_KEY
 SUPABASE_ANON_KEY
 RESEND_API_KEY
 FROM_EMAIL
-SITE_URL
-INTERNAL_SECRET
-MAX_TESTER_SLOTS         (default: 3)
+MAIL_FROM
+MAIL_TO
 OPERATOR_ALERT_EMAIL
-TURNSTILE_SECRET_KEY     (optional — enables Cloudflare Turnstile on forms)
+SITE_URL
+PUBLIC_SITE_URL
+INTERNAL_SECRET
+PLATFORM_NAME
+MAX_TESTER_SLOTS
+PROOFLINK_DEFAULT_APPLICATION_FEE_BPS
+TURNSTILE_SECRET_KEY
 ```
 
----
+Use `.env.test.example` when preparing hosted integration or preflight test credentials.
 
-## Database setup
+## Database Setup
 
-Run these files in your Supabase SQL editor, in order:
+Run SQL files in Supabase SQL Editor in this order:
 
 1. `sql/catchup_run_this.sql`
 2. `sql/service_workflow_phase1.sql`
+3. Optional modules, only when you want those capabilities enabled:
+   - `sql/proposal_document_engine.sql`
+   - `sql/service_recurring_plans.sql`
+   - `sql/provision_failures.sql`
+   - `sql/service_deposit_control.sql`
+   - `sql/hydrovac_module_foundation.sql`
 
-Then validate the same hosted project before running service-workflow integration or e2e tests:
+`sql/readme.md` is the canonical migration guide. Follow it before editing `rebuild_supabase_full.sql` or introducing new standalone migrations.
+
+Before running service-workflow integration or E2E coverage, validate the hosted test contract:
 
 ```bash
 npm run test:preflight:service-workflow
 ```
 
-See `sql/readme.md` for full details.
+## Stripe Webhooks
 
----
+Configure two separate Stripe webhook endpoints:
 
-## Spam protection
+1. `/.netlify/functions/stripe-webhook`
+   Use `STRIPE_WEBHOOK_SECRET` for checkout and payment-intent events.
+2. `/.netlify/functions/stripe-billing-webhook`
+   Use `STRIPE_CONNECT_WEBHOOK_SECRET` for subscription and invoice lifecycle events.
 
-All public forms use a layered anti-spam stack:
+Keep the two signing secrets separate. Do not point both webhook configurations at the same function.
 
-- **Honeypot field** (`fax`) — bots fill it, humans don't
-- **Time-to-submit trap** (`startedAt`) — submissions too fast or too slow are rejected
-- **Cloudflare Turnstile** — optional CAPTCHA replacement
+## Development Checks
 
-To enable Turnstile:
-1. Create a Turnstile widget at dash.cloudflare.com and copy the site key and secret key
-2. Replace `YOUR_TURNSTILE_SITE_KEY` in `contact.html` and `order.html`
-3. Set `TURNSTILE_SECRET_KEY` in your Netlify environment variables
-
-Timing gate defaults (tunable via env vars):
-- `MIN_SUBMIT_MS` — default `2500`
-- `MAX_SUBMIT_MS` — default `3600000`
-
----
-
-## Stripe webhook setup
-
-Point two webhook endpoints in your Stripe dashboard to:
-
-```
-/.netlify/functions/stripe-webhook
+```bash
+npm install
+npm run lint
+npm run test:unit
 ```
 
-One for platform events (subscriptions, checkout), one for Connect account events. Set the respective signing secrets as `STRIPE_WEBHOOK_SECRET` and `STRIPE_CONNECT_WEBHOOK_SECRET`.
+Additional commands:
 
----
+- `npm run test:integration`
+- `npm run test:preflight:service-workflow`
+- `npm run test:e2e`
+- `npm run sql:build:rebuild`
 
 ## Deployment
 
-1. Fork or clone this repo
-2. Connect to Netlify and set all environment variables
-3. Run `sql/catchup_run_this.sql` in Supabase SQL Editor
-4. Run `sql/service_workflow_phase1.sql` in the same Supabase project
-5. Run `npm run test:preflight:service-workflow`
-6. Configure Stripe webhook endpoints
-7. Deploy
+1. Connect the repository to Netlify.
+2. Set environment variables from `.env.example`.
+3. Run the required SQL setup in Supabase.
+4. Configure both Stripe webhook endpoints.
+5. Run lint, unit tests, and any needed preflight checks.
+6. Deploy.
 
----
+## Source Of Truth
 
-## License
+For current platform behavior, prefer these references in order:
 
-Private — all rights reserved.
+1. Live code in `netlify/functions/`, `operator/`, `admin/`, `crew/`, and the root storefront files
+2. `sql/readme.md` for schema rollout order
+3. `AGENTS.md` for architecture and repository conventions
+
+Historical audit docs under `docs/` are useful context, but they should be treated as dated snapshots unless they explicitly say otherwise.

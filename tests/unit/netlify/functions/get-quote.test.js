@@ -36,6 +36,18 @@ function loadHandlerWithAuthMock(authMockExports) {
 }
 
 function createSupabaseMock({ bid, tenant, customer, lead = null }) {
+  const proposalDocumentsTable = {
+    select: vi.fn(() => proposalDocumentsTable),
+    eq: vi.fn(() => proposalDocumentsTable),
+    maybeSingle: vi.fn(async () => ({ data: null, error: null })),
+  };
+
+  const tenantBrandingProfilesTable = {
+    select: vi.fn(() => tenantBrandingProfilesTable),
+    eq: vi.fn(() => tenantBrandingProfilesTable),
+    maybeSingle: vi.fn(async () => ({ data: null, error: null })),
+  };
+
   const bidsTable = {
     select: vi.fn(() => bidsTable),
     eq: vi.fn(() => bidsTable),
@@ -70,6 +82,8 @@ function createSupabaseMock({ bid, tenant, customer, lead = null }) {
 
   return {
     from: vi.fn((table) => {
+      if (table === "proposal_documents") return proposalDocumentsTable;
+      if (table === "tenant_branding_profiles") return tenantBrandingProfilesTable;
       if (table === "bids") return bidsTable;
       if (table === "tenants") return tenantsTable;
       if (table === "customers") return customersTable;
@@ -145,7 +159,7 @@ describe("netlify/functions/get-quote", () => {
       expect(body.quote.recipient_email_hint).toBe("ch***@example.com");
       expect(body.business_logo_url).toBe("https://example.com/logo.png");
       expect(body.notes).toBe("Please review before Friday.");
-      expect(body.terms).toBe("Expose the line and daylight the crossing.");
+      expect(body.terms).toContain("Pricing is based on the visible conditions");
       expect(body.quote.line_items).toEqual([
         expect.objectContaining({
           name: "Daylight utility crossing",

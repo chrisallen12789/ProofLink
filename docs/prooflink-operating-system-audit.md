@@ -2,6 +2,8 @@
 
 Date: 2026-03-19
 
+Historical snapshot: this audit reflects the system shape captured on March 19, 2026. Confirm current schema, functions, and tests against live code, `AGENTS.md`, and `sql/readme.md` before using it as an implementation contract.
+
 This document defines the exact implementation work required to make ProofLink behave like a small-business operating system instead of a set of adjacent tools.
 
 ## Section 1: Current-State Gap Analysis

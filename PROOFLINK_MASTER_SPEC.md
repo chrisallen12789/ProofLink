@@ -52,7 +52,7 @@ The marketing site lives at `index.html` in the repo root. It is a single-file, 
 | Trust | Social proof, tester testimonials, founder photo |
 | Footer | Links: About, Blog, Contact, Privacy, Terms, Accessibility; copyright |
 
-**Scripts loaded:** `cottagelink.config.js`, `cottagelink.core.js`, `cottagelink.tenant.js`, `cart.js` for any storefront demo elements.
+**Scripts loaded:** `prooflink.config.js`, `prooflink.core.js`, `prooflink.tenant.js`, `cart.js` for any storefront demo elements.
 
 ---
 
@@ -323,13 +323,13 @@ Auth: email + password via Supabase. After login, `admin-verify.js` confirms `pl
 
 Each provisioned tenant has a public storefront. URL structure: `prooflink.co/?tenant={slug}` or a custom domain [DECISION NEEDED: custom domain proxying approach — Netlify per-subdomain alias vs. CNAME with tenant lookup].
 
-**Storefront files:** `index.html` (with tenant-specific data attributes), catalog loaded via `cottagelink.core.js`, cart via `cart.js`, tenant hydration via `cottagelink.tenant.js`.
+**Storefront files:** `index.html` (with tenant-specific data attributes), catalog loaded via `prooflink.core.js`, cart via `cart.js`, tenant hydration via `prooflink.tenant.js`.
 
 **Flow:**
-1. Page loads → `cottagelink.tenant.js` reads `?tenant=` param or localStorage tenant key
+1. Page loads → `prooflink.tenant.js` reads `?tenant=` param or localStorage tenant key
 2. `get-public-tenant-info.js` returns branding, settings, contact info
 3. `get-public-catalog.js` returns available products
-4. Cart stored in `localStorage` keyed by `COTTAGELINK_CONFIG.cartStorageKey`
+4. Cart stored in `localStorage` keyed by `PROOFLINK_CONFIG.storefront.cart.storageKey`
 5. Checkout: `portal-checkout.js` or `stripe-order-checkout.js` creates Stripe Checkout session
 6. Order confirmed → `order.js` writes to `orders` table, sends notification email
 
@@ -865,7 +865,7 @@ Defined in `_headers`:
 
 ### 5.7 Input Sanitization
 
-- `cottagelink.core.js` exports `escapeHtml()` for all user-generated content rendered in the DOM
+- `prooflink.core.js` exports `escapeHtml()` for all user-generated content rendered in the DOM
 - `utils/email.js` exports `escHtml()` for email template rendering
 - `utils/email.js` exports `sanitizeUrl()` to strip `javascript:` protocol from URLs
 - All DB writes go through parameterized Supabase queries (no string interpolation)
@@ -940,7 +940,7 @@ Stripe price IDs:
 
 **Customer Purchase (Storefront)**
 1. Customer visits storefront URL (`?tenant=slug` or custom domain)
-2. `cottagelink.tenant.js` hydrates tenant branding
+2. `prooflink.tenant.js` hydrates tenant branding
 3. `get-public-catalog.js` loads products
 4. Customer adds items to cart (`cart.js` / localStorage)
 5. Checkout: `stripe-order-checkout.js` creates Stripe Checkout session
