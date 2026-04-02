@@ -113,6 +113,8 @@ describe("manage-import-profiles", () => {
           },
           sample_headers: ["Account Label", "Primary Email", "Ignored Field"],
           confidence_score: 0.84,
+          source_system: "quickbooks",
+          source_preset: "quickbooks_customers",
         },
       }),
     });
@@ -125,6 +127,8 @@ describe("manage-import-profiles", () => {
       name: ["account_label"],
       email: ["primary_email"],
     });
+    expect(body.profile.source_system).toBe("quickbooks");
+    expect(body.profile.source_preset).toBe("quickbooks-customers");
     expect(supabase.state.upserts).toHaveLength(1);
   });
 });

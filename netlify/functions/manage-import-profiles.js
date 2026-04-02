@@ -64,6 +64,8 @@ function normalizeProfile(profile = {}, operatorId = '') {
     field_aliases: fieldAliases,
     sample_headers: sampleHeaders,
     source_hint: String(profile.source_hint || profile.sourceHint || '').trim().slice(0, 120),
+    source_system: String(profile.source_system || profile.sourceSystem || '').trim().slice(0, 40),
+    source_preset: slugKey(profile.source_preset || profile.sourcePreset || '', ''),
     confidence_score: clampScore(profile.confidence_score || profile.confidenceScore || 0),
     learned_at: new Date(profile.learned_at || profile.learnedAt || Date.now()).toISOString(),
     learned_by: String(profile.learned_by || operatorId || '').trim(),

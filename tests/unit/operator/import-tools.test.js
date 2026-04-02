@@ -83,4 +83,38 @@ describe("ProofLink import tools", () => {
 
     expect(matched?.key).toBe("legacy-customers");
   });
+
+  test("chooseImportPreset recognizes a QuickBooks payment export", () => {
+    const tools = require(toolsPath);
+
+    const matched = tools.chooseImportPreset(
+      ["Payment Date", "Customer", "Invoice Number", "Payment Amount", "Payment Method", "Reference"],
+      "payments"
+    );
+
+    expect(matched?.key).toBe("quickbooks_payments");
+    expect(matched?.source_system).toBe("quickbooks");
+  });
+
+  test("listImportPresetProfiles exposes source-system presets by lane", () => {
+    const tools = require(toolsPath);
+
+    const presets = tools.listImportPresetProfiles("open_work");
+
+    expect(presets.some((preset) => preset.key === "jobber_open_work")).toBe(true);
+    expect(presets.some((preset) => preset.key === "housecall_pro_open_work")).toBe(true);
+    expect(presets.every((preset) => preset.import_kind === "open_work")).toBe(true);
+  });
+
+  test("chooseImportPreset uses the file name as a tie-breaker when source hints are present", () => {
+    const tools = require(toolsPath);
+
+    const matched = tools.chooseImportPreset(
+      ["Client Name", "Email", "Status", "Job Name", "Service Date", "Total", "Notes"],
+      "open_work",
+      { fileName: "jobber-open-work.csv" }
+    );
+
+    expect(matched?.key).toBe("jobber_open_work");
+  });
 });

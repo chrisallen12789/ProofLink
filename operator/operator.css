@@ -3725,6 +3725,16 @@ input:focus, textarea:focus, select:focus{
   color:var(--muted);
   font-size:13px;
 }
+.import-preset-row{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+}
+.import-preset-button[aria-pressed="true"]{
+  border-color:rgba(200,75,47,.48);
+  background:linear-gradient(180deg, rgba(200,75,47,.16) 0%, rgba(255,255,255,.03) 100%);
+  color:var(--text);
+}
 .setup-builder-nav{
   display:flex;
   flex-wrap:wrap;
@@ -3808,6 +3818,11 @@ input:focus, textarea:focus, select:focus{
   padding:18px;
   color:var(--muted);
   line-height:1.6;
+}
+.import-review-row__actions{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
 }
 .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size:12px; word-break:break-all; }
 .linkish{ color:var(--text); text-decoration:underline; text-underline-offset:2px; }

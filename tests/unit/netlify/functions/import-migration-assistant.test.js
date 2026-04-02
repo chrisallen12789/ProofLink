@@ -61,5 +61,7 @@ describe("import migration assistant", () => {
     expect(result.report.findings.some((finding) => finding.title.includes("service date"))).toBe(true);
     expect(result.context_summary.profile_suggestion.label).toContain("jobber-open-work");
     expect(result.context_summary.profile_suggestion.field_aliases.title).toContain("job_name");
+    expect(result.context_summary.source_preset?.key).toBe("jobber_open_work");
+    expect(result.context_summary.profile_suggestion.source_system).toBe("jobber");
   });
 });

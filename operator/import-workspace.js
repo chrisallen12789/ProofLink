@@ -16,6 +16,8 @@
   const importAiMsg = $("importAiMsg");
   const importAiReviewWrap = $("importAiReviewWrap");
   const importProfileWrap = $("importProfileWrap");
+  const importPresetWrap = $("importPresetWrap");
+  const importReviewQueueWrap = $("importReviewQueueWrap");
   const importKindButtons = Array.from(document.querySelectorAll("[data-import-kind]"));
   const importTemplateButtons = Array.from(document.querySelectorAll("[data-template-kind]"));
   const btnRunImportAiReview = $("btnRunImportAiReview");
@@ -33,6 +35,9 @@
     profilesLoaded: false,
     profiles: [],
     profileKey: "",
+    presetKey: "",
+    presetPinned: false,
+    rowDecisions: {},
     aiReview: null,
   };
 
@@ -56,6 +61,32 @@
 
   function profilesForKind(importKind = kind()) {
     return profileList().filter((profile) => Tools.normalizeImportKind(profile?.import_kind || profile?.importKind) === Tools.normalizeImportKind(importKind));
+  }
+
+  function presetProfilesForKind(importKind = kind()) {
+    return typeof Tools.listImportPresetProfiles === "function"
+      ? Tools.listImportPresetProfiles(importKind)
+      : [];
+  }
+
+  function activeImportPreset() {
+    const presetKey = compact(IMPORT_STATE.presetKey);
+    if (!presetKey) return null;
+    return presetProfilesForKind().find((preset) => compact(preset?.key) === presetKey)
+      || (typeof Tools.getImportPresetProfile === "function" ? Tools.getImportPresetProfile(presetKey) : null)
+      || null;
+  }
+
+  function activeImportProfiles() {
+    const profiles = [activeImportProfile(), activeImportPreset()].filter(Boolean);
+    return profiles.filter((profile, index) => profiles.findIndex((candidate) => compact(candidate?.key) === compact(profile?.key)) === index);
+  }
+
+  function allImportDetectionProfiles() {
+    return [
+      ...profileList(),
+      ...(typeof Tools.listImportPresetProfiles === "function" ? Tools.listImportPresetProfiles() : []),
+    ];
   }
 
   async function ensureImportProfilesLoaded(options = {}) {
@@ -115,9 +146,19 @@
 
   function importField(row, importKind, fieldKey) {
     const aliases = typeof Tools.resolveFieldAliases === "function"
-      ? Tools.resolveFieldAliases(importKind, fieldKey, activeImportProfile() ? [activeImportProfile()] : [])
+      ? Tools.resolveFieldAliases(importKind, fieldKey, activeImportProfiles())
       : (Tools.FIELD_ALIASES?.[Tools.normalizeImportKind(importKind)]?.[fieldKey] || []);
     return Tools.getValue(row, aliases);
+  }
+
+  function rowDecision(rowOrNumber) {
+    const rowNumber = Number(typeof rowOrNumber === "object" ? rowOrNumber?.rowNumber : rowOrNumber);
+    if (!rowNumber) return "";
+    return compact(IMPORT_STATE.rowDecisions?.[rowNumber]).toLowerCase();
+  }
+
+  function isRowSkipped(rowOrNumber) {
+    return rowDecision(rowOrNumber) === "skip";
   }
 
   function mergeNotes(existing, incoming, prefix = "") {
@@ -464,8 +505,13 @@
   }
 
   function buildPreview() {
-    const rows = kind() === "customers" ? previewCustomers() : (kind() === "open_work" ? previewWork() : previewPayments());
-    const readyRows = rows.filter((row) => row.ready && !/^skip/i.test(row.action) && !/^match/i.test(row.action));
+    const baseRows = kind() === "customers" ? previewCustomers() : (kind() === "open_work" ? previewWork() : previewPayments());
+    const rows = baseRows.map((row) => ({
+      ...row,
+      operatorDecision: rowDecision(row),
+      skipped: isRowSkipped(row),
+    }));
+    const readyRows = rows.filter((row) => row.ready && !row.skipped && !/^skip/i.test(row.action) && !/^match/i.test(row.action));
     return {
       kind: kind(),
       rows,
@@ -474,6 +520,7 @@
         { label: "Preview rows", value: rows.length },
         { label: "Ready to write", value: readyRows.length },
         { label: "Already handled", value: rows.filter((row) => /^skip|^match/i.test(row.action)).length },
+        { label: "Operator skipped", value: rows.filter((row) => row.skipped).length },
         { label: "Needs review", value: rows.filter((row) => row.ready === false).length },
       ],
     };
@@ -508,6 +555,7 @@
             </div>
             <div class="import-preview-table__meta">
               <span class="pill ${row.tone === "ok" ? "pill-on" : (row.tone === "warn" ? "pill-warn" : (row.tone === "error" ? "pill-bad" : ""))}">${escapeHtml(row.action || "Review")}</span>
+              ${row.skipped ? `<span class="pill pill-warn">operator skip</span>` : ""}
               ${row.recordType ? `<span class="pill">${escapeHtml(row.recordType)}</span>` : ""}
               ${row.paymentState ? `<span class="pill">${escapeHtml(String(row.paymentState).replace(/_/g, " "))}</span>` : ""}
             </div>
@@ -518,6 +566,35 @@
       </div>
     ` : `<div class="import-preview-table__empty">This file did not produce any usable rows yet.</div>`;
     if (btnRunImport) btnRunImport.disabled = IMPORT_STATE.importing || preview.readyRows.length === 0;
+  }
+
+  function renderPresetSummary() {
+    if (!importPresetWrap) return;
+    const presets = presetProfilesForKind();
+    const activePreset = activeImportPreset();
+    const pinned = IMPORT_STATE.presetPinned === true && !!activePreset;
+    const title = activePreset ? activePreset.label : "Auto detection is active.";
+    const body = activePreset
+      ? (activePreset.description || activePreset.source_hint || "ProofLink is applying a known source-system preset to this file.")
+      : "ProofLink will try to recognize the source system automatically. Choose a preset when you know the export came from a specific platform.";
+
+    importPresetWrap.innerHTML = `
+      <div class="detail-card">
+        <div class="kicker">Source system preset</div>
+        <div><strong>${escapeHtml(title)}</strong></div>
+        <div class="detail-copy">${escapeHtml(body)}</div>
+        <div class="workspace-chip-row u-mt-10">
+          ${activePreset?.system_label ? `<span class="pill pill-on">${escapeHtml(activePreset.system_label)}</span>` : `<span class="pill">Auto match</span>`}
+          ${pinned ? `<span class="pill">Pinned for this file</span>` : ""}
+        </div>
+        <div class="import-preset-row u-mt-10">
+          <button class="btn btn-ghost btn-sm import-preset-button" type="button" data-import-preset-key="" aria-pressed="${activePreset ? "false" : "true"}">Auto detect</button>
+          ${presets.map((preset) => `
+            <button class="btn btn-ghost btn-sm import-preset-button" type="button" data-import-preset-key="${escapeAttr(preset.key)}" aria-pressed="${activePreset?.key === preset.key ? "true" : "false"}">${escapeHtml(preset.system_label || preset.label)}</button>
+          `).join("")}
+        </div>
+      </div>
+    `;
   }
 
   function renderProfileSummary() {
@@ -554,12 +631,19 @@
     `;
   }
 
+  function reviewRows() {
+    const preview = IMPORT_STATE.preview;
+    if (!preview?.rows?.length) return [];
+    return preview.rows.filter((row) => row.skipped || !row.ready || row.tone === "warn" || /^update/i.test(row.action || ""));
+  }
+
   function renderAiReview() {
     if (!importAiReviewWrap) return;
     const payload = IMPORT_STATE.aiReview;
     const report = payload?.report || null;
     const contextSummary = payload?.context_summary || {};
     const profileSuggestion = contextSummary?.profile_suggestion || null;
+    const sourcePreset = contextSummary?.source_preset || null;
     if (btnSaveImportProfile) btnSaveImportProfile.disabled = !profileSuggestion || IMPORT_STATE.importing;
 
     if (!report) {
@@ -601,6 +685,14 @@
           <div class="kicker">Learned profile</div>
           <div><strong>${escapeHtml(profileSuggestion.label || "Suggested import profile")}</strong></div>
           <div class="detail-copy">${escapeHtml(profileSuggestion.source_hint || "ProofLink can save this mapping so the next file from the same system matches automatically.")}</div>
+          ${sourcePreset?.system_label ? `<div class="workspace-chip-row u-mt-10"><span class="pill pill-on">${escapeHtml(sourcePreset.system_label)}</span></div>` : ""}
+        </div>
+      ` : ""}
+      ${sourcePreset ? `
+        <div class="detail-card u-mt-10">
+          <div class="kicker">Likely source system</div>
+          <div><strong>${escapeHtml(sourcePreset.system_label || sourcePreset.label || "Legacy export")}</strong></div>
+          <div class="detail-copy">${escapeHtml(sourcePreset.description || "The reviewed file lines up with a known export shape.")}</div>
         </div>
       ` : ""}
       ${Array.isArray(report.findings) && report.findings.length ? `
@@ -631,9 +723,67 @@
     `;
   }
 
+  function renderReviewQueue() {
+    if (!importReviewQueueWrap) return;
+    const preview = IMPORT_STATE.preview;
+    if (!preview) {
+      importReviewQueueWrap.innerHTML = `
+        <div class="detail-card">
+          <div class="kicker">Review queue</div>
+          <div><strong>No import review queue yet.</strong></div>
+          <div class="detail-copy">Preview a file first and ProofLink will surface the rows that need operator attention before anything writes.</div>
+        </div>
+      `;
+      return;
+    }
+
+    const rows = reviewRows();
+    if (!rows.length) {
+      importReviewQueueWrap.innerHTML = `
+        <div class="detail-card">
+          <div class="kicker">Review queue</div>
+          <div><strong>No rows need operator intervention right now.</strong></div>
+          <div class="detail-copy">The current preview is ready to run without any row-level skips or corrections.</div>
+        </div>
+      `;
+      return;
+    }
+
+    importReviewQueueWrap.innerHTML = `
+      <div class="detail-card">
+        <div class="kicker">Review queue</div>
+        <div><strong>${escapeHtml(`${rows.length} row${rows.length === 1 ? "" : "s"} need a decision before or during import.`)}</strong></div>
+        <div class="detail-copy">Skip risky rows now to keep the migration moving, then come back with a cleaned file if you want those records brought over later.</div>
+      </div>
+      <div class="memory-checklist u-mt-10">
+        ${rows.slice(0, 24).map((row) => `
+          <div class="memory-checklist__item ${row.skipped ? "memory-checklist__item--warn" : (row.ready ? "memory-checklist__item--ready" : "memory-checklist__item--warn")}">
+            <div class="detail-card__header">
+              <div>
+                <div class="kicker">Row ${escapeHtml(String(row.rowNumber || ""))}</div>
+                <div class="memory-checklist__title">${escapeHtml(row.primary || "Import row")}</div>
+              </div>
+              <div class="workspace-chip-row">
+                <span class="pill ${row.skipped ? "pill-warn" : (row.ready ? "pill-on" : "pill-bad")}">${escapeHtml(row.skipped ? "Skipped" : (row.ready ? "Ready" : "Needs review"))}</span>
+                ${row.recordType ? `<span class="pill">${escapeHtml(row.recordType)}</span>` : ""}
+              </div>
+            </div>
+            <div class="detail-copy memory-checklist__note">${escapeHtml(row.secondary || "")}</div>
+            <div class="detail-copy memory-checklist__note">${escapeHtml(row.detail || "")}</div>
+            <div class="import-review-row__actions u-mt-10">
+              <button class="btn btn-ghost btn-sm" type="button" data-import-row-action="${row.skipped ? "restore" : "skip"}" data-import-row-number="${escapeAttr(String(row.rowNumber || ""))}">${row.skipped ? "Restore row" : "Skip row"}</button>
+            </div>
+          </div>
+        `).join("")}
+        ${rows.length > 24 ? `<div class="detail-copy">Showing the first 24 review rows for this preview.</div>` : ""}
+      </div>
+    `;
+  }
+
   function renderImportWorkspace() {
     const meta = kindMeta();
     const activeProfile = activeImportProfile();
+    const activePreset = activeImportPreset();
     importKindButtons.forEach((button) => {
       button.classList.toggle("is-active", Tools.normalizeImportKind(button.getAttribute("data-import-kind")) === kind());
     });
@@ -644,6 +794,7 @@
         <div class="detail-copy">${escapeHtml(meta.summary)}</div>
         <div class="detail-copy">${escapeHtml(IMPORT_STATE.fileName ? `File loaded: ${IMPORT_STATE.fileName}` : "No file selected yet.")}</div>
         ${activeProfile ? `<div class="detail-copy">${escapeHtml(`Matched profile: ${activeProfile.label || activeProfile.key}`)}</div>` : ""}
+        ${activePreset ? `<div class="detail-copy">${escapeHtml(`Preset: ${activePreset.label}`)}</div>` : ""}
       `;
     }
     if (btnDownloadImportTemplate) btnDownloadImportTemplate.textContent = `Download ${meta.label.toLowerCase()} template`;
@@ -652,8 +803,10 @@
     if (btnClearImport) btnClearImport.disabled = IMPORT_STATE.importing;
     if (btnRunImportAiReview) btnRunImportAiReview.disabled = IMPORT_STATE.importing || !IMPORT_STATE.preview?.rows?.length;
     renderPreview();
+    renderPresetSummary();
     renderProfileSummary();
     renderAiReview();
+    renderReviewQueue();
   }
 
   function resetImportState(options = {}) {
@@ -667,6 +820,9 @@
       profilesLoaded: IMPORT_STATE.profilesLoaded,
       profiles: profileList(),
       profileKey: "",
+      presetKey: "",
+      presetPinned: false,
+      rowDecisions: {},
       aiReview: null,
     };
     if (importFile) importFile.value = "";
@@ -682,10 +838,48 @@
     IMPORT_STATE.rows = [];
     IMPORT_STATE.preview = null;
     IMPORT_STATE.profileKey = "";
+    IMPORT_STATE.presetKey = "";
+    IMPORT_STATE.presetPinned = false;
+    IMPORT_STATE.rowDecisions = {};
     IMPORT_STATE.aiReview = null;
     if (importFile) importFile.value = "";
     setImportMessage("");
     setImportAiMessage("");
+    renderImportWorkspace();
+  }
+
+  function setImportPreset(presetKey = "", options = {}) {
+    const nextPreset = compact(presetKey)
+      ? (typeof Tools.getImportPresetProfile === "function" ? Tools.getImportPresetProfile(presetKey) : null)
+      : null;
+    IMPORT_STATE.presetKey = nextPreset?.key || "";
+    IMPORT_STATE.presetPinned = !!nextPreset;
+    IMPORT_STATE.rowDecisions = {};
+    if (IMPORT_STATE.rows.length) {
+      IMPORT_STATE.preview = buildPreview();
+      IMPORT_STATE.aiReview = null;
+      if (!options.silent) {
+        setImportAiMessage(
+          nextPreset
+            ? `Using the ${nextPreset.label} preset for this file.`
+            : "Source-system preset cleared. ProofLink is back on auto detection for this file.",
+          nextPreset ? "ok" : ""
+        );
+      }
+    }
+    renderImportWorkspace();
+  }
+
+  function setRowDecision(rowNumber, decision = "") {
+    const key = Number(rowNumber || 0);
+    if (!key) return;
+    const nextDecision = compact(decision).toLowerCase();
+    IMPORT_STATE.rowDecisions = {
+      ...(IMPORT_STATE.rowDecisions || {}),
+      [key]: nextDecision,
+    };
+    if (!nextDecision) delete IMPORT_STATE.rowDecisions[key];
+    IMPORT_STATE.preview = buildPreview();
     renderImportWorkspace();
   }
 
@@ -704,7 +898,7 @@
     const text = await readSelectedImportFile(file);
     const parsed = Tools.parseCsv(text);
     if (!parsed.rows.length) throw new Error("That CSV does not contain any import rows yet.");
-    const detectedKind = Tools.detectImportKind(parsed.headers, { profiles: profileList() });
+    const detectedKind = Tools.detectImportKind(parsed.headers, { profiles: allImportDetectionProfiles() });
     if (detectedKind && detectedKind !== kind()) {
       IMPORT_STATE.kind = detectedKind;
       setImportMessage(`ProofLink recognized this file as ${kindMeta(detectedKind).label.toLowerCase()} and switched the import mode for you.`, "ok");
@@ -714,14 +908,27 @@
     IMPORT_STATE.fileName = file.name || "import.csv";
     IMPORT_STATE.headers = parsed.headers;
     IMPORT_STATE.rows = parsed.rows;
+    IMPORT_STATE.rowDecisions = {};
     IMPORT_STATE.aiReview = null;
+    const pinnedPreset = IMPORT_STATE.presetPinned ? activeImportPreset() : null;
     const matchedProfile = typeof Tools.chooseImportProfile === "function"
       ? Tools.chooseImportProfile(parsed.headers, IMPORT_STATE.kind, profileList())
       : null;
+    const matchedPreset = pinnedPreset?.import_kind === IMPORT_STATE.kind
+      ? pinnedPreset
+      : (typeof Tools.chooseImportPreset === "function"
+        ? Tools.chooseImportPreset(parsed.headers, IMPORT_STATE.kind, { fileName: IMPORT_STATE.fileName })
+        : null);
     IMPORT_STATE.profileKey = matchedProfile?.key || "";
+    IMPORT_STATE.presetKey = matchedPreset?.key || "";
+    IMPORT_STATE.presetPinned = !!(pinnedPreset && matchedPreset?.key === pinnedPreset.key);
     IMPORT_STATE.preview = buildPreview();
-    if (matchedProfile) {
-      setImportAiMessage(`Matched saved import profile: ${matchedProfile.label || matchedProfile.key}.`, "ok");
+    const matchMessages = [
+      matchedProfile ? `Matched saved import profile: ${matchedProfile.label || matchedProfile.key}.` : "",
+      matchedPreset ? `Matched source preset: ${matchedPreset.label || matchedPreset.key}.` : "",
+    ].filter(Boolean);
+    if (matchMessages.length) {
+      setImportAiMessage(matchMessages.join(" "), "ok");
     } else {
       setImportAiMessage("");
     }
@@ -1172,6 +1379,7 @@
     await ensureImportProfilesLoaded({ silent: true });
     setImportAiMessage("Reviewing the import mapping, row routing, and profile fit...", "");
     const activeProfile = activeImportProfile();
+    const activePreset = activeImportPreset();
     const payload = await requestOperatorFunction("ai-agent-report", {
       method: "POST",
       body: {
@@ -1188,6 +1396,17 @@
           sample_headers: activeProfile.sample_headers || activeProfile.sampleHeaders || [],
           confidence_score: activeProfile.confidence_score || activeProfile.confidenceScore || 0,
           source_hint: activeProfile.source_hint || activeProfile.sourceHint || "",
+        } : null,
+        active_preset: activePreset ? {
+          key: activePreset.key,
+          label: activePreset.label,
+          import_kind: activePreset.import_kind || activePreset.importKind,
+          field_aliases: activePreset.field_aliases || activePreset.fieldAliases || {},
+          sample_headers: activePreset.sample_headers || activePreset.sampleHeaders || [],
+          confidence_score: activePreset.confidence_score || activePreset.confidenceScore || 0,
+          source_hint: activePreset.source_hint || activePreset.sourceHint || "",
+          source_system: activePreset.source_system || "",
+          source_preset: activePreset.source_preset || activePreset.key,
         } : null,
       },
     });
@@ -1242,6 +1461,10 @@
     const rowErrors = [];
 
     for (const row of preview.rows) {
+      if (row.skipped) {
+        results.skipped += 1;
+        continue;
+      }
       if (!row.ready) {
         results.errors += 1;
         rowErrors.push(`Row ${row.rowNumber}: ${row.detail || "Needs review before importing."}`);
@@ -1459,6 +1682,21 @@
     }
   });
 
+  importPresetWrap?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-import-preset-key]");
+    if (!button) return;
+    setImportPreset(button.getAttribute("data-import-preset-key") || "");
+  });
+
+  importReviewQueueWrap?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-import-row-action]");
+    if (!button) return;
+    const rowNumber = Number(button.getAttribute("data-import-row-number") || 0);
+    if (!rowNumber) return;
+    const action = compact(button.getAttribute("data-import-row-action")).toLowerCase();
+    setRowDecision(rowNumber, action === "skip" ? "skip" : "");
+  });
+
   btnRunImport?.addEventListener("click", async () => {
     try {
       await runImport();
@@ -1473,6 +1711,7 @@
     render: renderImportWorkspace,
     reset: resetImportState,
     previewImport,
+    setImportPreset,
     runAiMigrationReview,
     saveSuggestedImportProfile,
     ensureImportProfilesLoaded,

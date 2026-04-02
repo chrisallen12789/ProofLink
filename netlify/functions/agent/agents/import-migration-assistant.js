@@ -43,9 +43,10 @@ function normalizeWorkStage(value, row) {
   return totalCents > 0 ? { recordType: 'bid', leadStatus: 'quoted', bidStatus: 'ready_to_send' } : { recordType: 'lead', leadStatus: 'new' };
 }
 
-function buildSuggestedProfile({ fileName, importKind, mappedFields, headers, confidenceScore }) {
+function buildSuggestedProfile({ fileName, importKind, mappedFields, headers, confidenceScore, matchedPreset = null }) {
   const kindLabel = String(importKind || 'customers').replace(/_/g, ' ');
   const baseName = compact(fileName).replace(/\.[a-z0-9]+$/i, '') || `legacy-${kindLabel}`;
+  const systemLabel = compact(matchedPreset?.system_label || matchedPreset?.label || '');
   const profileKey = `${baseName}-${kindLabel}`
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
@@ -60,12 +61,16 @@ function buildSuggestedProfile({ fileName, importKind, mappedFields, headers, co
 
   return {
     key: profileKey || `${importKind}-import-profile`,
-    label: `${baseName || 'Legacy export'} ${kindLabel} profile`.replace(/\s+/g, ' ').trim(),
+    label: `${systemLabel ? `${systemLabel} ` : ''}${baseName || 'Legacy export'} ${kindLabel} profile`.replace(/\s+/g, ' ').trim(),
     import_kind: ImportTools.normalizeImportKind(importKind),
     field_aliases: fieldAliases,
     sample_headers: headers,
-    source_hint: fileName ? `Learned from ${fileName}` : 'Learned from import review',
+    source_hint: systemLabel
+      ? `Learned from ${systemLabel}${fileName ? ` export ${fileName}` : ' import review'}`
+      : (fileName ? `Learned from ${fileName}` : 'Learned from import review'),
     confidence_score: Number(Math.max(0, Math.min(1, confidenceScore || 0)).toFixed(2)),
+    source_system: compact(matchedPreset?.source_system || ''),
+    source_preset: compact(matchedPreset?.source_preset || matchedPreset?.key || ''),
   };
 }
 
@@ -81,9 +86,15 @@ async function runImportMigrationAssistant({ tenantId, input }) {
   const sampleRows = normalizeRows(input.sample_rows || input.sampleRows);
   const fileName = compact(input.file_name || input.fileName);
   const activeProfile = input.active_profile && typeof input.active_profile === 'object' ? input.active_profile : null;
-  const profiles = activeProfile ? [activeProfile] : [];
+  const activePreset = input.active_preset && typeof input.active_preset === 'object' ? input.active_preset : null;
+  const profiles = [activeProfile, activePreset].filter(Boolean);
   const requestedKind = ImportTools.normalizeImportKind(input.import_kind || input.importKind || '');
   const recommendedKind = ImportTools.detectImportKind(normalizedHeaders, { profiles }) || requestedKind;
+  const matchedPreset = activePreset?.import_kind === recommendedKind
+    ? activePreset
+    : (typeof ImportTools.chooseImportPreset === 'function'
+      ? ImportTools.chooseImportPreset(normalizedHeaders, recommendedKind, { fileName })
+      : null);
   const fieldAliases = typeof ImportTools.mergeFieldAliases === 'function'
     ? ImportTools.mergeFieldAliases(recommendedKind, profiles)
     : (ImportTools.FIELD_ALIASES?.[recommendedKind] || {});
@@ -121,6 +132,20 @@ async function runImportMigrationAssistant({ tenantId, input }) {
       category: 'import_mapping',
       title: 'The file looks closer to a different import lane',
       detail: `The current request said ${requestedKind.replace(/_/g, ' ')}, but the available headers align more strongly with ${recommendedKind.replace(/_/g, ' ')}.`,
+      evidence_ids: [headerCoverageEvidence],
+      record_refs: [],
+    });
+  }
+
+  if (matchedPreset?.system_label) {
+    findings.push({
+      id: 'source_system_match',
+      severity: 'info',
+      category: 'import_mapping',
+      title: `The file looks like a ${matchedPreset.system_label} export`,
+      detail: activePreset?.key === matchedPreset.key
+        ? `The review used the active ${matchedPreset.system_label} preset while mapping the file.`
+        : `The header shape lines up with the ${matchedPreset.system_label} preset, so ProofLink can route the file more safely if that source system is correct.`,
       evidence_ids: [headerCoverageEvidence],
       record_refs: [],
     });
@@ -318,6 +343,7 @@ async function runImportMigrationAssistant({ tenantId, input }) {
     mappedFields,
     headers: normalizedHeaders,
     confidenceScore,
+    matchedPreset,
   });
 
   actions.push({
@@ -353,7 +379,10 @@ async function runImportMigrationAssistant({ tenantId, input }) {
       findings,
       blockers,
       evidence: evidence.list(),
-      assumptions: activeProfile?.key ? [`The review applied the active import profile "${activeProfile.label || activeProfile.key}".`] : [],
+      assumptions: [
+        activeProfile?.key ? `The review applied the active import profile "${activeProfile.label || activeProfile.key}".` : '',
+        activePreset?.key ? `The review applied the active source preset "${activePreset.label || activePreset.key}".` : '',
+      ].filter(Boolean),
       missing_data: missingData,
       confidence: {
         score: confidenceScore,
@@ -371,6 +400,11 @@ async function runImportMigrationAssistant({ tenantId, input }) {
           count: sampleRows.length,
           detail: `${readyRowCount} sample row(s) look ready and ${reviewRowCount} still need review.`,
         },
+        ...(matchedPreset?.system_label ? [{
+          label: 'Matched source preset',
+          count: 1,
+          detail: `${matchedPreset.system_label} (${matchedPreset.label || matchedPreset.key})`,
+        }] : []),
       ],
       scope: { tenant_id: tenantId },
       generated_at: new Date().toISOString(),
@@ -386,6 +420,14 @@ async function runImportMigrationAssistant({ tenantId, input }) {
       review_row_count: reviewRowCount,
       route_counts: routeCounts,
       active_profile_key: activeProfile?.key || '',
+      active_preset_key: activePreset?.key || '',
+      source_preset: matchedPreset ? {
+        key: matchedPreset.key,
+        label: matchedPreset.label || matchedPreset.key,
+        system_label: matchedPreset.system_label || '',
+        source_system: matchedPreset.source_system || '',
+        description: matchedPreset.description || matchedPreset.source_hint || '',
+      } : null,
       profile_suggestion: profileSuggestion,
     },
   };
