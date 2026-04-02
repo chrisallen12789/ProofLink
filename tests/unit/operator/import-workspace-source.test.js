@@ -18,6 +18,8 @@ describe("operator import workspace source", () => {
     expect(html).toContain('id="importPresetWrap"');
     expect(html).toContain('id="importReviewQueueWrap"');
     expect(html).toContain('id="importCleanupInboxWrap"');
+    expect(html).toContain("Run import review");
+    expect(html).toContain("Import review");
     expect(html).toContain("Guided walkthrough");
     expect(html).toContain("Source system preset");
     expect(html).toContain("Review queue");

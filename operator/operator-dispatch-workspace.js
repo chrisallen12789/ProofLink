@@ -232,7 +232,7 @@ function renderDispatchAgentReview(state = null, targetDate = "") {
   if (!report) {
     return `
       <div class="detail-card detail-card--spaced">
-        <div class="kicker">AI dispatch review</div>
+        <div class="kicker">Dispatch review</div>
         <div><strong>Dispatch / Scheduling Assistant</strong></div>
         <div class="detail-copy">${escapeHtml(titleCopy)} so missing dates, missing assignments, and same-day route opportunities are surfaced before the crew rolls.</div>
         <div class="action-row action-row--wrap u-mt-10">
@@ -252,7 +252,7 @@ function renderDispatchAgentReview(state = null, targetDate = "") {
 
   return `
     <div class="detail-card detail-card--spaced">
-      <div class="kicker">AI dispatch review</div>
+      <div class="kicker">Dispatch review</div>
       <div><strong>Dispatch / Scheduling Assistant</strong></div>
       <div class="detail-copy">${escapeHtml(report.summary || titleCopy)}</div>
       <div class="action-row action-row--wrap u-mt-10">

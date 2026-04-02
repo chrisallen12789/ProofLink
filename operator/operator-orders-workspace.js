@@ -48,6 +48,8 @@ function orderWorkspaceBlueprint() {
   return { business: { key: "other", label: "Business", recordFocus: [] } };
 }
 
+const ORDER_ACCOUNTING_AGENT_CACHE = window.PROOFLINK_ORDER_ACCOUNTING_AGENT_CACHE || (window.PROOFLINK_ORDER_ACCOUNTING_AGENT_CACHE = {});
+
 function orderCustomerMemoryItems(customer, blueprint = orderWorkspaceBlueprint()) {
   if (!customer) return [];
   const sharedChecklist = window.PROOFLINK_OPERATOR_CUSTOMER_DETAIL?.customerMemoryChecklist;
@@ -77,6 +79,114 @@ function renderOrderCustomerMemoryCard(customer, blueprint = orderWorkspaceBluep
             <div class="detail-copy memory-checklist__note">${escapeHtml(item.note || "")}</div>
           </div>
         `).join("")}
+      </div>
+    </div>
+  `;
+}
+
+function orderAgentStatusTone(status) {
+  if (status === "ready") return "pill-good";
+  if (status === "blocked") return "pill-bad";
+  return "pill-warn";
+}
+
+function orderAgentPriorityTone(priority) {
+  if (priority === "high") return "pill-bad";
+  if (priority === "low") return "";
+  return "pill-warn";
+}
+
+function renderOrderAgentReport(report, emptyCopy = "Run the continuity audit to review whether outside-accounting references stay traceable through this work.") {
+  if (!report) {
+    return `<div class="detail-copy">${escapeHtml(emptyCopy)}</div>`;
+  }
+
+  const blockers = Array.isArray(report.blockers) ? report.blockers : [];
+  const findings = Array.isArray(report.findings) ? report.findings : [];
+  const actions = Array.isArray(report.recommended_actions) ? report.recommended_actions : [];
+  const evidence = Array.isArray(report.evidence) ? report.evidence.slice(0, 6) : [];
+  const missingData = Array.isArray(report.missing_data) ? report.missing_data : [];
+  const assumptions = Array.isArray(report.assumptions) ? report.assumptions : [];
+  const dataUsed = Array.isArray(report.data_used) ? report.data_used.filter((item) => item && item.count > 0) : [];
+
+  return `
+    <div class="detail-copy">${escapeHtml(report.summary || "")}</div>
+    <div class="workspace-chip-row u-mt-10">
+      <span class="pill ${orderAgentStatusTone(report.summary_status || "review_needed")}">${escapeHtml(titleCaseWords(String(report.summary_status || "review needed").replace(/_/g, " ")))}</span>
+      ${report.confidence?.label ? `<span class="pill">${escapeHtml(`Confidence ${report.confidence.label}`)}</span>` : ""}
+      ${blockers.length ? `<span class="pill pill-bad">${escapeHtml(`${blockers.length} blocker${blockers.length === 1 ? "" : "s"}`)}</span>` : `<span class="pill pill-good">No blockers found</span>`}
+    </div>
+    ${blockers.length ? `
+      <div class="memory-checklist u-mt-10">
+        ${blockers.slice(0, 4).map((item) => `
+          <div class="memory-checklist__item memory-checklist__item--warn">
+            <div class="memory-checklist__title">${escapeHtml(item.title || "Blocker")}</div>
+            <div class="detail-copy memory-checklist__note">${escapeHtml(item.detail || "")}</div>
+          </div>
+        `).join("")}
+      </div>
+    ` : ""}
+    ${actions.length ? `
+      <div class="detail-copy u-mt-10"><strong>Recommended actions</strong></div>
+      <div class="workspace-chip-row">
+        ${actions.slice(0, 4).map((action) => `<span class="pill ${orderAgentPriorityTone(action.priority || "medium")}">${escapeHtml(titleCaseWords(String(action.priority || "medium")))} priority</span>`).join("")}
+      </div>
+      <div class="memory-checklist u-mt-10">
+        ${actions.slice(0, 4).map((action) => `
+          <div class="memory-checklist__item ${action.priority === "high" ? "memory-checklist__item--warn" : ""}">
+            <div class="memory-checklist__title">${escapeHtml(action.title || "Recommended action")}</div>
+            <div class="detail-copy memory-checklist__note">${escapeHtml(action.detail || "")}</div>
+          </div>
+        `).join("")}
+      </div>
+    ` : ""}
+    ${findings.length ? `
+      <div class="detail-copy u-mt-10"><strong>Findings</strong></div>
+      <div class="memory-checklist u-mt-10">
+        ${findings.slice(0, 4).map((item) => `
+          <div class="memory-checklist__item ${item.severity === "critical" ? "memory-checklist__item--warn" : ""}">
+            <div class="memory-checklist__title">${escapeHtml(item.title || "Finding")}</div>
+            <div class="detail-copy memory-checklist__note">${escapeHtml(item.detail || "")}</div>
+          </div>
+        `).join("")}
+      </div>
+    ` : ""}
+    ${missingData.length ? `
+      <div class="detail-copy u-mt-10"><strong>Missing data</strong></div>
+      <div class="detail-copy">${escapeHtml(missingData.slice(0, 4).map((item) => item.label || item.detail || "").join(" | "))}</div>
+    ` : ""}
+    ${assumptions.length ? `
+      <div class="detail-copy u-mt-10"><strong>Assumptions / environment gaps</strong></div>
+      <div class="detail-copy">${escapeHtml(assumptions.slice(0, 3).join(" | "))}</div>
+    ` : ""}
+    ${dataUsed.length ? `
+      <div class="detail-copy u-mt-10"><strong>Data used</strong></div>
+      <div class="workspace-chip-row">
+        ${dataUsed.slice(0, 6).map((item) => `<span class="pill">${escapeHtml(`${item.label}: ${item.count}`)}</span>`).join("")}
+      </div>
+    ` : ""}
+    ${evidence.length ? `
+      <div class="detail-copy u-mt-10"><strong>Evidence</strong></div>
+      <div class="detail-copy">${escapeHtml(evidence.map((item) => item.label || item.field || item.id).join(" | "))}</div>
+    ` : ""}
+    <div class="detail-copy u-mt-10 muted">Generated ${escapeHtml(formatDateTime(report.generated_at || new Date().toISOString()))}</div>
+  `;
+}
+
+function renderOrderAccountingContinuityCard(order, linkedJob) {
+  const cached = ORDER_ACCOUNTING_AGENT_CACHE[order?.id] || null;
+  return `
+      <div class="detail-card detail-card--spaced">
+      <div class="kicker">Accounting continuity</div>
+      <div><strong>Accounting continuity check</strong></div>
+      <div class="detail-copy">Keep QuickBooks or any outside-accounting trail visible through booked work, service reports, invoices, and imported payments without guessing later.</div>
+      <div class="action-row action-row--wrap u-mt-10">
+        <button type="button" class="btn btn-ghost btn-sm" id="btnOrderRunAccountingAudit">${cached ? "Run again" : "Run continuity audit"}</button>
+        ${linkedJob?.id ? `<span class="pill">Linked job ready</span>` : `<span class="pill pill-warn">No linked job yet</span>`}
+      </div>
+      <div id="orderAccountingAuditMsg" class="msg u-mt-10"></div>
+      <div id="orderAccountingAuditReport" class="u-mt-10">
+        ${renderOrderAgentReport(cached, "Run the continuity audit to review whether outside-accounting references stay traceable through this work.")}
       </div>
     </div>
   `;
@@ -736,6 +846,7 @@ function renderOrders() {
     ${renderOrderPrepGuidanceCard(active, existingCustomer, blueprint)}
     ${renderOrderNextMoveCard(active, existingCustomer, amountDue, paymentState, blueprint)}
     ${renderOrderRetentionCard(active, existingCustomer, amountDue, paymentState, blueprint)}
+    ${renderOrderAccountingContinuityCard(active, linkedJob)}
 
     ${(active.order_type === 'package' || active.order_type === 'retainer') ? `
     <div class="detail-card detail-card--spaced">
@@ -1047,6 +1158,30 @@ function renderOrders() {
     if (customerPhone) customerPhone.value = active.phone || active.customer_phone || "";
     if (customerAddress) customerAddress.value = active.service_address || active.address || "";
     switchTab("customers");
+  });
+  $("btnOrderRunAccountingAudit")?.addEventListener("click", async () => {
+    const msgEl = $("orderAccountingAuditMsg");
+    const reportEl = $("orderAccountingAuditReport");
+    if (typeof requestOperatorFunction !== "function") {
+      if (msgEl) { msgEl.textContent = "Continuity audit tools are not ready yet."; msgEl.className = "msg error"; }
+      return;
+    }
+    if (msgEl) { msgEl.textContent = "Running continuity audit..."; msgEl.className = "msg"; }
+    try {
+      const result = await requestOperatorFunction("ai-agent-report", {
+        method: "POST",
+        body: {
+          agent_key: "accounting_continuity_auditor",
+          order_id: active.id,
+          job_id: linkedJob?.id || "",
+        },
+      });
+      ORDER_ACCOUNTING_AGENT_CACHE[active.id] = result.report || null;
+      if (reportEl) reportEl.innerHTML = renderOrderAgentReport(result.report || null, "Run the continuity audit to review whether outside-accounting references stay traceable through this work.");
+      if (msgEl) { msgEl.textContent = "Continuity audit ready."; msgEl.className = "msg success"; }
+    } catch (error) {
+      if (msgEl) { msgEl.textContent = error?.message || "Failed to run the continuity audit."; msgEl.className = "msg error"; }
+    }
   });
   orderDetailWrap.querySelectorAll("[data-order-retention-action]").forEach((button) => {
     button.addEventListener("click", () => {

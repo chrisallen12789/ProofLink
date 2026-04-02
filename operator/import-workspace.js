@@ -1617,11 +1617,11 @@
             : `${editedRows ? `${editedRows} row(s) were corrected. ` : ""}${skippedRows ? `${skippedRows} row(s) were intentionally skipped. ` : ""}${attachmentRows ? `${attachmentRows} row(s) are also carrying attachment references. ` : ""}The current preview no longer has unresolved blockers.`,
       },
       {
-        label: "Run the AI migration review",
+        label: "Run import review",
         status: !preview ? "pending" : (hasAiReview ? "done" : "current"),
         detail: hasAiReview
           ? "The migration assistant reviewed the corrected sample and explained what can be routed safely."
-          : "Run the AI review after the preview looks right so ProofLink can explain mapping coverage and routing risk.",
+          : "Run the import review after the preview looks right so ProofLink can explain mapping coverage and routing risk.",
       },
       {
         label: "Teach ProofLink this export",
@@ -1648,7 +1648,7 @@
       };
     } else if (preview && !hasAiReview) {
       nextAction = {
-        title: "Run AI migration review",
+        title: "Run import review",
         detail: "The agent will explain mapping coverage, likely source system, and any remaining risk before import.",
       };
     } else if (cleanupItems) {
@@ -1690,7 +1690,7 @@
     if (!report) {
       importAiReviewWrap.innerHTML = `
         <div class="detail-card">
-          <div class="kicker">AI migration review</div>
+          <div class="kicker">Import review</div>
           <div><strong>No structured migration review yet.</strong></div>
           <div class="detail-copy">Preview a CSV first, then run the review to see grounded mapping coverage, row-routing risk, and the reusable profile ProofLink can learn from this export.</div>
         </div>
@@ -1715,7 +1715,7 @@
 
     importAiReviewWrap.innerHTML = `
       <div class="detail-card">
-        <div class="kicker">AI migration review</div>
+        <div class="kicker">Import review</div>
         <div><strong>${escapeHtml(report.summary || "Import review ready.")}</strong></div>
         <div class="workspace-chip-row u-mt-10">
           ${routeChips.map((chip) => `<span class="pill">${escapeHtml(chip)}</span>`).join("")}

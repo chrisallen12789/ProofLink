@@ -56,6 +56,9 @@ async function runAgentWorkforceArchitect({ supabase, tenantId }) {
   const correctionFieldHotspots = Array.isArray(importLearning.correction_field_hotspots)
     ? importLearning.correction_field_hotspots
     : [];
+  const fieldCloseoutRuns = countAgentRuns(agentAudit, ['field_closeout_coach']);
+  const sitePacketRuns = countAgentRuns(agentAudit, ['site_packet_builder']);
+  const accountingContinuityRuns = countAgentRuns(agentAudit, ['accounting_continuity_auditor']);
 
   const missingDueDateCount = openBalances.filter((row) => {
     return !String(row?.invoice_due_date || '').trim() && !String(row?.payment_due_date || '').trim();
@@ -93,11 +96,11 @@ async function runAgentWorkforceArchitect({ supabase, tenantId }) {
       value: `${billingCandidates.length} job(s) are still landing in the billing blocker queue.`,
     });
     addFinding({
-      id: 'workforce_gap_field_closeout_coach',
-      severity: billingCandidates.length >= 6 ? 'critical' : 'warning',
-      category: 'agent_gap',
-      title: 'Add a Field Closeout Coach agent',
-      detail: `${billingCandidates.length} job(s) are still reaching billing review with enough uncertainty that the blocker queue is staying busy. A closeout coach should catch proof, signature, expense, and note gaps before the record leaves the field.`,
+      id: 'workforce_training_field_closeout_coach',
+      severity: billingCandidates.length >= 6 || !fieldCloseoutRuns ? 'warning' : 'info',
+      category: 'agent_training',
+      title: 'Train the Field Closeout Coach on the real blocker patterns',
+      detail: `${billingCandidates.length} job(s) are still reaching billing review with cleanup pressure. Keep teaching the closeout coach to catch the missing proof, signature, timing, manifest, and note gaps before the office sees them.`,
       evidence_ids: [workforceEvidenceId, jobsEvidenceId],
       record_refs: [
         workspaceRef('jobs', 'Jobs workspace'),
@@ -105,9 +108,11 @@ async function runAgentWorkforceArchitect({ supabase, tenantId }) {
       ],
     });
     addAction({
-      id: 'workforce_action_field_closeout_coach',
-      title: 'Design the Field Closeout Coach around crew closeout',
-      detail: 'Start in the Jobs and crew-closeout flow so the new agent checks proof, notes, signatures, and job-cost completeness before the office has to clean it up later.',
+      id: 'workforce_action_train_field_closeout_coach',
+      title: 'Run the Field Closeout Coach where crews hand work back',
+      detail: fieldCloseoutRuns
+        ? 'Keep feeding the closeout coach real blocker outcomes from Jobs so the field package gets tighter before billing review.'
+        : 'Start running the closeout coach from Jobs so it can learn the real proof, note, and timing gaps your team keeps cleaning up downstream.',
       priority: 'high',
       requires_operator_approval: true,
       suggested_ui_action: 'open_jobs',
@@ -125,11 +130,11 @@ async function runAgentWorkforceArchitect({ supabase, tenantId }) {
       value: `${multiLocationCustomers.length} multi-location customer(s) are active while ${dispatchJobs.length} upcoming job(s) are still being coordinated.`,
     });
     addFinding({
-      id: 'workforce_gap_site_packet_builder',
-      severity: multiLocationCustomers.length >= 3 ? 'warning' : 'info',
-      category: 'agent_gap',
-      title: 'Add a Site Packet Builder agent',
-      detail: 'Crews are operating across customers with multiple buildings or campuses. A site-packet specialist would assemble building-specific access notes, prior proof, recurring issues, and contact roles before arrival.',
+      id: 'workforce_training_site_packet_builder',
+      severity: multiLocationCustomers.length >= 3 || !sitePacketRuns ? 'warning' : 'info',
+      category: 'agent_training',
+      title: 'Train the Site Packet Builder on multi-building dispatch pressure',
+      detail: 'Crews are operating across customers with multiple buildings or campuses. Keep sharpening the site-packet lane around building-specific access notes, prior proof, recurring issues, and arrival contacts.',
       evidence_ids: [workforceEvidenceId, multiSiteEvidenceId],
       record_refs: [
         workspaceRef('customers', 'Customers workspace'),
@@ -138,9 +143,11 @@ async function runAgentWorkforceArchitect({ supabase, tenantId }) {
       ],
     });
     addAction({
-      id: 'workforce_action_site_packet_builder',
-      title: 'Anchor the next crew-prep agent around site packets',
-      detail: 'Use the customer and dispatch workspaces as the operating rails so the next agent can prepare crews with the exact site context they need before they travel.',
+      id: 'workforce_action_train_site_packet_builder',
+      title: 'Keep the site-packet lane tied to Customers, Jobs, and Dispatch',
+      detail: sitePacketRuns
+        ? 'Use real multi-site dispatch work to teach the site packet where crews still need stronger arrival context.'
+        : 'Start running the site packet from Jobs and multi-location customer records so crews stop arriving without the best-known site context.',
       priority: 'high',
       requires_operator_approval: true,
       suggested_ui_action: 'open_customers',
@@ -162,11 +169,11 @@ async function runAgentWorkforceArchitect({ supabase, tenantId }) {
         : 'Import corrections repeatedly touch external invoice reference fields.',
     });
     addFinding({
-      id: 'workforce_gap_accounting_continuity_auditor',
-      severity: 'warning',
-      category: 'agent_gap',
-      title: 'Add an Accounting Continuity Auditor agent',
-      detail: 'This tenant is carrying outside-accounting references through imports and payment follow-through. A continuity auditor would keep QuickBooks or other external invoice numbers visible across service reports, orders, and payment reconciliation.',
+      id: 'workforce_training_accounting_continuity_auditor',
+      severity: accountingContinuityRuns ? 'info' : 'warning',
+      category: 'agent_training',
+      title: 'Train the Accounting Continuity Auditor on real outside-accounting traces',
+      detail: 'This tenant is carrying outside-accounting references through imports and payment follow-through. Keep teaching the continuity auditor to hold QuickBooks or other external invoice numbers visible across service reports, orders, and payment reconciliation.',
       evidence_ids: [workforceEvidenceId, accountingEvidenceId],
       record_refs: [
         workspaceRef('import', 'Import workspace'),
@@ -175,9 +182,11 @@ async function runAgentWorkforceArchitect({ supabase, tenantId }) {
       ],
     });
     addAction({
-      id: 'workforce_action_accounting_continuity',
-      title: 'Treat invoice continuity as a first-class agent lane',
-      detail: 'Use the Import, Orders, and Payments workspaces as the first rollout surface so outside-accounting references stay inspectable all the way through job and invoice follow-through.',
+      id: 'workforce_action_train_accounting_continuity',
+      title: 'Run the continuity audit wherever outside accounting touches work',
+      detail: accountingContinuityRuns
+        ? 'Keep the continuity audit active in Import, Orders, and Payments so the learned QuickBooks and external-reference patterns get sharper with every correction.'
+        : 'Start running the continuity audit in Import, Orders, and Payments so outside-accounting references become part of the real workflow instead of side knowledge.',
       priority: 'high',
       requires_operator_approval: true,
       suggested_ui_action: 'open_import',

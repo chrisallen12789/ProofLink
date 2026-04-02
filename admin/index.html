@@ -52,6 +52,7 @@
       <li><a data-section="audit-log" onclick="showSection('audit-log',this)">📋 Audit Log</a></li>
       <li><a data-section="billing"   onclick="showSection('billing',this)">💳 Billing</a></li>
       <li><a data-section="health"    onclick="showSection('health',this)">🟢 System Health</a></li>
+      <li><a data-section="ai-control" onclick="showSection('ai-control',this)">🧠 AI Control</a></li>
       <li><a data-section="settings"  onclick="showSection('settings',this)">⚙️ Settings</a></li>
     </ul>
 
@@ -417,6 +418,54 @@
         <div class="health-card"><div class="health-label">Slug checker (public)</div><div class="health-status" id="hc-slug"><div class="health-dot unknown"></div>Not checked</div><div class="health-note" id="hc-slug-note">Click "Run checks" to test.</div></div>
         <div class="health-card"><div class="health-label">Supabase connection</div><div class="health-status" id="hc-sb"><div class="health-dot unknown"></div>Not checked</div><div class="health-note" id="hc-sb-note">Validated through function responses.</div></div>
         <div class="health-card"><div class="health-label">Auth service</div><div class="health-status" id="hc-auth"><div class="health-dot ok"></div>Verified</div><div class="health-note" id="hc-auth-note">Session token is valid — you are authenticated.</div></div>
+      </div>
+    </div>
+
+    <!-- ── SECTION: AI Control ───────────────────────────────────────── -->
+    <div class="section" id="section-ai-control">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Internal AI Control</div>
+          <div class="page-sub">Admin-only visibility for ProofLink's agent workforce. Tenant operators should only see workflow reviews, not the agent system itself.</div>
+        </div>
+        <button class="btn" onclick="loadAiControl()">↻ Refresh</button>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-title">Workforce review</span>
+          <span style="font-size:.75rem;color:var(--muted)">Choose a tenant and inspect the internal guidance</span>
+        </div>
+        <div class="panel-body">
+          <div class="ai-control-toolbar">
+            <label class="ai-control-field" for="ai-tenant-select">
+              <span>Tenant</span>
+              <select id="ai-tenant-select"></select>
+            </label>
+            <button class="btn btn-primary" type="button" onclick="runAiWorkforceReview()">Run workforce review</button>
+            <button class="btn" type="button" onclick="loadAiAgentRoster()">Refresh roster</button>
+          </div>
+          <div id="ai-control-msg" class="ai-control-msg">Loading internal AI controls…</div>
+        </div>
+      </div>
+
+      <div class="two-col">
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title">Internal agent roster</span></div>
+          <div class="panel-body">
+            <div id="ai-roster-wrap" class="ai-roster-wrap">
+              <div class="empty">Loading internal agents…</div>
+            </div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title">Workforce guidance</span></div>
+          <div class="panel-body">
+            <div id="ai-workforce-report-wrap" class="ai-workforce-report-wrap">
+              <div class="empty">Choose a tenant and run the workforce review to see missing specialist lanes and training targets.</div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 

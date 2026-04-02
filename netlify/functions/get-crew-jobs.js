@@ -10,6 +10,53 @@
 
 const { requireOperatorContext, getAdminClient, respond } = require('./utils/auth');
 
+function compactText(value, max = 240) {
+  const text = String(value || '').trim();
+  if (!text) return '';
+  return text.slice(0, max);
+}
+
+function firstFilledText(...values) {
+  for (const value of values) {
+    const text = compactText(value);
+    if (text) return text;
+  }
+  return '';
+}
+
+function buildAddress(row = {}) {
+  const line = compactText(row?.address_line1 || row?.service_address || '');
+  const locality = [row?.city, row?.state, row?.zip].map((value) => compactText(value, 80)).filter(Boolean).join(' ').trim();
+  return [line, locality].filter(Boolean).join(', ');
+}
+
+function summarizeRecentWork(row = {}) {
+  return {
+    id: compactText(row?.id, 80),
+    title: compactText(row?.title || row?.customer_name || 'Job', 180),
+    status: compactText(row?.status, 80),
+    scheduled_date: compactText(row?.scheduled_date, 40),
+    completed_at: compactText(row?.completed_at, 60),
+    notes: compactText(row?.notes || row?.completion_note || row?.crew_notes || '', 220),
+  };
+}
+
+function buildCrewSitePacket(job, location, recentJobs = [], currentPhotos = []) {
+  const customer = job?.customers || {};
+  const order = job?.orders || {};
+  return {
+    site_label: firstFilledText(location?.site_name, customer?.company_name, customer?.name, order?.title, job?.title),
+    site_address: buildAddress(location) || firstFilledText(job?.service_address, job?.address),
+    access_notes: firstFilledText(location?.access_notes, customer?.access_notes, customer?.entry_notes, customer?.alarm_notes, customer?.gate_notes),
+    site_notes: firstFilledText(location?.site_notes, customer?.service_notes, customer?.scope_notes, order?.notes, job?.notes),
+    contact_name: firstFilledText(location?.contact_name, customer?.name),
+    contact_phone: firstFilledText(location?.contact_phone, customer?.phone, order?.customer_phone),
+    contact_email: firstFilledText(location?.contact_email, customer?.email, order?.customer_email),
+    recent_work: recentJobs.slice(0, 3).map((row) => summarizeRecentWork(row)),
+    current_photo_count: Array.isArray(currentPhotos) ? currentPhotos.length : 0,
+  };
+}
+
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return respond(200, {});
   if (event.httpMethod !== 'GET') return respond(405, { error: 'Method not allowed' });
@@ -44,8 +91,8 @@ exports.handler = async (event) => {
     .from('jobs')
     .select(`
       *,
-      customers ( name, phone, email ),
-      orders ( title )
+      customers ( * ),
+      orders ( * )
     `)
     .eq('tenant_id', tenantId);
 
@@ -79,6 +126,8 @@ exports.handler = async (event) => {
   }
 
   const jobList = jobs || [];
+  const locationIds = [...new Set(jobList.map((job) => String(job?.customer_location_id || '').trim()).filter(Boolean))];
+  const customerIds = [...new Set(jobList.map((job) => String(job?.customer_id || '').trim()).filter(Boolean))];
 
   // Fetch photos for all returned jobs
   let photos = [];
@@ -105,10 +154,81 @@ exports.handler = async (event) => {
     photosByJob[p.job_id].push(p);
   }
 
+  let customerLocations = [];
+  if (locationIds.length) {
+    const { data, error } = await adminSb
+      .from('customer_locations')
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .in('id', locationIds);
+    if (error) {
+      console.error('[get-crew-jobs] customer location fetch error:', error);
+    } else {
+      customerLocations = data || [];
+    }
+  }
+  const customerLocationById = new Map(customerLocations.map((row) => [row.id, row]));
+
+  let relatedJobs = [];
+  if (customerIds.length) {
+    const { data, error } = await adminSb
+      .from('jobs')
+      .select('id, title, status, scheduled_date, completed_at, updated_at, service_address, notes, completion_note, crew_notes, customer_id, customer_location_id')
+      .eq('tenant_id', tenantId)
+      .in('customer_id', customerIds)
+      .order('updated_at', { ascending: false })
+      .limit(120);
+    if (error) {
+      console.error('[get-crew-jobs] related customer-job fetch error:', error);
+    } else {
+      relatedJobs = data || [];
+    }
+  }
+
+  if (locationIds.length) {
+    const { data, error } = await adminSb
+      .from('jobs')
+      .select('id, title, status, scheduled_date, completed_at, updated_at, service_address, notes, completion_note, crew_notes, customer_id, customer_location_id')
+      .eq('tenant_id', tenantId)
+      .in('customer_location_id', locationIds)
+      .order('updated_at', { ascending: false })
+      .limit(120);
+    if (error) {
+      console.error('[get-crew-jobs] related site-job fetch error:', error);
+    } else {
+      const seen = new Set(relatedJobs.map((row) => row.id));
+      (data || []).forEach((row) => {
+        if (!seen.has(row.id)) {
+          seen.add(row.id);
+          relatedJobs.push(row);
+        }
+      });
+    }
+  }
+
   const jobsWithPhotos = jobList.map((j) => ({
     ...j,
     photos: photosByJob[j.id] || [],
-  }));
+    customer_location: customerLocationById.get(j.customer_location_id) || null,
+  })).map((job) => {
+    const recentJobs = relatedJobs.filter((row) => {
+      if (!row || row.id === job.id) return false;
+      if (job.customer_location_id && row.customer_location_id) {
+        return String(row.customer_location_id) === String(job.customer_location_id);
+      }
+      return String(row.customer_id || '') === String(job.customer_id || '');
+    }).slice(0, 4);
+
+    return {
+      ...job,
+      site_packet: buildCrewSitePacket(
+        job,
+        job.customer_location,
+        recentJobs,
+        photosByJob[job.id] || []
+      ),
+    };
+  });
 
   return respond(200, {
     jobs: jobsWithPhotos,

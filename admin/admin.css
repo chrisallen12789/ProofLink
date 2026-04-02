@@ -410,6 +410,107 @@ body {
 .health-dot.unknown { background: #9ca3af; }
 .health-note   { font-size: .75rem; color: var(--muted); margin-top: .4rem; line-height: 1.5; }
 
+/* ── AI control ───────────────────────────────────────────────────────────── */
+.ai-control-toolbar {
+  display    : flex;
+  gap        : .75rem;
+  flex-wrap  : wrap;
+  align-items: flex-end;
+}
+.ai-control-field {
+  display       : flex;
+  flex-direction: column;
+  gap           : .35rem;
+  min-width     : 260px;
+}
+.ai-control-field span {
+  font-size  : .75rem;
+  font-weight: 600;
+  color      : var(--muted);
+}
+.ai-control-field select {
+  border       : 1px solid var(--border);
+  border-radius: 4px;
+  padding      : .55rem .75rem;
+  font-size    : .83rem;
+  font-family  : var(--font-body);
+  background   : var(--bg);
+  color        : var(--ink);
+}
+.ai-control-msg {
+  margin-top : .85rem;
+  font-size  : .82rem;
+  color      : var(--muted);
+}
+.ai-control-msg.error { color: var(--error); }
+.ai-roster-list,
+.ai-report-list {
+  display       : flex;
+  flex-direction: column;
+  gap           : .75rem;
+}
+.ai-roster-card,
+.ai-report-item,
+.ai-report-summary {
+  border       : 1px solid var(--border);
+  border-radius: 6px;
+  background   : var(--bg);
+  padding      : .9rem 1rem;
+}
+.ai-roster-card__head,
+.ai-report-item__head {
+  display        : flex;
+  justify-content: space-between;
+  gap            : .75rem;
+  align-items    : baseline;
+}
+.ai-roster-card__title,
+.ai-report-summary__title {
+  font-family   : var(--font-display);
+  font-size     : .95rem;
+  font-weight   : 700;
+  letter-spacing: -.01em;
+}
+.ai-roster-card__key {
+  font-size  : .75rem;
+  color      : var(--muted);
+  font-family: monospace;
+}
+.ai-roster-card__copy,
+.ai-report-summary__copy,
+.ai-report-item__copy {
+  margin-top : .45rem;
+  color      : var(--muted);
+  font-size  : .82rem;
+  line-height: 1.6;
+}
+.ai-roster-chip-row {
+  display   : flex;
+  gap       : .45rem;
+  flex-wrap : wrap;
+  margin-top: .7rem;
+}
+.ai-roster-card__meta {
+  margin-top: .7rem;
+  font-size : .78rem;
+  color     : var(--muted);
+}
+.ai-report-section {
+  margin-top: 1rem;
+}
+.ai-report-section__title {
+  font-size     : .72rem;
+  font-weight   : 700;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color         : var(--muted);
+  margin-bottom : .6rem;
+}
+.ai-report-item--warn {
+  border-color: #fca5a5;
+  background  : #fdf2f2;
+}
+
 /* ── Responsive ───────────────────────────────────────────────────────────── */
 @media (max-width: 900px) {
   .admin-shell { grid-template-columns: 1fr; }

@@ -131,21 +131,21 @@ describe("agent workforce architect", () => {
     });
 
     expect(result.report.agent_key).toBe("agent_workforce_architect");
-    expect(result.report.summary).toContain("add 4 specialist agents");
-    expect(result.report.summary).toContain("sharpen 3 current agent lanes");
-    expect(result.context_summary.new_agent_candidates).toBe(4);
-    expect(result.context_summary.training_targets).toBe(3);
+    expect(result.report.summary).toContain("add 1 specialist agent");
+    expect(result.report.summary).toContain("sharpen 6 current agent lanes");
+    expect(result.context_summary.new_agent_candidates).toBe(1);
+    expect(result.context_summary.training_targets).toBe(6);
     expect(result.report.findings.map((finding) => finding.id)).toEqual(expect.arrayContaining([
-      "workforce_gap_field_closeout_coach",
-      "workforce_gap_site_packet_builder",
-      "workforce_gap_accounting_continuity_auditor",
+      "workforce_training_field_closeout_coach",
+      "workforce_training_site_packet_builder",
+      "workforce_training_accounting_continuity_auditor",
       "workforce_gap_service_plan_renewal_manager",
       "workforce_training_import_migration_assistant",
       "workforce_training_collections_assistant",
       "workforce_training_dispatch_assistant",
     ]));
     expect(result.report.blockers.map((item) => item.id)).toContain("workforce_blocker_low_agent_adoption");
-    expect(result.report.recommended_actions.some((action) => action.id === "workforce_action_accounting_continuity")).toBe(true);
+    expect(result.report.recommended_actions.some((action) => action.id === "workforce_action_train_accounting_continuity")).toBe(true);
   });
 
   test("stays calm when the current agent layer already covers the visible pressure points", async () => {

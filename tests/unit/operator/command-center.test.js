@@ -336,8 +336,8 @@ describe("operator command center", () => {
     context.window.renderDashboard();
 
     expect(context.dashboardWrap.innerHTML).toContain("Repeat-service focus");
-    expect(context.dashboardWrap.innerHTML).toContain("AI ops queue");
-    expect(context.dashboardWrap.innerHTML).toContain("AI workforce architect");
+    expect(context.dashboardWrap.innerHTML).toContain("Ops priority queue");
+    expect(context.dashboardWrap.innerHTML).not.toContain("AI workforce architect");
     expect(context.dashboardWrap.innerHTML).toContain("dashboard-focus-card");
     expect(context.dashboardWrap.innerHTML).toContain("dashboard-focus-title");
     expect(context.dashboardWrap.innerHTML).toContain("seasonal window is opening");
@@ -397,7 +397,7 @@ describe("operator command center", () => {
           ],
         },
       },
-      ui: { message: "AI ops review refreshed.", tone: "ok" },
+      ui: { message: "Ops review refreshed.", tone: "ok" },
       useDispatchTab: true,
     });
 
@@ -409,46 +409,6 @@ describe("operator command center", () => {
     expect(html).toContain("Open dispatch");
     expect(html).toContain("Open order");
     expect(html).toContain("Open customer");
-  });
-
-  test("renderDashboardAiWorkforceReview shows missing-agent and training guidance together", () => {
-    const { context } = loadCommandCenter();
-
-    const html = context.window.PROOFLINK_OPERATOR_COMMAND_CENTER.renderDashboardAiWorkforceReview({
-      context_summary: {
-        new_agent_candidates: 2,
-        training_targets: 2,
-        recent_agent_runs: 4,
-      },
-      report: {
-        summary: "ProofLink should add 2 specialist agents and sharpen 2 current agent lanes.",
-        findings: [
-          {
-            title: "Add an Accounting Continuity Auditor agent",
-            detail: "QuickBooks continuity needs stronger invoice tracking.",
-            severity: "warning",
-            category: "agent_gap",
-            record_refs: [{ record_type: "workspace", record_id: "import" }],
-          },
-          {
-            title: "Train the Collections Assistant",
-            detail: "Several open balances are still missing due dates.",
-            severity: "info",
-            category: "agent_training",
-            record_refs: [{ record_type: "workspace", record_id: "payments" }],
-          },
-        ],
-      },
-      ui: { message: "AI workforce review refreshed.", tone: "ok" },
-    });
-
-    expect(html).toContain("2 new agent candidates");
-    expect(html).toContain("2 training targets");
-    expect(html).toContain("4 recent agent runs");
-    expect(html).toContain("Add agent");
-    expect(html).toContain("Train agent");
-    expect(html).toContain("Open import");
-    expect(html).toContain("Open payments");
   });
 
   test("runDashboardAiOpsReview refreshes the shared AI caches", async () => {
@@ -505,22 +465,6 @@ describe("operator command center", () => {
           },
         });
       }
-      if (agentKey === "agent_workforce_architect") {
-        return Promise.resolve({
-          generated_at: "2026-04-02T10:12:00.000Z",
-          context_summary: { new_agent_candidates: 2, training_targets: 1, recent_agent_runs: 5 },
-          report: {
-            findings: [
-              {
-                title: "Add a Site Packet Builder agent",
-                severity: "warning",
-                category: "agent_gap",
-                record_refs: [{ record_type: "workspace", record_id: "customers" }],
-              },
-            ],
-          },
-        });
-      }
       return Promise.reject(new Error(`Unexpected agent key: ${agentKey}`));
     });
 
@@ -538,11 +482,6 @@ describe("operator command center", () => {
           context_summary: null,
           generated_at: "",
         },
-        PROOFLINK_AI_WORKFORCE_ARCHITECT_STATE: {
-          report: null,
-          context_summary: null,
-          generated_at: "",
-        },
         PROOFLINK_DISPATCH_AGENT_REVIEW_CACHE: {},
       },
     });
@@ -551,7 +490,7 @@ describe("operator command center", () => {
       business: { key: "hydrovac" },
     });
 
-    expect(requestOperatorFunction).toHaveBeenCalledTimes(4);
+    expect(requestOperatorFunction).toHaveBeenCalledTimes(3);
     expect(requestOperatorFunction).toHaveBeenNthCalledWith(
       1,
       "ai-agent-report",
@@ -581,23 +520,10 @@ describe("operator command center", () => {
         body: expect.objectContaining({ agent_key: "collections_followup_assistant" }),
       })
     );
-    expect(requestOperatorFunction).toHaveBeenNthCalledWith(
-      4,
-      "ai-agent-report",
-      expect.objectContaining({
-        method: "POST",
-        body: expect.objectContaining({ agent_key: "agent_workforce_architect" }),
-      })
-    );
     expect(context.window.PROOFLINK_BILLING_BLOCKER_AGENT_STATE.context_summary).toEqual({ queued_jobs: 3 });
     expect(context.window.PROOFLINK_COLLECTIONS_AGENT_STATE.context_summary).toEqual({
       overdue_count: 2,
       missing_due_dates: 1,
-    });
-    expect(context.window.PROOFLINK_AI_WORKFORCE_ARCHITECT_STATE.context_summary).toEqual({
-      new_agent_candidates: 2,
-      training_targets: 1,
-      recent_agent_runs: 5,
     });
     expect(context.window.PROOFLINK_DISPATCH_AGENT_REVIEW_CACHE[targetDate]).toEqual(
       expect.objectContaining({
@@ -610,13 +536,7 @@ describe("operator command center", () => {
     );
     expect(context.window.PROOFLINK_AI_OPS_QUEUE_STATE).toEqual(
       expect.objectContaining({
-        message: "AI ops review refreshed.",
-        tone: "ok",
-      })
-    );
-    expect(context.window.PROOFLINK_AI_WORKFORCE_UI_STATE).toEqual(
-      expect.objectContaining({
-        message: "AI workforce review refreshed with the ops review.",
+        message: "Ops review refreshed.",
         tone: "ok",
       })
     );

@@ -27,6 +27,16 @@ function loadOrdersWorkspace(overrides = {}) {
 }
 
 describe("operator orders workspace", () => {
+  test("keeps accounting continuity language plain for operators", () => {
+    const source = fs.readFileSync(
+      path.resolve(process.cwd(), "operator/operator-orders-workspace.js"),
+      "utf8"
+    );
+
+    expect(source).toContain("Accounting continuity check");
+    expect(source).not.toContain("Accounting Continuity Auditor");
+  });
+
   test("orderCollectionGuidance prioritizes overdue follow-up when money is still open", () => {
     const api = loadOrdersWorkspace();
 

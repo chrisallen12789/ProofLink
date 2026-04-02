@@ -95,6 +95,20 @@ function loadJobsWorkspace(overrides = {}) {
 }
 
 describe("operator jobs workspace", () => {
+  test("keeps the job review language operator-safe", () => {
+    const source = fs.readFileSync(
+      path.resolve(process.cwd(), "operator/operator-jobs-workspace.js"),
+      "utf8"
+    );
+
+    expect(source).toContain("Billing readiness review");
+    expect(source).toContain("Closeout check");
+    expect(source).toContain("Run closeout review");
+    expect(source).toContain("Site packet review");
+    expect(source).not.toContain("Run closeout coach");
+    expect(source).not.toContain("Field Closeout Coach");
+  });
+
   test("renderJobs shows the empty state when no jobs exist", () => {
     const { context, jobsList, jobDetailWrap } = loadJobsWorkspace({
       renderJobDetail: vi.fn(() => Promise.resolve()),

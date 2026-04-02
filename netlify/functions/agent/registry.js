@@ -4,11 +4,31 @@ const { runBillingBlockerDetector } = require('./agents/billing-blocker-detector
 const { runCollectionsFollowUpAssistant } = require('./agents/collections-follow-up-assistant');
 const { runDispatchSchedulingAssistant } = require('./agents/dispatch-scheduling-assistant');
 const { runAgentWorkforceArchitect } = require('./agents/agent-workforce-architect');
+const { runAccountingContinuityAuditor } = require('./agents/accounting-continuity-auditor');
 const { runEstimatingAssistant } = require('./agents/estimating-assistant');
+const { runFieldCloseoutCoach } = require('./agents/field-closeout-coach');
 const { runImportMigrationAssistant } = require('./agents/import-migration-assistant');
 const { runJobRecordAuditor } = require('./agents/job-record-auditor');
+const { runSitePacketBuilder } = require('./agents/site-packet-builder');
 
 const AGENTS = {
+  field_closeout_coach: {
+    key: 'field_closeout_coach',
+    label: 'Field Closeout Coach',
+    purpose: 'Reviews a live job closeout package so proof, timing, manifests, and field follow-through gaps are caught before the office has to clean them up later.',
+    inputs: [{ key: 'job_id', required: true, description: 'The job record to review for closeout readiness.' }],
+    allowed_tools: ['get_field_closeout_context'],
+    forbidden_behaviors: [
+      'Do not complete jobs, upload proof, or change field records automatically.',
+      'Do not claim the field package is ready when proof, timing, or compliance gaps are still open.',
+      'Do not invent signatures, photos, or field notes.',
+    ],
+    output_schema: 'prooflink.agent.report.v1',
+    confidence_signal: 'Confidence depends on whether proof, time, cost, and trade-specific closeout records are all available together.',
+    missing_data_handling: 'Call out missing proof, field timing, or closeout notes explicitly before handing the record back to the office.',
+    recommended_actions: 'Recommend exact next closeout moves only; execution stays manual.',
+    execute: runFieldCloseoutCoach,
+  },
   agent_workforce_architect: {
     key: 'agent_workforce_architect',
     label: 'AI Workforce Architect',
@@ -42,6 +62,23 @@ const AGENTS = {
     missing_data_handling: 'List any missing fields or unavailable tables explicitly in missing_data or assumptions.',
     recommended_actions: 'Recommend exact next operator actions with evidence references.',
     execute: runJobRecordAuditor,
+  },
+  site_packet_builder: {
+    key: 'site_packet_builder',
+    label: 'Site Packet Builder',
+    purpose: 'Builds a grounded site packet for a job from the linked customer, site, recent work history, and proof so crews arrive with better context.',
+    inputs: [{ key: 'job_id', required: true, description: 'The job record to build a site packet around.' }],
+    allowed_tools: ['get_site_packet_context'],
+    forbidden_behaviors: [
+      'Do not invent access notes, contact details, or prior work history.',
+      'Do not claim a site packet is complete when address, access, or contact context is still missing.',
+      'Do not dispatch or reassign work automatically.',
+    ],
+    output_schema: 'prooflink.agent.report.v1',
+    confidence_signal: 'Confidence depends on whether the job, customer, site, history, and proof records can all be grounded from the tenant data.',
+    missing_data_handling: 'Call out missing site address, access notes, or contact path explicitly.',
+    recommended_actions: 'Recommend site-packet and crew-prep moves only; execution stays manual.',
+    execute: runSitePacketBuilder,
   },
   estimating_assistant: {
     key: 'estimating_assistant',
@@ -141,6 +178,26 @@ const AGENTS = {
     missing_data_handling: 'Call out missing identity, amount, or schedule fields before recommending import approval.',
     recommended_actions: 'Recommend safe import review and profile-saving moves only.',
     execute: runImportMigrationAssistant,
+  },
+  accounting_continuity_auditor: {
+    key: 'accounting_continuity_auditor',
+    label: 'Accounting Continuity Auditor',
+    purpose: 'Reviews the order, linked job, invoices, payments, and import-learning signals to keep outside-accounting references traceable across ProofLink work.',
+    inputs: [
+      { key: 'order_id', required: false, description: 'Optional booked-work record to review.' },
+      { key: 'job_id', required: false, description: 'Optional job record to review when continuity should be checked from field work.' },
+    ],
+    allowed_tools: ['get_accounting_continuity_context'],
+    forbidden_behaviors: [
+      'Do not fabricate invoice numbers, doc numbers, or external accounting status.',
+      'Do not write to QuickBooks or any outside accounting system.',
+      'Do not claim continuity is healthy when the records disagree or the reference is missing.',
+    ],
+    output_schema: 'prooflink.agent.report.v1',
+    confidence_signal: 'Confidence depends on whether the order, job, invoice, payment, and import-learning records agree on the same continuity reference.',
+    missing_data_handling: 'Call out missing or conflicting external references explicitly before recommending follow-through.',
+    recommended_actions: 'Recommend inspectable continuity fixes only; execution stays manual.',
+    execute: runAccountingContinuityAuditor,
   },
 };
 

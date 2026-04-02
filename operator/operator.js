@@ -522,6 +522,7 @@ const customerPhone = $("customerPhone");
 const customerPreferredContact = $("customerPreferredContact");
 const customerNotes = $("customerNotes");
 const customerAddress1 = $("customerAddress1");
+const customerAddress = customerAddress1;
 const customerCity = $("customerCity");
 const customerState = $("customerState");
 const customerZip = $("customerZip");
@@ -5659,15 +5660,7 @@ async function fetchJobs() {
     FETCHING.delete('jobs');
   }
 }
-customerSearch?.addEventListener("input", debounce(() => renderCustomersList(customerSearch.value)));
-btnRefreshCustomers?.addEventListener("click", async () => {
-  try {
-    await Promise.all([fetchCustomers(), fetchCrmOrders(), fetchPayments()]);
-    renderCustomersList(customerSearch?.value || "");
-  } catch (err) {
-    notifyOperator(err.message || String(err));
-  }
-});
+window.PROOFLINK_OPERATOR_CUSTOMERS_WORKSPACE?.initCustomersWorkspaceBindings?.();
 
 btnRefreshPayments?.addEventListener("click", async () => {
   try {
@@ -5677,64 +5670,6 @@ btnRefreshPayments?.addEventListener("click", async () => {
     notifyOperator(err.message || String(err));
   }
 });
-
-customerForm?.addEventListener("submit", async (e) => {
-  e.preventDefault();
-  setInlineMessage(customerMsg, "Saving...");
-  const shouldAddAnother = CUSTOMER_SAVE_ADD_ANOTHER;
-  CUSTOMER_SAVE_ADD_ANOTHER = false;
-
-  const emailVal = (customerEmail?.value || '').trim().toLowerCase();
-  const custId   = customerId?.value || null;
-  if (emailVal) {
-    const dup = CUSTOMERS_CACHE.find((c) => c.email?.toLowerCase() === emailVal && c.id !== custId);
-    if (dup) {
-      setInlineMessage(customerMsg, `A customer with email ${emailVal} already exists: ${dup.name || 'unnamed'}. Open their record instead.`, 'error');
-      return;
-    }
-    // DB-level check: cache is paginated so a duplicate may not be loaded
-    try {
-      let dbQ = sb.from('customers').select('id, name').eq('email', emailVal).eq(TENANT_COLUMN, TENANT_ID).limit(1).maybeSingle();
-      if (custId) dbQ = sb.from('customers').select('id, name').eq('email', emailVal).eq(TENANT_COLUMN, TENANT_ID).neq('id', custId).limit(1).maybeSingle();
-      const { data: dbDup } = await dbQ;
-      if (dbDup) {
-        setInlineMessage(customerMsg, `A customer with email ${emailVal} already exists: ${dbDup.name || 'unnamed'}. Open their record instead.`, 'error');
-        return;
-      }
-    } catch (_) { /* non-fatal */ }
-  }
-
-  try {
-      await saveCustomerRecord({
-        id: customerId?.value || null,
-        name: customerName?.value,
-        email: customerEmail?.value,
-        phone: customerPhone?.value,
-        preferred_contact: customerPreferredContact?.value,
-        notes: customerNotes?.value,
-        address_line1: customerAddress1?.value || undefined,
-        city: customerCity?.value || undefined,
-        state: customerState?.value || undefined,
-        zip: customerZip?.value || undefined,
-      });
-      markWorkspaceClean("customers");
-      if (shouldAddAnother) {
-        startNewCustomer();
-        setInlineMessage(customerMsg, "Customer saved. Ready for the next one.", "ok");
-        customerName?.focus?.();
-      } else {
-        setInlineMessage(customerMsg, "Customer saved.", "ok");
-      }
-    } catch (err) {
-    setInlineMessage(customerMsg, err.message || String(err), "error");
-  }
-});
-btnNewCustomer?.addEventListener("click", startNewCustomer);
-btnSaveAndAddCustomer?.addEventListener("click", () => {
-  CUSTOMER_SAVE_ADD_ANOTHER = true;
-  customerForm?.requestSubmit?.();
-});
-btnClearCustomerForm?.addEventListener("click", startNewCustomer);
 
 jobSearch?.addEventListener("input", debounce(() => renderJobs(jobSearch.value)));
 btnNewJob?.addEventListener("click", () => {

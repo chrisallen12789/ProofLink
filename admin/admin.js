@@ -39,6 +39,14 @@ var selectedTenants = {};
 // Bulk selection for onboarding requests
 var selectedOb = {};
 
+// Internal AI control state
+var aiControlState = {
+  agents: [],
+  tenants: [],
+  selectedTenantId: '',
+  workforceReport: null,
+};
+
 // In-flight guard — prevents double-submitting async operations
 var _inFlight = {};
 
@@ -198,6 +206,7 @@ function showSection(id, link) {
   if (id === 'testers')      loadTesters();
   if (id === 'audit-log')    loadAuditLog();
   if (id === 'billing')      loadBilling();
+  if (id === 'ai-control')   loadAiControl();
 }
 
 // ── Overview ──────────────────────────────────────────────────────────────────
@@ -1384,6 +1393,221 @@ function fetchAdminTenants(params) {
       if (!res.ok) throw new Error(res.d.error || 'Failed to load tenants');
       return Array.isArray(res.d.tenants) ? res.d.tenants : [];
     });
+}
+
+function aiControlMsg(message, tone) {
+  var el = document.getElementById('ai-control-msg');
+  if (!el) return;
+  el.className = 'ai-control-msg' + (tone ? ' ' + tone : '');
+  el.textContent = message || '';
+}
+
+function renderAiTenantSelect() {
+  var select = document.getElementById('ai-tenant-select');
+  if (!select) return;
+  var tenants = Array.isArray(aiControlState.tenants) ? aiControlState.tenants.slice() : [];
+  if (!tenants.length) {
+    select.innerHTML = '<option value="">No tenants available</option>';
+    select.disabled = true;
+    return;
+  }
+
+  if (!aiControlState.selectedTenantId || !tenants.some(function(row) { return row.id === aiControlState.selectedTenantId; })) {
+    aiControlState.selectedTenantId = tenants[0].id;
+  }
+
+  select.disabled = false;
+  select.innerHTML = tenants.map(function(row) {
+    var label = (row.name || row.slug || row.id) + (row.slug ? ' (' + row.slug + ')' : '');
+    return '<option value="' + esc(row.id) + '"' + (row.id === aiControlState.selectedTenantId ? ' selected' : '') + '>' + esc(label) + '</option>';
+  }).join('');
+  select.onchange = function() {
+    aiControlState.selectedTenantId = this.value || '';
+    aiControlState.workforceReport = null;
+    renderAiWorkforceReport();
+    aiControlMsg('Tenant updated. Run the workforce review to inspect the internal guidance for this business.', '');
+  };
+}
+
+function fetchAiAgentRoster() {
+  return authFetch('/.netlify/functions/ai-agent-report')
+    .then(function(r) {
+      return r.json().then(function(d) { return { ok: r.ok, d: d }; });
+    })
+    .then(function(res) {
+      if (!res.ok) throw new Error(res.d.error || 'Failed to load the internal agent roster');
+      return Array.isArray(res.d.agents) ? res.d.agents : [];
+    });
+}
+
+function renderAiAgentRoster() {
+  var wrap = document.getElementById('ai-roster-wrap');
+  if (!wrap) return;
+  var agents = Array.isArray(aiControlState.agents) ? aiControlState.agents : [];
+  if (!agents.length) {
+    wrap.innerHTML = '<div class="empty">No internal agents were returned.</div>';
+    return;
+  }
+
+  wrap.innerHTML = '<div class="ai-roster-list">' + agents.map(function(agent) {
+    var tools = Array.isArray(agent.allowed_tools) ? agent.allowed_tools : [];
+    var inputs = Array.isArray(agent.inputs) ? agent.inputs : [];
+    return '<article class="ai-roster-card">'
+      + '<div class="ai-roster-card__head">'
+      + '<div class="ai-roster-card__title">' + esc(agent.label || agent.key || 'Agent') + '</div>'
+      + '<div class="ai-roster-card__key">' + esc(agent.key || '') + '</div>'
+      + '</div>'
+      + '<div class="ai-roster-card__copy">' + esc(agent.purpose || 'No purpose documented.') + '</div>'
+      + '<div class="ai-roster-chip-row">'
+      + '<span class="badge badge-approved">' + esc(inputs.length + ' input' + (inputs.length === 1 ? '' : 's')) + '</span>'
+      + '<span class="badge badge-submitted">' + esc(tools.length + ' allowed tool' + (tools.length === 1 ? '' : 's')) + '</span>'
+      + '</div>'
+      + '<div class="ai-roster-card__meta"><strong>Confidence:</strong> ' + esc(agent.confidence_signal || 'Not documented.') + '</div>'
+      + '</article>';
+  }).join('') + '</div>';
+}
+
+function currentAiTenantName() {
+  var selected = (aiControlState.tenants || []).find(function(row) {
+    return row.id === aiControlState.selectedTenantId;
+  });
+  return selected ? (selected.name || selected.slug || selected.id) : 'Selected tenant';
+}
+
+function renderAiWorkforceReport() {
+  var wrap = document.getElementById('ai-workforce-report-wrap');
+  if (!wrap) return;
+
+  var payload = aiControlState.workforceReport || null;
+  var report = payload && payload.report ? payload.report : null;
+  var context = payload && payload.context_summary ? payload.context_summary : {};
+  if (!report) {
+    wrap.innerHTML = '<div class="empty">Choose a tenant and run the workforce review to see missing specialist lanes and training targets.</div>';
+    return;
+  }
+
+  var findings = Array.isArray(report.findings) ? report.findings.slice(0, 6) : [];
+  var blockers = Array.isArray(report.blockers) ? report.blockers.slice(0, 4) : [];
+  var actions = Array.isArray(report.recommended_actions) ? report.recommended_actions.slice(0, 6) : [];
+  var confidence = report.confidence && report.confidence.score != null
+    ? Math.round(Number(report.confidence.score) * 100)
+    : null;
+
+  wrap.innerHTML =
+    '<div class="ai-report-summary">'
+      + '<div class="ai-report-summary__title">' + esc(currentAiTenantName()) + '</div>'
+      + '<div class="ai-report-summary__copy">' + esc(report.summary || 'No summary returned.') + '</div>'
+      + '<div class="ai-roster-chip-row">'
+        + '<span class="badge badge-submitted">' + esc(String(context.new_agent_candidates || 0) + ' new lane' + (Number(context.new_agent_candidates || 0) === 1 ? '' : 's')) + '</span>'
+        + '<span class="badge badge-approved">' + esc(String(context.training_targets || 0) + ' training target' + (Number(context.training_targets || 0) === 1 ? '' : 's')) + '</span>'
+        + (confidence == null ? '' : '<span class="badge badge-provisioned">' + esc('Confidence ' + confidence + '%') + '</span>')
+      + '</div>'
+    + '</div>'
+    + '<div class="ai-report-section">'
+      + '<div class="ai-report-section__title">Findings</div>'
+      + (findings.length
+        ? '<div class="ai-report-list">' + findings.map(function(item) {
+            return '<article class="ai-report-item">'
+              + '<div class="ai-report-item__head"><strong>' + esc(item.title || 'Finding') + '</strong><span>' + esc(String(item.severity || 'info')) + '</span></div>'
+              + '<div class="ai-report-item__copy">' + esc(item.detail || '') + '</div>'
+            + '</article>';
+          }).join('') + '</div>'
+        : '<div class="empty">No findings were returned.</div>')
+    + '</div>'
+    + '<div class="ai-report-section">'
+      + '<div class="ai-report-section__title">Blockers</div>'
+      + (blockers.length
+        ? '<div class="ai-report-list">' + blockers.map(function(item) {
+            return '<article class="ai-report-item ai-report-item--warn">'
+              + '<div class="ai-report-item__head"><strong>' + esc(item.title || 'Blocker') + '</strong></div>'
+              + '<div class="ai-report-item__copy">' + esc(item.detail || '') + '</div>'
+            + '</article>';
+          }).join('') + '</div>'
+        : '<div class="empty">No blockers were returned.</div>')
+    + '</div>'
+    + '<div class="ai-report-section">'
+      + '<div class="ai-report-section__title">Recommended actions</div>'
+      + (actions.length
+        ? '<div class="ai-report-list">' + actions.map(function(item) {
+            return '<article class="ai-report-item">'
+              + '<div class="ai-report-item__head"><strong>' + esc(item.title || 'Action') + '</strong><span>' + esc(String(item.priority || 'review')) + '</span></div>'
+              + '<div class="ai-report-item__copy">' + esc(item.detail || '') + '</div>'
+            + '</article>';
+          }).join('') + '</div>'
+        : '<div class="empty">No actions were returned.</div>')
+    + '</div>';
+}
+
+function loadAiAgentRoster() {
+  aiControlMsg('Refreshing the internal agent roster…', '');
+  return fetchAiAgentRoster()
+    .then(function(agents) {
+      aiControlState.agents = agents;
+      renderAiAgentRoster();
+      aiControlMsg('Internal agent roster refreshed.', '');
+      return agents;
+    })
+    .catch(function(err) {
+      renderAiAgentRoster();
+      aiControlMsg(err.message || 'Failed to load the internal agent roster.', 'error');
+      throw err;
+    });
+}
+
+function loadAiControl() {
+  aiControlMsg('Loading internal AI controls…', '');
+  Promise.all([
+    fetchAdminTenants({ limit: 200 }),
+    fetchAiAgentRoster(),
+  ])
+  .then(function(results) {
+    aiControlState.tenants = Array.isArray(results[0]) ? results[0] : [];
+    aiControlState.agents = Array.isArray(results[1]) ? results[1] : [];
+    renderAiTenantSelect();
+    renderAiAgentRoster();
+    renderAiWorkforceReport();
+    aiControlMsg('Internal AI controls are ready. Tenant operators do not see this layer.', '');
+  })
+  .catch(function(err) {
+    renderAiTenantSelect();
+    renderAiAgentRoster();
+    renderAiWorkforceReport();
+    aiControlMsg(err.message || 'Failed to load the internal AI controls.', 'error');
+  });
+}
+
+function runAiWorkforceReview() {
+  var tenantId = String(aiControlState.selectedTenantId || '').trim();
+  if (!tenantId) {
+    aiControlMsg('Choose a tenant before running the workforce review.', 'error');
+    return;
+  }
+
+  aiControlMsg('Running the internal workforce review…', '');
+  authFetch('/.netlify/functions/ai-agent-report', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      agent_key: 'agent_workforce_architect',
+      tenant_id: tenantId,
+    }),
+  })
+  .then(function(r) {
+    return r.json().then(function(d) { return { ok: r.ok, d: d }; });
+  })
+  .then(function(res) {
+    if (!res.ok) throw new Error(res.d.error || 'Failed to run the workforce review');
+    aiControlState.workforceReport = {
+      report: res.d.report || null,
+      context_summary: res.d.context_summary || {},
+      generated_at: res.d.generated_at || '',
+    };
+    renderAiWorkforceReport();
+    aiControlMsg('Internal workforce review ready.', '');
+  })
+  .catch(function(err) {
+    aiControlMsg(err.message || 'Failed to run the workforce review.', 'error');
+  });
 }
 
 function loadTesters() {

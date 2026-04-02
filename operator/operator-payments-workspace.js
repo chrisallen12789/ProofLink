@@ -523,7 +523,7 @@
     const rows = sortedPayments(PAYMENTS_CACHE);
     paymentsList.innerHTML = `
       <div class="detail-card detail-card--spaced">
-        <div class="kicker">AI collections review</div>
+        <div class="kicker">Collections review</div>
         <div><strong>Collections / Follow-up Assistant</strong></div>
         <div class="action-row action-row--wrap u-mt-10">
           <button type="button" class="btn btn-ghost btn-sm" id="btnRunCollectionsReview">${COLLECTIONS_AGENT_STATE.report ? "Refresh collections review" : "Run collections review"}</button>

@@ -13,7 +13,7 @@
   <script src="./operator.brand.js"></script>
   <script src="./operator.brand-init.js"></script>
 
-  <link rel="stylesheet" href="./operator.css" />
+  <link rel="stylesheet" href="./operator.css?v=20260402-customer-workbench" />
   <script defer src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 </head>
 
@@ -1364,88 +1364,110 @@
               </div>
             </div>
 
-            <div id="customerWorkbenchStats" class="chip-row chip-row--compact u-mb-14"></div>
+            <div id="customerWorkbenchStats" class="customer-workbench-stats u-mb-14"></div>
 
-            <div class="grid two">
+            <div class="grid two customer-workbench-grid">
               <div class="card">
                 <div class="card-hd">
                   <strong>Customer list</strong>
-                  <span class="muted">Highest value first</span>
+                  <span class="muted">Search, filter, and open the accounts that need attention next.</span>
                 </div>
                 <div class="card-bd">
                   <div id="customersList" class="list" data-tour="customers-list"></div>
                 </div>
               </div>
 
-              <div class="card">
-                <div class="card-hd">
-                  <strong id="customerFormTitle">Customer record</strong>
-                  <span class="muted">Create or update the record, then review history below.</span>
+              <div class="customer-workbench-stack">
+                <div class="card customer-workbench-card">
+                  <div class="card-hd customer-workbench-card__head">
+                    <div>
+                      <strong id="customerWorkbenchTitle">Customer workbench</strong>
+                      <span id="customerWorkbenchSubtitle" class="muted">Select a customer to inspect requests, proposals, work, payments, and relationship history.</span>
+                    </div>
+                    <div class="panel-actions customer-workbench-card__actions">
+                      <button id="btnCustomerPrev" class="btn btn-ghost" type="button">Previous</button>
+                      <button id="btnCustomerNext" class="btn btn-ghost" type="button">Next</button>
+                      <button id="btnCustomerEdit" class="btn btn-ghost" type="button">Edit details</button>
+                    </div>
+                  </div>
+                  <div class="card-bd">
+                    <div id="customerDetailWrap" class="muted">Create a customer record or select one from the list to inspect it.</div>
+                  </div>
                 </div>
-                <div class="card-bd">
-                  <form id="customerForm" class="form">
-                    <input type="hidden" id="customerId" />
 
-                    <label>Company / organization
-                      <input id="customerCompanyName" placeholder="City department, HOA, campus, franchise, or account name" />
-                    </label>
-
-                    <div class="grid two form-grid">
-                      <label>Primary contact
-                        <input id="customerName" placeholder="Jane Doe" />
-                      </label>
-
-                      <label>Preferred contact
-                        <select id="customerPreferredContact">
-                          <option value="email">Email</option>
-                          <option value="phone">Phone</option>
-                          <option value="text">Text</option>
-                        </select>
-                      </label>
+                <div id="customerEditorCard" class="card customer-editor-card u-hidden">
+                  <div class="card-hd customer-editor-card__head">
+                    <div>
+                      <strong id="customerFormTitle">Customer details</strong>
+                      <span class="muted">Create or update the account profile without leaving the workbench.</span>
                     </div>
-
-                    <div class="grid two form-grid">
-                      <label>Email
-                        <input id="customerEmail" type="email" placeholder="name@company.com" />
-                      </label>
-
-                      <label>Phone
-                        <input id="customerPhone" type="tel" placeholder="(555) 555-5555" />
-                      </label>
+                    <div class="panel-actions">
+                      <button id="btnCloseCustomerEditor" class="btn btn-ghost" type="button">Hide editor</button>
                     </div>
+                  </div>
+                  <div class="card-bd">
+                    <form id="customerForm" class="form">
+                      <input type="hidden" id="customerId" />
 
-                    <div class="form-row">
-                      <label>Primary address / billing HQ
-                        <input id="customerAddress1" placeholder="Street address" />
+                      <label>Company / organization
+                        <input id="customerCompanyName" placeholder="City department, HOA, campus, franchise, or account name" />
                       </label>
-                    </div>
-                    <div class="form-row inline-grid-quote">
-                      <label>City
-                        <input id="customerCity" placeholder="City" />
+
+                      <div class="grid two form-grid">
+                        <label>Primary contact
+                          <input id="customerName" placeholder="Jane Doe" />
+                        </label>
+
+                        <label>Preferred contact
+                          <select id="customerPreferredContact">
+                            <option value="email">Email</option>
+                            <option value="phone">Phone</option>
+                            <option value="text">Text</option>
+                          </select>
+                        </label>
+                      </div>
+
+                      <div class="grid two form-grid">
+                        <label>Email
+                          <input id="customerEmail" type="email" placeholder="name@company.com" />
+                        </label>
+
+                        <label>Phone
+                          <input id="customerPhone" type="tel" placeholder="(555) 555-5555" />
+                        </label>
+                      </div>
+
+                      <div class="form-row">
+                        <label>Primary address / billing HQ
+                          <input id="customerAddress1" placeholder="Street address" />
+                        </label>
+                      </div>
+                      <div class="form-row inline-grid-quote">
+                        <label>City
+                          <input id="customerCity" placeholder="City" />
+                        </label>
+                        <label>State
+                          <input id="customerState" placeholder="ST" maxlength="2" />
+                        </label>
+                        <label>ZIP
+                          <input id="customerZip" placeholder="00000" />
+                        </label>
+                      </div>
+
+                      <label>Internal notes
+                        <textarea id="customerNotes" rows="4" placeholder="Anything the operator should remember about this account."></textarea>
                       </label>
-                      <label>State
-                        <input id="customerState" placeholder="ST" maxlength="2" />
-                      </label>
-                      <label>ZIP
-                        <input id="customerZip" placeholder="00000" />
-                      </label>
-                    </div>
 
-                    <label>Internal notes
-                      <textarea id="customerNotes" rows="4" placeholder="Anything the operator should remember about this account."></textarea>
-                    </label>
+                      <div class="row">
+                        <button class="btn btn-primary" type="submit">Save customer</button>
+                        <button id="btnSaveAndAddCustomer" class="btn btn-ghost" type="button">Save &amp; add another</button>
+                        <button id="btnClearCustomerForm" class="btn btn-ghost" type="button">Clear form</button>
+                        <button id="btnArchiveCustomer" class="btn btn-danger u-hidden" type="button">Archive customer</button>
+                      </div>
 
-                    <div class="row">
-                      <button class="btn btn-primary" type="submit">Save customer</button>
-                      <button id="btnSaveAndAddCustomer" class="btn btn-ghost" type="button">Save &amp; add another</button>
-                      <button id="btnClearCustomerForm" class="btn btn-ghost" type="button">Clear form</button>
-                      <button id="btnArchiveCustomer" class="btn btn-danger u-hidden" type="button">Archive customer</button>
-                    </div>
-
-                    <div id="customerMsg" class="msg"></div>
-                  </form>
-
-                  <div id="customerDetailWrap" class="muted u-mt-16">Create a customer record or select one from the list to inspect it.</div>
+                      <div id="customerMsg" class="msg"></div>
+                    </form>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1537,7 +1559,7 @@
                 </div>
                 <div class="card-bd">
                   <div class="action-row action-row--wrap">
-                    <button id="btnRunImportAiReview" class="btn btn-ghost btn-sm" type="button">Run AI migration review</button>
+                    <button id="btnRunImportAiReview" class="btn btn-ghost btn-sm" type="button">Run import review</button>
                     <button id="btnSaveImportProfile" class="btn btn-ghost btn-sm" type="button" disabled>Save learned profile</button>
                   </div>
                   <div id="importAiMsg" class="msg u-mt-10"></div>
@@ -1564,7 +1586,7 @@
                   </div>
                   <div id="importAiReviewWrap" class="u-mt-10">
                     <div class="detail-card">
-                      <div class="kicker">AI migration review</div>
+                      <div class="kicker">Import review</div>
                       <div><strong>No structured migration review yet.</strong></div>
                       <div class="detail-copy">Preview a CSV first, then run the review to see grounded mapping coverage, row-routing risk, and the reusable profile ProofLink can learn from this export.</div>
                     </div>
@@ -3211,8 +3233,8 @@
 <script src="./operator-core-utils.js" defer></script>
 <script src="./operator-record-ui.js" defer></script>
 <script src="./operator-bookings-workspace.js" defer></script>
-<script src="./operator-customer-detail.js" defer></script>
-<script src="./operator-customers-workspace.js" defer></script>
+<script src="./operator-customer-detail.js?v=20260402-customer-workbench" defer></script>
+<script src="./operator-customers-workspace.js?v=20260402-customer-workbench" defer></script>
 <script src="./operator-team-workspace.js" defer></script>
 <script src="./operator-equipment-workspace.js" defer></script>
 <script src="./operator-hydrovac-ops-workspace.js" defer></script>
@@ -3231,7 +3253,7 @@
 <script src="./operator-catalog-workspace.js" defer></script>
 <script src="./operator-money-workspace.js" defer></script>
 <script src="./operator-boot-utils.js" defer></script>
-<script src="./operator.js" defer></script>
+<script src="./operator.js?v=20260402-customer-workbench" defer></script>
 <script src="./operator-proposal-documents.js" defer></script>
 <script src="./operator-orders-tools.js" defer></script>
 <script src="./operator-payments-workspace.js" defer></script>

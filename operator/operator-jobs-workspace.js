@@ -225,6 +225,8 @@ function renderJobReadinessCard(summary) {
 }
 
 const JOB_AGENT_REPORT_CACHE = window.PROOFLINK_JOB_AGENT_REPORT_CACHE || (window.PROOFLINK_JOB_AGENT_REPORT_CACHE = {});
+const JOB_CLOSEOUT_AGENT_CACHE = window.PROOFLINK_JOB_CLOSEOUT_AGENT_CACHE || (window.PROOFLINK_JOB_CLOSEOUT_AGENT_CACHE = {});
+const JOB_SITE_PACKET_AGENT_CACHE = window.PROOFLINK_JOB_SITE_PACKET_AGENT_CACHE || (window.PROOFLINK_JOB_SITE_PACKET_AGENT_CACHE = {});
 
 function jobAgentStatusTone(status) {
   if (status === "ready") return "pill-good";
@@ -238,9 +240,9 @@ function jobAgentPriorityTone(priority) {
   return "pill-warn";
 }
 
-function renderJobAgentReport(report) {
+function renderJobAgentReport(report, emptyCopy = "Run the billing audit to review proof, timing, billing blockers, and the exact next actions this job still needs.") {
   if (!report) {
-    return `<div class="detail-copy">Run the billing audit to review proof, timing, billing blockers, and the exact next actions this job still needs.</div>`;
+    return `<div class="detail-copy">${escapeHtml(emptyCopy)}</div>`;
   }
 
   const blockers = Array.isArray(report.blockers) ? report.blockers : [];
@@ -321,8 +323,8 @@ function renderJobAgentAuditCard(job) {
   const cached = JOB_AGENT_REPORT_CACHE[job?.id] || null;
   return `
     <div class="detail-card u-mt-14">
-      <div class="kicker">AI billing audit</div>
-      <div><strong>Job Record Auditor</strong></div>
+      <div class="kicker">Billing readiness review</div>
+      <div><strong>Billing review</strong></div>
       <div class="detail-copy">Review proof, notes, timing, linked billing records, and exact next moves without leaving this job.</div>
       <div class="action-row action-row--wrap u-mt-10">
         <button type="button" class="btn btn-ghost btn-sm" id="btnJobRunAudit">${cached ? "Run again" : "Run billing audit"}</button>
@@ -330,6 +332,42 @@ function renderJobAgentAuditCard(job) {
       <div id="jobAuditMsg" class="msg u-mt-10"></div>
       <div id="jobAuditReport" class="u-mt-10">
         ${renderJobAgentReport(cached)}
+      </div>
+    </div>
+  `;
+}
+
+function renderJobCloseoutCoachCard(job) {
+  const cached = JOB_CLOSEOUT_AGENT_CACHE[job?.id] || null;
+  return `
+    <div class="detail-card u-mt-14">
+      <div class="kicker">Closeout check</div>
+      <div><strong>Field closeout review</strong></div>
+      <div class="detail-copy">Review the field handoff package before the office has to clean it up later. This keeps proof, timing, signatures, and trade-specific closeout records in one place.</div>
+      <div class="action-row action-row--wrap u-mt-10">
+        <button type="button" class="btn btn-ghost btn-sm" id="btnJobRunCloseoutCoach">${cached ? "Run again" : "Run closeout review"}</button>
+      </div>
+      <div id="jobCloseoutCoachMsg" class="msg u-mt-10"></div>
+      <div id="jobCloseoutCoachReport" class="u-mt-10">
+        ${renderJobAgentReport(cached, "Run the closeout review to see what the field package still needs before the office takes over.")}
+      </div>
+    </div>
+  `;
+}
+
+function renderJobSitePacketCard(job) {
+  const cached = JOB_SITE_PACKET_AGENT_CACHE[job?.id] || null;
+  return `
+    <div class="detail-card u-mt-14">
+      <div class="kicker">Site packet</div>
+      <div><strong>Site packet review</strong></div>
+      <div class="detail-copy">Pull the best-known site context together before dispatch: building details, access notes, arrival contacts, and the recent work history the next crew should not have to rediscover.</div>
+      <div class="action-row action-row--wrap u-mt-10">
+        <button type="button" class="btn btn-ghost btn-sm" id="btnJobRunSitePacket">${cached ? "Run again" : "Build site packet"}</button>
+      </div>
+      <div id="jobSitePacketMsg" class="msg u-mt-10"></div>
+      <div id="jobSitePacketReport" class="u-mt-10">
+        ${renderJobAgentReport(cached, "Build the site packet to review access, contact, proof history, and the site-specific context the crew should see before arrival.")}
       </div>
     </div>
   `;
@@ -738,6 +776,7 @@ async function renderJobDetail(jobIdValue) {
     ${renderJobReadinessCard(readiness)}
     ${renderTemplateRecordFocusCard(blueprint)}
     ${renderJobCustomerMemoryCard(linkedCustomer, blueprint)}
+    ${renderJobSitePacketCard(job)}
     ${renderRecordFollowThroughCard({
       eyebrow: "Field updates",
       title: "Handle the on-site moves fast",
@@ -783,6 +822,7 @@ async function renderJobDetail(jobIdValue) {
         </div>
       ` : ""}
     </div>
+    ${renderJobCloseoutCoachCard(job)}
     ${renderJobAgentAuditCard(job)}
     <div class="detail-card u-mt-14">
       <div class="kicker">Job economics</div>
@@ -879,6 +919,52 @@ async function renderJobDetail(jobIdValue) {
       setInlineMessage(msgEl, "Billing audit ready.", "good");
     } catch (error) {
       setInlineMessage(msgEl, error?.message || "Failed to run the billing audit.", "error");
+    }
+  });
+  jobDetailWrap.querySelector('#btnJobRunCloseoutCoach')?.addEventListener("click", async () => {
+    const msgEl = jobDetailWrap.querySelector('#jobCloseoutCoachMsg');
+    const reportEl = jobDetailWrap.querySelector('#jobCloseoutCoachReport');
+    if (typeof requestOperatorFunction !== "function") {
+      setInlineMessage(msgEl, "Closeout review tools are not ready yet.", "error");
+      return;
+    }
+    setInlineMessage(msgEl, "Running closeout review...");
+    try {
+      const result = await requestOperatorFunction("ai-agent-report", {
+        method: "POST",
+        body: {
+          agent_key: "field_closeout_coach",
+          job_id: job.id,
+        },
+      });
+      JOB_CLOSEOUT_AGENT_CACHE[job.id] = result.report || null;
+      if (reportEl) reportEl.innerHTML = renderJobAgentReport(result.report || null, "Run the closeout review to see what the field package still needs before the office takes over.");
+      setInlineMessage(msgEl, "Closeout review ready.", "good");
+    } catch (error) {
+      setInlineMessage(msgEl, error?.message || "Failed to run the closeout review.", "error");
+    }
+  });
+  jobDetailWrap.querySelector('#btnJobRunSitePacket')?.addEventListener("click", async () => {
+    const msgEl = jobDetailWrap.querySelector('#jobSitePacketMsg');
+    const reportEl = jobDetailWrap.querySelector('#jobSitePacketReport');
+    if (typeof requestOperatorFunction !== "function") {
+      setInlineMessage(msgEl, "Site-packet tools are not ready yet.", "error");
+      return;
+    }
+    setInlineMessage(msgEl, "Building site packet...");
+    try {
+      const result = await requestOperatorFunction("ai-agent-report", {
+        method: "POST",
+        body: {
+          agent_key: "site_packet_builder",
+          job_id: job.id,
+        },
+      });
+      JOB_SITE_PACKET_AGENT_CACHE[job.id] = result.report || null;
+      if (reportEl) reportEl.innerHTML = renderJobAgentReport(result.report || null, "Build the site packet to review access, contact, proof history, and the site-specific context the crew should see before arrival.");
+      setInlineMessage(msgEl, "Site packet ready.", "good");
+    } catch (error) {
+      setInlineMessage(msgEl, error?.message || "Failed to build the site packet.", "error");
     }
   });
   const syncFieldJobState = (patch = {}) => {

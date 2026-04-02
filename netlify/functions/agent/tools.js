@@ -48,6 +48,109 @@ function safeParseJson(value, fallback = {}) {
   }
 }
 
+function compactText(value, max = 240) {
+  const text = String(value || '').trim();
+  if (!text) return '';
+  return text.slice(0, max);
+}
+
+function firstFilledText(...values) {
+  for (const value of values) {
+    const text = compactText(value);
+    if (text) return text;
+  }
+  return '';
+}
+
+function buildAddressText(...values) {
+  return values
+    .map((value) => compactText(value, 120))
+    .filter(Boolean)
+    .join(', ');
+}
+
+function normalizeReferenceToken(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '')
+    .slice(0, 120);
+}
+
+function summarizeRecentJob(row = {}) {
+  return {
+    id: String(row?.id || '').trim(),
+    title: compactText(row?.title || row?.customer_name || 'Job', 180),
+    status: compactText(row?.status || '', 80),
+    scheduled_date: compactText(row?.scheduled_date || '', 40),
+    completed_at: compactText(row?.completed_at || '', 60),
+    updated_at: compactText(row?.updated_at || '', 60),
+    service_address: compactText(row?.service_address || '', 180),
+    notes: compactText(row?.notes || row?.completion_note || row?.crew_notes || '', 240),
+  };
+}
+
+function extractAccountingReferenceEntries(record = {}, labelPrefix = '') {
+  if (!record || typeof record !== 'object') return [];
+  const entries = [];
+  const seen = new Set();
+  const prefix = compactText(labelPrefix, 60);
+  const push = (field, rawValue) => {
+    const value = compactText(rawValue, 180);
+    if (!value) return;
+    const token = normalizeReferenceToken(value);
+    if (!token || seen.has(`${field}:${token}`)) return;
+    seen.add(`${field}:${token}`);
+    entries.push({
+      field,
+      label: prefix ? `${prefix} ${field}` : field,
+      value,
+      normalized: token,
+    });
+  };
+
+  [
+    'invoice_number',
+    'external_invoice_number',
+    'quickbooks_invoice_number',
+    'quickbooks_doc_number',
+    'doc_number',
+    'document_number',
+    'external_reference',
+    'external_ref',
+    'source_ref',
+    'source_reference',
+    'reference',
+    'payment_reference',
+    'external_id',
+    'order_external_id',
+    'invoice_ref',
+  ].forEach((field) => push(field, record[field]));
+
+  const metadata = safeParseJson(record.metadata, {});
+  [
+    'invoice_number',
+    'external_invoice_number',
+    'quickbooks_invoice_number',
+    'quickbooks_doc_number',
+    'doc_number',
+    'reference',
+    'order_external_id',
+  ].forEach((field) => push(`metadata.${field}`, metadata[field]));
+
+  return entries;
+}
+
+function countKnownAccountingReferences(context = {}) {
+  const rows = [
+    ...(extractAccountingReferenceEntries(context.order, 'order') || []),
+    ...(extractAccountingReferenceEntries(context.job, 'job') || []),
+    ...((Array.isArray(context.invoices) ? context.invoices : []).flatMap((row) => extractAccountingReferenceEntries(row, 'invoice'))),
+    ...((Array.isArray(context.payments) ? context.payments : []).flatMap((row) => extractAccountingReferenceEntries(row, 'payment'))),
+  ];
+  return rows.length;
+}
+
 // ── Orders ────────────────────────────────────────────────────────────────────
 
 async function getUnpaidOrders(supabase, tenantId) {
@@ -885,6 +988,231 @@ async function getJobRecordAuditContext(supabase, tenantId, jobId) {
   };
 }
 
+async function getFieldCloseoutContext(supabase, tenantId, jobId) {
+  const context = await getJobRecordAuditContext(supabase, tenantId, jobId);
+  const assumptions = [...(context.assumptions || [])];
+  return {
+    ...context,
+    assumptions,
+    data_used: [
+      ...(Array.isArray(context.data_used) ? context.data_used : []),
+      { label: 'Closeout-ready proof records', count: Array.isArray(context.photos) ? context.photos.length : 0, detail: 'job_photos' },
+    ],
+  };
+}
+
+async function getSitePacketContext(supabase, tenantId, jobId) {
+  const base = await getJobRecordAuditContext(supabase, tenantId, jobId);
+  const assumptions = [...(base.assumptions || [])];
+  const job = base.job || {};
+  const order = base.order || null;
+  const customer = base.customer || null;
+  const customerLocation = base.customer_location || null;
+  const customerId = String(job.customer_id || order?.customer_id || '').trim();
+  const locationId = String(job.customer_location_id || '').trim();
+
+  let recentJobs = [];
+  if (locationId) {
+    recentJobs = await resolveOptionalRows(
+      supabase
+        .from('jobs')
+        .select('id, title, status, scheduled_date, completed_at, updated_at, service_address, notes, customer_id, customer_location_id')
+        .eq('tenant_id', tenantId)
+        .eq('customer_location_id', locationId)
+        .neq('id', jobId)
+        .order('updated_at', { ascending: false })
+        .limit(6),
+      assumptions,
+      'Recent site-history jobs were unavailable because the jobs table could not be queried for customer_location_id.'
+    );
+  } else if (customerId) {
+    recentJobs = await resolveOptionalRows(
+      supabase
+        .from('jobs')
+        .select('id, title, status, scheduled_date, completed_at, updated_at, service_address, notes, customer_id, customer_location_id')
+        .eq('tenant_id', tenantId)
+        .eq('customer_id', customerId)
+        .neq('id', jobId)
+        .order('updated_at', { ascending: false })
+        .limit(6),
+      assumptions,
+      'Recent customer job history was unavailable because the jobs table could not be queried.'
+    );
+  }
+
+  const historyJobIds = [jobId, ...recentJobs.map((row) => row?.id).filter(Boolean)];
+  const recentSitePhotos = historyJobIds.length
+    ? await resolveOptionalRows(
+        supabase
+          .from('job_photos')
+          .select('id, job_id, photo_type, caption, created_at, url')
+          .in('job_id', historyJobIds)
+          .order('created_at', { ascending: false })
+          .limit(24),
+        assumptions,
+        'Site proof history was unavailable because the job_photos table is not present in this environment.'
+      )
+    : [];
+
+  const siteAddress = buildAddressText(
+    customerLocation?.address_line1,
+    [customerLocation?.city, customerLocation?.state, customerLocation?.zip].filter(Boolean).join(' ').trim()
+  ) || firstFilledText(
+    job.service_address,
+    order?.service_address,
+    customer?.address_line1,
+    buildAddressText([customer?.city, customer?.state, customer?.zip].filter(Boolean).join(' ').trim())
+  );
+
+  return {
+    ...base,
+    assumptions,
+    recent_site_jobs: recentJobs.map((row) => summarizeRecentJob(row)),
+    recent_site_photos: recentSitePhotos,
+    site_summary: {
+      site_label: firstFilledText(customerLocation?.site_name, customer?.company_name, customer?.name, order?.customer_name, job.title),
+      site_address: siteAddress,
+      access_notes: firstFilledText(
+        customerLocation?.access_notes,
+        customer?.access_notes,
+        customer?.entry_notes,
+        customer?.alarm_notes,
+        customer?.gate_notes
+      ),
+      site_notes: firstFilledText(
+        customerLocation?.site_notes,
+        customer?.service_notes,
+        customer?.scope_notes,
+        order?.notes,
+        job.notes
+      ),
+      contact_name: firstFilledText(customerLocation?.contact_name, customer?.name, order?.customer_name),
+      contact_phone: firstFilledText(customerLocation?.contact_phone, customer?.phone, order?.customer_phone),
+      contact_email: firstFilledText(customerLocation?.contact_email, customer?.email, order?.customer_email),
+    },
+    data_used: [
+      ...(Array.isArray(base.data_used) ? base.data_used : []),
+      { label: 'Recent site-history jobs', count: recentJobs.length, detail: 'jobs' },
+      { label: 'Site proof photos', count: recentSitePhotos.length, detail: 'job_photos' },
+    ],
+  };
+}
+
+async function getAccountingContinuityContext(supabase, tenantId, input = {}) {
+  const assumptions = [];
+  const inputOrderId = String(input.order_id || input.orderId || '').trim();
+  const inputJobId = String(input.job_id || input.jobId || '').trim();
+
+  const initialOrder = inputOrderId
+    ? await supabase.from('orders').select('*').eq('tenant_id', tenantId).eq('id', inputOrderId).maybeSingle()
+      .then((result) => {
+        if (result.error) throw new Error(result.error.message);
+        return result.data || null;
+      })
+    : null;
+  const initialJob = inputJobId
+    ? await supabase.from('jobs').select('*').eq('tenant_id', tenantId).eq('id', inputJobId).maybeSingle()
+      .then((result) => {
+        if (result.error) throw new Error(result.error.message);
+        return result.data || null;
+      })
+    : null;
+
+  let order = initialOrder;
+  let job = initialJob;
+  if (!order && job?.order_id) {
+    order = await supabase.from('orders').select('*').eq('tenant_id', tenantId).eq('id', job.order_id).maybeSingle()
+      .then((result) => {
+        if (result.error) throw new Error(result.error.message);
+        return result.data || null;
+      });
+  }
+  if (!job && order?.id) {
+    job = await resolveOptionalSingle(
+      supabase
+        .from('jobs')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .eq('order_id', order.id)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      assumptions,
+      'Linked job history was unavailable because the jobs table could not be queried for this order.'
+    );
+  }
+
+  if (!order && !job) {
+    const err = new Error('Order or job record not found');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  const customerId = String(order?.customer_id || job?.customer_id || '').trim();
+  const locationId = String(job?.customer_location_id || '').trim();
+
+  const [customer, customerLocation, payments, invoices, importLearning, tenant] = await Promise.all([
+    customerId
+      ? supabase.from('customers').select('*').eq('tenant_id', tenantId).eq('id', customerId).maybeSingle()
+        .then((result) => {
+          if (result.error) throw new Error(result.error.message);
+          return result.data || null;
+        })
+      : Promise.resolve(null),
+    locationId
+      ? resolveOptionalSingle(
+          supabase.from('customer_locations').select('*').eq('tenant_id', tenantId).eq('id', locationId).maybeSingle(),
+          assumptions,
+          'Customer site details were unavailable because the customer_locations table is not present in this environment.'
+        )
+      : Promise.resolve(null),
+    (order?.id || job?.id)
+      ? resolveOptionalRows(
+          (() => {
+            let query = supabase.from('payments').select('*').eq('tenant_id', tenantId).order('created_at', { ascending: false });
+            if (order?.id && job?.id) return query.or(`order_id.eq.${order.id},job_id.eq.${job.id}`);
+            if (order?.id) return query.eq('order_id', order.id);
+            return query.eq('job_id', job.id);
+          })(),
+          assumptions,
+          'Payment continuity history was unavailable because the payments table could not be queried.'
+        )
+      : Promise.resolve([]),
+    order?.id
+      ? resolveOptionalRows(
+          supabase.from('invoices').select('*').eq('tenant_id', tenantId).eq('order_id', order.id).order('created_at', { ascending: false }),
+          assumptions,
+          'Invoice continuity history was unavailable because the invoices table is not present in this environment.'
+        )
+      : Promise.resolve([]),
+    getImportLearningSummary(supabase, tenantId, assumptions),
+    getTenantSnapshot(supabase, tenantId, assumptions),
+  ]);
+
+  return {
+    snapshot_at: new Date().toISOString(),
+    tenant_id: tenantId,
+    tenant,
+    order,
+    job,
+    customer,
+    customer_location: customerLocation,
+    payments,
+    invoices,
+    import_learning: importLearning,
+    assumptions,
+    data_used: [
+      { label: 'Order record', count: order ? 1 : 0, detail: 'orders' },
+      { label: 'Linked job', count: job ? 1 : 0, detail: 'jobs' },
+      { label: 'Customer', count: customer ? 1 : 0, detail: 'customers' },
+      { label: 'Payments', count: Array.isArray(payments) ? payments.length : 0, detail: 'payments' },
+      { label: 'Invoices', count: Array.isArray(invoices) ? invoices.length : 0, detail: 'invoices' },
+      { label: 'Import profiles', count: Number(importLearning?.profile_count || 0), detail: 'tenant_config.import_profiles' },
+      { label: 'Known accounting refs', count: countKnownAccountingReferences({ order, job, invoices, payments }), detail: 'orders|jobs|payments|invoices' },
+    ],
+  };
+}
+
 async function getEstimateRecordContext(supabase, tenantId, input = {}) {
   const assumptions = [];
   const leadId = String(input.lead_id || '').trim();
@@ -1084,14 +1412,17 @@ module.exports = {
   getAiContext,
   getBillingBlockerQueueContext,
   getBusinessContext,
+  getAccountingContinuityContext,
   getCollectionsFollowUpContext,
   getCollectionsContext,
   getDispatchSchedulingContext,
   getEstimateRecordContext,
   getCrewPrepContext,
+  getFieldCloseoutContext,
   getJobRecordAuditContext,
   getQuoteRescueContext,
   getRetentionContext,
+  getSitePacketContext,
   getUnpaidOrders,
   getRecentOrders,
   getOrderById,

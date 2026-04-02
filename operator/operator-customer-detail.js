@@ -39,6 +39,100 @@
       .sort((a, b) => new Date(b.updated_at || b.created_at || 0).getTime() - new Date(a.updated_at || a.created_at || 0).getTime());
   }
 
+  function customerKnownAddresses(customerIdValue, customer = null) {
+    const known = new Set();
+    const addAddress = (value) => {
+      const normalized = String(value || "").trim();
+      if (normalized) known.add(normalized);
+    };
+    addAddress(customer?.service_address);
+    addAddress(customer?.address_line1);
+    addAddress(customer?.billing_address);
+    customerRequests(customerIdValue).forEach((row) => addAddress(row.service_address));
+    customerBids(customerIdValue).forEach((row) => addAddress(row.service_address));
+    [...(CRM_ORDERS_CACHE || [])].filter((row) => row.customer_id === customerIdValue && !row.is_deleted).forEach((row) => addAddress(row.service_address));
+    customerJobs(customerIdValue).forEach((row) => addAddress(row.service_address));
+    return [...known];
+  }
+
+  function customerPrimaryDisplayLabel(customer = null) {
+    return customer?.company_name || customer?.name || "Unnamed customer";
+  }
+
+  function customerContactSummary(customer = null) {
+    const parts = [];
+    if (customer?.company_name && customer?.name) parts.push(customer.name);
+    if (customer?.email) parts.push(customer.email);
+    if (customer?.phone) parts.push(customer.phone);
+    return parts.length ? parts.join(" | ") : "No contact details on file";
+  }
+
+  function customerActivityTimeline({
+    customerRequestsRows = [],
+    customerBidRows = [],
+    customerOrders = [],
+    customerJobsRows = [],
+    customerPayments = [],
+    interactions = [],
+  } = {}) {
+    return [
+      ...interactions.map((row) => ({
+        key: `interaction-${row.id || row.created_at || Math.random()}`,
+        kind: "Interaction",
+        title: customerInteractionLabel(row.type),
+        note: row.summary || "Customer interaction logged",
+        when: row.created_at || row.updated_at || "",
+      })),
+      ...customerRequestsRows.map((row) => ({
+        key: `request-${row.id}`,
+        kind: "Request",
+        title: row.contact_name || row.title || row.requested_service_type || "Request",
+        note: `${titleCaseWords(String(row.status || "new"))} | ${row.requested_service_type || "Service request"}`,
+        when: row.updated_at || row.created_at || "",
+        tab: "leads",
+        id: row.id,
+      })),
+      ...customerBidRows.map((row) => ({
+        key: `bid-${row.id}`,
+        kind: "Proposal",
+        title: row.title || "Proposal",
+        note: `${titleCaseWords(String(row.status || "draft"))} | ${formatUsd(bidGrandTotalCents(row))}`,
+        when: row.updated_at || row.created_at || "",
+        tab: "bids",
+        id: row.id,
+      })),
+      ...customerOrders.map((row) => ({
+        key: `order-${row.id}`,
+        kind: "Booked work",
+        title: row.title || row.customer_name || "Order",
+        note: `${titleCaseWords(String(row.status || "new"))} | ${formatUsd(row.total_cents || 0)}`,
+        when: row.updated_at || row.created_at || "",
+        tab: "orders",
+        id: row.id,
+      })),
+      ...customerJobsRows.map((row) => ({
+        key: `job-${row.id}`,
+        kind: "Field job",
+        title: row.title || "Job",
+        note: `${titleCaseWords(String(row.status || "scheduled"))} | ${row.scheduled_date || "No scheduled date"}`,
+        when: row.updated_at || row.created_at || "",
+        tab: "jobs",
+        id: row.id,
+      })),
+      ...customerPayments.map((row) => ({
+        key: `payment-${row.id}`,
+        kind: "Payment",
+        title: `${formatPaymentMode(row.payment_mode)} | ${titleCaseWords(String(row.status || "paid"))}`,
+        note: `${formatUsd(paymentAmountCents(row))} | ${formatDateTime(row.paid_at || row.created_at || row.updated_at)}`,
+        when: row.paid_at || row.created_at || row.updated_at || "",
+        tab: "payments",
+        id: row.id,
+      })),
+    ]
+      .sort((a, b) => new Date(b.when || 0).getTime() - new Date(a.when || 0).getTime())
+      .slice(0, 10);
+  }
+
   function customerTemplateRecordFocus() {
     const blueprint = typeof currentWorkspaceBlueprint === "function"
       ? currentWorkspaceBlueprint()
@@ -848,6 +942,169 @@
     `;
   }
 
+  function renderCustomerJumpRow() {
+    return `
+      <div class="customer-jump-row">
+        <button type="button" class="customer-jump-chip" data-customer-jump-target="customerProfileSection">Profile</button>
+        <button type="button" class="customer-jump-chip" data-customer-jump-target="customerWorkflowSection">Workflow</button>
+        <button type="button" class="customer-jump-chip" data-customer-jump-target="customerFollowThroughSection">Follow-through</button>
+        <button type="button" class="customer-jump-chip" data-customer-jump-target="customerActivityTimelineSection">Activity</button>
+      </div>
+    `;
+  }
+
+  function renderCustomerProfileCard(customer, {
+    knownAddresses = [],
+    latestInteraction = null,
+    lastTouchValue = "",
+  } = {}) {
+    const profileItems = [
+      {
+        label: "Account name",
+        value: customer?.company_name || customer?.name || "Not recorded",
+        note: customer?.company_name ? "Company, campus, HOA, or billing entity" : "Primary customer label on file",
+      },
+      {
+        label: "Primary contact",
+        value: customer?.name || "Not recorded",
+        note: customerContactSummary(customer),
+      },
+      {
+        label: "Preferred contact",
+        value: titleCaseWords(String(customer?.preferred_contact || "email")),
+        note: customer?.email || customer?.phone || "Add an email or phone number to improve follow-through",
+      },
+      {
+        label: "Lead source",
+        value: customer?.lead_source ? titleCaseWords(String(customer.lead_source).replace(/_/g, " ")) : "Manual or unknown",
+        note: customer?.created_at ? `Added ${formatDateTime(customer.created_at)}` : "Created in CRM",
+      },
+      {
+        label: "Primary address",
+        value: customerDisplayAddress(customer),
+        note: knownAddresses.length > 1 ? `${knownAddresses.length} known service sites` : "Primary location on file",
+      },
+      {
+        label: "Last touch",
+        value: lastTouchValue ? formatDateTime(lastTouchValue) : "Not recorded",
+        note: latestInteraction ? customerInteractionLabel(latestInteraction.type) : "No interaction logged yet",
+      },
+    ];
+
+    return `
+      <div class="detail-card" id="customerProfileSection">
+        <div class="kicker">Profile</div>
+        <div><strong>Account snapshot</strong></div>
+        <div class="detail-copy">Use this section as the quick read on who the customer is, how they like to work, and where the account lives.</div>
+        <div class="customer-profile-grid">
+          ${profileItems.map((item) => `
+            <div class="customer-profile-item">
+              <span>${escapeHtml(item.label)}</span>
+              <strong>${escapeHtml(item.value || "Not recorded")}</strong>
+              <small>${escapeHtml(item.note || "")}</small>
+            </div>
+          `).join("")}
+        </div>
+        ${knownAddresses.length ? `
+          <div class="customer-site-list">
+            ${knownAddresses.slice(0, 5).map((address) => `<span class="pill">${escapeHtml(address)}</span>`).join("")}
+          </div>
+        ` : ""}
+      </div>
+    `;
+  }
+
+  function renderCustomerFootprintCard({
+    customer = null,
+    customerRequestsRows = [],
+    customerBidRows = [],
+    customerOrders = [],
+    customerJobsRows = [],
+    customerPayments = [],
+    balance = 0,
+    knownAddresses = [],
+  } = {}) {
+    const totalValue = customerLifetimeValueCents(customer);
+    const footprintItems = [
+      {
+        label: "Requests",
+        value: String(customerRequestsRows.length),
+        note: customerRequestsRows.length ? "Intake records attached to this account" : "No requests attached yet",
+      },
+      {
+        label: "Proposals",
+        value: String(customerBidRows.length),
+        note: customerBidRows.length ? "Walkthrough bids and pricing history" : "No proposals attached yet",
+      },
+      {
+        label: "Booked work",
+        value: String(customerOrders.length + customerJobsRows.length),
+        note: `${customerOrders.length} order${customerOrders.length === 1 ? "" : "s"} | ${customerJobsRows.length} job${customerJobsRows.length === 1 ? "" : "s"}`,
+      },
+      {
+        label: "Payments",
+        value: String(customerPayments.length),
+        note: customerPayments.length ? `${formatUsd(balance)} still open` : "No payments recorded yet",
+      },
+      {
+        label: "Lifetime value",
+        value: formatUsd(totalValue),
+        note: totalValue > 0 ? "Best available paid history for this account" : "Value builds as payments get recorded",
+      },
+      {
+        label: "Known sites",
+        value: String(Math.max(knownAddresses.length, customerDisplayAddress(customer) === "No service address yet." ? 0 : 1)),
+        note: knownAddresses.length > 1 ? "Multi-site account history is attached" : "Single-site or still being documented",
+      },
+    ];
+
+    return `
+      <div class="detail-card" id="customerFootprintSection">
+        <div class="kicker">Footprint</div>
+        <div><strong>See what exists with this customer</strong></div>
+        <div class="detail-copy">This gives the operator a one-glance read on how much history, work, and money is already attached to the account.</div>
+        <div class="customer-footprint-grid">
+          ${footprintItems.map((item) => `
+            <div class="customer-footprint-item">
+              <span>${escapeHtml(item.label)}</span>
+              <strong>${escapeHtml(item.value || "0")}</strong>
+              <small>${escapeHtml(item.note || "")}</small>
+            </div>
+          `).join("")}
+        </div>
+      </div>
+    `;
+  }
+
+  function renderCustomerActivityTimelineCard(timelineItems = []) {
+    return `
+      <div class="detail-card record-card-spaced" id="customerActivityTimelineSection">
+        <div class="kicker">Recent activity</div>
+        <div><strong>Jump into the latest movement fast</strong></div>
+        <div class="detail-copy">Every recent interaction, proposal, work record, and payment stays visible here so the next click starts from real context.</div>
+        <div class="customer-activity-timeline">
+          ${timelineItems.length ? timelineItems.map((item) => `
+            <button
+              type="button"
+              class="customer-activity-item"
+              ${item.tab && item.id ? `data-customer-open-tab="${escapeAttr(item.tab)}" data-customer-open-id="${escapeAttr(item.id)}"` : ""}
+            >
+              <span class="customer-activity-item__copy">
+                <span class="customer-activity-item__eyebrow">${escapeHtml(item.kind || "Activity")}</span>
+                <strong>${escapeHtml(item.title || "Activity")}</strong>
+                <span>${escapeHtml(item.note || "Recent movement on this account.")}</span>
+              </span>
+              <span class="customer-activity-item__meta">
+                <span class="pill">${escapeHtml(item.kind || "Activity")}</span>
+                <time>${escapeHtml(item.when ? formatDateTime(item.when) : "No date")}</time>
+              </span>
+            </button>
+          `).join("") : `<div class="empty-note">No customer activity has been logged yet.</div>`}
+        </div>
+      </div>
+    `;
+  }
+
   function openCustomerRequestDraft(customer, options = {}, blueprint = (typeof currentWorkspaceBlueprint === "function" ? currentWorkspaceBlueprint() : { business: { key: "service_business" } })) {
     if (!customer) return;
     const draft = customerFollowUpRequestDraft(customer, options, blueprint) || {};
@@ -1034,9 +1291,11 @@
     if (!customer) {
       customerDetailWrap.innerHTML = `
         <div class="detail-card">
-          <div class="kicker">Customer intake</div>
-          <div><strong>Create the account before the work gets messy.</strong></div>
-          <div class="detail-copy">This record becomes the place to attach requests, proposals, jobs, payment history, and every note the team learns over time.</div>
+          <div class="kicker">${escapeHtml(CUSTOMER_CREATING ? "Customer intake" : "Customer workbench")}</div>
+          <div><strong>${escapeHtml(CUSTOMER_CREATING ? "Create the account before the work gets messy." : "Select a customer to open the full record.")}</strong></div>
+          <div class="detail-copy">${escapeHtml(CUSTOMER_CREATING
+            ? "This record becomes the place to attach requests, proposals, jobs, payment history, and every note the team learns over time."
+            : "Once you select a customer, this workbench shows profile details, linked work, money state, and recent activity from one place.")}</div>
         </div>
       `;
       return;
@@ -1110,9 +1369,19 @@
         })
       : [];
     const lastTouchValue = customer.last_contact_at || latestInteraction?.created_at || "";
+    const knownAddresses = customerKnownAddresses(customerIdValue, customer);
+    const activityTimeline = customerActivityTimeline({
+      customerRequestsRows,
+      customerBidRows,
+      customerOrders,
+      customerJobsRows,
+      customerPayments,
+      interactions,
+    });
     const hasActiveOrders = CRM_ORDERS_CACHE.some((o) => o.customer_id === customerIdValue && !["completed", "cancelled", "archived"].includes(String(o.status || "").toLowerCase()));
     const hasActiveJobs = JOBS_CACHE.some((job) => job.customer_id === customerIdValue && !["completed", "cancelled", "archived"].includes(String(job.status || "").toLowerCase()));
     const customerQuickActions = [
+      { label: "Edit details", className: "btn btn-ghost", data: { "customer-action": "edit" } },
       { label: "New request", className: "btn btn-primary", data: { "customer-action": "request" } },
       { label: "Draft proposal", className: "btn btn-ghost", data: { "customer-action": "bid" } },
       { label: "Record payment", className: "btn btn-ghost", data: { "customer-action": "payment" } },
@@ -1151,7 +1420,7 @@
     customerDetailWrap.innerHTML = `
       ${renderRecordHeroCard({
         eyebrow: "Customer record",
-        title: customer.name || "Unnamed customer",
+        title: customerPrimaryDisplayLabel(customer),
         badges: [
           { label: `${openRequestsCount} open request${openRequestsCount === 1 ? "" : "s"}` },
           { label: `${openProposalCount} live proposal${openProposalCount === 1 ? "" : "s"}` },
@@ -1159,9 +1428,10 @@
           balance > 0 ? { label: `${formatUsd(balance)} open`, tone: "pill-bad" } : { label: "No balance due", tone: "pill-on" },
         ],
         meta: [
-          `${customer.email || "No email"} | ${customer.phone || "No phone"}`,
+          customer.company_name && customer.name ? `Primary contact: ${customer.name}` : customerContactSummary(customer),
           `Preferred contact: ${customer.preferred_contact || "email"}`,
           address,
+          customer.lead_source ? `Lead source: ${titleCaseWords(String(customer.lead_source).replace(/_/g, " "))}` : "",
         ],
         description: "Open the customer once, then move requests, pricing, field work, and payment follow-through from the same record.",
         summary: [
@@ -1177,9 +1447,27 @@
         description: "Start the next piece of work, collect money, or capture what just happened without leaving this customer record.",
         actions: customerQuickActions,
       })}
+      ${renderCustomerJumpRow()}
+      <div class="customer-overview-grid">
+        ${renderCustomerProfileCard(customer, {
+          knownAddresses,
+          latestInteraction,
+          lastTouchValue,
+        })}
+        ${renderCustomerFootprintCard({
+          customer,
+          customerRequestsRows,
+          customerBidRows,
+          customerOrders,
+          customerJobsRows,
+          customerPayments,
+          balance,
+          knownAddresses,
+        })}
+      </div>
       ${renderCustomerRecordFocusCard()}
 
-      <div class="customer-flow-grid">
+      <div class="customer-flow-grid" id="customerWorkflowSection">
         <div class="customer-flow-card">
           <div class="customer-flow-card__head">
             <div>
@@ -1300,7 +1588,7 @@
         </div>
       </div>
 
-      <div class="grid two u-mt-14">
+      <div class="grid two u-mt-14" id="customerFollowThroughSection">
         <div class="detail-card customer-next-step-card">
           <div class="kicker">Best next move</div>
           <div><strong>${escapeHtml(nextMoveGuidance.title)}</strong></div>
@@ -1422,11 +1710,23 @@
           </div>
         </div>
       </div>
+      ${renderCustomerActivityTimelineCard(activityTimeline)}
     `;
 
     customerDetailWrap.querySelectorAll("[data-customer-action]").forEach((button) => {
       button.addEventListener("click", () => {
         const action = button.getAttribute("data-customer-action");
+        if (action === "edit") {
+          const customerWorkspaceApi = global.PROOFLINK_OPERATOR_CUSTOMERS_WORKSPACE || {};
+          if (typeof customerWorkspaceApi.openCustomerRecord === "function") {
+            customerWorkspaceApi.openCustomerRecord(customerIdValue, {
+              openEditor: true,
+              focusFieldId: customer?.company_name ? "customerName" : "customerCompanyName",
+              scrollIntoView: true,
+            });
+          }
+          return;
+        }
         if (action === "request") return openCustomerRetentionAction("request", customer, blueprint);
         if (action === "create-request") return openCustomerRetentionAction("create-request", customer, blueprint, {
           requestOptions: {
@@ -1453,6 +1753,13 @@
           return;
         }
         if (action === "archive") return archiveCustomer(customerIdValue);
+      });
+    });
+
+    customerDetailWrap.querySelectorAll("[data-customer-jump-target]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const targetId = button.getAttribute("data-customer-jump-target") || "";
+        document.getElementById(targetId)?.scrollIntoView?.({ behavior: "smooth", block: "start" });
       });
     });
 
@@ -1508,6 +1815,10 @@
     customerBids,
     bidGrandTotalCents,
     customerJobs,
+    customerKnownAddresses,
+    customerPrimaryDisplayLabel,
+    customerContactSummary,
+    customerActivityTimeline,
     customerMemoryChecklist,
     customerCollectionGuidance,
     customerRepeatCadenceDays,
