@@ -23,6 +23,16 @@ const OPTIONAL_TENANT_TABLE_DELETE_ORDER = [
   "tenant_hydrovac_settings",
   "push_subscriptions",
   "sms_messages",
+  "proposal_options",
+  "proposal_document_versions",
+  "proposal_documents",
+  "user_document_profiles",
+  "tenant_branding_profiles",
+  "reusable_exclusions_templates",
+  "reusable_terms_templates",
+  "document_templates",
+  "provision_failures",
+  "tenant_conduct_log",
   "reviews",
   "quotes",
   "bookings",
@@ -122,10 +132,27 @@ function isMissingRelationError(error) {
     || message.includes("does not exist");
 }
 
+function isMissingColumnError(error) {
+  const code = String(error?.code || "").trim().toUpperCase();
+  const message = String(error?.message || "").toLowerCase();
+  return code === "PGRST204"
+    || code === "42703"
+    || (message.includes("column") && message.includes("does not exist"))
+    || (message.includes("could not find") && message.includes("column"));
+}
+
 function isMissingTenantUsageSyncError(error) {
   const code = String(error?.code || "").trim().toUpperCase();
   const message = String(error?.message || "").toLowerCase();
   return code === "P0002" && message.includes("tenant not found for usage sync");
+}
+
+function isMissingAuthUserError(error) {
+  const code = String(error?.code || "").trim().toUpperCase();
+  const message = String(error?.message || "").toLowerCase();
+  return code === "USER_NOT_FOUND"
+    || message.includes("user not found")
+    || message.includes("user does not exist");
 }
 
 function isIgnorableCleanupError(error) {
@@ -165,6 +192,30 @@ function formatCleanupError(error) {
   }
 }
 
+function matchesOptionalPrefixedValue(value, prefix) {
+  return value == null || value === "" || String(value).startsWith(prefix);
+}
+
+async function selectRowsMaybe(
+  { table, selectColumns, fallbackColumns = "", apply = (query) => query },
+  supabase = createSupabaseClient()
+) {
+  let result = await apply(supabase.from(table).select(selectColumns));
+
+  if (result.error && fallbackColumns && isMissingColumnError(result.error)) {
+    result = await apply(supabase.from(table).select(fallbackColumns));
+  }
+
+  if (result.error) {
+    if (isIgnorableCleanupError(result.error)) return [];
+    throw new Error(
+      `Failed cleanup read from ${table}: ${formatCleanupError(result.error)}`
+    );
+  }
+
+  return result.data || [];
+}
+
 async function cleanupTenantScopedData(tenantIds, supabase = createSupabaseClient()) {
   // Hosted cleanup runs before the workflow-schema preflight in CI, so this
   // pass needs to tolerate older test databases that do not yet have every
@@ -178,60 +229,75 @@ async function cleanupTenantScopedData(tenantIds, supabase = createSupabaseClien
   }
 }
 
+async function deleteAuthUserMaybe(userId, supabase = createSupabaseClient()) {
+  const { error } = await supabase.auth.admin.deleteUser(userId);
+  if (!error || isMissingTenantUsageSyncError(error) || isMissingAuthUserError(error)) return;
+  throw new Error(`Failed cleanup auth delete for ${userId}: ${formatCleanupError(error)}`);
+}
+
 async function main() {
   assertCleanupFixturesSafe();
   const supabase = createSupabaseClient();
 
-  const tenantRows = await supabase
-    .from("tenants")
-    .select("id, slug, owner_email")
-    .like("slug", `${PLTEST_SLUG_PREFIX}%`);
-  if (tenantRows.error) throw tenantRows.error;
-  const safeTenantRows = (tenantRows.data || []).filter(
+  const tenantRows = await selectRowsMaybe(
+    {
+      table: "tenants",
+      selectColumns: "id, slug, owner_email",
+      fallbackColumns: "id, slug",
+      apply: (query) => query.like("slug", `${PLTEST_SLUG_PREFIX}%`),
+    },
+    supabase
+  );
+  const safeTenantRows = tenantRows.filter(
     (row) =>
       String(row.slug || "").startsWith(PLTEST_SLUG_PREFIX) &&
-      String(row.owner_email || "").startsWith(PLTEST_EMAIL_PREFIX)
+      matchesOptionalPrefixedValue(row.owner_email, PLTEST_EMAIL_PREFIX)
   );
   const tenantIds = safeTenantRows.map((row) => row.id);
 
-  const operatorRows = await supabase
-    .from("operators")
-    .select("id, email")
-    .ilike("email", `${PLTEST_EMAIL_PREFIX}%@%`);
-  if (operatorRows.error) throw operatorRows.error;
-  const operatorIds = (operatorRows.data || [])
+  const operatorRows = await selectRowsMaybe(
+    {
+      table: "operators",
+      selectColumns: "id, email",
+      apply: (query) => query.ilike("email", `${PLTEST_EMAIL_PREFIX}%@%`),
+    },
+    supabase
+  );
+  const operatorIds = operatorRows
     .filter((row) => String(row.email || "").startsWith(PLTEST_EMAIL_PREFIX))
     .map((row) => row.id);
 
   await cleanupTenantScopedData(tenantIds, supabase);
-
-  const onboardingRows = await supabase
-    .from("tenant_onboarding_requests")
-    .select("id, business_slug, owner_email")
-    .like("business_slug", `${PLTEST_SLUG_PREFIX}%`);
-  if (onboardingRows.error) throw onboardingRows.error;
-
-  const onboardingIds = (onboardingRows.data || [])
-    .filter(
-      (row) =>
-        String(row.business_slug || "").startsWith(PLTEST_SLUG_PREFIX) &&
-        String(row.owner_email || "").startsWith(PLTEST_EMAIL_PREFIX)
-    )
-    .map((row) => row.id);
-  await deleteRows("tenant_onboarding_requests", "id", onboardingIds);
-
-  await deleteRows("operators", "id", operatorIds);
-  await deleteRows("tenants", "id", tenantIds);
 
   for (const user of Object.values(USERS)) {
     const resolved = resolveUserConfig(user);
     assertPrefixedValue(resolved.email, PLTEST_EMAIL_PREFIX, `Seed user email ${resolved.email}`);
     const authUser = await findAuthUserByEmail(resolved.email, supabase);
     if (authUser) {
-      const { error } = await supabase.auth.admin.deleteUser(authUser.id);
-      if (error) throw error;
+      await deleteAuthUserMaybe(authUser.id, supabase);
     }
   }
+
+  const onboardingRows = await selectRowsMaybe(
+    {
+      table: "tenant_onboarding_requests",
+      selectColumns: "id, business_slug, owner_email",
+      fallbackColumns: "id, business_slug",
+      apply: (query) => query.like("business_slug", `${PLTEST_SLUG_PREFIX}%`),
+    },
+    supabase
+  );
+  const onboardingIds = onboardingRows
+    .filter(
+      (row) =>
+        String(row.business_slug || "").startsWith(PLTEST_SLUG_PREFIX) &&
+        matchesOptionalPrefixedValue(row.owner_email, PLTEST_EMAIL_PREFIX)
+    )
+    .map((row) => row.id);
+  await deleteRowsMaybe("tenant_onboarding_requests", "id", onboardingIds, supabase);
+
+  await deleteRowsMaybe("operators", "id", operatorIds, supabase);
+  await deleteRowsMaybe("tenants", "id", tenantIds, supabase);
 
   console.log("Cleaned ProofLink test foundation data.");
 }
@@ -256,10 +322,15 @@ module.exports = {
   cleanupTenantScopedData,
   deleteRows,
   deleteRowsMaybe,
+  deleteAuthUserMaybe,
   findAuthUserByEmail,
   formatCleanupError,
   isIgnorableCleanupError,
+  isMissingAuthUserError,
+  isMissingColumnError,
   isMissingRelationError,
   isMissingTenantUsageSyncError,
   main,
+  matchesOptionalPrefixedValue,
+  selectRowsMaybe,
 };
