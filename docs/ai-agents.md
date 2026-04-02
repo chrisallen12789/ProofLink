@@ -153,6 +153,15 @@ The workforce architect is intentionally narrow:
 - it only recommends additions or training targets when the tenant data actually shows pressure
 - it points back to the affected workspace or records so the recommendation stays inspectable
 
+Operator-facing workflow delivery is part of the internal AI training loop too:
+
+- `tests/e2e/internal-ai-boundary-workflow.spec.js`
+  Exercises the real operator/admin UI contract so workflow reviews stay operator-facing while the agent-system layer stays admin-only.
+- `tests/e2e/owner-trust-smoke.spec.js`
+  Protects the calm launch/onboarding entry flow that feeds the first operator setup experience.
+- UI repair work should update these workflow smokes when a new agent report, workspace entry point, or admin-only control is introduced.
+- This is still deterministic product hardening, not model fine-tuning.
+
 Current gap patterns it watches for:
 
 - billing cleanup pressure that justifies a future `Field Closeout Coach`

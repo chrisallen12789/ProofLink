@@ -22,8 +22,10 @@ describe("operator launch html", () => {
     expect(source).toContain('class="btn-refresh error-state__retry"');
     expect(source).toContain('class="progress-fill progress-fill--start"');
     expect(source).toContain('class="is-hidden"');
+    expect(source).toContain('<script src="./launch.js"></script>');
     expect(source).not.toContain('id="error-state" style=');
     expect(source).not.toContain('id="progress-fill" style=');
     expect(source).not.toContain('id="main-content" style=');
+    expect(source).not.toContain('window.loadChecklist = loadChecklist;');
   });
 });
