@@ -240,6 +240,8 @@ describe("operator bids workspace", () => {
     expect(source).toContain("bidFollowThroughItems");
     expect(source).toContain("No proposal drafts yet.");
     expect(source).toContain("Proposal emailed to ${customer.email}.");
+    expect(source).toContain("data-proposal-settings-focus");
+    expect(source).toContain("Each item disappears here as soon as it is configured.");
     expect(source).not.toContain("quoted / booked");
     expect(source).not.toContain("Sending…");
     expect(source).not.toContain("✓ Proposal emailed");

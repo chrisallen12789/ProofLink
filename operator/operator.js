@@ -2267,6 +2267,7 @@ const WORKSPACE_BASE_TAB_ORDER = [
   "payments",
   "leads",
   "bids",
+  "proposal-settings",
   "jobs",
   "facilities",
   "manifests",
@@ -2291,6 +2292,7 @@ const PRIMARY_TABS = new Set(["dashboard", "orders", "customers", "bookings", "p
 const SECONDARY_TABS = new Set([
   "leads",
   "bids",
+  "proposal-settings",
   "jobs",
   "quotes",
   "plans",
@@ -2313,7 +2315,7 @@ const SECONDARY_TABS = new Set([
   "compliance",
 ]);
 const SIDEBAR_GROUPS = {
-  workflow: ["leads", "bids", "jobs", "quotes", "plans"],
+  workflow: ["leads", "bids", "proposal-settings", "jobs", "quotes", "plans"],
   money: ["expenses", "money", "reviews"],
   website: ["products", "pricing", "availability", "domains", "import"],
   operations: ["vendors", "equipment", "team", "inventory", "contracts"],
@@ -2628,6 +2630,11 @@ function workspacePanelCopy(tab, blueprint = currentWorkspaceBlueprint()) {
         subtitle: isServiceWorkspace(blueprint)
           ? "Build the quote here with scope, photos, pricing, and customer-ready delivery language, then send it for approval."
           : "Build clear offers, pricing, and customer-ready delivery language in one place.",
+      };
+    case "proposal-settings":
+      return {
+        title: "Proposal settings",
+        subtitle: "Keep proposal branding, default templates, and signer details editable from one tools workspace.",
       };
     case "jobs":
       return {
@@ -3712,6 +3719,9 @@ async function switchTab(tab, opts = {}) {
     renderOrders(); renderPackagesSummary();
   }
   if (nextTab === "bids") renderBids(bidSearch?.value || "");
+  if (nextTab === "proposal-settings") {
+    window.PROOFLINK_OPERATOR_PROPOSAL_SETTINGS_WORKSPACE?.loadProposalSettingsWorkspace?.().catch(console.error);
+  }
   if (nextTab === "jobs" && !TABS_LOADED.has("jobs")) {
     TABS_LOADED.add("jobs");
     renderJobs(jobSearch?.value || "");

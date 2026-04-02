@@ -57,6 +57,7 @@
             <div class="nav-group__label">Work pipeline</div>
             <button class="tab" data-tab="leads" data-tour-tab="leads" type="button">Requests</button>
             <button class="tab" data-tab="bids" data-tour-tab="bids" type="button"><span class="tab__stack"><span class="tab__label">Walkthrough bids</span><span class="tab__subline">On-site estimates</span></span></button>
+            <button class="tab" data-tab="proposal-settings" type="button"><span class="tab__stack"><span class="tab__label">Proposal settings</span><span class="tab__subline">Brand, signer, defaults</span></span></button>
             <button class="tab" data-tab="jobs" data-tour-tab="jobs" type="button">Active Jobs</button>
             <button class="tab" data-tab="quotes" data-tour-tab="quotes" type="button">Quotes</button>
             <button class="tab" data-tab="plans" data-tour-tab="plans" type="button">Recurring Plans</button>
@@ -1337,6 +1338,149 @@
                 </div>
 
                 <div id="bidProposalPreview" class="proposal-preview muted">Create a walkthrough bid or select one from the list to preview the proposal.</div>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel hidden" data-panel="proposal-settings">
+            <div class="panel-head">
+              <div>
+                <h2>Proposal settings</h2>
+                <div class="muted">Set the defaults that proposal checklists depend on so future walkthroughs open ready to send.</div>
+              </div>
+              <div class="panel-actions">
+                <button id="btnRefreshProposalSettings" class="btn btn-ghost" type="button">Refresh</button>
+              </div>
+            </div>
+
+            <div class="grid two">
+              <div class="card">
+                <div class="card-hd">
+                  <strong>Branding defaults</strong>
+                  <span class="muted">Used when a proposal needs a business name, logo, terms, exclusions, and a default sender.</span>
+                </div>
+                <div class="card-bd">
+                  <form id="proposalBrandingSettingsForm" class="form">
+                    <div class="grid two form-grid">
+                      <label>Company name
+                        <input id="proposalBrandingCompanyName" placeholder="Company Name" />
+                      </label>
+
+                      <label>Logo image URL
+                        <input id="proposalBrandingLogoUrl" placeholder="https://..." />
+                      </label>
+                    </div>
+
+                    <div class="grid two form-grid">
+                      <label>Upload logo
+                        <input id="proposalBrandingLogoFile" type="file" accept="image/*" />
+                      </label>
+
+                      <div style="display:flex;align-items:flex-end;">
+                        <button id="btnUploadProposalBrandLogo" class="btn btn-ghost" type="button">Upload logo</button>
+                      </div>
+                    </div>
+
+                    <div id="proposalBrandingLogoStatus" class="muted"></div>
+
+                    <div class="grid two form-grid">
+                      <label>Default terms template
+                        <select id="proposalBrandingDefaultTerms"></select>
+                      </label>
+
+                      <label>Default exclusions template
+                        <select id="proposalBrandingDefaultExclusions"></select>
+                      </label>
+                    </div>
+
+                    <label>Default signer
+                      <select id="proposalBrandingDefaultSenderUser"></select>
+                    </label>
+
+                    <div class="row">
+                      <button class="btn btn-primary" type="submit">Save proposal defaults</button>
+                    </div>
+
+                    <div id="proposalBrandingSettingsMsg" class="msg"></div>
+                  </form>
+                </div>
+              </div>
+
+              <div class="card">
+                <div class="card-hd">
+                  <strong>Signer profile</strong>
+                  <span class="muted">Keep the sender identity and signature image editable from one tools destination.</span>
+                </div>
+                <div class="card-bd">
+                  <form id="proposalSenderProfileForm" class="form">
+                    <label>Team member
+                      <select id="proposalSenderProfileUser"></select>
+                    </label>
+
+                    <div class="grid two form-grid">
+                      <label>Full name
+                        <input id="proposalSenderFullName" placeholder="Prepared by" />
+                      </label>
+
+                      <label>Job title
+                        <input id="proposalSenderJobTitle" placeholder="Owner / estimator" />
+                      </label>
+                    </div>
+
+                    <div class="grid two form-grid">
+                      <label>Email
+                        <input id="proposalSenderEmail" type="email" placeholder="name@company.com" />
+                      </label>
+
+                      <label>Phone
+                        <input id="proposalSenderPhone" type="tel" placeholder="(555) 555-5555" />
+                      </label>
+                    </div>
+
+                    <div class="grid two form-grid">
+                      <label>Signature image URL
+                        <input id="proposalSenderSignatureImageUrl" placeholder="https://..." />
+                      </label>
+
+                      <label>Initials
+                        <input id="proposalSenderInitials" maxlength="8" placeholder="JS" />
+                      </label>
+                    </div>
+
+                    <div class="grid two form-grid">
+                      <label>Upload signature image
+                        <input id="proposalSenderSignatureFile" type="file" accept="image/*" />
+                      </label>
+
+                      <div style="display:flex;align-items:flex-end;">
+                        <button id="btnUploadProposalSenderSignature" class="btn btn-ghost" type="button">Upload signature</button>
+                      </div>
+                    </div>
+
+                    <div id="proposalSenderSignatureStatus" class="muted"></div>
+
+                    <label style="display:flex;align-items:center;gap:10px;">
+                      <input id="proposalSenderIsDefault" type="checkbox" />
+                      <span>Use this signer as the proposal default</span>
+                    </label>
+
+                    <div class="row">
+                      <button class="btn btn-primary" type="submit">Save signer profile</button>
+                    </div>
+
+                    <div id="proposalSenderProfileMsg" class="msg"></div>
+                  </form>
+                </div>
+              </div>
+            </div>
+
+            <div class="card u-mt-18">
+              <div class="card-hd">
+                <strong>Setup status</strong>
+                <span class="muted">Anything marked ready will disappear from the bid-side checklist.</span>
+              </div>
+              <div class="card-bd">
+                <div id="proposalSettingsStatus" class="detail-copy">Loading proposal settings...</div>
               </div>
             </div>
           </section>
@@ -3255,6 +3399,7 @@
 <script src="./operator-boot-utils.js" defer></script>
 <script src="./operator.js?v=20260402-customer-workbench" defer></script>
 <script src="./operator-proposal-documents.js" defer></script>
+<script src="./operator-proposal-settings-workspace.js" defer></script>
 <script src="./operator-orders-tools.js" defer></script>
 <script src="./operator-payments-workspace.js" defer></script>
 <script src="./import-workspace.js" defer></script>

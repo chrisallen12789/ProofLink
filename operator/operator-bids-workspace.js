@@ -1299,25 +1299,56 @@ function renderBidProposalDocumentControls(draft) {
     fillProposalSelect(bidExclusionsTemplateId, proposalApi.exclusionsChoices(mergedDraft.profile), mergedDraft.exclusions_template_id, "Use default exclusions");
     renderBidProposalOptions(activeDraft ? mergedDraft : { proposal_options: [] });
     if (bidBrandSetupStatus) {
+      const statusCard = bidBrandSetupStatus.closest(".detail-card");
       const status = proposalApi.brandSetupStatus() || {};
       const rows = [
-        { label: "Company name", ready: !!status.companyName },
-        { label: "Logo", ready: !!status.logo },
-        { label: "Default terms", ready: !!status.defaultTerms },
-        { label: "Default exclusions", ready: !!status.defaultExclusions },
-        { label: "Default signer", ready: !!status.defaultSigner },
-        { label: "Signer signature image", ready: !!status.defaultSignerSignature },
+        { key: "companyName", label: "Company name", ready: !!status.companyName },
+        { key: "logo", label: "Logo", ready: !!status.logo },
+        { key: "defaultTerms", label: "Default terms", ready: !!status.defaultTerms },
+        { key: "defaultExclusions", label: "Default exclusions", ready: !!status.defaultExclusions },
+        { key: "defaultSigner", label: "Default signer", ready: !!status.defaultSigner },
+        { key: "defaultSignerSignature", label: "Signer signature image", ready: !!status.defaultSignerSignature },
       ];
-      bidBrandSetupStatus.innerHTML = rows.map((row) => `
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:4px 0;">
-          <span>${escapeHtml(row.label)}</span>
-          <span class="pill ${row.ready ? "pill-on" : "pill-muted"}">${row.ready ? "Ready" : "Needs setup"}</span>
-        </div>
-      `).join("");
+      const missingRows = rows.filter((row) => !row.ready);
+      if (statusCard) statusCard.hidden = missingRows.length === 0;
+      if (!missingRows.length) {
+        bidBrandSetupStatus.innerHTML = "";
+      } else {
+        bidBrandSetupStatus.innerHTML = `
+          <div class="muted" style="margin-bottom:10px;">Open the exact setting you still need. Each item disappears here as soon as it is configured.</div>
+          ${missingRows.map((row) => `
+            <button
+              type="button"
+              class="btn btn-ghost"
+              data-proposal-settings-focus="${escapeAttr(row.key)}"
+              style="width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;margin:0 0 8px;text-align:left;"
+            >
+              <span>${escapeHtml(row.label)}</span>
+              <span class="pill pill-muted">Needs setup</span>
+            </button>
+          `).join("")}
+        `;
+        bidBrandSetupStatus.querySelectorAll("[data-proposal-settings-focus]").forEach((button) => {
+          button.addEventListener("click", () => {
+            const focusKey = button.getAttribute("data-proposal-settings-focus") || "";
+            const openProposalSettings = window.PROOFLINK_OPERATOR_PROPOSAL_SETTINGS_WORKSPACE?.openProposalSettingsPanel;
+            if (typeof openProposalSettings === "function") {
+              Promise.resolve(openProposalSettings(focusKey)).catch(console.error);
+              return;
+            }
+            if (typeof setSidebarMoreOpen === "function") setSidebarMoreOpen(true);
+            if (typeof switchTab === "function") Promise.resolve(switchTab("proposal-settings")).catch(console.error);
+          });
+        });
+      }
     }
     if (activeDraft) renderBidProposalPreview(mergedDraft);
   }).catch((err) => {
-    if (bidBrandSetupStatus) bidBrandSetupStatus.textContent = err.message || "Proposal defaults could not be loaded.";
+    if (bidBrandSetupStatus) {
+      const statusCard = bidBrandSetupStatus.closest(".detail-card");
+      if (statusCard) statusCard.hidden = false;
+      bidBrandSetupStatus.textContent = err.message || "Proposal defaults could not be loaded.";
+    }
   });
 }
 function renderBidWorkspace(draft, opts = {}) {

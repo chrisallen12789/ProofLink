@@ -26,6 +26,13 @@ describe("operator shell html", () => {
     expect(source).not.toContain('href="#" id="btnForgotPassword"');
   });
 
+  test("includes a dedicated proposal settings tool destination", () => {
+    expect(source).toContain('data-tab="proposal-settings"');
+    expect(source).toContain('data-panel="proposal-settings"');
+    expect(source).toContain("Proposal settings");
+    expect(source).toContain("Brand, signer, defaults");
+  });
+
   test("keeps obvious drift markers out of the operator entry surface", () => {
     expect(source).not.toContain("cottagelink-logo");
     expect(source).not.toContain("tenant_id ready");
