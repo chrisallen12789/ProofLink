@@ -403,6 +403,160 @@ function renderDashboardAiOpsQueue(aiOpsState = dashboardAiOpsState(), blueprint
   `;
 }
 
+function dashboardAiWorkforceUiState() {
+  return window.PROOFLINK_AI_WORKFORCE_UI_STATE || (window.PROOFLINK_AI_WORKFORCE_UI_STATE = {
+    message: "",
+    tone: "",
+    last_refreshed_at: "",
+  });
+}
+
+function dashboardAiWorkforceState() {
+  const reportState = window.PROOFLINK_AI_WORKFORCE_ARCHITECT_STATE || (window.PROOFLINK_AI_WORKFORCE_ARCHITECT_STATE = {
+    report: null,
+    context_summary: null,
+    generated_at: "",
+  });
+  return {
+    ...reportState,
+    ui: dashboardAiWorkforceUiState(),
+  };
+}
+
+function dashboardAiWorkforceOpenLabel(tab = "") {
+  const labels = {
+    dashboard: "Open command center",
+    jobs: "Open jobs",
+    customers: "Open customers",
+    orders: "Open orders",
+    payments: "Open payments",
+    dispatch: "Open dispatch",
+    import: "Open import",
+    plans: "Open plans",
+    setup: "Open setup",
+  };
+  return labels[String(tab || "").trim().toLowerCase()] || "Open workspace";
+}
+
+function dashboardAiWorkforceTarget(recordRefs = []) {
+  const refs = Array.isArray(recordRefs) ? recordRefs : [];
+  const workspace = refs.find((ref) => ref && ref.record_type === "workspace" && ref.record_id) || null;
+  if (workspace) {
+    return {
+      targetTab: String(workspace.record_id || "").trim(),
+      targetId: "",
+      openLabel: dashboardAiWorkforceOpenLabel(workspace.record_id),
+    };
+  }
+  const orderRef = refs.find((ref) => ref && ref.record_type === "order" && ref.record_id) || null;
+  if (orderRef) {
+    return { targetTab: "orders", targetId: orderRef.record_id, openLabel: "Open order" };
+  }
+  const customerRef = refs.find((ref) => ref && ref.record_type === "customer" && ref.record_id) || null;
+  if (customerRef) {
+    return { targetTab: "customers", targetId: customerRef.record_id, openLabel: "Open customer" };
+  }
+  const jobRef = refs.find((ref) => ref && ref.record_type === "job" && ref.record_id) || null;
+  if (jobRef) {
+    return { targetTab: "jobs", targetId: jobRef.record_id, openLabel: "Open job" };
+  }
+  return { targetTab: "dashboard", targetId: "", openLabel: "Open command center" };
+}
+
+function dashboardAiWorkforceItems(workforceState = dashboardAiWorkforceState()) {
+  const report = workforceState?.report || null;
+  const findings = Array.isArray(report?.findings) ? report.findings.slice(0, 5) : [];
+  return findings.map((finding) => {
+    const target = dashboardAiWorkforceTarget(finding.record_refs);
+    return {
+      categoryLabel: finding.category === "agent_training" ? "Train agent" : finding.category === "agent_gap" ? "Add agent" : "Review",
+      severity: finding.severity || "info",
+      title: finding.title || "AI workforce review item",
+      detail: finding.detail || "",
+      targetTab: target.targetTab,
+      targetId: target.targetId,
+      openLabel: target.openLabel,
+    };
+  });
+}
+
+function renderDashboardAiWorkforceReview(workforceState = dashboardAiWorkforceState()) {
+  const report = workforceState?.report || null;
+  const items = dashboardAiWorkforceItems(workforceState);
+  const newAgentCount = Number(workforceState?.context_summary?.new_agent_candidates || 0);
+  const trainingTargetCount = Number(workforceState?.context_summary?.training_targets || 0);
+  const recentRuns = Number(workforceState?.context_summary?.recent_agent_runs || 0);
+  const anyReport = !!report;
+
+  return `
+    <div class="card dashboard-focus-card">
+      <div class="card-hd">
+        <strong>AI workforce architect</strong>
+        <span class="muted">Looks for the next specialist to add and the current lanes that need sharper training</span>
+      </div>
+      <div class="card-bd">
+        <div class="action-row action-row--wrap">
+          <button type="button" class="btn btn-ghost btn-sm" id="btnRunDashboardAiWorkforceReview">${anyReport ? "Refresh AI workforce review" : "Run AI workforce review"}</button>
+        </div>
+        ${workforceState.ui?.message ? `<div id="dashboardAiWorkforceMsg" class="msg ${escapeAttr(workforceState.ui.tone || "")} u-mt-10">${escapeHtml(workforceState.ui.message || "")}</div>` : `<div id="dashboardAiWorkforceMsg" class="msg u-mt-10"></div>`}
+        <div class="workspace-chip-row dashboard-focus-chips u-mt-10">
+          <span class="pill ${newAgentCount ? "pill-warn" : "pill-good"}">${escapeHtml(`${newAgentCount} new agent candidate${newAgentCount === 1 ? "" : "s"}`)}</span>
+          <span class="pill ${trainingTargetCount ? "pill-warn" : "pill-good"}">${escapeHtml(`${trainingTargetCount} training target${trainingTargetCount === 1 ? "" : "s"}`)}</span>
+          <span class="pill ${recentRuns ? "pill-good" : "pill-warn"}">${escapeHtml(recentRuns ? `${recentRuns} recent agent run${recentRuns === 1 ? "" : "s"}` : "No recent agent runs")}</span>
+        </div>
+        ${report?.summary ? `<div class="detail-copy dashboard-focus-copy u-mt-10">${escapeHtml(report.summary)}</div>` : ""}
+        ${items.length ? `
+          <div class="memory-checklist u-mt-10">
+            ${items.map((item) => `
+              <div class="memory-checklist__item ${item.severity === "critical" || item.severity === "warning" ? "memory-checklist__item--warn" : "memory-checklist__item--ready"}">
+                <div class="workspace-chip-row">
+                  <span class="pill ${aiOpsToneClass(item.severity)}">${escapeHtml(item.categoryLabel)}</span>
+                  <span class="pill">${escapeHtml(item.openLabel)}</span>
+                </div>
+                <div class="memory-checklist__title u-mt-10">${escapeHtml(item.title)}</div>
+                <div class="detail-copy memory-checklist__note">${escapeHtml(item.detail)}</div>
+                <div class="action-row action-row--wrap u-mt-10">
+                  <button type="button" class="btn btn-ghost btn-sm" data-ai-workforce-open-tab="${escapeAttr(item.targetTab || "dashboard")}" data-ai-workforce-open-id="${escapeAttr(item.targetId || "")}">${escapeHtml(item.openLabel)}</button>
+                </div>
+              </div>
+            `).join("")}
+          </div>
+        ` : `<div class="detail-copy dashboard-focus-copy u-mt-10">Run the workforce review to see which specialist agents ProofLink should add next and which current lanes need sharper training signals.</div>`}
+      </div>
+    </div>
+  `;
+}
+
+async function runDashboardAiWorkforceReview() {
+  if (typeof requestOperatorFunction !== "function") {
+    throw new Error("AI workforce review is unavailable because operator function access is not ready.");
+  }
+
+  const reportState = window.PROOFLINK_AI_WORKFORCE_ARCHITECT_STATE || (window.PROOFLINK_AI_WORKFORCE_ARCHITECT_STATE = {
+    report: null,
+    context_summary: null,
+    generated_at: "",
+  });
+  const uiState = dashboardAiWorkforceUiState();
+  const payload = await requestOperatorFunction("ai-agent-report", {
+    method: "POST",
+    body: { agent_key: "agent_workforce_architect" },
+  });
+
+  Object.assign(reportState, {
+    report: payload?.report || null,
+    context_summary: payload?.context_summary || null,
+    generated_at: payload?.generated_at || payload?.report?.generated_at || "",
+  });
+  Object.assign(uiState, {
+    message: "AI workforce review refreshed.",
+    tone: "ok",
+    last_refreshed_at: new Date().toISOString(),
+  });
+
+  return reportState;
+}
+
 async function runDashboardAiOpsReview(blueprint = currentWorkspaceBlueprint()) {
   if (typeof requestOperatorFunction !== "function") {
     throw new Error("AI ops review is unavailable because operator function access is not ready.");
@@ -418,6 +572,11 @@ async function runDashboardAiOpsReview(blueprint = currentWorkspaceBlueprint()) 
     context_summary: null,
     generated_at: "",
   });
+  const workforceState = window.PROOFLINK_AI_WORKFORCE_ARCHITECT_STATE || (window.PROOFLINK_AI_WORKFORCE_ARCHITECT_STATE = {
+    report: null,
+    context_summary: null,
+    generated_at: "",
+  });
   const dispatchCache = window.PROOFLINK_DISPATCH_AGENT_REVIEW_CACHE || (window.PROOFLINK_DISPATCH_AGENT_REVIEW_CACHE = {});
   const dispatchState = dispatchCache[targetDate] || (dispatchCache[targetDate] = {
     report: null,
@@ -425,6 +584,7 @@ async function runDashboardAiOpsReview(blueprint = currentWorkspaceBlueprint()) 
     generated_at: "",
   });
   const uiState = dashboardAiOpsUiState();
+  const workforceUiState = dashboardAiWorkforceUiState();
   const dispatchBody = {
     agent_key: "dispatch_scheduling_assistant",
     target_date: targetDate,
@@ -432,7 +592,7 @@ async function runDashboardAiOpsReview(blueprint = currentWorkspaceBlueprint()) 
   };
   if (isHydrovacWorkspace(blueprint)) dispatchBody.job_type = "hydrovac";
 
-  const [billingPayload, dispatchPayload, collectionsPayload] = await Promise.all([
+  const [billingPayload, dispatchPayload, collectionsPayload, workforcePayload] = await Promise.all([
     requestOperatorFunction("ai-agent-report", {
       method: "POST",
       body: { agent_key: "billing_blocker_detector", limit: 8 },
@@ -444,6 +604,10 @@ async function runDashboardAiOpsReview(blueprint = currentWorkspaceBlueprint()) 
     requestOperatorFunction("ai-agent-report", {
       method: "POST",
       body: { agent_key: "collections_followup_assistant" },
+    }),
+    requestOperatorFunction("ai-agent-report", {
+      method: "POST",
+      body: { agent_key: "agent_workforce_architect" },
     }),
   ]);
 
@@ -462,8 +626,18 @@ async function runDashboardAiOpsReview(blueprint = currentWorkspaceBlueprint()) 
     context_summary: collectionsPayload?.context_summary || null,
     generated_at: collectionsPayload?.generated_at || collectionsPayload?.report?.generated_at || "",
   });
+  Object.assign(workforceState, {
+    report: workforcePayload?.report || null,
+    context_summary: workforcePayload?.context_summary || null,
+    generated_at: workforcePayload?.generated_at || workforcePayload?.report?.generated_at || "",
+  });
   Object.assign(uiState, {
     message: "AI ops review refreshed.",
+    tone: "ok",
+    last_refreshed_at: new Date().toISOString(),
+  });
+  Object.assign(workforceUiState, {
+    message: "AI workforce review refreshed with the ops review.",
     tone: "ok",
     last_refreshed_at: new Date().toISOString(),
   });
@@ -472,6 +646,7 @@ async function runDashboardAiOpsReview(blueprint = currentWorkspaceBlueprint()) 
     billing: billingState,
     dispatch: dispatchState,
     collections: collectionsState,
+    workforce: workforceState,
     targetDate,
   };
 }
@@ -480,6 +655,7 @@ function renderDashboard() {
   if (!dashboardWrap) return;
 
   const blueprint = currentWorkspaceBlueprint();
+  const workforceState = dashboardAiWorkforceState();
   const summary = workspaceSummaryData(blueprint);
   const pipeline = servicePipelineSnapshot();
   const todayActions = todayActionItems();
@@ -721,6 +897,8 @@ function renderDashboard() {
     </div>
 
     ${renderDashboardAiOpsQueue(aiOpsState, blueprint)}
+
+    ${renderDashboardAiWorkforceReview(workforceState)}
 
     <div class="card dashboard-focus-card">
       <div class="card-hd">
@@ -1233,11 +1411,24 @@ function renderDashboard() {
   });
   dashboardWrap.querySelector("#btnRunDashboardAiOpsReview")?.addEventListener("click", async () => {
     const uiState = dashboardAiOpsUiState();
-    uiState.message = "Reviewing billing, dispatch, and collections...";
+    uiState.message = "Reviewing billing, dispatch, collections, and workforce signals...";
     uiState.tone = "";
     renderDashboard();
     try {
       await runDashboardAiOpsReview(currentWorkspaceBlueprint());
+    } catch (error) {
+      uiState.message = error.message || String(error);
+      uiState.tone = "error";
+    }
+    renderDashboard();
+  });
+  dashboardWrap.querySelector("#btnRunDashboardAiWorkforceReview")?.addEventListener("click", async () => {
+    const uiState = dashboardAiWorkforceUiState();
+    uiState.message = "Reviewing the next agent gaps and training targets...";
+    uiState.tone = "";
+    renderDashboard();
+    try {
+      await runDashboardAiWorkforceReview();
     } catch (error) {
       uiState.message = error.message || String(error);
       uiState.tone = "error";
@@ -1265,6 +1456,14 @@ function renderDashboard() {
       });
       if (typeof renderPayments === "function") renderPayments();
       switchTab("payments");
+    });
+  });
+  dashboardWrap.querySelectorAll("[data-ai-workforce-open-tab]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      activateWorkspaceTarget(
+        btn.getAttribute("data-ai-workforce-open-tab") || "dashboard",
+        btn.getAttribute("data-ai-workforce-open-id") || ""
+      );
     });
   });
   dashboardWrap.querySelectorAll("[data-hydrovac-today-tab]").forEach((btn) => {
@@ -1591,7 +1790,11 @@ const COMMAND_CENTER_HELPERS = {
   dashboardAiOpsState,
   dashboardAiOpsQueueItems,
   renderDashboardAiOpsQueue,
+  dashboardAiWorkforceState,
+  dashboardAiWorkforceItems,
+  renderDashboardAiWorkforceReview,
   runDashboardAiOpsReview,
+  runDashboardAiWorkforceReview,
   priorityReactivationCustomer,
   renderDashboard,
   renderMoneyWorkspace,

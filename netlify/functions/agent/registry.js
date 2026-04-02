@@ -3,11 +3,29 @@
 const { runBillingBlockerDetector } = require('./agents/billing-blocker-detector');
 const { runCollectionsFollowUpAssistant } = require('./agents/collections-follow-up-assistant');
 const { runDispatchSchedulingAssistant } = require('./agents/dispatch-scheduling-assistant');
+const { runAgentWorkforceArchitect } = require('./agents/agent-workforce-architect');
 const { runEstimatingAssistant } = require('./agents/estimating-assistant');
 const { runImportMigrationAssistant } = require('./agents/import-migration-assistant');
 const { runJobRecordAuditor } = require('./agents/job-record-auditor');
 
 const AGENTS = {
+  agent_workforce_architect: {
+    key: 'agent_workforce_architect',
+    label: 'AI Workforce Architect',
+    purpose: 'Reviews live tenant workload, import-learning history, and agent usage to identify missing specialist agents and the existing lanes that need sharper training.',
+    inputs: [],
+    allowed_tools: ['get_agent_workforce_context'],
+    forbidden_behaviors: [
+      'Do not create, modify, or delete agents automatically.',
+      'Do not claim a new agent is needed without pointing to actual workload or learned-data pressure.',
+      'Do not treat training ideas as facts when the supporting tenant signals are missing.',
+    ],
+    output_schema: 'prooflink.agent.report.v1',
+    confidence_signal: 'Confidence depends on whether workload, import-learning, service-plan, and recent agent-audit signals are all available together.',
+    missing_data_handling: 'Call out unavailable workload or audit signals explicitly before recommending a new specialist lane.',
+    recommended_actions: 'Recommend inspectable next agent additions or training targets only; execution stays manual.',
+    execute: runAgentWorkforceArchitect,
+  },
   job_record_auditor: {
     key: 'job_record_auditor',
     label: 'Job Record Auditor',

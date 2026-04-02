@@ -20,7 +20,8 @@ const READ_TOOLS = new Set([
   'get_missing_data_items', 'calculate_job_margin', 'find_anomalies',
   'get_job_record_audit_context', 'get_estimate_record_context',
   'get_dispatch_scheduling_context', 'get_billing_blocker_queue_context',
-  'get_collections_followup_context', 'analyze_import_migration_context',
+  'get_collections_followup_context', 'get_agent_workforce_context',
+  'analyze_import_migration_context',
 ]);
 
 const DRAFT_TOOLS = new Set([

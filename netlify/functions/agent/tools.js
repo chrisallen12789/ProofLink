@@ -28,6 +28,26 @@ async function resolveOptionalRows(queryPromise, assumptions, message, emptyValu
   throw new Error(result.error.message);
 }
 
+async function resolveOptionalSingle(queryPromise, assumptions, message, emptyValue = null) {
+  const result = await queryPromise;
+  if (!result?.error) return result.data || emptyValue;
+  if (isMissingRelationError(result.error)) {
+    assumptions.push(message);
+    return emptyValue;
+  }
+  throw new Error(result.error.message);
+}
+
+function safeParseJson(value, fallback = {}) {
+  if (value == null || value === '') return fallback;
+  if (typeof value === 'object') return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return fallback;
+  }
+}
+
 // ── Orders ────────────────────────────────────────────────────────────────────
 
 async function getUnpaidOrders(supabase, tenantId) {
@@ -463,6 +483,272 @@ async function getBusinessContext(supabase, tenantId) {
   };
 }
 
+async function getTenantSnapshot(supabase, tenantId, assumptions) {
+  const tenant = await resolveOptionalSingle(
+    supabase
+      .from('tenants')
+      .select('id, business_name, prooflink_plan_key, online_payments_enabled, connect_status, status, billing_status')
+      .eq('id', tenantId)
+      .maybeSingle(),
+    assumptions,
+    'Tenant profile was unavailable because the tenants table is not present in this environment.'
+  );
+
+  const hydrovacSettings = await resolveOptionalSingle(
+    supabase
+      .from('tenant_hydrovac_settings')
+      .select('enabled')
+      .eq('tenant_id', tenantId)
+      .maybeSingle(),
+    assumptions,
+    'Hydrovac settings were unavailable because the tenant_hydrovac_settings table is not present in this environment.'
+  );
+
+  return {
+    id: tenantId,
+    business_name: String(tenant?.business_name || '').trim(),
+    plan_key: String(tenant?.prooflink_plan_key || '').trim().toLowerCase(),
+    online_payments_enabled: tenant?.online_payments_enabled === true,
+    connect_status: String(tenant?.connect_status || '').trim().toLowerCase(),
+    status: String(tenant?.status || '').trim().toLowerCase(),
+    billing_status: String(tenant?.billing_status || '').trim().toLowerCase(),
+    hydrovac_enabled: hydrovacSettings?.enabled === true,
+  };
+}
+
+async function getServicePlanSummary(supabase, tenantId, assumptions) {
+  const plans = await resolveOptionalRows(
+    supabase
+      .from('service_plans')
+      .select('id, customer_id, status, next_run_on')
+      .eq('tenant_id', tenantId)
+      .order('updated_at', { ascending: false })
+      .limit(120),
+    assumptions,
+    'Service-plan history was unavailable because the service_plans table is not present in this environment.'
+  );
+
+  const activePlans = (plans || []).filter((row) => String(row?.status || '').trim().toLowerCase() === 'active');
+  const atRiskPlans = activePlans.filter((row) => {
+    const nextRunOn = String(row?.next_run_on || '').trim();
+    return !nextRunOn || Number.isNaN(new Date(nextRunOn).getTime());
+  });
+  const dueSoonPlans = activePlans.filter((row) => {
+    const nextRunOn = String(row?.next_run_on || '').trim();
+    if (!nextRunOn) return false;
+    const nextRunTime = new Date(nextRunOn).getTime();
+    if (!Number.isFinite(nextRunTime)) return false;
+    return nextRunTime <= Date.now() + (14 * 86400000);
+  });
+
+  return {
+    active_count: activePlans.length,
+    at_risk_count: atRiskPlans.length,
+    due_soon_count: dueSoonPlans.length,
+    sample_customer_ids: activePlans
+      .map((row) => String(row?.customer_id || '').trim())
+      .filter(Boolean)
+      .slice(0, 6),
+  };
+}
+
+async function getImportLearningSummary(supabase, tenantId, assumptions) {
+  const configRow = await resolveOptionalSingle(
+    supabase
+      .from('tenant_config')
+      .select('config_value')
+      .eq('tenant_id', tenantId)
+      .eq('config_key', 'import_profiles')
+      .maybeSingle(),
+    assumptions,
+    'Import-learning history was unavailable because the tenant_config table could not be queried.'
+  );
+
+  const parsed = safeParseJson(configRow?.config_value, { profiles: [] });
+  const profiles = Array.isArray(parsed?.profiles) ? parsed.profiles : [];
+  const sourceSystems = Array.from(new Set(
+    profiles
+      .map((profile) => String(profile?.source_system || profile?.sourceSystem || '').trim().toLowerCase())
+      .filter(Boolean)
+  ));
+  const correctionCounts = new Map();
+  let walkthroughSummaryCount = 0;
+  let learningNoteCount = 0;
+
+  profiles.forEach((profile) => {
+    const correctionFields = Array.isArray(profile?.correction_fields || profile?.correctionFields)
+      ? (profile.correction_fields || profile.correctionFields)
+      : [];
+    correctionFields
+      .map((value) => String(value || '').trim())
+      .filter(Boolean)
+      .forEach((field) => correctionCounts.set(field, Number(correctionCounts.get(field) || 0) + 1));
+
+    if (String(profile?.walkthrough_summary || profile?.walkthroughSummary || '').trim()) walkthroughSummaryCount += 1;
+    const learningNotes = Array.isArray(profile?.learning_notes || profile?.learningNotes)
+      ? (profile.learning_notes || profile.learningNotes)
+      : [];
+    learningNoteCount += learningNotes
+      .map((value) => String(value || '').trim())
+      .filter(Boolean)
+      .length;
+  });
+
+  const correctionFieldHotspots = [...correctionCounts.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, 8)
+    .map(([field, count]) => ({ field, count }));
+
+  return {
+    profile_count: profiles.length,
+    source_systems: sourceSystems,
+    correction_field_hotspots: correctionFieldHotspots,
+    walkthrough_summary_count: walkthroughSummaryCount,
+    learning_note_count: learningNoteCount,
+    profile_keys: profiles
+      .map((profile) => String(profile?.key || '').trim())
+      .filter(Boolean)
+      .slice(0, 12),
+  };
+}
+
+async function getRecentAgentAuditSummary(supabase, tenantId, assumptions, days = 45) {
+  const cutoff = new Date(Date.now() - (Math.max(1, days) * 86400000)).toISOString();
+  const rows = await resolveOptionalRows(
+    supabase
+      .from('agent_audit_events')
+      .select('mode, error, created_at')
+      .eq('tenant_id', tenantId)
+      .gte('created_at', cutoff)
+      .order('created_at', { ascending: false })
+      .limit(160),
+    assumptions,
+    'Recent agent audit history was unavailable because the agent_audit_events table is not present in this environment.'
+  );
+
+  const usageByMode = {};
+  const usageByAgent = {};
+  let errorCount = 0;
+
+  (rows || []).forEach((row) => {
+    const mode = String(row?.mode || '').trim();
+    if (!mode) return;
+    usageByMode[mode] = Number(usageByMode[mode] || 0) + 1;
+    if (mode.startsWith('agent:')) {
+      const agentKey = mode.slice(6);
+      if (agentKey) usageByAgent[agentKey] = Number(usageByAgent[agentKey] || 0) + 1;
+    }
+    if (String(row?.error || '').trim()) errorCount += 1;
+  });
+
+  return {
+    event_count: Array.isArray(rows) ? rows.length : 0,
+    usage_by_mode: usageByMode,
+    usage_by_agent: usageByAgent,
+    error_count: errorCount,
+    last_run_at: String(rows?.[0]?.created_at || '').trim(),
+  };
+}
+
+async function getAgentWorkforceContext(supabase, tenantId) {
+  const assumptions = [];
+  const [
+    tenant,
+    businessContext,
+    billingContext,
+    collectionsContext,
+    dispatchContext,
+    servicePlanSummary,
+    importLearning,
+    agentAudit,
+  ] = await Promise.all([
+    getTenantSnapshot(supabase, tenantId, assumptions),
+    getBusinessContext(supabase, tenantId).catch(() => ({
+      snapshot_at: new Date().toISOString(),
+      unpaid_orders: [],
+      overdue_orders: [],
+      pending_quotes: [],
+      expired_quotes: [],
+      recent_payments: [],
+      unread_messages: [],
+      stale_customers: [],
+      reminders_needed: [],
+      top_customers: [],
+      multi_location_customers: [],
+      upcoming_jobs: [],
+      today_bookings: [],
+      upcoming_bookings: [],
+    })),
+    getBillingBlockerQueueContext(supabase, tenantId, { limit: 12 }).catch(() => ({
+      candidate_jobs: [],
+      assumptions: [],
+      data_used: [],
+    })),
+    getCollectionsFollowUpContext(supabase, tenantId).catch(() => ({
+      open_balances: [],
+      assumptions: [],
+      data_used: [],
+    })),
+    getDispatchSchedulingContext(supabase, tenantId, { days: 7 }).catch(() => ({
+      upcoming_jobs: [],
+      assumptions: [],
+      data_used: [],
+    })),
+    getServicePlanSummary(supabase, tenantId, assumptions),
+    getImportLearningSummary(supabase, tenantId, assumptions),
+    getRecentAgentAuditSummary(supabase, tenantId, assumptions),
+  ]);
+
+  const dispatchJobs = Array.isArray(dispatchContext?.upcoming_jobs) ? dispatchContext.upcoming_jobs : [];
+  const unscheduledJobCount = dispatchJobs.filter((job) => !String(job?.scheduled_date || '').trim()).length;
+  const unassignedJobCount = dispatchJobs.filter((job) => (
+    String(job?.scheduled_date || '').trim()
+      && !String(job?.assigned_member_id || job?.assigned_operator_id || '').trim()
+  )).length;
+  const openBalances = Array.isArray(collectionsContext?.open_balances) ? collectionsContext.open_balances : [];
+  const missingDueDateCount = openBalances.filter((row) => {
+    return !String(row?.invoice_due_date || '').trim() && !String(row?.payment_due_date || '').trim();
+  }).length;
+
+  return {
+    snapshot_at: new Date().toISOString(),
+    tenant_id: tenantId,
+    tenant,
+    business_context: businessContext,
+    billing_context: billingContext,
+    collections_context: collectionsContext,
+    dispatch_context: dispatchContext,
+    service_plan_summary: servicePlanSummary,
+    import_learning: importLearning,
+    agent_audit: agentAudit,
+    assumptions,
+    data_used: [
+      { label: 'Tenant profile', count: tenant?.business_name ? 1 : 0, detail: 'tenants' },
+      { label: 'Upcoming jobs', count: Array.isArray(businessContext?.upcoming_jobs) ? businessContext.upcoming_jobs.length : 0, detail: 'jobs' },
+      { label: 'Multi-location customers', count: Array.isArray(businessContext?.multi_location_customers) ? businessContext.multi_location_customers.length : 0, detail: 'customer_locations' },
+      { label: 'Billing queue candidates', count: Array.isArray(billingContext?.candidate_jobs) ? billingContext.candidate_jobs.length : 0, detail: 'jobs' },
+      { label: 'Open balance orders', count: openBalances.length, detail: 'orders' },
+      { label: 'Import profiles', count: Number(importLearning?.profile_count || 0), detail: 'tenant_config.import_profiles' },
+      { label: 'Recent agent runs', count: Number(agentAudit?.event_count || 0), detail: 'agent_audit_events' },
+      { label: 'Active service plans', count: Number(servicePlanSummary?.active_count || 0), detail: 'service_plans' },
+    ],
+    context_summary: {
+      multi_location_customers: Array.isArray(businessContext?.multi_location_customers) ? businessContext.multi_location_customers.length : 0,
+      upcoming_jobs: Array.isArray(businessContext?.upcoming_jobs) ? businessContext.upcoming_jobs.length : 0,
+      billing_candidates: Array.isArray(billingContext?.candidate_jobs) ? billingContext.candidate_jobs.length : 0,
+      open_balances: openBalances.length,
+      missing_due_dates: missingDueDateCount,
+      unscheduled_jobs: unscheduledJobCount,
+      unassigned_jobs: unassignedJobCount,
+      import_profiles: Number(importLearning?.profile_count || 0),
+      correction_hotspots: Array.isArray(importLearning?.correction_field_hotspots) ? importLearning.correction_field_hotspots.length : 0,
+      active_service_plans: Number(servicePlanSummary?.active_count || 0),
+      at_risk_service_plans: Number(servicePlanSummary?.at_risk_count || 0),
+      recent_agent_runs: Number(agentAudit?.event_count || 0),
+    },
+  };
+}
+
 async function getAiContext(supabase, tenantId, specialist = 'general') {
   const lane = String(specialist || 'general').trim().toLowerCase();
   if (lane === 'collections') return getCollectionsContext(supabase, tenantId);
@@ -794,6 +1080,7 @@ async function getCollectionsFollowUpContext(supabase, tenantId) {
 }
 
 module.exports = {
+  getAgentWorkforceContext,
   getAiContext,
   getBillingBlockerQueueContext,
   getBusinessContext,

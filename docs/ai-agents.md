@@ -32,6 +32,8 @@ ProofLink now has a structured agent layer under `netlify/functions/agent`.
   Separates true overdue balances from general open balances so follow-up stays accurate.
 - `import_migration_assistant`
   Reviews legacy CSV headers and sample rows, explains what ProofLink can route safely, and suggests a reusable import profile before the operator imports anything.
+- `agent_workforce_architect`
+  Reviews live tenant workload, import-learning history, service-plan pressure, and recent agent usage to identify the next specialist agents ProofLink should add and the current lanes that need sharper training.
 
 ## Safety Boundaries
 
@@ -70,7 +72,7 @@ It checks:
 Run the targeted unit tests:
 
 ```bash
-npx vitest run tests/unit/netlify/functions/agent-schemas.test.js tests/unit/netlify/functions/job-record-auditor.test.js tests/unit/netlify/functions/ai-agent-report.test.js tests/unit/operator/jobs-workspace.test.js
+npx vitest run tests/unit/netlify/functions/agent-schemas.test.js tests/unit/netlify/functions/job-record-auditor.test.js tests/unit/netlify/functions/agent-workforce-architect.test.js tests/unit/netlify/functions/ai-agent-report.test.js tests/unit/operator/jobs-workspace.test.js tests/unit/operator/command-center.test.js
 ```
 
 For a broader pass:
@@ -96,6 +98,8 @@ The audit is advisory. Operators still decide whether to update records, create 
   Use `Run dispatch review` in the `AI dispatch review` card to review the selected hydrovac day for missing assignments, overlap conflicts, untimed work, and bundling opportunities.
 - Payments workspace
   Use `Run collections review` to separate genuinely overdue balances from general open balances, then work directly into `Record payment`, `Open order`, or `Open customer`.
+- Command center
+  Use `Run AI workforce review` to see which specialist agents ProofLink should add next and which current agent lanes need sharper training from real workload pressure.
 - Import workspace
   Use `Run AI migration review` after previewing a CSV to see grounded mapping coverage, row-routing risk, and the learned import profile ProofLink can save for future legacy exports.
 
@@ -132,3 +136,27 @@ This is the current "training" loop for the migration agents:
 - explicit merge choices improve future caution around ambiguous customer or work matches
 - cleanup-inbox patterns improve how the migration agent warns about attachment follow-up and orphaned records
 - all learning stays tenant-scoped and inspectable
+
+## Workforce Review Loop
+
+- `netlify/functions/agent/agents/agent-workforce-architect.js`
+  A deterministic meta-agent that looks for grounded AI-system gaps instead of chatting about them.
+- `netlify/functions/agent/tools.js`
+  Builds the workforce context from tenant profile, business workload, service-plan pressure, import profiles, and recent `agent_audit_events`.
+- `operator/operator-command-center.js`
+  Adds an `AI workforce architect` card in the command center and refreshes it alongside the shared AI ops review.
+
+The workforce architect is intentionally narrow:
+
+- it does not create agents automatically
+- it does not train models automatically
+- it only recommends additions or training targets when the tenant data actually shows pressure
+- it points back to the affected workspace or records so the recommendation stays inspectable
+
+Current gap patterns it watches for:
+
+- billing cleanup pressure that justifies a future `Field Closeout Coach`
+- multi-site work that justifies a future `Site Packet Builder`
+- outside-accounting continuity signals that justify a future `Accounting Continuity Auditor`
+- repeat-service cadence risk that justifies a future `Service Plan Renewal Manager`
+- recurring correction hotspots that should sharpen the import, collections, and dispatch assistants
