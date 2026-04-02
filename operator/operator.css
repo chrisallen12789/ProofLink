@@ -3345,9 +3345,98 @@ input:focus, textarea:focus, select:focus{
   color:var(--muted);
   padding:10px 0;
 }
+.record-nav{
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+  margin:14px 0;
+}
+.record-nav__button{
+  border:1px solid var(--border);
+  background:rgba(255,255,255,.03);
+  color:var(--text);
+  border-radius:999px;
+  padding:8px 14px;
+  font:inherit;
+  cursor:pointer;
+}
+.record-nav__button:focus-visible,
+.customer-site-item:focus-visible,
+.customer-site-activity-item:focus-visible{
+  outline:2px solid var(--accent);
+  outline-offset:2px;
+}
+.record-section-head{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:14px;
+}
+.customer-site-grid{
+  display:grid;
+  grid-template-columns:minmax(0, .9fr) minmax(0, 1.1fr);
+  gap:14px;
+  margin-top:14px;
+}
+.customer-site-list{
+  display:grid;
+  gap:10px;
+  margin-top:14px;
+}
+.customer-site-item{
+  border:1px solid var(--border);
+  background:rgba(255,255,255,.03);
+  color:var(--text);
+  border-radius:16px;
+  padding:14px;
+  text-align:left;
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+  cursor:pointer;
+}
+.customer-site-item.is-active{
+  outline:1px solid var(--accent);
+  background:rgba(200,75,47,.08);
+}
+.customer-site-item__main{
+  display:grid;
+  gap:6px;
+  min-width:0;
+}
+.customer-site-item__main strong{
+  font-size:14px;
+}
+.customer-site-item__main span{
+  color:var(--muted);
+  font-size:12px;
+  line-height:1.45;
+}
+.customer-site-item__meta{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  justify-content:flex-end;
+}
+.customer-site-activity{
+  display:grid;
+  gap:12px;
+  margin-top:14px;
+}
+.customer-site-activity-list{
+  display:grid;
+  gap:10px;
+}
+.customer-site-activity-item{
+  width:100%;
+  text-align:left;
+}
 @media (max-width: 900px) {
   .order-detail-grid { grid-template-columns:1fr; }
   .customer-money-grid { grid-template-columns:1fr; }
+  .customer-site-grid { grid-template-columns:1fr; }
+  .record-section-head { flex-direction:column; }
 }
 
 

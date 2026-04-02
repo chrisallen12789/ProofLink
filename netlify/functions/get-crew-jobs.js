@@ -10,6 +10,25 @@
 
 const { requireOperatorContext, getAdminClient, respond } = require('./utils/auth');
 
+function formatAddress(row = {}) {
+  return [
+    String(row.address_line1 || '').trim(),
+    [String(row.city || '').trim(), String(row.state || '').trim(), String(row.zip || '').trim()].filter(Boolean).join(' '),
+  ].filter(Boolean).join(', ');
+}
+
+function buildDayPlan(jobList = []) {
+  const ordered = [...jobList].sort((left, right) => (
+    String(left?.scheduled_time || '').localeCompare(String(right?.scheduled_time || ''))
+  ));
+  return {
+    total_stops: ordered.length,
+    completed_stops: ordered.filter((job) => String(job?.status || '').trim().toLowerCase() === 'completed').length,
+    remaining_stops: ordered.filter((job) => !['completed', 'cancelled'].includes(String(job?.status || '').trim().toLowerCase())).length,
+    next_stop: ordered.find((job) => !['completed', 'cancelled'].includes(String(job?.status || '').trim().toLowerCase())) || null,
+  };
+}
+
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return respond(200, {});
   if (event.httpMethod !== 'GET') return respond(405, { error: 'Method not allowed' });
@@ -44,7 +63,7 @@ exports.handler = async (event) => {
     .from('jobs')
     .select(`
       *,
-      customers ( name, phone, email ),
+      customers ( name, phone, email, company_name ),
       orders ( title )
     `)
     .eq('tenant_id', tenantId);
@@ -82,6 +101,8 @@ exports.handler = async (event) => {
 
   // Fetch photos for all returned jobs
   let photos = [];
+  let customerLocationsById = new Map();
+  let recentJobsByKey = new Map();
   if (jobList.length > 0) {
     const jobIds = jobList.map((j) => j.id);
     const { data: photoData, error: photoErr } = await adminSb
@@ -96,6 +117,43 @@ exports.handler = async (event) => {
     } else {
       photos = photoData || [];
     }
+
+    const customerLocationIds = [...new Set(jobList.map((job) => job.customer_location_id).filter(Boolean))];
+    if (customerLocationIds.length) {
+      const { data: customerLocations, error: locationErr } = await adminSb
+        .from('customer_locations')
+        .select('id, customer_id, site_name, site_code, contact_name, contact_phone, contact_email, address_line1, city, state, zip, access_notes, notes')
+        .in('id', customerLocationIds)
+        .eq('tenant_id', tenantId);
+
+      if (locationErr) {
+        console.error('[get-crew-jobs] customer location fetch error:', locationErr);
+      } else {
+        customerLocationsById = new Map((customerLocations || []).map((row) => [row.id, row]));
+      }
+    }
+
+    const customerIds = [...new Set(jobList.map((job) => job.customer_id).filter(Boolean))];
+    if (customerIds.length) {
+      const { data: recentJobs, error: recentJobsErr } = await adminSb
+        .from('jobs')
+        .select('id, customer_id, customer_location_id, title, status, scheduled_date, completed_at')
+        .in('customer_id', customerIds)
+        .eq('tenant_id', tenantId)
+        .order('scheduled_date', { ascending: false })
+        .limit(60);
+
+      if (recentJobsErr) {
+        console.error('[get-crew-jobs] recent jobs fetch error:', recentJobsErr);
+      } else {
+        (recentJobs || []).forEach((row) => {
+          const key = row.customer_location_id || row.customer_id;
+          if (!key) return;
+          if (!recentJobsByKey.has(key)) recentJobsByKey.set(key, []);
+          recentJobsByKey.get(key).push(row);
+        });
+      }
+    }
   }
 
   // Attach photos to each job
@@ -105,13 +163,35 @@ exports.handler = async (event) => {
     photosByJob[p.job_id].push(p);
   }
 
-  const jobsWithPhotos = jobList.map((j) => ({
-    ...j,
-    photos: photosByJob[j.id] || [],
-  }));
+  const jobsWithPhotos = jobList.map((job, index) => {
+    const customerLocation = customerLocationsById.get(job.customer_location_id) || null;
+    const recentKey = job.customer_location_id || job.customer_id;
+    const recentJobs = (recentJobsByKey.get(recentKey) || [])
+      .filter((row) => row.id !== job.id)
+      .slice(0, 3);
+
+    return {
+      ...job,
+      route_position: index + 1,
+      route_total_stops: jobList.length,
+      customer_location: customerLocation,
+      service_address: job.service_address || formatAddress(customerLocation) || job.service_address,
+      photos: photosByJob[job.id] || [],
+      recent_jobs: recentJobs,
+      site_packet: {
+        site_name: customerLocation?.site_name || '',
+        site_code: customerLocation?.site_code || '',
+        service_address: formatAddress(customerLocation) || job.service_address || '',
+        site_contact: [customerLocation?.contact_name, customerLocation?.contact_phone, customerLocation?.contact_email].filter(Boolean).join(' | '),
+        access_notes: customerLocation?.access_notes || '',
+        recent_photos: (photosByJob[job.id] || []).slice(0, 2),
+      },
+    };
+  });
 
   return respond(200, {
     jobs: jobsWithPhotos,
+    day_plan: buildDayPlan(jobsWithPhotos),
     member: {
       id: member.id,
       name: member.display_name,

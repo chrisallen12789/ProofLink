@@ -1657,6 +1657,46 @@ const App = {
     el('profileHours').textContent = hrs.toFixed(1);
   },
 
+  jobSiteLabel(job) {
+    return String(job?.siteName || job?.site_name || job?.location || job?.customer?.company || '').trim();
+  },
+
+  jobAddressLine(job) {
+    return String(job?.address || job?.serviceAddress || job?.service_address || '').trim();
+  },
+
+  jobSitePacket(job) {
+    const siteLabel = this.jobSiteLabel(job);
+    const address = this.jobAddressLine(job);
+    const contact = [job?.customer?.name, job?.customer?.phone, job?.customer?.email].filter(Boolean).join(' | ');
+    return {
+      siteLabel,
+      address,
+      contact,
+      summary: [
+        job?.notes ? `Access and notes: ${job.notes}` : '',
+        job?.scope ? `Scope: ${job.scope}` : '',
+        contact ? `Contact: ${contact}` : '',
+      ].filter(Boolean).join('\n'),
+    };
+  },
+
+  renderRouteSummary(jobs) {
+    const total = Array.isArray(jobs) ? jobs.length : 0;
+    if (!total) return '';
+    const completed = jobs.filter(j => j.status === 'completed').length;
+    const nextJob = jobs.find(j => !['completed', 'cancelled'].includes(j.status)) || jobs[0];
+    const nextLabel = nextJob ? `${this.jobSiteLabel(nextJob) || nextJob.customer?.name || 'Next stop'} at ${nextJob.scheduled.split('·')[1]?.trim() || 'TBD'}` : 'No next stop loaded.';
+    return `
+      <div class="card mb-12">
+        <div class="card__bd">
+          <div class="muted" style="font-size:.8rem;">Day plan</div>
+          <div style="font-weight:700;margin-top:4px;">${total - completed} stop${total - completed === 1 ? '' : 's'} still moving today</div>
+          <div class="muted" style="margin-top:6px;font-size:.84rem;">${nextLabel}</div>
+        </div>
+      </div>`;
+  },
+
   /* ── Job List ─────────────────────────────────────────────────── */
   renderJobList() {
     const tab = State.currentTab;
@@ -1673,18 +1713,18 @@ const App = {
       return;
     }
 
-    container.innerHTML = jobs.map(j => `
+    container.innerHTML = this.renderRouteSummary(jobs) + jobs.map(j => `
       <div class="job-card status-${j.status}" onclick="App.openJob('${j.id}')">
         <div class="job-card__header">
           <div class="job-card__time">${j.scheduled.split('·')[1]?.trim() || ''}</div>
           <div class="job-card__meta">
-            <div class="job-card__customer">${j.customer.name}</div>
-            <div class="job-card__address">${j.address}</div>
+            <div class="job-card__customer">${this.jobSiteLabel(j) || j.customer.name}</div>
+            <div class="job-card__address">${this.jobAddressLine(j)}</div>
           </div>
           <span class="pill pill-${j.status}">${statusLabel(j.status)}</span>
         </div>
         <div class="job-card__footer">
-          <div class="job-card__title">${j.title}</div>
+          <div class="job-card__title">${[j.customer.name, j.title].filter(Boolean).join(' | ')}</div>
           <div class="job-card__chevron">›</div>
         </div>
       </div>`).join('');
@@ -1700,6 +1740,7 @@ const App = {
   },
 
   renderJobDetail(job) {
+    const packet = this.jobSitePacket(job);
     el('jobTitle').textContent = job.title;
 
     const pill = el('jobStatusPill');
@@ -1707,13 +1748,13 @@ const App = {
     pill.className = 'pill pill-' + job.status;
 
     // Address link
-    const addr = job.address;
-    const mapsUrl = `https://maps.apple.com/?q=${encodeURIComponent(addr)}`;
+    const addr = packet.address || job.address;
+    const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}`;
     const addrEl = el('jobAddress');
-    addrEl.textContent = addr;
+    addrEl.textContent = packet.address || addr;
     addrEl.href = mapsUrl;
 
-    el('jobCustomerName').textContent = job.customer.name;
+    el('jobCustomerName').textContent = [job.customer.name, packet.siteLabel].filter(Boolean).join(' | ');
 
     const phoneEl = el('jobCustomerPhone');
     phoneEl.textContent = job.customer.phone;
@@ -1722,7 +1763,7 @@ const App = {
     el('jobCustomerEmail').textContent = job.customer.email;
     el('jobScheduled').textContent = job.scheduled + ' · ' + job.duration;
     el('jobScope').textContent = job.scope;
-    el('jobNotes').textContent = job.notes || 'No special notes.';
+    el('jobNotes').textContent = packet.summary || 'No special notes.';
     el('crewNotes').value = job.crewNotes || '';
 
     this.renderActionZone(job);
@@ -1739,6 +1780,7 @@ const App = {
   /* ── Action Zone ─────────────────────────────────────────────── */
   renderActionZone(job) {
     const zone = el('actionZone');
+    const quickTools = this.renderQuickTools(job);
     let html = '';
 
     switch (job.status) {
@@ -1775,7 +1817,97 @@ const App = {
           </div>`;
         break;
     }
-    zone.innerHTML = html;
+    zone.innerHTML = quickTools + html;
+  },
+
+  renderQuickTools(job) {
+    const customer = job?.customer || {};
+    const businessKey = String(
+      job?.businessKey
+      || job?.business_key
+      || job?.businessType
+      || job?.business_type
+      || customer?.businessKey
+      || customer?.business_key
+      || customer?.businessType
+      || customer?.business_type
+      || ''
+    ).trim().toLowerCase();
+    const firstFilled = (...values) => values.find((value) => String(value || '').trim()) || '';
+    const actions = [];
+    const address = String(job?.address || job?.serviceAddress || job?.service_address || '').trim();
+    const phone = String(customer?.phone || '').trim();
+    const routeNote = firstFilled(customer?.serviceSchedule, customer?.service_schedule, customer?.frequency, customer?.seasonalNotes, customer?.seasonal_notes, job?.routeNotes, job?.route_notes);
+    const accessNote = firstFilled(customer?.accessNotes, customer?.access_notes, customer?.entryNotes, customer?.entry_notes, customer?.alarmNotes, customer?.alarm_notes, customer?.gateNotes, customer?.gate_notes);
+    const systemNote = firstFilled(customer?.systemNotes, customer?.system_notes, customer?.equipmentNotes, customer?.equipment_notes, customer?.diagnosticNotes, customer?.diagnostic_notes, customer?.partsFollowUp, customer?.parts_follow_up);
+    const shutoffNote = firstFilled(customer?.shutoffNotes, customer?.shutoff_notes, customer?.issueSummary, customer?.issue_summary, customer?.approvalNotes, customer?.approval_notes);
+    const bolNote = firstFilled(job?.bolNumber, job?.bol_number, job?.manifestNumber, job?.manifest_number, job?.manifestMetadata?.bol_number, job?.manifest_metadata?.bol_number, job?.manifestMetadata?.live_load_hold_reason, job?.manifest_metadata?.live_load_hold_reason);
+
+    if (address) {
+      actions.push('<button class="btn btn-ghost btn-sm" onclick="App.openDirections()">Directions</button>');
+      actions.push('<button class="btn btn-ghost btn-sm" onclick="App.copyCrewQuickValue(\'address\')">Copy address</button>');
+    }
+    if (phone) {
+      actions.push('<button class="btn btn-ghost btn-sm" onclick="App.callCustomer()">Call customer</button>');
+    }
+    if (['landscaping', 'property_maintenance', 'pressure_washing'].includes(businessKey) && routeNote) {
+      actions.push('<button class="btn btn-ghost btn-sm" onclick="App.copyCrewQuickValue(\'route\')">Copy route note</button>');
+    } else if (businessKey === 'cleaning' && accessNote) {
+      actions.push('<button class="btn btn-ghost btn-sm" onclick="App.copyCrewQuickValue(\'access\')">Copy access note</button>');
+    } else if (businessKey === 'hvac' && systemNote) {
+      actions.push('<button class="btn btn-ghost btn-sm" onclick="App.copyCrewQuickValue(\'system\')">Copy system note</button>');
+    } else if (businessKey === 'plumbing' && shutoffNote) {
+      actions.push('<button class="btn btn-ghost btn-sm" onclick="App.copyCrewQuickValue(\'shutoff\')">Copy shutoff note</button>');
+    } else if (['hydrovac', 'vactor', 'hydrovac_vactor'].includes(businessKey) && bolNote) {
+      actions.push('<button class="btn btn-ghost btn-sm" onclick="App.copyCrewQuickValue(\'bol\')">Copy BOL / load note</button>');
+    }
+
+    if (!actions.length) return '';
+    return `
+      <div class="btn-row mb-8" style="flex-wrap:wrap;">
+        ${actions.join('')}
+      </div>`;
+  },
+
+  crewQuickCopyValue(job, type) {
+    const customer = job?.customer || {};
+    const firstFilled = (...values) => values.find((value) => String(value || '').trim()) || '';
+    if (type === 'address') return String(job?.address || job?.serviceAddress || job?.service_address || '').trim();
+    if (type === 'route') return firstFilled(customer?.serviceSchedule, customer?.service_schedule, customer?.frequency, customer?.seasonalNotes, customer?.seasonal_notes, job?.routeNotes, job?.route_notes);
+    if (type === 'access') return firstFilled(customer?.accessNotes, customer?.access_notes, customer?.entryNotes, customer?.entry_notes, customer?.alarmNotes, customer?.alarm_notes, customer?.gateNotes, customer?.gate_notes);
+    if (type === 'system') return firstFilled(customer?.systemNotes, customer?.system_notes, customer?.equipmentNotes, customer?.equipment_notes, customer?.diagnosticNotes, customer?.diagnostic_notes, customer?.partsFollowUp, customer?.parts_follow_up);
+    if (type === 'shutoff') return firstFilled(customer?.shutoffNotes, customer?.shutoff_notes, customer?.issueSummary, customer?.issue_summary, customer?.approvalNotes, customer?.approval_notes);
+    if (type === 'bol') return firstFilled(job?.bolNumber, job?.bol_number, job?.manifestNumber, job?.manifest_number, job?.manifestMetadata?.bol_number, job?.manifest_metadata?.bol_number, job?.manifestMetadata?.live_load_hold_reason, job?.manifest_metadata?.live_load_hold_reason);
+    return '';
+  },
+
+  openDirections() {
+    const job = findJob(State.currentJobId);
+    const address = String(job?.address || job?.serviceAddress || job?.service_address || '').trim();
+    if (!address) return;
+    const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+    window.open(url, '_blank', 'noopener');
+  },
+
+  callCustomer() {
+    const job = findJob(State.currentJobId);
+    const phone = String(job?.customer?.phone || '').replace(/\D/g, '');
+    if (!phone) return;
+    window.location.href = 'tel:' + phone;
+  },
+
+  async copyCrewQuickValue(type) {
+    const job = findJob(State.currentJobId);
+    const value = this.crewQuickCopyValue(job, type);
+    if (!value) return;
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(value);
+      }
+      showToast('Copied to clipboard');
+    } catch {
+      showToast('Could not copy that detail');
+    }
   },
 
   /* ── Job Actions ─────────────────────────────────────────────── */

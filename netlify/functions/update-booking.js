@@ -8,7 +8,22 @@ const { requireOperatorContext, respond } = require('./utils/auth');
 const { sendEmail, templates }            = require('./utils/email');
 const { getConfiguredSiteUrl }            = require('./utils/runtime-config');
 
-const ALLOWED_FIELDS = ['title', 'customer_name', 'customer_email', 'starts_at', 'ends_at', 'notes', 'status', 'preferred_time', 'location'];
+const ALLOWED_FIELDS = [
+  'title',
+  'customer_name',
+  'customer_email',
+  'customer_id',
+  'customer_location_id',
+  'starts_at',
+  'ends_at',
+  'notes',
+  'status',
+  'preferred_time',
+  'location',
+  'service_address',
+  'assigned_operator_id',
+  'notes_vehicle',
+];
 const VALID_STATUSES = ['confirmed', 'cancelled', 'completed', 'no_show'];
 
 exports.handler = async (event) => {

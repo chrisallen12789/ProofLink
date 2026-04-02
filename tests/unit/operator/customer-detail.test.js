@@ -249,6 +249,130 @@ describe("operator customer detail", () => {
     expect(insight.message).toContain("27 days past that rhythm");
   });
 
+  test("customerLocationRollups groups activity under the matching site address", () => {
+    const api = loadCustomerDetail();
+
+    const rollups = api.customerLocationRollups({
+      customer: {
+        address_line1: "100 Main St",
+        city: "Tulsa",
+        state: "OK",
+        zip: "74103",
+      },
+      locations: [
+        {
+          id: "loc_1",
+          site_name: "North Campus",
+          address_line1: "100 Main St",
+          city: "Tulsa",
+          state: "OK",
+          zip: "74103",
+          is_primary: true,
+        },
+        {
+          id: "loc_2",
+          site_name: "South Campus",
+          address_line1: "250 Oak Ave",
+          city: "Tulsa",
+          state: "OK",
+          zip: "74103",
+        },
+      ],
+      requests: [
+        { id: "lead_1", service_address: "100 Main St, Tulsa, OK 74103", updated_at: "2026-03-10" },
+      ],
+      bids: [
+        { id: "bid_1", service_address: "250 Oak Ave Tulsa OK 74103", updated_at: "2026-03-11" },
+      ],
+      orders: [
+        { id: "order_1", service_address: "100 Main St Tulsa OK 74103", status: "confirmed", updated_at: "2026-03-12" },
+      ],
+      jobs: [
+        { id: "job_1", service_address: "250 Oak Ave, Tulsa, OK 74103", status: "scheduled", updated_at: "2026-03-13" },
+      ],
+    });
+
+    expect(rollups).toHaveLength(2);
+    expect(rollups[0].location.site_name).toBe("North Campus");
+    expect(rollups[0].requestCount).toBe(1);
+    expect(rollups[0].orderCount).toBe(1);
+    expect(rollups[1].location.site_name).toBe("South Campus");
+    expect(rollups[1].bidCount).toBe(1);
+    expect(rollups[1].jobCount).toBe(1);
+  });
+
+  test("customerLocationActivityFeed keeps the selected site's linked work in one recent feed", () => {
+    const api = loadCustomerDetail({
+      formatUsd: (value) => `$${value}`,
+      titleCaseWords: (value) => String(value || "").replace(/\b\w/g, (char) => char.toUpperCase()),
+    });
+
+    const feed = api.customerLocationActivityFeed({
+      matchedRequests: [{
+        id: "lead_1",
+        title: "North Campus walkthrough",
+        requested_service_type: "Walkthrough",
+        status: "new",
+        updated_at: "2026-03-10T09:00:00.000Z",
+      }],
+      matchedBids: [{
+        id: "bid_1",
+        title: "North Campus proposal",
+        status: "sent",
+        total_cents: 42000,
+        updated_at: "2026-03-12T09:00:00.000Z",
+      }],
+      matchedOrders: [{
+        id: "order_1",
+        title: "North Campus booked work",
+        status: "confirmed",
+        scheduled_date: "2026-03-18",
+        updated_at: "2026-03-14T09:00:00.000Z",
+      }],
+      matchedJobs: [{
+        id: "job_1",
+        title: "North Campus active job",
+        status: "scheduled",
+        scheduled_date: "2026-03-20",
+        updated_at: "2026-03-15T09:00:00.000Z",
+      }],
+    });
+
+    expect(feed.map((entry) => entry.badge)).toEqual(["Job", "Booked work", "Proposal", "Request"]);
+    expect(feed[0]).toMatchObject({
+      tab: "jobs",
+      recordId: "job_1",
+      title: "North Campus active job",
+    });
+  });
+
+  test("customerProofGalleryEntries merges walkthrough and job photos into one gallery feed", () => {
+    const api = loadCustomerDetail({
+      titleCaseWords: (value) => value,
+      formatDateTime: (value) => `formatted:${value}`,
+    });
+
+    const entries = api.customerProofGalleryEntries(
+      [{
+        id: "bid_1",
+        title: "North Campus refresh",
+        photos: [{ id: "photo_1", url: "https://img.test/walk.jpg", name: "Walkthrough" }],
+      }],
+      [{
+        id: "job_1",
+        title: "North Campus job",
+        service_address: "100 Main St",
+        updated_at: "2026-03-15",
+        photos: [{ id: "photo_2", url: "https://img.test/job.jpg", photo_type: "after" }],
+      }]
+    );
+
+    expect(entries).toHaveLength(2);
+    expect(entries[0].tab).toBe("bids");
+    expect(entries[1].tab).toBe("jobs");
+    expect(entries[1].note).toContain("100 Main St");
+  });
+
   test("customerReactivationActions recommends scheduling the next visit for a dormant repeat account", () => {
     const api = loadCustomerDetail();
 

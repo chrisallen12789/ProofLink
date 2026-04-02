@@ -149,4 +149,118 @@ describe("netlify/functions/create-booking", () => {
     expect(insertedPayload.notes).toContain("Preferred time: Morning (8am-12pm)");
     expect(insertedPayload.notes).toContain("Referral source: Google Search");
   });
+
+  test("hydrates the booking from the selected customer site when operator context is present", async () => {
+    let insertedPayload = null;
+    const queryBuilder = (result) => ({
+      eq() { return this; },
+      limit() { return this; },
+      maybeSingle: async () => result,
+    });
+    const supabase = {
+      from: vi.fn((table) => {
+        if (table === "customers") {
+          return {
+            select: () => ({
+              eq() { return this; },
+              maybeSingle: async () => ({
+                data: {
+                  id: "customer_1",
+                  name: "Metro Public Works",
+                  email: "dispatch@metro.test",
+                  address_line1: "400 Civic Center Plaza",
+                  city: "Tulsa",
+                  state: "OK",
+                  zip: "74103",
+                },
+                error: null,
+              }),
+            }),
+          };
+        }
+        if (table === "customer_locations") {
+          return {
+            select: () => ({
+              eq() { return this; },
+              maybeSingle: async () => ({
+                data: {
+                  id: "site_1",
+                  customer_id: "customer_1",
+                  site_name: "North Campus",
+                  contact_email: "onsite@metro.test",
+                  address_line1: "1200 North Campus Dr",
+                  city: "Tulsa",
+                  state: "OK",
+                  zip: "74103",
+                  access_notes: "Use the west gate before 7 AM",
+                },
+                error: null,
+              }),
+            }),
+          };
+        }
+        if (table === "bookings") {
+          return {
+            insert: vi.fn((payload) => {
+              insertedPayload = payload;
+              return {
+                select: () => ({
+                  maybeSingle: async () => ({
+                    data: { id: "booking_2", ...payload },
+                    error: null,
+                  }),
+                }),
+              };
+            }),
+          };
+        }
+        if (table === "tenants") {
+          return { select: () => queryBuilder({ data: { name: "ProofLink Test" }, error: null }) };
+        }
+        if (table === "tenant_config") {
+          return {
+            select: () => ({
+              eq() { return this; },
+              maybeSingle: async () => ({ data: null, error: null }),
+            }),
+          };
+        }
+        if (table === "availability") {
+          return { select: () => queryBuilder({ data: { timezone: "America/New_York" }, error: null }) };
+        }
+        if (table === "operators") {
+          return { select: () => queryBuilder({ data: { email: "ops@example.com", name: "Ops" }, error: null }) };
+        }
+        throw new Error(`Unexpected table: ${table}`);
+      }),
+    };
+    installMocks({ supabase });
+    const handler = require(handlerPath).handler;
+
+    const start = new Date(Date.now() + (2 * 60 * 60 * 1000)).toISOString();
+    const end = new Date(Date.now() + (3 * 60 * 60 * 1000)).toISOString();
+    const res = await handler({
+      httpMethod: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer token",
+      },
+      body: JSON.stringify({
+        customer_id: "customer_1",
+        customer_location_id: "site_1",
+        customer_name: "Metro Public Works",
+        title: "Quarterly walkthrough",
+        starts_at: start,
+        ends_at: end,
+      }),
+    });
+
+    expect(res.statusCode).toBe(201);
+    expect(insertedPayload.customer_location_id).toBe("site_1");
+    expect(insertedPayload.location).toBe("North Campus");
+    expect(insertedPayload.service_address).toBe("1200 North Campus Dr, Tulsa OK 74103");
+    expect(insertedPayload.customer_email).toBe("onsite@metro.test");
+    expect(insertedPayload.notes).toContain("Site: North Campus");
+    expect(insertedPayload.notes).toContain("Site access: Use the west gate before 7 AM");
+  });
 });

@@ -2,12 +2,14 @@
 // so job save behavior and post-save refresh stay together.
 async function saveJobRecord(fields = {}) {
   const nowIso = new Date().toISOString();
+  const jobCustomerLocationField = typeof $ === "function" ? $("jobCustomerLocationId") : null;
   const linkedOrder = CRM_ORDERS_CACHE.find((row) => row.id === (fields.order_id || jobOrderId?.value || ""));
   if (linkedOrder) assertOrderAllowsJobCreation(linkedOrder);
   const payload = withTenantScope({
     operator_id: opId(),
     order_id: fields.order_id || jobOrderId?.value || null,
     customer_id: fields.customer_id || jobCustomerId?.value || linkedOrder?.customer_id || null,
+    customer_location_id: fields.customer_location_id || jobCustomerLocationField?.value || linkedOrder?.customer_location_id || null,
     status: fields.status || jobStatus?.value || "scheduled",
     title: fields.title || jobTitle?.value?.trim() || linkedOrder?.cart_summary || "",
     service_address: fields.service_address || jobServiceAddress?.value?.trim() || "",

@@ -100,6 +100,8 @@ describe("crew job actions", () => {
     expect(ensureElement("jobActions").innerHTML).toContain(
       "Keep in mind before you move this job forward"
     );
+    expect(ensureElement("jobActions").innerHTML).toContain("Directions");
+    expect(ensureElement("jobActions").innerHTML).toContain("Call customer");
     expect(ensureElement("jobActions").innerHTML).toContain("Service location: 123 Main St");
     expect(ensureElement("jobActions").innerHTML).toContain("Customer contact: 555-555-1212 | owner@example.com");
     expect(ensureElement("jobActions").innerHTML).toContain("Scope and notes: Gate code 2468. Watch the back hydrant.");
@@ -213,5 +215,33 @@ describe("crew job actions", () => {
     expect(items).toContain("Bill of lading: BOL-44");
     expect(items).toContain("Live-load plan: Waiting for a full compatible load");
     expect(items).toContain("Disposal timing: Clear this load by 2026-03-29 so tomorrow does not get blocked.");
+  });
+
+  test("crewJobQuickActions changes the copied field context by trade", () => {
+    const { context } = loadCrew();
+
+    const landscapingActions = context.crewJobQuickActions({
+      business_key: "landscaping",
+      service_address: "12 Route Rd",
+      customers: {
+        phone: "555-111-2222",
+        service_schedule: "Tuesday route after school traffic",
+      },
+    });
+    expect(landscapingActions.map((action) => action.label)).toContain("Copy route note");
+
+    const hydrovacActions = context.crewJobQuickActions({
+      business_key: "hydrovac",
+      service_address: "77 Trench Rd",
+      manifests: [{ manifest_number: "MAN-12", metadata: { bol_number: "BOL-12", load_state: "live_in_truck" } }],
+    });
+    expect(hydrovacActions.map((action) => action.label)).toContain("Copy BOL / load note");
+  });
+
+  test("jobDirectionsUrl builds a map search link from the service address", () => {
+    const { context } = loadCrew();
+
+    expect(context.jobDirectionsUrl({ service_address: "100 Main St, Tulsa, OK 74103" }))
+      .toContain("https://www.google.com/maps/search/");
   });
 });

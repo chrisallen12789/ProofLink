@@ -1,6 +1,21 @@
 // Customer detail workflow extracted from operator.js so the operator shell
 // can keep shrinking around real business domains.
 (function attachOperatorCustomerDetail(global) {
+  const customerLocationCache = new Map();
+  const customerJobMediaCache = new Map();
+  let customerLocationsFeatureReady = true;
+
+  function customerAccountName(customer) {
+    if (!customer) return "Unnamed customer";
+    return customer.company_name || customer.name || "Unnamed customer";
+  }
+
+  function customerPrimaryContact(customer) {
+    if (!customer) return "No primary contact yet.";
+    const name = String(customer.name || "").trim();
+    return name || "No primary contact yet.";
+  }
+
   function customerDisplayAddress(customer) {
     if (!customer) return "No service address yet.";
     const parts = [
@@ -8,6 +23,317 @@
       [customer.city || "", customer.state || "", customer.zip || ""].filter(Boolean).join(" ").trim(),
     ].filter(Boolean);
     return parts.length ? parts.join(", ") : "No service address yet.";
+  }
+
+  function customerLocationDisplayAddress(location) {
+    if (!location) return "No site address yet.";
+    const parts = [
+      location.address_line1 || "",
+      [location.city || "", location.state || "", location.zip || ""].filter(Boolean).join(" ").trim(),
+    ].filter(Boolean);
+    return parts.length ? parts.join(", ") : "No site address yet.";
+  }
+
+  function customerFallbackLocation(customer) {
+    const address = customerDisplayAddress(customer);
+    if (!customer || address === "No service address yet.") return null;
+    return {
+      id: "__customer_primary__",
+      site_name: "Primary address",
+      contact_name: customer.name || "",
+      contact_phone: customer.phone || "",
+      contact_email: customer.email || "",
+      address_line1: customer.address_line1 || customer.service_address || customer.billing_address || "",
+      city: customer.city || "",
+      state: customer.state || "",
+      zip: customer.zip || "",
+      access_notes: customer.access_notes || customer.entry_notes || customer.gate_notes || "",
+      notes: customer.notes || "",
+      is_primary: true,
+      is_virtual: true,
+    };
+  }
+
+  function normalizeAddressMatchKey(value) {
+    return String(value || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "");
+  }
+
+  function customerLocationMatchKeys(location) {
+    if (!location) return [];
+    const line1 = String(location.address_line1 || "").trim();
+    const cityStateZip = [location.city || "", location.state || "", location.zip || ""].filter(Boolean).join(" ").trim();
+    const full = [line1, cityStateZip].filter(Boolean).join(" ").trim();
+    return [...new Set([full, line1].map(normalizeAddressMatchKey).filter(Boolean))];
+  }
+
+  function customerActivityAddress(row) {
+    return String(row?.service_address || row?.address || "").trim();
+  }
+
+  function customerLocationMatchesActivity(location, row) {
+    if (!location || !row) return false;
+    const rowLocationId = String(row?.customer_location_id || "").trim();
+    const locationId = String(location?.id || "").trim();
+    if (rowLocationId && locationId && rowLocationId === locationId) return true;
+    const recordKey = normalizeAddressMatchKey(customerActivityAddress(row));
+    if (!recordKey) return false;
+    return customerLocationMatchKeys(location).some((key) => (
+      key && (recordKey === key || recordKey.includes(key) || key.includes(recordKey))
+    ));
+  }
+
+  function customerLocationRollups({
+    customer = null,
+    locations = [],
+    requests = [],
+    bids = [],
+    orders = [],
+    jobs = [],
+  } = {}) {
+    const resolvedLocations = Array.isArray(locations) && locations.length
+      ? [...locations]
+      : (customerFallbackLocation(customer) ? [customerFallbackLocation(customer)] : []);
+
+    return resolvedLocations.map((location) => {
+      const matchedRequests = (requests || []).filter((row) => customerLocationMatchesActivity(location, row));
+      const matchedBids = (bids || []).filter((row) => customerLocationMatchesActivity(location, row));
+      const matchedOrders = (orders || []).filter((row) => customerLocationMatchesActivity(location, row));
+      const matchedJobs = (jobs || []).filter((row) => customerLocationMatchesActivity(location, row));
+      const lastTouch = [
+        ...matchedRequests.map((row) => row.updated_at || row.created_at || ""),
+        ...matchedBids.map((row) => row.updated_at || row.created_at || ""),
+        ...matchedOrders.map((row) => row.updated_at || row.created_at || ""),
+        ...matchedJobs.map((row) => row.updated_at || row.completed_at || row.created_at || ""),
+      ].filter(Boolean).sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0] || "";
+
+      return {
+        location,
+        matchedRequests,
+        matchedBids,
+        matchedOrders,
+        matchedJobs,
+        requestCount: matchedRequests.length,
+        bidCount: matchedBids.length,
+        orderCount: matchedOrders.length,
+        jobCount: matchedJobs.length,
+        activeWorkCount: [...matchedOrders, ...matchedJobs].filter((row) => !["completed", "cancelled", "archived"].includes(String(row?.status || "").toLowerCase())).length,
+        lastTouch,
+      };
+    });
+  }
+
+  function customerLocationActivityFeed(rollup = null) {
+    if (!rollup) return [];
+    const asTimestamp = (value) => {
+      const parsed = Date.parse(value || "");
+      return Number.isNaN(parsed) ? 0 : parsed;
+    };
+    const items = [];
+    const pushItem = (tab, badge, row, title, meta, sortValue) => {
+      if (!row?.id) return;
+      items.push({
+        id: `${tab}:${row.id}`,
+        tab,
+        recordId: row.id,
+        badge,
+        title,
+        meta,
+        sortValue: sortValue || "",
+      });
+    };
+
+    (rollup.matchedRequests || []).forEach((lead) => {
+      pushItem(
+        "leads",
+        "Request",
+        lead,
+        lead.contact_name || lead.title || lead.requested_service_type || "Request",
+        `${titleCaseWords(String(lead.status || "new"))} | ${lead.requested_service_type || "Service request"}`,
+        lead.updated_at || lead.created_at || ""
+      );
+    });
+
+    (rollup.matchedBids || []).forEach((bid) => {
+      pushItem(
+        "bids",
+        "Proposal",
+        bid,
+        bid.title || "Proposal",
+        `${titleCaseWords(String(bid.status || "draft"))} | ${formatUsd(bidGrandTotalCents(bid))}`,
+        bid.updated_at || bid.created_at || ""
+      );
+    });
+
+    (rollup.matchedOrders || []).forEach((order) => {
+      pushItem(
+        "orders",
+        "Booked work",
+        order,
+        order.title || order.customer_name || "Order",
+        `${titleCaseWords(String(order.status || "new"))} | ${order.scheduled_date || getScheduledDateFromOrder(order) || "No scheduled date"}`,
+        order.updated_at || order.created_at || order.scheduled_date || ""
+      );
+    });
+
+    (rollup.matchedJobs || []).forEach((job) => {
+      pushItem(
+        "jobs",
+        "Job",
+        job,
+        job.title || "Job",
+        `${titleCaseWords(String(job.status || "scheduled"))} | ${job.scheduled_date || "No scheduled date"}`,
+        job.updated_at || job.completed_at || job.created_at || job.scheduled_date || ""
+      );
+    });
+
+    return items
+      .sort((a, b) => asTimestamp(b.sortValue) - asTimestamp(a.sortValue) || a.title.localeCompare(b.title))
+      .slice(0, 8);
+  }
+
+  async function fetchCustomerLocations(customerIdValue) {
+    if (!customerIdValue || !customerLocationsFeatureReady || !sb?.from) return [];
+    try {
+      const { data, error } = await scopeQuery(sb
+        .from("customer_locations")
+        .select("*"))
+        .eq("customer_id", customerIdValue)
+        .order("is_primary", { ascending: false })
+        .order("site_name", { ascending: true });
+
+      if (error) {
+        if (typeof isMissingDatabaseFeatureError === "function" && isMissingDatabaseFeatureError(error, ["customer_locations"])) {
+          customerLocationsFeatureReady = false;
+          return [];
+        }
+        throw error;
+      }
+
+      const rows = Array.isArray(data) ? data : [];
+      customerLocationCache.set(customerIdValue, rows);
+      return rows;
+    } catch (error) {
+      console.error("[fetchCustomerLocations]", error);
+      return customerLocationCache.get(customerIdValue) || [];
+    }
+  }
+
+  async function saveCustomerLocation(customerIdValue, fields = {}) {
+    if (!customerIdValue) throw new Error("Customer id is required.");
+    const siteName = String(fields.site_name || "").trim();
+    if (!siteName) throw new Error("Site name is required.");
+    const nowIso = new Date().toISOString();
+    const locationId = String(fields.id || "").trim();
+    const payload = withTenantScope({
+      operator_id: opId(),
+      customer_id: customerIdValue,
+      site_name: siteName,
+      site_code: String(fields.site_code || "").trim() || null,
+      contact_name: String(fields.contact_name || "").trim() || null,
+      contact_phone: String(fields.contact_phone || "").trim() || null,
+      contact_email: String(fields.contact_email || "").trim() || null,
+      address_line1: String(fields.address_line1 || "").trim() || null,
+      city: String(fields.city || "").trim() || null,
+      state: String(fields.state || "").trim().toUpperCase() || null,
+      zip: String(fields.zip || "").trim() || null,
+      access_notes: String(fields.access_notes || "").trim() || null,
+      notes: String(fields.notes || "").trim() || null,
+      is_primary: !!fields.is_primary,
+      updated_at: nowIso,
+    });
+
+    if (payload.is_primary) {
+      let resetQuery = scopeQuery(sb.from("customer_locations").update({ is_primary: false, updated_at: nowIso }))
+        .eq("customer_id", customerIdValue);
+      if (locationId) resetQuery = resetQuery.neq("id", locationId);
+      const { error: resetError } = await resetQuery;
+      if (resetError) throw resetError;
+    }
+
+    const query = locationId
+      ? scopeQuery(sb.from("customer_locations").update(payload)).eq("id", locationId).eq("customer_id", customerIdValue)
+      : sb.from("customer_locations").insert({ ...payload, created_at: nowIso });
+
+    const { data, error } = await query.select("*").single();
+    if (error) throw error;
+    customerLocationCache.delete(customerIdValue);
+    return data;
+  }
+
+  async function deleteCustomerLocation(customerIdValue, locationId) {
+    if (!customerIdValue || !locationId) return;
+    const { error } = await scopeQuery(sb.from("customer_locations").delete())
+      .eq("customer_id", customerIdValue)
+      .eq("id", locationId);
+    if (error) throw error;
+    customerLocationCache.delete(customerIdValue);
+  }
+
+  async function fetchCustomerJobMedia(jobRows = []) {
+    const jobs = Array.isArray(jobRows) ? jobRows.filter((row) => row?.id).slice(0, 4) : [];
+    if (!jobs.length || typeof fetch !== "function" || typeof getAccessToken !== "function") return [];
+    const tok = await getAccessToken().catch(() => null);
+    if (!tok) return [];
+
+    const responses = await Promise.all(jobs.map(async (job) => {
+      if (customerJobMediaCache.has(job.id)) return customerJobMediaCache.get(job.id);
+      try {
+        const res = await fetch(`/.netlify/functions/get-job-detail?id=${encodeURIComponent(job.id)}`, {
+          headers: { Authorization: `Bearer ${tok}` },
+        });
+        const body = await res.json().catch(() => ({}));
+        const detail = res.ok
+          ? { ...job, ...(body.job || {}), photos: Array.isArray(body?.job?.photos) ? body.job.photos : [] }
+          : { ...job, photos: [] };
+        customerJobMediaCache.set(job.id, detail);
+        return detail;
+      } catch {
+        const fallback = { ...job, photos: [] };
+        customerJobMediaCache.set(job.id, fallback);
+        return fallback;
+      }
+    }));
+
+    return responses;
+  }
+
+  function customerProofGalleryEntries(bids = [], jobMedia = []) {
+    const entries = [];
+
+    (Array.isArray(bids) ? bids : []).forEach((bid) => {
+      (Array.isArray(bid?.photos) ? bid.photos : []).forEach((photo, index) => {
+        if (!photo?.url) return;
+        entries.push({
+          id: `bid:${bid.id || "draft"}:${photo.id || index}`,
+          tab: "bids",
+          recordId: bid.id || "",
+          url: photo.url,
+          title: photo.name || bid.title || "Walkthrough photo",
+          note: photo.note || bid.service_address || "",
+          badge: "Walkthrough",
+        });
+      });
+    });
+
+    (Array.isArray(jobMedia) ? jobMedia : []).forEach((job) => {
+      (Array.isArray(job?.photos) ? job.photos : []).forEach((photo, index) => {
+        if (!photo?.url) return;
+        entries.push({
+          id: `job:${job.id || "job"}:${photo.id || index}`,
+          tab: "jobs",
+          recordId: job.id || "",
+          url: photo.url,
+          title: job.title || "Job photo",
+          note: [titleCaseWords(String(photo.photo_type || "photo")), job.service_address || "", formatDateTime(photo.created_at || job.updated_at || job.created_at)].filter(Boolean).join(" | "),
+          badge: titleCaseWords(String(photo.photo_type || "photo")),
+        });
+      });
+    });
+
+    return entries.slice(0, 8);
   }
 
   function customerRequests(customerIdValue) {
@@ -650,15 +976,16 @@
   function customerFollowUpRequestDraft(customer = null, options = {}, blueprint = (typeof currentWorkspaceBlueprint === "function" ? currentWorkspaceBlueprint() : { business: { key: "service_business" } })) {
     if (!customer) return null;
     const businessKey = String(blueprint?.business?.key || "service_business").trim().toLowerCase();
+    const accountName = customerAccountName(customer);
     const firstFilled = (...values) => values.find((value) => String(value || "").trim()) || "";
     const address = customerDisplayAddress(customer);
     const requestTitles = {
-      landscaping: `${customer.name || "Customer"} seasonal follow-up`,
-      property_maintenance: `${customer.name || "Customer"} site follow-up`,
-      pressure_washing: `${customer.name || "Customer"} wash follow-up`,
-      cleaning: `${customer.name || "Customer"} cleaning follow-up`,
-      hvac: `${customer.name || "Customer"} maintenance follow-up`,
-      plumbing: `${customer.name || "Customer"} repair follow-up`,
+      landscaping: `${accountName} seasonal follow-up`,
+      property_maintenance: `${accountName} site follow-up`,
+      pressure_washing: `${accountName} wash follow-up`,
+      cleaning: `${accountName} cleaning follow-up`,
+      hvac: `${accountName} maintenance follow-up`,
+      plumbing: `${accountName} repair follow-up`,
     };
     const requestedServiceTypes = {
       landscaping: "Seasonal property follow-up",
@@ -686,11 +1013,12 @@
     };
 
     return {
-      title: options.title || requestTitles[businessKey] || `${customer.name || "Customer"} follow-up request`,
+      title: options.title || requestTitles[businessKey] || `${accountName} follow-up request`,
       requestedServiceType: options.requestedServiceType || requestedServiceTypes[businessKey] || "Follow-up request",
       serviceAddress: address === "No service address yet." ? "" : address,
       summary: options.summary || summaryByTrade[businessKey] || firstFilled(customer?.follow_up_notes, customer?.service_notes, customer?.notes),
       notes: options.notes || notesByTrade[businessKey] || "",
+      customer_location_id: String(options.customer_location_id || "").trim(),
       message: options.message || "Follow-up request draft opened from the customer record.",
     };
   }
@@ -856,15 +1184,16 @@
     clearLeadForm();
     renderLeadCustomerOptions(customer.id);
     if (leadCustomerId) leadCustomerId.value = customer.id;
-    if (leadContactName) leadContactName.value = customer.name || "";
+    if (leadContactName) leadContactName.value = customer.name || customer.company_name || "";
     if (leadContactEmail) leadContactEmail.value = customer.email || "";
     if (leadContactPhone) leadContactPhone.value = customer.phone || "";
     if (leadPreferredContact) leadPreferredContact.value = customer.preferred_contact || "phone";
     if (leadRequestedService) leadRequestedService.value = draft.requestedServiceType || "";
-    if (leadTitle) leadTitle.value = draft.title || `${customer.name || "Customer"} request`;
+    if (leadTitle) leadTitle.value = draft.title || `${customerAccountName(customer)} request`;
     if (leadServiceAddress) leadServiceAddress.value = draft.serviceAddress || "";
     if (leadSummary) leadSummary.value = draft.summary || "";
     if (leadNotes) leadNotes.value = draft.notes || "";
+    global.CURRENT_LEAD_CUSTOMER_LOCATION_ID = draft.customer_location_id || "";
     if (leadSummary) leadSummary.focus();
     setInlineMessage(leadMsg, draft.message || "New request draft opened from the customer record.", "ok");
   }
@@ -880,12 +1209,13 @@
     showToast(options.pendingMessage || "Creating follow-up request...");
     Promise.resolve(leadPlanApi.saveLeadRecord({
       customer_id: customer.id || "",
-      contact_name: customer.name || "",
+      contact_name: customer.name || customer.company_name || "",
       contact_email: customer.email || "",
       contact_phone: customer.phone || "",
       preferred_contact: customer.preferred_contact || "phone",
-      title: draft.title || `${customer.name || "Customer"} follow-up request`,
+      title: draft.title || `${customerAccountName(customer)} follow-up request`,
       requested_service_type: draft.requestedServiceType || "Follow-up request",
+      customer_location_id: draft.customer_location_id || "",
       service_address: draft.serviceAddress || "",
       summary: draft.summary || "",
       notes: draft.notes || "",
@@ -907,23 +1237,27 @@
     return true;
   }
 
-  function openCustomerBidDraft(customer) {
+  function openCustomerBidDraft(customer, location = null) {
     if (!customer) return;
     switchTab("bids");
     const draft = startNewBid(preferredBidProfile());
-    const address = customerDisplayAddress(customer);
+    const address = location ? customerLocationDisplayAddress(location) : customerDisplayAddress(customer);
+    const locationLabel = String(location?.site_name || "").trim();
+    const titleBase = customerAccountName(customer);
     const nextDraft = {
       ...draft,
       customer_id: customer.id,
-      title: `${customer.name || "Customer"} proposal`,
-      site_contact: customer.name || "",
-      service_address: address === "No service address yet." ? "" : address,
+      customer_location_id: String(location?.id || draft?.customer_location_id || "").trim(),
+      title: `${titleBase}${locationLabel ? ` · ${locationLabel}` : ""} proposal`,
+      site_contact: location?.contact_name || customer.name || "",
+      service_address: address === "No service address yet." || address === "No site address yet." ? "" : address,
+      internal_notes: [draft.internal_notes, location?.access_notes, location?.notes].filter((value) => String(value || "").trim()).join(" | "),
       updated_at: new Date().toISOString(),
     };
     replaceBidDraft(nextDraft);
     renderBids(bidSearch?.value || "");
     if (bidProjectSummary) bidProjectSummary.focus();
-    setInlineMessage(bidMsg, "Proposal draft opened from the customer record.", "ok");
+    setInlineMessage(bidMsg, locationLabel ? `Proposal draft opened for ${locationLabel}.` : "Proposal draft opened from the customer record.", "ok");
   }
 
   function openCustomerPaymentDraft(customerIdValue) {
@@ -933,11 +1267,25 @@
     setInlineMessage(paymentMsg, "Payment form opened for this customer.", "ok");
   }
 
-  function openCustomerBookingDraft(customer, blueprint = (typeof currentWorkspaceBlueprint === "function" ? currentWorkspaceBlueprint() : { business: { key: "service_business" } })) {
+  function openCustomerBookingDraft(customer, blueprint = (typeof currentWorkspaceBlueprint === "function" ? currentWorkspaceBlueprint() : { business: { key: "service_business" } }), location = null) {
     if (!customer) return;
     const bookingApi = window.PROOFLINK_OPERATOR_BOOKINGS_WORKSPACE || {};
+    const locationLabel = String(location?.site_name || "").trim();
+    const locationAddress = location ? customerLocationDisplayAddress(location) : customerDisplayAddress(customer);
+    const extraNotes = [
+      locationLabel ? `Site: ${locationLabel}` : "",
+      locationAddress !== "No site address yet." && locationAddress !== "No service address yet." ? `Address: ${locationAddress}` : "",
+      location?.access_notes || "",
+      location?.notes || "",
+    ].filter((value) => String(value || "").trim()).join(" | ");
     if (typeof bookingApi.openBookingDraftForCustomer === "function") {
-      bookingApi.openBookingDraftForCustomer(customer, {}, blueprint);
+      bookingApi.openBookingDraftForCustomer(customer, {
+        customer_id: customer.id || "",
+        customer_location_id: location?.id || "",
+        locationLabel,
+        service_address: locationAddress !== "No site address yet." && locationAddress !== "No service address yet." ? locationAddress : "",
+        extraNotes,
+      }, blueprint);
       return;
     }
     switchTab("bookings");
@@ -979,7 +1327,7 @@
       return openCustomerPlanOrder(customer, blueprint);
     }
     if (action === "reactivate-repeat") {
-      openCustomerBookingDraft(customer, blueprint);
+      openCustomerBookingDraft(customer, blueprint, options.location || null);
       return true;
     }
     if (action === "request") {
@@ -1050,7 +1398,42 @@
       .sort((a, b) => new Date(b.updated_at || b.created_at || 0).getTime() - new Date(a.updated_at || a.created_at || 0).getTime())
       .slice(0, 12);
     const interactions = await fetchCustomerInteractions(customerIdValue);
+    const rawCustomerLocations = await fetchCustomerLocations(customerIdValue);
+    const locationRollups = customerLocationRollups({
+      customer,
+      locations: rawCustomerLocations,
+      requests: customerRequestsRows,
+      bids: customerBidRows,
+      orders: customerOrders,
+      jobs: customerJobsRows,
+    });
+    const currentLocationId = String(global.CURRENT_CUSTOMER_DETAIL_LOCATION_ID || "").trim();
+    const hasSavedLocations = Array.isArray(rawCustomerLocations) && rawCustomerLocations.length > 0;
+    const activeLocationRollup = currentLocationId === "__new__"
+      ? null
+      : (locationRollups.find((entry) => entry.location.id === currentLocationId) || locationRollups[0] || null);
+    const activeLocation = activeLocationRollup?.location || null;
+    const locationDraft = currentLocationId === "__new__"
+      ? {
+          id: "",
+          site_name: "",
+          site_code: "",
+          contact_name: customer.name || "",
+          contact_phone: customer.phone || "",
+          contact_email: customer.email || "",
+          address_line1: customer.address_line1 || customer.service_address || customer.billing_address || "",
+          city: customer.city || "",
+          state: customer.state || "",
+          zip: customer.zip || "",
+          access_notes: customer.access_notes || customer.entry_notes || customer.gate_notes || "",
+          notes: "",
+          is_primary: !hasSavedLocations,
+        }
+      : (rawCustomerLocations.find((entry) => entry.id === activeLocation?.id) || activeLocation || null);
     const customerPayments = sortedPayments(PAYMENTS_CACHE.filter((p) => p.customer_id === customerIdValue)).slice(0, 12);
+    const customerJobMedia = await fetchCustomerJobMedia(customerJobsRows);
+    const proofGallery = customerProofGalleryEntries(customerBidRows, customerJobMedia);
+    const activeSiteFeed = customerLocationActivityFeed(activeLocationRollup);
     const totalBilled = customerOrders.reduce((sum, order) => sum + Number(order.total_cents || 0), 0);
     const totalPaid = customerPayments.reduce((sum, payment) => sum + Math.max(0, paymentRevenueContributionCents(payment)), 0);
     const balance = Math.max(0, totalBilled - totalPaid);
@@ -1112,6 +1495,8 @@
     const lastTouchValue = customer.last_contact_at || latestInteraction?.created_at || "";
     const hasActiveOrders = CRM_ORDERS_CACHE.some((o) => o.customer_id === customerIdValue && !["completed", "cancelled", "archived"].includes(String(o.status || "").toLowerCase()));
     const hasActiveJobs = JOBS_CACHE.some((job) => job.customer_id === customerIdValue && !["completed", "cancelled", "archived"].includes(String(job.status || "").toLowerCase()));
+    const accountTitle = customerAccountName(customer);
+    const primaryContact = customerPrimaryContact(customer);
     const customerQuickActions = [
       { label: "New request", className: "btn btn-primary", data: { "customer-action": "request" } },
       { label: "Draft proposal", className: "btn btn-ghost", data: { "customer-action": "bid" } },
@@ -1151,19 +1536,21 @@
     customerDetailWrap.innerHTML = `
       ${renderRecordHeroCard({
         eyebrow: "Customer record",
-        title: customer.name || "Unnamed customer",
+        title: accountTitle,
         badges: [
           { label: `${openRequestsCount} open request${openRequestsCount === 1 ? "" : "s"}` },
           { label: `${openProposalCount} live proposal${openProposalCount === 1 ? "" : "s"}` },
           { label: `${activeOrderCount + activeJobCount} active work item${activeOrderCount + activeJobCount === 1 ? "" : "s"}` },
+          locationRollups.length ? { label: `${locationRollups.length} site${locationRollups.length === 1 ? "" : "s"}` } : null,
           balance > 0 ? { label: `${formatUsd(balance)} open`, tone: "pill-bad" } : { label: "No balance due", tone: "pill-on" },
         ],
         meta: [
+          primaryContact !== "No primary contact yet." ? `Primary contact: ${primaryContact}` : "No primary contact yet.",
           `${customer.email || "No email"} | ${customer.phone || "No phone"}`,
           `Preferred contact: ${customer.preferred_contact || "email"}`,
           address,
         ],
-        description: "Open the customer once, then move requests, pricing, field work, and payment follow-through from the same record.",
+        description: "Open the account once, then move requests, pricing, field work, payment follow-through, and site context from the same record.",
         summary: [
           { label: "Open requests", value: String(openRequestsCount), note: "Needs response or scope" },
           { label: "Open proposals", value: String(openProposalCount), note: "Still moving toward approval" },
@@ -1171,6 +1558,12 @@
           { label: "Outstanding balance", value: formatUsd(balance), note: "Billed work not fully collected" },
         ],
       })}
+      <div class="record-nav">
+        <button type="button" class="record-nav__button" data-customer-jump="customer-section-sites">Sites</button>
+        <button type="button" class="record-nav__button" data-customer-jump="customer-section-proof">Proof</button>
+        <button type="button" class="record-nav__button" data-customer-jump="customer-section-history">History</button>
+        <button type="button" class="record-nav__button" data-customer-action="back-to-list">Back to list</button>
+      </div>
       ${renderRecordActionRail({
         eyebrow: "Quick actions",
         title: "Move the relationship forward",
@@ -1179,7 +1572,175 @@
       })}
       ${renderCustomerRecordFocusCard()}
 
-      <div class="customer-flow-grid">
+      <div id="customer-section-sites" class="customer-site-grid">
+        <div class="detail-card detail-card--spaced">
+          <div class="record-section-head">
+            <div>
+              <div class="kicker">Account locations</div>
+              <div><strong>Track campuses, buildings, and service sites under one account</strong></div>
+            </div>
+            <div class="workspace-chip-row">
+              <span class="pill">${escapeHtml(String(locationRollups.length))} site${locationRollups.length === 1 ? "" : "s"}</span>
+              <span class="pill">${escapeHtml(String(locationRollups.filter((entry) => entry.activeWorkCount > 0).length))} active</span>
+            </div>
+          </div>
+          <div class="detail-copy">Keep one customer account for the relationship, then break the work down by building, campus, or property so the operator can see where the activity actually lives.</div>
+          ${locationRollups.length ? `
+            <div class="customer-site-list">
+              ${locationRollups.map((entry) => `
+                <button type="button" class="customer-site-item ${entry.location.id === activeLocation?.id ? "is-active" : ""}" data-customer-location-select="${escapeAttr(entry.location.id)}">
+                  <span class="customer-site-item__main">
+                    <strong>${escapeHtml(entry.location.site_name || "Unnamed site")}</strong>
+                    <span>${escapeHtml(customerLocationDisplayAddress(entry.location))}</span>
+                  </span>
+                  <span class="customer-site-item__meta">
+                    ${entry.location.is_primary ? `<span class="pill pill-on">Primary</span>` : ""}
+                    <span class="pill">${escapeHtml(String(entry.requestCount + entry.bidCount + entry.orderCount + entry.jobCount))} linked</span>
+                  </span>
+                </button>
+              `).join("")}
+            </div>
+          ` : `
+            <div class="empty-note">No named sites yet. Add one so this customer can hold multiple buildings or service locations cleanly.</div>
+          `}
+          <div class="row u-mt-10">
+            <button type="button" class="btn btn-ghost" data-customer-location-action="new">Add site</button>
+            ${activeLocation ? `<button type="button" class="btn btn-ghost" data-customer-location-action="focus-jobs">Open matching jobs</button>` : ""}
+          </div>
+        </div>
+
+        <div class="detail-card detail-card--spaced">
+          <div class="record-section-head">
+            <div>
+              <div class="kicker">${locationDraft?.id ? "Site record" : "New site"}</div>
+              <div><strong>${escapeHtml(locationDraft?.site_name || "Create the next building or service location")}</strong></div>
+            </div>
+            ${activeLocationRollup ? `
+              <div class="workspace-chip-row">
+                <span class="pill">${escapeHtml(String(activeLocationRollup.requestCount))} requests</span>
+                <span class="pill">${escapeHtml(String(activeLocationRollup.bidCount))} proposals</span>
+                <span class="pill">${escapeHtml(String(activeLocationRollup.activeWorkCount))} active</span>
+              </div>
+            ` : ""}
+          </div>
+          <div class="grid two form-grid">
+            <label>Site / building name
+              <input id="customerLocationSiteName" value="${escapeAttr(locationDraft?.site_name || "")}" placeholder="North campus, Building A, Water plant 3" />
+            </label>
+            <label>Site code
+              <input id="customerLocationSiteCode" value="${escapeAttr(locationDraft?.site_code || "")}" placeholder="Optional internal code" />
+            </label>
+          </div>
+          <div class="grid two form-grid">
+            <label>On-site contact
+              <input id="customerLocationContactName" value="${escapeAttr(locationDraft?.contact_name || "")}" placeholder="On-site lead or front desk" />
+            </label>
+            <label>Contact phone
+              <input id="customerLocationContactPhone" value="${escapeAttr(locationDraft?.contact_phone || "")}" placeholder="(555) 555-5555" />
+            </label>
+          </div>
+          <label>Contact email
+            <input id="customerLocationContactEmail" value="${escapeAttr(locationDraft?.contact_email || "")}" placeholder="site@example.com" />
+          </label>
+          <div class="form-row">
+            <label>Address
+              <input id="customerLocationAddress1" value="${escapeAttr(locationDraft?.address_line1 || "")}" placeholder="Street address" />
+            </label>
+          </div>
+          <div class="form-row inline-grid-quote">
+            <label>City
+              <input id="customerLocationCity" value="${escapeAttr(locationDraft?.city || "")}" placeholder="City" />
+            </label>
+            <label>State
+              <input id="customerLocationState" value="${escapeAttr(locationDraft?.state || "")}" placeholder="ST" maxlength="2" />
+            </label>
+            <label>ZIP
+              <input id="customerLocationZip" value="${escapeAttr(locationDraft?.zip || "")}" placeholder="00000" />
+            </label>
+          </div>
+          <label>Access notes
+            <textarea id="customerLocationAccessNotes" rows="3" placeholder="Gate, alarm, dock, campus parking, or entry notes.">${escapeHtml(locationDraft?.access_notes || "")}</textarea>
+          </label>
+          <label>Site notes
+            <textarea id="customerLocationNotes" rows="3" placeholder="Anything that belongs to this location instead of the whole account.">${escapeHtml(locationDraft?.notes || "")}</textarea>
+          </label>
+          <label class="checkbox-field"><input id="customerLocationIsPrimary" type="checkbox"${locationDraft?.is_primary ? " checked" : ""} /> Mark as primary site for this account</label>
+          <div class="row u-mt-10">
+            <button type="button" class="btn btn-primary" data-customer-location-action="save" data-customer-location-id="${escapeAttr(locationDraft?.id || "")}">${locationDraft?.id ? "Save site" : "Create site"}</button>
+            ${locationDraft?.id && !locationDraft?.is_virtual ? `<button type="button" class="btn btn-ghost u-color-warn" data-customer-location-action="delete" data-customer-location-id="${escapeAttr(locationDraft.id)}">Delete site</button>` : ""}
+            ${activeLocation && !currentLocationId.startsWith("__") ? `
+              <button type="button" class="btn btn-ghost" data-customer-location-action="request">New request for this site</button>
+              <button type="button" class="btn btn-ghost" data-customer-location-action="bid">Draft proposal</button>
+              <button type="button" class="btn btn-ghost" data-customer-location-action="booking">Book visit</button>
+            ` : ""}
+          </div>
+          <div id="customerLocationMsg" class="msg"></div>
+          ${activeLocationRollup?.lastTouch ? `<div class="detail-copy">Last work touch for this site: ${escapeHtml(formatDateTime(activeLocationRollup.lastTouch))}</div>` : ""}
+          ${activeLocationRollup ? `
+            <div class="customer-site-activity">
+              <div class="record-section-head">
+                <div>
+                  <div class="kicker">Linked work</div>
+                  <div><strong>Everything tied to this site stays grouped</strong></div>
+                </div>
+                <div class="workspace-chip-row">
+                  <span class="pill">${escapeHtml(String(activeLocationRollup.requestCount))} requests</span>
+                  <span class="pill">${escapeHtml(String(activeLocationRollup.bidCount))} proposals</span>
+                  <span class="pill">${escapeHtml(String(activeLocationRollup.orderCount + activeLocationRollup.jobCount))} work items</span>
+                </div>
+              </div>
+              ${activeSiteFeed.length ? `
+                <div class="customer-site-activity-list">
+                  ${activeSiteFeed.map((entry) => `
+                    <button type="button" class="list-item customer-site-activity-item" data-customer-open-tab="${escapeAttr(entry.tab)}" data-customer-open-id="${escapeAttr(entry.recordId)}">
+                      <div class="li-main">
+                        <div class="li-title">${escapeHtml(entry.title)}</div>
+                        <div class="li-sub muted">${escapeHtml(entry.meta)}</div>
+                      </div>
+                      <div class="li-meta">
+                        <span class="pill">${escapeHtml(entry.badge)}</span>
+                      </div>
+                    </button>
+                  `).join("")}
+                </div>
+              ` : `<div class="empty-note">No requests, proposals, booked work, or jobs are linked to this site yet.</div>`}
+            </div>
+          ` : ""}
+        </div>
+      </div>
+
+      <div id="customer-section-proof" class="detail-card detail-card--spaced u-mt-14">
+        <div class="record-section-head">
+          <div>
+            <div class="kicker">Associated proof</div>
+            <div><strong>Work photos, walkthrough images, and site memory stay attached</strong></div>
+          </div>
+          <div class="workspace-chip-row">
+            <span class="pill">${escapeHtml(String(proofGallery.length))} gallery item${proofGallery.length === 1 ? "" : "s"}</span>
+            <span class="pill">${escapeHtml(String(customerJobsRows.length))} recent job${customerJobsRows.length === 1 ? "" : "s"}</span>
+          </div>
+        </div>
+        <div class="detail-copy">This keeps the operator from having to hunt across walkthroughs and field records to remember what was found, what was done, and which site it belonged to.</div>
+        ${proofGallery.length ? `
+          <div class="photo-grid">
+            ${proofGallery.map((entry) => `
+              <div class="photo-card">
+                <img src="${escapeAttr(entry.url)}" alt="${escapeAttr(entry.title || "Customer proof")}" />
+                <div class="photo-card__body">
+                  <div class="row" style="justify-content:space-between;">
+                    <div class="photo-card__title">${escapeHtml(entry.title || "Customer proof")}</div>
+                    <span class="pill">${escapeHtml(entry.badge || "Proof")}</span>
+                  </div>
+                  <div class="photo-card__copy">${escapeHtml(entry.note || "No extra note attached.")}</div>
+                  ${entry.recordId ? `<div class="photo-card__actions"><button type="button" class="btn btn-ghost btn-sm" data-customer-open-tab="${escapeAttr(entry.tab || "")}" data-customer-open-id="${escapeAttr(entry.recordId)}">Open ${escapeHtml(entry.tab === "jobs" ? "job" : "proposal")}</button></div>` : ""}
+                </div>
+              </div>
+            `).join("")}
+          </div>
+        ` : `<div class="empty-note">No walkthrough or field photos are attached to this customer yet. The next bid or job photo will surface here automatically.</div>`}
+      </div>
+
+      <div id="customer-section-history" class="customer-flow-grid">
         <div class="customer-flow-card">
           <div class="customer-flow-card__head">
             <div>
@@ -1446,6 +2007,11 @@
         if (action === "orders") return switchTab("orders");
         if (action === "jobs") return switchTab("jobs");
         if (action === "payments") return switchTab("payments");
+        if (action === "back-to-list") {
+          customersList?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+          customersList?.querySelector?.(".list-item.is-active")?.focus?.();
+          return;
+        }
         if (action === "note") {
           const summaryInput = $("customerInteractionSummary");
           summaryInput?.focus?.();
@@ -1461,6 +2027,109 @@
         const tab = button.getAttribute("data-customer-open-tab") || "";
         const recordId = button.getAttribute("data-customer-open-id") || "";
         if (tab && recordId) openCustomerRecordTab(tab, recordId);
+      });
+    });
+
+    customerDetailWrap.querySelectorAll("[data-customer-jump]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const targetId = button.getAttribute("data-customer-jump") || "";
+        const target = targetId ? customerDetailWrap.querySelector(`#${targetId}`) : null;
+        target?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+      });
+    });
+
+      customerDetailWrap.querySelectorAll("[data-customer-location-select]").forEach((button) => {
+        button.addEventListener("click", () => {
+          global.CURRENT_CUSTOMER_DETAIL_LOCATION_ID = button.getAttribute("data-customer-location-select") || "";
+          global.PROOFLINK_OPERATOR_CUSTOMERS_WORKSPACE?.syncCustomerWorkspaceState?.();
+          renderCustomerDetailWorkspace(customerIdValue, customer).catch((error) => {
+            notifyOperator(error?.message || String(error));
+          });
+        });
+      });
+
+    customerDetailWrap.querySelectorAll("[data-customer-location-action]").forEach((button) => {
+      button.addEventListener("click", async () => {
+        const action = button.getAttribute("data-customer-location-action") || "";
+        const locationId = button.getAttribute("data-customer-location-id") || "";
+        const locationMsg = $("customerLocationMsg");
+        const selectedLocation = rawCustomerLocations.find((entry) => entry.id === (locationId || activeLocation?.id)) || activeLocation || null;
+          if (action === "new") {
+            global.CURRENT_CUSTOMER_DETAIL_LOCATION_ID = "__new__";
+            global.PROOFLINK_OPERATOR_CUSTOMERS_WORKSPACE?.syncCustomerWorkspaceState?.();
+            renderCustomerDetailWorkspace(customerIdValue, customer).catch((error) => notifyOperator(error?.message || String(error)));
+            return;
+          }
+        if (action === "focus-jobs") {
+          if (activeLocationRollup?.matchedJobs?.[0]?.id) {
+            ACTIVE_JOB_ID = activeLocationRollup.matchedJobs[0].id;
+          }
+          switchTab("jobs");
+          return;
+        }
+          if (action === "request" && selectedLocation) {
+            openCustomerRequestDraft(customer, {
+              customer_location_id: selectedLocation.id || "",
+              title: `${customerAccountName(customer)}${selectedLocation?.site_name ? ` · ${selectedLocation.site_name}` : ""} request`,
+              serviceAddress: customerLocationDisplayAddress(selectedLocation) === "No site address yet." ? "" : customerLocationDisplayAddress(selectedLocation),
+              notes: [selectedLocation.access_notes, selectedLocation.notes].filter((value) => String(value || "").trim()).join(" | "),
+              message: selectedLocation?.site_name
+                ? `New request draft opened for ${selectedLocation.site_name}.`
+              : "New request draft opened from the customer record.",
+          }, blueprint);
+          return;
+        }
+        if (action === "bid" && selectedLocation) {
+          openCustomerBidDraft(customer, selectedLocation);
+          return;
+        }
+        if (action === "booking" && selectedLocation) {
+          openCustomerBookingDraft(customer, blueprint, selectedLocation);
+          return;
+        }
+        if (action === "delete" && locationId) {
+          const confirmed = typeof showConfirmModal === "function"
+            ? await showConfirmModal("Delete this site from the customer account?", "Delete", "Cancel")
+            : window.confirm("Delete this site from the customer account?");
+          if (!confirmed) return;
+          setInlineMessage(locationMsg, "Deleting site...");
+            try {
+              await deleteCustomerLocation(customerIdValue, locationId);
+              global.CURRENT_CUSTOMER_DETAIL_LOCATION_ID = "";
+              global.PROOFLINK_OPERATOR_CUSTOMERS_WORKSPACE?.syncCustomerWorkspaceState?.();
+              setInlineMessage(locationMsg, "Site deleted.", "ok");
+              renderCustomerDetailWorkspace(customerIdValue, customer).catch((error) => notifyOperator(error?.message || String(error)));
+            } catch (error) {
+            setInlineMessage(locationMsg, error.message || String(error), "error");
+          }
+          return;
+        }
+        if (action === "save") {
+          setInlineMessage(locationMsg, "Saving site...");
+            try {
+              const saved = await saveCustomerLocation(customerIdValue, {
+              id: locationId || null,
+              site_name: $("customerLocationSiteName")?.value || "",
+              site_code: $("customerLocationSiteCode")?.value || "",
+              contact_name: $("customerLocationContactName")?.value || "",
+              contact_phone: $("customerLocationContactPhone")?.value || "",
+              contact_email: $("customerLocationContactEmail")?.value || "",
+              address_line1: $("customerLocationAddress1")?.value || "",
+              city: $("customerLocationCity")?.value || "",
+              state: $("customerLocationState")?.value || "",
+              zip: $("customerLocationZip")?.value || "",
+              access_notes: $("customerLocationAccessNotes")?.value || "",
+              notes: $("customerLocationNotes")?.value || "",
+              is_primary: $("customerLocationIsPrimary")?.checked || false,
+              });
+              global.CURRENT_CUSTOMER_DETAIL_LOCATION_ID = saved.id || "";
+              global.PROOFLINK_OPERATOR_CUSTOMERS_WORKSPACE?.syncCustomerWorkspaceState?.();
+              setInlineMessage(locationMsg, "Site saved.", "ok");
+              renderCustomerDetailWorkspace(customerIdValue, customer).catch((error) => notifyOperator(error?.message || String(error)));
+            } catch (error) {
+            setInlineMessage(locationMsg, error.message || String(error), "error");
+          }
+        }
       });
     });
 
@@ -1504,6 +2173,12 @@
 
   const helpers = {
     customerDisplayAddress,
+      customerAccountName,
+      customerLocationDisplayAddress,
+      fetchCustomerLocations,
+      customerLocationRollups,
+      customerLocationActivityFeed,
+    customerProofGalleryEntries,
     customerRequests,
     customerBids,
     bidGrandTotalCents,

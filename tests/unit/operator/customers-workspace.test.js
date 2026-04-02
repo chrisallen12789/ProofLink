@@ -35,6 +35,7 @@ function loadCustomersWorkspace(overrides = {}) {
     ACTIVE_CUSTOMER_ID: "",
     customerFormTitle: { textContent: "" },
     customerId: makeField(),
+    customerCompanyName: makeField(),
     customerName: makeField(),
     customerEmail: makeField(),
     customerPhone: makeField(),
@@ -92,15 +93,30 @@ describe("operator customers workspace", () => {
 
     const payload = context.window.customerInputPayload({
       name: "",
+      company_name: "Dallas Municipal Services",
       email: "logan@example.com",
       state: "tx",
       city: "Dallas",
       zip: "75201",
     });
 
-    expect(payload.name).toBe("logan@example.com");
+    expect(payload.company_name).toBe("Dallas Municipal Services");
+    expect(payload.name).toBe("Dallas Municipal Services");
     expect(payload.state).toBe("TX");
     expect(payload.city).toBe("Dallas");
+  });
+
+  test("customerInputPayload falls back to the account name when there is no contact yet", () => {
+    const context = loadCustomersWorkspace();
+
+    const payload = context.window.customerInputPayload({
+      company_name: "North Campus Facilities",
+      name: "",
+      email: "",
+      phone: "",
+    });
+
+    expect(payload.name).toBe("North Campus Facilities");
   });
 
   test("customerInteractionLabel falls back to title case", () => {

@@ -223,6 +223,7 @@ async function importBridgeOrdersToCrm() {
 function populateCustomerForm(customer = null) {
   if (customerFormTitle) customerFormTitle.textContent = customer?.id ? "Edit customer" : "New customer";
   if (customerId) customerId.value = customer?.id || "";
+  if (customerCompanyName) customerCompanyName.value = customer?.company_name || "";
   if (customerName) customerName.value = customer?.name || "";
   if (customerEmail) customerEmail.value = customer?.email || "";
   if (customerPhone) customerPhone.value = customer?.phone || "";
@@ -240,30 +241,312 @@ function startNewCustomer() {
   ACTIVE_CUSTOMER_ID = null;
   populateCustomerForm(null);
   setInlineMessage(customerMsg, "");
+  syncCustomerWorkspaceState({ customerId: "", siteId: "", historyMode: "push" });
   renderCustomersList(customerSearch?.value || "");
+}
+
+const CUSTOMER_WORKBENCH_FILTERS = {
+  all: true,
+  active_work: true,
+  open_balance: true,
+  multi_site: true,
+  top_value: true,
+  stale: true,
+};
+
+let CUSTOMER_LOCATION_COUNTS_READY = false;
+let CUSTOMER_LOCATION_COUNTS_FEATURE = true;
+let CUSTOMER_LOCATION_COUNTS_LOADING = null;
+const CUSTOMER_LOCATION_COUNTS = new Map();
+
+function customerWorkbenchSearchField() {
+  return customerSearch || (typeof $ === "function" ? $("customerSearch") : null);
+}
+
+function customerWorkbenchFilterField() {
+  return typeof $ === "function" ? $("customerWorkbenchFilter") : null;
+}
+
+function customerWorkbenchStatsField() {
+  return typeof $ === "function" ? $("customerWorkbenchStats") : null;
+}
+
+function normalizeCustomerWorkbenchFilter(value) {
+  const key = String(value || "all").trim().toLowerCase();
+  return CUSTOMER_WORKBENCH_FILTERS[key] ? key : "all";
+}
+
+function currentCustomerWorkspaceSiteId() {
+  return String(window.CURRENT_CUSTOMER_DETAIL_LOCATION_ID || "").trim();
+}
+
+function readCustomerWorkspaceParams() {
+  try {
+    return new URLSearchParams(window.location?.search || "");
+  } catch (_) {
+    return null;
+  }
+}
+
+function applyCustomerWorkspaceStateFromLocation() {
+  const params = readCustomerWorkspaceParams();
+  if (!params) return;
+
+  const query = params.get("customer_q") || "";
+  const filter = normalizeCustomerWorkbenchFilter(params.get("customer_filter") || "all");
+  const customerId = String(params.get("customer") || "").trim();
+  const siteId = String(params.get("site") || "").trim();
+
+  const searchField = customerWorkbenchSearchField();
+  const filterField = customerWorkbenchFilterField();
+  if (searchField && searchField.value !== query) searchField.value = query;
+  if (filterField) filterField.value = filter;
+  if (customerId) {
+    ACTIVE_CUSTOMER_ID = customerId;
+    CUSTOMER_CREATING = false;
+  }
+  window.CURRENT_CUSTOMER_DETAIL_LOCATION_ID = siteId;
+}
+
+function syncCustomerWorkspaceState(options = {}) {
+  const params = readCustomerWorkspaceParams();
+  if (!params) return;
+
+  const query = options.query !== undefined
+    ? String(options.query || "").trim()
+    : String(customerWorkbenchSearchField()?.value || "");
+  const filter = options.filter !== undefined
+    ? normalizeCustomerWorkbenchFilter(options.filter)
+    : normalizeCustomerWorkbenchFilter(customerWorkbenchFilterField()?.value || "all");
+  const customerId = options.customerId !== undefined
+    ? String(options.customerId || "").trim()
+    : (CUSTOMER_CREATING ? "" : String(ACTIVE_CUSTOMER_ID || "").trim());
+  const siteId = options.siteId !== undefined
+    ? String(options.siteId || "").trim()
+    : currentCustomerWorkspaceSiteId();
+
+  if (query) params.set("customer_q", query);
+  else params.delete("customer_q");
+  if (filter && filter !== "all") params.set("customer_filter", filter);
+  else params.delete("customer_filter");
+  if (customerId) params.set("customer", customerId);
+  else params.delete("customer");
+  if (siteId) params.set("site", siteId);
+  else params.delete("site");
+
+  const nextSearch = params.toString();
+  const nextUrl = `${window.location?.pathname || ""}${nextSearch ? `?${nextSearch}` : ""}${window.location?.hash || ""}`;
+  const usePush = options.historyMode === "push" && window.history?.pushState;
+  if (usePush) window.history.pushState(null, "", nextUrl);
+  else if (window.history?.replaceState) window.history.replaceState(null, "", nextUrl);
+
+  return nextUrl;
+}
+
+async function fetchCustomerLocationCounts({ force = false } = {}) {
+  if (!CUSTOMER_LOCATION_COUNTS_FEATURE || !sb?.from) return CUSTOMER_LOCATION_COUNTS;
+  if (!force && CUSTOMER_LOCATION_COUNTS_READY) return CUSTOMER_LOCATION_COUNTS;
+  if (CUSTOMER_LOCATION_COUNTS_LOADING) return CUSTOMER_LOCATION_COUNTS_LOADING;
+
+  CUSTOMER_LOCATION_COUNTS_LOADING = (async () => {
+    try {
+      const query = scopeQuery(sb.from("customer_locations").select("customer_id"));
+      const { data, error } = await query;
+      if (error) throw error;
+      CUSTOMER_LOCATION_COUNTS.clear();
+      (data || []).forEach((row) => {
+        const customerId = String(row?.customer_id || "").trim();
+        if (!customerId) return;
+        CUSTOMER_LOCATION_COUNTS.set(customerId, (CUSTOMER_LOCATION_COUNTS.get(customerId) || 0) + 1);
+      });
+      CUSTOMER_LOCATION_COUNTS_READY = true;
+    } catch (error) {
+      const message = String(error?.message || error || "").toLowerCase();
+      if (message.includes("customer_locations") || message.includes("relation") || message.includes("does not exist")) {
+        CUSTOMER_LOCATION_COUNTS_FEATURE = false;
+      }
+    } finally {
+      CUSTOMER_LOCATION_COUNTS_LOADING = null;
+    }
+    return CUSTOMER_LOCATION_COUNTS;
+  })();
+
+  return CUSTOMER_LOCATION_COUNTS_LOADING;
+}
+
+function customerCacheOrders() {
+  return typeof CRM_ORDERS_CACHE !== "undefined" && Array.isArray(CRM_ORDERS_CACHE) ? CRM_ORDERS_CACHE : [];
+}
+
+function customerCachePayments() {
+  return typeof PAYMENTS_CACHE !== "undefined" && Array.isArray(PAYMENTS_CACHE) ? PAYMENTS_CACHE : [];
+}
+
+function customerCacheJobs() {
+  return typeof JOBS_CACHE !== "undefined" && Array.isArray(JOBS_CACHE) ? JOBS_CACHE : [];
+}
+
+function customerCacheLeads() {
+  return typeof LEADS_CACHE !== "undefined" && Array.isArray(LEADS_CACHE) ? LEADS_CACHE : [];
+}
+
+function customerCacheBids() {
+  return typeof BIDS_CACHE !== "undefined" && Array.isArray(BIDS_CACHE) ? BIDS_CACHE : [];
+}
+
+function customerSiteCount(customer = {}) {
+  const customerId = String(customer.id || "").trim();
+  if (customerId && CUSTOMER_LOCATION_COUNTS.has(customerId)) {
+    return Math.max(1, Number(CUSTOMER_LOCATION_COUNTS.get(customerId) || 0));
+  }
+  const explicit = Number(customer.site_count || 0);
+  if (Number.isFinite(explicit) && explicit > 0) return explicit;
+  return String(customer.service_address || customer.address_line1 || "").trim() ? 1 : 0;
+}
+
+function customerOpenBalanceCents(customer = {}) {
+  const customerId = String(customer.id || "").trim();
+  if (!customerId) return 0;
+  const totalBilled = customerCacheOrders()
+    .filter((order) => order.customer_id === customerId)
+    .reduce((sum, order) => sum + Number(order.total_cents || 0), 0);
+  const totalPaid = customerCachePayments()
+    .filter((payment) => payment.customer_id === customerId)
+    .reduce((sum, payment) => {
+      if (typeof paymentRevenueContributionCents === "function") {
+        return sum + Math.max(0, paymentRevenueContributionCents(payment));
+      }
+      return sum + Number(payment.amount_total || payment.amount_cents || 0);
+    }, 0);
+  return Math.max(0, totalBilled - totalPaid);
+}
+
+function customerActiveWorkCount(customer = {}) {
+  const customerId = String(customer.id || "").trim();
+  if (!customerId) return 0;
+  const isClosed = (value, closedStates) => closedStates.includes(String(value || "").trim().toLowerCase());
+  const leads = customerCacheLeads().filter((lead) => lead.customer_id === customerId && !isClosed(lead.status, ["won", "closed", "archived", "cancelled"])).length;
+  const bids = customerCacheBids().filter((bid) => bid.customer_id === customerId && !isClosed(bid.status, ["won", "lost", "archived", "rejected"])).length;
+  const orders = customerCacheOrders().filter((order) => order.customer_id === customerId && !isClosed(order.status, ["completed", "cancelled", "archived", "paid"])).length;
+  const jobs = customerCacheJobs().filter((job) => job.customer_id === customerId && !isClosed(job.status, ["completed", "cancelled", "archived"])).length;
+  return leads + bids + orders + jobs;
+}
+
+function customerLastTouchAt(customer = {}) {
+  return customer.last_contact_at || customer.updated_at || customer.created_at || null;
+}
+
+function customerIsStale(customer = {}, days = 45) {
+  const touchedAt = customerLastTouchAt(customer);
+  if (!touchedAt) return false;
+  const ageMs = Date.now() - new Date(touchedAt).getTime();
+  return ageMs >= days * 86400000;
+}
+
+function topValueCustomerIds(rows = []) {
+  const ranked = [...rows].sort((left, right) => (
+    customerLifetimeValueCents(right) - customerLifetimeValueCents(left)
+  ));
+  const limit = Math.min(Math.max(1, Math.ceil(ranked.length * 0.2)), 10);
+  return new Set(ranked.slice(0, limit).map((customer) => customer.id));
+}
+
+function customerWorkbenchProfile(customer, topValueIds = new Set()) {
+  const siteCount = customerSiteCount(customer);
+  const openBalanceCents = customerOpenBalanceCents(customer);
+  const activeWorkCount = customerActiveWorkCount(customer);
+  const stale = customerIsStale(customer);
+  return {
+    customer,
+    siteCount,
+    openBalanceCents,
+    activeWorkCount,
+    isStale: stale,
+    isTopValue: topValueIds.has(customer.id),
+  };
+}
+
+function renderCustomerWorkbenchStats(profiles = [], visibleProfiles = profiles) {
+  const stats = customerWorkbenchStatsField();
+  if (!stats) return;
+
+  const activeAccounts = visibleProfiles.length;
+  const activeWork = visibleProfiles.reduce((sum, profile) => sum + Number(profile.activeWorkCount || 0), 0);
+  const openBalance = visibleProfiles.reduce((sum, profile) => sum + Number(profile.openBalanceCents || 0), 0);
+  const multiSiteAccounts = visibleProfiles.filter((profile) => profile.siteCount > 1).length;
+  const staleAccounts = visibleProfiles.filter((profile) => profile.isStale).length;
+
+  stats.innerHTML = [
+    `<span class="pill pill-muted">${escapeHtml(String(activeAccounts))} account${activeAccounts === 1 ? "" : "s"} shown</span>`,
+    activeWork ? `<span class="pill pill-on">${escapeHtml(String(activeWork))} active work item${activeWork === 1 ? "" : "s"}</span>` : "",
+    openBalance ? `<span class="pill pill-warn">${escapeHtml(formatUsd(openBalance))} open balance</span>` : "",
+    multiSiteAccounts ? `<span class="pill">${escapeHtml(String(multiSiteAccounts))} multi-site</span>` : "",
+    staleAccounts ? `<span class="pill pill-muted">${escapeHtml(String(staleAccounts))} stale follow-up</span>` : "",
+  ].filter(Boolean).join("");
 }
 
 function renderCustomersList(filter = "") {
   if (!customersList) return;
+  if (!CUSTOMER_LOCATION_COUNTS_READY && !CUSTOMER_LOCATION_COUNTS_LOADING) {
+    fetchCustomerLocationCounts().then(() => renderCustomersList(customerWorkbenchSearchField()?.value || "")).catch(() => {});
+  }
   const query = String(filter || "").trim().toLowerCase();
   const ranked = sortedCustomers(CUSTOMERS_CACHE);
-  const rows = ranked.filter((customer) => (
-    !query || [customer.name, customer.email, customer.phone].some((value) => String(value || "").toLowerCase().includes(query))
-  ));
+  const activeFilter = normalizeCustomerWorkbenchFilter(customerWorkbenchFilterField()?.value || "all");
+  const topValueIds = topValueCustomerIds(ranked);
+  const profiles = ranked
+    .filter((customer) => (
+      !query || [
+        customer.company_name,
+        customer.name,
+        customer.email,
+        customer.phone,
+        customer.address_line1,
+        customer.city,
+        customer.state,
+        customer.zip,
+        customer.service_address,
+        customer.billing_address,
+      ].some((value) => String(value || "").toLowerCase().includes(query))
+    ))
+    .map((customer) => customerWorkbenchProfile(customer, topValueIds));
+  const filteredProfiles = profiles.filter((profile) => {
+    if (activeFilter === "active_work") return profile.activeWorkCount > 0;
+    if (activeFilter === "open_balance") return profile.openBalanceCents > 0;
+    if (activeFilter === "multi_site") return profile.siteCount > 1;
+    if (activeFilter === "top_value") return profile.isTopValue;
+    if (activeFilter === "stale") return profile.isStale;
+    return true;
+  });
+  const rows = filteredProfiles.map((profile) => profile.customer);
+  renderCustomerWorkbenchStats(profiles, filteredProfiles);
 
   const emptyMessage = CUSTOMERS_CACHE.length
-    ? "No customers match this search."
+    ? "No customers match this search or filter."
     : "No customers yet. Create one to start linking work and payments.";
   customersList.innerHTML = rows.length ? "" : `<div class="muted">${emptyMessage}</div>`;
 
-  rows.forEach((customer) => {
+  filteredProfiles.forEach((profile) => {
+    const customer = profile.customer;
+    const title = customer.company_name || customer.name || "Unnamed customer";
+    const contactMeta = customer.company_name && customer.name
+      ? `Primary contact: ${customer.name}`
+      : (customer.name || "No primary contact");
+    const detailMeta = [customer.email || "No email", customer.phone || "No phone"].join(" \u00b7 ");
+    const badges = [
+      profile.siteCount > 1 ? `<span class="pill">${escapeHtml(String(profile.siteCount))} sites</span>` : "",
+      profile.activeWorkCount > 0 ? `<span class="pill pill-on">${escapeHtml(String(profile.activeWorkCount))} active</span>` : "",
+      profile.openBalanceCents > 0 ? `<span class="pill pill-warn">${escapeHtml(formatUsd(profile.openBalanceCents))} open</span>` : "",
+      profile.isStale ? `<span class="pill pill-muted">Needs follow-up</span>` : "",
+    ].filter(Boolean).join("");
     const element = document.createElement("button");
     element.type = "button";
     element.className = `list-item ${ACTIVE_CUSTOMER_ID === customer.id && !CUSTOMER_CREATING ? "is-active" : ""}`;
     element.innerHTML = `
       <div class="li-main">
-        <div class="li-title">${escapeHtml(customer.name || "Unnamed customer")}</div>
-        <div class="li-sub muted">${escapeHtml(customer.email || "No email")} &middot; ${escapeHtml(customer.phone || "No phone")}</div>
+        <div class="li-title">${escapeHtml(title)}</div>
+        <div class="li-sub muted">${escapeHtml(contactMeta)} \u00b7 ${escapeHtml(detailMeta)}</div>
+        ${badges ? `<div class="chip-row chip-row--compact">${badges}</div>` : ""}
       </div>
       <div class="li-meta">
         <span class="pill pill-on">${formatUsd(customerLifetimeValueCents(customer))}</span>
@@ -274,6 +557,7 @@ function renderCustomersList(filter = "") {
       CUSTOMER_CREATING = false;
       ACTIVE_CUSTOMER_ID = customer.id;
       setInlineMessage(customerMsg, "");
+      syncCustomerWorkspaceState({ historyMode: "push" });
       renderCustomersList(customerSearch?.value || "");
     });
     customersList.appendChild(element);
@@ -288,8 +572,9 @@ function renderCustomersList(filter = "") {
     button.addEventListener("click", async () => {
       FETCH_OFFSETS.customers += PAGE_SIZE;
       button.disabled = true;
-      button.textContent = "Loading…";
+      button.textContent = "Loading...";
       await fetchCustomers();
+      await fetchCustomerLocationCounts();
       renderCustomersList(customerSearch?.value || "");
     });
     customersList.appendChild(button);
@@ -315,10 +600,15 @@ async function renderCustomerDetail(customerIdValue) {
   if (!customerDetailWrap) return;
   const customer = CUSTOMERS_CACHE.find((entry) => entry.id === customerIdValue) || null;
   populateCustomerForm(customer);
+  syncCustomerWorkspaceState({
+    customerId: customer?.id || "",
+    siteId: currentCustomerWorkspaceSiteId(),
+  });
   return renderCustomerDetailWorkspace(customerIdValue, customer);
 }
 
 function customerInputPayload(fields = {}) {
+  const companyName = String(fields.company_name || "").trim();
   const name = String(fields.name || "").trim();
   const email = String(fields.email || "").trim();
   const phone = String(fields.phone || "").trim();
@@ -328,7 +618,8 @@ function customerInputPayload(fields = {}) {
   const zip = String(fields.zip || "").trim();
   return {
     id: fields.id || null,
-    name: name || email || phone || "Customer",
+    company_name: companyName || null,
+    name: name || companyName || email || phone || "Customer",
     email: email || null,
     phone: phone || null,
     preferred_contact: fields.preferred_contact || "email",
@@ -345,6 +636,7 @@ async function saveCustomerRecord(fields = {}) {
   const nowIso = new Date().toISOString();
   const payload = withTenantScope({
     operator_id: opId(),
+    company_name: input.company_name,
     name: input.name,
     email: input.email,
     phone: input.phone,
@@ -367,6 +659,8 @@ async function saveCustomerRecord(fields = {}) {
   CUSTOMER_CREATING = false;
   ACTIVE_CUSTOMER_ID = data.id;
   await fetchCustomers();
+  await fetchCustomerLocationCounts({ force: true });
+  syncCustomerWorkspaceState({ customerId: data.id, historyMode: "push" });
   renderCustomersList(customerSearch?.value || "");
   renderPayments();
   renderDashboard();
@@ -379,10 +673,19 @@ function initCustomersWorkspaceBindings() {
   if (CUSTOMERS_WORKSPACE_BOUND) return;
   CUSTOMERS_WORKSPACE_BOUND = true;
 
-  customerSearch?.addEventListener("input", debounce(() => renderCustomersList(customerSearch.value)));
+  applyCustomerWorkspaceStateFromLocation();
+
+  customerSearch?.addEventListener("input", debounce(() => {
+    syncCustomerWorkspaceState({ query: customerSearch.value, historyMode: "replace" });
+    renderCustomersList(customerSearch.value);
+  }));
+  customerWorkbenchFilterField()?.addEventListener("change", () => {
+    syncCustomerWorkspaceState({ filter: customerWorkbenchFilterField()?.value || "all", historyMode: "replace" });
+    renderCustomersList(customerSearch?.value || "");
+  });
   btnRefreshCustomers?.addEventListener("click", async () => {
     try {
-      await Promise.all([fetchCustomers(), fetchCrmOrders(), fetchPayments()]);
+      await Promise.all([fetchCustomers(), fetchCrmOrders(), fetchPayments(), fetchCustomerLocationCounts({ force: true })]);
       renderCustomersList(customerSearch?.value || "");
     } catch (err) {
       notifyOperator(err.message || String(err));
@@ -418,6 +721,7 @@ function initCustomersWorkspaceBindings() {
     try {
       await saveCustomerRecord({
         id: customerId?.value || null,
+        company_name: customerCompanyName?.value,
         name: customerName?.value,
         email: customerEmail?.value,
         phone: customerPhone?.value,
@@ -447,6 +751,12 @@ function initCustomersWorkspaceBindings() {
     customerForm?.requestSubmit?.();
   });
   btnClearCustomerForm?.addEventListener("click", startNewCustomer);
+  window.addEventListener?.("popstate", () => {
+    applyCustomerWorkspaceStateFromLocation();
+    if (document.querySelector(".tab.active")?.dataset.tab === "customers") {
+      renderCustomersList(customerWorkbenchSearchField()?.value || "");
+    }
+  });
 }
 
 const CUSTOMERS_WORKSPACE_HELPERS = {
@@ -467,6 +777,12 @@ const CUSTOMERS_WORKSPACE_HELPERS = {
   renderCustomerDetail,
   customerInputPayload,
   saveCustomerRecord,
+  syncCustomerWorkspaceState,
+  applyCustomerWorkspaceStateFromLocation,
+  customerWorkbenchProfile,
+  customerOpenBalanceCents,
+  customerActiveWorkCount,
+  customerSiteCount,
   initCustomersWorkspaceBindings,
 };
 

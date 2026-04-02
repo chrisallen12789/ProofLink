@@ -265,14 +265,18 @@ function clearBidPhotoForm() {
 function collectBidFormDraft() {
   const active = currentBid();
   const profileKey = normalizeBidProfile(bidProfile?.value || active?.profile || preferredBidProfile());
-
+  const selectedCustomerId = bidCustomerId?.value || "";
+  const customerLocationId = selectedCustomerId && selectedCustomerId === String(active?.customer_id || "")
+    ? String(active?.customer_location_id || "").trim()
+    : "";
   const draft = {
     ...(active || emptyBidDraft(profileKey)),
     id: bidId?.value || active?.id || createLocalId("bid"),
     record_id: active?.record_id || "",
     lead_id: active?.lead_id || "",
     title: bidTitle?.value?.trim() || "",
-    customer_id: bidCustomerId?.value || "",
+    customer_id: selectedCustomerId,
+    customer_location_id: customerLocationId,
     profile: profileKey,
     status: String(bidStatus?.value || "draft"),
     template_type: bidTemplateType?.value || active?.template_type || "",
@@ -1807,7 +1811,19 @@ async function convertBidToTrackedOrder() {
       await Promise.all([fetchCrmOrders(), fetchCustomers(), fetchPayments(), fetchLeads(), fetchJobs(), loadPersistedBids()]);
       let order = CRM_ORDERS_CACHE.find((row) => row.id === data?.order_id) || await existingOrderForBidId(recordId);
       if (!order) throw new Error("The bid converted, but the tracked order could not be reloaded.");
-
+      if (baseDraft.customer_location_id && String(order.customer_location_id || "") !== String(baseDraft.customer_location_id || "")) {
+        const { data: patchedOrder, error: patchError } = await sb.from("orders")
+          .update({
+            customer_location_id: baseDraft.customer_location_id || null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", order.id)
+          .eq(OPERATOR_COLUMN, opId())
+          .eq(TENANT_COLUMN, TENANT_ID)
+          .select("*")
+          .single();
+        if (!patchError && patchedOrder) order = patchedOrder;
+      }
       order = await seedOrderDepositDefaults(order, {
         depositRequiredCents: totals.deposit,
         depositPolicy: totals.deposit > 0 ? "required_before_job" : "optional",
@@ -1827,7 +1843,7 @@ async function convertBidToTrackedOrder() {
   const payload = withTenantScope({
     operator_id: opId(),
     customer_id: customer.id,
-
+    customer_location_id: baseDraft.customer_location_id || null,
     lead_id: baseDraft.lead_id || null,
     bid_id: recordId || null,
     status,
@@ -2337,4 +2353,3 @@ window.PROOFLINK_OPERATOR_BIDS_WORKSPACE = {
 };
 
 Object.assign(window, BID_WORKSPACE_HELPERS);
-

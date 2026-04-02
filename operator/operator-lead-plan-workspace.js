@@ -64,6 +64,8 @@ function renderLeadCustomerOptions(selectedCustomerId = "") {
 
 function clearLeadForm() {
   if (leadId) leadId.value = "";
+  if ($("leadCustomerLocationId")) $("leadCustomerLocationId").value = "";
+  window.CURRENT_LEAD_CUSTOMER_LOCATION_ID = "";
   if (leadStatus) leadStatus.value = "new";
   if (leadPriority) leadPriority.value = "normal";
   renderLeadCustomerOptions("");
@@ -86,6 +88,8 @@ function populateLeadForm(lead) {
     return;
   }
   if (leadId) leadId.value = lead.id || "";
+  if ($("leadCustomerLocationId")) $("leadCustomerLocationId").value = lead.customer_location_id || "";
+  window.CURRENT_LEAD_CUSTOMER_LOCATION_ID = lead.customer_location_id || "";
   if (leadStatus) leadStatus.value = String(lead.status || "new");
   if (leadPriority) leadPriority.value = String(lead.priority || "normal");
   renderLeadCustomerOptions(lead.customer_id || "");
@@ -1056,6 +1060,13 @@ async function runDueServicePlans() {
 async function saveLeadRecord(fields = {}) {
   const nowIso = new Date().toISOString();
   const rawCustomerId = fields.customer_id || leadCustomerId?.value || "";
+  const customerLocationField = $("leadCustomerLocationId");
+  const resolvedCustomerLocationId = String(
+    fields.customer_location_id
+      ?? customerLocationField?.value
+      ?? window.CURRENT_LEAD_CUSTOMER_LOCATION_ID
+      ?? ""
+  ).trim();
   let resolvedCustomerId = rawCustomerId;
   const contactName = String(fields.contact_name ?? leadContactName?.value ?? "").trim();
   const contactEmail = String(fields.contact_email ?? leadContactEmail?.value ?? "").trim().toLowerCase();
@@ -1077,6 +1088,7 @@ async function saveLeadRecord(fields = {}) {
   const payload = withTenantScope({
     operator_id: opId(),
     customer_id: resolvedCustomerId || null,
+    customer_location_id: resolvedCustomerLocationId || null,
     status: fields.status || leadStatus?.value || "new",
     priority: fields.priority || leadPriority?.value || "normal",
     source_type: fields.source_type || leadSourceType?.value || "manual",
@@ -1103,6 +1115,8 @@ async function saveLeadRecord(fields = {}) {
   const { data, error } = await query.select("*").single();
   if (error) throw error;
   ACTIVE_LEAD_ID = data.id;
+  if (customerLocationField) customerLocationField.value = data.customer_location_id || "";
+  window.CURRENT_LEAD_CUSTOMER_LOCATION_ID = data.customer_location_id || "";
   await fetchLeads();
   renderLeads(leadSearch?.value || "");
   renderDashboard();
@@ -1219,6 +1233,10 @@ function initLeadPlanWorkspaceBindings() {
   LEAD_PLAN_WORKSPACE_BOUND = true;
 
   leadSearch?.addEventListener("input", debounce(() => renderLeads(leadSearch.value)));
+  leadCustomerId?.addEventListener("change", () => {
+    if ($("leadCustomerLocationId")) $("leadCustomerLocationId").value = "";
+    window.CURRENT_LEAD_CUSTOMER_LOCATION_ID = "";
+  });
   btnNewLead?.addEventListener("click", () => {
     ACTIVE_LEAD_ID = null;
     clearLeadForm();

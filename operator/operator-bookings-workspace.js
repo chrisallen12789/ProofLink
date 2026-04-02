@@ -740,10 +740,15 @@ function showBookingDetail(booking) {
       const d = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(d.error || "Failed to update booking");
 
+      const updatedBooking = d.booking || {
+        ...booking,
+        starts_at: startsAt,
+        ends_at: endsAt || booking.ends_at,
+        assigned_operator_id: assignedOperatorId || null,
+        notes_vehicle: vehicleNotes || null,
+      };
       BOOKINGS_CACHE = BOOKINGS_CACHE.map((row) => (
-        row.id === booking.id
-          ? { ...row, starts_at: startsAt, ends_at: endsAt || row.ends_at, assigned_operator_id: assignedOperatorId || null, notes_vehicle: vehicleNotes || null }
-          : row
+        row.id === booking.id ? { ...row, ...updatedBooking } : row
       ));
       renderBookingsCalendar(BOOKINGS_CACHE);
       renderBookingsList(BOOKINGS_CACHE);
@@ -773,7 +778,11 @@ function renderBookingsList(bookings) {
       <div class="li-main">
         <div class="li-title">${escapeHtml(booking.title || "Booking")}</div>
         <div class="li-sub muted">${escapeHtml(booking.customer_name || booking.customer_email || "Customer")}</div>
-        <div class="li-sub muted">${escapeHtml(formatDateTime(booking.starts_at))}${booking.assigned_operator_name ? ` | ${escapeHtml(booking.assigned_operator_name)}` : ""}</div>
+        <div class="li-sub muted">${escapeHtml([
+          formatDateTime(booking.starts_at),
+          booking.location || booking.service_address || "",
+          booking.assigned_operator_name || "",
+        ].filter((value) => String(value || "").trim()).join(" | "))}</div>
       </div>
       <div class="li-meta li-meta--tight">
         <span class="pill ${booking.status === "cancelled" ? "pill-off" : "pill-on"}">${escapeHtml(String(booking.status || "scheduled").replace(/_/g, " "))}</span>
@@ -1215,12 +1224,20 @@ function openBookingDraftForCustomer(customer = {}, options = {}, blueprint = bo
   if (customerNameField) customerNameField.value = customerName;
   const customerEmailField = $("bkCustomerEmail");
   if (customerEmailField) customerEmailField.value = customerEmail;
+  const customerIdField = $("bkCustomerId");
+  if (customerIdField) customerIdField.value = String(options?.customer_id || customer?.id || customer?.customer_id || "").trim();
+  const customerLocationField = $("bkCustomerLocationId");
+  if (customerLocationField) customerLocationField.value = String(options?.customer_location_id || customer?.customer_location_id || "").trim();
+  const locationLabelField = $("bkLocationLabel");
+  if (locationLabelField) locationLabelField.value = String(options?.locationLabel || options?.location || "").trim();
+  const serviceAddressField = $("bkServiceAddress");
+  if (serviceAddressField) serviceAddressField.value = String(options?.service_address || customer?.service_address || customer?.address_line1 || "").trim();
   const titleField = $("bkTitle");
   if (titleField) titleField.value = bookingDraftTitle(customer, options, blueprint);
   const dateField = $("bkDate");
   if (dateField) dateField.value = bookingDate;
   const startField = $("bkStart");
-  if (startField && !String(startField.value || "").trim()) startField.value = String(options?.start || "09:00");
+  if (startField) startField.value = String(options?.start || "09:00");
   const notesField = $("bkNotes");
   if (notesField) notesField.value = bookingDraftNotes(customer, options, blueprint);
   const recurrenceRuleField = $("bkRecurrenceRule");
@@ -1243,6 +1260,41 @@ function openBookingDraftForCustomer(customer = {}, options = {}, blueprint = bo
     message.className = "msg success";
   }
   dateField?.focus?.();
+}
+
+function clearBookingDraftFields({ keepMessage = false } = {}) {
+  [
+    "bkCustomerId",
+    "bkCustomerLocationId",
+    "bkCustomerName",
+    "bkCustomerEmail",
+    "bkLocationLabel",
+    "bkServiceAddress",
+    "bkTitle",
+    "bkNotes",
+    "bkDate",
+    "bkStart",
+    "bkRecurrenceEnd",
+  ].forEach((id) => {
+    const field = $(id);
+    if (field) field.value = "";
+  });
+
+  const recurrenceRuleField = $("bkRecurrenceRule");
+  if (recurrenceRuleField) recurrenceRuleField.value = "";
+  const recurrenceOptions = $("bkRecurrenceOptions");
+  if (recurrenceOptions?.classList?.add) recurrenceOptions.classList.add("u-hidden");
+  const recurrenceCountField = $("bkRecurrenceCount");
+  if (recurrenceCountField) recurrenceCountField.textContent = "--";
+
+  if (!keepMessage) {
+    const message = $("newBookingMsg");
+    if (typeof setInlineMessage === "function") setInlineMessage(message, "");
+    else if (message) {
+      message.textContent = "";
+      message.className = "msg";
+    }
+  }
 }
 
 function openWalkInBookingModal() {
@@ -1468,6 +1520,7 @@ function initBookingsWorkspaceBindings() {
   $("btnNewBooking")?.addEventListener("click", () => {
     const form = $("newBookingForm");
     if (!form) return;
+    if (form.classList?.contains?.("hidden")) clearBookingDraftFields();
     form.classList.toggle("hidden");
     if (form.classList.contains("hidden")) return;
     const tomorrow = new Date();
@@ -1477,6 +1530,7 @@ function initBookingsWorkspaceBindings() {
   });
   $("btnCancelBooking")?.addEventListener("click", () => {
     const form = $("newBookingForm");
+    clearBookingDraftFields();
     if (form) form.classList.add("hidden");
   });
   $("btnLogTime")?.addEventListener("click", openTimeLogModal);
@@ -1514,6 +1568,10 @@ function initBookingsWorkspaceBindings() {
     const message = $("newBookingMsg");
     const name = $("bkCustomerName")?.value.trim();
     const email = $("bkCustomerEmail")?.value.trim();
+    const customerId = $("bkCustomerId")?.value.trim();
+    const customerLocationId = $("bkCustomerLocationId")?.value.trim();
+    const locationLabel = $("bkLocationLabel")?.value.trim();
+    const serviceAddress = $("bkServiceAddress")?.value.trim();
     const title = $("bkTitle")?.value.trim();
     const date = $("bkDate")?.value;
     const time = $("bkStart")?.value;
@@ -1564,8 +1622,12 @@ function initBookingsWorkspaceBindings() {
     try {
       const tok = await getAccessToken();
       const payload = {
+        customer_id: customerId || undefined,
+        customer_location_id: customerLocationId || undefined,
         customer_name: name,
         customer_email: email || undefined,
+        location: locationLabel || undefined,
+        service_address: serviceAddress || undefined,
         title,
         starts_at: startsAt,
         ends_at: endsAt,
@@ -1618,14 +1680,7 @@ function initBookingsWorkspaceBindings() {
         message.className = "msg success";
       }
 
-      ["bkCustomerName", "bkCustomerEmail", "bkTitle", "bkNotes"].forEach((id) => {
-        const field = $(id);
-        if (field) field.value = "";
-      });
-      const recurrenceRuleEl = $("bkRecurrenceRule");
-      if (recurrenceRuleEl) recurrenceRuleEl.value = "";
-      if (optionsEl) optionsEl.classList.add("u-hidden");
-      if (endEl) endEl.value = "";
+      clearBookingDraftFields({ keepMessage: true });
       button.disabled = false;
       await renderBookings();
       setTimeout(() => {

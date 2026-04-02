@@ -118,6 +118,8 @@ exports.handler = async (event) => {
     const child = {
       tenant_id            : parent.tenant_id,
       operator_id          : parent.operator_id || null,
+      customer_id          : parent.customer_id || null,
+      customer_location_id : parent.customer_location_id || null,
       customer_name        : parent.customer_name,
       customer_email       : parent.customer_email || null,
       title                : parent.title,

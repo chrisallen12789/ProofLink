@@ -48,15 +48,68 @@ function cleanText(value) {
   return String(value || '').trim();
 }
 
-function buildBookingNotes({ notes, serviceAddress, preferredTime, referralSource }) {
+function formatAddressLine(row = {}) {
+  return [
+    cleanText(row.address_line1),
+    [cleanText(row.city), cleanText(row.state), cleanText(row.zip)].filter(Boolean).join(' '),
+  ].filter(Boolean).join(', ');
+}
+
+async function loadBookingCustomerContext(supabase, tenantId, customerId, customerLocationId) {
+  let customer = null;
+  let customerLocation = null;
+
+  if (customerId) {
+    const { data, error } = await supabase
+      .from('customers')
+      .select('id, name, company_name, email, phone, address_line1, city, state, zip')
+      .eq('tenant_id', tenantId)
+      .eq('id', customerId)
+      .maybeSingle();
+    if (error) throw error;
+    customer = data || null;
+  }
+
+  if (customerLocationId) {
+    const { data, error } = await supabase
+      .from('customer_locations')
+      .select('id, customer_id, site_name, contact_name, contact_email, contact_phone, address_line1, city, state, zip, access_notes, notes')
+      .eq('tenant_id', tenantId)
+      .eq('id', customerLocationId)
+      .maybeSingle();
+    if (error) throw error;
+    customerLocation = data || null;
+  }
+
+  if (customerLocation && customerId && customerLocation.customer_id && customerLocation.customer_id !== customerId) {
+    throw new Error('Selected site does not belong to the selected customer.');
+  }
+
+  if (!customer && customerLocation?.customer_id) {
+    const { data, error } = await supabase
+      .from('customers')
+      .select('id, name, company_name, email, phone, address_line1, city, state, zip')
+      .eq('tenant_id', tenantId)
+      .eq('id', customerLocation.customer_id)
+      .maybeSingle();
+    if (error) throw error;
+    customer = data || null;
+  }
+
+  return { customer, customerLocation };
+}
+
+function buildBookingNotes({ notes, serviceAddress, preferredTime, referralSource, locationLabel, siteAccess }) {
   const parts = [];
   const baseNotes = cleanText(notes);
   if (baseNotes) parts.push(baseNotes);
 
   const extras = [
+    locationLabel ? `Site: ${cleanText(locationLabel)}` : '',
     serviceAddress ? `Service address: ${cleanText(serviceAddress)}` : '',
     preferredTime ? `Preferred time: ${cleanText(preferredTime)}` : '',
     referralSource ? `Referral source: ${cleanText(referralSource)}` : '',
+    siteAccess ? `Site access: ${cleanText(siteAccess)}` : '',
   ].filter(Boolean);
 
   return [...parts, ...extras].join('\n');
@@ -73,22 +126,25 @@ exports.handler = async (event) => {
   const {
     customer_name,
     customer_email,
+    customer_id,
+    customer_location_id,
     title,
     starts_at,
     ends_at,
     notes,
     order_id,
     tenant_id,
+    location,
     preferred_time,
     referral_source,
     service_address,
+    recurrence_rule,
+    recurrence_interval,
+    recurrence_end_date,
   } = body;
 
-  if (!customer_name || !title || !starts_at || !ends_at) {
-    return respond(400, { error: 'Missing required fields: customer_name, title, starts_at, ends_at' });
-  }
-  if (customer_email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customer_email)) {
-    return respond(400, { error: 'customer_email is not a valid email address' });
+  if ((!customer_name && !customer_id) || !title || !starts_at || !ends_at) {
+    return respond(400, { error: 'Missing required fields: customer_name or customer_id, title, starts_at, ends_at' });
   }
   if (isNaN(Date.parse(starts_at)) || isNaN(Date.parse(ends_at))) {
     return respond(400, { error: 'starts_at and ends_at must be valid ISO datetime strings' });
@@ -99,13 +155,6 @@ exports.handler = async (event) => {
   if (new Date(starts_at).getTime() < (Date.now() - 60 * 1000)) {
     return respond(400, { error: 'Bookings must be requested for a future time.' });
   }
-
-  const bookingNotes = buildBookingNotes({
-    notes,
-    serviceAddress: service_address,
-    preferredTime: preferred_time,
-    referralSource: referral_source,
-  });
 
   let resolvedTenantId = tenant_id || null;
   let resolvedOperatorId = null;
@@ -127,21 +176,68 @@ exports.handler = async (event) => {
     supabase = getAdminClient();
   }
 
+  let customerContext;
+  try {
+    customerContext = await loadBookingCustomerContext(
+      supabase,
+      resolvedTenantId,
+      customer_id || null,
+      customer_location_id || null
+    );
+  } catch (error) {
+    return respond(400, { error: error.message || 'Could not load the selected customer site.' });
+  }
+
+  const resolvedLocation = cleanText(location) || cleanText(customerContext?.customerLocation?.site_name);
+  const resolvedServiceAddress = cleanText(service_address)
+    || formatAddressLine(customerContext?.customerLocation)
+    || formatAddressLine(customerContext?.customer);
+  const resolvedCustomerName = cleanText(customer_name)
+    || cleanText(customerContext?.customer?.name)
+    || cleanText(customerContext?.customer?.company_name)
+    || cleanText(customerContext?.customerLocation?.contact_name);
+  const resolvedCustomerEmail = cleanText(customer_email)
+    || cleanText(customerContext?.customerLocation?.contact_email)
+    || cleanText(customerContext?.customer?.email);
+
+  if (!resolvedCustomerName) {
+    return respond(400, { error: 'A customer name or selected customer record is required.' });
+  }
+  if (resolvedCustomerEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(resolvedCustomerEmail)) {
+    return respond(400, { error: 'customer_email is not a valid email address' });
+  }
+
+  const bookingNotes = buildBookingNotes({
+    notes,
+    serviceAddress: resolvedServiceAddress,
+    preferredTime: preferred_time,
+    referralSource: referral_source,
+    locationLabel: resolvedLocation,
+    siteAccess: cleanText(customerContext?.customerLocation?.access_notes),
+  });
+
   const { data, error } = await supabase
     .from('bookings')
     .insert({
-      tenant_id     : resolvedTenantId,
-      operator_id   : resolvedOperatorId || null,
-      customer_name,
-      customer_email: customer_email || null,
+      tenant_id            : resolvedTenantId,
+      operator_id          : resolvedOperatorId || null,
+      customer_id          : customer_id || customerContext?.customer?.id || null,
+      customer_location_id : customer_location_id || customerContext?.customerLocation?.id || null,
+      customer_name        : resolvedCustomerName,
+      customer_email       : resolvedCustomerEmail || null,
       title,
       starts_at,
       ends_at,
-      notes         : bookingNotes || null,
-      order_id      : order_id || null,
-      status        : 'confirmed',
-      created_at    : new Date().toISOString(),
-      updated_at    : new Date().toISOString(),
+      notes                : bookingNotes || null,
+      order_id             : order_id || null,
+      location             : resolvedLocation || null,
+      service_address      : resolvedServiceAddress || null,
+      recurrence_rule      : cleanText(recurrence_rule) || null,
+      recurrence_interval  : Number.parseInt(recurrence_interval, 10) || 1,
+      recurrence_end_date  : cleanText(recurrence_end_date) || null,
+      status               : 'confirmed',
+      created_at           : new Date().toISOString(),
+      updated_at           : new Date().toISOString(),
     })
     .select()
     .maybeSingle();
@@ -170,15 +266,15 @@ exports.handler = async (event) => {
     console.warn('[create-booking] tenant context lookup failed:', lookupError.message || lookupError);
   }
 
-  if (customer_email) {
+  if (resolvedCustomerEmail) {
     try {
       const bookingWindow = formatBookingWindow(starts_at, ends_at, tenantContext?.timezone);
       const siteUrl = getConfiguredSiteUrl();
-      const portalUrl = `${siteUrl}/portal.html?tenant=${encodeURIComponent(resolvedTenantId)}&email=${encodeURIComponent(customer_email)}`;
+      const portalUrl = `${siteUrl}/portal.html?tenant=${encodeURIComponent(resolvedTenantId)}&email=${encodeURIComponent(resolvedCustomerEmail)}`;
 
       sendEmail(templates.bookingConfirmation({
-        customer_name,
-        customer_email,
+        customer_name: resolvedCustomerName,
+        customer_email: resolvedCustomerEmail,
         business_name: tenantContext?.businessName || 'Your service provider',
         title,
         date_str: bookingWindow.date,
@@ -212,7 +308,7 @@ exports.handler = async (event) => {
         operator_email: operatorEmail,
         operator_name : operatorName,
         business_name : tenantContext?.businessName || 'Your Business',
-        customer_name,
+        customer_name : resolvedCustomerName,
         service_title : title,
         starts_at,
         notes         : bookingNotes || null,
