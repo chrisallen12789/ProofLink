@@ -3,6 +3,7 @@
 const {
   CORE_TENANT_TABLE_DELETE_ORDER,
   OPTIONAL_TENANT_TABLE_DELETE_ORDER,
+  cleanupTenantScopedData,
   deleteRows,
   deleteRowsMaybe,
   formatCleanupError,
@@ -49,6 +50,24 @@ describe("cleanup test foundation helpers", () => {
 
     await expect(deleteRowsMaybe("service_plans", "tenant_id", ["tenant-1"], client)).resolves.toBeUndefined();
     expect(calls).toEqual([{ table: "service_plans", column: "tenant_id", values: ["tenant-1"] }]);
+  });
+
+  test("cleanupTenantScopedData tolerates missing workflow tables before hosted schema preflight runs", async () => {
+    const { client, calls } = createDeleteClient({
+      jobs: {
+        code: "42P01",
+        message: "relation does not exist",
+      },
+      leads: {
+        code: "42P01",
+        message: "relation does not exist",
+      },
+    });
+
+    await expect(cleanupTenantScopedData(["tenant-1"], client)).resolves.toBeUndefined();
+    expect(calls.some((call) => call.table === "jobs")).toBe(true);
+    expect(calls.some((call) => call.table === "leads")).toBe(true);
+    expect(calls.some((call) => call.table === "customers")).toBe(true);
   });
 
   test("deleteRows reports the table and Supabase details when cleanup fails", async () => {

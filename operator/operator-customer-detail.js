@@ -926,7 +926,7 @@
     const focus = customerMemoryChecklist(customer, blueprint);
     if (!focus.length) return "";
     return `
-      <div class="detail-card detail-card--spaced">
+      <div class="detail-card detail-card--spaced customer-support-card customer-support-card--focus">
         <div class="kicker">Business-specific memory</div>
         <div><strong>Keep the details this business depends on</strong></div>
         <div class="detail-copy">Use this customer record to hold the repeat details the team should not have to relearn on every visit.</div>
@@ -937,6 +937,122 @@
               <div class="detail-copy memory-checklist__note">${escapeHtml(item.note)}</div>
             </div>
           `).join("")}
+        </div>
+      </div>
+    `;
+  }
+
+  function customerWorkbenchStageSummary({
+    openRequestsCount = 0,
+    openProposalCount = 0,
+    activeOrderCount = 0,
+    activeJobCount = 0,
+    balance = 0,
+    latestInteraction = null,
+  } = {}) {
+    const activeWorkCount = Number(activeOrderCount || 0) + Number(activeJobCount || 0);
+    if (openRequestsCount > 0) {
+      return {
+        label: "Intake needs attention",
+        note: `${openRequestsCount} open request${openRequestsCount === 1 ? "" : "s"} still need scope, response, or conversion.`,
+      };
+    }
+    if (openProposalCount > 0) {
+      return {
+        label: "Pricing is still moving",
+        note: `${openProposalCount} live proposal${openProposalCount === 1 ? "" : "s"} need follow-through before momentum cools off.`,
+      };
+    }
+    if (activeWorkCount > 0) {
+      return {
+        label: "Execution is live",
+        note: `${activeWorkCount} booked or active work item${activeWorkCount === 1 ? "" : "s"} still need delivery, proof, or closeout attention.`,
+      };
+    }
+    if (balance > 0) {
+      return {
+        label: "Money follow-through remains",
+        note: `${formatUsd(balance)} is still open, so the account looks quiet operationally but not financially.`,
+      };
+    }
+    if (latestInteraction?.summary) {
+      return {
+        label: "Relationship is between cycles",
+        note: "No active work is open right now. The next best move is keeping the last promise or creating the next request cleanly.",
+      };
+    }
+    return {
+      label: "Ready for the next move",
+      note: "No active work, pricing, or collection pressure is open right now, so this record should feel simple and ready to reuse fast.",
+    };
+  }
+
+  function renderCustomerOperatorBriefCard({
+    customer = null,
+    knownAddresses = [],
+    openRequestsCount = 0,
+    openProposalCount = 0,
+    activeOrderCount = 0,
+    activeJobCount = 0,
+    balance = 0,
+    lastTouchValue = "",
+    latestInteraction = null,
+    customerIdValue = "",
+  } = {}) {
+    const stage = customerWorkbenchStageSummary({
+      openRequestsCount,
+      openProposalCount,
+      activeOrderCount,
+      activeJobCount,
+      balance,
+      latestInteraction,
+    });
+    const latestDraft = latestCustomerWorkbenchDraftForCustomer(customerIdValue);
+    const siteCount = Math.max(
+      knownAddresses.length,
+      customerDisplayAddress(customer) === "No service address yet." ? 0 : 1
+    );
+    return `
+      <div class="detail-card detail-card--spaced customer-operator-brief">
+        <div class="kicker">Operator brief</div>
+        <div><strong>See the account pressure fast</strong></div>
+        <div class="detail-copy">${escapeHtml(stage.note)}</div>
+        <div class="customer-operator-brief__rows">
+          <div class="customer-operator-brief__item">
+            <span>Stage</span>
+            <strong>${escapeHtml(stage.label)}</strong>
+            <small>${escapeHtml(openRequestsCount + openProposalCount + activeOrderCount + activeJobCount > 0
+              ? `${openRequestsCount + openProposalCount + activeOrderCount + activeJobCount} active relationship signal${openRequestsCount + openProposalCount + activeOrderCount + activeJobCount === 1 ? "" : "s"}`
+              : "No active pipeline or work pressure right now")}</small>
+          </div>
+          <div class="customer-operator-brief__item">
+            <span>Last touch</span>
+            <strong>${escapeHtml(lastTouchValue ? formatDateTime(lastTouchValue) : "Not recorded")}</strong>
+            <small>${escapeHtml(latestInteraction ? customerInteractionLabel(latestInteraction.type) : "No interaction logged yet")}</small>
+          </div>
+          <div class="customer-operator-brief__item">
+            <span>Account shape</span>
+            <strong>${escapeHtml(siteCount > 1 ? `${siteCount} sites on file` : "Single-site account")}</strong>
+            <small>${escapeHtml(customer?.company_name ? "Company-style account with primary contact attached" : "Direct customer record with one main contact")}</small>
+          </div>
+          <div class="customer-operator-brief__item">
+            <span>Draft state</span>
+            <strong>${escapeHtml(latestDraft ? `${customerWorkbenchAppLabel(latestDraft.appKey)} panel saved` : "No draft waiting")}</strong>
+            <small>${escapeHtml(latestDraft?.draft?.updated_at ? `Autosaved ${formatDateTime(latestDraft.draft.updated_at)}` : "Close any panel and ProofLink will hold your place automatically.")}</small>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderCustomerCommandCard(actions = []) {
+    return `
+      <div class="detail-card detail-card--spaced customer-command-card">
+        <div class="kicker">Quick moves</div>
+        <div><strong>Do the next useful thing without hunting</strong></div>
+        <div class="detail-copy">Keep the common actions here, then use the app shelf below when you need deeper customer work.</div>
+        <div class="customer-command-card__buttons">
+          ${actions.map((action) => `<button type="button" class="${escapeAttr(action.className || "btn btn-ghost")}" ${Object.entries(action.data || {}).map(([key, value]) => `${key}="${escapeAttr(value)}"`).join(" ")}>${escapeHtml(action.label || "Open")}</button>`).join("")}
         </div>
       </div>
     `;
@@ -992,7 +1108,7 @@
     ];
 
     return `
-      <div class="detail-card" id="customerProfileSection">
+      <div class="detail-card customer-support-card customer-support-card--profile" id="customerProfileSection">
         <div class="kicker">Profile</div>
         <div><strong>Account snapshot</strong></div>
         <div class="detail-copy">Use this section as the quick read on who the customer is, how they like to work, and where the account lives.</div>
@@ -1059,7 +1175,7 @@
     ];
 
     return `
-      <div class="detail-card" id="customerFootprintSection">
+      <div class="detail-card customer-support-card customer-support-card--footprint" id="customerFootprintSection">
         <div class="kicker">Footprint</div>
         <div><strong>See what exists with this customer</strong></div>
         <div class="detail-copy">This gives the operator a one-glance read on how much history, work, and money is already attached to the account.</div>
@@ -1398,9 +1514,17 @@
     const latestDraft = latestCustomerWorkbenchDraftForCustomer(customerIdValue);
     return `
       <div class="detail-card customer-workbench-launcher" id="customerWorkflowSection">
-        <div class="kicker">Customer apps</div>
-        <div><strong>Open exactly the part of the relationship you need</strong></div>
-        <div class="detail-copy">Each panel keeps its own draft for this customer, so the operator can close it at any point and come right back to the same spot later.</div>
+        <div class="customer-workbench-launcher__head">
+          <div>
+            <div class="kicker">Customer apps</div>
+            <div><strong>Open one focused panel instead of scrolling through the whole account</strong></div>
+            <div class="detail-copy">Each panel stays attached to this customer, keeps its own draft, and drops you back into the exact part of the record you meant to work.</div>
+          </div>
+          <div class="customer-workbench-launcher__stats">
+            <span class="pill">${escapeHtml(`${cards.length} app${cards.length === 1 ? "" : "s"}`)}</span>
+            <span class="pill">${escapeHtml(latestDraft ? "Draft waiting" : "No drafts open")}</span>
+          </div>
+        </div>
         ${latestDraft ? `
           <div class="customer-workbench-resume">
             <div class="customer-workbench-resume__copy">
@@ -2581,54 +2705,75 @@
       global.CURRENT_CUSTOMER_DETAIL_CONTEXT = workbenchContext;
 
       customerDetailWrap.innerHTML = `
-        ${renderRecordHeroCard({
-          eyebrow: "Customer record",
-          title: customerPrimaryDisplayLabel(customer),
-          badges: [
-            { label: `${workbenchOpenRequests} open request${workbenchOpenRequests === 1 ? "" : "s"}` },
-            { label: `${workbenchOpenProposals} live proposal${workbenchOpenProposals === 1 ? "" : "s"}` },
-            { label: `${workbenchActiveOrders + workbenchActiveJobs} active work item${workbenchActiveOrders + workbenchActiveJobs === 1 ? "" : "s"}` },
-            workbenchBalance > 0 ? { label: `${formatUsd(workbenchBalance)} open`, tone: "pill-bad" } : { label: "No balance due", tone: "pill-on" },
-          ],
-          meta: [
-            customer.company_name && customer.name ? `Primary contact: ${customer.name}` : customerContactSummary(customer),
-            `Preferred contact: ${customer.preferred_contact || "email"}`,
-            workbenchAddress,
-            customer.lead_source ? `Lead source: ${titleCaseWords(String(customer.lead_source).replace(/_/g, " "))}` : "",
-          ],
-          description: "Open the customer once, then move requests, pricing, field work, and payment follow-through from the same record.",
-          summary: [
-            { label: "Open requests", value: String(workbenchOpenRequests), note: "Needs response or scope" },
-            { label: "Open proposals", value: String(workbenchOpenProposals), note: "Still moving toward approval" },
-            { label: "Booked + active work", value: String(workbenchActiveOrders + workbenchActiveJobs), note: "Execution or follow-through still open" },
-            { label: "Outstanding balance", value: formatUsd(workbenchBalance), note: "Billed work not fully collected" },
-          ],
-        })}
-        ${renderRecordActionRail({
-          eyebrow: "Quick actions",
-          title: "Move the relationship forward",
-          description: "Open the right work panel, keep your place, and only jump into a full workspace when deeper editing is actually needed.",
-          actions: customerQuickActions,
-        })}
-        <div class="customer-overview-grid">
-          ${renderCustomerProfileCard(customer, {
-            knownAddresses: workbenchAddresses,
-            latestInteraction: workbenchLatestInteraction,
-            lastTouchValue: workbenchLastTouch,
-          })}
-          ${renderCustomerFootprintCard({
-            customer,
-            customerRequestsRows: workbenchRequests,
-            customerBidRows: workbenchBids,
-            customerOrders: workbenchOrders,
-            customerJobsRows: workbenchJobs,
-            customerPayments: workbenchPayments,
-            balance: workbenchBalance,
-            knownAddresses: workbenchAddresses,
-          })}
+        <div class="customer-record-shell">
+          <div class="customer-record-shell__top">
+            <div class="customer-record-shell__hero">
+              ${renderRecordHeroCard({
+                eyebrow: "Customer record",
+                title: customerPrimaryDisplayLabel(customer),
+                badges: [
+                  { label: `${workbenchOpenRequests} open request${workbenchOpenRequests === 1 ? "" : "s"}` },
+                  { label: `${workbenchOpenProposals} live proposal${workbenchOpenProposals === 1 ? "" : "s"}` },
+                  { label: `${workbenchActiveOrders + workbenchActiveJobs} active work item${workbenchActiveOrders + workbenchActiveJobs === 1 ? "" : "s"}` },
+                  workbenchBalance > 0 ? { label: `${formatUsd(workbenchBalance)} open`, tone: "pill-bad" } : { label: "No balance due", tone: "pill-on" },
+                ],
+                meta: [
+                  customer.company_name && customer.name ? `Primary contact: ${customer.name}` : customerContactSummary(customer),
+                  `Preferred contact: ${customer.preferred_contact || "email"}`,
+                  workbenchAddress,
+                  customer.lead_source ? `Lead source: ${titleCaseWords(String(customer.lead_source).replace(/_/g, " "))}` : "",
+                ],
+                description: "Open the customer once, then move requests, pricing, field work, and payment follow-through from the same record.",
+                summary: [
+                  { label: "Open requests", value: String(workbenchOpenRequests), note: "Needs response or scope" },
+                  { label: "Open proposals", value: String(workbenchOpenProposals), note: "Still moving toward approval" },
+                  { label: "Booked + active work", value: String(workbenchActiveOrders + workbenchActiveJobs), note: "Execution or follow-through still open" },
+                  { label: "Outstanding balance", value: formatUsd(workbenchBalance), note: "Billed work not fully collected" },
+                ],
+              })}
+            </div>
+            <div class="customer-record-shell__side">
+              ${renderCustomerOperatorBriefCard({
+                customer,
+                knownAddresses: workbenchAddresses,
+                openRequestsCount: workbenchOpenRequests,
+                openProposalCount: workbenchOpenProposals,
+                activeOrderCount: workbenchActiveOrders,
+                activeJobCount: workbenchActiveJobs,
+                balance: workbenchBalance,
+                lastTouchValue: workbenchLastTouch,
+                latestInteraction: workbenchLatestInteraction,
+                customerIdValue,
+              })}
+              ${renderCustomerCommandCard(customerQuickActions)}
+            </div>
+          </div>
+          ${renderCustomerWorkbenchLauncher(workbenchContext)}
+          <div class="customer-support-grid">
+            <div class="customer-support-grid__profile">
+              ${renderCustomerProfileCard(customer, {
+                knownAddresses: workbenchAddresses,
+                latestInteraction: workbenchLatestInteraction,
+                lastTouchValue: workbenchLastTouch,
+              })}
+            </div>
+            <div class="customer-support-grid__footprint">
+              ${renderCustomerFootprintCard({
+                customer,
+                customerRequestsRows: workbenchRequests,
+                customerBidRows: workbenchBids,
+                customerOrders: workbenchOrders,
+                customerJobsRows: workbenchJobs,
+                customerPayments: workbenchPayments,
+                balance: workbenchBalance,
+                knownAddresses: workbenchAddresses,
+              })}
+            </div>
+            <div class="customer-support-grid__focus">
+              ${renderCustomerRecordFocusCard()}
+            </div>
+          </div>
         </div>
-        ${renderCustomerRecordFocusCard()}
-        ${renderCustomerWorkbenchLauncher(workbenchContext)}
       `;
 
       customerDetailWrap.querySelectorAll("[data-customer-action]").forEach((button) => {
@@ -3180,6 +3325,8 @@
     clearCustomerWorkbenchDraft,
     latestCustomerWorkbenchDraftForCustomer,
     customerWorkbenchAppCards,
+    customerWorkbenchStageSummary,
+    renderCustomerOperatorBriefCard,
     renderCustomerWorkbenchLauncher,
     handleCustomerWorkbenchAction,
     openCustomerWorkbenchApp,

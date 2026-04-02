@@ -166,12 +166,15 @@ function formatCleanupError(error) {
 }
 
 async function cleanupTenantScopedData(tenantIds, supabase = createSupabaseClient()) {
+  // Hosted cleanup runs before the workflow-schema preflight in CI, so this
+  // pass needs to tolerate older test databases that do not yet have every
+  // newer tenant-linked table. Real constraint failures should still surface.
   for (const table of OPTIONAL_TENANT_TABLE_DELETE_ORDER) {
     await deleteRowsMaybe(table, "tenant_id", tenantIds, supabase);
   }
 
   for (const table of CORE_TENANT_TABLE_DELETE_ORDER) {
-    await deleteRows(table, "tenant_id", tenantIds, supabase);
+    await deleteRowsMaybe(table, "tenant_id", tenantIds, supabase);
   }
 }
 

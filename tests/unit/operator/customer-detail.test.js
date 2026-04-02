@@ -19,6 +19,8 @@ function loadCustomerDetail(overrides = {}) {
     switchTab: vi.fn(),
     showToast: vi.fn(),
     $: vi.fn(() => null),
+    escapeHtml: (value) => String(value),
+    escapeAttr: (value) => String(value),
     ...overrides,
   };
 
@@ -456,6 +458,69 @@ describe("operator customer detail", () => {
       openLabel: "Resume draft",
       status: "Draft waiting",
     });
+  });
+
+  test("customerWorkbenchStageSummary prioritizes intake before later workflow stages", () => {
+    const api = loadCustomerDetail({
+      formatUsd: (value) => `$${value}`,
+    });
+
+    expect(api.customerWorkbenchStageSummary({
+      openRequestsCount: 2,
+      openProposalCount: 1,
+      activeOrderCount: 3,
+      activeJobCount: 1,
+      balance: 25000,
+    })).toMatchObject({
+      label: "Intake needs attention",
+    });
+
+    expect(api.customerWorkbenchStageSummary({
+      openRequestsCount: 0,
+      openProposalCount: 0,
+      activeOrderCount: 0,
+      activeJobCount: 0,
+      balance: 25000,
+    })).toMatchObject({
+      label: "Money follow-through remains",
+    });
+  });
+
+  test("renderCustomerOperatorBriefCard surfaces stage, account shape, and draft state", () => {
+    const storage = createStorage();
+    const api = loadCustomerDetail({
+      formatDateTime: (value) => `formatted:${value}`,
+      formatUsd: (value) => `$${value}`,
+      customerInteractionLabel: (type) => `label:${type}`,
+      window: {
+        localStorage: storage,
+      },
+    });
+
+    api.writeCustomerWorkbenchDraft("customer_1", "requests", { summary: "Call back city hall" });
+
+    const html = api.renderCustomerOperatorBriefCard({
+      customer: {
+        id: "customer_1",
+        company_name: "Riverside City Services",
+        name: "Alicia Grant",
+        address_line1: "101 Civic Center Plaza",
+      },
+      knownAddresses: ["101 Civic Center Plaza", "402 Water Plant Road"],
+      openRequestsCount: 0,
+      openProposalCount: 1,
+      activeOrderCount: 0,
+      activeJobCount: 0,
+      balance: 0,
+      lastTouchValue: "2026-04-02T12:00:00.000Z",
+      latestInteraction: { type: "call" },
+      customerIdValue: "customer_1",
+    });
+
+    expect(html).toContain("Operator brief");
+    expect(html).toContain("Pricing is still moving");
+    expect(html).toContain("2 sites on file");
+    expect(html).toContain("Requests panel saved");
   });
 
   test("openCustomerPlanOrder runs the linked recurring plan when the next booked work is ready", async () => {
