@@ -117,4 +117,13 @@ describe("ProofLink import tools", () => {
 
     expect(matched?.key).toBe("jobber_open_work");
   });
+
+  test("exposes attachment-aware aliases for migration follow-up", () => {
+    const tools = require(toolsPath);
+
+    expect(tools.FIELD_ALIASES.customers.attachment_links).toContain("attachments");
+    expect(tools.FIELD_ALIASES.open_work.attachment_links).toContain("photo_links");
+    expect(tools.FIELD_ALIASES.payments.attachment_links).toContain("receipt_links");
+    expect(tools.templateCsv("customers")).toContain("attachment_links");
+  });
 });

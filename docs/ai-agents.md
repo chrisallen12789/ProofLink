@@ -118,15 +118,17 @@ The import profile loop is intentionally narrow:
 ## Guided Import Learning
 
 - `operator/import-workspace.js`
-  Adds a source-aware walkthrough that explains the next best migration step, flags risky rows, and lets operators reconcile fields inline before import.
+  Adds a source-aware walkthrough that explains the next best migration step, flags risky rows, lets operators reconcile fields inline before import, and keeps post-import cleanup visible for attachment carry-forward and unresolved links.
 - `manage-import-profiles.js`
   Persists learned import notes, corrected field hotspots, and a walkthrough summary alongside the reusable profile.
 - `import_migration_assistant`
-  Reads that tenant-scoped guidance back during later reviews so the import agent gets more grounded over time without any uncontrolled model fine-tuning.
+  Reads that tenant-scoped guidance back during later reviews so the import agent gets more grounded over time without any uncontrolled model fine-tuning, including attachment-heavy files and merge-target risk.
 
 This is the current "training" loop for the migration agents:
 
 - source presets improve first-pass detection
 - saved profiles improve column matching
 - operator walkthrough edits improve future coaching
+- explicit merge choices improve future caution around ambiguous customer or work matches
+- cleanup-inbox patterns improve how the migration agent warns about attachment follow-up and orphaned records
 - all learning stays tenant-scoped and inspectable

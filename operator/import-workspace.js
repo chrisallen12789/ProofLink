@@ -19,10 +19,13 @@
   const importProfileWrap = $("importProfileWrap");
   const importPresetWrap = $("importPresetWrap");
   const importReviewQueueWrap = $("importReviewQueueWrap");
+  const importCleanupInboxWrap = $("importCleanupInboxWrap");
   const importKindButtons = Array.from(document.querySelectorAll("[data-import-kind]"));
   const importTemplateButtons = Array.from(document.querySelectorAll("[data-template-kind]"));
   const btnRunImportAiReview = $("btnRunImportAiReview");
   const btnSaveImportProfile = $("btnSaveImportProfile");
+  const MATCH_SELECTION_NEW = "__create_new__";
+  const MATCH_SELECTION_CUSTOMER_ONLY = "__customer_only__";
 
   const REVIEW_FIELD_CONFIG = {
     customers: [
@@ -34,6 +37,7 @@
       { key: "billing_address", label: "Billing address" },
       { key: "tags", label: "Tags", help: "Comma-separated tags" },
       { key: "notes", label: "Notes", input: "textarea" },
+      { key: "attachment_links", label: "Attachment links", input: "textarea", help: "URLs or file references separated by commas, semicolons, or new lines" },
     ],
     open_work: [
       { key: "customer_name", label: "Customer name" },
@@ -51,6 +55,7 @@
       { key: "deposit_required", label: "Deposit required" },
       { key: "payment_due_date", label: "Payment due date", input: "date" },
       { key: "note", label: "Notes", input: "textarea" },
+      { key: "attachment_links", label: "Attachment links", input: "textarea", help: "URLs or file references separated by commas, semicolons, or new lines" },
     ],
     payments: [
       { key: "customer_name", label: "Customer name" },
@@ -63,6 +68,7 @@
       { key: "paid_at", label: "Paid at" },
       { key: "reference", label: "Reference" },
       { key: "note", label: "Notes", input: "textarea" },
+      { key: "attachment_links", label: "Attachment links", input: "textarea", help: "Receipt URLs, document links, or file references" },
     ],
   };
 
@@ -144,9 +150,12 @@
     presetPinned: false,
     rowDecisions: {},
     rowOverrides: {},
+    rowSelections: {},
     expandedReviewRow: 0,
     lastSavedProfileKey: "",
     aiReview: null,
+    cleanupInbox: [],
+    lastImportResults: null,
   };
 
   function kind() {
@@ -272,6 +281,40 @@
     return Object.keys(rowOverrideMap(rowOrNumber)).length > 0;
   }
 
+  function rowSelectionMap(rowOrNumber) {
+    const rowNumber = Number(typeof rowOrNumber === "object" ? rowOrNumber?.rowNumber : rowOrNumber);
+    if (!rowNumber) return {};
+    return IMPORT_STATE.rowSelections?.[rowNumber] || {};
+  }
+
+  function rowSelectionValue(rowOrNumber, fieldKey) {
+    const selections = rowSelectionMap(rowOrNumber);
+    return Object.prototype.hasOwnProperty.call(selections, fieldKey) ? String(selections[fieldKey] ?? "") : "";
+  }
+
+  function hasRowSelections(rowOrNumber) {
+    return Object.keys(rowSelectionMap(rowOrNumber)).length > 0;
+  }
+
+  function setRowSelection(rowNumber, fieldKey, value = "") {
+    const key = Number(rowNumber || 0);
+    if (!key || !fieldKey) return;
+    const nextValue = String(value ?? "").trim();
+    const nextSelections = {
+      ...(IMPORT_STATE.rowSelections?.[key] || {}),
+    };
+    if (nextValue) nextSelections[fieldKey] = nextValue;
+    else delete nextSelections[fieldKey];
+    IMPORT_STATE.rowSelections = {
+      ...(IMPORT_STATE.rowSelections || {}),
+      [key]: nextSelections,
+    };
+    if (!Object.keys(nextSelections).length) delete IMPORT_STATE.rowSelections[key];
+    IMPORT_STATE.aiReview = null;
+    IMPORT_STATE.preview = buildPreview();
+    renderImportWorkspace();
+  }
+
   function currentSourcePresetSummary() {
     return IMPORT_STATE.aiReview?.context_summary?.source_preset || null;
   }
@@ -388,6 +431,197 @@
     return Array.from(new Set([...(Array.isArray(existing) ? existing : []), ...(Array.isArray(incoming) ? incoming : [])]));
   }
 
+  function parseImportAttachmentRefs(value) {
+    const rawValue = String(value || "").replace(/\r/g, "\n");
+    if (!rawValue.trim()) return [];
+    const baseParts = rawValue
+      .split(/[\n;|]+/)
+      .flatMap((part) => part.split(/,(?=\s*(?:https?:\/\/|www\.|\/|[A-Za-z]:\\))/))
+      .map((part) => compact(part))
+      .filter(Boolean);
+    const parts = baseParts.length > 1
+      ? baseParts
+      : rawValue.split(/[\n;,|]+/).map((part) => compact(part)).filter(Boolean);
+    return parts
+      .map((entry) => {
+        const normalized = compact(entry).replace(/^www\./i, "https://www.");
+        const cleanValue = normalized.replace(/\s+/g, " ").trim();
+        if (!cleanValue) return null;
+        const lowerValue = cleanValue.toLowerCase();
+        const pathValue = lowerValue.split("?")[0].split("#")[0];
+        const isImage = /\.(jpg|jpeg|png|gif|webp|bmp|heic|heif|svg)$/.test(pathValue);
+        const isDocument = /\.(pdf|doc|docx|xls|xlsx|csv|txt|rtf)$/.test(pathValue);
+        const label = cleanValue.split("/").pop() || cleanValue;
+        return {
+          id: `attachment-${Tools.hashString(lowerValue)}`,
+          label,
+          raw: cleanValue,
+          url: /^https?:\/\//.test(cleanValue) ? cleanValue : "",
+          kind: isImage ? "image" : (isDocument ? "document" : "reference"),
+        };
+      })
+      .filter(Boolean)
+      .filter((attachment, index, list) => list.findIndex((candidate) => candidate.raw.toLowerCase() === attachment.raw.toLowerCase()) === index)
+      .slice(0, 10);
+  }
+
+  function importAttachmentRefs(row, importKind, rowNumber) {
+    return parseImportAttachmentRefs(importField(row, importKind, "attachment_links", { rowNumber }));
+  }
+
+  function attachmentSummary(attachments) {
+    if (!attachments.length) return "";
+    const imageCount = attachments.filter((item) => item.kind === "image").length;
+    const documentCount = attachments.filter((item) => item.kind === "document").length;
+    const referenceCount = Math.max(attachments.length - imageCount - documentCount, 0);
+    return [
+      `${attachments.length} attachment ref${attachments.length === 1 ? "" : "s"}`,
+      imageCount ? `${imageCount} image${imageCount === 1 ? "" : "s"}` : "",
+      documentCount ? `${documentCount} document${documentCount === 1 ? "" : "s"}` : "",
+      referenceCount ? `${referenceCount} link${referenceCount === 1 ? "" : "s"}` : "",
+    ].filter(Boolean).join(" | ");
+  }
+
+  function attachmentNoteBlock(attachments, label = "Imported attachment references") {
+    if (!attachments.length) return "";
+    return `${label}:\n${attachments.map((attachment) => `- ${attachment.label}${attachment.url ? ` | ${attachment.url}` : ` | ${attachment.raw}`}`).join("\n")}`;
+  }
+
+  function attachmentMetadata(attachments) {
+    return attachments.map((attachment) => ({
+      label: attachment.label,
+      url: attachment.url || null,
+      raw: attachment.raw,
+      kind: attachment.kind,
+    }));
+  }
+
+  function importedBidPhotos(attachments) {
+    return attachments
+      .filter((attachment) => attachment.kind === "image" && attachment.url)
+      .slice(0, 8)
+      .map((attachment) => ({
+        id: attachment.id,
+        name: attachment.label || "Imported walkthrough photo",
+        category: "overview",
+        note: "Imported from legacy attachment references during CSV migration.",
+        url: attachment.url,
+        storage_mode: "external_url",
+        captured_at: new Date().toISOString(),
+      }));
+  }
+
+  function matchReasonsLabel(reasons) {
+    return uniqueList(reasons, 3).join(", ");
+  }
+
+  function customerMatches(row) {
+    const targetEmail = email(row?.email || row?.customerEmail);
+    const targetPhone = phoneDigits(row?.phone || row?.customerPhone);
+    const targetName = compact(row?.name || row?.customerName).toLowerCase();
+    const targetAddress = compact(row?.serviceAddress || row?.service_address || row?.billingAddress || "").toLowerCase();
+    return (Array.isArray(CUSTOMERS_CACHE) ? CUSTOMERS_CACHE : [])
+      .map((customer) => {
+        let score = 0;
+        const reasons = [];
+        if (targetEmail && email(customer?.email) === targetEmail) {
+          score += 5;
+          reasons.push("email");
+        }
+        if (targetPhone && phoneDigits(customer?.phone) === targetPhone) {
+          score += 4;
+          reasons.push("phone");
+        }
+        if (targetName && compact(customer?.name).toLowerCase() === targetName) {
+          score += 3;
+          reasons.push("name");
+        }
+        const customerServiceAddress = compact(customer?.service_address).toLowerCase();
+        const customerBillingAddress = compact(customer?.billing_address).toLowerCase();
+        if (targetAddress && (customerServiceAddress === targetAddress || customerBillingAddress === targetAddress)) {
+          score += 2;
+          reasons.push("address");
+        }
+        return score > 0 ? { ...customer, _matchScore: score, _matchReasons: reasons } : null;
+      })
+      .filter(Boolean)
+      .sort((a, b) => b._matchScore - a._matchScore || compact(a.name).localeCompare(compact(b.name)));
+  }
+
+  function resolvedCustomerMatch(rowNumber, row, matches = customerMatches(row)) {
+    const selectedId = rowSelectionValue(rowNumber, "match_customer_id");
+    if (selectedId === MATCH_SELECTION_NEW) return { customer: null, mode: "create_new", needsDecision: false };
+    if (selectedId) {
+      const selected = matches.find((customer) => customer.id === selectedId)
+        || CUSTOMERS_CACHE.find((customer) => customer?.id === selectedId)
+        || null;
+      return { customer: selected, mode: selected ? "selected" : "", needsDecision: !selected };
+    }
+    if (matches.length === 1) return { customer: matches[0], mode: "auto", needsDecision: false };
+    return { customer: null, mode: "", needsDecision: matches.length > 1 };
+  }
+
+  function customerMatch(row, options = {}) {
+    const matches = options.matches || customerMatches(row);
+    const resolved = resolvedCustomerMatch(options.rowNumber || row?.rowNumber, row, matches);
+    return resolved.customer || null;
+  }
+
+  function orderMatchCandidates(row, customer) {
+    const externalId = compact(row?.orderExternalId);
+    const exactSourceRef = externalId ? workRef({ externalId }) : "";
+    const customerId = customer?.id || "";
+    return (Array.isArray(CRM_ORDERS_CACHE) ? CRM_ORDERS_CACHE : [])
+      .map((order) => {
+        let score = 0;
+        const reasons = [];
+        if (exactSourceRef && String(order?.source_ref || "") === exactSourceRef) {
+          score += 7;
+          reasons.push("import ref");
+        }
+        if (customerId && order?.customer_id === customerId) {
+          score += 4;
+          reasons.push("customer");
+        }
+        if (row?.customerEmail && email(order?.email) === email(row.customerEmail)) {
+          score += 3;
+          reasons.push("customer email");
+        }
+        if (row?.customerPhone && phoneDigits(order?.phone) === phoneDigits(row.customerPhone)) {
+          score += 3;
+          reasons.push("customer phone");
+        }
+        if (row?.serviceAddress && compact(order?.service_address).toLowerCase() === compact(row.serviceAddress).toLowerCase()) {
+          score += 2;
+          reasons.push("service address");
+        }
+        return score > 0 ? { ...order, _matchScore: score, _matchReasons: reasons } : null;
+      })
+      .filter(Boolean)
+      .sort((a, b) => b._matchScore - a._matchScore || new Date(b.scheduled_date || 0).getTime() - new Date(a.scheduled_date || 0).getTime());
+  }
+
+  function resolvedOrderMatch(rowNumber, row, candidates = []) {
+    const selectedId = rowSelectionValue(rowNumber, "match_order_id");
+    if (selectedId === MATCH_SELECTION_CUSTOMER_ONLY) return { order: null, mode: "customer_only", needsDecision: false };
+    if (selectedId) {
+      const selected = candidates.find((order) => order.id === selectedId)
+        || CRM_ORDERS_CACHE.find((order) => order?.id === selectedId)
+        || null;
+      return { order: selected, mode: selected ? "selected" : "", needsDecision: !selected };
+    }
+    if (candidates.length === 1) {
+      const only = candidates[0];
+      const exactExternalMatch = compact(row?.orderExternalId) && compact(only?.source_ref) === workRef({ externalId: row.orderExternalId });
+      if (compact(row?.orderExternalId) && !exactExternalMatch) {
+        return { order: null, mode: "", needsDecision: true };
+      }
+      return { order: only, mode: exactExternalMatch ? "exact" : "auto", needsDecision: false };
+    }
+    if (compact(row?.orderExternalId)) return { order: null, mode: "", needsDecision: true };
+    return { order: null, mode: "", needsDecision: candidates.length > 1 };
+  }
+
   function cacheReplaceById(rows, nextRow) {
     const list = Array.isArray(rows) ? [...rows] : [];
     const index = list.findIndex((row) => row?.id === nextRow?.id);
@@ -414,17 +648,6 @@
 
   function updateJobsCache(nextRow) {
     JOBS_CACHE = cacheReplaceById(JOBS_CACHE, nextRow);
-  }
-
-  function customerMatch(row) {
-    const targetEmail = email(row?.email);
-    const targetPhone = phoneDigits(row?.phone);
-    const targetName = compact(row?.name).toLowerCase();
-    return CUSTOMERS_CACHE.find((customer) =>
-      (targetEmail && email(customer?.email) === targetEmail)
-      || (targetPhone && phoneDigits(customer?.phone) === targetPhone)
-      || (!targetEmail && !targetPhone && targetName && compact(customer?.name).toLowerCase() === targetName)
-    ) || null;
   }
 
   function importRef(prefix, values) {
@@ -563,16 +786,51 @@
       const name = compact(importField(raw, "customers", "name", { rowNumber }));
       const contactEmail = email(importField(raw, "customers", "email", { rowNumber }));
       const contactPhone = compact(importField(raw, "customers", "phone", { rowNumber }));
-      const existing = customerMatch({ name, email: contactEmail, phone: contactPhone });
+      const serviceAddress = compact(importField(raw, "customers", "service_address", { rowNumber }));
+      const billingAddress = compact(importField(raw, "customers", "billing_address", { rowNumber }));
+      const customerMatchesList = customerMatches({ name, email: contactEmail, phone: contactPhone, serviceAddress, billingAddress });
+      const customerResolution = resolvedCustomerMatch(rowNumber, { name, email: contactEmail, phone: contactPhone, serviceAddress, billingAddress }, customerMatchesList);
+      const existing = customerResolution.customer;
       const tags = Tools.parseTagList(importField(raw, "customers", "tags", { rowNumber }));
       const mergedTags = mergeTags(existing?.tags, tags);
       const mergedNotes = mergeNotes(existing?.notes, importField(raw, "customers", "notes", { rowNumber }), "Imported note");
-      const serviceAddress = compact(importField(raw, "customers", "service_address", { rowNumber }));
-      const billingAddress = compact(importField(raw, "customers", "billing_address", { rowNumber }));
+      const attachments = importAttachmentRefs(raw, "customers", rowNumber);
+      const attachmentSummaryText = attachmentSummary(attachments);
       const preferredContact = normalizePreferredContact(importField(raw, "customers", "preferred_contact", { rowNumber }), contactEmail, contactPhone);
 
       if (!name && !contactEmail && !contactPhone) {
-        return { rowNumber, ready: false, action: "Needs review", tone: "error", primary: `Row ${rowNumber}`, secondary: "Missing customer identity", detail: "Add a name, email, or phone so ProofLink has a real customer to create or match." };
+        return {
+          rowNumber,
+          ready: false,
+          action: "Needs review",
+          tone: "error",
+          primary: `Row ${rowNumber}`,
+          secondary: "Missing customer identity",
+          detail: "Add a name, email, or phone so ProofLink has a real customer to create or match.",
+          attachments,
+          attachmentSummary: attachmentSummaryText,
+          customerMatches: customerMatchesList,
+          selectedCustomer: existing,
+          customerDecisionRequired: false,
+        };
+      }
+
+      if (customerResolution.needsDecision) {
+        return {
+          rowNumber,
+          raw,
+          ready: false,
+          action: "Needs review",
+          tone: "error",
+          primary: name || contactEmail || contactPhone || `Row ${rowNumber}`,
+          secondary: `${customerMatchesList.length} possible customer matches`,
+          detail: "Choose the exact customer to merge into, or pick create new, so ProofLink does not attach this row to the wrong account.",
+          attachments,
+          attachmentSummary: attachmentSummaryText,
+          customerMatches: customerMatchesList,
+          selectedCustomer: null,
+          customerDecisionRequired: true,
+        };
       }
 
       const changed = !existing || !!(
@@ -605,7 +863,18 @@
         tone: existing ? (changed ? "warn" : "") : "ok",
         primary: name || existing?.name || "Imported customer",
         secondary: [contactEmail || "No email", contactPhone || "No phone"].join(" | "),
-        detail: existing ? (changed ? "ProofLink will enrich the live customer record." : "ProofLink already has this customer and will not duplicate it.") : "ProofLink will create a new customer record.",
+        detail: [
+          existing
+            ? (changed ? "ProofLink will enrich the live customer record." : "ProofLink already has this customer and will not duplicate it.")
+            : "ProofLink will create a new customer record.",
+          attachmentSummaryText ? `Attachment carry-forward: ${attachmentSummaryText}.` : "",
+        ].filter(Boolean).join(" "),
+        attachments,
+        attachmentSummary: attachmentSummaryText,
+        customerMatches: customerMatchesList,
+        selectedCustomer: existing,
+        customerDecisionRequired: false,
+        attachmentFollowUp: attachments.length > 0,
       };
     });
   }
@@ -625,13 +894,51 @@
       const stageRaw = compact(importField(raw, "open_work", "stage", { rowNumber }));
       const stage = normalizeWorkStage(stageRaw, { totalCents });
       const paymentState = inferPaymentState(totalCents, amountPaidCents, paymentDueDate, stage.paymentState);
+      const attachments = importAttachmentRefs(raw, "open_work", rowNumber);
+      const attachmentSummaryText = attachmentSummary(attachments);
+      const customerMatchesList = customerMatches({ name: customerName, email: customerEmail, phone: customerPhone, serviceAddress: compact(importField(raw, "open_work", "service_address", { rowNumber })) });
+      const customerResolution = resolvedCustomerMatch(rowNumber, { name: customerName, email: customerEmail, phone: customerPhone, serviceAddress: compact(importField(raw, "open_work", "service_address", { rowNumber })) }, customerMatchesList);
       const sourceRef = stage.recordType === "order"
         ? workRef({ externalId: importField(raw, "open_work", "external_id", { rowNumber }), customerEmail, customerPhone, title, scheduledDate: importField(raw, "open_work", "scheduled_date", { rowNumber }), totalCents, stageRaw })
         : leadRef({ externalId: importField(raw, "open_work", "external_id", { rowNumber }), customerEmail, customerPhone, title, summary, stageRaw });
       const existing = stage.recordType === "order" ? existingOrderByRef(sourceRef) : existingLeadByRef(sourceRef);
 
       if (!customerName && !customerEmail && !customerPhone) {
-        return { rowNumber, ready: false, action: "Needs review", tone: "error", primary: `Row ${rowNumber}`, secondary: "Missing customer identity", detail: "Add customer information so the imported work lands on a real account." };
+        return {
+          rowNumber,
+          ready: false,
+          action: "Needs review",
+          tone: "error",
+          primary: `Row ${rowNumber}`,
+          secondary: "Missing customer identity",
+          detail: "Add customer information so the imported work lands on a real account.",
+          attachments,
+          attachmentSummary: attachmentSummaryText,
+          customerMatches: customerMatchesList,
+          selectedCustomer: customerResolution.customer,
+          customerDecisionRequired: false,
+        };
+      }
+
+      if (customerResolution.needsDecision) {
+        return {
+          rowNumber,
+          raw,
+          ready: false,
+          action: "Needs review",
+          tone: "error",
+          primary: title,
+          secondary: `${customerMatchesList.length} possible customer matches`,
+          detail: "Choose the correct customer account or create a new customer before this work is routed into the pipeline.",
+          attachments,
+          attachmentSummary: attachmentSummaryText,
+          customerMatches: customerMatchesList,
+          selectedCustomer: null,
+          customerDecisionRequired: true,
+          sourceRef,
+          recordType: stage.recordType,
+          paymentState,
+        };
       }
 
       return {
@@ -669,7 +976,16 @@
         tone: existing ? "" : "ok",
         primary: title,
         secondary: `${customerName || "Customer"} | ${stage.recordType === "bid" ? "Lead + bid" : stage.recordType === "lead" ? "Lead" : "Tracked work"}`,
-        detail: existing ? "ProofLink already has this imported record and will skip it safely." : `${formatUsd(totalCents)} total${depositRequiredCents > 0 ? ` | ${formatUsd(depositRequiredCents)} deposit` : ""}${stage.createJob ? " | job included" : ""}`,
+        detail: [
+          existing ? "ProofLink already has this imported record and will skip it safely." : `${formatUsd(totalCents)} total${depositRequiredCents > 0 ? ` | ${formatUsd(depositRequiredCents)} deposit` : ""}${stage.createJob ? " | job included" : ""}`,
+          attachmentSummaryText ? `Attachment carry-forward: ${attachmentSummaryText}.` : "",
+        ].filter(Boolean).join(" "),
+        attachments,
+        attachmentSummary: attachmentSummaryText,
+        customerMatches: customerMatchesList,
+        selectedCustomer: customerResolution.customer,
+        customerDecisionRequired: false,
+        attachmentFollowUp: attachments.length > 0 && !(stage.recordType === "bid" && attachments.every((attachment) => attachment.kind === "image")),
       };
     });
   }
@@ -695,14 +1011,100 @@
         reference: compact(importField(raw, "payments", "reference", { rowNumber })),
         note: compact(importField(raw, "payments", "note", { rowNumber })),
       };
+      const attachments = importAttachmentRefs(raw, "payments", rowNumber);
+      const attachmentSummaryText = attachmentSummary(attachments);
+      const customerMatchesList = customerMatches({ name: customerName, email: customerEmail, phone: customerPhone });
+      const customerResolution = resolvedCustomerMatch(rowNumber, { name: customerName, email: customerEmail, phone: customerPhone }, customerMatchesList);
+      const orderMatches = orderMatchCandidates(rowData, customerResolution.customer);
+      const orderResolution = resolvedOrderMatch(rowNumber, rowData, orderMatches, customerResolution.customer);
       const sourceRef = paymentRef(rowData);
       const existing = existingPaymentByRef(sourceRef);
 
       if ((!customerName && !customerEmail && !customerPhone) && !rowData.orderExternalId) {
-        return { rowNumber, ready: false, action: "Needs review", tone: "error", primary: `Row ${rowNumber}`, secondary: "Missing customer or work link", detail: "Add customer information or the matching work external id so ProofLink knows where the payment belongs." };
+        return {
+          rowNumber,
+          ready: false,
+          action: "Needs review",
+          tone: "error",
+          primary: `Row ${rowNumber}`,
+          secondary: "Missing customer or work link",
+          detail: "Add customer information or the matching work external id so ProofLink knows where the payment belongs.",
+          attachments,
+          attachmentSummary: attachmentSummaryText,
+          customerMatches: customerMatchesList,
+          selectedCustomer: customerResolution.customer,
+          customerDecisionRequired: false,
+          orderMatches,
+          selectedOrder: orderResolution.order,
+          orderDecisionRequired: false,
+        };
       }
       if (!amountCents) {
-        return { rowNumber, ready: false, action: "Needs review", tone: "error", primary: `Row ${rowNumber}`, secondary: customerName || customerEmail || "Payment row", detail: "Add an amount greater than zero before importing payment history." };
+        return {
+          rowNumber,
+          ready: false,
+          action: "Needs review",
+          tone: "error",
+          primary: `Row ${rowNumber}`,
+          secondary: customerName || customerEmail || "Payment row",
+          detail: "Add an amount greater than zero before importing payment history.",
+          attachments,
+          attachmentSummary: attachmentSummaryText,
+          customerMatches: customerMatchesList,
+          selectedCustomer: customerResolution.customer,
+          customerDecisionRequired: false,
+          orderMatches,
+          selectedOrder: orderResolution.order,
+          orderDecisionRequired: false,
+        };
+      }
+      if (!orderResolution.order && orderResolution.needsDecision) {
+        return {
+          ...rowData,
+          rowNumber,
+          raw,
+          ready: false,
+          existing,
+          sourceRef,
+          action: "Needs review",
+          tone: "error",
+          primary: customerName || customerEmail || customerPhone || "Imported payment",
+          secondary: orderMatches.length ? `${orderMatches.length} possible work matches` : "Work link needs a decision",
+          detail: compact(rowData.orderExternalId)
+            ? "Choose the exact ProofLink work record for this payment, or mark it as customer-only if the legacy payment should stay unlinked."
+            : "Choose the exact work record for this payment, or mark it as customer-only if it should remain account-level history.",
+          attachments,
+          attachmentSummary: attachmentSummaryText,
+          customerMatches: customerMatchesList,
+          selectedCustomer: customerResolution.customer,
+          customerDecisionRequired: false,
+          orderMatches,
+          selectedOrder: null,
+          orderDecisionRequired: true,
+        };
+      }
+      if (!orderResolution.order && customerResolution.needsDecision) {
+        return {
+          ...rowData,
+          rowNumber,
+          raw,
+          ready: false,
+          existing,
+          sourceRef,
+          action: "Needs review",
+          tone: "error",
+          primary: customerName || customerEmail || customerPhone || "Imported payment",
+          secondary: `${customerMatchesList.length} possible customer matches`,
+          detail: "Choose the correct customer account before this payment history is imported.",
+          attachments,
+          attachmentSummary: attachmentSummaryText,
+          customerMatches: customerMatchesList,
+          selectedCustomer: null,
+          customerDecisionRequired: true,
+          orderMatches,
+          selectedOrder: orderResolution.order,
+          orderDecisionRequired: false,
+        };
       }
 
       return {
@@ -716,7 +1118,21 @@
         tone: existing ? "" : "ok",
         primary: customerName || customerEmail || customerPhone || "Imported payment",
         secondary: `${formatUsd(amountCents)} | ${rowData.status} | ${rowData.method}`,
-        detail: rowData.orderExternalId ? `Will try to link to imported work id ${rowData.orderExternalId}.` : "Will import as customer-linked payment history.",
+        detail: [
+          orderResolution.order
+            ? `Linked to ${orderResolution.order.cart_summary || orderResolution.order.customer_name || "existing work"}.`
+            : (rowData.orderExternalId ? `Will stay customer-linked unless you choose a work record for ${rowData.orderExternalId}.` : "Will import as customer-linked payment history."),
+          attachmentSummaryText ? `Attachment carry-forward: ${attachmentSummaryText}.` : "",
+        ].filter(Boolean).join(" "),
+        attachments,
+        attachmentSummary: attachmentSummaryText,
+        customerMatches: customerMatchesList,
+        selectedCustomer: customerResolution.customer,
+        customerDecisionRequired: false,
+        orderMatches,
+        selectedOrder: orderResolution.order,
+        orderDecisionRequired: false,
+        attachmentFollowUp: attachments.length > 0,
       };
     });
   }
@@ -728,6 +1144,7 @@
       operatorDecision: rowDecision(row),
       skipped: isRowSkipped(row),
       hasOverrides: hasRowOverrides(row),
+      hasSelections: hasRowSelections(row),
     }));
     const readyRows = rows.filter((row) => row.ready && !row.skipped && !/^skip/i.test(row.action) && !/^match/i.test(row.action));
     return {
@@ -740,6 +1157,8 @@
         { label: "Already handled", value: rows.filter((row) => /^skip|^match/i.test(row.action)).length },
         { label: "Operator skipped", value: rows.filter((row) => row.skipped).length },
         { label: "Edited rows", value: rows.filter((row) => row.hasOverrides).length },
+        { label: "Merge choices", value: rows.filter((row) => row.hasSelections).length },
+        { label: "Attachment refs", value: rows.filter((row) => (row.attachments || []).length > 0).length },
         { label: "Needs review", value: rows.filter((row) => row.ready === false).length },
       ],
     };
@@ -776,10 +1195,16 @@
               <span class="pill ${row.tone === "ok" ? "pill-on" : (row.tone === "warn" ? "pill-warn" : (row.tone === "error" ? "pill-bad" : ""))}">${escapeHtml(row.action || "Review")}</span>
               ${row.skipped ? `<span class="pill pill-warn">operator skip</span>` : ""}
               ${row.hasOverrides ? `<span class="pill pill-on">edited</span>` : ""}
+              ${row.hasSelections ? `<span class="pill pill-on">merge choice</span>` : ""}
               ${row.recordType ? `<span class="pill">${escapeHtml(row.recordType)}</span>` : ""}
               ${row.paymentState ? `<span class="pill">${escapeHtml(String(row.paymentState).replace(/_/g, " "))}</span>` : ""}
+              ${row.attachmentSummary ? `<span class="pill">${escapeHtml(row.attachmentSummary)}</span>` : ""}
             </div>
-            <div class="detail-copy mono">${escapeHtml(row.sourceRef || row.externalId || "")}</div>
+            <div>
+              ${row.selectedCustomer?.id ? `<div class="detail-copy">Customer match: ${escapeHtml(row.selectedCustomer.name || row.selectedCustomer.email || row.selectedCustomer.phone || "Existing customer")}${row.selectedCustomer._matchReasons?.length ? ` (${escapeHtml(matchReasonsLabel(row.selectedCustomer._matchReasons))})` : ""}</div>` : ``}
+              ${row.selectedOrder?.id ? `<div class="detail-copy">Work match: ${escapeHtml(row.selectedOrder.cart_summary || row.selectedOrder.customer_name || row.selectedOrder.id)}${row.selectedOrder._matchReasons?.length ? ` (${escapeHtml(matchReasonsLabel(row.selectedOrder._matchReasons))})` : ""}</div>` : ``}
+              <div class="detail-copy mono">${escapeHtml(row.sourceRef || row.externalId || "")}</div>
+            </div>
           </article>
         `).join("")}
         ${preview.rows.length > 18 ? `<div class="muted">Showing the first 18 rows. ProofLink will still process all ${preview.rows.length} previewed rows.</div>` : ""}
@@ -898,7 +1323,7 @@
   function reviewRows() {
     const preview = IMPORT_STATE.preview;
     if (!preview?.rows?.length) return [];
-    return preview.rows.filter((row) => row.skipped || row.hasOverrides || !row.ready || row.tone === "warn" || /^update/i.test(row.action || ""));
+    return preview.rows.filter((row) => row.skipped || row.hasOverrides || row.hasSelections || !row.ready || row.tone === "warn" || /^update/i.test(row.action || ""));
   }
 
   function reviewFieldValue(row, field) {
@@ -951,6 +1376,93 @@
     return values;
   }
 
+  function collectReviewSelections(form) {
+    const selections = {};
+    form.querySelectorAll("[data-import-selection-field]").forEach((input) => {
+      const fieldKey = input.getAttribute("data-import-selection-field");
+      if (!fieldKey) return;
+      selections[fieldKey] = String(input.value ?? "");
+    });
+    return selections;
+  }
+
+  function renderSelectionField({ label, fieldKey, options = [], currentValue = "", help = "", placeholder = "Choose one", full = true }) {
+    return `
+      <label class="import-review-field${full ? " import-review-field--full" : ""}">
+        <span>${escapeHtml(label)}</span>
+        <select data-import-selection-field="${escapeAttr(fieldKey)}">
+          <option value="">${escapeHtml(placeholder)}</option>
+          ${options.map((option) => `<option value="${escapeAttr(option.value)}"${currentValue === option.value ? " selected" : ""}>${escapeHtml(option.label)}</option>`).join("")}
+        </select>
+        ${help ? `<small>${escapeHtml(help)}</small>` : ""}
+      </label>
+    `;
+  }
+
+  function renderCustomerMatchSelection(row) {
+    const selectionValue = rowSelectionValue(row, "match_customer_id");
+    const matches = Array.isArray(row.customerMatches) ? row.customerMatches : [];
+    if (!(row.customerDecisionRequired || matches.length > 1 || selectionValue === MATCH_SELECTION_NEW)) {
+      return row.selectedCustomer?.id
+        ? `<div class="import-review-match import-review-field--full"><strong>Matched customer:</strong> ${escapeHtml(row.selectedCustomer.name || row.selectedCustomer.email || row.selectedCustomer.phone || "Existing customer")}${row.selectedCustomer._matchReasons?.length ? ` <span class="muted">(${escapeHtml(matchReasonsLabel(row.selectedCustomer._matchReasons))})</span>` : ""}</div>`
+        : "";
+    }
+    const options = [
+      { value: MATCH_SELECTION_NEW, label: "Create new customer" },
+      ...matches.map((customer) => ({
+        value: customer.id,
+        label: `${customer.name || customer.email || customer.phone || "Existing customer"}${customer._matchReasons?.length ? ` (${matchReasonsLabel(customer._matchReasons)})` : ""}`,
+      })),
+    ];
+    return renderSelectionField({
+      label: "Customer merge target",
+      fieldKey: "match_customer_id",
+      options,
+      currentValue: selectionValue,
+      placeholder: "Choose customer or create new",
+      help: "ProofLink found more than one plausible customer account for this row.",
+    });
+  }
+
+  function renderOrderMatchSelection(row) {
+    const selectionValue = rowSelectionValue(row, "match_order_id");
+    const matches = Array.isArray(row.orderMatches) ? row.orderMatches : [];
+    if (!(row.orderDecisionRequired || matches.length > 1 || selectionValue === MATCH_SELECTION_CUSTOMER_ONLY)) {
+      return row.selectedOrder?.id
+        ? `<div class="import-review-match import-review-field--full"><strong>Matched work:</strong> ${escapeHtml(row.selectedOrder.cart_summary || row.selectedOrder.customer_name || row.selectedOrder.id)}${row.selectedOrder._matchReasons?.length ? ` <span class="muted">(${escapeHtml(matchReasonsLabel(row.selectedOrder._matchReasons))})</span>` : ""}</div>`
+        : "";
+    }
+    const options = [
+      { value: MATCH_SELECTION_CUSTOMER_ONLY, label: "Keep as customer-only payment history" },
+      ...matches.map((order) => ({
+        value: order.id,
+        label: `${order.cart_summary || order.customer_name || order.id}${order.scheduled_date ? ` | ${order.scheduled_date}` : ""}${order._matchReasons?.length ? ` (${matchReasonsLabel(order._matchReasons)})` : ""}`,
+      })),
+    ];
+    return renderSelectionField({
+      label: "Linked work target",
+      fieldKey: "match_order_id",
+      options,
+      currentValue: selectionValue,
+      placeholder: "Choose work or keep customer-only",
+      help: "Use this when a payment could belong to more than one job, order, or invoice record.",
+    });
+  }
+
+  function renderAttachmentReview(row) {
+    const attachments = Array.isArray(row.attachments) ? row.attachments : [];
+    if (!attachments.length) return "";
+    return `
+      <div class="import-review-attachments import-review-field--full">
+        <div class="kicker">Attachment carry-forward</div>
+        <div class="detail-copy">${escapeHtml(row.attachmentSummary || `${attachments.length} attachment reference(s)`)}${row.attachmentFollowUp ? " These will land in notes or cleanup follow-up unless ProofLink can place them directly." : " ProofLink can carry these forward directly."}</div>
+        <div class="workspace-chip-row u-mt-10">
+          ${attachments.slice(0, 6).map((attachment) => `<span class="pill">${escapeHtml(`${attachment.kind}: ${attachment.label}`)}</span>`).join("")}
+        </div>
+      </div>
+    `;
+  }
+
   function buildImportReviewSampleRows(limit = 18) {
     const normalizedKind = kind();
     const fieldKeys = reviewFieldConfig(normalizedKind).map((field) => field.key);
@@ -972,12 +1484,24 @@
     return IMPORT_STATE.preview?.rows?.filter((row) => row.hasOverrides).length || 0;
   }
 
+  function selectedMergeRowCount() {
+    return IMPORT_STATE.preview?.rows?.filter((row) => row.hasSelections).length || 0;
+  }
+
   function skippedRowCount() {
     return IMPORT_STATE.preview?.rows?.filter((row) => row.skipped).length || 0;
   }
 
   function unresolvedRowCount() {
     return IMPORT_STATE.preview?.rows?.filter((row) => !row.skipped && row.ready === false).length || 0;
+  }
+
+  function attachmentRowCount() {
+    return IMPORT_STATE.preview?.rows?.filter((row) => (row.attachments || []).length > 0).length || 0;
+  }
+
+  function cleanupInboxCount() {
+    return (IMPORT_STATE.cleanupInbox || []).length;
   }
 
   function correctionFieldKeys(limit = 5) {
@@ -1016,6 +1540,9 @@
     const editedRows = editedRowCount();
     const skippedRows = skippedRowCount();
     const unresolvedRows = unresolvedRowCount();
+    const selectedMerges = selectedMergeRowCount();
+    const attachmentRows = attachmentRowCount();
+    const cleanupItems = cleanupInboxCount();
     const correctedLabels = correctionFieldLabels(3);
     const activeProfile = activeImportProfile();
     const mergedNotes = uniqueList([
@@ -1023,7 +1550,10 @@
       `Bring ${kindMeta().label.toLowerCase()} through this walkthrough before importing so ProofLink can explain and verify the mapping safely.`,
       ...(sourceGuidance?.tips || []).slice(0, 2),
       editedRows ? `${editedRows} row(s) needed operator edits in the last walkthrough${correctedLabels.length ? `, mainly around ${correctedLabels.join(", ")}` : ""}.` : "",
+      selectedMerges ? `${selectedMerges} row(s) needed explicit merge choices so ProofLink would not attach data to the wrong customer or work record.` : "",
+      attachmentRows ? `${attachmentRows} row(s) carried attachment references that should stay visible in follow-up cleanup after import.` : "",
       skippedRows ? `${skippedRows} row(s) were skipped during the last walkthrough because they still needed manual cleanup.` : "",
+      cleanupItems ? `${cleanupItems} cleanup inbox item(s) were left after import so the operator could finish unresolved links or attachment follow-up.` : "",
     ], 6);
     const correctionFields = uniqueList([
       ...(activeProfile?.correction_fields || []),
@@ -1033,8 +1563,11 @@
       currentSourceSystem() ? `Source system: ${currentSourceSystem().replace(/_/g, " ")}` : "",
       IMPORT_STATE.preview?.rows?.length ? `${IMPORT_STATE.preview.rows.length} preview row(s)` : "",
       editedRows ? `${editedRows} edited` : "0 edited",
+      selectedMerges ? `${selectedMerges} merge choice${selectedMerges === 1 ? "" : "s"}` : "0 merge choices",
+      attachmentRows ? `${attachmentRows} attachment row${attachmentRows === 1 ? "" : "s"}` : "0 attachment rows",
       skippedRows ? `${skippedRows} skipped` : "0 skipped",
       unresolvedRows ? `${unresolvedRows} still flagged` : "0 still flagged",
+      cleanupItems ? `${cleanupItems} cleanup item${cleanupItems === 1 ? "" : "s"}` : "0 cleanup items",
     ].filter(Boolean).join(" | ");
 
     return {
@@ -1052,6 +1585,8 @@
     const editedRows = editedRowCount();
     const skippedRows = skippedRowCount();
     const unresolvedRows = unresolvedRowCount();
+    const attachmentRows = attachmentRowCount();
+    const cleanupItems = cleanupInboxCount();
     const sourcePreset = activeImportPreset() || currentSourcePresetSummary();
     const sourceGuidance = sourceWalkthroughGuidance();
     const laneGuidance = laneWalkthroughGuidance();
@@ -1078,8 +1613,8 @@
         detail: !preview
           ? "The review queue appears after preview."
           : unresolvedRows
-            ? `${unresolvedRows} row(s) still need identity, amount, or linked-record cleanup. Use edit fields or skip row to keep moving.`
-            : `${editedRows ? `${editedRows} row(s) were corrected. ` : ""}${skippedRows ? `${skippedRows} row(s) were intentionally skipped. ` : ""}The current preview no longer has unresolved blockers.`,
+            ? `${unresolvedRows} row(s) still need identity, amount, merge-target, or linked-record cleanup. Use edit fields, merge choices, or skip row to keep moving.`
+            : `${editedRows ? `${editedRows} row(s) were corrected. ` : ""}${skippedRows ? `${skippedRows} row(s) were intentionally skipped. ` : ""}${attachmentRows ? `${attachmentRows} row(s) are also carrying attachment references. ` : ""}The current preview no longer has unresolved blockers.`,
       },
       {
         label: "Run the AI migration review",
@@ -1115,6 +1650,11 @@
       nextAction = {
         title: "Run AI migration review",
         detail: "The agent will explain mapping coverage, likely source system, and any remaining risk before import.",
+      };
+    } else if (cleanupItems) {
+      nextAction = {
+        title: "Work the cleanup inbox",
+        detail: "Use the cleanup queue to finish attachment follow-up, skipped rows, and any payment or merge leftovers after the import run.",
       };
     } else if (preview && hasAiReview && !hasProfile) {
       nextAction = {
@@ -1164,6 +1704,7 @@
       Number(contextSummary.ready_row_count || 0) ? `${contextSummary.ready_row_count} ready sample row${Number(contextSummary.ready_row_count || 0) === 1 ? "" : "s"}` : "",
       Number(contextSummary.review_row_count || 0) ? `${contextSummary.review_row_count} review row${Number(contextSummary.review_row_count || 0) === 1 ? "" : "s"}` : "No review rows in sample",
       Number(contextSummary.unknown_headers_count || 0) ? `${contextSummary.unknown_headers_count} unmapped header${Number(contextSummary.unknown_headers_count || 0) === 1 ? "" : "s"}` : "",
+      Number(contextSummary.attachment_row_count || 0) ? `${contextSummary.attachment_row_count} attachment-heavy row${Number(contextSummary.attachment_row_count || 0) === 1 ? "" : "s"}` : "",
       Number(routeCounts.leads || 0) ? `${routeCounts.leads} leads` : "",
       Number(routeCounts.bids || 0) ? `${routeCounts.bids} quotes` : "",
       Number(routeCounts.orders || 0) ? `${routeCounts.orders} tracked work` : "",
@@ -1267,11 +1808,15 @@
               <div class="workspace-chip-row">
                 <span class="pill ${row.skipped ? "pill-warn" : (row.ready ? "pill-on" : "pill-bad")}">${escapeHtml(row.skipped ? "Skipped" : (row.ready ? "Ready" : "Needs review"))}</span>
                 ${row.hasOverrides ? `<span class="pill pill-on">Edited</span>` : ""}
+                ${row.hasSelections ? `<span class="pill pill-on">Merge choice</span>` : ""}
                 ${row.recordType ? `<span class="pill">${escapeHtml(row.recordType)}</span>` : ""}
+                ${row.attachmentSummary ? `<span class="pill">${escapeHtml(row.attachmentSummary)}</span>` : ""}
               </div>
             </div>
             <div class="detail-copy memory-checklist__note">${escapeHtml(row.secondary || "")}</div>
             <div class="detail-copy memory-checklist__note">${escapeHtml(row.detail || "")}</div>
+            ${row.selectedCustomer?.id ? `<div class="detail-copy memory-checklist__note"><strong>Customer:</strong> ${escapeHtml(row.selectedCustomer.name || row.selectedCustomer.email || row.selectedCustomer.phone || "Existing customer")}</div>` : ""}
+            ${row.selectedOrder?.id ? `<div class="detail-copy memory-checklist__note"><strong>Work:</strong> ${escapeHtml(row.selectedOrder.cart_summary || row.selectedOrder.customer_name || row.selectedOrder.id)}</div>` : ""}
             <div class="import-review-row__actions u-mt-10">
               <button class="btn btn-ghost btn-sm" type="button" data-import-row-action="${IMPORT_STATE.expandedReviewRow === row.rowNumber ? "close-editor" : "open-editor"}" data-import-row-number="${escapeAttr(String(row.rowNumber || ""))}">${IMPORT_STATE.expandedReviewRow === row.rowNumber ? "Hide edits" : "Edit fields"}</button>
               <button class="btn btn-ghost btn-sm" type="button" data-import-row-action="${row.skipped ? "restore" : "skip"}" data-import-row-number="${escapeAttr(String(row.rowNumber || ""))}">${row.skipped ? "Restore row" : "Skip row"}</button>
@@ -1280,6 +1825,9 @@
             ${IMPORT_STATE.expandedReviewRow === row.rowNumber ? `
               <form class="import-review-form u-mt-10" data-import-review-form="${escapeAttr(String(row.rowNumber || ""))}">
                 ${reviewFieldConfig().map((field) => renderReviewField(row, field)).join("")}
+                ${renderCustomerMatchSelection(row)}
+                ${renderOrderMatchSelection(row)}
+                ${renderAttachmentReview(row)}
                 <div class="import-review-row__actions">
                   <button class="btn btn-primary btn-sm" type="button" data-import-row-action="save-edits" data-import-row-number="${escapeAttr(String(row.rowNumber || ""))}">Apply edits</button>
                   <button class="btn btn-ghost btn-sm" type="button" data-import-row-action="close-editor" data-import-row-number="${escapeAttr(String(row.rowNumber || ""))}">Close</button>
@@ -1289,6 +1837,111 @@
           </div>
         `).join("")}
         ${rows.length > 24 ? `<div class="detail-copy">Showing the first 24 review rows for this preview.</div>` : ""}
+      </div>
+    `;
+  }
+
+  function removeCleanupItem(itemId) {
+    IMPORT_STATE.cleanupInbox = (IMPORT_STATE.cleanupInbox || []).filter((item) => item.id !== itemId);
+    renderImportWorkspace();
+  }
+
+  function openCleanupTarget(item) {
+    if (!item) return;
+    const targetTab = compact(item.targetTab);
+    const targetId = compact(item.targetId);
+    if (item.rowNumber) setExpandedReviewRow(item.rowNumber);
+    if (!targetTab || !targetId || typeof switchTab !== "function") return;
+    if (targetTab === "customers") {
+      ACTIVE_CUSTOMER_ID = targetId;
+      CUSTOMER_CREATING = false;
+      switchTab("customers");
+      if (typeof renderCustomerDetail === "function") renderCustomerDetail(targetId).catch?.(console.error);
+      return;
+    }
+    if (targetTab === "orders") {
+      ACTIVE_ORDER_ID = targetId;
+      if (typeof renderOrders === "function") renderOrders();
+      switchTab("orders");
+      return;
+    }
+    if (targetTab === "jobs") {
+      ACTIVE_JOB_ID = targetId;
+      if (typeof renderJobs === "function") renderJobs(jobSearch?.value || "");
+      switchTab("jobs");
+      return;
+    }
+    if (targetTab === "payments") {
+      ACTIVE_PAYMENT_ID = targetId;
+      if (typeof renderPayments === "function") renderPayments();
+      switchTab("payments");
+      return;
+    }
+    if (targetTab === "bids") {
+      ACTIVE_BID_ID = targetId;
+      if (typeof renderBids === "function") renderBids(bidSearch?.value || "");
+      switchTab("bids");
+      return;
+    }
+    if (targetTab === "leads") {
+      ACTIVE_LEAD_ID = targetId;
+      if (typeof renderLeads === "function") renderLeads(leadSearch?.value || "");
+      switchTab("leads");
+    }
+  }
+
+  function renderCleanupInbox() {
+    if (!importCleanupInboxWrap) return;
+    const items = Array.isArray(IMPORT_STATE.cleanupInbox) ? IMPORT_STATE.cleanupInbox : [];
+    const lastImport = IMPORT_STATE.lastImportResults || null;
+    if (!lastImport && !items.length) {
+      importCleanupInboxWrap.innerHTML = `
+        <div class="detail-card">
+          <div class="kicker">Cleanup inbox</div>
+          <div><strong>No post-import cleanup is waiting yet.</strong></div>
+          <div class="detail-copy">After an import run, ProofLink will keep unresolved rows, attachment follow-up, and unlinked payment history visible here until the operator clears them.</div>
+        </div>
+      `;
+      return;
+    }
+    if (!items.length) {
+      importCleanupInboxWrap.innerHTML = `
+        <div class="detail-card">
+          <div class="kicker">Cleanup inbox</div>
+          <div><strong>The latest import run does not have any remaining cleanup work.</strong></div>
+          <div class="detail-copy">ProofLink finished the last import without leaving unresolved rows, attachment follow-up, or linking leftovers behind.</div>
+        </div>
+      `;
+      return;
+    }
+    importCleanupInboxWrap.innerHTML = `
+      <div class="detail-card">
+        <div class="kicker">Cleanup inbox</div>
+        <div><strong>${escapeHtml(`${items.length} item${items.length === 1 ? "" : "s"} still need follow-up after the latest import.`)}</strong></div>
+        <div class="detail-copy">Use this queue to reopen skipped rows, finish attachment carry-forward, and correct payment or merge leftovers without losing your place.</div>
+      </div>
+      <div class="memory-checklist u-mt-10">
+        ${items.slice(0, 24).map((item) => `
+          <div class="memory-checklist__item ${item.tone === "warn" ? "memory-checklist__item--warn" : "memory-checklist__item--ready"}">
+            <div class="detail-card__header">
+              <div>
+                <div class="kicker">${escapeHtml(item.category || "cleanup")}</div>
+                <div class="memory-checklist__title">${escapeHtml(item.title || "Cleanup item")}</div>
+              </div>
+              <div class="workspace-chip-row">
+                ${item.rowNumber ? `<span class="pill">Row ${escapeHtml(String(item.rowNumber))}</span>` : ""}
+                ${item.targetTab ? `<span class="pill">${escapeHtml(item.targetTab)}</span>` : ""}
+              </div>
+            </div>
+            <div class="detail-copy memory-checklist__note">${escapeHtml(item.detail || "")}</div>
+            ${item.meta ? `<div class="detail-copy memory-checklist__note">${escapeHtml(item.meta)}</div>` : ""}
+            <div class="import-review-row__actions u-mt-10">
+              ${item.rowNumber ? `<button class="btn btn-ghost btn-sm" type="button" data-import-cleanup-action="open-row" data-import-cleanup-id="${escapeAttr(item.id)}">Open row</button>` : ""}
+              ${item.targetTab && item.targetId ? `<button class="btn btn-primary btn-sm" type="button" data-import-cleanup-action="open-target" data-import-cleanup-id="${escapeAttr(item.id)}">${escapeHtml(item.actionLabel || "Open record")}</button>` : ""}
+              <button class="btn btn-ghost btn-sm" type="button" data-import-cleanup-action="dismiss" data-import-cleanup-id="${escapeAttr(item.id)}">Dismiss</button>
+            </div>
+          </div>
+        `).join("")}
       </div>
     `;
   }
@@ -1321,6 +1974,7 @@
     renderProfileSummary();
     renderAiReview();
     renderReviewQueue();
+    renderCleanupInbox();
   }
 
   function resetImportState(options = {}) {
@@ -1338,9 +1992,12 @@
       presetPinned: false,
       rowDecisions: {},
       rowOverrides: {},
+      rowSelections: {},
       expandedReviewRow: 0,
       lastSavedProfileKey: "",
       aiReview: null,
+      cleanupInbox: [],
+      lastImportResults: null,
     };
     if (importFile) importFile.value = "";
     setImportMessage("");
@@ -1359,9 +2016,12 @@
     IMPORT_STATE.presetPinned = false;
     IMPORT_STATE.rowDecisions = {};
     IMPORT_STATE.rowOverrides = {};
+    IMPORT_STATE.rowSelections = {};
     IMPORT_STATE.expandedReviewRow = 0;
     IMPORT_STATE.lastSavedProfileKey = "";
     IMPORT_STATE.aiReview = null;
+    IMPORT_STATE.cleanupInbox = [];
+    IMPORT_STATE.lastImportResults = null;
     if (importFile) importFile.value = "";
     setImportMessage("");
     setImportAiMessage("");
@@ -1376,6 +2036,7 @@
     IMPORT_STATE.presetPinned = !!nextPreset;
     IMPORT_STATE.rowDecisions = {};
     IMPORT_STATE.rowOverrides = {};
+    IMPORT_STATE.rowSelections = {};
     IMPORT_STATE.expandedReviewRow = 0;
     IMPORT_STATE.lastSavedProfileKey = "";
     if (IMPORT_STATE.rows.length) {
@@ -1434,9 +2095,12 @@
     IMPORT_STATE.rows = parsed.rows;
     IMPORT_STATE.rowDecisions = {};
     IMPORT_STATE.rowOverrides = {};
+    IMPORT_STATE.rowSelections = {};
     IMPORT_STATE.expandedReviewRow = 0;
     IMPORT_STATE.lastSavedProfileKey = "";
     IMPORT_STATE.aiReview = null;
+    IMPORT_STATE.cleanupInbox = [];
+    IMPORT_STATE.lastImportResults = null;
     const pinnedPreset = IMPORT_STATE.presetPinned ? activeImportPreset() : null;
     const matchedProfile = typeof Tools.chooseImportProfile === "function"
       ? Tools.chooseImportProfile(parsed.headers, IMPORT_STATE.kind, profileList())
@@ -1464,15 +2128,19 @@
   }
 
   async function upsertImportedCustomer(record) {
-    const existing = record.existing || customerMatch(record);
+    const explicitCreate = rowSelectionValue(record.rowNumber, "match_customer_id") === MATCH_SELECTION_NEW;
+    const existing = explicitCreate
+      ? null
+      : (record.selectedCustomer || record.existing || customerMatch(record, { rowNumber: record.rowNumber, matches: record.customerMatches }));
     const nowIso = new Date().toISOString();
+    const attachmentNotes = attachmentNoteBlock(Array.isArray(record.attachments) ? record.attachments : []);
     const payload = withTenantScope({
       operator_id: opId(),
       name: record.name || existing?.name || record.email || record.phone || "Customer",
       email: record.email || null,
       phone: record.phone || null,
       preferred_contact: record.preferredContact || existing?.preferred_contact || "email",
-      notes: record.mergedNotes || existing?.notes || "",
+      notes: mergeNotes(record.mergedNotes || existing?.notes || "", attachmentNotes) || "",
       service_address: record.serviceAddress || existing?.service_address || null,
       billing_address: record.billingAddress || existing?.billing_address || null,
       tags: record.mergedTags || existing?.tags || [],
@@ -1542,6 +2210,7 @@
     const existing = existingLeadByRef(row.sourceRef);
     if (existing) return { lead: existing, action: "skipped" };
     const nowIso = new Date().toISOString();
+    const attachmentNotes = attachmentNoteBlock(row.attachments || []);
     const payload = withTenantScope({
       operator_id: opId(),
       customer_id: customer?.id || null,
@@ -1556,10 +2225,11 @@
       contact_email: row.customerEmail || customer?.email || null,
       contact_phone: row.customerPhone || customer?.phone || null,
       preferred_contact: normalizePreferredContact(customer?.preferred_contact || "", row.customerEmail, row.customerPhone),
-      notes: row.note || "",
+      notes: mergeNotes(row.note || "", attachmentNotes) || "",
       metadata: {
         imported_via: "csv",
         import_ref: row.sourceRef,
+        attachments: attachmentMetadata(row.attachments || []),
       },
       last_activity_at: nowIso,
       updated_at: nowIso,
@@ -1583,6 +2253,9 @@
     }
 
     const nowIso = new Date().toISOString();
+    const bidPhotos = importedBidPhotos(row.attachments || []);
+    const nonPhotoAttachments = (row.attachments || []).filter((attachment) => attachment.kind !== "image");
+    const attachmentNotes = attachmentNoteBlock(nonPhotoAttachments);
     const payload = withTenantScope({
       operator_id: opId(),
       lead_id: lead.id,
@@ -1596,11 +2269,11 @@
       schedule_window: row.scheduleWindow || null,
       project_summary: row.summary || lead.summary || "",
       scope_of_work: row.summary || "",
-      internal_notes: mergeNotes(lead.notes, row.note, "Imported work note"),
+      internal_notes: mergeNotes(mergeNotes(lead.notes, row.note, "Imported work note"), attachmentNotes) || "",
       deposit_percent: row.totalCents > 0 && row.depositRequiredCents > 0 ? Number(((row.depositRequiredCents / row.totalCents) * 100).toFixed(2)) : 0,
       deposit_amount_cents: Math.max(0, Number(row.depositRequiredCents || 0)),
       line_items: baseBidLineItems(row),
-      photos: [],
+      photos: bidPhotos,
       subtotal_cents: Math.max(0, Number(row.totalCents || 0)),
       optional_total_cents: 0,
       total_cents: Math.max(0, Number(row.totalCents || 0)),
@@ -1608,6 +2281,7 @@
         imported_via: "csv",
         import_ref: row.sourceRef,
         local_draft_id: `imported-${Tools.hashString(row.sourceRef || row.title || nowIso)}`,
+        attachments: attachmentMetadata(row.attachments || []),
       },
       updated_at: nowIso,
     });
@@ -1694,6 +2368,7 @@
     const existing = JOBS_CACHE.find((job) => job.order_id === order.id || job.id === order.primary_job_id) || null;
     if (existing) return { job: existing, action: "skipped" };
     const nowIso = new Date().toISOString();
+    const attachmentNotes = attachmentNoteBlock(row.attachments || []);
     const payload = withTenantScope({
       operator_id: order.operator_id || opId(),
       order_id: order.id,
@@ -1706,7 +2381,7 @@
       scheduled_time: order.scheduled_time || null,
       schedule_window: row.scheduleWindow || order.schedule_window || null,
       summary: row.summary || order.cart_summary || "Imported service work",
-      notes: row.note || order.notes || "",
+      notes: mergeNotes(row.note || order.notes || "", attachmentNotes) || "",
       payment_state: order.payment_state || row.paymentState || "unpaid",
       amount_paid_cents: Math.max(0, Number(order.amount_paid_cents || row.amountPaidCents || 0)),
       amount_due_cents: Math.max(0, Number(order.amount_due_cents || row.amountDueCents || 0)),
@@ -1754,6 +2429,7 @@
     const scheduledDate = normalizeIsoDate(row.scheduledDate);
     const totalCents = Math.max(0, Number(row.totalCents || 0));
     const paymentDueDate = normalizeIsoDate(row.paymentDueDate) || scheduledDate || null;
+    const attachmentNotes = attachmentNoteBlock(row.attachments || []);
     const payload = withTenantScope({
       operator_id: opId(),
       customer_id: customer?.id || null,
@@ -1771,7 +2447,7 @@
       item_count: 1,
       unpriced_count: totalCents > 0 ? 0 : 1,
       cart_summary: row.title || "Imported work",
-      notes: mergeNotes("", row.note || row.summary, "Imported work note"),
+      notes: mergeNotes(mergeNotes("", row.note || row.summary, "Imported work note"), attachmentNotes) || "",
       customer_name: customer?.name || row.customerName || "Customer",
       email: row.customerEmail || customer?.email || null,
       phone: row.customerPhone || customer?.phone || null,
@@ -1827,6 +2503,8 @@
   }
 
   function resolveOrderForPayment(row) {
+    if (row.selectedOrder?.id) return row.selectedOrder;
+    if (rowSelectionValue(row.rowNumber, "match_order_id") === MATCH_SELECTION_CUSTOMER_ONLY) return null;
     const externalId = compact(row.orderExternalId);
     if (externalId) {
       const sourceRef = workRef({ externalId });
@@ -1847,7 +2525,7 @@
 
     let order = resolveOrderForPayment(row);
     let customer = order?.customer_id ? (CUSTOMERS_CACHE.find((item) => item.id === order.customer_id) || null) : null;
-    const matchedCustomer = customerMatch({ name: row.customerName, email: row.customerEmail, phone: row.customerPhone });
+    const matchedCustomer = row.selectedCustomer || customerMatch({ name: row.customerName, email: row.customerEmail, phone: row.customerPhone }, { rowNumber: row.rowNumber, matches: row.customerMatches });
     if (!customer && (row.customerName || row.customerEmail || row.customerPhone)) {
       const customerResult = await upsertImportedCustomer({
         name: row.customerName || row.customerEmail || row.customerPhone,
@@ -1870,6 +2548,7 @@
 
     const nowIso = new Date().toISOString();
     const paidAt = normalizeIsoDateTime(row.paidAt) || nowIso;
+    const attachmentNotes = attachmentNoteBlock(row.attachments || []);
     const payload = withTenantScope({
       operator_id: opId(),
       customer_id: customer?.id || order?.customer_id || null,
@@ -1882,12 +2561,13 @@
       currency: "usd",
       source: "csv_import",
       reference_number: row.reference || null,
-      note: row.note || null,
+      note: mergeNotes(row.note || "", attachmentNotes) || null,
       metadata: {
         import_ref: row.sourceRef,
         imported_via: "csv",
         reference: row.reference || null,
         note: row.note || null,
+        attachments: attachmentMetadata(row.attachments || []),
       },
       paid_at: paidAt,
       received_at: paidAt,
@@ -1974,6 +2654,75 @@
     return payload?.profile || null;
   }
 
+  function pushCleanupItem(collection, item) {
+    if (!item?.id) return;
+    const list = Array.isArray(collection) ? collection : [];
+    const index = list.findIndex((entry) => entry.id === item.id);
+    if (index >= 0) list[index] = { ...list[index], ...item };
+    else list.push(item);
+  }
+
+  function importOutcomeTarget(outcome = {}) {
+    if (outcome.payment?.id) return { targetTab: "payments", targetId: outcome.payment.id, actionLabel: "Open payment" };
+    if (outcome.job?.id) return { targetTab: "jobs", targetId: outcome.job.id, actionLabel: "Open job" };
+    if (outcome.order?.id) return { targetTab: "orders", targetId: outcome.order.id, actionLabel: "Open work" };
+    if (outcome.bid?.id) return { targetTab: "bids", targetId: outcome.bid.id, actionLabel: "Open quote" };
+    if (outcome.lead?.id) return { targetTab: "leads", targetId: outcome.lead.id, actionLabel: "Open lead" };
+    if (outcome.customer?.id) return { targetTab: "customers", targetId: outcome.customer.id, actionLabel: "Open customer" };
+    return null;
+  }
+
+  function buildAttachmentCleanupItem(row, outcome = {}) {
+    const attachments = Array.isArray(row.attachments) ? row.attachments : [];
+    if (!row.attachmentFollowUp || !attachments.length) return null;
+    const target = importOutcomeTarget(outcome) || null;
+    const imageCount = attachments.filter((attachment) => attachment.kind === "image").length;
+    const recordLabel = kind() === "customers"
+      ? "customer record"
+      : (row.recordType === "bid" ? "quote record" : (row.recordType === "lead" ? "lead record" : (kind() === "payments" ? "payment history" : "work record")));
+    return {
+      id: `cleanup-attachments-${kind()}-${row.rowNumber}`,
+      category: "attachments",
+      tone: "warn",
+      rowNumber: row.rowNumber,
+      title: `Finish attachment carry-forward for row ${row.rowNumber}`,
+      detail: imageCount && row.recordType === "bid"
+        ? `${imageCount} image attachment(s) were carried into the quote photo record. Review the remaining references so the ${recordLabel} keeps the right proof visible.`
+        : `ProofLink preserved ${attachments.length} attachment reference(s) for this ${recordLabel}. Review them and move anything important into the place your team expects.`,
+      meta: row.attachmentSummary || "",
+      ...(target || {}),
+    };
+  }
+
+  function buildSkippedRowCleanupItem(row, detail) {
+    return {
+      id: `cleanup-row-${row.rowNumber}`,
+      category: "skipped row",
+      tone: "warn",
+      rowNumber: row.rowNumber,
+      title: `Row ${row.rowNumber} still needs a decision`,
+      detail: detail || row.detail || "This row stayed out of the import and can be revisited from the review queue.",
+      actionLabel: "Open row",
+    };
+  }
+
+  function buildPaymentLinkCleanupItem(row, outcome = {}) {
+    if (kind() !== "payments" || !outcome.payment?.id || outcome.order?.id) return null;
+    return {
+      id: `cleanup-payment-link-${row.rowNumber}`,
+      category: "payment link",
+      tone: "warn",
+      rowNumber: row.rowNumber,
+      title: `Payment row ${row.rowNumber} is still customer-level`,
+      detail: compact(row.orderExternalId)
+        ? `ProofLink imported this payment without finding the linked work reference ${row.orderExternalId}. Review the payment and attach it to the right job, order, or invoice when that record is ready.`
+        : "ProofLink imported this payment at the customer level. Review it if it should be attached to a specific job, order, or invoice.",
+      targetTab: "payments",
+      targetId: outcome.payment.id,
+      actionLabel: "Open payment",
+    };
+  }
+
   async function runImport() {
     const preview = IMPORT_STATE.preview;
     if (!preview?.rows?.length) throw new Error("Preview a CSV before importing it.");
@@ -1996,15 +2745,18 @@
       customers: 0,
     };
     const rowErrors = [];
+    const cleanupItems = [];
 
     for (const row of preview.rows) {
       if (row.skipped) {
         results.skipped += 1;
+        pushCleanupItem(cleanupItems, buildSkippedRowCleanupItem(row, "The operator skipped this row during import. Reopen it if you want to merge it later."));
         continue;
       }
       if (!row.ready) {
         results.errors += 1;
         rowErrors.push(`Row ${row.rowNumber}: ${row.detail || "Needs review before importing."}`);
+        pushCleanupItem(cleanupItems, buildSkippedRowCleanupItem(row, row.detail || "This row still needs review before it can be imported safely."));
         continue;
       }
       try {
@@ -2019,11 +2771,12 @@
           } else {
             results.matched += 1;
           }
+          pushCleanupItem(cleanupItems, buildAttachmentCleanupItem(row, result));
           continue;
         }
 
         if (preview.kind === "open_work") {
-          const matchedCustomer = customerMatch({ name: row.customerName, email: row.customerEmail, phone: row.customerPhone });
+          const matchedCustomer = row.selectedCustomer || customerMatch({ name: row.customerName, email: row.customerEmail, phone: row.customerPhone }, { rowNumber: row.rowNumber, matches: row.customerMatches });
           const customerResult = await upsertImportedCustomer({
             name: row.customerName || row.customerEmail || row.customerPhone,
             email: row.customerEmail || "",
@@ -2061,6 +2814,7 @@
             } else {
               results.skipped += 1;
             }
+            pushCleanupItem(cleanupItems, buildAttachmentCleanupItem(row, { ...leadResult, customer }));
             continue;
           }
 
@@ -2073,6 +2827,7 @@
             } else {
               results.skipped += 1;
             }
+            pushCleanupItem(cleanupItems, buildAttachmentCleanupItem(row, { ...bidResult, customer }));
             continue;
           }
 
@@ -2091,6 +2846,7 @@
           } else {
             results.skipped += 1;
           }
+          pushCleanupItem(cleanupItems, buildAttachmentCleanupItem(row, orderResult));
           continue;
         }
 
@@ -2102,10 +2858,13 @@
           } else {
             results.skipped += 1;
           }
+          pushCleanupItem(cleanupItems, buildAttachmentCleanupItem(row, paymentResult));
+          pushCleanupItem(cleanupItems, buildPaymentLinkCleanupItem(row, paymentResult));
         }
       } catch (err) {
         results.errors += 1;
         rowErrors.push(`Row ${row.rowNumber}: ${err.message || String(err)}`);
+        pushCleanupItem(cleanupItems, buildSkippedRowCleanupItem(row, err.message || String(err)));
       }
     }
 
@@ -2130,6 +2889,8 @@
 
     IMPORT_STATE.preview = buildPreview();
     IMPORT_STATE.importing = false;
+    IMPORT_STATE.cleanupInbox = cleanupItems;
+    IMPORT_STATE.lastImportResults = results;
     renderImportWorkspace();
 
     const summaryBits = [
@@ -2255,7 +3016,30 @@
       const form = button.closest("[data-import-review-form]");
       if (!form) return;
       setRowOverrides(rowNumber, collectReviewFormValues(form, rowNumber));
+      Object.entries(collectReviewSelections(form)).forEach(([fieldKey, value]) => {
+        setRowSelection(rowNumber, fieldKey, value);
+      });
       setExpandedReviewRow(rowNumber);
+    }
+  });
+
+  importCleanupInboxWrap?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-import-cleanup-action]");
+    if (!button) return;
+    const itemId = button.getAttribute("data-import-cleanup-id") || "";
+    const item = (IMPORT_STATE.cleanupInbox || []).find((entry) => entry.id === itemId) || null;
+    if (!item) return;
+    const action = compact(button.getAttribute("data-import-cleanup-action")).toLowerCase();
+    if (action === "dismiss") {
+      removeCleanupItem(itemId);
+      return;
+    }
+    if (action === "open-row") {
+      setExpandedReviewRow(item.rowNumber || 0);
+      return;
+    }
+    if (action === "open-target") {
+      openCleanupTarget(item);
     }
   });
 

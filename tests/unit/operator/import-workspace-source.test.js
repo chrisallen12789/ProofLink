@@ -17,9 +17,11 @@ describe("operator import workspace source", () => {
     expect(html).toContain('id="importWalkthroughWrap"');
     expect(html).toContain('id="importPresetWrap"');
     expect(html).toContain('id="importReviewQueueWrap"');
+    expect(html).toContain('id="importCleanupInboxWrap"');
     expect(html).toContain("Guided walkthrough");
     expect(html).toContain("Source system preset");
     expect(html).toContain("Review queue");
+    expect(html).toContain("Cleanup inbox");
   });
 
   test("wires preset selection and row reconciliation controls in the workspace runtime", () => {
@@ -29,11 +31,15 @@ describe("operator import workspace source", () => {
     expect(js).toContain("function setImportPreset");
     expect(js).toContain("function setRowDecision");
     expect(js).toContain("function setRowOverrides");
+    expect(js).toContain("function setRowSelection");
     expect(js).toContain("buildImportReviewSampleRows");
     expect(js).toContain('data-import-preset-key');
     expect(js).toContain('data-import-row-action');
     expect(js).toContain('data-import-review-form');
     expect(js).toContain('data-import-review-field');
+    expect(js).toContain('data-import-selection-field');
+    expect(js).toContain('data-import-cleanup-action');
     expect(js).toContain("operator skip");
+    expect(js).toContain("Attachment carry-forward");
   });
 });

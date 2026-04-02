@@ -35,6 +35,7 @@
       billing_address: ["billing_address", "invoice_address", "mailing_address"],
       tags: ["tags", "labels", "customer_tags"],
       notes: ["notes", "internal_notes", "memo", "customer_notes"],
+      attachment_links: ["attachment_links", "attachments", "attachment_urls", "file_links", "document_links", "photo_links", "proof_links"],
     },
     open_work: {
       external_id: ["external_id", "work_external_id", "job_external_id", "quote_external_id", "record_id", "id"],
@@ -54,6 +55,7 @@
       deposit_required: ["deposit_required", "deposit_amount", "required_deposit"],
       payment_due_date: ["payment_due_date", "due_date", "invoice_due_date"],
       note: ["note", "notes", "internal_notes", "status_note"],
+      attachment_links: ["attachment_links", "attachments", "attachment_urls", "file_links", "document_links", "photo_links", "proof_links", "media_links"],
     },
     payments: {
       external_id: ["external_id", "payment_external_id", "payment_id", "id"],
@@ -68,6 +70,7 @@
       paid_at: ["paid_at", "received_at", "payment_date", "date"],
       reference: ["reference", "reference_number", "check_number", "confirmation"],
       note: ["note", "notes", "memo"],
+      attachment_links: ["attachment_links", "attachments", "attachment_urls", "receipt_links", "document_links", "proof_links", "file_links"],
     },
   };
 
@@ -83,6 +86,7 @@
         billing_address: "PO Box 1808, Detroit, MI",
         tags: "hoa,priority",
         notes: "Front entry must stay clear after 3pm.",
+        attachment_links: "https://legacy.example.com/customers/maple-street/site-map.pdf",
       },
     ],
     open_work: [
@@ -104,6 +108,7 @@
         deposit_required: "300.00",
         payment_due_date: "2026-04-05",
         note: "Imported from prior quoting sheet.",
+        attachment_links: "https://legacy.example.com/work/work-2001/entry-photo.jpg; https://legacy.example.com/work/work-2001/scope.pdf",
       },
     ],
     payments: [
@@ -120,6 +125,7 @@
         paid_at: "2026-03-21 14:30",
         reference: "CHK-1048",
         note: "Deposit received before scheduling.",
+        attachment_links: "https://legacy.example.com/payments/pay-3001/check-image.jpg",
       },
     ],
   };

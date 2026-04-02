@@ -3858,6 +3858,17 @@ input:focus, textarea:focus, select:focus{
 .import-review-field small{
   color:var(--muted);
 }
+.import-review-match,
+.import-review-attachments{
+  grid-column:1 / -1;
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:14px;
+  background:rgba(255,255,255,.03);
+  padding:12px;
+}
+.import-review-attachments .workspace-chip-row{
+  gap:6px;
+}
 .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size:12px; word-break:break-all; }
 .linkish{ color:var(--text); text-decoration:underline; text-underline-offset:2px; }
 .payments-summary-grid .card-bd{ min-height:132px; }

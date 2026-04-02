@@ -29,6 +29,7 @@ describe("import migration assistant", () => {
           "Service Date",
           "Total",
           "Notes",
+          "Photo Links",
         ],
         sample_rows: [
           {
@@ -39,6 +40,7 @@ describe("import migration assistant", () => {
             service_date: "2026-04-05",
             total: "1450.00",
             notes: "Board inspection in April.",
+            photo_links: "https://legacy.example.com/work/maple/front-walk.jpg",
           },
           {
             client_name: "Harbor Suites",
@@ -59,6 +61,8 @@ describe("import migration assistant", () => {
     expect(result.context_summary.route_counts.orders).toBe(1);
     expect(result.context_summary.route_counts.jobs).toBe(1);
     expect(result.report.findings.some((finding) => finding.title.includes("service date"))).toBe(true);
+    expect(result.report.findings.some((finding) => finding.category === "import_attachments")).toBe(true);
+    expect(result.context_summary.attachment_row_count).toBe(1);
     expect(result.context_summary.profile_suggestion.label).toContain("jobber-open-work");
     expect(result.context_summary.profile_suggestion.field_aliases.title).toContain("job_name");
     expect(result.context_summary.source_preset?.key).toBe("jobber_open_work");

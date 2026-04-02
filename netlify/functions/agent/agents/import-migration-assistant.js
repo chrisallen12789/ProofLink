@@ -217,9 +217,22 @@ async function runImportMigrationAssistant({ tenantId, input }) {
   let missingAmountCount = 0;
   let scheduledWithoutDateCount = 0;
   let amountConflictCount = 0;
+  let attachmentRowCount = 0;
+  let attachmentImageCount = 0;
+  let attachmentDocumentCount = 0;
 
   sampleRows.forEach((row, index) => {
     const rowNumber = index + 2;
+    const attachmentRefs = ImportTools.getValue(row, fieldAliases.attachment_links || []);
+    const attachmentTokens = String(attachmentRefs || '')
+      .split(/[\n;,|]+/)
+      .map((value) => compact(value))
+      .filter(Boolean);
+    if (attachmentTokens.length) {
+      attachmentRowCount += 1;
+      attachmentImageCount += attachmentTokens.filter((value) => /\.(jpg|jpeg|png|gif|webp|bmp|heic|heif|svg)(\?.*)?$/i.test(value)).length;
+      attachmentDocumentCount += attachmentTokens.filter((value) => /\.(pdf|doc|docx|xls|xlsx|csv|txt|rtf)(\?.*)?$/i.test(value)).length;
+    }
     if (recommendedKind === 'customers') {
       routeCounts.customers += 1;
       const identity = [
@@ -313,6 +326,18 @@ async function runImportMigrationAssistant({ tenantId, input }) {
     else readyRowCount += 1;
   });
 
+  if (attachmentRowCount) {
+    findings.push({
+      id: 'import_attachment_refs',
+      severity: attachmentRowCount >= 3 ? 'warning' : 'info',
+      category: 'import_attachments',
+      title: 'The file includes attachment or proof references',
+      detail: `${attachmentRowCount} sample row(s) include attachment references. Those rows should stay visible in reconciliation and post-import cleanup so photos, documents, or proof links land in the right ProofLink records.`,
+      evidence_ids: [headerCoverageEvidence],
+      record_refs: [],
+    });
+  }
+
   if (!mappedFields.filter((item) => item.header).length) {
     blockers.push({
       id: 'import_no_mapped_fields',
@@ -402,12 +427,24 @@ async function runImportMigrationAssistant({ tenantId, input }) {
     evidence_ids: [headerCoverageEvidence],
     record_refs: [],
   });
+  if (attachmentRowCount) {
+    actions.push({
+      id: 'review_import_cleanup_inbox',
+      title: 'Keep attachment-heavy rows visible after import',
+      detail: `${attachmentRowCount} sample row(s) include attachment references, including ${attachmentImageCount} image link(s) and ${attachmentDocumentCount} document link(s). The operator should plan a cleanup pass so that proof stays attached to the right customer, work, or payment records.`,
+      priority: 'medium',
+      requires_operator_approval: true,
+      suggested_ui_action: 'review_cleanup_inbox',
+      evidence_ids: [headerCoverageEvidence],
+      record_refs: [],
+    });
+  }
 
   return {
     report: {
       agent_key: 'import_migration_assistant',
       agent_label: 'Import Migration Assistant',
-      summary: `The file aligns most strongly with ${recommendedKind.replace(/_/g, ' ')}. ProofLink mapped ${mappedFields.filter((item) => item.header).length} of ${mappedFields.length} expected field(s), found ${reviewRowCount} sample row(s) that still need review, and can save a reusable import profile once the operator approves the mapping.`,
+      summary: `The file aligns most strongly with ${recommendedKind.replace(/_/g, ' ')}. ProofLink mapped ${mappedFields.filter((item) => item.header).length} of ${mappedFields.length} expected field(s), found ${reviewRowCount} sample row(s) that still need review${attachmentRowCount ? `, detected attachment references on ${attachmentRowCount} sample row(s)` : ''}, and can save a reusable import profile once the operator approves the mapping.`,
       summary_status: blockers.length ? 'blocked' : reviewRowCount || unknownHeaders.length ? 'review_needed' : 'ready',
       findings,
       blockers,
@@ -420,7 +457,7 @@ async function runImportMigrationAssistant({ tenantId, input }) {
       missing_data: missingData,
       confidence: {
         score: confidenceScore,
-        rationale: 'Confidence depends on how many expected fields mapped cleanly from the headers and how many sample rows still need identity, amount, or schedule cleanup.',
+        rationale: 'Confidence depends on how many expected fields mapped cleanly from the headers and how many sample rows still need identity, amount, schedule, or attachment follow-up cleanup.',
       },
       recommended_actions: actions,
       data_used: [
@@ -434,6 +471,11 @@ async function runImportMigrationAssistant({ tenantId, input }) {
           count: sampleRows.length,
           detail: `${readyRowCount} sample row(s) look ready and ${reviewRowCount} still need review.`,
         },
+        ...(attachmentRowCount ? [{
+          label: 'Attachment references detected',
+          count: attachmentRowCount,
+          detail: `${attachmentImageCount} image link(s) and ${attachmentDocumentCount} document link(s) appeared in the reviewed sample.`,
+        }] : []),
         ...(matchedPreset?.system_label ? [{
           label: 'Matched source preset',
           count: 1,
@@ -457,6 +499,9 @@ async function runImportMigrationAssistant({ tenantId, input }) {
       unknown_headers_count: unknownHeaders.length,
       ready_row_count: readyRowCount,
       review_row_count: reviewRowCount,
+      attachment_row_count: attachmentRowCount,
+      attachment_image_count: attachmentImageCount,
+      attachment_document_count: attachmentDocumentCount,
       route_counts: routeCounts,
       active_profile_key: activeProfile?.key || '',
       active_preset_key: activePreset?.key || '',

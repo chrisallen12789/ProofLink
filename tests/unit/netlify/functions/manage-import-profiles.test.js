@@ -109,9 +109,10 @@ describe("manage-import-profiles", () => {
           field_aliases: {
             name: ["Account Label"],
             email: ["Primary Email"],
+            attachment_links: ["Attachment URLs"],
             ignored_field: ["Should Not Persist"],
           },
-          sample_headers: ["Account Label", "Primary Email", "Ignored Field"],
+          sample_headers: ["Account Label", "Primary Email", "Attachment URLs", "Ignored Field"],
           confidence_score: 0.84,
           source_system: "quickbooks",
           source_preset: "quickbooks_customers",
@@ -119,7 +120,7 @@ describe("manage-import-profiles", () => {
             "Keep the QuickBooks invoice number visible in the linked work reference.",
             "Review service addresses before importing open work.",
           ],
-          correction_fields: ["service_address", "ignored_field"],
+          correction_fields: ["attachment_links", "service_address", "ignored_field"],
           walkthrough_summary: "Source system: quickbooks | 12 preview rows | 2 edited | 0 skipped | 0 still flagged",
         },
       }),
@@ -132,11 +133,12 @@ describe("manage-import-profiles", () => {
     expect(body.profile.field_aliases).toEqual({
       name: ["account_label"],
       email: ["primary_email"],
+      attachment_links: ["attachment_urls"],
     });
     expect(body.profile.source_system).toBe("quickbooks");
     expect(body.profile.source_preset).toBe("quickbooks-customers");
     expect(body.profile.learning_notes).toHaveLength(2);
-    expect(body.profile.correction_fields).toEqual(["service_address"]);
+    expect(body.profile.correction_fields).toEqual(["attachment_links", "service_address"]);
     expect(body.profile.walkthrough_summary).toContain("Source system: quickbooks");
     expect(supabase.state.upserts).toHaveLength(1);
   });
