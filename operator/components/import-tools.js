@@ -159,6 +159,15 @@
     ));
   }
 
+  function uniqueNormalizedHeaders(values, maxItems = 40) {
+    const list = Array.isArray(values) ? values : [values];
+    return Array.from(new Set(
+      list
+        .map((value) => normalizeHeader(value))
+        .filter(Boolean)
+    )).slice(0, maxItems);
+  }
+
   function toCents(value) {
     const raw = String(value ?? "").trim();
     if (!raw) return 0;
@@ -278,14 +287,114 @@
     return "";
   }
 
-  function detectImportKind(headers) {
-    const normalizedHeaders = (headers || []).map(normalizeHeader);
+  function mergeFieldAliases(kind, profiles = []) {
+    const normalizedKind = normalizeImportKind(kind);
+    const baseFieldMap = FIELD_ALIASES[normalizedKind] || {};
+    const profileList = Array.isArray(profiles) ? profiles : [profiles];
+    const merged = {};
+
+    Object.keys(baseFieldMap).forEach((fieldKey) => {
+      const profileAliases = [];
+      profileList.forEach((profile) => {
+        const profileKind = normalizeImportKind(profile?.import_kind || profile?.importKind || normalizedKind);
+        if (profileKind !== normalizedKind) return;
+        const fieldAliases = profile?.field_aliases?.[fieldKey] || profile?.fieldAliases?.[fieldKey] || [];
+        uniqueNormalizedHeaders(fieldAliases, 20).forEach((alias) => profileAliases.push(alias));
+      });
+      merged[fieldKey] = Array.from(new Set([
+        ...profileAliases,
+        ...baseFieldMap[fieldKey].map((alias) => normalizeHeader(alias)).filter(Boolean),
+      ]));
+    });
+
+    return merged;
+  }
+
+  function resolveFieldAliases(kind, fieldKey, profiles = []) {
+    const merged = mergeFieldAliases(kind, profiles);
+    return merged[fieldKey] || [];
+  }
+
+  function scoreImportProfile(headers, profile) {
+    if (!profile) {
+      return {
+        score: 0,
+        matched_fields: 0,
+        total_fields: 0,
+        alias_hits: 0,
+        sample_hits: 0,
+        sample_total: 0,
+      };
+    }
+
+    const normalizedHeaders = uniqueNormalizedHeaders(headers, 80);
+    const headerSet = new Set(normalizedHeaders);
+    const fieldAliases = profile?.field_aliases || profile?.fieldAliases || {};
+    const sampleHeaders = uniqueNormalizedHeaders(profile?.sample_headers || profile?.sampleHeaders || [], 80);
+
+    let matchedFields = 0;
+    let totalFields = 0;
+    let aliasHits = 0;
+
+    Object.values(fieldAliases).forEach((aliases) => {
+      const normalizedAliases = uniqueNormalizedHeaders(aliases, 20);
+      if (!normalizedAliases.length) return;
+      totalFields += 1;
+      const hits = normalizedAliases.filter((alias) => headerSet.has(alias));
+      if (hits.length) {
+        matchedFields += 1;
+        aliasHits += hits.length;
+      }
+    });
+
+    const sampleHits = sampleHeaders.filter((header) => headerSet.has(header)).length;
+    const aliasScore = totalFields ? matchedFields / totalFields : 0;
+    const sampleScore = sampleHeaders.length ? sampleHits / sampleHeaders.length : 0;
+
+    return {
+      score: Number(Math.min(1, (aliasScore * 0.8) + (sampleScore * 0.2)).toFixed(2)),
+      matched_fields: matchedFields,
+      total_fields: totalFields,
+      alias_hits: aliasHits,
+      sample_hits: sampleHits,
+      sample_total: sampleHeaders.length,
+    };
+  }
+
+  function chooseImportProfile(headers, importKind, profiles = []) {
+    const normalizedKind = normalizeImportKind(importKind);
+    const profileList = Array.isArray(profiles) ? profiles : [profiles];
+
+    const ranked = profileList
+      .filter((profile) => normalizeImportKind(profile?.import_kind || profile?.importKind || normalizedKind) === normalizedKind)
+      .map((profile) => ({
+        profile,
+        score: scoreImportProfile(headers, profile),
+      }))
+      .filter((item) =>
+        item.score.score >= 0.35
+        && (item.score.matched_fields >= 2 || item.score.sample_hits >= 3)
+      )
+      .sort((a, b) => {
+        if (b.score.score !== a.score.score) return b.score.score - a.score.score;
+        if (b.score.matched_fields !== a.score.matched_fields) return b.score.matched_fields - a.score.matched_fields;
+        return String(b.profile?.learned_at || "").localeCompare(String(a.profile?.learned_at || ""));
+      });
+
+    return ranked[0]?.profile || null;
+  }
+
+  function detectImportKind(headers, options = {}) {
+    const profiles = Array.isArray(options?.profiles) ? options.profiles : [];
+    const normalizedHeaders = uniqueNormalizedHeaders(headers, 80);
     let bestKind = null;
     let bestScore = 0;
 
     Object.entries(FIELD_ALIASES).forEach(([kind, fieldMap]) => {
+      const mergedFieldMap = mergeFieldAliases(kind, profiles);
       let score = 0;
-      Object.values(fieldMap).forEach((aliases) => {
+      Object.keys(fieldMap).forEach((fieldKey) => {
+        const aliases = mergedFieldMap[fieldKey] || [];
         if (aliases.some((alias) => normalizedHeaders.includes(normalizeHeader(alias)))) score += 1;
       });
       if (score > bestScore) {
@@ -312,5 +421,9 @@
     templateCsv,
     getValue,
     detectImportKind,
+    mergeFieldAliases,
+    resolveFieldAliases,
+    scoreImportProfile,
+    chooseImportProfile,
   };
 });

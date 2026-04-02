@@ -4,6 +4,7 @@ const { runBillingBlockerDetector } = require('./agents/billing-blocker-detector
 const { runCollectionsFollowUpAssistant } = require('./agents/collections-follow-up-assistant');
 const { runDispatchSchedulingAssistant } = require('./agents/dispatch-scheduling-assistant');
 const { runEstimatingAssistant } = require('./agents/estimating-assistant');
+const { runImportMigrationAssistant } = require('./agents/import-migration-assistant');
 const { runJobRecordAuditor } = require('./agents/job-record-auditor');
 
 const AGENTS = {
@@ -99,6 +100,29 @@ const AGENTS = {
     missing_data_handling: 'Label open balances separately from truly overdue balances when date proof is missing.',
     recommended_actions: 'Recommend safe follow-up actions grounded in actual status.',
     execute: runCollectionsFollowUpAssistant,
+  },
+  import_migration_assistant: {
+    key: 'import_migration_assistant',
+    label: 'Import Migration Assistant',
+    purpose: 'Reviews legacy CSV headers and sample rows, explains what ProofLink can route safely, and suggests a reusable import profile without writing records.',
+    inputs: [
+      { key: 'headers', required: true, description: 'Normalized or raw CSV headers from the current import file.' },
+      { key: 'sample_rows', required: false, description: 'Optional sample rows from the current import preview.' },
+      { key: 'import_kind', required: false, description: 'Optional requested import lane such as customers, open_work, or payments.' },
+      { key: 'file_name', required: false, description: 'Optional source filename for the profile suggestion.' },
+      { key: 'active_profile', required: false, description: 'Optional saved import profile currently applied to the file.' },
+    ],
+    allowed_tools: ['analyze_import_migration_context'],
+    forbidden_behaviors: [
+      'Do not write customers, orders, jobs, payments, or import profiles automatically.',
+      'Do not claim a column is mapped when the header evidence is missing.',
+      'Do not treat a guessed route as a confirmed record outcome.',
+    ],
+    output_schema: 'prooflink.agent.report.v1',
+    confidence_signal: 'Confidence depends on header coverage, row cleanliness, and whether the current file already matches a saved import profile.',
+    missing_data_handling: 'Call out missing identity, amount, or schedule fields before recommending import approval.',
+    recommended_actions: 'Recommend safe import review and profile-saving moves only.',
+    execute: runImportMigrationAssistant,
   },
 };
 

@@ -1532,6 +1532,25 @@
                   <span class="muted">Nothing is written until you confirm</span>
                 </div>
                 <div class="card-bd">
+                  <div class="action-row action-row--wrap">
+                    <button id="btnRunImportAiReview" class="btn btn-ghost btn-sm" type="button">Run AI migration review</button>
+                    <button id="btnSaveImportProfile" class="btn btn-ghost btn-sm" type="button" disabled>Save learned profile</button>
+                  </div>
+                  <div id="importAiMsg" class="msg u-mt-10"></div>
+                  <div id="importProfileWrap" class="u-mt-10">
+                    <div class="detail-card">
+                      <div class="kicker">Import profile</div>
+                      <div><strong>No saved profile matched yet.</strong></div>
+                      <div class="detail-copy">Preview a CSV and ProofLink will look for a saved legacy export profile before the import runs.</div>
+                    </div>
+                  </div>
+                  <div id="importAiReviewWrap" class="u-mt-10">
+                    <div class="detail-card">
+                      <div class="kicker">AI migration review</div>
+                      <div><strong>No structured migration review yet.</strong></div>
+                      <div class="detail-copy">Preview a CSV first, then run the review to see grounded mapping coverage, row-routing risk, and the reusable profile ProofLink can learn from this export.</div>
+                    </div>
+                  </div>
                   <div id="importSummaryCards" class="import-summary-grid"></div>
                   <div id="importPreviewWrap" class="import-preview-wrap">
                     <div class="muted">Choose an import type and preview a CSV to see what ProofLink will create, update, link, or skip.</div>

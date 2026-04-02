@@ -30,6 +30,8 @@ ProofLink now has a structured agent layer under `netlify/functions/agent`.
   Builds a queue of jobs that still need billing cleanup.
 - `collections_followup_assistant`
   Separates true overdue balances from general open balances so follow-up stays accurate.
+- `import_migration_assistant`
+  Reviews legacy CSV headers and sample rows, explains what ProofLink can route safely, and suggests a reusable import profile before the operator imports anything.
 
 ## Safety Boundaries
 
@@ -94,3 +96,21 @@ The audit is advisory. Operators still decide whether to update records, create 
   Use `Run dispatch review` in the `AI dispatch review` card to review the selected hydrovac day for missing assignments, overlap conflicts, untimed work, and bundling opportunities.
 - Payments workspace
   Use `Run collections review` to separate genuinely overdue balances from general open balances, then work directly into `Record payment`, `Open order`, or `Open customer`.
+- Import workspace
+  Use `Run AI migration review` after previewing a CSV to see grounded mapping coverage, row-routing risk, and the learned import profile ProofLink can save for future legacy exports.
+
+## Import Profiles
+
+- `netlify/functions/manage-import-profiles.js`
+  Tenant-admin endpoint for loading and saving reusable import profiles in `tenant_config`.
+- `operator/components/import-tools.js`
+  Shared profile-aware import helpers for header detection, alias resolution, and profile matching.
+- `operator/import-workspace.js`
+  Applies saved profiles during preview and lets operators save the learned profile from the AI migration review.
+
+The import profile loop is intentionally narrow:
+
+- Profiles are scoped to the tenant.
+- They store header aliases only, not imported row values.
+- Saving a profile is an explicit operator action.
+- The migration assistant never writes records or profiles automatically.

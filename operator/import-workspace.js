@@ -13,8 +13,13 @@
   const importSummaryCards = $("importSummaryCards");
   const importPreviewWrap = $("importPreviewWrap");
   const importMsg = $("importMsg");
+  const importAiMsg = $("importAiMsg");
+  const importAiReviewWrap = $("importAiReviewWrap");
+  const importProfileWrap = $("importProfileWrap");
   const importKindButtons = Array.from(document.querySelectorAll("[data-import-kind]"));
   const importTemplateButtons = Array.from(document.querySelectorAll("[data-template-kind]"));
+  const btnRunImportAiReview = $("btnRunImportAiReview");
+  const btnSaveImportProfile = $("btnSaveImportProfile");
 
   if (!importFile || !importPreviewWrap) return;
 
@@ -25,6 +30,10 @@
     rows: [],
     preview: null,
     importing: false,
+    profilesLoaded: false,
+    profiles: [],
+    profileKey: "",
+    aiReview: null,
   };
 
   function kind() {
@@ -35,6 +44,34 @@
     return Tools.IMPORT_KIND_META?.[Tools.normalizeImportKind(value)] || Tools.IMPORT_KIND_META.customers;
   }
 
+  function profileList() {
+    return Array.isArray(IMPORT_STATE.profiles) ? IMPORT_STATE.profiles : [];
+  }
+
+  function activeImportProfile() {
+    const profileKey = compact(IMPORT_STATE.profileKey);
+    if (!profileKey) return null;
+    return profileList().find((profile) => compact(profile?.key) === profileKey) || null;
+  }
+
+  function profilesForKind(importKind = kind()) {
+    return profileList().filter((profile) => Tools.normalizeImportKind(profile?.import_kind || profile?.importKind) === Tools.normalizeImportKind(importKind));
+  }
+
+  async function ensureImportProfilesLoaded(options = {}) {
+    if (IMPORT_STATE.profilesLoaded && !options.force) return profileList();
+    if (typeof requestOperatorFunction !== "function") return profileList();
+    try {
+      const payload = await requestOperatorFunction("manage-import-profiles");
+      IMPORT_STATE.profiles = Array.isArray(payload?.profiles) ? payload.profiles : [];
+      IMPORT_STATE.profilesLoaded = true;
+      return IMPORT_STATE.profiles;
+    } catch (err) {
+      if (!options.silent) setImportAiMessage(err.message || String(err), "error");
+      return profileList();
+    }
+  }
+
   function setImportMessage(message = "", tone = "") {
     if (typeof setInlineMessage === "function") {
       setInlineMessage(importMsg, message, tone);
@@ -43,6 +80,16 @@
     if (!importMsg) return;
     importMsg.className = `msg${tone ? ` ${tone}` : ""}`;
     importMsg.textContent = message;
+  }
+
+  function setImportAiMessage(message = "", tone = "") {
+    if (typeof setInlineMessage === "function") {
+      setInlineMessage(importAiMsg, message, tone);
+      return;
+    }
+    if (!importAiMsg) return;
+    importAiMsg.className = `msg${tone ? ` ${tone}` : ""}`;
+    importAiMsg.textContent = message;
   }
 
   function compact(value) {
@@ -67,7 +114,9 @@
   }
 
   function importField(row, importKind, fieldKey) {
-    const aliases = Tools.FIELD_ALIASES?.[Tools.normalizeImportKind(importKind)]?.[fieldKey] || [];
+    const aliases = typeof Tools.resolveFieldAliases === "function"
+      ? Tools.resolveFieldAliases(importKind, fieldKey, activeImportProfile() ? [activeImportProfile()] : [])
+      : (Tools.FIELD_ALIASES?.[Tools.normalizeImportKind(importKind)]?.[fieldKey] || []);
     return Tools.getValue(row, aliases);
   }
 
@@ -471,8 +520,120 @@
     if (btnRunImport) btnRunImport.disabled = IMPORT_STATE.importing || preview.readyRows.length === 0;
   }
 
+  function renderProfileSummary() {
+    if (!importProfileWrap) return;
+    const activeProfile = activeImportProfile();
+    const availableProfiles = profilesForKind();
+    const activeLabel = activeProfile?.label || "";
+    const savedCount = availableProfiles.length;
+
+    if (!activeProfile) {
+      importProfileWrap.innerHTML = `
+        <div class="detail-card">
+          <div class="kicker">Import profile</div>
+          <div><strong>No saved profile matched this file yet.</strong></div>
+          <div class="detail-copy">${escapeHtml(savedCount ? `${savedCount} saved profile${savedCount === 1 ? "" : "s"} exist for this import lane, but this file did not line up strongly with one yet.` : "Run the review and save a learned profile when this export shape looks right." )}</div>
+        </div>
+      `;
+      return;
+    }
+
+    const confidence = Number(activeProfile?.confidence_score || activeProfile?.confidenceScore || 0);
+    const mappedFields = Object.keys(activeProfile?.field_aliases || activeProfile?.fieldAliases || {});
+    importProfileWrap.innerHTML = `
+      <div class="detail-card">
+        <div class="kicker">Import profile</div>
+        <div><strong>${escapeHtml(activeLabel || "Matched import profile")}</strong></div>
+        <div class="detail-copy">${escapeHtml(activeProfile?.source_hint || activeProfile?.sourceHint || "ProofLink matched a saved legacy export profile for this file and is applying it during preview.")}</div>
+        <div class="workspace-chip-row u-mt-10">
+          <span class="pill pill-on">${escapeHtml(kindMeta(activeProfile?.import_kind || activeProfile?.importKind).label)}</span>
+          <span class="pill">${escapeHtml(`${mappedFields.length} mapped field${mappedFields.length === 1 ? "" : "s"}`)}</span>
+          <span class="pill">${escapeHtml(`confidence ${Math.round(confidence * 100)}%`)}</span>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderAiReview() {
+    if (!importAiReviewWrap) return;
+    const payload = IMPORT_STATE.aiReview;
+    const report = payload?.report || null;
+    const contextSummary = payload?.context_summary || {};
+    const profileSuggestion = contextSummary?.profile_suggestion || null;
+    if (btnSaveImportProfile) btnSaveImportProfile.disabled = !profileSuggestion || IMPORT_STATE.importing;
+
+    if (!report) {
+      importAiReviewWrap.innerHTML = `
+        <div class="detail-card">
+          <div class="kicker">AI migration review</div>
+          <div><strong>No structured migration review yet.</strong></div>
+          <div class="detail-copy">Preview a CSV first, then run the review to see grounded mapping coverage, row-routing risk, and the reusable profile ProofLink can learn from this export.</div>
+        </div>
+      `;
+      return;
+    }
+
+    const routeCounts = contextSummary.route_counts || {};
+    const routeChips = [
+      contextSummary.recommended_kind ? `${kindMeta(contextSummary.recommended_kind).label} lane` : "",
+      Number(contextSummary.ready_row_count || 0) ? `${contextSummary.ready_row_count} ready sample row${Number(contextSummary.ready_row_count || 0) === 1 ? "" : "s"}` : "",
+      Number(contextSummary.review_row_count || 0) ? `${contextSummary.review_row_count} review row${Number(contextSummary.review_row_count || 0) === 1 ? "" : "s"}` : "No review rows in sample",
+      Number(contextSummary.unknown_headers_count || 0) ? `${contextSummary.unknown_headers_count} unmapped header${Number(contextSummary.unknown_headers_count || 0) === 1 ? "" : "s"}` : "",
+      Number(routeCounts.leads || 0) ? `${routeCounts.leads} leads` : "",
+      Number(routeCounts.bids || 0) ? `${routeCounts.bids} quotes` : "",
+      Number(routeCounts.orders || 0) ? `${routeCounts.orders} tracked work` : "",
+      Number(routeCounts.jobs || 0) ? `${routeCounts.jobs} jobs` : "",
+      Number(routeCounts.payments || 0) ? `${routeCounts.payments} payments` : "",
+      Number(routeCounts.customers || 0) ? `${routeCounts.customers} customers` : "",
+    ].filter(Boolean).slice(0, 8);
+
+    importAiReviewWrap.innerHTML = `
+      <div class="detail-card">
+        <div class="kicker">AI migration review</div>
+        <div><strong>${escapeHtml(report.summary || "Import review ready.")}</strong></div>
+        <div class="workspace-chip-row u-mt-10">
+          ${routeChips.map((chip) => `<span class="pill">${escapeHtml(chip)}</span>`).join("")}
+          <span class="pill ${report.summary_status === "blocked" ? "pill-bad" : (report.summary_status === "review_needed" ? "pill-warn" : "pill-on")}">${escapeHtml(String(report.summary_status || "review_needed").replace(/_/g, " "))}</span>
+        </div>
+      </div>
+      ${profileSuggestion ? `
+        <div class="detail-card u-mt-10">
+          <div class="kicker">Learned profile</div>
+          <div><strong>${escapeHtml(profileSuggestion.label || "Suggested import profile")}</strong></div>
+          <div class="detail-copy">${escapeHtml(profileSuggestion.source_hint || "ProofLink can save this mapping so the next file from the same system matches automatically.")}</div>
+        </div>
+      ` : ""}
+      ${Array.isArray(report.findings) && report.findings.length ? `
+        <div class="memory-checklist u-mt-10">
+          ${report.findings.slice(0, 4).map((finding) => `
+            <div class="memory-checklist__item ${finding.severity === "critical" || finding.severity === "warning" ? "memory-checklist__item--warn" : "memory-checklist__item--ready"}">
+              <div class="workspace-chip-row">
+                <span class="pill ${finding.severity === "critical" ? "pill-bad" : (finding.severity === "warning" ? "pill-warn" : "pill-on")}">${escapeHtml(finding.category || "import")}</span>
+              </div>
+              <div class="memory-checklist__title u-mt-10">${escapeHtml(finding.title || "Finding")}</div>
+              <div class="detail-copy memory-checklist__note">${escapeHtml(finding.detail || "")}</div>
+            </div>
+          `).join("")}
+        </div>
+      ` : ""}
+      ${Array.isArray(report.missing_data) && report.missing_data.length ? `
+        <div class="detail-card u-mt-10">
+          <div class="kicker">Missing data</div>
+          ${report.missing_data.slice(0, 3).map((item) => `<div class="detail-copy"><strong>${escapeHtml(item.label || "Missing")}</strong> ${escapeHtml(item.detail || "")}</div>`).join("")}
+        </div>
+      ` : ""}
+      ${Array.isArray(report.recommended_actions) && report.recommended_actions.length ? `
+        <div class="detail-card u-mt-10">
+          <div class="kicker">Recommended next moves</div>
+          ${report.recommended_actions.slice(0, 3).map((action) => `<div class="detail-copy"><strong>${escapeHtml(action.title || "Next move")}</strong> ${escapeHtml(action.detail || "")}</div>`).join("")}
+        </div>
+      ` : ""}
+    `;
+  }
+
   function renderImportWorkspace() {
     const meta = kindMeta();
+    const activeProfile = activeImportProfile();
     importKindButtons.forEach((button) => {
       button.classList.toggle("is-active", Tools.normalizeImportKind(button.getAttribute("data-import-kind")) === kind());
     });
@@ -482,13 +643,17 @@
         <strong>${escapeHtml(meta.label)}</strong>
         <div class="detail-copy">${escapeHtml(meta.summary)}</div>
         <div class="detail-copy">${escapeHtml(IMPORT_STATE.fileName ? `File loaded: ${IMPORT_STATE.fileName}` : "No file selected yet.")}</div>
+        ${activeProfile ? `<div class="detail-copy">${escapeHtml(`Matched profile: ${activeProfile.label || activeProfile.key}`)}</div>` : ""}
       `;
     }
     if (btnDownloadImportTemplate) btnDownloadImportTemplate.textContent = `Download ${meta.label.toLowerCase()} template`;
     if (importFileLabel) importFileLabel.textContent = IMPORT_STATE.fileName || "Drop a CSV here or choose a file";
     if (btnAnalyzeImport) btnAnalyzeImport.disabled = IMPORT_STATE.importing;
     if (btnClearImport) btnClearImport.disabled = IMPORT_STATE.importing;
+    if (btnRunImportAiReview) btnRunImportAiReview.disabled = IMPORT_STATE.importing || !IMPORT_STATE.preview?.rows?.length;
     renderPreview();
+    renderProfileSummary();
+    renderAiReview();
   }
 
   function resetImportState(options = {}) {
@@ -499,9 +664,14 @@
       rows: [],
       preview: null,
       importing: false,
+      profilesLoaded: IMPORT_STATE.profilesLoaded,
+      profiles: profileList(),
+      profileKey: "",
+      aiReview: null,
     };
     if (importFile) importFile.value = "";
     setImportMessage("");
+    setImportAiMessage("");
     renderImportWorkspace();
   }
 
@@ -511,8 +681,11 @@
     IMPORT_STATE.headers = [];
     IMPORT_STATE.rows = [];
     IMPORT_STATE.preview = null;
+    IMPORT_STATE.profileKey = "";
+    IMPORT_STATE.aiReview = null;
     if (importFile) importFile.value = "";
     setImportMessage("");
+    setImportAiMessage("");
     renderImportWorkspace();
   }
 
@@ -527,10 +700,11 @@
 
   async function previewImport(file) {
     if (!file) throw new Error("Choose a CSV file first.");
+    await ensureImportProfilesLoaded({ silent: true });
     const text = await readSelectedImportFile(file);
     const parsed = Tools.parseCsv(text);
     if (!parsed.rows.length) throw new Error("That CSV does not contain any import rows yet.");
-    const detectedKind = Tools.detectImportKind(parsed.headers);
+    const detectedKind = Tools.detectImportKind(parsed.headers, { profiles: profileList() });
     if (detectedKind && detectedKind !== kind()) {
       IMPORT_STATE.kind = detectedKind;
       setImportMessage(`ProofLink recognized this file as ${kindMeta(detectedKind).label.toLowerCase()} and switched the import mode for you.`, "ok");
@@ -540,7 +714,17 @@
     IMPORT_STATE.fileName = file.name || "import.csv";
     IMPORT_STATE.headers = parsed.headers;
     IMPORT_STATE.rows = parsed.rows;
+    IMPORT_STATE.aiReview = null;
+    const matchedProfile = typeof Tools.chooseImportProfile === "function"
+      ? Tools.chooseImportProfile(parsed.headers, IMPORT_STATE.kind, profileList())
+      : null;
+    IMPORT_STATE.profileKey = matchedProfile?.key || "";
     IMPORT_STATE.preview = buildPreview();
+    if (matchedProfile) {
+      setImportAiMessage(`Matched saved import profile: ${matchedProfile.label || matchedProfile.key}.`, "ok");
+    } else {
+      setImportAiMessage("");
+    }
     renderImportWorkspace();
     return IMPORT_STATE.preview;
   }
@@ -982,6 +1166,58 @@
     return { payment: data, action: "created", customer, order };
   }
 
+  async function runAiMigrationReview() {
+    if (!IMPORT_STATE.preview?.rows?.length) throw new Error("Preview a CSV before running the migration review.");
+    if (typeof requestOperatorFunction !== "function") throw new Error("Operator function access is not ready yet.");
+    await ensureImportProfilesLoaded({ silent: true });
+    setImportAiMessage("Reviewing the import mapping, row routing, and profile fit...", "");
+    const activeProfile = activeImportProfile();
+    const payload = await requestOperatorFunction("ai-agent-report", {
+      method: "POST",
+      body: {
+        agent_key: "import_migration_assistant",
+        import_kind: kind(),
+        file_name: IMPORT_STATE.fileName || "",
+        headers: IMPORT_STATE.headers,
+        sample_rows: IMPORT_STATE.rows.slice(0, 18),
+        active_profile: activeProfile ? {
+          key: activeProfile.key,
+          label: activeProfile.label,
+          import_kind: activeProfile.import_kind || activeProfile.importKind,
+          field_aliases: activeProfile.field_aliases || activeProfile.fieldAliases || {},
+          sample_headers: activeProfile.sample_headers || activeProfile.sampleHeaders || [],
+          confidence_score: activeProfile.confidence_score || activeProfile.confidenceScore || 0,
+          source_hint: activeProfile.source_hint || activeProfile.sourceHint || "",
+        } : null,
+      },
+    });
+    IMPORT_STATE.aiReview = payload;
+    renderImportWorkspace();
+    setImportAiMessage("Migration review ready. Save the learned profile if the mapping looks right.", "ok");
+    return payload;
+  }
+
+  async function saveSuggestedImportProfile() {
+    const suggestion = IMPORT_STATE.aiReview?.context_summary?.profile_suggestion || null;
+    if (!suggestion) throw new Error("Run the migration review first so ProofLink has a profile to save.");
+    if (typeof requestOperatorFunction !== "function") throw new Error("Operator function access is not ready yet.");
+    setImportAiMessage("Saving the learned import profile...", "");
+    const payload = await requestOperatorFunction("manage-import-profiles", {
+      method: "POST",
+      body: {
+        action: "upsert",
+        profile: suggestion,
+      },
+    });
+    IMPORT_STATE.profiles = Array.isArray(payload?.profiles) ? payload.profiles : profileList();
+    IMPORT_STATE.profilesLoaded = true;
+    IMPORT_STATE.profileKey = payload?.profile?.key || suggestion.key || "";
+    IMPORT_STATE.preview = buildPreview();
+    renderImportWorkspace();
+    setImportAiMessage(`Saved ${payload?.profile?.label || "the learned profile"}. Future imports from the same export shape will match faster.`, "ok");
+    return payload?.profile || null;
+  }
+
   async function runImport() {
     const preview = IMPORT_STATE.preview;
     if (!preview?.rows?.length) throw new Error("Preview a CSV before importing it.");
@@ -1205,6 +1441,24 @@
     }
   });
 
+  btnRunImportAiReview?.addEventListener("click", async () => {
+    try {
+      await runAiMigrationReview();
+    } catch (err) {
+      setImportAiMessage(err.message || String(err), "error");
+      renderImportWorkspace();
+    }
+  });
+
+  btnSaveImportProfile?.addEventListener("click", async () => {
+    try {
+      await saveSuggestedImportProfile();
+    } catch (err) {
+      setImportAiMessage(err.message || String(err), "error");
+      renderImportWorkspace();
+    }
+  });
+
   btnRunImport?.addEventListener("click", async () => {
     try {
       await runImport();
@@ -1219,6 +1473,9 @@
     render: renderImportWorkspace,
     reset: resetImportState,
     previewImport,
+    runAiMigrationReview,
+    saveSuggestedImportProfile,
+    ensureImportProfilesLoaded,
   };
 
   renderImportWorkspace();
