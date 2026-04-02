@@ -216,7 +216,19 @@ async function requireAdminContext(event) {
 }
 
 async function requireOnboardingAdminContext(event) {
-  return requireTenantAdminContext(event);
+  const requestedTenantId = arguments[1] || '';
+
+  try {
+    return await requireTenantAdminContext(event, requestedTenantId);
+  } catch (err) {
+    if (err?.statusCode === 403 && err.message === 'Forbidden: admin role required') {
+      const onboardingErr = new Error('Forbidden: onboarding admin role required');
+      onboardingErr.statusCode = 403;
+      throw onboardingErr;
+    }
+
+    throw err;
+  }
 }
 
 /**

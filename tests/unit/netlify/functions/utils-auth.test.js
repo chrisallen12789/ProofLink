@@ -121,6 +121,40 @@ describe("netlify/functions/utils/auth", () => {
     expect(ctx.tenantId).toBe("tenant_a");
   });
 
+  test("requireOnboardingAdminContext preserves onboarding-specific denial messaging", async () => {
+    const auth = loadAuthModule({
+      user: { id: "user_staff", email: "staff@example.com" },
+      memberships: [
+        {
+          operator_id: "op_staff",
+          tenant_id: "tenant_a",
+          role: "staff",
+          operators: {
+            id: "op_staff",
+            email: "staff@example.com",
+            role: "member",
+            tenant_id: "tenant_a",
+          },
+        },
+      ],
+      operator: {
+        id: "op_staff",
+        email: "staff@example.com",
+        role: "member",
+        tenant_id: "tenant_a",
+      },
+    });
+
+    await expect(
+      auth.requireOnboardingAdminContext({
+        headers: { Authorization: "Bearer token_staff" },
+      })
+    ).rejects.toMatchObject({
+      statusCode: 403,
+      message: "Forbidden: onboarding admin role required",
+    });
+  });
+
   test("requireOnboardingAdminContext selects an eligible tenant-admin membership", async () => {
     const auth = loadAuthModule({
       user: { id: "user_multi", email: "multi@example.com" },
