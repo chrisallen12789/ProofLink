@@ -23,6 +23,48 @@
   const btnRunImportAiReview = $("btnRunImportAiReview");
   const btnSaveImportProfile = $("btnSaveImportProfile");
 
+  const REVIEW_FIELD_CONFIG = {
+    customers: [
+      { key: "name", label: "Customer name" },
+      { key: "email", label: "Email", input: "email" },
+      { key: "phone", label: "Phone", input: "tel" },
+      { key: "preferred_contact", label: "Preferred contact", input: "select", options: ["email", "phone", "text"] },
+      { key: "service_address", label: "Service address" },
+      { key: "billing_address", label: "Billing address" },
+      { key: "tags", label: "Tags", help: "Comma-separated tags" },
+      { key: "notes", label: "Notes", input: "textarea" },
+    ],
+    open_work: [
+      { key: "customer_name", label: "Customer name" },
+      { key: "customer_email", label: "Customer email", input: "email" },
+      { key: "customer_phone", label: "Customer phone", input: "tel" },
+      { key: "stage", label: "Workflow stage", input: "select", options: ["new", "quoted", "booked", "scheduled", "completed", "paid", "overdue", "cancelled"] },
+      { key: "title", label: "Work title" },
+      { key: "requested_service_type", label: "Service type" },
+      { key: "summary", label: "Summary", input: "textarea" },
+      { key: "service_address", label: "Service address" },
+      { key: "scheduled_date", label: "Scheduled date", input: "date" },
+      { key: "schedule_window", label: "Schedule window" },
+      { key: "total_amount", label: "Total amount" },
+      { key: "amount_paid", label: "Amount paid" },
+      { key: "deposit_required", label: "Deposit required" },
+      { key: "payment_due_date", label: "Payment due date", input: "date" },
+      { key: "note", label: "Notes", input: "textarea" },
+    ],
+    payments: [
+      { key: "customer_name", label: "Customer name" },
+      { key: "customer_email", label: "Customer email", input: "email" },
+      { key: "customer_phone", label: "Customer phone", input: "tel" },
+      { key: "order_external_id", label: "Linked work / invoice id" },
+      { key: "amount", label: "Amount" },
+      { key: "status", label: "Payment status", input: "select", options: ["paid", "pending", "refunded", "cancelled"] },
+      { key: "method", label: "Payment method", input: "select", options: ["cash", "check", "ach", "external_card", "manual_other"] },
+      { key: "paid_at", label: "Paid at" },
+      { key: "reference", label: "Reference" },
+      { key: "note", label: "Notes", input: "textarea" },
+    ],
+  };
+
   if (!importFile || !importPreviewWrap) return;
 
   let IMPORT_STATE = {
@@ -38,6 +80,8 @@
     presetKey: "",
     presetPinned: false,
     rowDecisions: {},
+    rowOverrides: {},
+    expandedReviewRow: 0,
     aiReview: null,
   };
 
@@ -80,6 +124,10 @@
   function activeImportProfiles() {
     const profiles = [activeImportProfile(), activeImportPreset()].filter(Boolean);
     return profiles.filter((profile, index) => profiles.findIndex((candidate) => compact(candidate?.key) === compact(profile?.key)) === index);
+  }
+
+  function reviewFieldConfig(importKind = kind()) {
+    return REVIEW_FIELD_CONFIG[Tools.normalizeImportKind(importKind)] || [];
   }
 
   function allImportDetectionProfiles() {
@@ -127,6 +175,38 @@
     return String(value || "").trim();
   }
 
+  function rowNumberToIndex(rowNumber) {
+    const number = Number(rowNumber || 0);
+    return number >= 2 ? number - 2 : -1;
+  }
+
+  function rawImportRow(rowNumber) {
+    const index = rowNumberToIndex(rowNumber);
+    return index >= 0 ? (IMPORT_STATE.rows[index] || null) : null;
+  }
+
+  function rowOverrideMap(rowOrNumber) {
+    const rowNumber = Number(typeof rowOrNumber === "object" ? rowOrNumber?.rowNumber : rowOrNumber);
+    if (!rowNumber) return {};
+    return IMPORT_STATE.rowOverrides?.[rowNumber] || {};
+  }
+
+  function rowOverrideValue(rowOrNumber, fieldKey) {
+    const overrides = rowOverrideMap(rowOrNumber);
+    return Object.prototype.hasOwnProperty.call(overrides, fieldKey) ? String(overrides[fieldKey] ?? "") : null;
+  }
+
+  function hasRowOverrides(rowOrNumber) {
+    return Object.keys(rowOverrideMap(rowOrNumber)).length > 0;
+  }
+
+  function baseImportField(row, importKind, fieldKey) {
+    const aliases = typeof Tools.resolveFieldAliases === "function"
+      ? Tools.resolveFieldAliases(importKind, fieldKey, activeImportProfiles())
+      : (Tools.FIELD_ALIASES?.[Tools.normalizeImportKind(importKind)]?.[fieldKey] || []);
+    return Tools.getValue(row, aliases);
+  }
+
   function email(value) {
     return Tools.normalizeEmail(value);
   }
@@ -144,11 +224,11 @@
     return "email";
   }
 
-  function importField(row, importKind, fieldKey) {
-    const aliases = typeof Tools.resolveFieldAliases === "function"
-      ? Tools.resolveFieldAliases(importKind, fieldKey, activeImportProfiles())
-      : (Tools.FIELD_ALIASES?.[Tools.normalizeImportKind(importKind)]?.[fieldKey] || []);
-    return Tools.getValue(row, aliases);
+  function importField(row, importKind, fieldKey, options = {}) {
+    const rowNumber = Number(options.rowNumber || row?.rowNumber || 0);
+    const overrideValue = rowOverrideValue(rowNumber, fieldKey);
+    if (overrideValue !== null) return overrideValue;
+    return baseImportField(row, importKind, fieldKey);
   }
 
   function rowDecision(rowOrNumber) {
@@ -159,6 +239,44 @@
 
   function isRowSkipped(rowOrNumber) {
     return rowDecision(rowOrNumber) === "skip";
+  }
+
+  function setExpandedReviewRow(rowNumber = 0) {
+    IMPORT_STATE.expandedReviewRow = Number(rowNumber || 0);
+    renderImportWorkspace();
+  }
+
+  function setRowOverrides(rowNumber, values = {}) {
+    const key = Number(rowNumber || 0);
+    if (!key) return;
+    const raw = rawImportRow(key);
+    if (!raw) return;
+    const nextOverrides = {};
+    Object.entries(values || {}).forEach(([fieldKey, value]) => {
+      const normalizedValue = String(value ?? "").trim();
+      const baseValue = baseImportField(raw, kind(), fieldKey);
+      if (normalizedValue !== compact(baseValue)) nextOverrides[fieldKey] = normalizedValue;
+    });
+    IMPORT_STATE.rowOverrides = {
+      ...(IMPORT_STATE.rowOverrides || {}),
+      [key]: nextOverrides,
+    };
+    if (!Object.keys(nextOverrides).length) delete IMPORT_STATE.rowOverrides[key];
+    IMPORT_STATE.aiReview = null;
+    IMPORT_STATE.preview = buildPreview();
+    renderImportWorkspace();
+  }
+
+  function clearRowOverrides(rowNumber) {
+    const key = Number(rowNumber || 0);
+    if (!key || !IMPORT_STATE.rowOverrides?.[key]) return;
+    IMPORT_STATE.rowOverrides = {
+      ...(IMPORT_STATE.rowOverrides || {}),
+    };
+    delete IMPORT_STATE.rowOverrides[key];
+    IMPORT_STATE.aiReview = null;
+    IMPORT_STATE.preview = buildPreview();
+    renderImportWorkspace();
   }
 
   function mergeNotes(existing, incoming, prefix = "") {
@@ -345,19 +463,20 @@
 
   function previewCustomers() {
     return IMPORT_STATE.rows.map((raw, index) => {
-      const name = compact(importField(raw, "customers", "name"));
-      const contactEmail = email(importField(raw, "customers", "email"));
-      const contactPhone = compact(importField(raw, "customers", "phone"));
+      const rowNumber = index + 2;
+      const name = compact(importField(raw, "customers", "name", { rowNumber }));
+      const contactEmail = email(importField(raw, "customers", "email", { rowNumber }));
+      const contactPhone = compact(importField(raw, "customers", "phone", { rowNumber }));
       const existing = customerMatch({ name, email: contactEmail, phone: contactPhone });
-      const tags = Tools.parseTagList(importField(raw, "customers", "tags"));
+      const tags = Tools.parseTagList(importField(raw, "customers", "tags", { rowNumber }));
       const mergedTags = mergeTags(existing?.tags, tags);
-      const mergedNotes = mergeNotes(existing?.notes, importField(raw, "customers", "notes"), "Imported note");
-      const serviceAddress = compact(importField(raw, "customers", "service_address"));
-      const billingAddress = compact(importField(raw, "customers", "billing_address"));
-      const preferredContact = normalizePreferredContact(importField(raw, "customers", "preferred_contact"), contactEmail, contactPhone);
+      const mergedNotes = mergeNotes(existing?.notes, importField(raw, "customers", "notes", { rowNumber }), "Imported note");
+      const serviceAddress = compact(importField(raw, "customers", "service_address", { rowNumber }));
+      const billingAddress = compact(importField(raw, "customers", "billing_address", { rowNumber }));
+      const preferredContact = normalizePreferredContact(importField(raw, "customers", "preferred_contact", { rowNumber }), contactEmail, contactPhone);
 
       if (!name && !contactEmail && !contactPhone) {
-        return { rowNumber: index + 2, ready: false, action: "Needs review", tone: "error", primary: `Row ${index + 2}`, secondary: "Missing customer identity", detail: "Add a name, email, or phone so ProofLink has a real customer to create or match." };
+        return { rowNumber, ready: false, action: "Needs review", tone: "error", primary: `Row ${rowNumber}`, secondary: "Missing customer identity", detail: "Add a name, email, or phone so ProofLink has a real customer to create or match." };
       }
 
       const changed = !existing || !!(
@@ -372,10 +491,10 @@
       );
 
       return {
-        rowNumber: index + 2,
+        rowNumber,
         raw,
         ready: true,
-        externalId: compact(importField(raw, "customers", "external_id")),
+        externalId: compact(importField(raw, "customers", "external_id", { rowNumber })),
         name,
         email: contactEmail,
         phone: contactPhone,
@@ -397,50 +516,51 @@
 
   function previewWork() {
     return IMPORT_STATE.rows.map((raw, index) => {
-      const customerName = compact(importField(raw, "open_work", "customer_name"));
-      const customerEmail = email(importField(raw, "open_work", "customer_email"));
-      const customerPhone = compact(importField(raw, "open_work", "customer_phone"));
-      const title = compact(importField(raw, "open_work", "title")) || compact(importField(raw, "open_work", "requested_service_type")) || "Imported work";
-      const summary = compact(importField(raw, "open_work", "summary"));
-      const totalCents = Math.max(0, Tools.toCents(importField(raw, "open_work", "total_amount")));
-      const amountPaidCents = Math.max(0, Tools.toCents(importField(raw, "open_work", "amount_paid")));
-      const depositRequiredCents = Math.max(0, Tools.toCents(importField(raw, "open_work", "deposit_required")));
-      const paymentDueDate = compact(importField(raw, "open_work", "payment_due_date"));
-      const stageRaw = compact(importField(raw, "open_work", "stage"));
+      const rowNumber = index + 2;
+      const customerName = compact(importField(raw, "open_work", "customer_name", { rowNumber }));
+      const customerEmail = email(importField(raw, "open_work", "customer_email", { rowNumber }));
+      const customerPhone = compact(importField(raw, "open_work", "customer_phone", { rowNumber }));
+      const title = compact(importField(raw, "open_work", "title", { rowNumber })) || compact(importField(raw, "open_work", "requested_service_type", { rowNumber })) || "Imported work";
+      const summary = compact(importField(raw, "open_work", "summary", { rowNumber }));
+      const totalCents = Math.max(0, Tools.toCents(importField(raw, "open_work", "total_amount", { rowNumber })));
+      const amountPaidCents = Math.max(0, Tools.toCents(importField(raw, "open_work", "amount_paid", { rowNumber })));
+      const depositRequiredCents = Math.max(0, Tools.toCents(importField(raw, "open_work", "deposit_required", { rowNumber })));
+      const paymentDueDate = compact(importField(raw, "open_work", "payment_due_date", { rowNumber }));
+      const stageRaw = compact(importField(raw, "open_work", "stage", { rowNumber }));
       const stage = normalizeWorkStage(stageRaw, { totalCents });
       const paymentState = inferPaymentState(totalCents, amountPaidCents, paymentDueDate, stage.paymentState);
       const sourceRef = stage.recordType === "order"
-        ? workRef({ externalId: importField(raw, "open_work", "external_id"), customerEmail, customerPhone, title, scheduledDate: importField(raw, "open_work", "scheduled_date"), totalCents, stageRaw })
-        : leadRef({ externalId: importField(raw, "open_work", "external_id"), customerEmail, customerPhone, title, summary, stageRaw });
+        ? workRef({ externalId: importField(raw, "open_work", "external_id", { rowNumber }), customerEmail, customerPhone, title, scheduledDate: importField(raw, "open_work", "scheduled_date", { rowNumber }), totalCents, stageRaw })
+        : leadRef({ externalId: importField(raw, "open_work", "external_id", { rowNumber }), customerEmail, customerPhone, title, summary, stageRaw });
       const existing = stage.recordType === "order" ? existingOrderByRef(sourceRef) : existingLeadByRef(sourceRef);
 
       if (!customerName && !customerEmail && !customerPhone) {
-        return { rowNumber: index + 2, ready: false, action: "Needs review", tone: "error", primary: `Row ${index + 2}`, secondary: "Missing customer identity", detail: "Add customer information so the imported work lands on a real account." };
+        return { rowNumber, ready: false, action: "Needs review", tone: "error", primary: `Row ${rowNumber}`, secondary: "Missing customer identity", detail: "Add customer information so the imported work lands on a real account." };
       }
 
       return {
-        rowNumber: index + 2,
+        rowNumber,
         raw,
         ready: true,
         existing,
         sourceRef,
-        externalId: compact(importField(raw, "open_work", "external_id")),
-        customerExternalId: compact(importField(raw, "open_work", "customer_external_id")),
+        externalId: compact(importField(raw, "open_work", "external_id", { rowNumber })),
+        customerExternalId: compact(importField(raw, "open_work", "customer_external_id", { rowNumber })),
         customerName,
         customerEmail,
         customerPhone,
         title,
         summary,
-        requestedServiceType: compact(importField(raw, "open_work", "requested_service_type")),
-        serviceAddress: compact(importField(raw, "open_work", "service_address")),
-        scheduledDate: compact(importField(raw, "open_work", "scheduled_date")),
-        scheduleWindow: compact(importField(raw, "open_work", "schedule_window")),
+        requestedServiceType: compact(importField(raw, "open_work", "requested_service_type", { rowNumber })),
+        serviceAddress: compact(importField(raw, "open_work", "service_address", { rowNumber })),
+        scheduledDate: compact(importField(raw, "open_work", "scheduled_date", { rowNumber })),
+        scheduleWindow: compact(importField(raw, "open_work", "schedule_window", { rowNumber })),
         totalCents,
         amountPaidCents,
         amountDueCents: Math.max(totalCents - amountPaidCents, 0),
         depositRequiredCents,
         paymentDueDate,
-        note: compact(importField(raw, "open_work", "note")),
+        note: compact(importField(raw, "open_work", "note", { rowNumber })),
         stageRaw,
         recordType: stage.recordType,
         leadStatus: stage.leadStatus || "new",
@@ -460,37 +580,38 @@
 
   function previewPayments() {
     return IMPORT_STATE.rows.map((raw, index) => {
-      const customerName = compact(importField(raw, "payments", "customer_name"));
-      const customerEmail = email(importField(raw, "payments", "customer_email"));
-      const customerPhone = compact(importField(raw, "payments", "customer_phone"));
-      const amountCents = Math.max(0, Tools.toCents(importField(raw, "payments", "amount")));
+      const rowNumber = index + 2;
+      const customerName = compact(importField(raw, "payments", "customer_name", { rowNumber }));
+      const customerEmail = email(importField(raw, "payments", "customer_email", { rowNumber }));
+      const customerPhone = compact(importField(raw, "payments", "customer_phone", { rowNumber }));
+      const amountCents = Math.max(0, Tools.toCents(importField(raw, "payments", "amount", { rowNumber })));
       const rowData = {
-        externalId: compact(importField(raw, "payments", "external_id")),
-        customerExternalId: compact(importField(raw, "payments", "customer_external_id")),
+        externalId: compact(importField(raw, "payments", "external_id", { rowNumber })),
+        customerExternalId: compact(importField(raw, "payments", "customer_external_id", { rowNumber })),
         customerName,
         customerEmail,
         customerPhone,
-        orderExternalId: compact(importField(raw, "payments", "order_external_id")),
+        orderExternalId: compact(importField(raw, "payments", "order_external_id", { rowNumber })),
         amountCents,
-        status: normalizePaymentStatus(importField(raw, "payments", "status")),
-        method: normalizePaymentMethod(importField(raw, "payments", "method")),
-        paidAt: compact(importField(raw, "payments", "paid_at")),
-        reference: compact(importField(raw, "payments", "reference")),
-        note: compact(importField(raw, "payments", "note")),
+        status: normalizePaymentStatus(importField(raw, "payments", "status", { rowNumber })),
+        method: normalizePaymentMethod(importField(raw, "payments", "method", { rowNumber })),
+        paidAt: compact(importField(raw, "payments", "paid_at", { rowNumber })),
+        reference: compact(importField(raw, "payments", "reference", { rowNumber })),
+        note: compact(importField(raw, "payments", "note", { rowNumber })),
       };
       const sourceRef = paymentRef(rowData);
       const existing = existingPaymentByRef(sourceRef);
 
       if ((!customerName && !customerEmail && !customerPhone) && !rowData.orderExternalId) {
-        return { rowNumber: index + 2, ready: false, action: "Needs review", tone: "error", primary: `Row ${index + 2}`, secondary: "Missing customer or work link", detail: "Add customer information or the matching work external id so ProofLink knows where the payment belongs." };
+        return { rowNumber, ready: false, action: "Needs review", tone: "error", primary: `Row ${rowNumber}`, secondary: "Missing customer or work link", detail: "Add customer information or the matching work external id so ProofLink knows where the payment belongs." };
       }
       if (!amountCents) {
-        return { rowNumber: index + 2, ready: false, action: "Needs review", tone: "error", primary: `Row ${index + 2}`, secondary: customerName || customerEmail || "Payment row", detail: "Add an amount greater than zero before importing payment history." };
+        return { rowNumber, ready: false, action: "Needs review", tone: "error", primary: `Row ${rowNumber}`, secondary: customerName || customerEmail || "Payment row", detail: "Add an amount greater than zero before importing payment history." };
       }
 
       return {
         ...rowData,
-        rowNumber: index + 2,
+        rowNumber,
         raw,
         ready: true,
         existing,
@@ -510,6 +631,7 @@
       ...row,
       operatorDecision: rowDecision(row),
       skipped: isRowSkipped(row),
+      hasOverrides: hasRowOverrides(row),
     }));
     const readyRows = rows.filter((row) => row.ready && !row.skipped && !/^skip/i.test(row.action) && !/^match/i.test(row.action));
     return {
@@ -521,6 +643,7 @@
         { label: "Ready to write", value: readyRows.length },
         { label: "Already handled", value: rows.filter((row) => /^skip|^match/i.test(row.action)).length },
         { label: "Operator skipped", value: rows.filter((row) => row.skipped).length },
+        { label: "Edited rows", value: rows.filter((row) => row.hasOverrides).length },
         { label: "Needs review", value: rows.filter((row) => row.ready === false).length },
       ],
     };
@@ -556,6 +679,7 @@
             <div class="import-preview-table__meta">
               <span class="pill ${row.tone === "ok" ? "pill-on" : (row.tone === "warn" ? "pill-warn" : (row.tone === "error" ? "pill-bad" : ""))}">${escapeHtml(row.action || "Review")}</span>
               ${row.skipped ? `<span class="pill pill-warn">operator skip</span>` : ""}
+              ${row.hasOverrides ? `<span class="pill pill-on">edited</span>` : ""}
               ${row.recordType ? `<span class="pill">${escapeHtml(row.recordType)}</span>` : ""}
               ${row.paymentState ? `<span class="pill">${escapeHtml(String(row.paymentState).replace(/_/g, " "))}</span>` : ""}
             </div>
@@ -634,7 +758,74 @@
   function reviewRows() {
     const preview = IMPORT_STATE.preview;
     if (!preview?.rows?.length) return [];
-    return preview.rows.filter((row) => row.skipped || !row.ready || row.tone === "warn" || /^update/i.test(row.action || ""));
+    return preview.rows.filter((row) => row.skipped || row.hasOverrides || !row.ready || row.tone === "warn" || /^update/i.test(row.action || ""));
+  }
+
+  function reviewFieldValue(row, field) {
+    return importField(row.raw || rawImportRow(row.rowNumber) || {}, kind(), field.key, { rowNumber: row.rowNumber });
+  }
+
+  function renderReviewField(row, field) {
+    const rawValue = reviewFieldValue(row, field);
+    const value = field.input === "date" ? (normalizeIsoDate(rawValue) || "") : rawValue;
+    const help = compact(field.help);
+    if (field.input === "textarea") {
+      return `
+        <label class="import-review-field import-review-field--full">
+          <span>${escapeHtml(field.label)}</span>
+          <textarea data-import-review-field="${escapeAttr(field.key)}" rows="3">${escapeHtml(value)}</textarea>
+          ${help ? `<small>${escapeHtml(help)}</small>` : ""}
+        </label>
+      `;
+    }
+    if (field.input === "select") {
+      const options = Array.isArray(field.options) ? field.options : [];
+      return `
+        <label class="import-review-field">
+          <span>${escapeHtml(field.label)}</span>
+          <select data-import-review-field="${escapeAttr(field.key)}">
+            <option value=""></option>
+            ${options.map((option) => `<option value="${escapeAttr(option)}"${compact(value).toLowerCase() === compact(option).toLowerCase() ? " selected" : ""}>${escapeHtml(String(option).replace(/_/g, " "))}</option>`).join("")}
+          </select>
+          ${help ? `<small>${escapeHtml(help)}</small>` : ""}
+        </label>
+      `;
+    }
+    return `
+      <label class="import-review-field${field.input === "date" ? " import-review-field--compact" : ""}">
+        <span>${escapeHtml(field.label)}</span>
+        <input type="${escapeAttr(field.input || "text")}" data-import-review-field="${escapeAttr(field.key)}" value="${escapeAttr(value)}" />
+        ${help ? `<small>${escapeHtml(help)}</small>` : ""}
+      </label>
+    `;
+  }
+
+  function collectReviewFormValues(form, rowNumber) {
+    if (!rawImportRow(rowNumber)) return {};
+    const values = {};
+    reviewFieldConfig().forEach((field) => {
+      const input = form.querySelector(`[data-import-review-field="${field.key}"]`);
+      if (!input) return;
+      values[field.key] = String(input.value ?? "");
+    });
+    return values;
+  }
+
+  function buildImportReviewSampleRows(limit = 18) {
+    const normalizedKind = kind();
+    const fieldKeys = reviewFieldConfig(normalizedKind).map((field) => field.key);
+    return IMPORT_STATE.rows
+      .map((raw, index) => ({ raw, rowNumber: index + 2 }))
+      .filter((entry) => !isRowSkipped(entry.rowNumber))
+      .slice(0, limit)
+      .map(({ raw, rowNumber }) => {
+      const serialized = { row_number: rowNumber };
+      fieldKeys.forEach((fieldKey) => {
+        const value = importField(raw, normalizedKind, fieldKey, { rowNumber });
+        if (compact(value)) serialized[fieldKey] = value;
+      });
+      return serialized;
+      });
   }
 
   function renderAiReview() {
@@ -753,7 +944,7 @@
       <div class="detail-card">
         <div class="kicker">Review queue</div>
         <div><strong>${escapeHtml(`${rows.length} row${rows.length === 1 ? "" : "s"} need a decision before or during import.`)}</strong></div>
-        <div class="detail-copy">Skip risky rows now to keep the migration moving, then come back with a cleaned file if you want those records brought over later.</div>
+        <div class="detail-copy">Fix identity, address, schedule, invoice, or payment fields here before the import runs. Skip the truly risky rows and keep the rest moving.</div>
       </div>
       <div class="memory-checklist u-mt-10">
         ${rows.slice(0, 24).map((row) => `
@@ -765,14 +956,26 @@
               </div>
               <div class="workspace-chip-row">
                 <span class="pill ${row.skipped ? "pill-warn" : (row.ready ? "pill-on" : "pill-bad")}">${escapeHtml(row.skipped ? "Skipped" : (row.ready ? "Ready" : "Needs review"))}</span>
+                ${row.hasOverrides ? `<span class="pill pill-on">Edited</span>` : ""}
                 ${row.recordType ? `<span class="pill">${escapeHtml(row.recordType)}</span>` : ""}
               </div>
             </div>
             <div class="detail-copy memory-checklist__note">${escapeHtml(row.secondary || "")}</div>
             <div class="detail-copy memory-checklist__note">${escapeHtml(row.detail || "")}</div>
             <div class="import-review-row__actions u-mt-10">
+              <button class="btn btn-ghost btn-sm" type="button" data-import-row-action="${IMPORT_STATE.expandedReviewRow === row.rowNumber ? "close-editor" : "open-editor"}" data-import-row-number="${escapeAttr(String(row.rowNumber || ""))}">${IMPORT_STATE.expandedReviewRow === row.rowNumber ? "Hide edits" : "Edit fields"}</button>
               <button class="btn btn-ghost btn-sm" type="button" data-import-row-action="${row.skipped ? "restore" : "skip"}" data-import-row-number="${escapeAttr(String(row.rowNumber || ""))}">${row.skipped ? "Restore row" : "Skip row"}</button>
+              ${row.hasOverrides ? `<button class="btn btn-ghost btn-sm" type="button" data-import-row-action="reset-edits" data-import-row-number="${escapeAttr(String(row.rowNumber || ""))}">Reset edits</button>` : ""}
             </div>
+            ${IMPORT_STATE.expandedReviewRow === row.rowNumber ? `
+              <form class="import-review-form u-mt-10" data-import-review-form="${escapeAttr(String(row.rowNumber || ""))}">
+                ${reviewFieldConfig().map((field) => renderReviewField(row, field)).join("")}
+                <div class="import-review-row__actions">
+                  <button class="btn btn-primary btn-sm" type="button" data-import-row-action="save-edits" data-import-row-number="${escapeAttr(String(row.rowNumber || ""))}">Apply edits</button>
+                  <button class="btn btn-ghost btn-sm" type="button" data-import-row-action="close-editor" data-import-row-number="${escapeAttr(String(row.rowNumber || ""))}">Close</button>
+                </div>
+              </form>
+            ` : ""}
           </div>
         `).join("")}
         ${rows.length > 24 ? `<div class="detail-copy">Showing the first 24 review rows for this preview.</div>` : ""}
@@ -823,6 +1026,8 @@
       presetKey: "",
       presetPinned: false,
       rowDecisions: {},
+      rowOverrides: {},
+      expandedReviewRow: 0,
       aiReview: null,
     };
     if (importFile) importFile.value = "";
@@ -841,6 +1046,8 @@
     IMPORT_STATE.presetKey = "";
     IMPORT_STATE.presetPinned = false;
     IMPORT_STATE.rowDecisions = {};
+    IMPORT_STATE.rowOverrides = {};
+    IMPORT_STATE.expandedReviewRow = 0;
     IMPORT_STATE.aiReview = null;
     if (importFile) importFile.value = "";
     setImportMessage("");
@@ -855,6 +1062,8 @@
     IMPORT_STATE.presetKey = nextPreset?.key || "";
     IMPORT_STATE.presetPinned = !!nextPreset;
     IMPORT_STATE.rowDecisions = {};
+    IMPORT_STATE.rowOverrides = {};
+    IMPORT_STATE.expandedReviewRow = 0;
     if (IMPORT_STATE.rows.length) {
       IMPORT_STATE.preview = buildPreview();
       IMPORT_STATE.aiReview = null;
@@ -879,6 +1088,7 @@
       [key]: nextDecision,
     };
     if (!nextDecision) delete IMPORT_STATE.rowDecisions[key];
+    IMPORT_STATE.aiReview = null;
     IMPORT_STATE.preview = buildPreview();
     renderImportWorkspace();
   }
@@ -909,6 +1119,8 @@
     IMPORT_STATE.headers = parsed.headers;
     IMPORT_STATE.rows = parsed.rows;
     IMPORT_STATE.rowDecisions = {};
+    IMPORT_STATE.rowOverrides = {};
+    IMPORT_STATE.expandedReviewRow = 0;
     IMPORT_STATE.aiReview = null;
     const pinnedPreset = IMPORT_STATE.presetPinned ? activeImportPreset() : null;
     const matchedProfile = typeof Tools.chooseImportProfile === "function"
@@ -1387,7 +1599,7 @@
         import_kind: kind(),
         file_name: IMPORT_STATE.fileName || "",
         headers: IMPORT_STATE.headers,
-        sample_rows: IMPORT_STATE.rows.slice(0, 18),
+        sample_rows: buildImportReviewSampleRows(18),
         active_profile: activeProfile ? {
           key: activeProfile.key,
           label: activeProfile.label,
@@ -1694,7 +1906,32 @@
     const rowNumber = Number(button.getAttribute("data-import-row-number") || 0);
     if (!rowNumber) return;
     const action = compact(button.getAttribute("data-import-row-action")).toLowerCase();
-    setRowDecision(rowNumber, action === "skip" ? "skip" : "");
+    if (action === "skip") {
+      setRowDecision(rowNumber, "skip");
+      return;
+    }
+    if (action === "restore") {
+      setRowDecision(rowNumber, "");
+      return;
+    }
+    if (action === "open-editor") {
+      setExpandedReviewRow(rowNumber);
+      return;
+    }
+    if (action === "close-editor") {
+      setExpandedReviewRow(IMPORT_STATE.expandedReviewRow === rowNumber ? 0 : rowNumber);
+      return;
+    }
+    if (action === "reset-edits") {
+      clearRowOverrides(rowNumber);
+      return;
+    }
+    if (action === "save-edits") {
+      const form = button.closest("[data-import-review-form]");
+      if (!form) return;
+      setRowOverrides(rowNumber, collectReviewFormValues(form, rowNumber));
+      setExpandedReviewRow(rowNumber);
+    }
   });
 
   btnRunImport?.addEventListener("click", async () => {

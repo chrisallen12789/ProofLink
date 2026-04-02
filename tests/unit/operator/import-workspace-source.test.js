@@ -23,8 +23,12 @@ describe("operator import workspace source", () => {
   test("wires preset selection and row reconciliation controls in the workspace runtime", () => {
     expect(js).toContain("function setImportPreset");
     expect(js).toContain("function setRowDecision");
+    expect(js).toContain("function setRowOverrides");
+    expect(js).toContain("buildImportReviewSampleRows");
     expect(js).toContain('data-import-preset-key');
     expect(js).toContain('data-import-row-action');
+    expect(js).toContain('data-import-review-form');
+    expect(js).toContain('data-import-review-field');
     expect(js).toContain("operator skip");
   });
 });
