@@ -6,15 +6,55 @@ const { TENANTS } = require("../fixtures/tenants");
 const { USERS, resolveUserConfig } = require("../fixtures/users");
 const { ONBOARDING_FIXTURES } = require("../fixtures/onboarding");
 
-loadTestEnv();
-assertRequiredEnv();
-
 const PLTEST_SLUG_PREFIX = "pltest-";
 const PLTEST_EMAIL_PREFIX = "pltest.";
 
-const supabase = createClient(process.env.TEST_SUPABASE_URL, process.env.TEST_SUPABASE_SERVICE_ROLE_KEY, {
-  auth: { autoRefreshToken: false, persistSession: false },
-});
+const OPTIONAL_TENANT_TABLE_DELETE_ORDER = [
+  "job_time_segments",
+  "confined_space_permits",
+  "waste_manifests",
+  "utility_locate_tickets",
+  "compliance_alerts",
+  "equipment_maintenance_log",
+  "driver_qualifications",
+  "equipment",
+  "disposal_facilities",
+  "infrastructure_assets",
+  "tenant_hydrovac_settings",
+  "push_subscriptions",
+  "sms_messages",
+  "reviews",
+  "quotes",
+  "bookings",
+  "recurring_orders",
+  "invoices",
+  "service_plans",
+  "tenant_settings",
+];
+
+const CORE_TENANT_TABLE_DELETE_ORDER = [
+  "payments",
+  "jobs",
+  "orders",
+  "bids",
+  "leads",
+  "products",
+  "pricing",
+  "availability",
+  "expenses",
+  "customer_interactions",
+  "customers",
+  "tenant_config",
+  "operator_members",
+];
+
+function createSupabaseClient() {
+  loadTestEnv();
+  assertRequiredEnv();
+  return createClient(process.env.TEST_SUPABASE_URL, process.env.TEST_SUPABASE_SERVICE_ROLE_KEY, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+}
 
 function assertPrefixedValue(value, prefix, label) {
   if (!String(value || "").startsWith(prefix)) {
@@ -47,7 +87,7 @@ function assertCleanupFixturesSafe() {
   });
 }
 
-async function findAuthUserByEmail(email) {
+async function findAuthUserByEmail(email, supabase = createSupabaseClient()) {
   let page = 1;
   while (page < 20) {
     const { data, error } = await supabase.auth.admin.listUsers({ page, perPage: 200 });
@@ -62,11 +102,15 @@ async function findAuthUserByEmail(email) {
   return null;
 }
 
-async function deleteRows(table, column, values) {
+async function deleteRows(table, column, values, supabase = createSupabaseClient()) {
   const filtered = values.filter(Boolean);
   if (!filtered.length) return;
   const { error } = await supabase.from(table).delete().in(column, filtered);
-  if (error) throw error;
+  if (error) {
+    throw new Error(
+      `Failed cleanup delete on ${table}.${column} for ${filtered.length} value(s): ${formatCleanupError(error)}`
+    );
+  }
 }
 
 function isMissingRelationError(error) {
@@ -88,15 +132,52 @@ function isIgnorableCleanupError(error) {
   return isMissingRelationError(error) || isMissingTenantUsageSyncError(error);
 }
 
-async function deleteRowsMaybe(table, column, values) {
+async function deleteRowsMaybe(table, column, values, supabase = createSupabaseClient()) {
   const filtered = values.filter(Boolean);
   if (!filtered.length) return;
   const { error } = await supabase.from(table).delete().in(column, filtered);
-  if (error && !isIgnorableCleanupError(error)) throw error;
+  if (error && !isIgnorableCleanupError(error)) {
+    throw new Error(
+      `Failed cleanup delete on ${table}.${column} for ${filtered.length} value(s): ${formatCleanupError(error)}`
+    );
+  }
+}
+
+function formatCleanupError(error) {
+  if (!error) return "Unknown cleanup error";
+  const own = {};
+  for (const key of Object.getOwnPropertyNames(error)) {
+    own[key] = error[key];
+  }
+  const payload = {
+    name: error.name ?? null,
+    message: error.message ?? null,
+    code: error.code ?? null,
+    details: error.details ?? null,
+    hint: error.hint ?? null,
+    status: error.status ?? null,
+    ...own,
+  };
+  try {
+    return JSON.stringify(payload);
+  } catch (_jsonError) {
+    return String(error?.message || error);
+  }
+}
+
+async function cleanupTenantScopedData(tenantIds, supabase = createSupabaseClient()) {
+  for (const table of OPTIONAL_TENANT_TABLE_DELETE_ORDER) {
+    await deleteRowsMaybe(table, "tenant_id", tenantIds, supabase);
+  }
+
+  for (const table of CORE_TENANT_TABLE_DELETE_ORDER) {
+    await deleteRows(table, "tenant_id", tenantIds, supabase);
+  }
 }
 
 async function main() {
   assertCleanupFixturesSafe();
+  const supabase = createSupabaseClient();
 
   const tenantRows = await supabase
     .from("tenants")
@@ -119,19 +200,7 @@ async function main() {
     .filter((row) => String(row.email || "").startsWith(PLTEST_EMAIL_PREFIX))
     .map((row) => row.id);
 
-  await deleteRows("payments", "tenant_id", tenantIds);
-  await deleteRowsMaybe("jobs", "tenant_id", tenantIds);
-  await deleteRows("orders", "tenant_id", tenantIds);
-  await deleteRowsMaybe("bids", "tenant_id", tenantIds);
-  await deleteRowsMaybe("leads", "tenant_id", tenantIds);
-  await deleteRows("products", "tenant_id", tenantIds);
-  await deleteRows("pricing", "tenant_id", tenantIds);
-  await deleteRows("availability", "tenant_id", tenantIds);
-  await deleteRows("expenses", "tenant_id", tenantIds);
-  await deleteRows("customers", "tenant_id", tenantIds);
-  await deleteRows("customer_interactions", "tenant_id", tenantIds);
-  await deleteRows("tenant_config", "tenant_id", tenantIds);
-  await deleteRows("operator_members", "tenant_id", tenantIds);
+  await cleanupTenantScopedData(tenantIds, supabase);
 
   const onboardingRows = await supabase
     .from("tenant_onboarding_requests")
@@ -154,7 +223,7 @@ async function main() {
   for (const user of Object.values(USERS)) {
     const resolved = resolveUserConfig(user);
     assertPrefixedValue(resolved.email, PLTEST_EMAIL_PREFIX, `Seed user email ${resolved.email}`);
-    const authUser = await findAuthUserByEmail(resolved.email);
+    const authUser = await findAuthUserByEmail(resolved.email, supabase);
     if (authUser) {
       const { error } = await supabase.auth.admin.deleteUser(authUser.id);
       if (error) throw error;
@@ -164,14 +233,30 @@ async function main() {
   console.log("Cleaned ProofLink test foundation data.");
 }
 
-main().catch((error) => {
-  if (isMissingTenantUsageSyncError(error)) {
-    console.warn(
-      "Skipping cleanup failure for missing tenant usage sync reference:",
-      error?.message || String(error)
-    );
-    return;
-  }
-  console.error("Failed to cleanup ProofLink test foundation:", error);
-  process.exitCode = 1;
-});
+if (require.main === module) {
+  main().catch((error) => {
+    if (isMissingTenantUsageSyncError(error)) {
+      console.warn(
+        "Skipping cleanup failure for missing tenant usage sync reference:",
+        error?.message || String(error)
+      );
+      return;
+    }
+    console.error("Failed to cleanup ProofLink test foundation:", formatCleanupError(error));
+    process.exitCode = 1;
+  });
+}
+
+module.exports = {
+  CORE_TENANT_TABLE_DELETE_ORDER,
+  OPTIONAL_TENANT_TABLE_DELETE_ORDER,
+  cleanupTenantScopedData,
+  deleteRows,
+  deleteRowsMaybe,
+  findAuthUserByEmail,
+  formatCleanupError,
+  isIgnorableCleanupError,
+  isMissingRelationError,
+  isMissingTenantUsageSyncError,
+  main,
+};
