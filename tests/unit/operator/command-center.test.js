@@ -97,10 +97,12 @@ function loadCommandCenter(overrides = {}) {
     clearPaymentForm: vi.fn(),
     renderPayments: vi.fn(),
     ACTIVE_LEAD_ID: "existing-lead",
+    ACTIVE_ORDER_ID: "",
     ACTIVE_CUSTOMER_ID: "customer_1",
     FOLLOW_UP_QUEUE_MESSAGE: "",
     FOLLOW_UP_QUEUE_MESSAGE_TONE: "",
     setFollowUpQueueMessage: vi.fn(),
+    requestOperatorFunction: vi.fn(() => Promise.resolve({})),
     sortedPayments: vi.fn((rows) => rows),
     currentPayment: vi.fn(() => null),
     orderPaymentState: vi.fn(() => "unpaid"),
@@ -334,6 +336,7 @@ describe("operator command center", () => {
     context.window.renderDashboard();
 
     expect(context.dashboardWrap.innerHTML).toContain("Repeat-service focus");
+    expect(context.dashboardWrap.innerHTML).toContain("AI ops queue");
     expect(context.dashboardWrap.innerHTML).toContain("dashboard-focus-card");
     expect(context.dashboardWrap.innerHTML).toContain("dashboard-focus-title");
     expect(context.dashboardWrap.innerHTML).toContain("seasonal window is opening");
@@ -342,6 +345,200 @@ describe("operator command center", () => {
     expect(context.dashboardWrap.innerHTML).toContain("onboarding-progress__fill");
     expect(context.dashboardWrap.innerHTML).not.toContain('style="font-weight:700;"');
     expect(context.dashboardWrap.innerHTML).not.toContain('style="margin-bottom:16px;border:1px solid rgba(200,75,47,.3);background:rgba(200,75,47,.04);"');
+  });
+
+  test("renderDashboardAiOpsQueue shows billing, dispatch, and collections actions together", () => {
+    const { context } = loadCommandCenter();
+
+    const html = context.window.PROOFLINK_OPERATOR_COMMAND_CENTER.renderDashboardAiOpsQueue({
+      billing: {
+        context_summary: { queued_jobs: 2 },
+        report: {
+          findings: [
+            {
+              title: "Missing job closeout",
+              detail: "Crew left without signature capture.",
+              severity: "warning",
+              record_refs: [
+                { record_type: "job", record_id: "job_1" },
+                { record_type: "customer", record_id: "customer_1" },
+              ],
+            },
+          ],
+        },
+      },
+      dispatch: {
+        report: {
+          blockers: [{ code: "truck_missing" }],
+          findings: [
+            {
+              title: "Truck still unassigned",
+              detail: "Tomorrow's run still needs a truck.",
+              severity: "critical",
+              record_refs: [{ record_type: "job", record_id: "job_2" }],
+            },
+          ],
+        },
+      },
+      collections: {
+        context_summary: { overdue_count: 1, missing_due_dates: 1 },
+        report: {
+          findings: [
+            {
+              title: "Invoice has no due date",
+              detail: "The balance is open and the due date is blank.",
+              severity: "warning",
+              record_refs: [
+                { record_type: "order", record_id: "order_1" },
+                { record_type: "customer", record_id: "customer_2" },
+              ],
+            },
+          ],
+        },
+      },
+      ui: { message: "AI ops review refreshed.", tone: "ok" },
+      useDispatchTab: true,
+    });
+
+    expect(html).toContain("2 billing queued");
+    expect(html).toContain("1 dispatch blocker");
+    expect(html).toContain("1 overdue balance");
+    expect(html).toContain("1 missing due date");
+    expect(html).toContain("Record payment");
+    expect(html).toContain("Open dispatch");
+    expect(html).toContain("Open order");
+    expect(html).toContain("Open customer");
+  });
+
+  test("runDashboardAiOpsReview refreshes the shared AI caches", async () => {
+    const targetDate = new Date().toISOString().slice(0, 10);
+    const requestOperatorFunction = vi.fn((name, options) => {
+      expect(name).toBe("ai-agent-report");
+      const agentKey = options?.body?.agent_key;
+      if (agentKey === "billing_blocker_detector") {
+        return Promise.resolve({
+          generated_at: "2026-04-02T10:00:00.000Z",
+          context_summary: { queued_jobs: 3 },
+          report: {
+            findings: [
+              {
+                title: "Billing queue item",
+                severity: "warning",
+                record_refs: [{ record_type: "job", record_id: "job_10" }],
+              },
+            ],
+          },
+        });
+      }
+      if (agentKey === "dispatch_scheduling_assistant") {
+        return Promise.resolve({
+          generated_at: "2026-04-02T10:05:00.000Z",
+          context_summary: { open_jobs: 4 },
+          report: {
+            blockers: [{ code: "crew_gap" }],
+            findings: [
+              {
+                title: "Dispatch queue item",
+                severity: "critical",
+                record_refs: [{ record_type: "job", record_id: "job_11" }],
+              },
+            ],
+          },
+        });
+      }
+      if (agentKey === "collections_followup_assistant") {
+        return Promise.resolve({
+          generated_at: "2026-04-02T10:10:00.000Z",
+          context_summary: { overdue_count: 2, missing_due_dates: 1 },
+          report: {
+            findings: [
+              {
+                title: "Collections queue item",
+                severity: "warning",
+                record_refs: [
+                  { record_type: "order", record_id: "order_10" },
+                  { record_type: "customer", record_id: "customer_10" },
+                ],
+              },
+            ],
+          },
+        });
+      }
+      return Promise.reject(new Error(`Unexpected agent key: ${agentKey}`));
+    });
+
+    const { context } = loadCommandCenter({
+      isHydrovacWorkspace: vi.fn(() => true),
+      requestOperatorFunction,
+      window: {
+        PROOFLINK_BILLING_BLOCKER_AGENT_STATE: {
+          report: null,
+          context_summary: null,
+          generated_at: "",
+        },
+        PROOFLINK_COLLECTIONS_AGENT_STATE: {
+          report: null,
+          context_summary: null,
+          generated_at: "",
+        },
+        PROOFLINK_DISPATCH_AGENT_REVIEW_CACHE: {},
+      },
+    });
+
+    await context.window.PROOFLINK_OPERATOR_COMMAND_CENTER.runDashboardAiOpsReview({
+      business: { key: "hydrovac" },
+    });
+
+    expect(requestOperatorFunction).toHaveBeenCalledTimes(3);
+    expect(requestOperatorFunction).toHaveBeenNthCalledWith(
+      1,
+      "ai-agent-report",
+      expect.objectContaining({
+        method: "POST",
+        body: expect.objectContaining({ agent_key: "billing_blocker_detector", limit: 8 }),
+      })
+    );
+    expect(requestOperatorFunction).toHaveBeenNthCalledWith(
+      2,
+      "ai-agent-report",
+      expect.objectContaining({
+        method: "POST",
+        body: expect.objectContaining({
+          agent_key: "dispatch_scheduling_assistant",
+          target_date: targetDate,
+          days: 3,
+          job_type: "hydrovac",
+        }),
+      })
+    );
+    expect(requestOperatorFunction).toHaveBeenNthCalledWith(
+      3,
+      "ai-agent-report",
+      expect.objectContaining({
+        method: "POST",
+        body: expect.objectContaining({ agent_key: "collections_followup_assistant" }),
+      })
+    );
+    expect(context.window.PROOFLINK_BILLING_BLOCKER_AGENT_STATE.context_summary).toEqual({ queued_jobs: 3 });
+    expect(context.window.PROOFLINK_COLLECTIONS_AGENT_STATE.context_summary).toEqual({
+      overdue_count: 2,
+      missing_due_dates: 1,
+    });
+    expect(context.window.PROOFLINK_DISPATCH_AGENT_REVIEW_CACHE[targetDate]).toEqual(
+      expect.objectContaining({
+        context_summary: { open_jobs: 4 },
+        generated_at: "2026-04-02T10:05:00.000Z",
+        report: expect.objectContaining({
+          blockers: [{ code: "crew_gap" }],
+        }),
+      })
+    );
+    expect(context.window.PROOFLINK_AI_OPS_QUEUE_STATE).toEqual(
+      expect.objectContaining({
+        message: "AI ops review refreshed.",
+        tone: "ok",
+      })
+    );
   });
 
   test("renderGuidance shows hydrovac operations and hides invisible tabs", () => {

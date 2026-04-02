@@ -259,6 +259,223 @@ function repeatWorkReasonContext({
   };
 }
 
+function dashboardAiOpsTargetDate() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function aiOpsToneClass(severity = "") {
+  if (severity === "critical") return "pill-bad";
+  if (severity === "warning") return "pill-warn";
+  return "pill-good";
+}
+
+function dashboardAiOpsUiState() {
+  return window.PROOFLINK_AI_OPS_QUEUE_STATE || (window.PROOFLINK_AI_OPS_QUEUE_STATE = {
+    message: "",
+    tone: "",
+    last_refreshed_at: "",
+  });
+}
+
+function dashboardAiOpsState(blueprint = currentWorkspaceBlueprint()) {
+  const targetDate = dashboardAiOpsTargetDate();
+  const dispatchCache = window.PROOFLINK_DISPATCH_AGENT_REVIEW_CACHE || (window.PROOFLINK_DISPATCH_AGENT_REVIEW_CACHE = {});
+  const billingState = window.PROOFLINK_BILLING_BLOCKER_AGENT_STATE || (window.PROOFLINK_BILLING_BLOCKER_AGENT_STATE = {
+    report: null,
+    context_summary: null,
+    generated_at: "",
+  });
+  const collectionsState = window.PROOFLINK_COLLECTIONS_AGENT_STATE || (window.PROOFLINK_COLLECTIONS_AGENT_STATE = {
+    report: null,
+    context_summary: null,
+    generated_at: "",
+  });
+  const dispatchState = dispatchCache[targetDate] || null;
+
+  return {
+    targetDate,
+    useDispatchTab: !!isHydrovacWorkspace(blueprint),
+    billing: billingState,
+    dispatch: dispatchState,
+    collections: collectionsState,
+    ui: dashboardAiOpsUiState(),
+  };
+}
+
+function dashboardAiOpsQueueItems(aiOpsState = dashboardAiOpsState(), blueprint = currentWorkspaceBlueprint()) {
+  const items = [];
+  const pushItems = (reportState, config = {}) => {
+    const report = reportState?.report || null;
+    if (!report) return;
+    const findings = Array.isArray(report.findings) ? report.findings.slice(0, config.limit || 3) : [];
+    findings.forEach((finding) => {
+      const refs = Array.isArray(finding.record_refs) ? finding.record_refs : [];
+      const orderRef = refs.find((ref) => ref && ref.record_type === "order" && ref.record_id) || null;
+      const customerRef = refs.find((ref) => ref && ref.record_type === "customer" && ref.record_id) || null;
+      const jobRef = refs.find((ref) => ref && ref.record_type === "job" && ref.record_id) || null;
+      const primaryRef = orderRef || jobRef || customerRef || null;
+      items.push({
+        queueLabel: config.queueLabel || "AI queue",
+        title: finding.title || config.fallbackTitle || "AI queue item",
+        detail: finding.detail || "",
+        severity: finding.severity || "info",
+        targetTab: config.resolveTab ? config.resolveTab({ orderRef, customerRef, jobRef, primaryRef }, blueprint) : (primaryRef?.record_type === "customer" ? "customers" : primaryRef?.record_type === "order" ? "orders" : "jobs"),
+        targetId: primaryRef?.record_id || "",
+        orderId: orderRef?.record_id || "",
+        customerId: customerRef?.record_id || "",
+        jobId: jobRef?.record_id || "",
+        suggestedAction: config.suggestedAction || "Open record",
+      });
+    });
+  };
+
+  pushItems(aiOpsState.billing, {
+    queueLabel: "Billing blockers",
+    suggestedAction: "Open job",
+    resolveTab: () => "jobs",
+  });
+  pushItems(aiOpsState.dispatch, {
+    queueLabel: "Dispatch review",
+    suggestedAction: aiOpsState.useDispatchTab ? "Open dispatch" : "Open job",
+    resolveTab: () => aiOpsState.useDispatchTab ? "dispatch" : "jobs",
+  });
+  pushItems(aiOpsState.collections, {
+    queueLabel: "Collections review",
+    suggestedAction: "Record payment",
+    resolveTab: ({ customerRef }) => customerRef?.record_id ? "customers" : "payments",
+  });
+
+  return items
+    .sort((a, b) => {
+      const score = { critical: 3, warning: 2, info: 1 };
+      return (score[b.severity] || 0) - (score[a.severity] || 0);
+    })
+    .slice(0, 8);
+}
+
+function renderDashboardAiOpsQueue(aiOpsState = dashboardAiOpsState(), blueprint = currentWorkspaceBlueprint()) {
+  const items = dashboardAiOpsQueueItems(aiOpsState, blueprint);
+  const billingQueued = Number(aiOpsState.billing?.context_summary?.queued_jobs || aiOpsState.billing?.report?.findings?.length || 0);
+  const dispatchBlocked = Number(aiOpsState.dispatch?.report?.blockers?.length || 0);
+  const collectionsOverdue = Number(aiOpsState.collections?.context_summary?.overdue_count || 0);
+  const missingDueDates = Number(aiOpsState.collections?.context_summary?.missing_due_dates || 0);
+  const anyReport = !!(aiOpsState.billing?.report || aiOpsState.dispatch?.report || aiOpsState.collections?.report);
+
+  return `
+    <div class="card dashboard-focus-card">
+      <div class="card-hd">
+        <strong>AI ops queue</strong>
+        <span class="muted">Billing, dispatch, and collections risk in one place</span>
+      </div>
+      <div class="card-bd">
+        <div class="action-row action-row--wrap">
+          <button type="button" class="btn btn-ghost btn-sm" id="btnRunDashboardAiOpsReview">${anyReport ? "Refresh AI ops review" : "Run AI ops review"}</button>
+        </div>
+        ${aiOpsState.ui?.message ? `<div id="dashboardAiOpsMsg" class="msg ${escapeAttr(aiOpsState.ui.tone || "")} u-mt-10">${escapeHtml(aiOpsState.ui.message || "")}</div>` : `<div id="dashboardAiOpsMsg" class="msg u-mt-10"></div>`}
+        <div class="workspace-chip-row dashboard-focus-chips u-mt-10">
+          <span class="pill ${billingQueued ? "pill-warn" : "pill-good"}">${escapeHtml(`${billingQueued} billing queued`)}</span>
+          <span class="pill ${dispatchBlocked ? "pill-warn" : "pill-good"}">${escapeHtml(`${dispatchBlocked} dispatch blocker${dispatchBlocked === 1 ? "" : "s"}`)}</span>
+          <span class="pill ${collectionsOverdue ? "pill-bad" : "pill-good"}">${escapeHtml(`${collectionsOverdue} overdue balance${collectionsOverdue === 1 ? "" : "s"}`)}</span>
+          ${missingDueDates ? `<span class="pill pill-warn">${escapeHtml(`${missingDueDates} missing due date${missingDueDates === 1 ? "" : "s"}`)}</span>` : ""}
+        </div>
+        ${items.length ? `
+          <div class="memory-checklist u-mt-10">
+            ${items.map((item, index) => `
+              <div class="memory-checklist__item ${item.severity === "critical" || item.severity === "warning" ? "memory-checklist__item--warn" : "memory-checklist__item--ready"}">
+                <div class="workspace-chip-row">
+                  <span class="pill ${aiOpsToneClass(item.severity)}">${escapeHtml(item.queueLabel)}</span>
+                  <span class="pill">${escapeHtml(item.suggestedAction)}</span>
+                </div>
+                <div class="memory-checklist__title u-mt-10">${escapeHtml(item.title)}</div>
+                <div class="detail-copy memory-checklist__note">${escapeHtml(item.detail)}</div>
+                <div class="action-row action-row--wrap u-mt-10">
+                  ${item.orderId ? `<button type="button" class="btn btn-primary btn-sm" data-ai-ops-record-payment="${escapeAttr(item.orderId)}" data-ai-ops-customer-id="${escapeAttr(item.customerId || "")}">Record payment</button>` : ``}
+                  ${item.targetId ? `<button type="button" class="btn btn-ghost btn-sm" data-ai-ops-open-tab="${escapeAttr(item.targetTab || "")}" data-ai-ops-open-id="${escapeAttr(item.targetId)}">${escapeHtml(item.suggestedAction)}</button>` : `<button type="button" class="btn btn-ghost btn-sm" data-ai-ops-open-tab="${escapeAttr(item.targetTab || "dashboard")}" data-ai-ops-open-id="">${escapeHtml(item.suggestedAction)}</button>`}
+                  ${item.orderId ? `<button type="button" class="btn btn-ghost btn-sm" data-ai-ops-open-tab="orders" data-ai-ops-open-id="${escapeAttr(item.orderId)}">Open order</button>` : ``}
+                  ${item.customerId ? `<button type="button" class="btn btn-ghost btn-sm" data-ai-ops-open-tab="customers" data-ai-ops-open-id="${escapeAttr(item.customerId)}">Open customer</button>` : ``}
+                </div>
+              </div>
+            `).join("")}
+          </div>
+        ` : `<div class="detail-copy dashboard-focus-copy u-mt-10">Run the AI ops review to build one grounded queue from billing blockers, dispatch conflicts, and collections risk.</div>`}
+      </div>
+    </div>
+  `;
+}
+
+async function runDashboardAiOpsReview(blueprint = currentWorkspaceBlueprint()) {
+  if (typeof requestOperatorFunction !== "function") {
+    throw new Error("AI ops review is unavailable because operator function access is not ready.");
+  }
+  const targetDate = dashboardAiOpsTargetDate();
+  const billingState = window.PROOFLINK_BILLING_BLOCKER_AGENT_STATE || (window.PROOFLINK_BILLING_BLOCKER_AGENT_STATE = {
+    report: null,
+    context_summary: null,
+    generated_at: "",
+  });
+  const collectionsState = window.PROOFLINK_COLLECTIONS_AGENT_STATE || (window.PROOFLINK_COLLECTIONS_AGENT_STATE = {
+    report: null,
+    context_summary: null,
+    generated_at: "",
+  });
+  const dispatchCache = window.PROOFLINK_DISPATCH_AGENT_REVIEW_CACHE || (window.PROOFLINK_DISPATCH_AGENT_REVIEW_CACHE = {});
+  const dispatchState = dispatchCache[targetDate] || (dispatchCache[targetDate] = {
+    report: null,
+    context_summary: null,
+    generated_at: "",
+  });
+  const uiState = dashboardAiOpsUiState();
+  const dispatchBody = {
+    agent_key: "dispatch_scheduling_assistant",
+    target_date: targetDate,
+    days: 3,
+  };
+  if (isHydrovacWorkspace(blueprint)) dispatchBody.job_type = "hydrovac";
+
+  const [billingPayload, dispatchPayload, collectionsPayload] = await Promise.all([
+    requestOperatorFunction("ai-agent-report", {
+      method: "POST",
+      body: { agent_key: "billing_blocker_detector", limit: 8 },
+    }),
+    requestOperatorFunction("ai-agent-report", {
+      method: "POST",
+      body: dispatchBody,
+    }),
+    requestOperatorFunction("ai-agent-report", {
+      method: "POST",
+      body: { agent_key: "collections_followup_assistant" },
+    }),
+  ]);
+
+  Object.assign(billingState, {
+    report: billingPayload?.report || null,
+    context_summary: billingPayload?.context_summary || null,
+    generated_at: billingPayload?.generated_at || billingPayload?.report?.generated_at || "",
+  });
+  Object.assign(dispatchState, {
+    report: dispatchPayload?.report || null,
+    context_summary: dispatchPayload?.context_summary || null,
+    generated_at: dispatchPayload?.generated_at || dispatchPayload?.report?.generated_at || "",
+  });
+  Object.assign(collectionsState, {
+    report: collectionsPayload?.report || null,
+    context_summary: collectionsPayload?.context_summary || null,
+    generated_at: collectionsPayload?.generated_at || collectionsPayload?.report?.generated_at || "",
+  });
+  Object.assign(uiState, {
+    message: "AI ops review refreshed.",
+    tone: "ok",
+    last_refreshed_at: new Date().toISOString(),
+  });
+
+  return {
+    billing: billingState,
+    dispatch: dispatchState,
+    collections: collectionsState,
+    targetDate,
+  };
+}
+
 function renderDashboard() {
   if (!dashboardWrap) return;
 
@@ -378,6 +595,7 @@ function renderDashboard() {
   const orderLabel = workspaceOrderLabelLower(blueprint);
   const catalogLabel = workspaceCatalogLabelLower(blueprint);
   const hydrovacToday = isHydrovacWorkspace(blueprint) ? hydrovacDashboardSnapshot() : null;
+  const aiOpsState = dashboardAiOpsState(blueprint);
   const alerts = [];
 
   if (!CUSTOMERS_CACHE.length) alerts.push("No customers are in CRM yet. As real work lands here, relationship memory and follow-up get stronger.");
@@ -501,6 +719,8 @@ function renderDashboard() {
         </div>
       </div>
     </div>
+
+    ${renderDashboardAiOpsQueue(aiOpsState, blueprint)}
 
     <div class="card dashboard-focus-card">
       <div class="card-hd">
@@ -1011,6 +1231,42 @@ function renderDashboard() {
       }
     });
   });
+  dashboardWrap.querySelector("#btnRunDashboardAiOpsReview")?.addEventListener("click", async () => {
+    const uiState = dashboardAiOpsUiState();
+    uiState.message = "Reviewing billing, dispatch, and collections...";
+    uiState.tone = "";
+    renderDashboard();
+    try {
+      await runDashboardAiOpsReview(currentWorkspaceBlueprint());
+    } catch (error) {
+      uiState.message = error.message || String(error);
+      uiState.tone = "error";
+    }
+    renderDashboard();
+  });
+  dashboardWrap.querySelectorAll("[data-ai-ops-open-tab]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      activateWorkspaceTarget(
+        btn.getAttribute("data-ai-ops-open-tab") || "dashboard",
+        btn.getAttribute("data-ai-ops-open-id") || ""
+      );
+    });
+  });
+  dashboardWrap.querySelectorAll("[data-ai-ops-record-payment]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const orderId = btn.getAttribute("data-ai-ops-record-payment") || "";
+      const customerId = btn.getAttribute("data-ai-ops-customer-id") || "";
+      ACTIVE_ORDER_ID = orderId || ACTIVE_ORDER_ID || "";
+      ACTIVE_CUSTOMER_ID = customerId || ACTIVE_CUSTOMER_ID || "";
+      clearPaymentForm({
+        customerId,
+        orderId,
+        title: "Record payment",
+      });
+      if (typeof renderPayments === "function") renderPayments();
+      switchTab("payments");
+    });
+  });
   dashboardWrap.querySelectorAll("[data-hydrovac-today-tab]").forEach((btn) => {
     btn.addEventListener("click", () => {
       activateWorkspaceTarget(
@@ -1332,6 +1588,10 @@ const COMMAND_CENTER_HELPERS = {
   buildDashboardCollectionGuidance,
   buildDashboardRepeatWorkGuidance,
   buildDashboardReactivationGuidance,
+  dashboardAiOpsState,
+  dashboardAiOpsQueueItems,
+  renderDashboardAiOpsQueue,
+  runDashboardAiOpsReview,
   priorityReactivationCustomer,
   renderDashboard,
   renderMoneyWorkspace,
