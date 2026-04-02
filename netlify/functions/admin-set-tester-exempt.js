@@ -15,7 +15,7 @@
 
 'use strict';
 
-const { requireAdminContext, respond } = require('./utils/auth');
+const { requireAdminContext, requireTenantAdminContext, respond } = require('./utils/auth');
 
 const MAX_TESTER_SLOTS = Number(process.env.MAX_TESTER_SLOTS || 3);
 
@@ -42,7 +42,9 @@ exports.handler = async (event) => {
   // ── Auth ────────────────────────────────────────────────────────────────────
   let ctx;
   try {
-    ctx = await requireAdminContext(event, requestedTenantId);
+    ctx = event.httpMethod === 'GET'
+      ? await requireTenantAdminContext(event, requestedTenantId)
+      : await requireAdminContext(event, requestedTenantId);
   } catch (err) {
     return respond(err.statusCode || 401, { error: err.message });
   }

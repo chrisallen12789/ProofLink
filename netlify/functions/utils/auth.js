@@ -3,6 +3,8 @@
 
 const { createClient } = require('@supabase/supabase-js');
 
+const TENANT_ADMIN_ROLES = new Set(['admin', 'owner', 'manager']);
+
 /**
  * Returns an authenticated Supabase admin client using the service role key.
  * This client bypasses RLS and is for use inside trusted Netlify functions only.
@@ -100,6 +102,8 @@ async function requireOperatorContext(event) {
       operatorId : membership.operator_id,
       email      : membership.operators?.email || user.email || '',
       role       : effectiveRole,
+      operatorRole,
+      membershipRole: membership.role || '',
       tenantId   : membership.tenant_id || membership.operators?.tenant_id || null,
       memberships: rows,
       supabase,
@@ -112,6 +116,8 @@ async function requireOperatorContext(event) {
       operatorId : platformAdminOperator.id,
       email      : platformAdminOperator.email,
       role       : platformAdminOperator.role,
+      operatorRole: platformAdminOperator.role,
+      membershipRole: null,
       tenantId   : platformAdminOperator.tenant_id || null,
       memberships: rows,
       supabase,
@@ -128,6 +134,61 @@ async function requireOperatorContext(event) {
   const err = new Error('Forbidden: user is not a registered operator');
   err.statusCode = 403;
   throw err;
+}
+
+function findTenantAdminMembership(memberships, requestedTenantId = '') {
+  const requested = String(requestedTenantId || '').trim();
+  const rows = Array.isArray(memberships) ? memberships : [];
+
+  return rows.find((row) => {
+    if (!TENANT_ADMIN_ROLES.has(String(row?.role || '').trim())) {
+      return false;
+    }
+
+    if (!requested) return true;
+    return String(row?.tenant_id || '').trim() === requested;
+  }) || null;
+}
+
+function buildTenantAdminContext(membership, ctx) {
+  const operatorRole = membership?.operators?.role || '';
+
+  return {
+    operatorId: membership?.operator_id || membership?.operators?.id || null,
+    email: membership?.operators?.email || ctx.user?.email || '',
+    role: operatorRole === 'platform_admin' ? 'platform_admin' : membership?.role || '',
+    operatorRole,
+    membershipRole: membership?.role || '',
+    tenantId: membership?.tenant_id || membership?.operators?.tenant_id || null,
+    memberships: ctx.memberships,
+    supabase: ctx.supabase,
+    user: ctx.user,
+  };
+}
+
+async function requireTenantAdminContext(event) {
+  const requestedTenantId = arguments[1] || '';
+  const ctx = await requireOperatorContext(event, requestedTenantId);
+
+  if (ctx.role === 'platform_admin') {
+    return ctx;
+  }
+
+  const adminMembership = findTenantAdminMembership(ctx.memberships, requestedTenantId);
+  if (!adminMembership) {
+    const err = new Error('Forbidden: admin role required');
+    err.statusCode = 403;
+    throw err;
+  }
+
+  if (
+    ctx.operatorId === adminMembership.operator_id &&
+    ctx.tenantId === (adminMembership.tenant_id || adminMembership.operators?.tenant_id || null)
+  ) {
+    return ctx;
+  }
+
+  return buildTenantAdminContext(adminMembership, ctx);
 }
 
 /**
@@ -155,7 +216,7 @@ async function requireAdminContext(event) {
 }
 
 async function requireOnboardingAdminContext(event) {
-  return requireAdminContext(event);
+  return requireTenantAdminContext(event);
 }
 
 /**
@@ -176,6 +237,7 @@ function respond(statusCode, body) {
 
 module.exports = {
   requireOperatorContext,
+  requireTenantAdminContext,
   requireAdminContext,
   requireOnboardingAdminContext,
   getAdminClient,

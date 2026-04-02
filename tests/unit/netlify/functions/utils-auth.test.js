@@ -85,6 +85,86 @@ describe("netlify/functions/utils/auth", () => {
     ).rejects.toMatchObject({ statusCode: 403, message: "Forbidden: admin role required" });
   });
 
+  test("requireTenantAdminContext allows tenant-scoped owners for their own tenant", async () => {
+    const auth = loadAuthModule({
+      user: { id: "user_owner", email: "owner@example.com" },
+      memberships: [
+        {
+          operator_id: "op_owner",
+          tenant_id: "tenant_a",
+          role: "owner",
+          operators: {
+            id: "op_owner",
+            email: "owner@example.com",
+            role: "admin",
+            tenant_id: "tenant_a",
+          },
+        },
+      ],
+      operator: {
+        id: "op_owner",
+        email: "owner@example.com",
+        role: "admin",
+        tenant_id: "tenant_a",
+      },
+    });
+
+    const ctx = await auth.requireTenantAdminContext(
+      {
+        headers: { Authorization: "Bearer token_owner" },
+      },
+      "tenant_a"
+    );
+
+    expect(ctx.role).toBe("owner");
+    expect(ctx.operatorRole).toBe("admin");
+    expect(ctx.tenantId).toBe("tenant_a");
+  });
+
+  test("requireOnboardingAdminContext selects an eligible tenant-admin membership", async () => {
+    const auth = loadAuthModule({
+      user: { id: "user_multi", email: "multi@example.com" },
+      memberships: [
+        {
+          operator_id: "op_staff",
+          tenant_id: "tenant_b",
+          role: "staff",
+          operators: {
+            id: "op_staff",
+            email: "multi@example.com",
+            role: "admin",
+            tenant_id: "tenant_b",
+          },
+        },
+        {
+          operator_id: "op_owner",
+          tenant_id: "tenant_a",
+          role: "owner",
+          operators: {
+            id: "op_owner",
+            email: "multi@example.com",
+            role: "admin",
+            tenant_id: "tenant_a",
+          },
+        },
+      ],
+      operator: {
+        id: "op_owner",
+        email: "multi@example.com",
+        role: "admin",
+        tenant_id: "tenant_a",
+      },
+    });
+
+    const ctx = await auth.requireOnboardingAdminContext({
+      headers: { Authorization: "Bearer token_multi" },
+    });
+
+    expect(ctx.operatorId).toBe("op_owner");
+    expect(ctx.tenantId).toBe("tenant_a");
+    expect(ctx.role).toBe("owner");
+  });
+
   test("requireAdminContext still allows platform admins when the requested tenant differs from memberships", async () => {
     const auth = loadAuthModule({
       user: { id: "user_platform", email: "platform@example.com" },
