@@ -732,8 +732,16 @@ function initCustomersWorkspaceBindings() {
   btnCustomerNextEl()?.addEventListener("click", () => moveCustomerWorkbenchSelection(1));
   btnCustomerEditEl()?.addEventListener("click", () => {
     const activeCustomer = CUSTOMERS_CACHE.find((entry) => entry.id === ACTIVE_CUSTOMER_ID) || null;
+    const customerDetailApi = window.PROOFLINK_OPERATOR_CUSTOMER_DETAIL || {};
     if (!activeCustomer && !CUSTOMER_CREATING) {
       startNewCustomer({ scrollIntoView: true });
+      return;
+    }
+    if (activeCustomer && !CUSTOMER_CREATING && typeof customerDetailApi.openCustomerWorkbenchApp === "function") {
+      customerDetailApi.openCustomerWorkbenchApp("profile", {
+        customer: activeCustomer,
+        customerIdValue: activeCustomer.id,
+      });
       return;
     }
     if (isCustomerEditorVisible()) {

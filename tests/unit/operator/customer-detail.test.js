@@ -27,6 +27,21 @@ function loadCustomerDetail(overrides = {}) {
   return context.window;
 }
 
+function createStorage() {
+  const values = new Map();
+  return {
+    getItem(key) {
+      return values.has(key) ? values.get(key) : null;
+    },
+    setItem(key, value) {
+      values.set(key, String(value));
+    },
+    removeItem(key) {
+      values.delete(key);
+    },
+  };
+}
+
 describe("operator customer detail", () => {
   test("bidGrandTotalCents falls back to included line items when total is missing", () => {
     const api = loadCustomerDetail();
@@ -351,6 +366,96 @@ describe("operator customer detail", () => {
       "create-request:Create cleaning follow-up request",
       "open-reactivation-customer:Open customer",
     ]);
+  });
+
+  test("customer workbench drafts persist per customer and clear cleanly", () => {
+    const storage = createStorage();
+    const api = loadCustomerDetail({
+      window: {
+        localStorage: storage,
+      },
+    });
+
+    const first = api.writeCustomerWorkbenchDraft("customer_1", "profile", {
+      name: "Riverside HOA",
+      notes: "Gate code 4421",
+    });
+
+    expect(first.value).toEqual({
+      name: "Riverside HOA",
+      notes: "Gate code 4421",
+    });
+    expect(api.readCustomerWorkbenchDraft("customer_1", "profile")).toEqual(first);
+
+    api.clearCustomerWorkbenchDraft("customer_1", "profile");
+
+    expect(api.readCustomerWorkbenchDraft("customer_1", "profile")).toBeNull();
+  });
+
+  test("latestCustomerWorkbenchDraftForCustomer prefers the newest panel draft", () => {
+    const storage = createStorage();
+    const api = loadCustomerDetail({
+      window: {
+        localStorage: storage,
+      },
+    });
+
+    storage.setItem(api.customerWorkbenchDraftKey("customer_1", "profile"), JSON.stringify({
+      updated_at: "2026-04-02T10:00:00.000Z",
+      value: { name: "First draft" },
+    }));
+    storage.setItem(api.customerWorkbenchDraftKey("customer_1", "requests"), JSON.stringify({
+      updated_at: "2026-04-02T11:00:00.000Z",
+      value: { title: "Follow-up request" },
+    }));
+
+    const latest = api.latestCustomerWorkbenchDraftForCustomer("customer_1", ["profile", "requests"]);
+
+    expect(latest.appKey).toBe("requests");
+    expect(latest.draft.value).toEqual({ title: "Follow-up request" });
+  });
+
+  test("customerWorkbenchAppCards marks dirty panels and resume labels when drafts exist", () => {
+    const storage = createStorage();
+    const api = loadCustomerDetail({
+      formatDateTime: (value) => `formatted:${value}`,
+      formatUsd: (value) => `$${value}`,
+      window: {
+        localStorage: storage,
+      },
+    });
+
+    api.writeCustomerWorkbenchDraft("customer_1", "profile", { name: "Riverside HOA" });
+    api.writeCustomerWorkbenchDraft("customer_1", "follow_through", { summary: "Left voicemail" });
+
+    const cards = api.customerWorkbenchAppCards({
+      customer: { id: "customer_1", email: "ops@example.com" },
+      customerIdValue: "customer_1",
+      customerRequestsRows: [],
+      customerBidRows: [],
+      customerOrders: [],
+      customerJobsRows: [],
+      customerPayments: [],
+      activityTimeline: [],
+      openRequestsCount: 0,
+      openProposalCount: 0,
+      activeOrderCount: 0,
+      activeJobCount: 0,
+      balance: 0,
+      lastTouchValue: "",
+      knownAddresses: [],
+    });
+
+    expect(cards.find((card) => card.key === "profile")).toMatchObject({
+      dirty: true,
+      openLabel: "Resume draft",
+      status: "Draft waiting",
+    });
+    expect(cards.find((card) => card.key === "follow_through")).toMatchObject({
+      dirty: true,
+      openLabel: "Resume draft",
+      status: "Draft waiting",
+    });
   });
 
   test("openCustomerPlanOrder runs the linked recurring plan when the next booked work is ready", async () => {

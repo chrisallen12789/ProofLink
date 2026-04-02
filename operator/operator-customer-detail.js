@@ -1105,6 +1105,1242 @@
     `;
   }
 
+  const CUSTOMER_WORKBENCH_APP_ORDER = [
+    "profile",
+    "requests",
+    "proposals",
+    "work",
+    "money",
+    "follow_through",
+  ];
+
+  function customerWorkbenchDraftStorage() {
+    try {
+      const storage = global.localStorage || global.sessionStorage || null;
+      if (!storage || typeof storage.getItem !== "function") return null;
+      return storage;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function customerWorkbenchDraftKey(customerIdValue, appKey) {
+    const tenantScope = typeof TENANT_ID !== "undefined" && TENANT_ID ? TENANT_ID : "tenant";
+    return `prooflink:customer-workbench:${String(tenantScope)}:${String(customerIdValue || "customer")}:${String(appKey || "panel")}:draft`;
+  }
+
+  function customerWorkbenchLastAppKey(customerIdValue) {
+    const tenantScope = typeof TENANT_ID !== "undefined" && TENANT_ID ? TENANT_ID : "tenant";
+    return `prooflink:customer-workbench:${String(tenantScope)}:${String(customerIdValue || "customer")}:last-app`;
+  }
+
+  function normalizeCustomerWorkbenchDraftValue(value = {}) {
+    const input = value && typeof value === "object" ? value : {};
+    return Object.keys(input)
+      .sort()
+      .reduce((acc, key) => {
+        const current = input[key];
+        acc[key] = typeof current === "string"
+          ? current.trim()
+          : (current ?? "");
+        return acc;
+      }, {});
+  }
+
+  function customerWorkbenchDraftHasContent(value = {}) {
+    return Object.values(normalizeCustomerWorkbenchDraftValue(value)).some((entry) => {
+      if (Array.isArray(entry)) return entry.length > 0;
+      return String(entry || "").trim().length > 0;
+    });
+  }
+
+  function readCustomerWorkbenchDraft(customerIdValue, appKey) {
+    const storage = customerWorkbenchDraftStorage();
+    if (!storage || !customerIdValue || !appKey) return null;
+    try {
+      const raw = storage.getItem(customerWorkbenchDraftKey(customerIdValue, appKey));
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== "object" || !parsed.value || typeof parsed.value !== "object") return null;
+      return {
+        updated_at: parsed.updated_at || "",
+        value: parsed.value,
+      };
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function writeCustomerWorkbenchDraft(customerIdValue, appKey, value = {}) {
+    const storage = customerWorkbenchDraftStorage();
+    if (!storage || !customerIdValue || !appKey) return null;
+    const payload = {
+      updated_at: new Date().toISOString(),
+      value: normalizeCustomerWorkbenchDraftValue(value),
+    };
+    try {
+      storage.setItem(customerWorkbenchDraftKey(customerIdValue, appKey), JSON.stringify(payload));
+      return payload;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function clearCustomerWorkbenchDraft(customerIdValue, appKey) {
+    const storage = customerWorkbenchDraftStorage();
+    if (!storage || !customerIdValue || !appKey) return;
+    try {
+      storage.removeItem(customerWorkbenchDraftKey(customerIdValue, appKey));
+    } catch (_) {}
+  }
+
+  function syncCustomerWorkbenchDraft(customerIdValue, appKey, value = {}, baseline = {}) {
+    const normalizedValue = normalizeCustomerWorkbenchDraftValue(value);
+    const normalizedBaseline = normalizeCustomerWorkbenchDraftValue(baseline);
+    if (!customerWorkbenchDraftHasContent(normalizedValue) || JSON.stringify(normalizedValue) === JSON.stringify(normalizedBaseline)) {
+      clearCustomerWorkbenchDraft(customerIdValue, appKey);
+      return null;
+    }
+    return writeCustomerWorkbenchDraft(customerIdValue, appKey, normalizedValue);
+  }
+
+  function rememberCustomerWorkbenchApp(customerIdValue, appKey) {
+    const storage = customerWorkbenchDraftStorage();
+    if (!storage || !customerIdValue || !appKey) return;
+    try {
+      storage.setItem(customerWorkbenchLastAppKey(customerIdValue), String(appKey || "").trim());
+    } catch (_) {}
+  }
+
+  function readCustomerWorkbenchLastApp(customerIdValue) {
+    const storage = customerWorkbenchDraftStorage();
+    if (!storage || !customerIdValue) return "";
+    try {
+      return String(storage.getItem(customerWorkbenchLastAppKey(customerIdValue)) || "").trim();
+    } catch (_) {
+      return "";
+    }
+  }
+
+  function latestCustomerWorkbenchDraftForCustomer(customerIdValue, appKeys = CUSTOMER_WORKBENCH_APP_ORDER) {
+    if (!customerIdValue) return null;
+    const matches = appKeys
+      .map((appKey) => ({
+        appKey,
+        draft: readCustomerWorkbenchDraft(customerIdValue, appKey),
+      }))
+      .filter((entry) => entry.draft?.updated_at);
+    if (!matches.length) return null;
+    matches.sort((a, b) => new Date(b.draft.updated_at || 0).getTime() - new Date(a.draft.updated_at || 0).getTime());
+    return matches[0];
+  }
+
+  function customerWorkbenchAppLabel(appKey = "") {
+    const labels = {
+      profile: "Profile",
+      requests: "Requests",
+      proposals: "Proposals",
+      work: "Work",
+      money: "Money",
+      follow_through: "Follow-through",
+    };
+    return labels[String(appKey || "").trim()] || "Panel";
+  }
+
+  function customerWorkbenchProfileBaseline(customer = null) {
+    return {
+      company_name: customer?.company_name || "",
+      name: customer?.name || "",
+      email: customer?.email || "",
+      phone: customer?.phone || "",
+      preferred_contact: customer?.preferred_contact || "email",
+      address_line1: customer?.address_line1 || "",
+      city: customer?.city || "",
+      state: customer?.state || "",
+      zip: customer?.zip || "",
+      notes: customer?.notes || "",
+    };
+  }
+
+  function customerWorkbenchRequestBaseline(customer = null, blueprint = (typeof currentWorkspaceBlueprint === "function" ? currentWorkspaceBlueprint() : { business: { key: "service_business" } })) {
+    const draft = customerFollowUpRequestDraft(customer, {}, blueprint) || {};
+    return {
+      title: draft.title || "",
+      requestedServiceType: draft.requestedServiceType || "",
+      serviceAddress: draft.serviceAddress || "",
+      summary: draft.summary || "",
+      notes: draft.notes || "",
+    };
+  }
+
+  function customerWorkbenchFollowThroughBaseline() {
+    return {
+      type: "note",
+      summary: "",
+    };
+  }
+
+  function renderCustomerWorkbenchRecordList(rows, options = {}) {
+    if (!rows.length) return `<div class="empty-note">${escapeHtml(options.empty || "Nothing here yet.")}</div>`;
+    return `
+      <div class="customer-flow-list">
+        ${rows.map((row) => {
+          const title = options.title ? options.title(row) : "Open record";
+          const meta = options.meta ? options.meta(row) : "";
+          const badge = options.badge ? options.badge(row) : "";
+          return `
+            <button type="button" class="customer-flow-item" data-customer-open-tab="${escapeAttr(options.tab || "")}" data-customer-open-id="${escapeAttr(row.id || "")}">
+              <span class="customer-flow-item__copy">
+                <strong>${escapeHtml(title)}</strong>
+                <span>${escapeHtml(meta)}</span>
+              </span>
+              ${badge ? `<span class="pill">${escapeHtml(badge)}</span>` : ""}
+            </button>
+          `;
+        }).join("")}
+      </div>
+    `;
+  }
+
+  function customerWorkbenchAppCards({
+    customer = null,
+    customerIdValue = "",
+    customerRequestsRows = [],
+    customerBidRows = [],
+    customerOrders = [],
+    customerJobsRows = [],
+    customerPayments = [],
+    activityTimeline = [],
+    openRequestsCount = 0,
+    openProposalCount = 0,
+    activeOrderCount = 0,
+    activeJobCount = 0,
+    balance = 0,
+    lastTouchValue = "",
+    knownAddresses = [],
+  } = {}) {
+    const profileDraft = !!readCustomerWorkbenchDraft(customerIdValue, "profile");
+    const requestsDraft = !!readCustomerWorkbenchDraft(customerIdValue, "requests");
+    const followThroughDraft = !!readCustomerWorkbenchDraft(customerIdValue, "follow_through");
+    return [
+      {
+        key: "profile",
+        meta: "Account",
+        title: "Profile",
+        copy: "Edit contacts, sites, and internal notes without leaving the customer workbench.",
+        status: profileDraft
+          ? "Draft waiting"
+          : (knownAddresses.length > 1 ? `${knownAddresses.length} sites on file` : (customer?.email || customer?.phone ? "Contact ready" : "Needs contact details")),
+        openLabel: profileDraft ? "Resume draft" : "Open panel",
+        dirty: profileDraft,
+      },
+      {
+        key: "requests",
+        meta: "Intake",
+        title: "Requests",
+        copy: "Keep new requests tied to this account and draft the next follow-up without changing tabs.",
+        status: requestsDraft
+          ? "Draft waiting"
+          : (openRequestsCount > 0 ? `${openRequestsCount} open request${openRequestsCount === 1 ? "" : "s"}` : `${customerRequestsRows.length} total request${customerRequestsRows.length === 1 ? "" : "s"}`),
+        openLabel: requestsDraft ? "Resume draft" : "Open panel",
+        dirty: requestsDraft,
+      },
+      {
+        key: "proposals",
+        meta: "Pricing",
+        title: "Proposals",
+        copy: "Review proposal history and open the estimate builder only when you need detailed pricing work.",
+        status: openProposalCount > 0
+          ? `${openProposalCount} live proposal${openProposalCount === 1 ? "" : "s"}`
+          : `${customerBidRows.length} saved proposal${customerBidRows.length === 1 ? "" : "s"}`,
+        openLabel: "Open panel",
+        dirty: false,
+      },
+      {
+        key: "work",
+        meta: "Execution",
+        title: "Work",
+        copy: "See booked work, active jobs, and the next operational move from one place.",
+        status: activeOrderCount + activeJobCount > 0
+          ? `${activeOrderCount + activeJobCount} active work item${activeOrderCount + activeJobCount === 1 ? "" : "s"}`
+          : `${customerOrders.length + customerJobsRows.length} total work record${customerOrders.length + customerJobsRows.length === 1 ? "" : "s"}`,
+        openLabel: "Open panel",
+        dirty: false,
+      },
+      {
+        key: "money",
+        meta: "Collections",
+        title: "Money",
+        copy: "Keep billed work, recent payments, and collection context close to the customer.",
+        status: balance > 0
+          ? `${formatUsd(balance)} open`
+          : (customerPayments.length ? "Collected for now" : "No payments yet"),
+        openLabel: "Open panel",
+        dirty: false,
+      },
+      {
+        key: "follow_through",
+        meta: "Relationship",
+        title: "Follow-through",
+        copy: "Log the latest touchpoint, see recent activity, and keep the next promise visible.",
+        status: followThroughDraft
+          ? "Draft waiting"
+          : (lastTouchValue ? `Last touch ${formatDateTime(lastTouchValue)}` : `${activityTimeline.length} recent activity item${activityTimeline.length === 1 ? "" : "s"}`),
+        openLabel: followThroughDraft ? "Resume draft" : "Open panel",
+        dirty: followThroughDraft,
+      },
+    ];
+  }
+
+  function renderCustomerWorkbenchLauncher(context = {}) {
+    const customerIdValue = context.customerIdValue || "";
+    const cards = customerWorkbenchAppCards(context);
+    const latestDraft = latestCustomerWorkbenchDraftForCustomer(customerIdValue);
+    return `
+      <div class="detail-card customer-workbench-launcher" id="customerWorkflowSection">
+        <div class="kicker">Customer apps</div>
+        <div><strong>Open exactly the part of the relationship you need</strong></div>
+        <div class="detail-copy">Each panel keeps its own draft for this customer, so the operator can close it at any point and come right back to the same spot later.</div>
+        ${latestDraft ? `
+          <div class="customer-workbench-resume">
+            <div class="customer-workbench-resume__copy">
+              <div class="customer-workbench-resume__eyebrow">Resume draft</div>
+              <strong>${escapeHtml(customerWorkbenchAppLabel(latestDraft.appKey))} panel still has unsaved work</strong>
+              <span>${escapeHtml(latestDraft.draft?.updated_at ? `Saved automatically ${formatDateTime(latestDraft.draft.updated_at)}` : "Saved automatically when the panel was closed.")}</span>
+            </div>
+            <button type="button" class="btn btn-primary" data-customer-app-open="${escapeAttr(latestDraft.appKey)}">Resume draft</button>
+          </div>
+        ` : ""}
+        <div class="customer-workbench-app-grid">
+          ${cards.map((card) => `
+            <button
+              type="button"
+              class="workspace-launch-card ${card.dirty ? "is-dirty" : ""}"
+              data-customer-app-open="${escapeAttr(card.key)}"
+            >
+              <span class="workspace-launch-card__meta">${escapeHtml(card.meta)}</span>
+              <strong class="workspace-launch-card__title">${escapeHtml(card.title)}</strong>
+              <span class="workspace-launch-card__copy">${escapeHtml(card.copy)}</span>
+              <span class="workspace-launch-card__footer">
+                <span class="workspace-launch-card__status">${escapeHtml(card.status)}</span>
+                <span class="workspace-launch-card__open">${escapeHtml(card.openLabel)}</span>
+              </span>
+            </button>
+          `).join("")}
+        </div>
+      </div>
+    `;
+  }
+
+  function rerenderCustomerWorkbench(customerIdValue) {
+    if (!customerIdValue) return Promise.resolve();
+    if (typeof renderCustomerDetail === "function") {
+      try {
+        return Promise.resolve(renderCustomerDetail(customerIdValue));
+      } catch (_) {}
+    }
+    if (typeof renderCustomersList === "function") {
+      try {
+        return Promise.resolve(renderCustomersList(customerSearch?.value || ""));
+      } catch (_) {}
+    }
+    return Promise.resolve();
+  }
+
+  function closeCustomerWorkbenchModal() {
+    const existing = global.CURRENT_CUSTOMER_WORKBENCH_MODAL;
+    if (!existing) return;
+    existing.overlay?.remove?.();
+    if (typeof document !== "undefined" && existing.keyHandler) {
+      document.removeEventListener("keydown", existing.keyHandler);
+    }
+    global.CURRENT_CUSTOMER_WORKBENCH_MODAL = null;
+  }
+
+  function openCustomerWorkbenchModal({ customerIdValue = "", appKey = "", title = "", subtitle = "", bodyHtml = "", wide = true, onReady = null } = {}) {
+    if (typeof document === "undefined" || !document?.body) return null;
+    closeCustomerWorkbenchModal();
+    const overlay = document.createElement("div");
+    overlay.className = "modal-overlay";
+    overlay.id = "customerWorkbenchModal";
+    overlay.innerHTML = `
+      <div class="modal-card customer-workbench-modal ${wide ? "customer-workbench-modal--wide" : ""}" role="dialog" aria-modal="true" aria-labelledby="customerWorkbenchModalTitle">
+        <div class="modal-head">
+          <div>
+            <div class="modal-title" id="customerWorkbenchModalTitle">${escapeHtml(title || customerWorkbenchAppLabel(appKey))}</div>
+            <div class="modal-subtitle">${escapeHtml(subtitle || "Stay in context, move faster, and keep your place if you close this panel.")}</div>
+          </div>
+          <button type="button" class="modal-close" data-customer-modal-close aria-label="Close customer panel">&times;</button>
+        </div>
+        <div class="customer-workbench-modal__body">${bodyHtml}</div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+    const close = () => closeCustomerWorkbenchModal();
+    overlay.addEventListener("click", (event) => {
+      if (event.target === overlay) close();
+    });
+    overlay.querySelector("[data-customer-modal-close]")?.addEventListener("click", close);
+    const keyHandler = (event) => {
+      if (event.key === "Escape") close();
+    };
+    document.addEventListener("keydown", keyHandler);
+    global.CURRENT_CUSTOMER_WORKBENCH_MODAL = { overlay, keyHandler, appKey, customerIdValue };
+    rememberCustomerWorkbenchApp(customerIdValue, appKey);
+    onReady?.({ overlay, close });
+    return overlay;
+  }
+
+  function bindCustomerWorkbenchRecordButtons(root = document) {
+    root.querySelectorAll("[data-customer-open-tab][data-customer-open-id]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const tab = button.getAttribute("data-customer-open-tab") || "";
+        const recordId = button.getAttribute("data-customer-open-id") || "";
+        if (!tab || !recordId) return;
+        closeCustomerWorkbenchModal();
+        openCustomerRecordTab(tab, recordId);
+      });
+    });
+  }
+
+  function normalizeCustomerWorkbenchContext(context = {}) {
+    const customer = context.customer || global.CURRENT_CUSTOMER_DETAIL_CUSTOMER || null;
+    const customerIdValue = context.customerIdValue || customer?.id || "";
+    const blueprint = context.blueprint || (typeof currentWorkspaceBlueprint === "function" ? currentWorkspaceBlueprint() : { business: { key: "service_business" } });
+    const customerRequestsRows = context.customerRequestsRows || customerRequests(customerIdValue).slice(0, 12);
+    const customerBidRows = context.customerBidRows || customerBids(customerIdValue).slice(0, 12);
+    const customerJobsRows = context.customerJobsRows || customerJobs(customerIdValue).slice(0, 12);
+    const customerOrders = context.customerOrders || CRM_ORDERS_CACHE
+      .filter((row) => row.customer_id === customerIdValue && !row.is_deleted)
+      .sort((a, b) => new Date(b.updated_at || b.created_at || 0).getTime() - new Date(a.updated_at || a.created_at || 0).getTime())
+      .slice(0, 12);
+    const customerPayments = context.customerPayments || sortedPayments(PAYMENTS_CACHE.filter((row) => row.customer_id === customerIdValue)).slice(0, 12);
+    const totalBilled = context.totalBilled ?? customerOrders.reduce((sum, order) => sum + Number(order.total_cents || 0), 0);
+    const totalPaid = context.totalPaid ?? customerPayments.reduce((sum, payment) => sum + Math.max(0, paymentRevenueContributionCents(payment)), 0);
+    const balance = context.balance ?? Math.max(0, totalBilled - totalPaid);
+    const openRequestsCount = context.openRequestsCount ?? customerRequestsRows.filter((lead) => !["won", "closed", "archived", "cancelled"].includes(String(lead.status || "").toLowerCase())).length;
+    const openProposalCount = context.openProposalCount ?? customerBidRows.filter((bid) => !["won", "lost", "archived", "rejected"].includes(String(bid.status || "").toLowerCase())).length;
+    const activeOrderCount = context.activeOrderCount ?? customerOrders.filter((order) => !["completed", "cancelled", "archived"].includes(String(order.status || "").toLowerCase())).length;
+    const activeJobCount = context.activeJobCount ?? customerJobsRows.filter((job) => !["completed", "cancelled", "archived"].includes(String(job.status || "").toLowerCase())).length;
+    const latestInteraction = context.latestInteraction || (Array.isArray(context.interactions) ? context.interactions[0] : null) || null;
+    const latestPayment = context.latestPayment || customerPayments[0] || null;
+    const lastTouchValue = context.lastTouchValue || customer?.last_contact_at || latestInteraction?.created_at || "";
+    const knownAddresses = context.knownAddresses || customerKnownAddresses(customerIdValue, customer);
+    const activityTimeline = context.activityTimeline || customerActivityTimeline({
+      customerRequestsRows,
+      customerBidRows,
+      customerOrders,
+      customerJobsRows,
+      customerPayments,
+      interactions: context.interactions || [],
+    });
+    const nextMoveGuidance = context.nextMoveGuidance || customerRelationshipGuidance({
+      customer,
+      openRequestsCount,
+      openProposalCount,
+      activeOrderCount,
+      activeJobCount,
+      balance,
+      latestInteraction,
+      latestPayment,
+      blueprint,
+    });
+    const reactivationActions = context.reactivationActions || customerReactivationActions({
+      customer,
+      openRequestsCount,
+      openProposalCount,
+      activeOrderCount,
+      activeJobCount,
+      blueprint,
+    });
+    const postWorkGuidance = context.postWorkGuidance || customerPostWorkGuidance({
+      customer,
+      customerOrders,
+      customerJobs: customerJobsRows,
+      balance,
+      blueprint,
+    });
+    const postWorkActions = context.postWorkActions || (postWorkGuidance && balance <= 0
+      ? customerRetentionWorkflowActions({
+          customer,
+          openRequestsCount,
+          openProposalCount,
+          activeOrderCount,
+          activeJobCount,
+          blueprint,
+          includeGenerateWork: true,
+          includeSchedule: true,
+          includeRequest: true,
+          requestAction: "create-request",
+          requestLabel: customerCreateRequestActionLabel(blueprint),
+          includeOpenCustomer: false,
+          primaryClassName: "btn btn-primary",
+          secondaryClassName: "btn btn-ghost",
+        })
+      : []);
+    const collectionGuidance = context.collectionGuidance || customerCollectionGuidance(customer, customerOrders, customerPayments, balance);
+    return {
+      ...context,
+      customer,
+      customerIdValue,
+      blueprint,
+      customerRequestsRows,
+      customerBidRows,
+      customerJobsRows,
+      customerOrders,
+      customerPayments,
+      totalBilled,
+      totalPaid,
+      balance,
+      openRequestsCount,
+      openProposalCount,
+      activeOrderCount,
+      activeJobCount,
+      latestInteraction,
+      latestPayment,
+      lastTouchValue,
+      knownAddresses,
+      activityTimeline,
+      nextMoveGuidance,
+      reactivationActions,
+      postWorkGuidance,
+      postWorkActions,
+      collectionGuidance,
+    };
+  }
+
+  function handleCustomerWorkbenchAction(action, context = {}) {
+    const resolved = normalizeCustomerWorkbenchContext(context);
+    const customer = resolved.customer;
+    if (!customer) return false;
+
+    if (action === "edit" || action === "profile") return openCustomerWorkbenchApp("profile", resolved);
+    if (action === "request" || action === "requests-panel") return openCustomerWorkbenchApp("requests", resolved);
+    if (action === "bid" || action === "proposals") return openCustomerWorkbenchApp("proposals", resolved);
+    if (action === "work") return openCustomerWorkbenchApp("work", resolved);
+    if (action === "money") return openCustomerWorkbenchApp("money", resolved);
+    if (action === "note" || action === "follow_through") return openCustomerWorkbenchApp("follow_through", resolved);
+
+    if (action === "booking") {
+      closeCustomerWorkbenchModal();
+      return openCustomerRetentionAction("reactivate-repeat", customer, resolved.blueprint);
+    }
+    if (action === "plan-order") {
+      closeCustomerWorkbenchModal();
+      return openCustomerRetentionAction("generate-next-order", customer, resolved.blueprint);
+    }
+    if (action === "payment") {
+      closeCustomerWorkbenchModal();
+      return openCustomerPaymentDraft(resolved.customerIdValue);
+    }
+    if (action === "requests") {
+      closeCustomerWorkbenchModal();
+      return switchTab("leads");
+    }
+    if (action === "bids") {
+      closeCustomerWorkbenchModal();
+      return switchTab("bids");
+    }
+    if (action === "orders") {
+      closeCustomerWorkbenchModal();
+      return switchTab("orders");
+    }
+    if (action === "jobs") {
+      closeCustomerWorkbenchModal();
+      return switchTab("jobs");
+    }
+    if (action === "payments") {
+      closeCustomerWorkbenchModal();
+      return switchTab("payments");
+    }
+    if (action === "archive") {
+      closeCustomerWorkbenchModal();
+      return archiveCustomer(resolved.customerIdValue);
+    }
+    return false;
+  }
+
+  function openCustomerWorkbenchApp(appKey, context = global.CURRENT_CUSTOMER_DETAIL_CONTEXT || {}) {
+    const resolved = normalizeCustomerWorkbenchContext(context);
+    if (!resolved.customer || !resolved.customerIdValue) return false;
+    if (appKey === "profile") return openCustomerWorkbenchProfileApp(resolved);
+    if (appKey === "requests") return openCustomerWorkbenchRequestsApp(resolved);
+    if (appKey === "proposals") return openCustomerWorkbenchProposalsApp(resolved);
+    if (appKey === "work") return openCustomerWorkbenchWorkApp(resolved);
+    if (appKey === "money") return openCustomerWorkbenchMoneyApp(resolved);
+    if (appKey === "follow_through") return openCustomerWorkbenchFollowThroughApp(resolved);
+    return false;
+  }
+
+  function openCustomerWorkbenchProfileApp(context = {}) {
+    const { customer, customerIdValue, knownAddresses } = context;
+    const baseline = customerWorkbenchProfileBaseline(customer);
+    const draft = readCustomerWorkbenchDraft(customerIdValue, "profile")?.value || {};
+    const values = { ...baseline, ...draft };
+    return openCustomerWorkbenchModal({
+      customerIdValue,
+      appKey: "profile",
+      title: `Profile: ${customerPrimaryDisplayLabel(customer)}`,
+      subtitle: "Update the customer record here. If you close this panel before saving, the draft stays with this customer.",
+      bodyHtml: `
+        <div class="modal-stack">
+          <div class="customer-workbench-modal__summary">
+            <span class="pill">${escapeHtml(knownAddresses.length > 1 ? `${knownAddresses.length} known sites` : "Single-site record")}</span>
+            <span class="pill">${escapeHtml(customer?.preferred_contact ? `Prefers ${titleCaseWords(String(customer.preferred_contact))}` : "Preferred contact not set")}</span>
+            <span class="pill">${escapeHtml(customer?.email || customer?.phone ? "Contact details on file" : "Needs contact details")}</span>
+          </div>
+          <div class="modal-status">Close this panel any time. Unsaved changes stay attached to this customer as a draft.</div>
+          <form id="customerWorkbenchProfileForm" class="modal-stack">
+            <div class="modal-grid-2">
+              <div class="modal-grid-2__fill">
+                <label class="field-note-label field-note-label--tight">Account name</label>
+                <input id="customerWorkbenchProfileCompany" class="input u-full-width" value="${escapeAttr(values.company_name || "")}" placeholder="Company, city department, HOA, campus" />
+              </div>
+              <div class="modal-grid-2__fill">
+                <label class="field-note-label field-note-label--tight">Primary contact</label>
+                <input id="customerWorkbenchProfileName" class="input u-full-width" value="${escapeAttr(values.name || "")}" placeholder="Contact name" />
+              </div>
+            </div>
+            <div class="modal-grid-2">
+              <div class="modal-grid-2__fill">
+                <label class="field-note-label field-note-label--tight">Email</label>
+                <input id="customerWorkbenchProfileEmail" class="input u-full-width" value="${escapeAttr(values.email || "")}" placeholder="name@example.com" />
+              </div>
+              <div class="modal-grid-2__fill">
+                <label class="field-note-label field-note-label--tight">Phone</label>
+                <input id="customerWorkbenchProfilePhone" class="input u-full-width" value="${escapeAttr(values.phone || "")}" placeholder="555-555-5555" />
+              </div>
+            </div>
+            <div>
+              <label class="field-note-label field-note-label--tight">Preferred contact</label>
+              <select id="customerWorkbenchProfilePreferred" class="input u-full-width">
+                ${["email", "phone", "text", "any"].map((option) => `<option value="${escapeAttr(option)}"${String(values.preferred_contact || "email") === option ? " selected" : ""}>${escapeHtml(titleCaseWords(option))}</option>`).join("")}
+              </select>
+            </div>
+            <div class="modal-grid-3">
+              <div>
+                <label class="field-note-label field-note-label--tight">Address</label>
+                <input id="customerWorkbenchProfileAddress" class="input u-full-width" value="${escapeAttr(values.address_line1 || "")}" placeholder="Service address" />
+              </div>
+              <div>
+                <label class="field-note-label field-note-label--tight">City</label>
+                <input id="customerWorkbenchProfileCity" class="input u-full-width" value="${escapeAttr(values.city || "")}" placeholder="City" />
+              </div>
+              <div class="modal-grid-2">
+                <div class="modal-grid-2__fill">
+                  <label class="field-note-label field-note-label--tight">State</label>
+                  <input id="customerWorkbenchProfileState" class="input u-full-width" value="${escapeAttr(values.state || "")}" placeholder="State" />
+                </div>
+                <div class="modal-grid-2__fill">
+                  <label class="field-note-label field-note-label--tight">ZIP</label>
+                  <input id="customerWorkbenchProfileZip" class="input u-full-width" value="${escapeAttr(values.zip || "")}" placeholder="ZIP" />
+                </div>
+              </div>
+            </div>
+            <div>
+              <label class="field-note-label field-note-label--tight">Internal notes</label>
+              <textarea id="customerWorkbenchProfileNotes" class="input u-full-width customer-workbench-modal__textarea" placeholder="Gate codes, billing notes, site history, or anything the team should remember.">${escapeHtml(values.notes || "")}</textarea>
+            </div>
+          </form>
+          <div class="modal-footer">
+            <span id="customerWorkbenchProfileStatus" class="modal-status"></span>
+            <div class="action-row">
+              <button id="customerWorkbenchProfileDiscard" class="btn btn-ghost" type="button">Discard draft</button>
+              <button id="customerWorkbenchProfileSave" class="btn btn-primary" type="button">Save changes</button>
+            </div>
+          </div>
+        </div>
+      `,
+      onReady: ({ overlay, close }) => {
+        const collect = () => ({
+          company_name: overlay.querySelector("#customerWorkbenchProfileCompany")?.value || "",
+          name: overlay.querySelector("#customerWorkbenchProfileName")?.value || "",
+          email: overlay.querySelector("#customerWorkbenchProfileEmail")?.value || "",
+          phone: overlay.querySelector("#customerWorkbenchProfilePhone")?.value || "",
+          preferred_contact: overlay.querySelector("#customerWorkbenchProfilePreferred")?.value || "email",
+          address_line1: overlay.querySelector("#customerWorkbenchProfileAddress")?.value || "",
+          city: overlay.querySelector("#customerWorkbenchProfileCity")?.value || "",
+          state: overlay.querySelector("#customerWorkbenchProfileState")?.value || "",
+          zip: overlay.querySelector("#customerWorkbenchProfileZip")?.value || "",
+          notes: overlay.querySelector("#customerWorkbenchProfileNotes")?.value || "",
+        });
+        const status = overlay.querySelector("#customerWorkbenchProfileStatus");
+        const syncDraft = () => {
+          syncCustomerWorkbenchDraft(customerIdValue, "profile", collect(), baseline);
+          if (status) status.textContent = "";
+        };
+        overlay.querySelectorAll("input, select, textarea").forEach((field) => {
+          field.addEventListener("input", syncDraft);
+          field.addEventListener("change", syncDraft);
+        });
+        overlay.querySelector("#customerWorkbenchProfileDiscard")?.addEventListener("click", () => {
+          clearCustomerWorkbenchDraft(customerIdValue, "profile");
+          overlay.querySelector("#customerWorkbenchProfileCompany").value = baseline.company_name || "";
+          overlay.querySelector("#customerWorkbenchProfileName").value = baseline.name || "";
+          overlay.querySelector("#customerWorkbenchProfileEmail").value = baseline.email || "";
+          overlay.querySelector("#customerWorkbenchProfilePhone").value = baseline.phone || "";
+          overlay.querySelector("#customerWorkbenchProfilePreferred").value = baseline.preferred_contact || "email";
+          overlay.querySelector("#customerWorkbenchProfileAddress").value = baseline.address_line1 || "";
+          overlay.querySelector("#customerWorkbenchProfileCity").value = baseline.city || "";
+          overlay.querySelector("#customerWorkbenchProfileState").value = baseline.state || "";
+          overlay.querySelector("#customerWorkbenchProfileZip").value = baseline.zip || "";
+          overlay.querySelector("#customerWorkbenchProfileNotes").value = baseline.notes || "";
+          if (status) status.textContent = "Draft discarded.";
+        });
+        overlay.querySelector("#customerWorkbenchProfileSave")?.addEventListener("click", async () => {
+          if (status) status.textContent = "Saving customer...";
+          try {
+            const saveApi = global.PROOFLINK_OPERATOR_CUSTOMERS_WORKSPACE?.saveCustomerRecord || (typeof saveCustomerRecord === "function" ? saveCustomerRecord : null);
+            if (typeof saveApi !== "function") throw new Error("Customer save is not ready yet.");
+            await saveApi({
+              id: customer.id,
+              ...collect(),
+            });
+            clearCustomerWorkbenchDraft(customerIdValue, "profile");
+            close();
+            showToast("Customer saved.");
+          } catch (error) {
+            if (status) status.textContent = error?.message || "Could not save the customer yet.";
+          }
+        });
+        overlay.querySelector("#customerWorkbenchProfileCompany")?.focus?.();
+      },
+    });
+  }
+
+  function openCustomerWorkbenchRequestsApp(context = {}) {
+    const { customer, customerIdValue, blueprint, customerRequestsRows, openRequestsCount } = context;
+    const baseline = customerWorkbenchRequestBaseline(customer, blueprint);
+    const draft = readCustomerWorkbenchDraft(customerIdValue, "requests")?.value || {};
+    const values = { ...baseline, ...draft };
+    return openCustomerWorkbenchModal({
+      customerIdValue,
+      appKey: "requests",
+      title: `Requests: ${customerPrimaryDisplayLabel(customer)}`,
+      subtitle: "Draft the next request here and keep intake tied to the right account without jumping away from the customer.",
+      bodyHtml: `
+        <div class="modal-stack">
+          <div class="customer-workbench-modal__summary">
+            <span class="pill">${escapeHtml(`${customerRequestsRows.length} total request${customerRequestsRows.length === 1 ? "" : "s"}`)}</span>
+            <span class="pill">${escapeHtml(openRequestsCount > 0 ? `${openRequestsCount} still open` : "No open requests right now")}</span>
+            <span class="pill">${escapeHtml(values.serviceAddress || "Address can be added later")}</span>
+          </div>
+          <div class="customer-workbench-modal__section">
+            <div class="customer-workbench-modal__section-head">
+              <div>
+                <div class="kicker">New request</div>
+                <strong>Capture the next intake step</strong>
+              </div>
+            </div>
+            <div class="modal-status">If you close this panel before saving, the request draft stays with this customer.</div>
+            <div class="modal-stack u-mt-10">
+              <div class="modal-grid-2">
+                <div class="modal-grid-2__fill">
+                  <label class="field-note-label field-note-label--tight">Request title</label>
+                  <input id="customerWorkbenchRequestTitle" class="input u-full-width" value="${escapeAttr(values.title || "")}" placeholder="Follow-up title" />
+                </div>
+                <div class="modal-grid-2__fill">
+                  <label class="field-note-label field-note-label--tight">Service type</label>
+                  <input id="customerWorkbenchRequestType" class="input u-full-width" value="${escapeAttr(values.requestedServiceType || "")}" placeholder="Service type" />
+                </div>
+              </div>
+              <div>
+                <label class="field-note-label field-note-label--tight">Service address</label>
+                <input id="customerWorkbenchRequestAddress" class="input u-full-width" value="${escapeAttr(values.serviceAddress || "")}" placeholder="Service address" />
+              </div>
+              <div>
+                <label class="field-note-label field-note-label--tight">Summary</label>
+                <textarea id="customerWorkbenchRequestSummary" class="input u-full-width customer-workbench-modal__textarea" placeholder="What is needed next?">${escapeHtml(values.summary || "")}</textarea>
+              </div>
+              <div>
+                <label class="field-note-label field-note-label--tight">Notes</label>
+                <textarea id="customerWorkbenchRequestNotes" class="input u-full-width customer-workbench-modal__textarea" placeholder="Anything the estimator or dispatcher should know.">${escapeHtml(values.notes || "")}</textarea>
+              </div>
+            </div>
+          </div>
+          <div class="customer-workbench-modal__section">
+            <div class="customer-workbench-modal__section-head">
+              <div>
+                <div class="kicker">Recent requests</div>
+                <strong>Open the right intake record fast</strong>
+              </div>
+              <button type="button" class="btn btn-ghost" data-customer-action="requests">Open full requests</button>
+            </div>
+            ${renderCustomerWorkbenchRecordList(customerRequestsRows.slice(0, 6), {
+              tab: "leads",
+              empty: "No requests are attached to this customer yet.",
+              title: (lead) => lead.contact_name || lead.title || lead.requested_service_type || "Request",
+              meta: (lead) => `${titleCaseWords(String(lead.status || "new"))} | ${lead.requested_service_type || "Service request"}`,
+              badge: (lead) => lead.requested_service_type || "Request",
+            })}
+          </div>
+          <div class="modal-footer">
+            <span id="customerWorkbenchRequestStatus" class="modal-status"></span>
+            <div class="action-row">
+              <button id="customerWorkbenchRequestDiscard" class="btn btn-ghost" type="button">Discard draft</button>
+              <button id="customerWorkbenchRequestOpenFull" class="btn btn-ghost" type="button">Open in full builder</button>
+              <button id="customerWorkbenchRequestSave" class="btn btn-primary" type="button">Save request</button>
+            </div>
+          </div>
+        </div>
+      `,
+      onReady: ({ overlay, close }) => {
+        const status = overlay.querySelector("#customerWorkbenchRequestStatus");
+        const collect = () => ({
+          title: overlay.querySelector("#customerWorkbenchRequestTitle")?.value || "",
+          requestedServiceType: overlay.querySelector("#customerWorkbenchRequestType")?.value || "",
+          serviceAddress: overlay.querySelector("#customerWorkbenchRequestAddress")?.value || "",
+          summary: overlay.querySelector("#customerWorkbenchRequestSummary")?.value || "",
+          notes: overlay.querySelector("#customerWorkbenchRequestNotes")?.value || "",
+        });
+        const syncDraft = () => {
+          syncCustomerWorkbenchDraft(customerIdValue, "requests", collect(), baseline);
+          if (status) status.textContent = "";
+        };
+        overlay.querySelectorAll("input, textarea").forEach((field) => {
+          field.addEventListener("input", syncDraft);
+          field.addEventListener("change", syncDraft);
+        });
+        overlay.querySelector("#customerWorkbenchRequestDiscard")?.addEventListener("click", () => {
+          clearCustomerWorkbenchDraft(customerIdValue, "requests");
+          overlay.querySelector("#customerWorkbenchRequestTitle").value = baseline.title || "";
+          overlay.querySelector("#customerWorkbenchRequestType").value = baseline.requestedServiceType || "";
+          overlay.querySelector("#customerWorkbenchRequestAddress").value = baseline.serviceAddress || "";
+          overlay.querySelector("#customerWorkbenchRequestSummary").value = baseline.summary || "";
+          overlay.querySelector("#customerWorkbenchRequestNotes").value = baseline.notes || "";
+          if (status) status.textContent = "Draft discarded.";
+        });
+        overlay.querySelector("#customerWorkbenchRequestOpenFull")?.addEventListener("click", () => {
+          clearCustomerWorkbenchDraft(customerIdValue, "requests");
+          close();
+          openCustomerRequestDraft(customer, collect(), blueprint);
+        });
+        overlay.querySelector("#customerWorkbenchRequestSave")?.addEventListener("click", async () => {
+          const leadPlanApi = global.PROOFLINK_OPERATOR_LEAD_PLAN_WORKSPACE || {};
+          if (typeof leadPlanApi.saveLeadRecord !== "function") {
+            clearCustomerWorkbenchDraft(customerIdValue, "requests");
+            close();
+            openCustomerRequestDraft(customer, collect(), blueprint);
+            return;
+          }
+          if (status) status.textContent = "Saving request...";
+          try {
+            const valuesToSave = collect();
+            await leadPlanApi.saveLeadRecord({
+              customer_id: customer.id || "",
+              contact_name: customer.name || "",
+              contact_email: customer.email || "",
+              contact_phone: customer.phone || "",
+              preferred_contact: customer.preferred_contact || "phone",
+              title: valuesToSave.title || "",
+              requested_service_type: valuesToSave.requestedServiceType || "",
+              service_address: valuesToSave.serviceAddress || "",
+              summary: valuesToSave.summary || "",
+              notes: valuesToSave.notes || "",
+              metadata: {
+                created_from: "customer_workbench",
+                source_action: "customer_panel_request",
+                source_record_type: "customer",
+                source_record_id: customer.id || "",
+              },
+            });
+            clearCustomerWorkbenchDraft(customerIdValue, "requests");
+            await rerenderCustomerWorkbench(customerIdValue);
+            close();
+            showToast("Request saved.");
+          } catch (error) {
+            if (status) status.textContent = error?.message || "Could not save the request yet.";
+          }
+        });
+        overlay.querySelectorAll("[data-customer-action]").forEach((button) => {
+          button.addEventListener("click", () => {
+            handleCustomerWorkbenchAction(button.getAttribute("data-customer-action") || "", context);
+          });
+        });
+        bindCustomerWorkbenchRecordButtons(overlay);
+        overlay.querySelector("#customerWorkbenchRequestSummary")?.focus?.();
+      },
+    });
+  }
+
+  function openCustomerWorkbenchProposalsApp(context = {}) {
+    const { customer, customerIdValue, customerBidRows, openProposalCount } = context;
+    return openCustomerWorkbenchModal({
+      customerIdValue,
+      appKey: "proposals",
+      title: `Proposals: ${customerPrimaryDisplayLabel(customer)}`,
+      subtitle: "Proposal history stays visible here. Open the full proposal builder only when you need detailed pricing work.",
+      bodyHtml: `
+        <div class="modal-stack">
+          <div class="customer-workbench-modal__summary">
+            <span class="pill">${escapeHtml(`${customerBidRows.length} proposal${customerBidRows.length === 1 ? "" : "s"} on file`)}</span>
+            <span class="pill">${escapeHtml(openProposalCount > 0 ? `${openProposalCount} still live` : "No live proposals right now")}</span>
+          </div>
+          <div class="detail-card">
+            <div class="kicker">Estimate workflow</div>
+            <div><strong>Keep the customer context, then jump into pricing only when needed</strong></div>
+            <div class="detail-copy">This panel is the quick view. The line-item builder still lives in the full proposal workspace so pricing stays accurate and traceable.</div>
+            <div class="customer-action-row action-row--wrap u-mt-10">
+              <button type="button" class="btn btn-primary" id="customerWorkbenchProposalDraft">Draft proposal</button>
+              <button type="button" class="btn btn-ghost" data-customer-action="bids">Open full proposals</button>
+            </div>
+          </div>
+          <div class="customer-workbench-modal__section">
+            <div class="customer-workbench-modal__section-head">
+              <div>
+                <div class="kicker">Recent proposals</div>
+                <strong>Open the right pricing record fast</strong>
+              </div>
+            </div>
+            ${renderCustomerWorkbenchRecordList(customerBidRows.slice(0, 8), {
+              tab: "bids",
+              empty: "No proposals are attached to this customer yet.",
+              title: (bid) => bid.title || "Proposal",
+              meta: (bid) => `${titleCaseWords(String(bid.status || "draft"))} | ${formatDateTime(bid.updated_at || bid.created_at)}`,
+              badge: (bid) => formatUsd(bidGrandTotalCents(bid)),
+            })}
+          </div>
+        </div>
+      `,
+      onReady: ({ overlay, close }) => {
+        overlay.querySelector("#customerWorkbenchProposalDraft")?.addEventListener("click", () => {
+          close();
+          openCustomerBidDraft(customer);
+        });
+        overlay.querySelectorAll("[data-customer-action]").forEach((button) => {
+          button.addEventListener("click", () => {
+            handleCustomerWorkbenchAction(button.getAttribute("data-customer-action") || "", context);
+          });
+        });
+        bindCustomerWorkbenchRecordButtons(overlay);
+      },
+    });
+  }
+
+  function openCustomerWorkbenchWorkApp(context = {}) {
+    const {
+      customer,
+      customerIdValue,
+      customerOrders,
+      customerJobsRows,
+      nextMoveGuidance,
+      reactivationActions,
+      postWorkGuidance,
+      postWorkActions,
+      activeOrderCount,
+      activeJobCount,
+    } = context;
+    return openCustomerWorkbenchModal({
+      customerIdValue,
+      appKey: "work",
+      title: `Work: ${customerPrimaryDisplayLabel(customer)}`,
+      subtitle: "Booked work and field execution stay in one panel so the operator can see what is active before leaving the customer.",
+      bodyHtml: `
+        <div class="modal-stack">
+          <div class="customer-workbench-modal__summary">
+            <span class="pill">${escapeHtml(`${customerOrders.length} booked work item${customerOrders.length === 1 ? "" : "s"}`)}</span>
+            <span class="pill">${escapeHtml(`${customerJobsRows.length} job${customerJobsRows.length === 1 ? "" : "s"}`)}</span>
+            <span class="pill">${escapeHtml(activeOrderCount + activeJobCount > 0 ? `${activeOrderCount + activeJobCount} active now` : "No active work right now")}</span>
+          </div>
+          <div class="detail-card customer-next-step-card">
+            <div class="kicker">Best next move</div>
+            <div><strong>${escapeHtml(nextMoveGuidance.title)}</strong></div>
+            <div class="detail-copy">${escapeHtml(nextMoveGuidance.description)}</div>
+            <div class="memory-checklist">
+              ${nextMoveGuidance.items.map((item) => `
+                <div class="memory-checklist__item ${item.ready ? "memory-checklist__item--ready" : ""} ${item.tone === "warn" ? "memory-checklist__item--warn" : ""}">
+                  <div class="memory-checklist__label">${escapeHtml(item.label || "Next step")}</div>
+                  <div class="memory-checklist__note">${escapeHtml(item.note || "Keep the next move visible here.")}</div>
+                </div>
+              `).join("")}
+            </div>
+            ${reactivationActions.length ? `
+              <div class="customer-action-row action-row--wrap u-mt-10">
+                ${reactivationActions.map((action) => `<button type="button" class="${escapeAttr(action.className || "btn btn-ghost")}" data-customer-action="${escapeAttr(action.data?.["customer-action"] || "")}">${escapeHtml(action.label || "Take action")}</button>`).join("")}
+              </div>
+            ` : ""}
+          </div>
+          ${postWorkGuidance ? `
+            <div class="detail-card customer-next-step-card">
+              <div class="kicker">After the work wraps</div>
+              <div><strong>${escapeHtml(postWorkGuidance.title)}</strong></div>
+              <div class="detail-copy">${escapeHtml(postWorkGuidance.description)}</div>
+              <div class="memory-checklist">
+                ${postWorkGuidance.items.map((item) => `
+                  <div class="memory-checklist__item ${item.ready ? "memory-checklist__item--ready" : ""} ${item.tone === "warn" ? "memory-checklist__item--warn" : ""}">
+                    <div class="memory-checklist__label">${escapeHtml(item.label || "Next step")}</div>
+                    <div class="memory-checklist__note">${escapeHtml(item.note || "Keep the next move visible here.")}</div>
+                  </div>
+                `).join("")}
+              </div>
+              ${postWorkActions.length ? `
+                <div class="customer-action-row action-row--wrap u-mt-10">
+                  ${postWorkActions.map((action) => `<button type="button" class="${escapeAttr(action.className || "btn btn-ghost")}" data-customer-action="${escapeAttr(action.action === "reactivate-repeat" ? "booking" : (action.action === "generate-next-order" ? "plan-order" : action.action))}">${escapeHtml(action.label || "Take action")}</button>`).join("")}
+                </div>
+              ` : ""}
+            </div>
+          ` : ""}
+          <div class="customer-workbench-modal__split">
+            <div class="customer-workbench-modal__section">
+              <div class="customer-workbench-modal__section-head">
+                <div>
+                  <div class="kicker">Booked work</div>
+                  <strong>Orders tied to this customer</strong>
+                </div>
+                <button type="button" class="btn btn-ghost" data-customer-action="orders">Open orders</button>
+              </div>
+              ${renderCustomerWorkbenchRecordList(customerOrders.slice(0, 6), {
+                tab: "orders",
+                empty: "No booked work yet. Approved proposals will land here.",
+                title: (order) => order.title || order.customer_name || "Order",
+                meta: (order) => `${titleCaseWords(String(order.status || "new"))} | ${order.scheduled_date || getScheduledDateFromOrder(order) || "No scheduled date"}`,
+                badge: (order) => formatUsd(order.total_cents || 0),
+              })}
+            </div>
+            <div class="customer-workbench-modal__section">
+              <div class="customer-workbench-modal__section-head">
+                <div>
+                  <div class="kicker">Field jobs</div>
+                  <strong>Execution without losing account context</strong>
+                </div>
+                <button type="button" class="btn btn-ghost" data-customer-action="jobs">Open jobs</button>
+              </div>
+              ${renderCustomerWorkbenchRecordList(customerJobsRows.slice(0, 6), {
+                tab: "jobs",
+                empty: "No jobs yet. Once work is ready for the field, it shows up here.",
+                title: (job) => job.title || "Job",
+                meta: (job) => `${titleCaseWords(String(job.status || "scheduled"))} | ${job.scheduled_date || "No scheduled date"}`,
+                badge: (job) => job.service_type || "Execution",
+              })}
+            </div>
+          </div>
+        </div>
+      `,
+      onReady: ({ overlay }) => {
+        overlay.querySelectorAll("[data-customer-action]").forEach((button) => {
+          button.addEventListener("click", () => {
+            handleCustomerWorkbenchAction(button.getAttribute("data-customer-action") || "", context);
+          });
+        });
+        bindCustomerWorkbenchRecordButtons(overlay);
+      },
+    });
+  }
+
+  function openCustomerWorkbenchMoneyApp(context = {}) {
+    const {
+      customer,
+      customerIdValue,
+      totalBilled,
+      totalPaid,
+      balance,
+      customerOrders,
+      customerPayments,
+      collectionGuidance,
+    } = context;
+    return openCustomerWorkbenchModal({
+      customerIdValue,
+      appKey: "money",
+      title: `Money: ${customerPrimaryDisplayLabel(customer)}`,
+      subtitle: "Collections and payment readiness stay tied to the work so the operator can see the real money picture before acting.",
+      bodyHtml: `
+        <div class="modal-stack">
+          <div class="customer-workbench-modal__metrics">
+            <div class="customer-money-card"><span>Total billed</span><strong>${formatUsd(totalBilled || 0)}</strong></div>
+            <div class="customer-money-card"><span>Total paid</span><strong>${formatUsd(totalPaid || 0)}</strong></div>
+            <div class="customer-money-card"><span>Open balance</span><strong>${formatUsd(balance || 0)}</strong></div>
+            <div class="customer-money-card"><span>Lifetime value</span><strong>${formatUsd(customerLifetimeValueCents(customer))}</strong></div>
+          </div>
+          <div class="detail-card">
+            <div class="kicker">Collection view</div>
+            <div><strong>${escapeHtml(collectionGuidance.title)}</strong></div>
+            <div class="detail-copy">${escapeHtml(collectionGuidance.description)}</div>
+            <div class="customer-action-row action-row--wrap u-mt-10">
+              <button type="button" class="btn btn-primary" data-customer-action="payment">Record payment</button>
+              <button type="button" class="btn btn-ghost" data-customer-action="payments">Open payments</button>
+              <button type="button" class="btn btn-ghost" data-customer-action="orders">Open booked work</button>
+            </div>
+          </div>
+          <div class="customer-workbench-modal__split">
+            <div class="customer-workbench-modal__section">
+              <div class="customer-workbench-modal__section-head">
+                <div>
+                  <div class="kicker">Recent orders</div>
+                  <strong>Work that drives the billing picture</strong>
+                </div>
+              </div>
+              ${renderCustomerWorkbenchRecordList(customerOrders.slice(0, 6), {
+                tab: "orders",
+                empty: "No booked work yet for this customer.",
+                title: (order) => order.title || order.customer_name || "Order",
+                meta: (order) => `${titleCaseWords(String(order.status || "new"))} | ${formatDateTime(order.updated_at || order.created_at)}`,
+                badge: (order) => formatUsd(order.total_cents || 0),
+              })}
+            </div>
+            <div class="customer-workbench-modal__section">
+              <div class="customer-workbench-modal__section-head">
+                <div>
+                  <div class="kicker">Recent payments</div>
+                  <strong>Latest money movement on the account</strong>
+                </div>
+              </div>
+              ${renderCustomerWorkbenchRecordList(customerPayments.slice(0, 6), {
+                tab: "payments",
+                empty: "No payments recorded yet.",
+                title: (payment) => `${formatPaymentMode(payment.payment_mode)} | ${titleCaseWords(String(payment.status || "paid"))}`,
+                meta: (payment) => formatDateTime(payment.paid_at || payment.created_at || payment.updated_at),
+                badge: (payment) => formatUsd(paymentAmountCents(payment)),
+              })}
+            </div>
+          </div>
+        </div>
+      `,
+      onReady: ({ overlay }) => {
+        overlay.querySelectorAll("[data-customer-action]").forEach((button) => {
+          button.addEventListener("click", () => {
+            handleCustomerWorkbenchAction(button.getAttribute("data-customer-action") || "", context);
+          });
+        });
+        bindCustomerWorkbenchRecordButtons(overlay);
+      },
+    });
+  }
+
+  function openCustomerWorkbenchFollowThroughApp(context = {}) {
+    const {
+      customer,
+      customerIdValue,
+      nextMoveGuidance,
+      postWorkGuidance,
+      activityTimeline,
+      balance,
+      lastTouchValue,
+    } = context;
+    const baseline = customerWorkbenchFollowThroughBaseline();
+    const draft = readCustomerWorkbenchDraft(customerIdValue, "follow_through")?.value || {};
+    const values = { ...baseline, ...draft };
+    return openCustomerWorkbenchModal({
+      customerIdValue,
+      appKey: "follow_through",
+      title: `Follow-through: ${customerPrimaryDisplayLabel(customer)}`,
+      subtitle: "Keep the relationship warm, log what happened, and protect the next action without losing customer context.",
+      bodyHtml: `
+        <div class="modal-stack">
+          <div class="modal-status">Close this panel any time. Unsaved interaction notes stay attached to this customer as a draft.</div>
+          <div class="detail-card customer-next-step-card">
+            <div class="kicker">Best next move</div>
+            <div><strong>${escapeHtml(nextMoveGuidance.title)}</strong></div>
+            <div class="detail-copy">${escapeHtml(nextMoveGuidance.description)}</div>
+            <div class="workspace-chip-row u-mt-10">
+              <span class="pill ${balance > 0 ? "pill-bad" : "pill-good"}">${escapeHtml(balance > 0 ? `${formatUsd(balance)} still open` : "Nothing outstanding")}</span>
+              <span class="pill">${escapeHtml(lastTouchValue ? `Last touch ${formatDateTime(lastTouchValue)}` : "No touchpoint logged yet")}</span>
+            </div>
+            <div class="memory-checklist">
+              ${nextMoveGuidance.items.map((item) => `
+                <div class="memory-checklist__item ${item.ready ? "memory-checklist__item--ready" : ""} ${item.tone === "warn" ? "memory-checklist__item--warn" : ""}">
+                  <div class="memory-checklist__label">${escapeHtml(item.label || "Next step")}</div>
+                  <div class="memory-checklist__note">${escapeHtml(item.note || "Keep the next move visible here.")}</div>
+                </div>
+              `).join("")}
+            </div>
+          </div>
+          ${postWorkGuidance ? `
+            <div class="detail-card customer-next-step-card">
+              <div class="kicker">After the work wraps</div>
+              <div><strong>${escapeHtml(postWorkGuidance.title)}</strong></div>
+              <div class="detail-copy">${escapeHtml(postWorkGuidance.description)}</div>
+              <div class="memory-checklist">
+                ${postWorkGuidance.items.map((item) => `
+                  <div class="memory-checklist__item ${item.ready ? "memory-checklist__item--ready" : ""} ${item.tone === "warn" ? "memory-checklist__item--warn" : ""}">
+                    <div class="memory-checklist__label">${escapeHtml(item.label || "Next step")}</div>
+                    <div class="memory-checklist__note">${escapeHtml(item.note || "Keep the next move visible here.")}</div>
+                  </div>
+                `).join("")}
+              </div>
+            </div>
+          ` : ""}
+          <div class="customer-workbench-modal__section">
+            <div class="customer-workbench-modal__section-head">
+              <div>
+                <div class="kicker">Interaction log</div>
+                <strong>Capture the latest touchpoint</strong>
+              </div>
+            </div>
+            <div class="modal-grid-2">
+              <div class="modal-grid-2__fill">
+                <label class="field-note-label field-note-label--tight">Interaction type</label>
+                <select id="customerWorkbenchInteractionType" class="input u-full-width">
+                  ${customerInteractionOptionsMarkup(values.type || "note")}
+                </select>
+              </div>
+              <div class="modal-grid-2__fill">
+                <label class="field-note-label field-note-label--tight">Summary</label>
+                <input id="customerWorkbenchInteractionSummary" class="input u-full-width" value="${escapeAttr(values.summary || "")}" placeholder="${escapeAttr(customerInteractionPlaceholder(values.type || "note"))}" />
+              </div>
+            </div>
+          </div>
+          ${renderCustomerActivityTimelineCard(activityTimeline)}
+          <div class="modal-footer">
+            <span id="customerWorkbenchInteractionStatus" class="modal-status"></span>
+            <div class="action-row">
+              <button id="customerWorkbenchInteractionDiscard" class="btn btn-ghost" type="button">Discard draft</button>
+              <button id="customerWorkbenchInteractionSave" class="btn btn-primary" type="button">Add interaction</button>
+            </div>
+          </div>
+        </div>
+      `,
+      onReady: ({ overlay, close }) => {
+        const status = overlay.querySelector("#customerWorkbenchInteractionStatus");
+        const typeField = overlay.querySelector("#customerWorkbenchInteractionType");
+        const summaryField = overlay.querySelector("#customerWorkbenchInteractionSummary");
+        const collect = () => ({
+          type: typeField?.value || "note",
+          summary: summaryField?.value || "",
+        });
+        const syncDraft = () => {
+          syncCustomerWorkbenchDraft(customerIdValue, "follow_through", collect(), baseline);
+          if (summaryField) summaryField.placeholder = customerInteractionPlaceholder(typeField?.value || "note");
+          if (status) status.textContent = "";
+        };
+        typeField?.addEventListener("change", syncDraft);
+        summaryField?.addEventListener("input", syncDraft);
+        overlay.querySelector("#customerWorkbenchInteractionDiscard")?.addEventListener("click", () => {
+          clearCustomerWorkbenchDraft(customerIdValue, "follow_through");
+          if (typeField) typeField.value = baseline.type;
+          if (summaryField) {
+            summaryField.value = baseline.summary;
+            summaryField.placeholder = customerInteractionPlaceholder(baseline.type);
+          }
+          if (status) status.textContent = "Draft discarded.";
+        });
+        overlay.querySelector("#customerWorkbenchInteractionSave")?.addEventListener("click", async () => {
+          const summary = String(summaryField?.value || "").trim();
+          if (!summary) {
+            if (status) status.textContent = "Add a short summary before saving.";
+            return;
+          }
+          if (status) status.textContent = "Saving interaction...";
+          try {
+            const api = global.PROOFLINK_OPERATOR_CUSTOMERS_WORKSPACE?.logCustomerInteraction || (typeof logCustomerInteraction === "function" ? logCustomerInteraction : null);
+            if (typeof api !== "function") throw new Error("Interaction logging is not ready yet.");
+            await api(customerIdValue, typeField?.value || "note", summary, { created_from: "customer_workbench" });
+            clearCustomerWorkbenchDraft(customerIdValue, "follow_through");
+            await fetchCustomers?.();
+            await rerenderCustomerWorkbench(customerIdValue);
+            close();
+            renderDashboard?.();
+            renderMoney?.().catch?.(console.error);
+            showToast("Interaction logged.");
+          } catch (error) {
+            if (status) status.textContent = error?.message || "Could not save the interaction yet.";
+          }
+        });
+        bindCustomerWorkbenchRecordButtons(overlay);
+        summaryField?.focus?.();
+      },
+    });
+  }
+
   function openCustomerRequestDraft(customer, options = {}, blueprint = (typeof currentWorkspaceBlueprint === "function" ? currentWorkspaceBlueprint() : { business: { key: "service_business" } })) {
     if (!customer) return;
     const draft = customerFollowUpRequestDraft(customer, options, blueprint) || {};
@@ -1298,6 +2534,123 @@
             : "Once you select a customer, this workbench shows profile details, linked work, money state, and recent activity from one place.")}</div>
         </div>
       `;
+      return;
+    }
+
+    {
+      const workbenchInteractions = await fetchCustomerInteractions(customerIdValue);
+      const workbenchContext = normalizeCustomerWorkbenchContext({
+        customer,
+        customerIdValue,
+        interactions: workbenchInteractions,
+      });
+      const {
+        customerRequestsRows: workbenchRequests,
+        customerBidRows: workbenchBids,
+        customerOrders: workbenchOrders,
+        customerJobsRows: workbenchJobs,
+        customerPayments: workbenchPayments,
+        balance: workbenchBalance,
+        openRequestsCount: workbenchOpenRequests,
+        openProposalCount: workbenchOpenProposals,
+        activeOrderCount: workbenchActiveOrders,
+        activeJobCount: workbenchActiveJobs,
+        latestInteraction: workbenchLatestInteraction,
+        knownAddresses: workbenchAddresses,
+        lastTouchValue: workbenchLastTouch,
+      } = workbenchContext;
+      const workbenchAddress = customerDisplayAddress(customer);
+      const hasActiveOrders = CRM_ORDERS_CACHE.some((o) => o.customer_id === customerIdValue && !["completed", "cancelled", "archived"].includes(String(o.status || "").toLowerCase()));
+      const hasActiveJobs = JOBS_CACHE.some((job) => job.customer_id === customerIdValue && !["completed", "cancelled", "archived"].includes(String(job.status || "").toLowerCase()));
+      const customerQuickActions = [
+        { label: "Edit details", className: "btn btn-ghost", data: { "customer-action": "edit" } },
+        { label: "New request", className: "btn btn-primary", data: { "customer-action": "request" } },
+        { label: "Draft proposal", className: "btn btn-ghost", data: { "customer-action": "bid" } },
+        { label: "Money panel", className: "btn btn-ghost", data: { "customer-action": "money" } },
+        { label: "Add note", className: "btn btn-ghost", data: { "customer-action": "note" } },
+      ];
+      if (!hasActiveOrders && !hasActiveJobs) {
+        customerQuickActions.push({
+          label: "Archive customer",
+          className: "btn btn-ghost btn-compact customer-archive-action u-color-warn",
+          data: { "customer-action": "archive" },
+        });
+      }
+
+      workbenchContext.lastAppKey = readCustomerWorkbenchLastApp(customerIdValue);
+      global.CURRENT_CUSTOMER_DETAIL_CONTEXT = workbenchContext;
+
+      customerDetailWrap.innerHTML = `
+        ${renderRecordHeroCard({
+          eyebrow: "Customer record",
+          title: customerPrimaryDisplayLabel(customer),
+          badges: [
+            { label: `${workbenchOpenRequests} open request${workbenchOpenRequests === 1 ? "" : "s"}` },
+            { label: `${workbenchOpenProposals} live proposal${workbenchOpenProposals === 1 ? "" : "s"}` },
+            { label: `${workbenchActiveOrders + workbenchActiveJobs} active work item${workbenchActiveOrders + workbenchActiveJobs === 1 ? "" : "s"}` },
+            workbenchBalance > 0 ? { label: `${formatUsd(workbenchBalance)} open`, tone: "pill-bad" } : { label: "No balance due", tone: "pill-on" },
+          ],
+          meta: [
+            customer.company_name && customer.name ? `Primary contact: ${customer.name}` : customerContactSummary(customer),
+            `Preferred contact: ${customer.preferred_contact || "email"}`,
+            workbenchAddress,
+            customer.lead_source ? `Lead source: ${titleCaseWords(String(customer.lead_source).replace(/_/g, " "))}` : "",
+          ],
+          description: "Open the customer once, then move requests, pricing, field work, and payment follow-through from the same record.",
+          summary: [
+            { label: "Open requests", value: String(workbenchOpenRequests), note: "Needs response or scope" },
+            { label: "Open proposals", value: String(workbenchOpenProposals), note: "Still moving toward approval" },
+            { label: "Booked + active work", value: String(workbenchActiveOrders + workbenchActiveJobs), note: "Execution or follow-through still open" },
+            { label: "Outstanding balance", value: formatUsd(workbenchBalance), note: "Billed work not fully collected" },
+          ],
+        })}
+        ${renderRecordActionRail({
+          eyebrow: "Quick actions",
+          title: "Move the relationship forward",
+          description: "Open the right work panel, keep your place, and only jump into a full workspace when deeper editing is actually needed.",
+          actions: customerQuickActions,
+        })}
+        <div class="customer-overview-grid">
+          ${renderCustomerProfileCard(customer, {
+            knownAddresses: workbenchAddresses,
+            latestInteraction: workbenchLatestInteraction,
+            lastTouchValue: workbenchLastTouch,
+          })}
+          ${renderCustomerFootprintCard({
+            customer,
+            customerRequestsRows: workbenchRequests,
+            customerBidRows: workbenchBids,
+            customerOrders: workbenchOrders,
+            customerJobsRows: workbenchJobs,
+            customerPayments: workbenchPayments,
+            balance: workbenchBalance,
+            knownAddresses: workbenchAddresses,
+          })}
+        </div>
+        ${renderCustomerRecordFocusCard()}
+        ${renderCustomerWorkbenchLauncher(workbenchContext)}
+      `;
+
+      customerDetailWrap.querySelectorAll("[data-customer-action]").forEach((button) => {
+        button.addEventListener("click", () => {
+          handleCustomerWorkbenchAction(button.getAttribute("data-customer-action") || "", workbenchContext);
+        });
+      });
+
+      customerDetailWrap.querySelectorAll("[data-customer-app-open]").forEach((button) => {
+        button.addEventListener("click", () => {
+          openCustomerWorkbenchApp(button.getAttribute("data-customer-app-open") || "", workbenchContext);
+        });
+      });
+
+      customerDetailWrap.querySelectorAll("[data-customer-open-tab][data-customer-open-id]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const tab = button.getAttribute("data-customer-open-tab") || "";
+          const recordId = button.getAttribute("data-customer-open-id") || "";
+          if (tab && recordId) openCustomerRecordTab(tab, recordId);
+        });
+      });
+
       return;
     }
 
@@ -1821,6 +3174,15 @@
     customerActivityTimeline,
     customerMemoryChecklist,
     customerCollectionGuidance,
+    customerWorkbenchDraftKey,
+    readCustomerWorkbenchDraft,
+    writeCustomerWorkbenchDraft,
+    clearCustomerWorkbenchDraft,
+    latestCustomerWorkbenchDraftForCustomer,
+    customerWorkbenchAppCards,
+    renderCustomerWorkbenchLauncher,
+    handleCustomerWorkbenchAction,
+    openCustomerWorkbenchApp,
     customerRepeatCadenceDays,
     customerRepeatCadenceInsight,
     customerRepeatSignalValue,
