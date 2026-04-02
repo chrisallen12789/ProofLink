@@ -149,8 +149,7 @@ async function runQuoteRescueManager({ supabase, tenantId }) {
             ? `This ${record.record_type} is still active, but the stored record is missing either scope detail or priced facts, so follow-up should be paired with estimate cleanup.`
             : bucketKey === 'waiting_on_customer_decision'
               ? `This ${record.record_type} is still within the current decision window, so it should be tracked but does not yet look like a cold follow-up.`
-              : `This ${record.record_type} has gone stale enough that the safer move is to rework the proposal before another send.`
-        ,
+              : `This ${record.record_type} has gone stale enough that the safer move is to rework the proposal before another send.`,
         evidence_ids: [evidenceId],
         record_refs: recordRefs,
       });

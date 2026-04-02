@@ -15,7 +15,7 @@ describe("AI systems architect", () => {
     delete require.cache[toolsPath];
   });
 
-  test("recommends AI lane exposure, new structured lanes, and shared AI file hardening", async () => {
+  test("recommends shared AI hardening after the major operator lanes are already exposed", async () => {
     require.cache[toolsPath] = {
       id: toolsPath,
       filename: toolsPath,
@@ -75,18 +75,15 @@ describe("AI systems architect", () => {
     });
 
     expect(result.report.agent_key).toBe("ai_systems_architect");
-    expect(result.report.summary).toContain("expose 1 shipped AI lane");
-    expect(result.report.summary).toContain("add 2 new structured lanes");
+    expect(result.report.summary).toContain("expose 0 shipped AI lanes");
+    expect(result.report.summary).toContain("add 0 new structured lanes");
     expect(result.report.summary).toContain("harden 1 shared AI file area");
-    expect(result.context_summary.exposure_gaps).toBe(1);
-    expect(result.context_summary.new_lane_candidates).toBe(2);
+    expect(result.context_summary.exposure_gaps).toBe(0);
+    expect(result.context_summary.new_lane_candidates).toBe(0);
     expect(result.context_summary.ai_file_targets).toBe(1);
-    expect(result.report.findings.map((finding) => finding.id)).toEqual(expect.arrayContaining([
-      "systems_expose_estimating_assistant",
-      "systems_gap_quote_rescue_manager",
-      "systems_gap_retention_reactivation_manager",
-      "systems_harden_shared_model_config",
-    ]));
+    expect(result.report.findings.map((finding) => finding.id)).toEqual(
+      expect.arrayContaining(["systems_harden_shared_model_config"])
+    );
     expect(result.report.blockers.map((item) => item.id)).toContain("systems_blocker_low_ai_telemetry");
   });
 });

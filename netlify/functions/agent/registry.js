@@ -10,6 +10,9 @@ const { runEstimatingAssistant } = require('./agents/estimating-assistant');
 const { runFieldCloseoutCoach } = require('./agents/field-closeout-coach');
 const { runImportMigrationAssistant } = require('./agents/import-migration-assistant');
 const { runJobRecordAuditor } = require('./agents/job-record-auditor');
+const { runQuoteRescueManager } = require('./agents/quote-rescue-manager');
+const { runRetentionReactivationManager } = require('./agents/retention-reactivation-manager');
+const { runServicePlanRenewalManager } = require('./agents/service-plan-renewal-manager');
 const { runSitePacketBuilder } = require('./agents/site-packet-builder');
 
 const AGENTS = {
@@ -105,6 +108,7 @@ const AGENTS = {
     label: 'Estimating Assistant',
     purpose: 'Builds a grounded estimate review from known service facts, stored pricing, and missing inputs without inventing price points.',
     inputs: [
+      { key: 'bid_id', required: false, description: 'Optional walkthrough bid to review.' },
       { key: 'lead_id', required: false, description: 'Optional lead to review.' },
       { key: 'order_id', required: false, description: 'Optional order to review.' },
       { key: 'job_id', required: false, description: 'Optional job to review.' },
@@ -120,6 +124,57 @@ const AGENTS = {
     missing_data_handling: 'Highlight which inputs are still missing before pricing should be reviewed.',
     recommended_actions: 'Recommend evidence-backed estimate next steps only.',
     execute: runEstimatingAssistant,
+  },
+  quote_rescue_manager: {
+    key: 'quote_rescue_manager',
+    label: 'Quote Rescue Manager',
+    purpose: 'Builds a grounded rescue queue for aging quotes and walkthrough proposals so operators can separate follow-up-ready work from estimate cleanup and stale records that should be reworked first.',
+    inputs: [],
+    allowed_tools: ['get_quote_rescue_manager_context'],
+    forbidden_behaviors: [
+      'Do not send follow-up messages automatically.',
+      'Do not mark a quote as current when scope, pricing, or validity proof is weak.',
+      'Do not convert a proposal into booked work without operator action.',
+    ],
+    output_schema: 'prooflink.agent.report.v1',
+    confidence_signal: 'Confidence depends on live quote and proposal state, validity timing, and stored pricing facts being present together.',
+    missing_data_handling: 'Call out missing estimate facts before suggesting customer follow-up.',
+    recommended_actions: 'Recommend queue-based proposal rescue moves only; execution stays manual.',
+    execute: runQuoteRescueManager,
+  },
+  service_plan_renewal_manager: {
+    key: 'service_plan_renewal_manager',
+    label: 'Service Plan Renewal Manager',
+    purpose: 'Builds a grounded renewal queue for recurring service plans so next-run timing, missing cadence, and overdue repeat-service accounts stay visible before they drift.',
+    inputs: [{ key: 'plan_id', required: false, description: 'Optional recurring plan to focus the review on.' }],
+    allowed_tools: ['get_service_plan_renewal_context'],
+    forbidden_behaviors: [
+      'Do not generate recurring orders or change plan dates automatically.',
+      'Do not hide missing next-run timing behind generic retention advice.',
+      'Do not blend collections urgency into renewal state unless the linked records show both.',
+    ],
+    output_schema: 'prooflink.agent.report.v1',
+    confidence_signal: 'Confidence depends on whether plan cadence, next-run timing, linked customers, and recent generated work are all available together.',
+    missing_data_handling: 'Call out missing cadence or next-run timing explicitly before recommending renewal moves.',
+    recommended_actions: 'Recommend repeat-work review moves only; execution stays manual.',
+    execute: runServicePlanRenewalManager,
+  },
+  retention_reactivation_manager: {
+    key: 'retention_reactivation_manager',
+    label: 'Retention / Reactivation Manager',
+    purpose: 'Builds a grounded reactivation queue for quiet customers so repeat-service signals, plan overlap, and open-work holds stay inspectable before outreach starts.',
+    inputs: [{ key: 'customer_id', required: false, description: 'Optional customer to focus the reactivation review on.' }],
+    allowed_tools: ['get_retention_reactivation_context'],
+    forbidden_behaviors: [
+      'Do not send outreach automatically.',
+      'Do not claim a customer is dormant when active work is still open.',
+      'Do not collapse renewal recovery and general reactivation into one unsupported guess.',
+    ],
+    output_schema: 'prooflink.agent.report.v1',
+    confidence_signal: 'Confidence depends on stale-customer timing, recurring-service signals, and recent work history being available together.',
+    missing_data_handling: 'Call out missing repeat-service or recent-work signals before ranking reactivation priority.',
+    recommended_actions: 'Recommend evidence-backed reactivation moves only; execution stays manual.',
+    execute: runRetentionReactivationManager,
   },
   dispatch_scheduling_assistant: {
     key: 'dispatch_scheduling_assistant',

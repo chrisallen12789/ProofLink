@@ -1,6 +1,195 @@
 // Customer detail workflow extracted from operator.js so the operator shell
 // can keep shrinking around real business domains.
 (function attachOperatorCustomerDetail(global) {
+  const CUSTOMER_RETENTION_REACTIVATION_CACHE = global.PROOFLINK_CUSTOMER_RETENTION_REACTIVATION_CACHE
+    || (global.PROOFLINK_CUSTOMER_RETENTION_REACTIVATION_CACHE = {});
+
+  function customerAiStatusTone(status) {
+    if (status === "ready") return "pill-good";
+    if (status === "blocked") return "pill-bad";
+    return "pill-warn";
+  }
+  function customerAiPriorityTone(priority) {
+    if (priority === "high") return "pill-bad";
+    if (priority === "low") return "";
+    return "pill-warn";
+  }
+  function customerAiFormatStatus(value) {
+    const normalized = String(value || "review_needed").replace(/_/g, " ").trim();
+    if (typeof titleCaseWords === "function") return titleCaseWords(normalized);
+    return normalized ? normalized.charAt(0).toUpperCase() + normalized.slice(1) : "Review needed";
+  }
+  function customerAiFormatDate(value) {
+    if (!value) return "";
+    if (typeof formatDateTime === "function") return formatDateTime(value);
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? String(value) : parsed.toLocaleString();
+  }
+  function customerRetentionPrimaryRef(item = {}) {
+    const refs = Array.isArray(item.record_refs) ? item.record_refs : [];
+    const preferredTypes = ["customer", "plan", "order", "job", "bid", "lead"];
+    for (const recordType of preferredTypes) {
+      const match = refs.find((ref) => ref && ref.record_type === recordType && ref.record_id);
+      if (match) return match;
+    }
+    return refs.find((ref) => ref && ref.record_id) || null;
+  }
+  function openCustomerRetentionRecordRef(ref) {
+    const recordType = String(ref?.record_type || "").trim().toLowerCase();
+    const recordId = String(ref?.record_id || "").trim();
+    if (!recordType || !recordId) return false;
+    if (recordType === "customer") {
+      ACTIVE_CUSTOMER_ID = recordId;
+      if (typeof renderCustomerDetailWorkspace === "function") {
+        const customer = (CUSTOMERS_CACHE || []).find((row) => row.id === recordId) || null;
+        Promise.resolve(renderCustomerDetailWorkspace(recordId, customer)).catch(console.error);
+      }
+      return true;
+    }
+    if (recordType === "plan") {
+      ACTIVE_PLAN_ID = recordId;
+      if (typeof switchTab === "function") switchTab("plans");
+      return true;
+    }
+    if (recordType === "order") return openCustomerRecordTab("orders", recordId);
+    if (recordType === "job") return openCustomerRecordTab("jobs", recordId);
+    if (recordType === "bid") return openCustomerRecordTab("bids", recordId);
+    if (recordType === "lead") return openCustomerRecordTab("leads", recordId);
+    return false;
+  }
+  function renderCustomerRetentionReactivationReport(state = null) {
+    const report = state?.report || null;
+    if (!report) {
+      return `<div class="detail-copy">Run the reactivation review to separate immediate follow-up candidates from active-work holds, plan overlap, and lighter-touch accounts.</div>`;
+    }
+    const findings = Array.isArray(report.findings) ? report.findings : [];
+    const blockers = Array.isArray(report.blockers) ? report.blockers : [];
+    const actions = Array.isArray(report.recommended_actions) ? report.recommended_actions : [];
+    const summary = state?.context_summary || {};
+    const generatedAt = report.generated_at || state?.generated_at || "";
+    return `
+      <div class="detail-copy">${escapeHtml(report.summary || "")}</div>
+      <div class="workspace-chip-row u-mt-10">
+        <span class="pill ${customerAiStatusTone(report.summary_status || "review_needed")}">${escapeHtml(customerAiFormatStatus(report.summary_status || "review_needed"))}</span>
+        ${summary.reactivate_now ? `<span class="pill pill-bad">${escapeHtml(`${summary.reactivate_now} reactivate now`)}</span>` : ""}
+        ${summary.recent_work_still_open ? `<span class="pill pill-warn">${escapeHtml(`${summary.recent_work_still_open} open-work hold`)}</span>` : ""}
+        ${summary.plan_recovery ? `<span class="pill pill-warn">${escapeHtml(`${summary.plan_recovery} plan overlap`)}</span>` : ""}
+        ${summary.light_touch_reactivation ? `<span class="pill">${escapeHtml(`${summary.light_touch_reactivation} light touch`)}</span>` : ""}
+      </div>
+      ${blockers.length ? `
+        <div class="memory-checklist u-mt-10">
+          ${blockers.slice(0, 2).map((item) => `
+            <div class="memory-checklist__item memory-checklist__item--warn">
+              <div class="memory-checklist__title">${escapeHtml(item.title || "Reactivation blocker")}</div>
+              <div class="detail-copy memory-checklist__note">${escapeHtml(item.detail || "")}</div>
+            </div>
+          `).join("")}
+        </div>
+      ` : ""}
+      ${findings.length ? `
+        <div class="memory-checklist u-mt-10">
+          ${findings.slice(0, 4).map((item) => {
+            const primaryRef = customerRetentionPrimaryRef(item);
+            return `
+              <div class="memory-checklist__item ${item.category === "reactivate_now" ? "memory-checklist__item--warn" : "memory-checklist__item--ready"}">
+                <div class="memory-checklist__title">${escapeHtml(item.title || "Reactivation finding")}</div>
+                <div class="detail-copy memory-checklist__note">${escapeHtml(item.detail || "")}</div>
+                ${primaryRef ? `
+                  <div class="action-row action-row--wrap u-mt-10">
+                    <button type="button" class="btn btn-ghost btn-sm" data-customer-retention-open-record="${escapeAttr(primaryRef.record_type)}" data-customer-retention-record-id="${escapeAttr(primaryRef.record_id)}">Open ${escapeHtml(primaryRef.label || primaryRef.record_type)}</button>
+                  </div>
+                ` : ""}
+              </div>
+            `;
+          }).join("")}
+        </div>
+      ` : ""}
+      ${actions.length ? `
+        <div class="detail-copy u-mt-10"><strong>Recommended actions</strong></div>
+        <div class="workspace-chip-row">
+          ${actions.slice(0, 3).map((action) => `<span class="pill ${customerAiPriorityTone(action.priority || "medium")}">${escapeHtml(customerAiFormatStatus(`${action.priority || "medium"} priority`))}</span>`).join("")}
+        </div>
+      ` : ""}
+      ${generatedAt ? `<div class="detail-copy u-mt-10 muted">Generated ${escapeHtml(customerAiFormatDate(generatedAt))}</div>` : ""}
+    `;
+  }
+  function renderCustomerRetentionReactivationCard(context = global.CURRENT_CUSTOMER_DETAIL_CONTEXT || {}) {
+    const customer = context.customer || global.CURRENT_CUSTOMER_DETAIL_CUSTOMER || null;
+    if (!customer?.id) return "";
+    const state = CUSTOMER_RETENTION_REACTIVATION_CACHE[String(customer.id || "").trim()] || null;
+    const primaryRef = customerRetentionPrimaryRef(state?.report?.findings?.[0] || {});
+    return `
+      <div class="detail-card detail-card--spaced customer-support-card customer-support-card--focus">
+        <div class="kicker">AI reactivation review</div>
+        <div><strong>Retention / Reactivation Manager</strong></div>
+        <div class="detail-copy">Keep dormant repeat-service pressure separate from open work and plan recovery before outreach starts.</div>
+        <div class="action-row action-row--wrap u-mt-10">
+          <button type="button" class="btn btn-ghost btn-sm" id="btnRunCustomerRetentionReview">${state?.report ? "Run again" : "Run reactivation review"}</button>
+          ${primaryRef ? `<button type="button" class="btn btn-ghost btn-sm" id="btnOpenCustomerRetentionPrimary">Open first record</button>` : ""}
+        </div>
+        <div id="customerRetentionReviewMsg" class="msg ${state?.error ? "error" : state?.loading ? "" : state?.message ? "ok" : ""} u-mt-10">${escapeHtml(state?.loading ? "Reviewing reactivation queue..." : state?.error || state?.message || "")}</div>
+        <div id="customerRetentionReviewReport" class="u-mt-10">${renderCustomerRetentionReactivationReport(state)}</div>
+      </div>
+    `;
+  }
+  async function runCustomerRetentionReactivationReview(customer = global.CURRENT_CUSTOMER_DETAIL_CUSTOMER || null, options = {}) {
+    if (!customer?.id) return null;
+    const cacheKey = String(customer.id || "").trim();
+    CUSTOMER_RETENTION_REACTIVATION_CACHE[cacheKey] = {
+      ...(CUSTOMER_RETENTION_REACTIVATION_CACHE[cacheKey] || {}),
+      loading: true,
+      error: "",
+      message: "",
+    };
+    if (options.rerender !== false) {
+      Promise.resolve(renderCustomerDetailWorkspace(customer.id, customer)).catch(console.error);
+    }
+    if (typeof requestOperatorFunction !== "function") {
+      CUSTOMER_RETENTION_REACTIVATION_CACHE[cacheKey] = {
+        ...(CUSTOMER_RETENTION_REACTIVATION_CACHE[cacheKey] || {}),
+        loading: false,
+        error: "Reactivation review tools are not ready yet.",
+        message: "",
+      };
+      if (options.rerender !== false) {
+        Promise.resolve(renderCustomerDetailWorkspace(customer.id, customer)).catch(console.error);
+      }
+      return CUSTOMER_RETENTION_REACTIVATION_CACHE[cacheKey];
+    }
+    try {
+      const payload = await requestOperatorFunction("ai-agent-report", {
+        method: "POST",
+        body: {
+          agent_key: "retention_reactivation_manager",
+          customer_id: customer.id,
+        },
+      });
+      CUSTOMER_RETENTION_REACTIVATION_CACHE[cacheKey] = {
+        loading: false,
+        error: "",
+        message: "Reactivation review refreshed.",
+        report: payload?.report || null,
+        context_summary: payload?.context_summary || null,
+        generated_at: payload?.generated_at || payload?.report?.generated_at || "",
+      };
+      if (options.rerender !== false) {
+        Promise.resolve(renderCustomerDetailWorkspace(customer.id, customer)).catch(console.error);
+      }
+      return CUSTOMER_RETENTION_REACTIVATION_CACHE[cacheKey];
+    } catch (error) {
+      CUSTOMER_RETENTION_REACTIVATION_CACHE[cacheKey] = {
+        ...(CUSTOMER_RETENTION_REACTIVATION_CACHE[cacheKey] || {}),
+        loading: false,
+        error: error?.message || String(error),
+        message: "",
+      };
+      if (options.rerender !== false) {
+        Promise.resolve(renderCustomerDetailWorkspace(customer.id, customer)).catch(console.error);
+      }
+      return CUSTOMER_RETENTION_REACTIVATION_CACHE[cacheKey];
+    }
+  }
+
   function customerDisplayAddress(customer) {
     if (!customer) return "No service address yet.";
     const parts = [
@@ -2771,6 +2960,7 @@
             </div>
             <div class="customer-support-grid__focus">
               ${renderCustomerRecordFocusCard()}
+              ${renderCustomerRetentionReactivationCard(workbenchContext)}
             </div>
           </div>
         </div>
@@ -2793,6 +2983,22 @@
           const tab = button.getAttribute("data-customer-open-tab") || "";
           const recordId = button.getAttribute("data-customer-open-id") || "";
           if (tab && recordId) openCustomerRecordTab(tab, recordId);
+        });
+      });
+      customerDetailWrap.querySelector("#btnRunCustomerRetentionReview")?.addEventListener("click", () => {
+        runCustomerRetentionReactivationReview(customer).catch(console.error);
+      });
+      customerDetailWrap.querySelector("#btnOpenCustomerRetentionPrimary")?.addEventListener("click", () => {
+        const primaryRef = customerRetentionPrimaryRef(CUSTOMER_RETENTION_REACTIVATION_CACHE[String(customer.id || "").trim()]?.report?.findings?.[0] || {});
+        openCustomerRetentionRecordRef(primaryRef);
+      });
+      customerDetailWrap.querySelectorAll("[data-customer-retention-open-record][data-customer-retention-record-id]").forEach((button) => {
+        button.addEventListener("click", () => {
+          openCustomerRetentionRecordRef({
+            record_type: button.getAttribute("data-customer-retention-open-record") || "",
+            record_id: button.getAttribute("data-customer-retention-record-id") || "",
+            label: button.textContent || "",
+          });
         });
       });
 
@@ -3352,6 +3558,10 @@
     openCustomerPlanOrder,
     openCustomerPaymentDraft,
     openCustomerRetentionAction,
+    runCustomerRetentionReactivationReview,
+    renderCustomerRetentionReactivationCard,
+    renderCustomerRetentionReactivationReport,
+    openCustomerRetentionRecordRef,
     openCustomerRecordTab,
     archiveCustomer,
     renderCustomerDetailWorkspace,

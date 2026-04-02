@@ -124,8 +124,7 @@ async function runRetentionReactivationManager({ supabase, tenantId, input }) {
             ? 'There is still open work or a current operational path attached to this customer, so reactivation should wait until that flow closes cleanly.'
             : bucketKey === 'plan_recovery'
               ? 'This customer already has a recurring-plan signal, but the active plan needs renewal recovery before a separate reactivation move is layered on top.'
-              : 'The account is quiet enough to deserve a follow-up touch, even if the repeat-service signal is lighter than the top-priority reactivation set.'
-        ,
+              : 'The account is quiet enough to deserve a follow-up touch, even if the repeat-service signal is lighter than the top-priority reactivation set.',
         evidence_ids: [evidenceId],
         record_refs: [buildRecordRef('customer', customerId, customer.name || customer.company_name || 'Customer')],
       });

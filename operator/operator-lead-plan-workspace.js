@@ -1,5 +1,188 @@
 // Request intake and recurring service workflows extracted from operator.js
 // so lead conversion and repeat-work operations stay in one domain module.
+const PLAN_RENEWAL_REVIEW_CACHE = window.PROOFLINK_PLAN_RENEWAL_REVIEW_CACHE || (window.PROOFLINK_PLAN_RENEWAL_REVIEW_CACHE = {});
+
+function planAiStatusTone(status) {
+  if (status === "ready") return "pill-good";
+  if (status === "blocked") return "pill-bad";
+  return "pill-warn";
+}
+function planAiPriorityTone(priority) {
+  if (priority === "high") return "pill-bad";
+  if (priority === "low") return "";
+  return "pill-warn";
+}
+function planAiFormatStatus(value) {
+  const normalized = String(value || "review_needed").replace(/_/g, " ").trim();
+  if (typeof titleCaseWords === "function") return titleCaseWords(normalized);
+  return normalized ? normalized.charAt(0).toUpperCase() + normalized.slice(1) : "Review needed";
+}
+function planAiFormatDate(value) {
+  if (!value) return "";
+  if (typeof formatDateTime === "function") return formatDateTime(value);
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? String(value) : parsed.toLocaleString();
+}
+function planRenewalPrimaryRef(item = {}) {
+  const refs = Array.isArray(item.record_refs) ? item.record_refs : [];
+  const preferredTypes = ["plan", "customer", "order"];
+  for (const recordType of preferredTypes) {
+    const match = refs.find((ref) => ref && ref.record_type === recordType && ref.record_id);
+    if (match) return match;
+  }
+  return refs.find((ref) => ref && ref.record_id) || null;
+}
+function openPlanRenewalRecordRef(ref) {
+  const recordType = String(ref?.record_type || "").trim().toLowerCase();
+  const recordId = String(ref?.record_id || "").trim();
+  if (!recordType || !recordId) return false;
+  if (recordType === "plan") {
+    ACTIVE_PLAN_ID = recordId;
+    renderPlans(planSearch?.value || "");
+    return true;
+  }
+  if (recordType === "customer") {
+    ACTIVE_CUSTOMER_ID = recordId;
+    if (typeof switchTab === "function") switchTab("customers");
+    const customerApi = window.PROOFLINK_OPERATOR_CUSTOMER_DETAIL || {};
+    const customer = CUSTOMERS_CACHE.find((row) => row.id === recordId) || null;
+    if (typeof customerApi.renderCustomerDetailWorkspace === "function") {
+      Promise.resolve(customerApi.renderCustomerDetailWorkspace(recordId, customer)).catch(console.error);
+    }
+    return true;
+  }
+  if (recordType === "order") {
+    ACTIVE_ORDER_ID = recordId;
+    if (typeof renderOrders === "function") renderOrders();
+    if (typeof switchTab === "function") switchTab("orders");
+    return true;
+  }
+  return false;
+}
+function renderPlanRenewalManagerReport(state = null) {
+  const report = state?.report || null;
+  if (!report) {
+    return `<div class="detail-copy">Run the renewal review to separate due-soon plans, plans missing the next run, and recurring accounts that already need schedule recovery.</div>`;
+  }
+  const findings = Array.isArray(report.findings) ? report.findings : [];
+  const blockers = Array.isArray(report.blockers) ? report.blockers : [];
+  const actions = Array.isArray(report.recommended_actions) ? report.recommended_actions : [];
+  const summary = state?.context_summary || {};
+  const generatedAt = report.generated_at || state?.generated_at || "";
+  return `
+    <div class="detail-copy">${escapeHtml(report.summary || "")}</div>
+    <div class="workspace-chip-row u-mt-10">
+      <span class="pill ${planAiStatusTone(report.summary_status || "review_needed")}">${escapeHtml(planAiFormatStatus(report.summary_status || "review_needed"))}</span>
+      ${summary.active_plans ? `<span class="pill">${escapeHtml(`${summary.active_plans} active`)}</span>` : ""}
+      ${summary.due_soon ? `<span class="pill pill-good">${escapeHtml(`${summary.due_soon} due soon`)}</span>` : ""}
+      ${summary.missing_next_run ? `<span class="pill pill-warn">${escapeHtml(`${summary.missing_next_run} missing next run`)}</span>` : ""}
+      ${summary.reactivation_needed ? `<span class="pill pill-bad">${escapeHtml(`${summary.reactivation_needed} overdue`)}</span>` : ""}
+    </div>
+    ${blockers.length ? `
+      <div class="memory-checklist u-mt-10">
+        ${blockers.slice(0, 2).map((item) => `
+          <div class="memory-checklist__item memory-checklist__item--warn">
+            <div class="memory-checklist__title">${escapeHtml(item.title || "Renewal blocker")}</div>
+            <div class="detail-copy memory-checklist__note">${escapeHtml(item.detail || "")}</div>
+          </div>
+        `).join("")}
+      </div>
+    ` : ""}
+    ${findings.length ? `
+      <div class="memory-checklist u-mt-10">
+        ${findings.slice(0, 4).map((item) => {
+          const primaryRef = planRenewalPrimaryRef(item);
+          return `
+            <div class="memory-checklist__item ${item.category === "due_soon" ? "memory-checklist__item--ready" : "memory-checklist__item--warn"}">
+              <div class="memory-checklist__title">${escapeHtml(item.title || "Renewal finding")}</div>
+              <div class="detail-copy memory-checklist__note">${escapeHtml(item.detail || "")}</div>
+              ${primaryRef ? `
+                <div class="action-row action-row--wrap u-mt-10">
+                  <button type="button" class="btn btn-ghost btn-sm" data-plan-renewal-open-record="${escapeAttr(primaryRef.record_type)}" data-plan-renewal-record-id="${escapeAttr(primaryRef.record_id)}">Open ${escapeHtml(primaryRef.label || primaryRef.record_type)}</button>
+                </div>
+              ` : ""}
+            </div>
+          `;
+        }).join("")}
+      </div>
+    ` : ""}
+    ${actions.length ? `
+      <div class="detail-copy u-mt-10"><strong>Recommended actions</strong></div>
+      <div class="workspace-chip-row">
+        ${actions.slice(0, 3).map((action) => `<span class="pill ${planAiPriorityTone(action.priority || "medium")}">${escapeHtml(planAiFormatStatus(`${action.priority || "medium"} priority`))}</span>`).join("")}
+      </div>
+    ` : ""}
+    ${generatedAt ? `<div class="detail-copy u-mt-10 muted">Generated ${escapeHtml(planAiFormatDate(generatedAt))}</div>` : ""}
+  `;
+}
+function renderPlanRenewalManagerCard(plan) {
+  if (!plan) return "";
+  const state = PLAN_RENEWAL_REVIEW_CACHE[String(plan.id || "").trim()] || null;
+  const primaryRef = planRenewalPrimaryRef(state?.report?.findings?.[0] || {});
+  return `
+    <div class="detail-card detail-card--spaced">
+      <div class="kicker">AI renewal review</div>
+      <div><strong>Service Plan Renewal Manager</strong></div>
+      <div class="detail-copy">Keep next-run timing, missing cadence, and overdue recurring accounts visible before repeat work drops out of rhythm.</div>
+      <div class="action-row action-row--wrap u-mt-10">
+        <button type="button" class="btn btn-ghost btn-sm" id="btnRunPlanRenewalReview">${state?.report ? "Run again" : "Run renewal review"}</button>
+        ${primaryRef ? `<button type="button" class="btn btn-ghost btn-sm" id="btnOpenPlanRenewalPrimary">Open first record</button>` : ""}
+      </div>
+      <div id="planRenewalReviewMsg" class="msg ${state?.error ? "error" : state?.loading ? "" : state?.message ? "ok" : ""} u-mt-10">${escapeHtml(state?.loading ? "Reviewing renewal queue..." : state?.error || state?.message || "")}</div>
+      <div id="planRenewalReviewReport" class="u-mt-10">${renderPlanRenewalManagerReport(state)}</div>
+    </div>
+  `;
+}
+async function runPlanRenewalManagerReview(plan = currentServicePlan(), options = {}) {
+  if (!plan?.id) return null;
+  const cacheKey = String(plan.id || "").trim();
+  PLAN_RENEWAL_REVIEW_CACHE[cacheKey] = {
+    ...(PLAN_RENEWAL_REVIEW_CACHE[cacheKey] || {}),
+    loading: true,
+    error: "",
+    message: "",
+  };
+  if (options.rerender !== false) renderPlanDetail(plan.id).catch(console.error);
+  if (typeof requestOperatorFunction !== "function") {
+    PLAN_RENEWAL_REVIEW_CACHE[cacheKey] = {
+      ...(PLAN_RENEWAL_REVIEW_CACHE[cacheKey] || {}),
+      loading: false,
+      error: "Renewal review tools are not ready yet.",
+      message: "",
+    };
+    if (options.rerender !== false) renderPlanDetail(plan.id).catch(console.error);
+    return PLAN_RENEWAL_REVIEW_CACHE[cacheKey];
+  }
+  try {
+    const payload = await requestOperatorFunction("ai-agent-report", {
+      method: "POST",
+      body: {
+        agent_key: "service_plan_renewal_manager",
+        plan_id: plan.id,
+      },
+    });
+    PLAN_RENEWAL_REVIEW_CACHE[cacheKey] = {
+      loading: false,
+      error: "",
+      message: "Renewal review refreshed.",
+      report: payload?.report || null,
+      context_summary: payload?.context_summary || null,
+      generated_at: payload?.generated_at || payload?.report?.generated_at || "",
+    };
+    if (options.rerender !== false) renderPlanDetail(plan.id).catch(console.error);
+    return PLAN_RENEWAL_REVIEW_CACHE[cacheKey];
+  } catch (error) {
+    PLAN_RENEWAL_REVIEW_CACHE[cacheKey] = {
+      ...(PLAN_RENEWAL_REVIEW_CACHE[cacheKey] || {}),
+      loading: false,
+      error: error?.message || String(error),
+      message: "",
+    };
+    if (options.rerender !== false) renderPlanDetail(plan.id).catch(console.error);
+    return PLAN_RENEWAL_REVIEW_CACHE[cacheKey];
+  }
+}
+
 async function fetchLeads() {
   if (FETCHING.has("leads")) return;
   FETCHING.add("leads");
@@ -722,6 +905,7 @@ async function renderPlanDetail(planIdValue) {
       </div>
       ${renderPlanFollowThroughCard(plan, customer, sourceOrder, lastOrder, dueNow, workspaceBlueprint)}
       ${renderPlanNextMoveCard(plan, customer, sourceOrder, lastOrder, dueNow, workspaceBlueprint)}
+      ${renderPlanRenewalManagerCard(plan)}
       ${planCustomerMemory.length ? `
         <div class="detail-card detail-card--spaced">
           <div class="kicker">Customer memory</div>
@@ -823,6 +1007,22 @@ async function renderPlanDetail(planIdValue) {
           });
         }
       }
+    });
+  });
+  planDetailWrap.querySelector("#btnRunPlanRenewalReview")?.addEventListener("click", () => {
+    runPlanRenewalManagerReview(plan).catch(console.error);
+  });
+  planDetailWrap.querySelector("#btnOpenPlanRenewalPrimary")?.addEventListener("click", () => {
+    const primaryRef = planRenewalPrimaryRef(PLAN_RENEWAL_REVIEW_CACHE[String(plan.id || "").trim()]?.report?.findings?.[0] || {});
+    openPlanRenewalRecordRef(primaryRef);
+  });
+  planDetailWrap.querySelectorAll("[data-plan-renewal-open-record][data-plan-renewal-record-id]").forEach((button) => {
+    button.addEventListener("click", () => {
+      openPlanRenewalRecordRef({
+        record_type: button.getAttribute("data-plan-renewal-open-record") || "",
+        record_id: button.getAttribute("data-plan-renewal-record-id") || "",
+        label: button.textContent || "",
+      });
     });
   });
   }
@@ -1348,6 +1548,10 @@ function initLeadPlanWorkspaceBindings() {
 }
 
 const LEAD_PLAN_WORKSPACE_HELPERS = {
+  runPlanRenewalManagerReview,
+  renderPlanRenewalManagerCard,
+  renderPlanRenewalManagerReport,
+  openPlanRenewalRecordRef,
   fetchLeads,
   fetchServicePlans,
   renderLeadCustomerOptions,

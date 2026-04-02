@@ -706,6 +706,8 @@ describe("operator customer detail", () => {
     expect(source).toContain("customerRepeatPlanState");
     expect(source).toContain("customerCreateRequestActionLabel");
     expect(source).toContain("createCustomerRequestRecord");
+    expect(source).toContain("retention_reactivation_manager");
+    expect(source).toContain("Run reactivation review");
     expect(source).toContain("Generate next booked work");
     expect(source).toContain("create-request");
     expect(source).toContain("customer-next-step-card");
@@ -715,5 +717,72 @@ describe("operator customer detail", () => {
     expect(source).not.toContain('style="margin-top:10px;"');
     expect(source).not.toContain('style="margin-top:14px;"');
     expect(source).not.toContain('style="font-size:.8rem;"');
+  });
+
+  test("runCustomerRetentionReactivationReview sends customer_id to ai-agent-report", async () => {
+    const requestOperatorFunction = vi.fn(async () => ({
+      report: {
+        summary: "Reactivation queue reviewed.",
+        summary_status: "review_needed",
+        findings: [],
+        blockers: [],
+        recommended_actions: [],
+        generated_at: "2026-04-02T12:00:00.000Z",
+      },
+      context_summary: {
+        reactivate_now: 1,
+      },
+      generated_at: "2026-04-02T12:00:00.000Z",
+    }));
+    const api = loadCustomerDetail({
+      requestOperatorFunction,
+    });
+    const customer = {
+      id: "customer_1",
+      name: "Harbor Works",
+    };
+
+    await api.runCustomerRetentionReactivationReview(customer, { rerender: false });
+
+    expect(requestOperatorFunction).toHaveBeenCalledWith("ai-agent-report", expect.objectContaining({
+      method: "POST",
+      body: expect.objectContaining({
+        agent_key: "retention_reactivation_manager",
+        customer_id: "customer_1",
+      }),
+    }));
+  });
+
+  test("renderCustomerRetentionReactivationCard shows refreshed queue guidance", async () => {
+    const requestOperatorFunction = vi.fn(async () => ({
+      report: {
+        summary: "Reactivation queue reviewed.",
+        summary_status: "blocked",
+        findings: [],
+        blockers: [],
+        recommended_actions: [],
+        generated_at: "2026-04-02T12:00:00.000Z",
+      },
+      context_summary: {
+        reactivate_now: 1,
+        recent_work_still_open: 1,
+        plan_recovery: 0,
+        light_touch_reactivation: 1,
+      },
+      generated_at: "2026-04-02T12:00:00.000Z",
+    }));
+    const api = loadCustomerDetail({
+      requestOperatorFunction,
+    });
+    const customer = {
+      id: "customer_2",
+      name: "North Plant",
+    };
+
+    await api.runCustomerRetentionReactivationReview(customer, { rerender: false });
+    const markup = api.renderCustomerRetentionReactivationCard({ customer });
+
+    expect(markup).toContain("Reactivation queue reviewed.");
+    expect(markup).toContain("Run again");
   });
 });

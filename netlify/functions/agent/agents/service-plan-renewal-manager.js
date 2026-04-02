@@ -86,8 +86,7 @@ async function runServicePlanRenewalManager({ supabase, tenantId, input }) {
           ? `This active plan already has the next run attached, but it is due within the next two weeks and should stay visible with the linked work and money context.`
           : bucketKey === 'missing_next_run'
             ? `This active plan does not yet carry a usable next-run date, so renewal and scheduling are drifting out of one inspectable queue.`
-            : `This active plan is already past its next-run timing, which means the account needs recovery before it turns into a quiet repeat-service miss.`
-        ,
+            : `This active plan is already past its next-run timing, which means the account needs recovery before it turns into a quiet repeat-service miss.`,
         evidence_ids: [evidenceId],
         record_refs: recordRefs,
       });

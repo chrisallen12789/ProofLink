@@ -15,7 +15,7 @@ describe("agent workforce architect", () => {
     delete require.cache[toolsPath];
   });
 
-  test("recommends new specialist agents and training targets from live workload pressure", async () => {
+  test("recommends training targets from live workload pressure once the next specialist lanes exist", async () => {
     require.cache[toolsPath] = {
       id: toolsPath,
       filename: toolsPath,
@@ -131,15 +131,15 @@ describe("agent workforce architect", () => {
     });
 
     expect(result.report.agent_key).toBe("agent_workforce_architect");
-    expect(result.report.summary).toContain("add 1 specialist agent");
-    expect(result.report.summary).toContain("sharpen 6 current agent lanes");
-    expect(result.context_summary.new_agent_candidates).toBe(1);
-    expect(result.context_summary.training_targets).toBe(6);
+    expect(result.report.summary).toContain("add 0 specialist agents");
+    expect(result.report.summary).toContain("sharpen 7 current agent lanes");
+    expect(result.context_summary.new_agent_candidates).toBe(0);
+    expect(result.context_summary.training_targets).toBe(7);
     expect(result.report.findings.map((finding) => finding.id)).toEqual(expect.arrayContaining([
       "workforce_training_field_closeout_coach",
       "workforce_training_site_packet_builder",
       "workforce_training_accounting_continuity_auditor",
-      "workforce_gap_service_plan_renewal_manager",
+      "workforce_training_service_plan_renewal_manager",
       "workforce_training_import_migration_assistant",
       "workforce_training_collections_assistant",
       "workforce_training_dispatch_assistant",

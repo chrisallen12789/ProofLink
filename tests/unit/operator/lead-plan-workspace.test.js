@@ -51,10 +51,10 @@ function loadLeadPlanWorkspace(overrides = {}) {
     btnRunDuePlans: makeField(),
     planCustomerId: makeField(),
     leadCustomerId: makeField(),
-    leadsList: { innerHTML: "", querySelectorAll: vi.fn(() => []) },
-    plansList: { innerHTML: "", querySelectorAll: vi.fn(() => []) },
-    planDetailWrap: { innerHTML: "", querySelectorAll: vi.fn(() => []) },
-    leadDetailWrap: { innerHTML: "", querySelectorAll: vi.fn(() => []) },
+    leadsList: { innerHTML: "", querySelector: vi.fn(() => null), querySelectorAll: vi.fn(() => []) },
+    plansList: { innerHTML: "", querySelector: vi.fn(() => null), querySelectorAll: vi.fn(() => []) },
+    planDetailWrap: { innerHTML: "", querySelector: vi.fn(() => null), querySelectorAll: vi.fn(() => []) },
+    leadDetailWrap: { innerHTML: "", querySelector: vi.fn(() => null), querySelectorAll: vi.fn(() => []) },
     leadId: makeField(),
     leadStatus: makeField(),
     leadPriority: makeField(),
@@ -161,6 +161,7 @@ function loadLeadPlanWorkspace(overrides = {}) {
     findExistingCustomerRecord: vi.fn(() => null),
     markWorkspaceClean: vi.fn(),
     setBidWorkspaceBootstrapping: vi.fn(),
+    requestOperatorFunction: vi.fn(),
     switchTab: vi.fn(),
     debounce: (fn) => fn,
     $: vi.fn(() => null),
@@ -188,6 +189,8 @@ describe("operator lead plan workspace", () => {
     expect(source).toContain("the quote, booked work, and job that follow");
     expect(source).toContain("Keep the trade details attached to the request");
     expect(source).toContain("Keep this recurring rhythm healthy");
+    expect(source).toContain("service_plan_renewal_manager");
+    expect(source).toContain("Run renewal review");
     expect(source).toContain("planFollowThroughChecklistItems");
     expect(source).not.toContain("Open quoted / booked");
     expect(source).not.toContain("quoted work");
@@ -547,5 +550,77 @@ describe("operator lead plan workspace", () => {
     expect(items[1].ready).toBe(true);
     expect(items[2].note).toContain("Kitchen and two baths");
     expect(items[3].ready).toBe(true);
+  });
+
+  test("runPlanRenewalManagerReview sends the focused plan_id to ai-agent-report", async () => {
+    const requestOperatorFunction = vi.fn(async () => ({
+      report: {
+        summary: "Renewal queue reviewed.",
+        summary_status: "review_needed",
+        findings: [],
+        blockers: [],
+        recommended_actions: [],
+        generated_at: "2026-04-02T11:00:00.000Z",
+      },
+      context_summary: {
+        active_plans: 1,
+        due_soon: 1,
+        missing_next_run: 0,
+        reactivation_needed: 0,
+      },
+      generated_at: "2026-04-02T11:00:00.000Z",
+    }));
+    const context = loadLeadPlanWorkspace({
+      requestOperatorFunction,
+    });
+    const plan = {
+      id: "plan_1",
+      customer_id: "customer_1",
+      title: "Monthly wash",
+    };
+
+    await context.window.runPlanRenewalManagerReview(plan, { rerender: false });
+
+    expect(requestOperatorFunction).toHaveBeenCalledWith("ai-agent-report", expect.objectContaining({
+      method: "POST",
+      body: expect.objectContaining({
+        agent_key: "service_plan_renewal_manager",
+        plan_id: "plan_1",
+      }),
+    }));
+  });
+
+  test("renderPlanRenewalManagerCard shows the refreshed renewal queue summary", async () => {
+    const requestOperatorFunction = vi.fn(async () => ({
+      report: {
+        summary: "Renewal queue reviewed.",
+        summary_status: "blocked",
+        findings: [],
+        blockers: [],
+        recommended_actions: [],
+        generated_at: "2026-04-02T11:00:00.000Z",
+      },
+      context_summary: {
+        active_plans: 2,
+        due_soon: 1,
+        missing_next_run: 1,
+        reactivation_needed: 0,
+      },
+      generated_at: "2026-04-02T11:00:00.000Z",
+    }));
+    const context = loadLeadPlanWorkspace({
+      requestOperatorFunction,
+    });
+    const plan = {
+      id: "plan_2",
+      customer_id: "customer_2",
+      title: "Quarterly HVAC",
+    };
+
+    await context.window.runPlanRenewalManagerReview(plan, { rerender: false });
+    const markup = context.window.renderPlanRenewalManagerCard(plan);
+
+    expect(markup).toContain("Renewal queue reviewed.");
+    expect(markup).toContain("Run again");
   });
 });

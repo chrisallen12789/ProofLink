@@ -25,7 +25,13 @@ ProofLink now has a structured agent layer under `netlify/functions/agent`.
 - `job_record_auditor`
   Reviews one job and its linked order, proof, payments, invoices, expenses, time segments, and compliance state to produce a billing-readiness report.
 - `estimating_assistant`
-  Separates known estimate facts from missing inputs. It never invents prices.
+  Separates known estimate facts from missing inputs from the Walkthrough Bids workflow. It never invents prices.
+- `quote_rescue_manager`
+  Builds a grounded rescue queue for live quotes and walkthrough proposals so operators can separate follow-up-ready work from estimate cleanup and stale records that should be reworked first.
+- `service_plan_renewal_manager`
+  Builds a grounded renewal queue for recurring service plans so next-run timing, missing cadence, and overdue repeat-service accounts stay visible before they drift.
+- `retention_reactivation_manager`
+  Builds a grounded customer reactivation queue so quiet repeat-service accounts, open-work holds, and plan overlap stay inspectable before outreach starts.
 - `dispatch_scheduling_assistant`
   Reviews upcoming jobs for missing dates, missing assignments, missing times, same-slot conflicts, and same-day bundling opportunities.
 - `billing_blocker_detector`
@@ -104,6 +110,8 @@ The audit is advisory. Operators still decide whether to update records, create 
 
 - Money workspace
   Use `Run blocker review` in the `Billing blocker queue` card to build a job queue of invoice blockers with direct `Open job` actions.
+- Walkthrough Bids workspace
+  Use `Run estimate review` for the active bid and `Run quote rescue review` for the proposal queue so estimate gaps and follow-up timing stay grounded in real proposal records.
 - Dispatch workspace
   Use `Run dispatch review` in the `AI dispatch review` card to review the selected hydrovac day for missing assignments, overlap conflicts, untimed work, and bundling opportunities.
 - Payments workspace
@@ -112,6 +120,10 @@ The audit is advisory. Operators still decide whether to update records, create 
   Use `Run closeout review` and `Run site packet review` to tighten field handoff quality and crew prep from the job detail surface.
 - Orders workspace
   Use the accounting continuity review to keep outside-accounting references visible through billing follow-through.
+- Recurring Plans workspace
+  Use `Run renewal review` in plan detail to separate due-soon plans, plans missing the next run, and accounts that already need schedule recovery.
+- Customers workspace
+  Use `Run reactivation review` in customer detail to separate immediate reactivation candidates, open-work holds, plan overlap, and lighter-touch follow-up accounts.
 - Import workspace
   Use `Run AI migration review` after previewing a CSV to see grounded mapping coverage, row-routing risk, and the learned import profile ProofLink can save for future legacy exports.
 
@@ -183,9 +195,9 @@ Operator-facing workflow delivery is part of the internal AI training loop too:
 - UI repair work should update these workflow smokes when a new agent report, workspace entry point, or admin-only control is introduced.
 - This is still deterministic product hardening, not model fine-tuning.
 
-Current gap patterns it watches for:
+Current pressure patterns it watches for:
 
-- repeat-service cadence risk that justifies a future `Service Plan Renewal Manager`
+- renewal, closeout, dispatch, collections, and continuity lanes that need sharper grounding from live tenant usage
 - recurring correction hotspots that should sharpen the import, collections, and dispatch assistants
 - adoption gaps where shipped lanes are still underused
 
@@ -207,7 +219,6 @@ The systems architect is intentionally narrow:
 
 Current gap patterns it watches for:
 
-- quote pressure that should expose the shipped `Estimating Assistant`
-- freeform-only `quote_rescue` guidance that should become a structured lane
-- freeform-only `retention` guidance that should become a structured lane
-- model-driven AI surfaces that should share one centralized model policy
+- shared model policy that should be centralized across the model-driven AI surfaces
+- admin/operator surface drift where the shipped AI inventory no longer matches the actual workflow entry points
+- low AI telemetry that means the next expansion wave should still follow real operator usage

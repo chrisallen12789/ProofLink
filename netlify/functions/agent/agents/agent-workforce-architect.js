@@ -205,11 +205,11 @@ async function runAgentWorkforceArchitect({ supabase, tenantId }) {
       value: `${numberValue(servicePlanSummary.active_count)} active plan(s), ${numberValue(servicePlanSummary.at_risk_count)} at-risk plan(s), ${staleCustomers.length} stale customer(s).`,
     });
     addFinding({
-      id: 'workforce_gap_service_plan_renewal_manager',
+      id: 'workforce_training_service_plan_renewal_manager',
       severity: 'warning',
-      category: 'agent_gap',
-      title: 'Add a Service Plan Renewal Manager agent',
-      detail: 'Repeat-service revenue is active enough that it deserves its own structured agent. A renewal manager should watch the next-run cadence, quiet accounts, and return-visit follow-through before repeat work cools off.',
+      category: 'agent_training',
+      title: 'Train the Service Plan Renewal Manager on live renewal drift',
+      detail: 'Repeat-service revenue is active enough that the new renewal manager should stay grounded in next-run drift, quiet accounts, and return-visit follow-through before repeat work cools off.',
       evidence_ids: [workforceEvidenceId, retentionEvidenceId],
       record_refs: [
         workspaceRef('plans', 'Plans workspace'),
@@ -220,9 +220,9 @@ async function runAgentWorkforceArchitect({ supabase, tenantId }) {
       ],
     });
     addAction({
-      id: 'workforce_action_service_plan_manager',
-      title: 'Promote repeat-work protection into a structured agent queue',
-      detail: 'The next agent should run inside Plans and Customers so ProofLink can turn renewal risk into a daily workflow instead of leaving it in passive memory.',
+      id: 'workforce_action_train_service_plan_manager',
+      title: 'Keep the renewal manager tied to Plans and Customers',
+      detail: 'Use real renewal-risk accounts from Plans and Customers so the manager keeps surfacing next-run drift and repeat-service recovery before the schedule goes quiet.',
       priority: 'medium',
       requires_operator_approval: true,
       suggested_ui_action: 'open_plans',

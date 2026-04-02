@@ -21,6 +21,17 @@ function makeField() {
   };
 }
 
+function makeContainer() {
+  return {
+    innerHTML: "",
+    textContent: "",
+    hidden: false,
+    querySelector: vi.fn(() => null),
+    querySelectorAll: vi.fn(() => []),
+    addEventListener: vi.fn(),
+  };
+}
+
 function loadBidsWorkspace(overrides = {}) {
   const source = fs.readFileSync(
     path.resolve(process.cwd(), "operator/operator-bids-workspace.js"),
@@ -134,19 +145,21 @@ function loadBidsWorkspace(overrides = {}) {
     btnPrintBidProposal: makeField(),
     btnCopyBidEmail: makeField(),
     btnExportBidJson: makeField(),
-    bidGuideFlow: { innerHTML: "" },
-    proposalStageStrip: { innerHTML: "" },
-    proposalActionBar: { innerHTML: "", querySelectorAll: vi.fn(() => []) },
-    bidsList: { innerHTML: "", querySelectorAll: vi.fn(() => []) },
-    bidProfileGuide: { innerHTML: "" },
-    bidStatsWrap: { innerHTML: "" },
-    bidDeliveryWrap: { innerHTML: "" },
-    bidPhotoGuide: { innerHTML: "" },
-    bidPhotosList: { innerHTML: "", querySelectorAll: vi.fn(() => []) },
-    bidScopeStarters: { innerHTML: "", querySelectorAll: vi.fn(() => []) },
-    bidCatalogStarters: { innerHTML: "", querySelectorAll: vi.fn(() => []) },
-    bidLineItemsList: { innerHTML: "", querySelectorAll: vi.fn(() => []) },
-    bidProposalPreview: { innerHTML: "" },
+    bidGuideFlow: makeContainer(),
+    proposalStageStrip: makeContainer(),
+    proposalActionBar: makeContainer(),
+    bidsList: makeContainer(),
+    bidProfileGuide: makeContainer(),
+    bidStatsWrap: makeContainer(),
+    bidDeliveryWrap: makeContainer(),
+    bidEstimateReviewWrap: makeContainer(),
+    bidQuoteRescueWrap: makeContainer(),
+    bidPhotoGuide: makeContainer(),
+    bidPhotosList: makeContainer(),
+    bidScopeStarters: makeContainer(),
+    bidCatalogStarters: makeContainer(),
+    bidLineItemsList: makeContainer(),
+    bidProposalPreview: makeContainer(),
     $: vi.fn(() => makeField()),
     debounce: (fn) => fn,
     currentBid: vi.fn(() => null),
@@ -199,6 +212,7 @@ function loadBidsWorkspace(overrides = {}) {
     renderBidList: vi.fn(),
     convertBidToTrackedOrder: vi.fn(() => Promise.resolve({ existed: false })),
     getAccessToken: vi.fn(() => Promise.resolve("token")),
+    requestOperatorFunction: vi.fn(),
     fetch: vi.fn(async () => ({ ok: true, json: async () => ({}) })),
     uploadBidPhotoAsset: vi.fn(() => Promise.resolve({ url: "https://cdn.example/photo.jpg", storage_mode: "cloud" })),
     mergeBidLineItem: vi.fn((existing, next) => ({ ...existing, ...next })),
@@ -242,6 +256,10 @@ describe("operator bids workspace", () => {
     expect(source).toContain("Proposal emailed to ${customer.email}.");
     expect(source).toContain("data-proposal-settings-focus");
     expect(source).toContain("Each item disappears here as soon as it is configured.");
+    expect(source).toContain("Run estimate review");
+    expect(source).toContain("quote_rescue_manager");
+    expect(source).toContain("estimating_assistant");
+    expect(source).toContain("bid_id");
     expect(source).not.toContain("quoted / booked");
     expect(source).not.toContain("Sending…");
     expect(source).not.toContain("✓ Proposal emailed");
@@ -330,5 +348,102 @@ describe("operator bids workspace", () => {
     expect(items[0].tone).toBe("warn");
     expect(items[0].note).toContain("valid through");
     expect(items[3].note).toContain("Capacitor quote still waiting on approval");
+  });
+
+  test("runBidEstimateReview sends bid_id to the structured estimate report", async () => {
+    const requestOperatorFunction = vi.fn(async () => ({
+      report: {
+        summary: "Estimate review ready.",
+        summary_status: "ready",
+        findings: [],
+        blockers: [],
+        recommended_actions: [],
+        data_used: [],
+        generated_at: "2026-04-02T10:00:00.000Z",
+      },
+      context_summary: {
+        bid_id: "bid_remote_1",
+      },
+      generated_at: "2026-04-02T10:00:00.000Z",
+    }));
+    const context = loadBidsWorkspace({
+      requestOperatorFunction,
+      currentBid: vi.fn(() => ({
+        id: "bid_local_1",
+        record_id: "bid_remote_1",
+        title: "Harbor proposal",
+      })),
+    });
+
+    await context.window.runBidEstimateReview(context.currentBid(), { rerender: false });
+
+    expect(requestOperatorFunction).toHaveBeenCalledWith("ai-agent-report", expect.objectContaining({
+      method: "POST",
+      body: expect.objectContaining({
+        agent_key: "estimating_assistant",
+        bid_id: "bid_remote_1",
+      }),
+    }));
+  });
+
+  test("renderBidEstimateReviewCard surfaces estimate review errors", async () => {
+    const requestOperatorFunction = vi.fn(async () => {
+      throw new Error("Estimate service unavailable");
+    });
+    const draft = {
+      id: "bid_local_2",
+      record_id: "bid_remote_2",
+      title: "Dock proposal",
+    };
+    const context = loadBidsWorkspace({
+      requestOperatorFunction,
+      currentBid: vi.fn(() => draft),
+    });
+
+    await context.window.runBidEstimateReview(draft, { rerender: false });
+    context.window.renderBidEstimateReviewCard(draft);
+
+    expect(context.bidEstimateReviewWrap.innerHTML).toContain("Estimate service unavailable");
+  });
+
+  test("runBidQuoteRescueReview refreshes the proposal rescue queue", async () => {
+    const requestOperatorFunction = vi.fn(async () => ({
+      report: {
+        summary: "Queue reviewed.",
+        summary_status: "review_needed",
+        findings: [
+          {
+            title: "North Plant needs a follow-up",
+            detail: "Still ready to follow up.",
+            category: "ready_to_follow_up",
+            record_refs: [{ record_type: "bid", record_id: "bid_1", label: "North Plant proposal" }],
+          },
+        ],
+        blockers: [],
+        recommended_actions: [],
+        data_used: [],
+        generated_at: "2026-04-02T10:00:00.000Z",
+      },
+      context_summary: {
+        total_records: 1,
+        ready_to_follow_up: 1,
+        missing_estimate_facts: 0,
+        stale_enough_to_rework: 0,
+      },
+      generated_at: "2026-04-02T10:00:00.000Z",
+    }));
+    const context = loadBidsWorkspace({
+      requestOperatorFunction,
+    });
+
+    await context.window.runBidQuoteRescueReview({ rerender: false });
+    context.window.renderBidQuoteRescueCard();
+
+    expect(requestOperatorFunction).toHaveBeenCalledWith("ai-agent-report", expect.objectContaining({
+      body: expect.objectContaining({
+        agent_key: "quote_rescue_manager",
+      }),
+    }));
+    expect(context.bidQuoteRescueWrap.innerHTML).toContain("1 ready");
   });
 });

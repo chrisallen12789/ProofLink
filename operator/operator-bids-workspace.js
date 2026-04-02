@@ -1,5 +1,398 @@
 // Proposal workspace extracted from operator.js
 // so bid drafting, proposal previews, and conversion stay in one domain module.
+const BID_ESTIMATE_REVIEW_CACHE = window.PROOFLINK_BID_ESTIMATE_REVIEW_CACHE || (window.PROOFLINK_BID_ESTIMATE_REVIEW_CACHE = {});
+const BID_QUOTE_RESCUE_STATE = window.PROOFLINK_BID_QUOTE_RESCUE_STATE || (window.PROOFLINK_BID_QUOTE_RESCUE_STATE = {
+  loading: false,
+  error: "",
+  message: "",
+  report: null,
+  context_summary: null,
+  generated_at: "",
+});
+
+function bidAiStatusTone(status) {
+  if (status === "ready") return "pill-good";
+  if (status === "blocked") return "pill-bad";
+  return "pill-warn";
+}
+function bidAiPriorityTone(priority) {
+  if (priority === "high") return "pill-bad";
+  if (priority === "low") return "";
+  return "pill-warn";
+}
+function bidAiFormatStatus(value) {
+  const normalized = String(value || "review_needed").replace(/_/g, " ").trim();
+  if (typeof titleCaseWords === "function") return titleCaseWords(normalized);
+  return normalized ? normalized.charAt(0).toUpperCase() + normalized.slice(1) : "Review needed";
+}
+function bidAiFormatDate(value) {
+  if (!value) return "";
+  if (typeof formatDateTime === "function") return formatDateTime(value);
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? String(value) : parsed.toLocaleString();
+}
+function bidAiConfidenceLabel(report = {}) {
+  if (report?.confidence?.label) return `Confidence ${report.confidence.label}`;
+  const score = Number(report?.confidence?.score || 0);
+  if (!Number.isFinite(score) || score <= 0) return "";
+  return `Confidence ${Math.round(score * 100)}%`;
+}
+function bidAiRecordRef(item = {}, recordType = "") {
+  return (Array.isArray(item.record_refs) ? item.record_refs : []).find((ref) => {
+    return ref && ref.record_type === recordType && ref.record_id;
+  }) || null;
+}
+function bidAiPrimaryRecordRef(item = {}) {
+  const refs = Array.isArray(item.record_refs) ? item.record_refs : [];
+  const preferredTypes = ["bid", "customer", "order", "job", "lead", "quote"];
+  for (const recordType of preferredTypes) {
+    const match = refs.find((ref) => ref && ref.record_type === recordType && ref.record_id);
+    if (match) return match;
+  }
+  return refs.find((ref) => ref && ref.record_id) || null;
+}
+function openBidAiRecordRef(ref) {
+  const recordType = String(ref?.record_type || "").trim().toLowerCase();
+  const recordId = String(ref?.record_id || "").trim();
+  if (!recordType || !recordId) return false;
+  if (recordType === "bid") {
+    ACTIVE_BID_ID = recordId;
+    renderBids(bidSearch?.value || "", { preserveForm: true });
+    return true;
+  }
+  if (recordType === "customer") {
+    ACTIVE_CUSTOMER_ID = recordId;
+    if (typeof switchTab === "function") switchTab("customers");
+    const customerApi = window.PROOFLINK_OPERATOR_CUSTOMER_DETAIL || {};
+    const customer = typeof findBidCustomer === "function" ? findBidCustomer(recordId) : null;
+    if (typeof customerApi.renderCustomerDetailWorkspace === "function") {
+      Promise.resolve(customerApi.renderCustomerDetailWorkspace(recordId, customer)).catch(console.error);
+    }
+    return true;
+  }
+  if (recordType === "order") {
+    ACTIVE_ORDER_ID = recordId;
+    if (typeof renderOrders === "function") renderOrders();
+    if (typeof switchTab === "function") switchTab("orders");
+    return true;
+  }
+  if (recordType === "job") {
+    ACTIVE_JOB_ID = recordId;
+    if (typeof renderJobs === "function") renderJobs();
+    if (typeof switchTab === "function") switchTab("jobs");
+    return true;
+  }
+  if (recordType === "lead") {
+    ACTIVE_LEAD_ID = recordId;
+    if (typeof renderLeads === "function") renderLeads();
+    if (typeof switchTab === "function") switchTab("leads");
+    return true;
+  }
+  if (recordType === "quote") {
+    const customerRef = ref?.customer_id || "";
+    if (customerRef) {
+      ACTIVE_CUSTOMER_ID = customerRef;
+      if (typeof switchTab === "function") switchTab("customers");
+      return true;
+    }
+  }
+  return false;
+}
+function renderBidEstimateReviewReport(state = null) {
+  const report = state?.report || null;
+  if (!report) {
+    return `<div class="detail-copy">Run the estimate review to separate grounded scope and pricing facts from the inputs that are still missing before you send or revise this proposal.</div>`;
+  }
+  const findings = Array.isArray(report.findings) ? report.findings : [];
+  const blockers = Array.isArray(report.blockers) ? report.blockers : [];
+  const actions = Array.isArray(report.recommended_actions) ? report.recommended_actions : [];
+  const missingData = Array.isArray(report.missing_data) ? report.missing_data : [];
+  const dataUsed = Array.isArray(report.data_used) ? report.data_used.filter((item) => item && item.count > 0) : [];
+  const confidenceLabel = bidAiConfidenceLabel(report);
+  const generatedAt = report.generated_at || state?.generated_at || "";
+
+  return `
+    <div class="detail-copy">${escapeHtml(report.summary || "")}</div>
+    <div class="workspace-chip-row u-mt-10">
+      <span class="pill ${bidAiStatusTone(report.summary_status || "review_needed")}">${escapeHtml(bidAiFormatStatus(report.summary_status || "review_needed"))}</span>
+      ${blockers.length ? `<span class="pill pill-bad">${escapeHtml(`${blockers.length} blocker${blockers.length === 1 ? "" : "s"}`)}</span>` : `<span class="pill pill-good">No blockers found</span>`}
+      ${confidenceLabel ? `<span class="pill">${escapeHtml(confidenceLabel)}</span>` : ""}
+    </div>
+    ${blockers.length ? `
+      <div class="memory-checklist u-mt-10">
+        ${blockers.slice(0, 2).map((item) => `
+          <div class="memory-checklist__item memory-checklist__item--warn">
+            <div class="memory-checklist__title">${escapeHtml(item.title || "Estimate blocker")}</div>
+            <div class="detail-copy memory-checklist__note">${escapeHtml(item.detail || "")}</div>
+          </div>
+        `).join("")}
+      </div>
+    ` : ""}
+    ${findings.length ? `
+      <div class="detail-copy u-mt-10"><strong>Estimate findings</strong></div>
+      <div class="memory-checklist u-mt-10">
+        ${findings.slice(0, 4).map((item) => {
+          const primaryRef = bidAiPrimaryRecordRef(item);
+          return `
+            <div class="memory-checklist__item ${item.severity === "warning" || item.severity === "critical" ? "memory-checklist__item--warn" : "memory-checklist__item--ready"}">
+              <div class="memory-checklist__title">${escapeHtml(item.title || "Estimate finding")}</div>
+              <div class="detail-copy memory-checklist__note">${escapeHtml(item.detail || "")}</div>
+              ${primaryRef ? `
+                <div class="action-row action-row--wrap u-mt-10">
+                  <button type="button" class="btn btn-ghost btn-sm" data-bid-estimate-open-record="${escapeAttr(primaryRef.record_type)}" data-bid-estimate-record-id="${escapeAttr(primaryRef.record_id)}">Open ${escapeHtml(primaryRef.label || primaryRef.record_type)}</button>
+                </div>
+              ` : ""}
+            </div>
+          `;
+        }).join("")}
+      </div>
+    ` : ""}
+    ${actions.length ? `
+      <div class="detail-copy u-mt-10"><strong>Recommended actions</strong></div>
+      <div class="workspace-chip-row">
+        ${actions.slice(0, 3).map((action) => `<span class="pill ${bidAiPriorityTone(action.priority || "medium")}">${escapeHtml(bidAiFormatStatus(`${action.priority || "medium"} priority`))}</span>`).join("")}
+      </div>
+      <div class="memory-checklist u-mt-10">
+        ${actions.slice(0, 3).map((action) => `
+          <div class="memory-checklist__item ${action.priority === "high" ? "memory-checklist__item--warn" : "memory-checklist__item--ready"}">
+            <div class="memory-checklist__title">${escapeHtml(action.title || "Recommended action")}</div>
+            <div class="detail-copy memory-checklist__note">${escapeHtml(action.detail || "")}</div>
+          </div>
+        `).join("")}
+      </div>
+    ` : ""}
+    ${missingData.length ? `
+      <div class="detail-copy u-mt-10"><strong>Missing data</strong></div>
+      <div class="detail-copy">${escapeHtml(missingData.slice(0, 3).map((item) => item.label || item.detail || "").join(" | "))}</div>
+    ` : ""}
+    ${dataUsed.length ? `
+      <div class="detail-copy u-mt-10"><strong>Data used</strong></div>
+      <div class="workspace-chip-row">
+        ${dataUsed.slice(0, 4).map((item) => `<span class="pill">${escapeHtml(`${item.label}: ${item.count}`)}</span>`).join("")}
+      </div>
+    ` : ""}
+    ${generatedAt ? `<div class="detail-copy u-mt-10 muted">Generated ${escapeHtml(bidAiFormatDate(generatedAt))}</div>` : ""}
+  `;
+}
+function renderBidEstimateReviewCard(draft) {
+  if (!bidEstimateReviewWrap) return;
+  if (!draft) {
+    bidEstimateReviewWrap.innerHTML = `<div class="detail-copy">Select a walkthrough bid to run estimate review from this workspace.</div>`;
+    return;
+  }
+  const cacheKey = String(draft.id || bidRecordId(draft) || "").trim();
+  const state = BID_ESTIMATE_REVIEW_CACHE[cacheKey] || null;
+  const primaryFinding = bidAiPrimaryRecordRef(state?.report?.findings?.[0] || {});
+  bidEstimateReviewWrap.innerHTML = `
+    <div class="detail-copy">Review grounded scope, measurements, and price support before the proposal goes out or comes back for revision.</div>
+    <div class="action-row action-row--wrap u-mt-10">
+      <button type="button" class="btn btn-ghost btn-sm" id="btnRunBidEstimateReview">${state?.report ? "Run again" : "Run estimate review"}</button>
+      ${primaryFinding ? `<button type="button" class="btn btn-ghost btn-sm" id="btnOpenBidEstimatePrimary">Open first record</button>` : ""}
+    </div>
+    <div id="bidEstimateReviewMsg" class="msg ${state?.error ? "error" : state?.loading ? "" : state?.message ? "ok" : ""} u-mt-10">${escapeHtml(state?.loading ? "Running estimate review..." : state?.error || state?.message || "")}</div>
+    <div id="bidEstimateReviewReport" class="u-mt-10">${renderBidEstimateReviewReport(state)}</div>
+  `;
+  bidEstimateReviewWrap.querySelector("#btnRunBidEstimateReview")?.addEventListener("click", () => {
+    runBidEstimateReview(draft).catch(console.error);
+  });
+  bidEstimateReviewWrap.querySelector("#btnOpenBidEstimatePrimary")?.addEventListener("click", () => {
+    openBidAiRecordRef(primaryFinding);
+  });
+  bidEstimateReviewWrap.querySelectorAll("[data-bid-estimate-open-record][data-bid-estimate-record-id]").forEach((button) => {
+    button.addEventListener("click", () => {
+      openBidAiRecordRef({
+        record_type: button.getAttribute("data-bid-estimate-open-record") || "",
+        record_id: button.getAttribute("data-bid-estimate-record-id") || "",
+        label: button.textContent || "",
+      });
+    });
+  });
+}
+async function runBidEstimateReview(draft = currentBid(), options = {}) {
+  const activeDraft = draft || currentBid();
+  if (!activeDraft) return null;
+  const cacheKey = String(activeDraft.id || bidRecordId(activeDraft) || "").trim() || "__draft__";
+  BID_ESTIMATE_REVIEW_CACHE[cacheKey] = {
+    ...(BID_ESTIMATE_REVIEW_CACHE[cacheKey] || {}),
+    loading: true,
+    error: "",
+    message: "",
+  };
+  if (options.rerender !== false) renderBidWorkspace(activeDraft, { preserveForm: true });
+  if (typeof requestOperatorFunction !== "function") {
+    BID_ESTIMATE_REVIEW_CACHE[cacheKey] = {
+      ...(BID_ESTIMATE_REVIEW_CACHE[cacheKey] || {}),
+      loading: false,
+      error: "Estimate review tools are not ready yet.",
+      message: "",
+    };
+    if (options.rerender !== false) renderBidWorkspace(activeDraft, { preserveForm: true });
+    return BID_ESTIMATE_REVIEW_CACHE[cacheKey];
+  }
+  try {
+    let readyDraft = activeDraft;
+    let remoteBidId = bidRecordId(readyDraft);
+    if (!remoteBidId) {
+      const syncedDraft = await flushBidDraftSync({ throwOnError: true });
+      readyDraft = syncedDraft || currentBid() || readyDraft;
+      remoteBidId = bidRecordId(readyDraft);
+    }
+    if (!remoteBidId) throw new Error("Save the proposal before running estimate review.");
+    const payload = await requestOperatorFunction("ai-agent-report", {
+      method: "POST",
+      body: {
+        agent_key: "estimating_assistant",
+        bid_id: remoteBidId,
+      },
+    });
+    const nextKey = String(readyDraft.id || remoteBidId || cacheKey).trim() || cacheKey;
+    BID_ESTIMATE_REVIEW_CACHE[nextKey] = {
+      loading: false,
+      error: "",
+      message: "Estimate review refreshed.",
+      report: payload?.report || null,
+      context_summary: payload?.context_summary || null,
+      generated_at: payload?.generated_at || payload?.report?.generated_at || "",
+    };
+    if (nextKey !== cacheKey) delete BID_ESTIMATE_REVIEW_CACHE[cacheKey];
+    if (options.rerender !== false) renderBidWorkspace(currentBid() || readyDraft, { preserveForm: true });
+    return BID_ESTIMATE_REVIEW_CACHE[nextKey];
+  } catch (error) {
+    BID_ESTIMATE_REVIEW_CACHE[cacheKey] = {
+      ...(BID_ESTIMATE_REVIEW_CACHE[cacheKey] || {}),
+      loading: false,
+      error: error?.message || String(error),
+      message: "",
+    };
+    if (options.rerender !== false) renderBidWorkspace(currentBid() || activeDraft, { preserveForm: true });
+    return BID_ESTIMATE_REVIEW_CACHE[cacheKey];
+  }
+}
+function renderBidQuoteRescueReport(state = BID_QUOTE_RESCUE_STATE) {
+  const report = state?.report || null;
+  if (!report) {
+    return `<div class="detail-copy">Run the quote rescue review to separate follow-up-ready proposal records from estimate cleanup work, active decision-window items, and stale records that should be reworked first.</div>`;
+  }
+  const findings = Array.isArray(report.findings) ? report.findings : [];
+  const blockers = Array.isArray(report.blockers) ? report.blockers : [];
+  const actions = Array.isArray(report.recommended_actions) ? report.recommended_actions : [];
+  const summary = state?.context_summary || {};
+  const generatedAt = report.generated_at || state?.generated_at || "";
+  return `
+    <div class="detail-copy">${escapeHtml(report.summary || "")}</div>
+    <div class="workspace-chip-row u-mt-10">
+      <span class="pill ${bidAiStatusTone(report.summary_status || "review_needed")}">${escapeHtml(bidAiFormatStatus(report.summary_status || "review_needed"))}</span>
+      ${summary.total_records ? `<span class="pill">${escapeHtml(`${summary.total_records} candidate${summary.total_records === 1 ? "" : "s"}`)}</span>` : ""}
+      ${summary.ready_to_follow_up ? `<span class="pill pill-good">${escapeHtml(`${summary.ready_to_follow_up} ready`)}</span>` : ""}
+      ${summary.missing_estimate_facts ? `<span class="pill pill-warn">${escapeHtml(`${summary.missing_estimate_facts} missing facts`)}</span>` : ""}
+      ${summary.stale_enough_to_rework ? `<span class="pill pill-bad">${escapeHtml(`${summary.stale_enough_to_rework} stale`)}</span>` : ""}
+    </div>
+    ${blockers.length ? `
+      <div class="memory-checklist u-mt-10">
+        ${blockers.slice(0, 2).map((item) => `
+          <div class="memory-checklist__item memory-checklist__item--warn">
+            <div class="memory-checklist__title">${escapeHtml(item.title || "Proposal blocker")}</div>
+            <div class="detail-copy memory-checklist__note">${escapeHtml(item.detail || "")}</div>
+          </div>
+        `).join("")}
+      </div>
+    ` : ""}
+    ${findings.length ? `
+      <div class="detail-copy u-mt-10"><strong>Proposal queue</strong></div>
+      <div class="memory-checklist u-mt-10">
+        ${findings.slice(0, 6).map((item) => {
+          const primaryRef = bidAiPrimaryRecordRef(item);
+          const customerRef = bidAiRecordRef(item, "customer");
+          return `
+            <div class="memory-checklist__item ${item.category === "stale_enough_to_rework" || item.category === "missing_estimate_facts" ? "memory-checklist__item--warn" : "memory-checklist__item--ready"}">
+              <div class="memory-checklist__title">${escapeHtml(item.title || "Queue item")}</div>
+              <div class="detail-copy memory-checklist__note">${escapeHtml(item.detail || "")}</div>
+              <div class="action-row action-row--wrap u-mt-10">
+                ${primaryRef ? `<button type="button" class="btn btn-primary btn-sm" data-bid-quote-rescue-open-record="${escapeAttr(primaryRef.record_type)}" data-bid-quote-rescue-record-id="${escapeAttr(primaryRef.record_id)}">Open ${escapeHtml(primaryRef.label || primaryRef.record_type)}</button>` : ""}
+                ${customerRef ? `<button type="button" class="btn btn-ghost btn-sm" data-bid-quote-rescue-open-record="${escapeAttr(customerRef.record_type)}" data-bid-quote-rescue-record-id="${escapeAttr(customerRef.record_id)}">Open ${escapeHtml(customerRef.label || "customer")}</button>` : ""}
+              </div>
+            </div>
+          `;
+        }).join("")}
+      </div>
+    ` : ""}
+    ${actions.length ? `
+      <div class="detail-copy u-mt-10"><strong>Recommended queue moves</strong></div>
+      <div class="memory-checklist u-mt-10">
+        ${actions.slice(0, 3).map((action) => `
+          <div class="memory-checklist__item ${action.priority === "high" ? "memory-checklist__item--warn" : "memory-checklist__item--ready"}">
+            <div class="memory-checklist__title">${escapeHtml(action.title || "Recommended action")}</div>
+            <div class="detail-copy memory-checklist__note">${escapeHtml(action.detail || "")}</div>
+          </div>
+        `).join("")}
+      </div>
+    ` : ""}
+    ${generatedAt ? `<div class="detail-copy u-mt-10 muted">Generated ${escapeHtml(bidAiFormatDate(generatedAt))}</div>` : ""}
+  `;
+}
+function renderBidQuoteRescueCard() {
+  if (!bidQuoteRescueWrap) return;
+  const firstFinding = BID_QUOTE_RESCUE_STATE?.report?.findings?.[0] || null;
+  const primaryRef = bidAiPrimaryRecordRef(firstFinding || {});
+  bidQuoteRescueWrap.innerHTML = `
+    <div class="detail-copy">Use one rescue queue to separate follow-up-ready proposal records, missing estimate facts, and stale records that should be tightened before another send.</div>
+    <div class="action-row action-row--wrap u-mt-10">
+      <button type="button" class="btn btn-ghost btn-sm" id="btnRunBidQuoteRescueReview">${BID_QUOTE_RESCUE_STATE?.report ? "Run again" : "Run quote rescue review"}</button>
+      ${primaryRef ? `<button type="button" class="btn btn-ghost btn-sm" id="btnOpenBidQuoteRescuePrimary">Open first record</button>` : ""}
+    </div>
+    <div id="bidQuoteRescueMsg" class="msg ${BID_QUOTE_RESCUE_STATE?.error ? "error" : BID_QUOTE_RESCUE_STATE?.loading ? "" : BID_QUOTE_RESCUE_STATE?.message ? "ok" : ""} u-mt-10">${escapeHtml(BID_QUOTE_RESCUE_STATE?.loading ? "Reviewing proposal rescue queue..." : BID_QUOTE_RESCUE_STATE?.error || BID_QUOTE_RESCUE_STATE?.message || "")}</div>
+    <div id="bidQuoteRescueReport" class="u-mt-10">${renderBidQuoteRescueReport(BID_QUOTE_RESCUE_STATE)}</div>
+  `;
+  bidQuoteRescueWrap.querySelector("#btnRunBidQuoteRescueReview")?.addEventListener("click", () => {
+    runBidQuoteRescueReview().catch(console.error);
+  });
+  bidQuoteRescueWrap.querySelector("#btnOpenBidQuoteRescuePrimary")?.addEventListener("click", () => {
+    openBidAiRecordRef(primaryRef);
+  });
+  bidQuoteRescueWrap.querySelectorAll("[data-bid-quote-rescue-open-record][data-bid-quote-rescue-record-id]").forEach((button) => {
+    button.addEventListener("click", () => {
+      openBidAiRecordRef({
+        record_type: button.getAttribute("data-bid-quote-rescue-open-record") || "",
+        record_id: button.getAttribute("data-bid-quote-rescue-record-id") || "",
+        label: button.textContent || "",
+      });
+    });
+  });
+}
+async function runBidQuoteRescueReview(options = {}) {
+  BID_QUOTE_RESCUE_STATE.loading = true;
+  BID_QUOTE_RESCUE_STATE.error = "";
+  BID_QUOTE_RESCUE_STATE.message = "";
+  if (options.rerender !== false) renderBidQuoteRescueCard();
+  if (typeof requestOperatorFunction !== "function") {
+    BID_QUOTE_RESCUE_STATE.loading = false;
+    BID_QUOTE_RESCUE_STATE.error = "Quote rescue tools are not ready yet.";
+    if (options.rerender !== false) renderBidQuoteRescueCard();
+    return BID_QUOTE_RESCUE_STATE;
+  }
+  try {
+    const payload = await requestOperatorFunction("ai-agent-report", {
+      method: "POST",
+      body: {
+        agent_key: "quote_rescue_manager",
+      },
+    });
+    BID_QUOTE_RESCUE_STATE.loading = false;
+    BID_QUOTE_RESCUE_STATE.error = "";
+    BID_QUOTE_RESCUE_STATE.message = "Proposal rescue review refreshed.";
+    BID_QUOTE_RESCUE_STATE.report = payload?.report || null;
+    BID_QUOTE_RESCUE_STATE.context_summary = payload?.context_summary || null;
+    BID_QUOTE_RESCUE_STATE.generated_at = payload?.generated_at || payload?.report?.generated_at || "";
+    if (options.rerender !== false) renderBidQuoteRescueCard();
+    return BID_QUOTE_RESCUE_STATE;
+  } catch (error) {
+    BID_QUOTE_RESCUE_STATE.loading = false;
+    BID_QUOTE_RESCUE_STATE.error = error?.message || String(error);
+    BID_QUOTE_RESCUE_STATE.message = "";
+    if (options.rerender !== false) renderBidQuoteRescueCard();
+    return BID_QUOTE_RESCUE_STATE;
+  }
+}
 function persistBidDrafts() {
   try {
     window.localStorage.setItem(bidStorageKey(), JSON.stringify(BIDS_CACHE || []));
@@ -1368,6 +1761,8 @@ function renderBidWorkspace(draft, opts = {}) {
     renderBidCatalogStarters(null);
     renderBidStatsCard(null);
     renderBidDeliveryCard(null);
+    renderBidEstimateReviewCard(null);
+    renderBidQuoteRescueCard();
     if (bidPhotosList) bidPhotosList.innerHTML = `<div class="muted">No walkthrough photos saved yet.</div>`;
     if (bidLineItemsList) bidLineItemsList.innerHTML = `<div class="muted">No line items added yet.</div>`;
     clearBidProposalOptionForm();
@@ -1391,6 +1786,8 @@ function renderBidWorkspace(draft, opts = {}) {
   renderBidCatalogStarters(draft);
   renderBidStatsCard(draft);
   renderBidDeliveryCard(draft);
+  renderBidEstimateReviewCard(draft);
+  renderBidQuoteRescueCard();
   renderBidPhotos(draft);
   renderBidLineItems(draft);
   renderBidProposalDocumentControls(draft);
@@ -2300,6 +2697,13 @@ btnExportBidJson?.addEventListener("click", () => {
 }
 
 const BID_WORKSPACE_HELPERS = {
+  runBidEstimateReview,
+  renderBidEstimateReviewCard,
+  runBidQuoteRescueReview,
+  renderBidQuoteRescueCard,
+  renderBidEstimateReviewReport,
+  renderBidQuoteRescueReport,
+  openBidAiRecordRef,
   persistBidDrafts,
   setBidWorkspaceBootstrapping,
   loadBidDrafts,

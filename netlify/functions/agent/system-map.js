@@ -51,8 +51,26 @@ const STRUCTURED_AGENT_SURFACES = {
   },
   estimating_assistant: {
     label: 'Estimating Assistant',
-    ui_surface: 'No dedicated workspace entry yet',
-    exposed: false,
+    ui_surface: 'Walkthrough Bids workspace estimate review',
+    exposed: true,
+    surface_scope: 'operator',
+  },
+  quote_rescue_manager: {
+    label: 'Quote Rescue Manager',
+    ui_surface: 'Walkthrough Bids workspace proposal rescue review',
+    exposed: true,
+    surface_scope: 'operator',
+  },
+  service_plan_renewal_manager: {
+    label: 'Service Plan Renewal Manager',
+    ui_surface: 'Recurring Plans workspace renewal review',
+    exposed: true,
+    surface_scope: 'operator',
+  },
+  retention_reactivation_manager: {
+    label: 'Retention / Reactivation Manager',
+    ui_surface: 'Customers workspace reactivation review',
+    exposed: true,
     surface_scope: 'operator',
   },
   agent_workforce_architect: {
@@ -85,14 +103,14 @@ const COPILOT_SPECIALIST_LANES = [
   {
     key: 'quote_rescue',
     label: 'Quote Rescue',
-    structured_agent_keys: [],
-    coverage: 'freeform_only',
+    structured_agent_keys: ['quote_rescue_manager'],
+    coverage: 'paired',
   },
   {
     key: 'retention',
     label: 'Retention',
-    structured_agent_keys: [],
-    coverage: 'freeform_only',
+    structured_agent_keys: ['service_plan_renewal_manager', 'retention_reactivation_manager'],
+    coverage: 'paired',
   },
 ];
 
