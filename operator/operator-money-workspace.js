@@ -504,6 +504,114 @@ function buildMoneyCollectionNextStep(blueprint = currentWorkspaceBlueprint()) {
   };
 }
 
+const BILLING_BLOCKER_AGENT_STATE = window.PROOFLINK_BILLING_BLOCKER_AGENT_STATE || (window.PROOFLINK_BILLING_BLOCKER_AGENT_STATE = {
+  report: null,
+  context_summary: null,
+  generated_at: "",
+});
+
+function moneyAgentStatusTone(status) {
+  if (status === "ready") return "pill-good";
+  if (status === "blocked") return "pill-bad";
+  return "pill-warn";
+}
+
+function moneyAgentPriorityTone(priority) {
+  if (priority === "high") return "pill-bad";
+  if (priority === "low") return "";
+  return "pill-warn";
+}
+
+function moneyAgentTimestamp(value) {
+  if (typeof formatDateTime === "function") return formatDateTime(value || new Date().toISOString());
+  return String(value || "");
+}
+
+function moneyBillingQueuePrimaryRef(item = {}) {
+  return (Array.isArray(item.record_refs) ? item.record_refs : []).find((ref) => ref && ref.record_type === "job" && ref.record_id) || null;
+}
+
+function openBillingBlockerJob(jobId) {
+  if (!jobId) return;
+  ACTIVE_JOB_ID = jobId;
+  if (typeof switchTab === "function") switchTab("jobs");
+}
+
+function renderBillingBlockerQueueReport(state = BILLING_BLOCKER_AGENT_STATE) {
+  const report = state?.report || null;
+  if (!report) {
+    return `<div class="detail-copy">Run the billing blocker review to build a grounded queue of jobs that still need proof, invoice cleanup, or billing reconciliation before they age into collections work.</div>`;
+  }
+
+  const findings = Array.isArray(report.findings) ? report.findings : [];
+  const blockers = Array.isArray(report.blockers) ? report.blockers : [];
+  const actions = Array.isArray(report.recommended_actions) ? report.recommended_actions : [];
+  const dataUsed = Array.isArray(report.data_used) ? report.data_used.filter((item) => item && item.count > 0) : [];
+  const queueCount = Number(state?.context_summary?.queued_jobs || findings.length || 0);
+  const candidateCount = Number(state?.context_summary?.candidate_jobs || 0);
+
+  return `
+    <div class="detail-copy">${escapeHtml(report.summary || "")}</div>
+    <div class="workspace-chip-row u-mt-10">
+      <span class="pill ${moneyAgentStatusTone(report.summary_status || "review_needed")}">${escapeHtml(titleCaseWords(String(report.summary_status || "review needed").replace(/_/g, " ")))}</span>
+      <span class="pill ${queueCount ? "pill-warn" : "pill-good"}">${escapeHtml(`${queueCount} queued`)}</span>
+      ${candidateCount ? `<span class="pill">${escapeHtml(`${candidateCount} reviewed`)}</span>` : ""}
+      ${report.confidence?.label ? `<span class="pill">${escapeHtml(`Confidence ${report.confidence.label}`)}</span>` : ""}
+    </div>
+    ${blockers.length ? `
+      <div class="detail-copy u-mt-10"><strong>Top blocker</strong></div>
+      <div class="memory-checklist u-mt-10">
+        ${blockers.slice(0, 2).map((item) => `
+          <div class="memory-checklist__item memory-checklist__item--warn">
+            <div class="memory-checklist__title">${escapeHtml(item.title || "Billing blocker")}</div>
+            <div class="detail-copy memory-checklist__note">${escapeHtml(item.detail || "")}</div>
+          </div>
+        `).join("")}
+      </div>
+    ` : `<div class="detail-copy u-mt-10">No active billing blockers were returned in this pass.</div>`}
+    ${findings.length ? `
+      <div class="detail-copy u-mt-10"><strong>Queue</strong></div>
+      <div class="memory-checklist u-mt-10">
+        ${findings.slice(0, 6).map((item) => {
+          const ref = moneyBillingQueuePrimaryRef(item);
+          return `
+            <div class="memory-checklist__item ${item.severity === "critical" ? "memory-checklist__item--warn" : ""}">
+              <div class="memory-checklist__title">${escapeHtml(item.title || "Queue item")}</div>
+              <div class="detail-copy memory-checklist__note">${escapeHtml(item.detail || "")}</div>
+              ${ref?.record_id ? `
+                <div class="action-row action-row--wrap u-mt-10">
+                  <button type="button" class="btn btn-ghost btn-sm" data-billing-blocker-open-job="${escapeAttr(ref.record_id)}">Open job</button>
+                </div>
+              ` : ``}
+            </div>
+          `;
+        }).join("")}
+      </div>
+    ` : ""}
+    ${actions.length ? `
+      <div class="detail-copy u-mt-10"><strong>Recommended actions</strong></div>
+      <div class="workspace-chip-row">
+        ${actions.slice(0, 3).map((action) => `<span class="pill ${moneyAgentPriorityTone(action.priority || "medium")}">${escapeHtml(titleCaseWords(String(action.priority || "medium")))} priority</span>`).join("")}
+      </div>
+      <div class="memory-checklist u-mt-10">
+        ${actions.slice(0, 3).map((action) => `
+          <div class="memory-checklist__item ${action.priority === "high" ? "memory-checklist__item--warn" : "memory-checklist__item--ready"}">
+            <div class="memory-checklist__title">${escapeHtml(action.title || "Recommended action")}</div>
+            <div class="detail-copy memory-checklist__note">${escapeHtml(action.detail || "")}</div>
+          </div>
+        `).join("")}
+      </div>
+    ` : ""}
+    ${dataUsed.length ? `
+      <div class="detail-copy u-mt-10"><strong>Data used</strong></div>
+      <div class="workspace-chip-row">
+        ${dataUsed.slice(0, 4).map((item) => `<span class="pill">${escapeHtml(`${item.label}: ${item.count}`)}</span>`).join("")}
+      </div>
+    ` : ""}
+    <div class="detail-copy u-mt-10 muted">Generated ${escapeHtml(moneyAgentTimestamp(report.generated_at || state?.generated_at || new Date().toISOString()))}</div>
+  `;
+}
+
 async function renderMoney() {
   if (!moneyWrap) return;
 
@@ -660,6 +768,23 @@ async function renderMoney() {
       </div>
     </div>
 
+    <div class="card money-focus-card">
+      <div class="card-hd">
+        <strong>Billing blocker queue</strong>
+        <span class="muted">What still needs proof or billing cleanup before invoicing</span>
+      </div>
+      <div class="card-bd">
+        <div class="action-row action-row--wrap">
+          <button type="button" class="btn btn-ghost btn-sm" id="btnRunBillingBlockerQueue">${BILLING_BLOCKER_AGENT_STATE.report ? "Refresh queue" : "Run blocker review"}</button>
+          ${BILLING_BLOCKER_AGENT_STATE.report?.findings?.length ? `<button type="button" class="btn btn-ghost btn-sm" id="btnOpenBillingBlockerFirst">Open first job</button>` : ""}
+        </div>
+        <div id="moneyBillingBlockerMsg" class="msg u-mt-10"></div>
+        <div id="moneyBillingBlockerReport" class="u-mt-10">
+          ${renderBillingBlockerQueueReport(BILLING_BLOCKER_AGENT_STATE)}
+        </div>
+      </div>
+    </div>
+
     <div class="insight-grid">
       <div class="insight">
         <h3>${escapeHtml(workspaceUsesServiceCatalog(blueprint) ? "Service catalog health" : (isBookingWorkspace(blueprint) || isEventWorkspace(blueprint) ? "Package health" : "Catalog health"))}</h3>
@@ -812,6 +937,62 @@ async function renderMoney() {
       }
     });
   });
+
+  const bindBillingBlockerQueueActions = () => {
+    moneyWrap.querySelectorAll("[data-billing-blocker-open-job]").forEach((button) => {
+      button.addEventListener("click", () => openBillingBlockerJob(button.getAttribute("data-billing-blocker-open-job") || ""));
+    });
+    moneyWrap.querySelector("#btnOpenBillingBlockerFirst")?.addEventListener("click", () => {
+      const firstFinding = BILLING_BLOCKER_AGENT_STATE.report?.findings?.[0] || null;
+      const firstRef = moneyBillingQueuePrimaryRef(firstFinding || {});
+      if (firstRef?.record_id) openBillingBlockerJob(firstRef.record_id);
+    });
+  };
+
+  const billingQueueMsg = moneyWrap.querySelector("#moneyBillingBlockerMsg");
+  const billingQueueHost = moneyWrap.querySelector("#moneyBillingBlockerReport");
+  moneyWrap.querySelector("#btnRunBillingBlockerQueue")?.addEventListener("click", async () => {
+    if (!billingQueueHost) return;
+    if (typeof setInlineMessage === "function") {
+      setInlineMessage(billingQueueMsg, "Reviewing billing blockers...");
+    } else if (billingQueueMsg) {
+      billingQueueMsg.textContent = "Reviewing billing blockers...";
+    }
+    try {
+      const payload = await requestOperatorFunction("ai-agent-report", {
+        method: "POST",
+        body: {
+          agent_key: "billing_blocker_detector",
+          limit: 8,
+        },
+      });
+      BILLING_BLOCKER_AGENT_STATE.report = payload?.report || null;
+      BILLING_BLOCKER_AGENT_STATE.context_summary = payload?.context_summary || null;
+      BILLING_BLOCKER_AGENT_STATE.generated_at = payload?.generated_at || BILLING_BLOCKER_AGENT_STATE.report?.generated_at || "";
+      billingQueueHost.innerHTML = renderBillingBlockerQueueReport(BILLING_BLOCKER_AGENT_STATE);
+      bindBillingBlockerQueueActions();
+      if (typeof setInlineMessage === "function") {
+        setInlineMessage(
+          billingQueueMsg,
+          BILLING_BLOCKER_AGENT_STATE.report?.findings?.length
+            ? "Billing blocker queue refreshed."
+            : "No billing blockers found in the current review set.",
+          BILLING_BLOCKER_AGENT_STATE.report?.findings?.length ? "ok" : "warn"
+        );
+      } else if (billingQueueMsg) {
+        billingQueueMsg.textContent = BILLING_BLOCKER_AGENT_STATE.report?.findings?.length
+          ? "Billing blocker queue refreshed."
+          : "No billing blockers found in the current review set.";
+      }
+    } catch (error) {
+      if (typeof setInlineMessage === "function") {
+        setInlineMessage(billingQueueMsg, error.message || String(error), "error");
+      } else if (billingQueueMsg) {
+        billingQueueMsg.textContent = error.message || String(error);
+      }
+    }
+  });
+  bindBillingBlockerQueueActions();
 
   // AR aging
   const arEl = $("arAgingContent");
@@ -1285,6 +1466,7 @@ const MONEY_WORKSPACE_HELPERS = {
   priorityCollectionOrder,
   buildMoneyCollectionMemory,
   buildMoneyCollectionNextStep,
+  renderBillingBlockerQueueReport,
   renderExpenseCustomerOptions,
   renderExpenseOrderOptions,
   renderExpenseJobOptions,

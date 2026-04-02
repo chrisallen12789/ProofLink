@@ -224,6 +224,117 @@ function renderJobReadinessCard(summary) {
   `;
 }
 
+const JOB_AGENT_REPORT_CACHE = window.PROOFLINK_JOB_AGENT_REPORT_CACHE || (window.PROOFLINK_JOB_AGENT_REPORT_CACHE = {});
+
+function jobAgentStatusTone(status) {
+  if (status === "ready") return "pill-good";
+  if (status === "blocked") return "pill-bad";
+  return "pill-warn";
+}
+
+function jobAgentPriorityTone(priority) {
+  if (priority === "high") return "pill-bad";
+  if (priority === "low") return "";
+  return "pill-warn";
+}
+
+function renderJobAgentReport(report) {
+  if (!report) {
+    return `<div class="detail-copy">Run the billing audit to review proof, timing, billing blockers, and the exact next actions this job still needs.</div>`;
+  }
+
+  const blockers = Array.isArray(report.blockers) ? report.blockers : [];
+  const findings = Array.isArray(report.findings) ? report.findings : [];
+  const actions = Array.isArray(report.recommended_actions) ? report.recommended_actions : [];
+  const evidence = Array.isArray(report.evidence) ? report.evidence.slice(0, 6) : [];
+  const missingData = Array.isArray(report.missing_data) ? report.missing_data : [];
+  const assumptions = Array.isArray(report.assumptions) ? report.assumptions : [];
+  const dataUsed = Array.isArray(report.data_used) ? report.data_used.filter((item) => item && item.count > 0) : [];
+  const billingReadiness = report.billing_readiness || null;
+
+  return `
+    <div class="detail-copy">${escapeHtml(report.summary || "")}</div>
+    <div class="workspace-chip-row u-mt-10">
+      <span class="pill ${jobAgentStatusTone(report.summary_status || "review_needed")}">${escapeHtml(titleCaseWords(String(report.summary_status || "review needed").replace(/_/g, " ")))}</span>
+      ${billingReadiness ? `<span class="pill">${escapeHtml(`Billing readiness ${Number(billingReadiness.score || 0)}/100`)}</span>` : ""}
+      ${report.confidence?.label ? `<span class="pill">${escapeHtml(`Confidence ${report.confidence.label}`)}</span>` : ""}
+      ${blockers.length ? `<span class="pill pill-bad">${escapeHtml(`${blockers.length} blocker${blockers.length === 1 ? "" : "s"}`)}</span>` : `<span class="pill pill-good">No blockers found</span>`}
+    </div>
+    ${blockers.length ? `
+      <div class="memory-checklist u-mt-10">
+        ${blockers.slice(0, 4).map((item) => `
+          <div class="memory-checklist__item memory-checklist__item--warn">
+            <div class="memory-checklist__title">${escapeHtml(item.title || "Blocker")}</div>
+            <div class="detail-copy memory-checklist__note">${escapeHtml(item.detail || "")}</div>
+          </div>
+        `).join("")}
+      </div>
+    ` : ""}
+    ${actions.length ? `
+      <div class="detail-copy u-mt-10"><strong>Recommended actions</strong></div>
+      <div class="workspace-chip-row">
+        ${actions.slice(0, 4).map((action) => `<span class="pill ${jobAgentPriorityTone(action.priority || "medium")}">${escapeHtml(titleCaseWords(String(action.priority || "medium")))} priority</span>`).join("")}
+      </div>
+      <div class="memory-checklist u-mt-10">
+        ${actions.slice(0, 4).map((action) => `
+          <div class="memory-checklist__item ${action.priority === "high" ? "memory-checklist__item--warn" : ""}">
+            <div class="memory-checklist__title">${escapeHtml(action.title || "Recommended action")}</div>
+            <div class="detail-copy memory-checklist__note">${escapeHtml(action.detail || "")}</div>
+          </div>
+        `).join("")}
+      </div>
+    ` : ""}
+    ${findings.length ? `
+      <div class="detail-copy u-mt-10"><strong>What the audit found</strong></div>
+      <div class="memory-checklist u-mt-10">
+        ${findings.slice(0, 4).map((item) => `
+          <div class="memory-checklist__item ${item.severity === "critical" ? "memory-checklist__item--warn" : ""}">
+            <div class="memory-checklist__title">${escapeHtml(item.title || "Finding")}</div>
+            <div class="detail-copy memory-checklist__note">${escapeHtml(item.detail || "")}</div>
+          </div>
+        `).join("")}
+      </div>
+    ` : ""}
+    ${missingData.length ? `
+      <div class="detail-copy u-mt-10"><strong>Missing data</strong></div>
+      <div class="detail-copy">${escapeHtml(missingData.slice(0, 4).map((item) => item.label || item.detail || "").join(" | "))}</div>
+    ` : ""}
+    ${assumptions.length ? `
+      <div class="detail-copy u-mt-10"><strong>Assumptions / environment gaps</strong></div>
+      <div class="detail-copy">${escapeHtml(assumptions.slice(0, 3).join(" | "))}</div>
+    ` : ""}
+    ${dataUsed.length ? `
+      <div class="detail-copy u-mt-10"><strong>Data used</strong></div>
+      <div class="workspace-chip-row">
+        ${dataUsed.slice(0, 6).map((item) => `<span class="pill">${escapeHtml(`${item.label}: ${item.count}`)}</span>`).join("")}
+      </div>
+    ` : ""}
+    ${evidence.length ? `
+      <div class="detail-copy u-mt-10"><strong>Evidence</strong></div>
+      <div class="detail-copy">${escapeHtml(evidence.map((item) => item.label || item.field || item.id).join(" | "))}</div>
+    ` : ""}
+    <div class="detail-copy u-mt-10 muted">Generated ${escapeHtml(formatDateTime(report.generated_at || new Date().toISOString()))}</div>
+  `;
+}
+
+function renderJobAgentAuditCard(job) {
+  const cached = JOB_AGENT_REPORT_CACHE[job?.id] || null;
+  return `
+    <div class="detail-card u-mt-14">
+      <div class="kicker">AI billing audit</div>
+      <div><strong>Job Record Auditor</strong></div>
+      <div class="detail-copy">Review proof, notes, timing, linked billing records, and exact next moves without leaving this job.</div>
+      <div class="action-row action-row--wrap u-mt-10">
+        <button type="button" class="btn btn-ghost btn-sm" id="btnJobRunAudit">${cached ? "Run again" : "Run billing audit"}</button>
+      </div>
+      <div id="jobAuditMsg" class="msg u-mt-10"></div>
+      <div id="jobAuditReport" class="u-mt-10">
+        ${renderJobAgentReport(cached)}
+      </div>
+    </div>
+  `;
+}
+
 function jobCloseoutChecklistItems(job, order, linkedCustomer, blueprint = jobsWorkspaceBlueprint(), amountDueCents = 0, readiness = null) {
   const businessKey = String(blueprint?.business?.key || "service_business").trim().toLowerCase();
   const bookingsApi = window.PROOFLINK_OPERATOR_BOOKINGS_WORKSPACE || {};
@@ -672,6 +783,7 @@ async function renderJobDetail(jobIdValue) {
         </div>
       ` : ""}
     </div>
+    ${renderJobAgentAuditCard(job)}
     <div class="detail-card u-mt-14">
       <div class="kicker">Job economics</div>
       <div class="workspace-chip-row">
@@ -745,6 +857,29 @@ async function renderJobDetail(jobIdValue) {
   `;
   jobDetailWrap.querySelectorAll('[data-job-cost-action="log"]').forEach((button) => {
     button.addEventListener("click", () => openExpenseForJob(job));
+  });
+  jobDetailWrap.querySelector('#btnJobRunAudit')?.addEventListener("click", async () => {
+    const msgEl = jobDetailWrap.querySelector('#jobAuditMsg');
+    const reportEl = jobDetailWrap.querySelector('#jobAuditReport');
+    if (typeof requestOperatorFunction !== "function") {
+      setInlineMessage(msgEl, "Audit tools are not ready yet.", "error");
+      return;
+    }
+    setInlineMessage(msgEl, "Running billing audit...");
+    try {
+      const result = await requestOperatorFunction("ai-agent-report", {
+        method: "POST",
+        body: {
+          agent_key: "job_record_auditor",
+          job_id: job.id,
+        },
+      });
+      JOB_AGENT_REPORT_CACHE[job.id] = result.report || null;
+      if (reportEl) reportEl.innerHTML = renderJobAgentReport(result.report || null);
+      setInlineMessage(msgEl, "Billing audit ready.", "good");
+    } catch (error) {
+      setInlineMessage(msgEl, error?.message || "Failed to run the billing audit.", "error");
+    }
   });
   const syncFieldJobState = (patch = {}) => {
     if (Object.prototype.hasOwnProperty.call(patch, "status")) job.status = patch.status;

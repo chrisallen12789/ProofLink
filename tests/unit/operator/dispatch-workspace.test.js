@@ -182,4 +182,44 @@ describe("operator dispatch workspace", () => {
     expect(packet).toContain("BOL: BOL-12");
     expect(packet).toContain("Hold reason: Waiting on compatible second load");
   });
+
+  test("renderDispatchAgentReview keeps blockers, route signals, and open-job actions visible", () => {
+    const { context } = loadDispatchWorkspace();
+
+    const markup = context.window.renderDispatchAgentReview({
+      report: {
+        summary: "The dispatch plan for 2026-04-03 needs operator review before it is truly executable.",
+        summary_status: "blocked",
+        findings: [{
+          title: "Open jobs still need an owner",
+          detail: "1 open job does not yet have an assigned crew member or operator.",
+          severity: "warning",
+          record_refs: [{ record_type: "job", record_id: "job_9", label: "North trench" }],
+        }],
+        blockers: [{
+          title: "Resolve the overlapping crew slot",
+          detail: "Move or reassign one of the overlapping jobs so the route is executable in the real world.",
+        }],
+        recommended_actions: [{
+          title: "Tighten the route before crews roll",
+          detail: "Bundle same-site work where it makes sense, then assign concrete times.",
+          priority: "high",
+        }],
+        data_used: [{ label: "Jobs on selected date", count: 5 }],
+        confidence: { label: "medium" },
+        generated_at: "2026-04-02T14:00:00Z",
+      },
+      context_summary: {
+        upcoming_jobs: 6,
+        assignment_conflicts: 1,
+        bundle_opportunities: 1,
+      },
+      generated_at: "2026-04-02T14:00:00Z",
+    }, "2026-04-03");
+
+    expect(markup).toContain("Dispatch / Scheduling Assistant");
+    expect(markup).toContain("1 conflict");
+    expect(markup).toContain("1 bundle opportunity");
+    expect(markup).toContain("Open job");
+  });
 });

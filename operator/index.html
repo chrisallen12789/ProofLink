@@ -279,6 +279,7 @@
                 <div class="card-bd">
                   <form id="leadForm" class="form">
                     <input id="leadId" type="hidden" />
+                    <input id="leadCustomerLocationId" type="hidden" />
 
                     <div class="grid three form-grid">
                       <label>Status
@@ -529,6 +530,7 @@
                 <div class="card-bd">
                   <form id="jobForm" class="form">
                     <input id="jobId" type="hidden" />
+                    <input id="jobCustomerLocationId" type="hidden" />
 
                     <div class="grid three form-grid">
                       <label>Status
@@ -909,6 +911,7 @@
                 <div class="card-bd">
                   <form id="bidForm" class="form">
                     <input type="hidden" id="bidId" />
+                    <input type="hidden" id="bidCustomerLocationId" />
 
                     <div class="grid three form-grid">
                       <label>Bid title
@@ -1000,6 +1003,28 @@
                       </label>
                     </div>
 
+                    <div class="grid three form-grid">
+                      <label>Template family
+                        <select id="bidTemplateType">
+                          <option value="standard_operational">Standard operational proposal</option>
+                          <option value="formal_vendor">Formal vendor proposal</option>
+                        </select>
+                      </label>
+
+                      <label>Prepared by
+                        <select id="bidPreparedByUser"></select>
+                      </label>
+
+                      <label>Send as
+                        <select id="bidSenderUser"></select>
+                      </label>
+                    </div>
+
+                    <div class="detail-card">
+                      <div class="kicker">Document defaults</div>
+                      <div id="bidBrandSetupStatus" class="detail-copy">Loading proposal branding and sender defaults...</div>
+                    </div>
+
                     <label>Service address
                       <input id="bidServiceAddress" placeholder="123 Main Street, City, State" />
                     </label>
@@ -1016,6 +1041,38 @@
 
                     <label>Project summary
                       <textarea id="bidProjectSummary" rows="3" placeholder="What the customer needs solved and why they called."></textarea>
+                    </label>
+
+                    <div class="grid two form-grid">
+                      <label>Recipient company
+                        <input id="bidRecipientCompany" placeholder="Owner, facility group, HOA, campus, or vendor account" />
+                      </label>
+
+                      <label>Attention line
+                        <input id="bidAttentionLine" placeholder="Person, department, or approver line" />
+                      </label>
+                    </div>
+
+                    <label>Recipient address block
+                      <textarea id="bidRecipientAddress" rows="3" placeholder="Mailing address or formal recipient block for the document."></textarea>
+                    </label>
+
+                    <div class="grid two form-grid">
+                      <label>Project / document name
+                        <input id="bidProjectName" placeholder="North campus sewer repair proposal" />
+                      </label>
+
+                      <label>RE / subject line
+                        <input id="bidSubjectLine" placeholder="Proposal for sewer rehabilitation at North campus" />
+                      </label>
+                    </div>
+
+                    <label>Intro paragraph
+                      <textarea id="bidIntroText" rows="4" placeholder="Formal introduction that frames the proposal before the scoped options."></textarea>
+                    </label>
+
+                    <label>Value proposition / qualifications
+                      <textarea id="bidValuePropositionText" rows="4" placeholder="Why this team, approach, or compliance path is the right fit for the project."></textarea>
                     </label>
 
                     <div class="grid two form-grid">
@@ -1071,6 +1128,26 @@
                     <label>Commercial terms
                       <textarea id="bidTerms" rows="4" placeholder="Payment timing, change-order rules, scheduling, and any approval terms."></textarea>
                     </label>
+
+                    <div class="grid two form-grid">
+                      <label>Reusable terms template
+                        <select id="bidTermsTemplateId"></select>
+                      </label>
+
+                      <label>Reusable exclusions template
+                        <select id="bidExclusionsTemplateId"></select>
+                      </label>
+                    </div>
+
+                    <div class="grid two form-grid">
+                      <label>Terms override
+                        <textarea id="bidTermsOverride" rows="4" placeholder="Optional document-specific terms override when this proposal needs an exception."></textarea>
+                      </label>
+
+                      <label>Exclusions override
+                        <textarea id="bidExclusionsOverride" rows="4" placeholder="Optional document-specific exclusions override when this proposal needs an exception."></textarea>
+                      </label>
+                    </div>
 
                     <div class="row">
                       <button class="btn btn-primary" type="submit">Save bid</button>
@@ -1132,8 +1209,8 @@
 
               <div class="card">
                 <div class="card-hd">
-                  <strong>Scope and pricing builder</strong>
-                  <span class="muted">Build the offer the client will actually receive.</span>
+                  <strong>Internal pricing / estimating inputs</strong>
+                  <span class="muted">Keep internal line items separate from the customer-facing proposal options.</span>
                 </div>
                 <div class="card-bd">
                   <div id="bidScopeStarters" class="bid-template-panel muted">Profile-aware scope starters will appear here once a bid profile is active.</div>
@@ -1189,6 +1266,63 @@
 
             <div class="card">
               <div class="card-hd">
+                <strong>Customer-facing proposal options</strong>
+                <span class="muted">Add one or more scoped options the client will actually receive in the proposal.</span>
+              </div>
+              <div class="card-bd">
+                <form id="bidProposalOptionForm" class="form">
+                  <input type="hidden" id="bidProposalOptionId" />
+
+                  <div class="grid three form-grid">
+                    <label>Option title
+                      <input id="bidProposalOptionTitle" placeholder="Option 1 - Spot repair" />
+                    </label>
+
+                    <label>Option type
+                      <select id="bidProposalOptionType">
+                        <option value="option">Primary option</option>
+                        <option value="alternate">Alternate option</option>
+                        <option value="add_on">Add-on option</option>
+                      </select>
+                    </label>
+
+                    <label>Price label
+                      <input id="bidProposalOptionPriceLabel" placeholder="Investment" />
+                    </label>
+                  </div>
+
+                  <div class="grid two form-grid">
+                    <label>Price (USD)
+                      <input id="bidProposalOptionPrice" type="number" min="0" step="0.01" value="0.00" />
+                    </label>
+
+                    <label>Price unit / suffix
+                      <input id="bidProposalOptionPriceUnit" placeholder="lump sum, /day, /month" />
+                    </label>
+                  </div>
+
+                  <label>Scope bullets
+                    <textarea id="bidProposalOptionScope" rows="6" placeholder="- Main scope bullet&#10;  - Optional sub-bullet&#10;- Next included item"></textarea>
+                  </label>
+
+                  <label>Option notes
+                    <textarea id="bidProposalOptionNotes" rows="3" placeholder="Anything specific to this option that should appear beneath the scope."></textarea>
+                  </label>
+
+                  <div class="row">
+                    <button class="btn btn-primary" type="submit">Save option</button>
+                    <button id="btnClearBidProposalOption" class="btn btn-ghost" type="button">Clear option</button>
+                  </div>
+
+                  <div id="bidProposalOptionMsg" class="msg"></div>
+                </form>
+
+                <div id="bidProposalOptionsList" class="list u-mt-16"></div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-hd">
                 <strong>Proposal preview</strong>
                 <span class="muted">Client-facing version with scope, pricing, photos, and next steps.</span>
               </div>
@@ -1211,12 +1345,22 @@
               </div>
               <div class="panel-actions">
                 <input id="customerSearch" class="input" placeholder="Search customer…" />
+                <select id="customerWorkbenchFilter" class="input" aria-label="Filter customers">
+                  <option value="all">All customers</option>
+                  <option value="active_work">Active work</option>
+                  <option value="open_balance">Open balance</option>
+                  <option value="multi_site">Multi-site</option>
+                  <option value="top_value">Top value</option>
+                  <option value="stale">Needs follow-up</option>
+                </select>
                 <button id="btnNewCustomer" class="btn" type="button">New customer</button>
                 <button id="btnRefreshCustomers" class="btn btn-ghost" type="button">Refresh</button>
                 <button id="btnExportCustomersCsv" class="btn btn-ghost" type="button">Export CSV</button>
                 <button id="btnImportCustomers" class="btn btn-ghost" type="button">&#11014; Import CSV</button>
               </div>
             </div>
+
+            <div id="customerWorkbenchStats" class="chip-row chip-row--compact u-mb-14"></div>
 
             <div class="grid two">
               <div class="card">
@@ -1238,9 +1382,13 @@
                   <form id="customerForm" class="form">
                     <input type="hidden" id="customerId" />
 
+                    <label>Company / organization
+                      <input id="customerCompanyName" placeholder="City department, HOA, campus, franchise, or account name" />
+                    </label>
+
                     <div class="grid two form-grid">
-                      <label>Name
-                        <input id="customerName" required />
+                      <label>Primary contact
+                        <input id="customerName" placeholder="Jane Doe" />
                       </label>
 
                       <label>Preferred contact
@@ -1263,7 +1411,7 @@
                     </div>
 
                     <div class="form-row">
-                      <label>Address
+                      <label>Primary address / billing HQ
                         <input id="customerAddress1" placeholder="Street address" />
                       </label>
                     </div>
@@ -2518,6 +2666,8 @@
               <div class="card-hd"><strong>New booking</strong></div>
               <div class="card-bd">
                 <div class="form">
+                  <input type="hidden" id="bkCustomerId" />
+                  <input type="hidden" id="bkCustomerLocationId" />
                   <div class="row">
                     <div class="u-flex-1">
                       <label>Customer name *</label>
@@ -2527,6 +2677,14 @@
                       <label>Email</label>
                       <input type="email" id="bkCustomerEmail" placeholder="jane@example.com" />
                     </div>
+                  </div>
+                  <div class="grid two form-grid">
+                    <label>Account / site
+                      <input type="text" id="bkLocationLabel" placeholder="North campus, Building A, Water plant 3" />
+                    </label>
+                    <label>Service address
+                      <input type="text" id="bkServiceAddress" placeholder="123 Main Street, City, State" />
+                    </label>
                   </div>
                   <label>Service / title *</label>
                   <input type="text" id="bkTitle" placeholder="e.g. Lawn mowing, Consultation" />
@@ -2909,11 +3067,14 @@
                   <button id="btnAskAI" class="btn btn-primary" type="button">Ask</button>
                 </div>
                 <div class="chip-row chip-row--compact" id="aiQuickActions">
-                  <button class="btn btn-ghost btn-sm ai-quick" data-q="Which customers owe me money?" type="button">💰 Who owes me?</button>
-                  <button class="btn btn-ghost btn-sm ai-quick" data-q="Who needs a follow-up right now?" type="button">📋 Follow-ups needed</button>
-                  <button class="btn btn-ghost btn-sm ai-quick" data-q="What should I focus on today?" type="button">🎯 Today's priorities</button>
-                  <button class="btn btn-ghost btn-sm ai-quick" data-q="Are there any expired or expiring quotes?" type="button">📄 Quote status</button>
-                  <button class="btn btn-ghost btn-sm ai-quick" data-q="Which customers haven't been seen recently?" type="button">👥 Stale customers</button>
+                  <button class="btn btn-ghost btn-sm ai-quick" data-q="Which customers owe me money?" data-specialist="collections" type="button">💰 Who owes me?</button>
+                  <button class="btn btn-ghost btn-sm ai-quick" data-q="Who needs a follow-up right now?" data-specialist="retention" type="button">📋 Follow-ups needed</button>
+                  <button class="btn btn-ghost btn-sm ai-quick" data-q="What should I focus on today?" data-specialist="general" type="button">🎯 Today's priorities</button>
+                  <button class="btn btn-ghost btn-sm ai-quick" data-q="Are there any expired or expiring quotes?" data-specialist="quote_rescue" type="button">📄 Quote status</button>
+                  <button class="btn btn-ghost btn-sm ai-quick" data-q="Which customers haven't been seen recently?" data-specialist="retention" type="button">👥 Stale customers</button>
+                  <button class="btn btn-ghost btn-sm ai-quick" data-q="Which multi-site customers need attention right now?" data-specialist="retention" type="button">Multi-site accounts</button>
+                  <button class="btn btn-ghost btn-sm ai-quick" data-q="Which jobs this week need crew prep or route attention?" data-specialist="crew_prep" type="button">Crew prep this week</button>
+                  <button class="btn btn-ghost btn-sm ai-quick" data-q="Which top customers should I protect this week?" data-specialist="retention" type="button">Protect top customers</button>
                 </div>
                 <div id="aiAnswer" class="ai-answer"></div>
                 <div id="aiError" class="ai-error"></div>
@@ -2985,8 +3146,9 @@
     <div id="globalToastRegion" class="toast-region" aria-live="polite" aria-atomic="true"></div>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-  <script src="/platform/plan-rules.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="/shared/proposal-document-engine.js" defer></script>
+<script src="/platform/plan-rules.js" defer></script>
 <script src="/platform/plan-check.js" defer></script>
 <script src="./components/analytics-widgets.js" defer></script>
 <script src="./components/stripe-readiness.js" defer></script>
@@ -3019,6 +3181,7 @@
 <script src="./operator-money-workspace.js" defer></script>
 <script src="./operator-boot-utils.js" defer></script>
 <script src="./operator.js" defer></script>
+<script src="./operator-proposal-documents.js" defer></script>
 <script src="./operator-orders-tools.js" defer></script>
 <script src="./operator-payments-workspace.js" defer></script>
 <script src="./import-workspace.js" defer></script>

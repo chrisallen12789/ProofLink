@@ -1,6 +1,12 @@
 // Payments workspace extracted from operator.js to keep the manual collection
 // flow in one domain-specific module.
 (function attachOperatorPaymentsWorkspace(global) {
+  const COLLECTIONS_AGENT_STATE = global.PROOFLINK_COLLECTIONS_AGENT_STATE || (global.PROOFLINK_COLLECTIONS_AGENT_STATE = {
+    report: null,
+    context_summary: null,
+    generated_at: "",
+  });
+
   function resolvePaymentContext(options = {}) {
     const customerId = options.customerId ?? paymentCustomerId?.value ?? ACTIVE_CUSTOMER_ID ?? "";
     const orderId = options.orderId ?? paymentOrderId?.value ?? ACTIVE_ORDER_ID ?? "";
@@ -237,6 +243,185 @@
     });
   }
 
+  function paymentAgentStatusTone(status) {
+    if (status === "ready") return "pill-good";
+    if (status === "blocked") return "pill-bad";
+    return "pill-warn";
+  }
+
+  function paymentAgentPriorityTone(priority) {
+    if (priority === "high") return "pill-bad";
+    if (priority === "low") return "";
+    return "pill-warn";
+  }
+
+  function collectionsQueueRecordRef(item = {}, recordType = "") {
+    return (Array.isArray(item.record_refs) ? item.record_refs : []).find((ref) => ref && ref.record_type === recordType && ref.record_id) || null;
+  }
+
+  function openCollectionsQueueOrder(orderId) {
+    if (!orderId) return;
+    ACTIVE_ORDER_ID = orderId;
+    if (typeof renderOrders === "function") renderOrders();
+    if (typeof switchTab === "function") switchTab("orders");
+  }
+
+  function openCollectionsQueueCustomer(customerId) {
+    if (!customerId) return;
+    ACTIVE_CUSTOMER_ID = customerId;
+    if (typeof switchTab === "function") switchTab("customers");
+    if (typeof renderCustomerDetail === "function") {
+      renderCustomerDetail(customerId).catch?.(console.error);
+    }
+  }
+
+  function seedPaymentFormFromCollectionsQueue(orderId = "", customerId = "") {
+    ACTIVE_ORDER_ID = orderId || ACTIVE_ORDER_ID || "";
+    ACTIVE_CUSTOMER_ID = customerId || ACTIVE_CUSTOMER_ID || "";
+    clearPaymentForm({
+      customerId: customerId || "",
+      orderId: orderId || "",
+      title: "Record payment",
+    });
+    applyPaymentContextMessage({
+      customerId: customerId || "",
+      orderId: orderId || "",
+      jobId: paymentJobId?.value || "",
+    });
+  }
+
+  function renderCollectionsFollowUpReport(state = COLLECTIONS_AGENT_STATE) {
+    const report = state?.report || null;
+    if (!report) {
+      return `<div class="detail-copy">Run the collections review to separate genuinely overdue balances from general open balances, then work from grounded order and invoice records instead of guesswork.</div>`;
+    }
+
+    const findings = Array.isArray(report.findings) ? report.findings : [];
+    const blockers = Array.isArray(report.blockers) ? report.blockers : [];
+    const actions = Array.isArray(report.recommended_actions) ? report.recommended_actions : [];
+    const missingData = Array.isArray(report.missing_data) ? report.missing_data : [];
+    const dataUsed = Array.isArray(report.data_used) ? report.data_used.filter((item) => item && item.count > 0) : [];
+    const contextSummary = state?.context_summary || {};
+    const generatedAt = report.generated_at || state?.generated_at || new Date().toISOString();
+
+    return `
+      <div class="detail-copy">${escapeHtml(report.summary || "")}</div>
+      <div class="workspace-chip-row u-mt-10">
+        <span class="pill ${paymentAgentStatusTone(report.summary_status || "review_needed")}">${escapeHtml(titleCaseWords(String(report.summary_status || "review needed").replace(/_/g, " ")))}</span>
+        ${contextSummary.queue_length ? `<span class="pill ${contextSummary.overdue_count ? "pill-warn" : "pill-good"}">${escapeHtml(`${contextSummary.queue_length} in queue`)}</span>` : ""}
+        ${contextSummary.overdue_count ? `<span class="pill pill-bad">${escapeHtml(`${contextSummary.overdue_count} overdue`)}</span>` : ""}
+        ${contextSummary.missing_due_dates ? `<span class="pill pill-warn">${escapeHtml(`${contextSummary.missing_due_dates} missing due date${contextSummary.missing_due_dates === 1 ? "" : "s"}`)}</span>` : ""}
+        ${report.confidence?.label ? `<span class="pill">${escapeHtml(`Confidence ${report.confidence.label}`)}</span>` : ""}
+      </div>
+      ${blockers.length ? `
+        <div class="memory-checklist u-mt-10">
+          ${blockers.slice(0, 2).map((item) => `
+            <div class="memory-checklist__item memory-checklist__item--warn">
+              <div class="memory-checklist__title">${escapeHtml(item.title || "Collections blocker")}</div>
+              <div class="detail-copy memory-checklist__note">${escapeHtml(item.detail || "")}</div>
+            </div>
+          `).join("")}
+        </div>
+      ` : `<div class="detail-copy u-mt-10">No overdue blocker is currently open in this review.</div>`}
+      ${findings.length ? `
+        <div class="detail-copy u-mt-10"><strong>Collections queue</strong></div>
+        <div class="memory-checklist u-mt-10">
+          ${findings.slice(0, 6).map((item) => {
+            const orderRef = collectionsQueueRecordRef(item, "order");
+            const customerRef = collectionsQueueRecordRef(item, "customer");
+            return `
+              <div class="memory-checklist__item ${item.severity === "critical" || item.severity === "warning" ? "memory-checklist__item--warn" : "memory-checklist__item--ready"}">
+                <div class="memory-checklist__title">${escapeHtml(item.title || "Queue item")}</div>
+                <div class="detail-copy memory-checklist__note">${escapeHtml(item.detail || "")}</div>
+                <div class="action-row action-row--wrap u-mt-10">
+                  ${orderRef?.record_id ? `<button type="button" class="btn btn-primary btn-sm" data-collections-record-payment="${escapeAttr(orderRef.record_id)}" data-collections-customer-id="${escapeAttr(customerRef?.record_id || "")}">Record payment</button>` : ``}
+                  ${orderRef?.record_id ? `<button type="button" class="btn btn-ghost btn-sm" data-collections-open-order="${escapeAttr(orderRef.record_id)}">Open order</button>` : ``}
+                  ${customerRef?.record_id ? `<button type="button" class="btn btn-ghost btn-sm" data-collections-open-customer="${escapeAttr(customerRef.record_id)}">Open customer</button>` : ``}
+                </div>
+              </div>
+            `;
+          }).join("")}
+        </div>
+      ` : ""}
+      ${actions.length ? `
+        <div class="detail-copy u-mt-10"><strong>Recommended actions</strong></div>
+        <div class="workspace-chip-row">
+          ${actions.slice(0, 3).map((action) => `<span class="pill ${paymentAgentPriorityTone(action.priority || "medium")}">${escapeHtml(titleCaseWords(String(action.priority || "medium")))} priority</span>`).join("")}
+        </div>
+        <div class="memory-checklist u-mt-10">
+          ${actions.slice(0, 3).map((action) => `
+            <div class="memory-checklist__item ${action.priority === "high" ? "memory-checklist__item--warn" : "memory-checklist__item--ready"}">
+              <div class="memory-checklist__title">${escapeHtml(action.title || "Recommended action")}</div>
+              <div class="detail-copy memory-checklist__note">${escapeHtml(action.detail || "")}</div>
+            </div>
+          `).join("")}
+        </div>
+      ` : ""}
+      ${missingData.length ? `
+        <div class="detail-copy u-mt-10"><strong>Missing data</strong></div>
+        <div class="detail-copy">${escapeHtml(missingData.slice(0, 3).map((item) => item.label || item.detail || "").join(" | "))}</div>
+      ` : ""}
+      ${dataUsed.length ? `
+        <div class="detail-copy u-mt-10"><strong>Data used</strong></div>
+        <div class="workspace-chip-row">
+          ${dataUsed.slice(0, 4).map((item) => `<span class="pill">${escapeHtml(`${item.label}: ${item.count}`)}</span>`).join("")}
+        </div>
+      ` : ""}
+      <div class="detail-copy u-mt-10 muted">Generated ${escapeHtml(formatDateTime(generatedAt))}</div>
+    `;
+  }
+
+  function bindCollectionsQueueActions() {
+    paymentsList.querySelectorAll?.("[data-collections-open-order]").forEach((button) => {
+      button.addEventListener("click", () => openCollectionsQueueOrder(button.getAttribute("data-collections-open-order") || ""));
+    });
+    paymentsList.querySelectorAll?.("[data-collections-open-customer]").forEach((button) => {
+      button.addEventListener("click", () => openCollectionsQueueCustomer(button.getAttribute("data-collections-open-customer") || ""));
+    });
+    paymentsList.querySelectorAll?.("[data-collections-record-payment]").forEach((button) => {
+      button.addEventListener("click", () => {
+        seedPaymentFormFromCollectionsQueue(
+          button.getAttribute("data-collections-record-payment") || "",
+          button.getAttribute("data-collections-customer-id") || ""
+        );
+      });
+    });
+    paymentsList.querySelector?.("#btnRunCollectionsReview")?.addEventListener("click", async () => {
+      const statusEl = paymentsList.querySelector?.("#paymentsCollectionsAgentMsg") || null;
+      setInlineMessage(statusEl, "Reviewing collections queue...");
+      try {
+        const payload = await requestOperatorFunction("ai-agent-report", {
+          method: "POST",
+          body: {
+            agent_key: "collections_followup_assistant",
+          },
+        });
+        COLLECTIONS_AGENT_STATE.report = payload?.report || null;
+        COLLECTIONS_AGENT_STATE.context_summary = payload?.context_summary || null;
+        COLLECTIONS_AGENT_STATE.generated_at = payload?.generated_at || payload?.report?.generated_at || "";
+        renderPayments();
+        const freshStatusEl = paymentsList.querySelector?.("#paymentsCollectionsAgentMsg") || null;
+        setInlineMessage(
+          freshStatusEl,
+          COLLECTIONS_AGENT_STATE.context_summary?.overdue_count
+            ? "Collections review refreshed."
+            : "Collections review refreshed with no overdue balances flagged.",
+          COLLECTIONS_AGENT_STATE.context_summary?.overdue_count ? "warn" : "ok"
+        );
+      } catch (error) {
+        setInlineMessage(statusEl, error.message || String(error), "error");
+      }
+    });
+    paymentsList.querySelector?.("#btnOpenCollectionsFirst")?.addEventListener("click", () => {
+      const firstFinding = COLLECTIONS_AGENT_STATE.report?.findings?.[0] || null;
+      const orderRef = collectionsQueueRecordRef(firstFinding || {}, "order");
+      const customerRef = collectionsQueueRecordRef(firstFinding || {}, "customer");
+      if (orderRef?.record_id) {
+        seedPaymentFormFromCollectionsQueue(orderRef.record_id, customerRef?.record_id || "");
+      }
+    });
+  }
+
   function applyPaymentContextMessage(options = {}) {
     const message = buildPaymentContextMessage(options);
     if (!message) {
@@ -336,7 +521,21 @@
     }
 
     const rows = sortedPayments(PAYMENTS_CACHE);
-    paymentsList.innerHTML = rows.length ? "" : `<div class="muted">No payments recorded yet. Record a deposit, final payment, or manual collection to see it here.</div>`;
+    paymentsList.innerHTML = `
+      <div class="detail-card detail-card--spaced">
+        <div class="kicker">AI collections review</div>
+        <div><strong>Collections / Follow-up Assistant</strong></div>
+        <div class="action-row action-row--wrap u-mt-10">
+          <button type="button" class="btn btn-ghost btn-sm" id="btnRunCollectionsReview">${COLLECTIONS_AGENT_STATE.report ? "Refresh collections review" : "Run collections review"}</button>
+          ${COLLECTIONS_AGENT_STATE.report?.findings?.length ? `<button type="button" class="btn btn-ghost btn-sm" id="btnOpenCollectionsFirst">Load first balance into payment form</button>` : ``}
+        </div>
+        <div id="paymentsCollectionsAgentMsg" class="msg u-mt-10"></div>
+        <div id="paymentsCollectionsAgentReport" class="u-mt-10">
+          ${renderCollectionsFollowUpReport(COLLECTIONS_AGENT_STATE)}
+        </div>
+      </div>
+      ${rows.length ? "" : `<div class="muted">No payments recorded yet. Record a deposit, final payment, or manual collection to see it here.</div>`}
+    `;
 
     rows.forEach((p) => {
       const customer = CUSTOMERS_CACHE.find((c) => c.id === p.customer_id);
@@ -370,6 +569,7 @@
       });
       paymentsList.appendChild(el);
     });
+    bindCollectionsQueueActions();
   }
 
   paymentCustomerId?.addEventListener("change", () => {
@@ -519,6 +719,7 @@
     buildPaymentFollowThroughMessage,
     buildPaymentSavedMessage,
     buildPaymentReactivationActions,
+    renderCollectionsFollowUpReport,
     applyPaymentContextMessage,
     renderPaymentNextActions,
     renderPaymentCustomerOptions,

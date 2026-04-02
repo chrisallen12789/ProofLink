@@ -58,6 +58,7 @@ function loadPaymentsWorkspace(overrides = {}) {
     formatDateOnly: (value) => String(value),
     formatPaymentMode: (value) => String(value),
     formatDateTime: (value) => String(value),
+    titleCaseWords: (value) => String(value),
     getScheduledDateFromOrder: () => "",
     paymentAmountCents: (payment) => Number(payment.amount_total || payment.amount_subtotal || 0),
     isManualPaymentRecord: () => true,
@@ -73,11 +74,13 @@ function loadPaymentsWorkspace(overrides = {}) {
     renderMoney: vi.fn(() => Promise.resolve()),
     renderGuidance: vi.fn(),
     renderCustomerDetail: vi.fn(() => Promise.resolve()),
+    switchTab: vi.fn(),
     markWorkspaceClean: vi.fn(),
     fetchPayments: vi.fn(() => Promise.resolve()),
     fetchCustomers: vi.fn(() => Promise.resolve()),
     fetchCrmOrders: vi.fn(() => Promise.resolve()),
     fetchJobs: vi.fn(() => Promise.resolve()),
+    requestOperatorFunction: vi.fn(() => Promise.resolve()),
     withTenantScope: (payload) => payload,
     opId: () => "operator_1",
     toCents: (value) => Math.round(Number(value || 0) * 100),
@@ -321,5 +324,52 @@ describe("operator payments workspace", () => {
         }),
       })
     );
+  });
+
+  test("renderCollectionsFollowUpReport keeps payment, order, and customer actions visible", () => {
+    const context = loadPaymentsWorkspace();
+
+    const markup = context.window.renderCollectionsFollowUpReport({
+      report: {
+        summary: "The collections queue has 2 open balance records.",
+        summary_status: "review_needed",
+        findings: [{
+          title: "North College has an overdue balance",
+          detail: "The linked order has a proved due date in the past and still shows $240.00 outstanding.",
+          severity: "warning",
+          record_refs: [
+            { record_type: "order", record_id: "order_1", label: "Campus plumbing" },
+            { record_type: "customer", record_id: "customer_1", label: "North College" },
+          ],
+        }],
+        blockers: [{
+          title: "At least one overdue balance needs follow-up",
+          detail: "The queue includes orders with past due dates and open balances.",
+        }],
+        recommended_actions: [{
+          title: "Review the collections queue without overstating status",
+          detail: "Start with orders that have a real due date in the past.",
+          priority: "high",
+        }],
+        missing_data: [{
+          id: "collections_missing_due_dates",
+          label: "Some balances do not have a proved due date",
+        }],
+        data_used: [{ label: "Open balance orders", count: 2 }],
+        confidence: { label: "medium" },
+        generated_at: "2026-04-02T14:00:00Z",
+      },
+      context_summary: {
+        queue_length: 2,
+        overdue_count: 1,
+        missing_due_dates: 1,
+      },
+    });
+
+    expect(markup).toContain("Record payment");
+    expect(markup).toContain("Open order");
+    expect(markup).toContain("Open customer");
+    expect(markup).toContain("1 overdue");
+    expect(markup).toContain("missing due date");
   });
 });

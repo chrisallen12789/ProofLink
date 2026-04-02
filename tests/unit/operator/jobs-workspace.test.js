@@ -72,6 +72,7 @@ function loadJobsWorkspace(overrides = {}) {
     normalizeWorkflowStatusValue: vi.fn((value) => value),
     orderAmountDueCents: vi.fn(() => 0),
     formatUsd: vi.fn((value) => `$${value}`),
+    formatDateTime: vi.fn((value) => String(value)),
     formatPercent: vi.fn((value) => `${value}%`),
     paymentStateClass: vi.fn(() => "pill-ok"),
     formatWorkflowPaymentState: vi.fn((value) => value),
@@ -374,5 +375,36 @@ describe("operator jobs workspace", () => {
     expect(source).not.toContain('background:${item.ready ? "rgba(46,125,50,.10)" : "rgba(200,75,47,.08)"}');
     expect(source).not.toContain('background:rgba(255,255,255,.03);');
     expect(source).not.toContain('style="margin-top:14px;"');
+  });
+
+  test("renderJobAgentReport keeps blockers, actions, and evidence visible", () => {
+    const { context } = loadJobsWorkspace();
+
+    const html = context.renderJobAgentReport({
+      summary: "This job is not billing ready yet.",
+      summary_status: "blocked",
+      blockers: [
+        { title: "Upload the after photo", detail: "Completion proof is still missing." },
+      ],
+      recommended_actions: [
+        { title: "Create the invoice draft on the linked order", detail: "Generate the invoice now.", priority: "high" },
+      ],
+      findings: [
+        { title: "Closeout note is missing", detail: "The crew finished without a usable note.", severity: "warning" },
+      ],
+      evidence: [
+        { id: "proof_package", label: "Proof package" },
+      ],
+      billing_readiness: { score: 40 },
+      confidence: { label: "medium" },
+      data_used: [{ label: "Photos", count: 2 }],
+      generated_at: "2026-04-02T10:15:00.000Z",
+    });
+
+    expect(html).toContain("Billing readiness 40/100");
+    expect(html).toContain("Upload the after photo");
+    expect(html).toContain("Create the invoice draft on the linked order");
+    expect(html).toContain("Proof package");
+    expect(html).toContain("Photos: 2");
   });
 });

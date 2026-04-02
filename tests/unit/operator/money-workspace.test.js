@@ -61,6 +61,8 @@ function loadMoneyWorkspace(overrides = {}) {
     expenseChangeOrderItem: vi.fn(() => null),
     costItemSummary: vi.fn(() => "Expense summary"),
     money: (value) => String(value),
+    titleCaseWords: (value) => String(value),
+    formatDateTime: vi.fn(() => "Apr 2, 10:00 AM"),
     updateExpenseTypeVisibility: vi.fn(),
     syncExpenseLaborAmount: vi.fn(),
     refreshPicklists: vi.fn(async () => {}),
@@ -213,6 +215,44 @@ describe("operator money workspace", () => {
     context.window.renderReviews([]);
 
     expect(context.$("reviewsList").innerHTML).toContain("No reviews yet");
+  });
+
+  test("renderBillingBlockerQueueReport keeps queue items and open-job actions visible", () => {
+    const context = loadMoneyWorkspace();
+
+    const markup = context.window.renderBillingBlockerQueueReport({
+      report: {
+        summary: "2 jobs are still waiting on billing cleanup.",
+        summary_status: "blocked",
+        findings: [{
+          title: "Main Street Wash needs billing follow-through",
+          detail: "Job missing after photo before invoicing can move forward.",
+          severity: "warning",
+          record_refs: [{ record_type: "job", record_id: "job_1", label: "Main Street Wash" }],
+        }],
+        blockers: [{
+          title: "Invoice-ready work is still waiting on cleanup",
+          detail: "The top queue item is missing proof.",
+        }],
+        recommended_actions: [{
+          title: "Work through the billing blocker queue in priority order",
+          detail: "Clear the first blocker, then rerun the audit.",
+          priority: "high",
+        }],
+        data_used: [{ label: "Candidate jobs", count: 4 }],
+        confidence: { label: "medium" },
+        generated_at: "2026-04-02T14:00:00Z",
+      },
+      context_summary: {
+        queued_jobs: 2,
+        candidate_jobs: 4,
+      },
+    });
+
+    expect(markup).toContain("2 queued");
+    expect(markup).toContain("Open job");
+    expect(markup).toContain("Candidate jobs: 4");
+    expect(markup).toContain("Generated Apr 2, 10:00 AM");
   });
 
   test("initMoneyWorkspaceBindings wires the shared money handlers", () => {

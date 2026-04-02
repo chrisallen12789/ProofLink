@@ -16,7 +16,11 @@ const READ_TOOLS = new Set([
   'get_expenses', 'get_quotes', 'get_jobs', 'get_products',
   'get_dashboard_summary', 'get_overdue_payments', 'get_upcoming_bookings',
   'get_stale_customers', 'get_unpaid_orders', 'get_margin_issues',
+  'get_top_customers', 'get_multi_location_customers', 'get_upcoming_jobs',
   'get_missing_data_items', 'calculate_job_margin', 'find_anomalies',
+  'get_job_record_audit_context', 'get_estimate_record_context',
+  'get_dispatch_scheduling_context', 'get_billing_blocker_queue_context',
+  'get_collections_followup_context',
 ]);
 
 const DRAFT_TOOLS = new Set([

@@ -292,10 +292,21 @@ const bidProfile = $("bidProfile");
 const bidStatus = $("bidStatus");
 const bidWalkthroughAt = $("bidWalkthroughAt");
 const bidValidUntil = $("bidValidUntil");
+const bidTemplateType = $("bidTemplateType");
+const bidPreparedByUser = $("bidPreparedByUser");
+const bidSenderUser = $("bidSenderUser");
+const bidBrandSetupStatus = $("bidBrandSetupStatus");
 const bidServiceAddress = $("bidServiceAddress");
 const bidSiteContact = $("bidSiteContact");
 const bidScheduleWindow = $("bidScheduleWindow");
 const bidProjectSummary = $("bidProjectSummary");
+const bidRecipientCompany = $("bidRecipientCompany");
+const bidAttentionLine = $("bidAttentionLine");
+const bidRecipientAddress = $("bidRecipientAddress");
+const bidProjectName = $("bidProjectName");
+const bidSubjectLine = $("bidSubjectLine");
+const bidIntroText = $("bidIntroText");
+const bidValuePropositionText = $("bidValuePropositionText");
 const bidScopeOfWork = $("bidScopeOfWork");
 const bidProposedSolution = $("bidProposedSolution");
 const bidMaterialsPlan = $("bidMaterialsPlan");
@@ -307,6 +318,10 @@ const bidInternalNotes = $("bidInternalNotes");
 const bidDepositPercent = $("bidDepositPercent");
 const bidDepositAmount = $("bidDepositAmount");
 const bidTerms = $("bidTerms");
+const bidTermsTemplateId = $("bidTermsTemplateId");
+const bidExclusionsTemplateId = $("bidExclusionsTemplateId");
+const bidTermsOverride = $("bidTermsOverride");
+const bidExclusionsOverride = $("bidExclusionsOverride");
 const btnDuplicateBid = $("btnDuplicateBid");
 const btnApplyBidProfile = $("btnApplyBidProfile");
 const bidPhotoGuide = $("bidPhotoGuide");
@@ -330,6 +345,18 @@ const bidLineItemUnitPrice = $("bidLineItemUnitPrice");
 const btnClearBidLineItem = $("btnClearBidLineItem");
 const bidLineItemMsg = $("bidLineItemMsg");
 const bidLineItemsList = $("bidLineItemsList");
+const bidProposalOptionForm = $("bidProposalOptionForm");
+const bidProposalOptionId = $("bidProposalOptionId");
+const bidProposalOptionTitle = $("bidProposalOptionTitle");
+const bidProposalOptionType = $("bidProposalOptionType");
+const bidProposalOptionPriceLabel = $("bidProposalOptionPriceLabel");
+const bidProposalOptionPrice = $("bidProposalOptionPrice");
+const bidProposalOptionPriceUnit = $("bidProposalOptionPriceUnit");
+const bidProposalOptionScope = $("bidProposalOptionScope");
+const bidProposalOptionNotes = $("bidProposalOptionNotes");
+const btnClearBidProposalOption = $("btnClearBidProposalOption");
+const bidProposalOptionMsg = $("bidProposalOptionMsg");
+const bidProposalOptionsList = $("bidProposalOptionsList");
 const btnCopyBidEmail = $("btnCopyBidEmail");
 const btnExportBidJson = $("btnExportBidJson");
 const bidProposalPreview = $("bidProposalPreview");
@@ -486,6 +513,7 @@ const customerMsg = $("customerMsg");
 const btnSaveAndAddCustomer = $("btnSaveAndAddCustomer");
 const btnClearCustomerForm = $("btnClearCustomerForm");
 const customerId = $("customerId");
+const customerCompanyName = $("customerCompanyName");
 const customerName = $("customerName");
 const customerEmail = $("customerEmail");
 const customerPhone = $("customerPhone");
@@ -5675,6 +5703,7 @@ jobOrderId?.addEventListener("change", () => {
   const linkedOrder = CRM_ORDERS_CACHE.find((row) => row.id === (jobOrderId.value || ""));
   if (!linkedOrder) return;
   renderJobCustomerOptions(linkedOrder.customer_id || "");
+  if ($("jobCustomerLocationId")) $("jobCustomerLocationId").value = linkedOrder.customer_location_id || "";
   if (jobTitle && !jobTitle.value.trim()) jobTitle.value = linkedOrder.cart_summary || linkedOrder.customer_name || "";
   if (jobServiceAddress && !jobServiceAddress.value.trim()) jobServiceAddress.value = linkedOrder.service_address || "";
   if (jobScheduledDate && !jobScheduledDate.value) jobScheduledDate.value = linkedOrder.scheduled_date || "";
@@ -5887,6 +5916,7 @@ function draftFromBidRow(row) {
     record_id: row.id,
     title: row.title || "",
     customer_id: row.customer_id || "",
+    customer_location_id: row.customer_location_id || "",
     lead_id: row.lead_id || "",
     profile: normalizeBidProfile(row.profile || preferredBidProfile()),
     status: String(row.status || "draft"),
@@ -5916,6 +5946,26 @@ function draftFromBidRow(row) {
     converted_at: row.converted_at || null,
     sent_at: row.sent_at || null,
     approved_at: row.approved_at || null,
+    proposal_document_id: metadata.proposal_document_id || "",
+    proposal_public_token: metadata.proposal_public_token || "",
+    proposal_status: metadata.proposal_status || "",
+    proposal_revision_number: Number(metadata.proposal_revision_number || 1),
+    template_type: metadata.template_type || "",
+    prepared_by_user_id: metadata.prepared_by_user_id || "",
+    sender_user_id: metadata.sender_user_id || "",
+    recipient_company: metadata.recipient_company || "",
+    recipient_address: metadata.recipient_address || "",
+    attention_line: metadata.attention_line || "",
+    subject_line: metadata.subject_line || "",
+    project_name: metadata.project_name || "",
+    intro_text: metadata.intro_text || "",
+    value_proposition_text: metadata.value_proposition_text || "",
+    proposal_notes: metadata.proposal_notes || "",
+    terms_template_id: metadata.terms_template_id || "",
+    exclusions_template_id: metadata.exclusions_template_id || "",
+    terms_override: metadata.terms_override || "",
+    exclusions_override: metadata.exclusions_override || "",
+    proposal_options: cloneJson(metadata.proposal_options || [], []),
     metadata,
     created_at: row.created_at || new Date().toISOString(),
     updated_at: row.updated_at || new Date().toISOString(),
@@ -5927,6 +5977,7 @@ function bidRowFromDraft(draft) {
     operator_id: opId(),
     lead_id: draft?.lead_id || null,
     customer_id: draft?.customer_id || null,
+    customer_location_id: draft?.customer_location_id || null,
     status: String(draft?.status || "draft"),
     profile: normalizeBidProfile(draft?.profile || preferredBidProfile()),
     title: draft?.title || defaultBidTitleFromDraft(draft),
@@ -5959,6 +6010,26 @@ function bidRowFromDraft(draft) {
     metadata: {
       ...(draft?.metadata && typeof draft.metadata === "object" ? draft.metadata : {}),
       local_draft_id: draft?.id || null,
+      proposal_document_id: draft?.proposal_document_id || null,
+      proposal_public_token: draft?.proposal_public_token || null,
+      proposal_status: draft?.proposal_status || null,
+      proposal_revision_number: Number(draft?.proposal_revision_number || 1),
+      template_type: draft?.template_type || null,
+      prepared_by_user_id: draft?.prepared_by_user_id || null,
+      sender_user_id: draft?.sender_user_id || null,
+      recipient_company: draft?.recipient_company || null,
+      recipient_address: draft?.recipient_address || null,
+      attention_line: draft?.attention_line || null,
+      subject_line: draft?.subject_line || null,
+      project_name: draft?.project_name || null,
+      intro_text: draft?.intro_text || null,
+      value_proposition_text: draft?.value_proposition_text || null,
+      proposal_notes: draft?.proposal_notes || null,
+      terms_template_id: draft?.terms_template_id || null,
+      exclusions_template_id: draft?.exclusions_template_id || null,
+      terms_override: draft?.terms_override || null,
+      exclusions_override: draft?.exclusions_override || null,
+      proposal_options: cloneJson(draft?.proposal_options || [], []),
       client_version: "phase1",
     },
     updated_at: draft?.updated_at || new Date().toISOString(),
@@ -6029,8 +6100,28 @@ function emptyBidDraft(profileKey = preferredBidProfile()) {
     lead_id: "",
     title: "",
     customer_id: "",
+    customer_location_id: "",
     profile: normalizeBidProfile(profileKey),
     status: "draft",
+    proposal_document_id: "",
+    proposal_public_token: "",
+    proposal_status: "draft",
+    proposal_revision_number: 1,
+    template_type: "",
+    prepared_by_user_id: "",
+    sender_user_id: "",
+    recipient_company: "",
+    recipient_address: "",
+    attention_line: "",
+    subject_line: "",
+    project_name: "",
+    intro_text: "",
+    value_proposition_text: "",
+    proposal_notes: "",
+    terms_template_id: "",
+    exclusions_template_id: "",
+    terms_override: "",
+    exclusions_override: "",
     walkthrough_at: nowIso,
     valid_until: validUntil.toISOString().slice(0, 10),
     service_address: "",
@@ -6057,6 +6148,7 @@ function emptyBidDraft(profileKey = preferredBidProfile()) {
       unit_price_cents: Number(item.unit_price_cents || 0),
       kind: String(item.kind || "base"),
     })),
+    proposal_options: [],
     photos: [],
     created_at: nowIso,
     updated_at: nowIso,
@@ -6072,6 +6164,7 @@ function bidDraftFromLeadRecord(lead, profileKey = preferredBidProfile(), seedDr
     ...baseDraft,
     title: String(lead?.title || lead?.requested_service_type || baseDraft.title || "Service proposal").trim(),
     customer_id: lead?.customer_id || baseDraft.customer_id || "",
+    customer_location_id: lead?.customer_location_id || baseDraft.customer_location_id || "",
     lead_id: lead?.id || baseDraft.lead_id || "",
     profile,
     status: String(baseDraft.status || "draft"),
@@ -7118,6 +7211,7 @@ function renderJobAssignedToOptions(selectedId = "") {
 }
 function clearJobForm() {
   if (jobId) jobId.value = "";
+  if ($("jobCustomerLocationId")) $("jobCustomerLocationId").value = "";
   if (jobStatus) jobStatus.value = "scheduled";
   renderJobOrderOptions(ACTIVE_ORDER_ID || "");
   renderJobCustomerOptions("");
@@ -7151,6 +7245,7 @@ function populateJobForm(job) {
     return;
   }
   if (jobId) jobId.value = job.id || "";
+  if ($("jobCustomerLocationId")) $("jobCustomerLocationId").value = job.customer_location_id || "";
   if (jobStatus) jobStatus.value = String(job.status || "scheduled");
   renderJobOrderOptions(job.order_id || "");
   renderJobCustomerOptions(job.customer_id || "");
@@ -8851,7 +8946,7 @@ async function loadAIBriefing() {
   const statusEl  = $("aiBriefStatus");
   const chipsEl   = $("aiContextChips");
   if (!briefEl) return;
-  if (statusEl) { statusEl.textContent = "Loading…"; statusEl.style.display = "block"; }
+  if (statusEl) { statusEl.textContent = "Loading..."; statusEl.style.display = "block"; }
   briefEl.style.display = "none";
   try {
     const tok = await getAccessToken();
@@ -8872,10 +8967,13 @@ async function loadAIBriefing() {
       const cs = d.context_summary;
       const chips = [
         cs.today_appointments > 0 && `${cs.today_appointments} appt${cs.today_appointments > 1 ? "s" : ""} today`,
+        cs.upcoming_jobs > 0 && `${cs.upcoming_jobs} job${cs.upcoming_jobs > 1 ? "s" : ""} this week`,
         cs.unpaid_orders > 0 && `${cs.unpaid_orders} unpaid`,
         cs.pending_quotes > 0 && `${cs.pending_quotes} pending quote${cs.pending_quotes > 1 ? "s" : ""}`,
         cs.unread_messages > 0 && `${cs.unread_messages} message${cs.unread_messages > 1 ? "s" : ""}`,
         cs.overdue_orders > 0 && `${cs.overdue_orders} overdue`,
+        cs.reminders_needed > 0 && `${cs.reminders_needed} reminder${cs.reminders_needed > 1 ? "s" : ""} needed`,
+        cs.multi_site_accounts > 0 && `${cs.multi_site_accounts} multi-site account${cs.multi_site_accounts > 1 ? "s" : ""}`,
       ].filter(Boolean);
       chipsEl.innerHTML = chips.map((c) => `<span style="display:inline-block;background:rgba(200,75,47,.15);border:1px solid rgba(200,75,47,.3);border-radius:12px;padding:2px 10px;font-size:.75rem;color:rgba(255,255,255,.7);">${escapeHtml(c)}</span>`).join(" ");
     }
@@ -8892,7 +8990,7 @@ $("btnRefreshBrief")?.addEventListener("click", async () => {
   AI_PANEL_LOADED = true;
 });
 
-async function aiAskQuestion(question) {
+async function aiAskQuestion(question, specialist = "general") {
   const answerEl = $("aiAnswer");
   const errorEl  = $("aiError");
   const btn      = $("btnAskAI");
@@ -8900,13 +8998,13 @@ async function aiAskQuestion(question) {
   if (btn) btn.disabled = true;
   if (errorEl) errorEl.style.display = "none";
   answerEl.style.display = "block";
-  answerEl.textContent = "Thinking…";
+  answerEl.textContent = "Thinking...";
   try {
     const tok = await getAccessToken();
     const res = await fetch("/.netlify/functions/ai-copilot", {
       method : "POST",
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${tok}` },
-      body   : JSON.stringify({ question, mode: "copilot" }),
+      body   : JSON.stringify({ question, mode: "copilot", specialist }),
     });
     const d = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(d.error || "Failed to get answer");
@@ -8932,7 +9030,7 @@ document.querySelectorAll(".ai-quick[data-q]").forEach((btn) => {
   btn.addEventListener("click", () => {
     const input = $("aiQuestion");
     if (input) input.value = btn.getAttribute("data-q");
-    aiAskQuestion(btn.getAttribute("data-q"));
+    aiAskQuestion(btn.getAttribute("data-q"), btn.getAttribute("data-specialist") || "general");
   });
 });
 
@@ -8965,7 +9063,7 @@ async function requestAIDraft(draft_type) {
   if (!outputEl) return;
   if (areaEl) areaEl.style.display = "block";
   if (copyBtn) copyBtn.style.display = "none";
-  outputEl.textContent = "Drafting…";
+  outputEl.textContent = "Drafting...";
   try {
     const tok = await getAccessToken();
     const res = await fetch("/.netlify/functions/ai-copilot", {

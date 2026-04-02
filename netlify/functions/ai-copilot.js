@@ -11,7 +11,7 @@
 'use strict';
 
 const { requireOperatorContext, respond } = require('./utils/auth');
-const { getBusinessContext }              = require('./agent/tools');
+const { getAiContext, getBusinessContext } = require('./agent/tools');
 const { buildCopilotPrompt, buildDraftPrompt } = require('./agent/prompts');
 const { logAgentEvent }                   = require('./agent/audit');
 const { evaluateToolCall }                = require('./agent/policy');
@@ -66,9 +66,10 @@ exports.handler = async (event) => {
   try { body = JSON.parse(event.body || '{}'); }
   catch { return respond(400, { error: 'Invalid JSON' }); }
 
-  const question    = String(body.question || '').trim();
-  const mode        = String(body.mode || 'copilot');
-  const draft_type  = String(body.draft_type || '');
+  const question     = String(body.question || '').trim();
+  const mode         = String(body.mode || 'copilot');
+  const draft_type   = String(body.draft_type || '');
+  const specialist   = String(body.specialist || 'general').trim().toLowerCase();
   const draft_extras = body.draft_extras || {};
 
   if (!question && mode !== 'draft') return respond(400, { error: 'question is required' });
@@ -82,14 +83,16 @@ exports.handler = async (event) => {
 
   try {
     // Load business context for grounding
-    const context = await getBusinessContext(supabase, tenantId);
+    const context = mode === 'draft'
+      ? await getBusinessContext(supabase, tenantId)
+      : await getAiContext(supabase, tenantId, specialist);
 
     let prompt;
     if (mode === 'draft') {
       if (!draft_type) return respond(400, { error: 'draft_type is required for draft mode' });
       prompt = buildDraftPrompt(draft_type, context, draft_extras);
     } else {
-      prompt = buildCopilotPrompt(question, context);
+      prompt = buildCopilotPrompt(question, context, { specialist });
     }
 
     const { text, mock } = await callClaude(prompt, mode === 'draft' ? 512 : 1024);
@@ -99,15 +102,16 @@ exports.handler = async (event) => {
     await logAgentEvent(adminSb, {
       tenant_id       : tenantId,
       operator_id     : operatorId,
-      mode            : mode === 'draft' ? `draft:${draft_type}` : 'copilot',
+      mode            : mode === 'draft' ? `draft:${draft_type}` : `copilot:${specialist}`,
       prompt_summary  : question.slice(0, 200) || draft_type,
-      tools_used      : ['getBusinessContext'],
+      tools_used      : [mode === 'draft' ? 'getBusinessContext' : `getAiContext:${specialist}`],
       response_summary: text.slice(0, 200),
     });
 
     return respond(200, {
       ok         : true,
       mode,
+      specialist,
       answer     : text,
       is_draft   : mode === 'draft',
       is_mock    : mock || false,
@@ -118,9 +122,9 @@ exports.handler = async (event) => {
     await logAgentEvent(adminSb, {
       tenant_id    : tenantId,
       operator_id  : operatorId,
-      mode,
+      mode: mode === 'draft' ? mode : `copilot:${specialist}`,
       prompt_summary: question.slice(0, 200),
-      tools_used   : ['getBusinessContext'],
+      tools_used   : [mode === 'draft' ? 'getBusinessContext' : `getAiContext:${specialist}`],
       response_summary: '',
       error        : err.message,
     }).catch(() => {});

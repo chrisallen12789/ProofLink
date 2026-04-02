@@ -1,6 +1,7 @@
 // Hydrovac dispatch workspace extracted from operator.js
 // so crew assignment and readiness live in one focused module.
 const DISPATCH_TRUCK_LOAD_CACHE = new Map();
+const DISPATCH_AGENT_REVIEW_CACHE = window.PROOFLINK_DISPATCH_AGENT_REVIEW_CACHE || (window.PROOFLINK_DISPATCH_AGENT_REVIEW_CACHE = {});
 
 function dispatchManifestMeta(row) {
   return row?.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata)
@@ -192,9 +193,140 @@ function dispatchTruckAuditPacket(truck, planner, jobs = JOBS_CACHE, customers =
   ].join("\n");
 }
 
+function dispatchAgentStatusTone(status) {
+  if (status === "ready") return "pill-good";
+  if (status === "blocked") return "pill-bad";
+  return "pill-warn";
+}
+
+function dispatchAgentPriorityTone(priority) {
+  if (priority === "high") return "pill-bad";
+  if (priority === "low") return "";
+  return "pill-warn";
+}
+
+function dispatchAgentTimestamp(value) {
+  if (typeof formatDateTime === "function") return formatDateTime(value || new Date().toISOString());
+  return String(value || "");
+}
+
+function dispatchAgentPrimaryRef(item = {}) {
+  return (Array.isArray(item.record_refs) ? item.record_refs : []).find((ref) => ref && ref.record_type === "job" && ref.record_id) || null;
+}
+
+function openDispatchAgentJob(jobId, targetDate = "") {
+  if (!jobId) return;
+  const matchingHydrovacJob = (JOBS_CACHE || []).find((job) => job.id === jobId && isHydrovacJob(job) && (!targetDate || hydrovacJobSortDate(job) === targetDate));
+  if (matchingHydrovacJob) {
+    ACTIVE_DISPATCH_JOB_ID = jobId;
+    renderDispatchWorkspace();
+    return;
+  }
+  ACTIVE_JOB_ID = jobId;
+  if (typeof switchTab === "function") switchTab("jobs");
+}
+
+function renderDispatchAgentReview(state = null, targetDate = "") {
+  const report = state?.report || null;
+  const titleCopy = targetDate ? `Run a grounded review for ${targetDate}` : "Run a grounded review of the upcoming dispatch plan";
+  if (!report) {
+    return `
+      <div class="detail-card detail-card--spaced">
+        <div class="kicker">AI dispatch review</div>
+        <div><strong>Dispatch / Scheduling Assistant</strong></div>
+        <div class="detail-copy">${escapeHtml(titleCopy)} so missing dates, missing assignments, and same-day route opportunities are surfaced before the crew rolls.</div>
+        <div class="action-row action-row--wrap u-mt-10">
+          <button id="btnRunDispatchAgentReview" class="btn btn-ghost btn-sm" type="button">Run dispatch review</button>
+        </div>
+        <div id="dispatchAgentMsg" class="msg u-mt-10"></div>
+        <div id="dispatchAgentReviewReport" class="u-mt-10"></div>
+      </div>
+    `;
+  }
+
+  const findings = Array.isArray(report.findings) ? report.findings : [];
+  const blockers = Array.isArray(report.blockers) ? report.blockers : [];
+  const actions = Array.isArray(report.recommended_actions) ? report.recommended_actions : [];
+  const dataUsed = Array.isArray(report.data_used) ? report.data_used.filter((item) => item && item.count > 0) : [];
+  const summary = state?.context_summary || {};
+
+  return `
+    <div class="detail-card detail-card--spaced">
+      <div class="kicker">AI dispatch review</div>
+      <div><strong>Dispatch / Scheduling Assistant</strong></div>
+      <div class="detail-copy">${escapeHtml(report.summary || titleCopy)}</div>
+      <div class="action-row action-row--wrap u-mt-10">
+        <button id="btnRunDispatchAgentReview" class="btn btn-ghost btn-sm" type="button">Refresh dispatch review</button>
+        ${findings.length ? `<button id="btnOpenDispatchAgentFirst" class="btn btn-ghost btn-sm" type="button">Open first job</button>` : ""}
+      </div>
+      <div id="dispatchAgentMsg" class="msg u-mt-10"></div>
+      <div id="dispatchAgentReviewReport" class="u-mt-10">
+        <div class="workspace-chip-row">
+          <span class="pill ${dispatchAgentStatusTone(report.summary_status || "review_needed")}">${escapeHtml(titleCaseWords(String(report.summary_status || "review needed").replace(/_/g, " ")))}</span>
+          ${summary.upcoming_jobs ? `<span class="pill">${escapeHtml(`${summary.upcoming_jobs} reviewed`)}</span>` : ""}
+          ${summary.assignment_conflicts ? `<span class="pill pill-bad">${escapeHtml(`${summary.assignment_conflicts} conflict${summary.assignment_conflicts === 1 ? "" : "s"}`)}</span>` : ""}
+          ${summary.bundle_opportunities ? `<span class="pill pill-warn">${escapeHtml(`${summary.bundle_opportunities} bundle opportunity${summary.bundle_opportunities === 1 ? "" : "ies"}`)}</span>` : ""}
+          ${report.confidence?.label ? `<span class="pill">${escapeHtml(`Confidence ${report.confidence.label}`)}</span>` : ""}
+        </div>
+        ${blockers.length ? `
+          <div class="memory-checklist u-mt-10">
+            ${blockers.slice(0, 3).map((item) => `
+              <div class="memory-checklist__item memory-checklist__item--warn">
+                <div class="memory-checklist__title">${escapeHtml(item.title || "Dispatch blocker")}</div>
+                <div class="detail-copy memory-checklist__note">${escapeHtml(item.detail || "")}</div>
+              </div>
+            `).join("")}
+          </div>
+        ` : `<div class="detail-copy u-mt-10">No hard dispatch blockers were returned in this pass.</div>`}
+        ${findings.length ? `
+          <div class="detail-copy u-mt-10"><strong>Findings</strong></div>
+          <div class="memory-checklist u-mt-10">
+            ${findings.slice(0, 5).map((item) => {
+              const ref = dispatchAgentPrimaryRef(item);
+              return `
+                <div class="memory-checklist__item ${item.severity === "warning" || item.severity === "critical" ? "memory-checklist__item--warn" : "memory-checklist__item--ready"}">
+                  <div class="memory-checklist__title">${escapeHtml(item.title || "Finding")}</div>
+                  <div class="detail-copy memory-checklist__note">${escapeHtml(item.detail || "")}</div>
+                  ${ref?.record_id ? `
+                    <div class="action-row action-row--wrap u-mt-10">
+                      <button type="button" class="btn btn-ghost btn-sm" data-dispatch-ai-open-job="${escapeAttr(ref.record_id)}">Open job</button>
+                    </div>
+                  ` : ``}
+                </div>
+              `;
+            }).join("")}
+          </div>
+        ` : ""}
+        ${actions.length ? `
+          <div class="detail-copy u-mt-10"><strong>Recommended actions</strong></div>
+          <div class="workspace-chip-row">
+            ${actions.slice(0, 3).map((action) => `<span class="pill ${dispatchAgentPriorityTone(action.priority || "medium")}">${escapeHtml(titleCaseWords(String(action.priority || "medium")))} priority</span>`).join("")}
+          </div>
+          <div class="memory-checklist u-mt-10">
+            ${actions.slice(0, 3).map((action) => `
+              <div class="memory-checklist__item ${action.priority === "high" ? "memory-checklist__item--warn" : "memory-checklist__item--ready"}">
+                <div class="memory-checklist__title">${escapeHtml(action.title || "Recommended action")}</div>
+                <div class="detail-copy memory-checklist__note">${escapeHtml(action.detail || "")}</div>
+              </div>
+            `).join("")}
+          </div>
+        ` : ""}
+        ${dataUsed.length ? `
+          <div class="detail-copy u-mt-10"><strong>Data used</strong></div>
+          <div class="workspace-chip-row">
+            ${dataUsed.slice(0, 4).map((item) => `<span class="pill">${escapeHtml(`${item.label}: ${item.count}`)}</span>`).join("")}
+          </div>
+        ` : ""}
+        <div class="detail-copy u-mt-10 muted">Generated ${escapeHtml(dispatchAgentTimestamp(report.generated_at || state?.generated_at || new Date().toISOString()))}</div>
+      </div>
+    </div>
+  `;
+}
+
 function renderDispatchWorkspace() {
   if (!dispatchBoard || !dispatchDetail) return;
   const targetDate = dispatchDate?.value || new Date().toISOString().slice(0, 10);
+  const dispatchAgentState = DISPATCH_AGENT_REVIEW_CACHE[targetDate] || null;
   if (dispatchDate && !dispatchDate.value) dispatchDate.value = targetDate;
 
   const hydrovacJobs = (JOBS_CACHE || [])
@@ -348,9 +480,69 @@ function renderDispatchWorkspace() {
     ACTIVE_DISPATCH_JOB_ID = hydrovacJobs[0]?.id || null;
   }
 
+  const bindDispatchAgentActions = () => {
+    dispatchDetail.querySelectorAll?.("[data-dispatch-ai-open-job]").forEach((button) => {
+      button.addEventListener("click", () => openDispatchAgentJob(button.getAttribute("data-dispatch-ai-open-job") || "", targetDate));
+    });
+    dispatchDetail.querySelector?.("#btnOpenDispatchAgentFirst")?.addEventListener("click", () => {
+      const firstFinding = DISPATCH_AGENT_REVIEW_CACHE[targetDate]?.report?.findings?.[0] || null;
+      const firstRef = dispatchAgentPrimaryRef(firstFinding || {});
+      if (firstRef?.record_id) openDispatchAgentJob(firstRef.record_id, targetDate);
+    });
+    const msgEl = dispatchDetail.querySelector?.("#dispatchAgentMsg") || null;
+    const reportHost = dispatchDetail.querySelector?.("#dispatchAgentReviewReport") || null;
+    dispatchDetail.querySelector?.("#btnRunDispatchAgentReview")?.addEventListener("click", async () => {
+      if (typeof setInlineMessage === "function") {
+        setInlineMessage(msgEl, "Reviewing dispatch plan...");
+      } else if (msgEl) {
+        msgEl.textContent = "Reviewing dispatch plan...";
+      }
+      try {
+        const payload = await requestOperatorFunction("ai-agent-report", {
+          method: "POST",
+          body: {
+            agent_key: "dispatch_scheduling_assistant",
+            target_date: targetDate,
+            job_type: "hydrovac",
+            days: 3,
+          },
+        });
+        DISPATCH_AGENT_REVIEW_CACHE[targetDate] = {
+          report: payload?.report || null,
+          context_summary: payload?.context_summary || null,
+          generated_at: payload?.generated_at || payload?.report?.generated_at || "",
+        };
+        renderDispatchWorkspace();
+        if (typeof setInlineMessage === "function") {
+          setInlineMessage(
+            dispatchDetail.querySelector?.("#dispatchAgentMsg") || msgEl,
+            DISPATCH_AGENT_REVIEW_CACHE[targetDate]?.report?.blockers?.length
+              ? "Dispatch review refreshed."
+              : "Dispatch review refreshed with no hard blockers.",
+            DISPATCH_AGENT_REVIEW_CACHE[targetDate]?.report?.blockers?.length ? "warn" : "ok"
+          );
+        } else if (reportHost) {
+          reportHost.textContent = "";
+        }
+      } catch (error) {
+        if (typeof setInlineMessage === "function") {
+          setInlineMessage(msgEl, error.message || String(error), "error");
+        } else if (msgEl) {
+          msgEl.textContent = error.message || String(error);
+        }
+      }
+    });
+  };
+
   const activeJob = hydrovacJobs.find((job) => job.id === ACTIVE_DISPATCH_JOB_ID) || null;
   if (!activeJob) {
-    dispatchDetail.innerHTML = `<div class="muted">No hydrovac jobs are scheduled on ${escapeHtml(targetDate)} yet.</div>`;
+    dispatchDetail.innerHTML = `
+      ${renderDispatchAgentReview(dispatchAgentState, targetDate)}
+      <div class="detail-card">
+        <div class="detail-copy">No hydrovac jobs are scheduled on ${escapeHtml(targetDate)} yet.</div>
+      </div>
+    `;
+    bindDispatchAgentActions();
     return;
   }
 
@@ -374,6 +566,7 @@ function renderDispatchWorkspace() {
   const dispatchBlocked = truckPlanner.warnings.some((item) => item.blocking);
 
   dispatchDetail.innerHTML = `
+    ${renderDispatchAgentReview(dispatchAgentState, targetDate)}
     <div class="detail-card">
       <div class="detail-card__header">
         <strong>${escapeHtml(activeJob.title || "Untitled hydrovac job")}</strong>
@@ -410,6 +603,7 @@ function renderDispatchWorkspace() {
       <div id="dispatchMsg" class="msg"></div>
     </div>
   `;
+  bindDispatchAgentActions();
 
   const dispatchCard = dispatchDetail.querySelector(".detail-card");
   if (dispatchCard) {
@@ -562,6 +756,7 @@ const DISPATCH_WORKSPACE_HELPERS = {
   fetchDispatchTruckLoads,
   dispatchTruckPlanner,
   dispatchTruckAuditPacket,
+  renderDispatchAgentReview,
   renderDispatchWorkspace,
   initDispatchWorkspaceBindings,
 };
