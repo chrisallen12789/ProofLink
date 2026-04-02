@@ -410,6 +410,44 @@ async function getPendingQuotes(supabase, tenantId) {
   return data || [];
 }
 
+async function getCustomerRowsByIds(
+  supabase,
+  tenantId,
+  customerIds = [],
+  assumptions = [],
+  message = 'Linked customer records were unavailable because the customers table could not be queried.'
+) {
+  const ids = [...new Set((customerIds || []).map((value) => String(value || '').trim()).filter(Boolean))].slice(0, 80);
+  if (!ids.length) return [];
+  return resolveOptionalRows(
+    supabase
+      .from('customers')
+      .select([
+        'id',
+        'name',
+        'company_name',
+        'email',
+        'phone',
+        'created_at',
+        'updated_at',
+        'last_contact_at',
+        'service_plan_name',
+        'recurring_notes',
+        'service_schedule',
+        'frequency',
+        'follow_up_notes',
+        'maintenance_notes',
+        'parts_follow_up',
+        'warranty_notes',
+        'seasonal_notes',
+      ].join(', '))
+      .eq('tenant_id', tenantId)
+      .in('id', ids),
+    assumptions,
+    message
+  );
+}
+
 // ── Messages ──────────────────────────────────────────────────────────────────
 
 async function getUnreadMessages(supabase, tenantId) {
@@ -495,6 +533,66 @@ async function getQuoteRescueContext(supabase, tenantId) {
   };
 }
 
+async function getQuoteRescueManagerContext(supabase, tenantId) {
+  const assumptions = [];
+  const [quotes, bids, topCustomers, staleCustomers] = await Promise.all([
+    resolveOptionalRows(
+      supabase
+        .from('quotes')
+        .select('id, customer_id, customer_name, customer_email, title, description, notes, amount_cents, status, valid_until, order_id, accepted_at, declined_at, created_at, updated_at')
+        .eq('tenant_id', tenantId)
+        .order('updated_at', { ascending: false })
+        .limit(80),
+      assumptions,
+      'Quote history was unavailable because the quotes table could not be queried.'
+    ),
+    resolveOptionalRows(
+      supabase
+        .from('bids')
+        .select('id, lead_id, customer_id, status, title, valid_until, service_address, project_summary, scope_of_work, cover_note, total_cents, converted_order_id, created_at, updated_at')
+        .eq('tenant_id', tenantId)
+        .order('updated_at', { ascending: false })
+        .limit(80),
+      assumptions,
+      'Proposal history was unavailable because the bids table could not be queried.'
+    ),
+    getTopCustomers(supabase, tenantId, 8).catch(() => []),
+    getStaleCustomers(supabase, tenantId, 45).catch(() => []),
+  ]);
+
+  const customerIds = [
+    ...(quotes || []).map((row) => row?.customer_id),
+    ...(bids || []).map((row) => row?.customer_id),
+    ...(staleCustomers || []).map((row) => row?.id),
+    ...(topCustomers || []).map((row) => row?.id),
+  ];
+  const customers = await getCustomerRowsByIds(
+    supabase,
+    tenantId,
+    customerIds,
+    assumptions,
+    'Linked customer context for quote rescue was unavailable because the customers table could not be queried.'
+  );
+
+  return {
+    snapshot_at: new Date().toISOString(),
+    tenant_id: tenantId,
+    specialist: 'quote_rescue_manager',
+    quotes: quotes || [],
+    bids: bids || [],
+    customers,
+    top_customers: topCustomers,
+    stale_customers: staleCustomers,
+    assumptions,
+    data_used: [
+      { label: 'CRM quotes', count: Array.isArray(quotes) ? quotes.length : 0, detail: 'quotes' },
+      { label: 'Walkthrough bids', count: Array.isArray(bids) ? bids.length : 0, detail: 'bids' },
+      { label: 'Linked customers', count: customers.length, detail: 'customers' },
+      { label: 'Stale customers', count: Array.isArray(staleCustomers) ? staleCustomers.length : 0, detail: 'customers' },
+    ],
+  };
+}
+
 async function getRetentionContext(supabase, tenantId) {
   const [staleCustomers, topCustomers, multiLocationCustomers, upcomingJobs, recentPayments] = await Promise.all([
     getStaleCustomers(supabase, tenantId, 45).catch(() => []),
@@ -512,6 +610,144 @@ async function getRetentionContext(supabase, tenantId) {
     multi_location_customers: multiLocationCustomers,
     upcoming_jobs: upcomingJobs,
     recent_payments: recentPayments,
+  };
+}
+
+async function getServicePlanRenewalContext(supabase, tenantId, input = {}) {
+  const assumptions = [];
+  const focusPlanId = String(input.plan_id || input.planId || '').trim();
+  const servicePlans = await resolveOptionalRows(
+    supabase
+      .from('service_plans')
+      .select('id, customer_id, source_order_id, last_generated_order_id, title, status, cadence, custom_interval_days, next_run_on, amount_cents, deposit_required_cents, summary, notes, updated_at')
+      .eq('tenant_id', tenantId)
+      .order('updated_at', { ascending: false })
+      .limit(120),
+    assumptions,
+    'Service-plan renewal context was unavailable because the service_plans table could not be queried.'
+  );
+  const customers = await getCustomerRowsByIds(
+    supabase,
+    tenantId,
+    (servicePlans || []).map((row) => row?.customer_id),
+    assumptions,
+    'Linked customer context for service-plan renewal was unavailable because the customers table could not be queried.'
+  );
+  const orderIds = [
+    ...(servicePlans || []).map((row) => row?.source_order_id),
+    ...(servicePlans || []).map((row) => row?.last_generated_order_id),
+  ];
+  const relatedOrders = orderIds.filter(Boolean).length
+    ? await resolveOptionalRows(
+        supabase
+          .from('orders')
+          .select('id, customer_id, title, status, total_cents, payment_state, amount_due_cents, scheduled_date, updated_at')
+          .eq('tenant_id', tenantId)
+          .in('id', [...new Set(orderIds.filter(Boolean))]),
+        assumptions,
+        'Linked order context for service-plan renewal was unavailable because the orders table could not be queried.'
+      )
+    : [];
+
+  return {
+    snapshot_at: new Date().toISOString(),
+    tenant_id: tenantId,
+    specialist: 'service_plan_renewal_manager',
+    focus_plan_id: focusPlanId,
+    service_plans: servicePlans || [],
+    customers,
+    related_orders: relatedOrders,
+    assumptions,
+    data_used: [
+      { label: 'Service plans', count: Array.isArray(servicePlans) ? servicePlans.length : 0, detail: 'service_plans' },
+      { label: 'Linked customers', count: customers.length, detail: 'customers' },
+      { label: 'Linked orders', count: Array.isArray(relatedOrders) ? relatedOrders.length : 0, detail: 'orders' },
+    ],
+  };
+}
+
+async function getRetentionReactivationContext(supabase, tenantId, input = {}) {
+  const assumptions = [];
+  const focusCustomerId = String(input.customer_id || input.customerId || '').trim();
+  const staleCustomers = await getStaleCustomers(supabase, tenantId, 45).catch(() => []);
+  const customerIds = [
+    ...(staleCustomers || []).map((row) => row?.id),
+    focusCustomerId,
+  ];
+  const customers = await getCustomerRowsByIds(
+    supabase,
+    tenantId,
+    customerIds,
+    assumptions,
+    'Retention customer context was unavailable because the customers table could not be queried.'
+  );
+  const customerIdList = [...new Set(customers.map((row) => row?.id).filter(Boolean))];
+  const servicePlans = customerIdList.length
+    ? await resolveOptionalRows(
+        supabase
+          .from('service_plans')
+          .select('id, customer_id, title, status, next_run_on, updated_at')
+          .eq('tenant_id', tenantId)
+          .in('customer_id', customerIdList)
+          .order('updated_at', { ascending: false })
+          .limit(120),
+        assumptions,
+        'Service-plan context for retention was unavailable because the service_plans table could not be queried.'
+      )
+    : [];
+  const recentOrders = customerIdList.length
+    ? await resolveOptionalRows(
+        supabase
+          .from('orders')
+          .select('id, customer_id, title, status, total_cents, scheduled_date, updated_at')
+          .eq('tenant_id', tenantId)
+          .in('customer_id', customerIdList)
+          .order('updated_at', { ascending: false })
+          .limit(160),
+        assumptions,
+        'Recent order context for retention was unavailable because the orders table could not be queried.'
+      )
+    : [];
+  const recentJobs = customerIdList.length
+    ? await resolveOptionalRows(
+        supabase
+          .from('jobs')
+          .select('id, customer_id, title, status, scheduled_date, completed_at, updated_at')
+          .eq('tenant_id', tenantId)
+          .in('customer_id', customerIdList)
+          .order('updated_at', { ascending: false })
+          .limit(160),
+        assumptions,
+        'Recent job context for retention was unavailable because the jobs table could not be queried.'
+      )
+    : [];
+
+  const staleCustomerIdSet = new Set((staleCustomers || []).map((row) => String(row?.id || '').trim()).filter(Boolean));
+  const enrichedStaleCustomers = customers
+    .filter((row) => staleCustomerIdSet.has(String(row?.id || '').trim()))
+    .map((row) => {
+      const staleMatch = (staleCustomers || []).find((entry) => entry?.id === row?.id) || {};
+      return { ...staleMatch, ...row };
+    });
+
+  return {
+    snapshot_at: new Date().toISOString(),
+    tenant_id: tenantId,
+    specialist: 'retention_reactivation_manager',
+    focus_customer_id: focusCustomerId,
+    customers,
+    stale_customers: enrichedStaleCustomers,
+    service_plans: servicePlans,
+    recent_orders: recentOrders,
+    recent_jobs: recentJobs,
+    assumptions,
+    data_used: [
+      { label: 'Focus customers', count: customers.length, detail: 'customers' },
+      { label: 'Stale customers', count: enrichedStaleCustomers.length, detail: 'customers' },
+      { label: 'Linked service plans', count: Array.isArray(servicePlans) ? servicePlans.length : 0, detail: 'service_plans' },
+      { label: 'Recent orders', count: Array.isArray(recentOrders) ? recentOrders.length : 0, detail: 'orders' },
+      { label: 'Recent jobs', count: Array.isArray(recentJobs) ? recentJobs.length : 0, detail: 'jobs' },
+    ],
   };
 }
 
@@ -1215,69 +1451,147 @@ async function getAccountingContinuityContext(supabase, tenantId, input = {}) {
 
 async function getEstimateRecordContext(supabase, tenantId, input = {}) {
   const assumptions = [];
-  const leadId = String(input.lead_id || '').trim();
-  const orderId = String(input.order_id || '').trim();
-  const jobId = String(input.job_id || '').trim();
+  const bidId = String(input.bid_id || input.bidId || '').trim();
+  const bid = bidId
+    ? await resolveOptionalSingle(
+        supabase.from('bids').select('*').eq('tenant_id', tenantId).eq('id', bidId).maybeSingle(),
+        assumptions,
+        'Bid context was unavailable because the bids table could not be queried.'
+      )
+    : null;
+  const leadId = String(input.lead_id || input.leadId || bid?.lead_id || '').trim();
+  const orderId = String(input.order_id || input.orderId || bid?.converted_order_id || '').trim();
+  const jobId = String(input.job_id || input.jobId || '').trim();
 
-  const [lead, order, job] = await Promise.all([
+  let [lead, order, job] = await Promise.all([
     leadId
-      ? supabase.from('leads').select('*').eq('tenant_id', tenantId).eq('id', leadId).maybeSingle()
-        .then((result) => {
-          if (result.error) throw new Error(result.error.message);
-          return result.data || null;
-        })
+      ? resolveOptionalSingle(
+          supabase.from('leads').select('*').eq('tenant_id', tenantId).eq('id', leadId).maybeSingle(),
+          assumptions,
+          'Lead context was unavailable because the leads table could not be queried.'
+        )
       : Promise.resolve(null),
     orderId
-      ? supabase.from('orders').select('*').eq('tenant_id', tenantId).eq('id', orderId).maybeSingle()
-        .then((result) => {
-          if (result.error) throw new Error(result.error.message);
-          return result.data || null;
-        })
+      ? resolveOptionalSingle(
+          supabase.from('orders').select('*').eq('tenant_id', tenantId).eq('id', orderId).maybeSingle(),
+          assumptions,
+          'Order context was unavailable because the orders table could not be queried.'
+        )
       : Promise.resolve(null),
     jobId
-      ? supabase.from('jobs').select('*').eq('tenant_id', tenantId).eq('id', jobId).maybeSingle()
-        .then((result) => {
-          if (result.error) throw new Error(result.error.message);
-          return result.data || null;
-        })
+      ? resolveOptionalSingle(
+          supabase.from('jobs').select('*').eq('tenant_id', tenantId).eq('id', jobId).maybeSingle(),
+          assumptions,
+          'Job context was unavailable because the jobs table could not be queried.'
+        )
       : Promise.resolve(null),
   ]);
 
-  const primaryRecord = lead || order || job || null;
-  const primaryRecordType = lead ? 'lead' : order ? 'order' : job ? 'job' : 'record';
-  const customerId = primaryRecord?.customer_id || null;
+  if (!job && bid?.id) {
+    job = await resolveOptionalSingle(
+      supabase
+        .from('jobs')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .eq('bid_id', bid.id)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      assumptions,
+      'Linked job history was unavailable because the jobs table could not be queried for this bid.'
+    );
+  }
+  if (!order && job?.order_id) {
+    order = await resolveOptionalSingle(
+      supabase.from('orders').select('*').eq('tenant_id', tenantId).eq('id', job.order_id).maybeSingle(),
+      assumptions,
+      'Linked order context was unavailable because the orders table could not be queried for this job.'
+    );
+  }
+  if (!lead && bid?.lead_id) {
+    lead = await resolveOptionalSingle(
+      supabase.from('leads').select('*').eq('tenant_id', tenantId).eq('id', bid.lead_id).maybeSingle(),
+      assumptions,
+      'Linked lead context was unavailable because the leads table could not be queried for this bid.'
+    );
+  }
+
+  const primaryRecord = bid || lead || order || job || null;
+  const primaryRecordType = bid ? 'bid' : lead ? 'lead' : order ? 'order' : job ? 'job' : 'record';
+  const customerId = bid?.customer_id || primaryRecord?.customer_id || order?.customer_id || job?.customer_id || null;
   const customer = customerId
-    ? await supabase.from('customers').select('*').eq('tenant_id', tenantId).eq('id', customerId).maybeSingle()
-      .then((result) => {
-        if (result.error) throw new Error(result.error.message);
-        return result.data || null;
-      })
+    ? await resolveOptionalSingle(
+        supabase.from('customers').select('*').eq('tenant_id', tenantId).eq('id', customerId).maybeSingle(),
+        assumptions,
+        'Customer context was unavailable because the customers table could not be queried.'
+      )
     : null;
 
-  const priorSimilarRecords = customerId
-    ? await resolveOptionalRows(
-        supabase.from('orders').select('id, title, total_cents, created_at, status').eq('tenant_id', tenantId).eq('customer_id', customerId).order('created_at', { ascending: false }).limit(6),
-        assumptions,
-        'Prior order history was unavailable because the orders table could not be queried.'
-      )
-    : [];
+  const [priorBidHistory, priorOrderHistory] = customerId
+    ? await Promise.all([
+        resolveOptionalRows(
+          (() => {
+            let query = supabase
+              .from('bids')
+              .select('id, title, total_cents, created_at, updated_at, status, valid_until, service_address')
+              .eq('tenant_id', tenantId)
+              .eq('customer_id', customerId)
+              .order('updated_at', { ascending: false })
+              .limit(6);
+            if (bid?.id) query = query.neq('id', bid.id);
+            return query;
+          })(),
+          assumptions,
+          'Prior proposal history was unavailable because the bids table could not be queried.'
+        ),
+        resolveOptionalRows(
+          (() => {
+            let query = supabase
+              .from('orders')
+              .select('id, title, total_cents, created_at, updated_at, status')
+              .eq('tenant_id', tenantId)
+              .eq('customer_id', customerId)
+              .order('updated_at', { ascending: false })
+              .limit(6);
+            if (order?.id) query = query.neq('id', order.id);
+            return query;
+          })(),
+          assumptions,
+          'Prior order history was unavailable because the orders table could not be queried.'
+        ),
+      ])
+    : [[], []];
 
-  const knownPriceTotal = Number(order?.total_cents || 0) || Number(job?.amount_due_cents || 0) || 0;
+  const priorSimilarRecords = [
+    ...(priorBidHistory || []).map((row) => ({ ...row, record_type: 'bid' })),
+    ...(priorOrderHistory || []).map((row) => ({ ...row, record_type: 'order' })),
+  ]
+    .sort((a, b) => new Date(b.updated_at || b.created_at || 0).getTime() - new Date(a.updated_at || a.created_at || 0).getTime())
+    .slice(0, 8);
+
+  const knownPriceTotal = Number(bid?.total_cents || 0) || Number(order?.total_cents || 0) || Number(job?.amount_due_cents || 0) || 0;
   const summaryText = [
+    bid?.project_summary,
+    bid?.scope_of_work,
+    bid?.proposed_solution,
+    bid?.materials_plan,
+    bid?.cover_note,
+    bid?.internal_notes,
     primaryRecord?.summary,
     primaryRecord?.description,
     primaryRecord?.notes,
   ].filter((value) => String(value || '').trim()).join(' ');
   const hasMeasurements = /(\d+(\.\d+)?)\s?(sq|ft|gal|yard|yards|hours|hr|rooms|units|fixtures|zones|systems)/i.test(summaryText)
+    || Array.isArray(bid?.line_items) && bid.line_items.some((item) => Number(item?.quantity || 0) > 0)
     || Array.isArray(order?.items) && order.items.some((item) => Number(item?.quantity || 0) > 0);
 
   const missingData = [];
   if (!primaryRecord) {
     missingData.push({
       id: 'estimate_missing_primary_record',
-      label: 'No lead, order, or job record was provided',
-      detail: 'The estimating assistant needs a lead_id, order_id, or job_id to produce a grounded estimate review.',
-      field: 'lead_id|order_id|job_id',
+      label: 'No bid, lead, order, or job record was provided',
+      detail: 'The estimating assistant needs a bid_id, lead_id, order_id, or job_id to produce a grounded estimate review.',
+      field: 'bid_id|lead_id|order_id|job_id',
       required_for: 'analysis',
     });
   }
@@ -1285,6 +1599,7 @@ async function getEstimateRecordContext(supabase, tenantId, input = {}) {
   return {
     snapshot_at: new Date().toISOString(),
     tenant_id: tenantId,
+    bid,
     lead,
     order,
     job,
@@ -1297,11 +1612,12 @@ async function getEstimateRecordContext(supabase, tenantId, input = {}) {
     missing_data: missingData,
     assumptions,
     data_used: [
+      { label: 'Bid record', count: bid ? 1 : 0, detail: 'bids' },
       { label: 'Lead record', count: lead ? 1 : 0, detail: 'leads' },
       { label: 'Order record', count: order ? 1 : 0, detail: 'orders' },
       { label: 'Job record', count: job ? 1 : 0, detail: 'jobs' },
       { label: 'Customer', count: customer ? 1 : 0, detail: 'customers' },
-      { label: 'Prior related records', count: priorSimilarRecords.length, detail: 'orders' },
+      { label: 'Prior related records', count: priorSimilarRecords.length, detail: 'bids + orders' },
     ],
   };
 }
@@ -1420,8 +1736,11 @@ module.exports = {
   getCrewPrepContext,
   getFieldCloseoutContext,
   getJobRecordAuditContext,
+  getQuoteRescueManagerContext,
   getQuoteRescueContext,
   getRetentionContext,
+  getRetentionReactivationContext,
+  getServicePlanRenewalContext,
   getSitePacketContext,
   getUnpaidOrders,
   getRecentOrders,

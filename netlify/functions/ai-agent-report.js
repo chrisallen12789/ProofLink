@@ -1,7 +1,7 @@
 'use strict';
 
 const { getAdminClient, requireAdminContext, requireOperatorContext, respond } = require('./utils/auth');
-const { listAgentDefinitions, publicAgentDefinition } = require('./agent/registry');
+const { getAgentDefinition, listAgentDefinitions, publicAgentDefinition } = require('./agent/registry');
 const { runAgentReport } = require('./agent/runtime');
 
 exports.handler = async (event) => {
@@ -41,8 +41,9 @@ exports.handler = async (event) => {
     return respond(err.statusCode || 401, { error: err.message });
   }
 
-  if (agentKey === 'agent_workforce_architect' && ctx.role !== 'platform_admin') {
-    return respond(403, { error: 'Forbidden: admin role required for workforce review' });
+  const definition = getAgentDefinition(agentKey);
+  if (definition?.admin_only && ctx.role !== 'platform_admin') {
+    return respond(403, { error: 'Forbidden: admin role required for internal AI review' });
   }
   const tenantId = requestedTenantId || ctx.tenantId;
   if (!tenantId) {

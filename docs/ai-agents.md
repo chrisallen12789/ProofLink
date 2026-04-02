@@ -15,6 +15,8 @@ ProofLink now has a structured agent layer under `netlify/functions/agent`.
   Builds stable evidence references so every recommendation can point back to real records.
 - `tools.js`
   Holds read-only data loaders scoped to a verified tenant.
+- `system-map.js`
+  Tracks the shipped AI surface inventory: structured agent entry points, copilot specialist lanes, model-driven surfaces, and shared governance signals.
 - `ai-agent-report.js`
   Operator-authenticated endpoint for listing agents and requesting a structured report.
 
@@ -30,10 +32,18 @@ ProofLink now has a structured agent layer under `netlify/functions/agent`.
   Builds a queue of jobs that still need billing cleanup.
 - `collections_followup_assistant`
   Separates true overdue balances from general open balances so follow-up stays accurate.
+- `field_closeout_coach`
+  Reviews the field handoff package so proof, timing, and closeout gaps are caught before billing cleanup starts downstream.
+- `site_packet_builder`
+  Builds a grounded site packet from customer, site, and prior-work context so crews arrive with better operational memory.
 - `import_migration_assistant`
   Reviews legacy CSV headers and sample rows, explains what ProofLink can route safely, and suggests a reusable import profile before the operator imports anything.
+- `accounting_continuity_auditor`
+  Checks that outside-accounting references stay traceable across orders, jobs, invoices, payments, and import learning.
 - `agent_workforce_architect`
   Reviews live tenant workload, import-learning history, service-plan pressure, and recent agent usage to identify the next specialist agents ProofLink should add and the current lanes that need sharper training.
+- `ai_systems_architect`
+  Reviews the shipped AI stack itself so ProofLink can expose hidden lanes, promote freeform-only specialists into structured reports, and harden shared AI files in the right order.
 
 ## Safety Boundaries
 
@@ -72,7 +82,7 @@ It checks:
 Run the targeted unit tests:
 
 ```bash
-npx vitest run tests/unit/netlify/functions/agent-schemas.test.js tests/unit/netlify/functions/job-record-auditor.test.js tests/unit/netlify/functions/agent-workforce-architect.test.js tests/unit/netlify/functions/ai-agent-report.test.js tests/unit/operator/jobs-workspace.test.js tests/unit/operator/command-center.test.js
+npx vitest run tests/unit/netlify/functions/agent-schemas.test.js tests/unit/netlify/functions/job-record-auditor.test.js tests/unit/netlify/functions/agent-workforce-architect.test.js tests/unit/netlify/functions/ai-systems-architect.test.js tests/unit/netlify/functions/ai-agent-report.test.js tests/unit/admin-ai-control.test.js tests/unit/operator/jobs-workspace.test.js tests/unit/operator/command-center.test.js
 ```
 
 For a broader pass:
@@ -98,10 +108,19 @@ The audit is advisory. Operators still decide whether to update records, create 
   Use `Run dispatch review` in the `AI dispatch review` card to review the selected hydrovac day for missing assignments, overlap conflicts, untimed work, and bundling opportunities.
 - Payments workspace
   Use `Run collections review` to separate genuinely overdue balances from general open balances, then work directly into `Record payment`, `Open order`, or `Open customer`.
-- Command center
-  Use `Run AI workforce review` to see which specialist agents ProofLink should add next and which current agent lanes need sharper training from real workload pressure.
+- Jobs workspace
+  Use `Run closeout review` and `Run site packet review` to tighten field handoff quality and crew prep from the job detail surface.
+- Orders workspace
+  Use the accounting continuity review to keep outside-accounting references visible through billing follow-through.
 - Import workspace
   Use `Run AI migration review` after previewing a CSV to see grounded mapping coverage, row-routing risk, and the learned import profile ProofLink can save for future legacy exports.
+
+## Admin Usage
+
+- Admin panel
+  Use `Run workforce review` in `Internal AI Control` to see which specialist agents should be added or trained next for the selected tenant.
+- Admin panel
+  Use `Run systems review` in `Internal AI Control` to inspect AI architecture gaps, hidden lanes, freeform-only specialists, and shared AI file hardening targets for the selected tenant.
 
 ## Import Profiles
 
@@ -143,8 +162,10 @@ This is the current "training" loop for the migration agents:
   A deterministic meta-agent that looks for grounded AI-system gaps instead of chatting about them.
 - `netlify/functions/agent/tools.js`
   Builds the workforce context from tenant profile, business workload, service-plan pressure, import profiles, and recent `agent_audit_events`.
-- `operator/operator-command-center.js`
-  Adds an `AI workforce architect` card in the command center and refreshes it alongside the shared AI ops review.
+- `admin/admin.js`
+  Adds the admin-only workforce review control and renders the report for the selected tenant.
+- `admin/index.html`
+  Hosts the `Internal AI Control` section so the internal agent layer stays separate from operator-facing workflow reviews.
 
 The workforce architect is intentionally narrow:
 
@@ -164,8 +185,29 @@ Operator-facing workflow delivery is part of the internal AI training loop too:
 
 Current gap patterns it watches for:
 
-- billing cleanup pressure that justifies a future `Field Closeout Coach`
-- multi-site work that justifies a future `Site Packet Builder`
-- outside-accounting continuity signals that justify a future `Accounting Continuity Auditor`
 - repeat-service cadence risk that justifies a future `Service Plan Renewal Manager`
 - recurring correction hotspots that should sharpen the import, collections, and dispatch assistants
+- adoption gaps where shipped lanes are still underused
+
+## Systems Review Loop
+
+- `netlify/functions/agent/agents/ai-systems-architect.js`
+  A deterministic AI systems specialist that reviews what ProofLink has already shipped across structured agents, freeform copilot lanes, and model-driven AI files.
+- `netlify/functions/agent/system-map.js`
+  Keeps the AI surface inventory explicit so system recommendations stay inspectable instead of relying on hidden assumptions.
+- `admin/admin.js`
+  Runs the admin-only systems review and renders the findings, blockers, and recommended actions beside the workforce review.
+
+The systems architect is intentionally narrow:
+
+- it does not rewrite prompts, files, or registry entries automatically
+- it does not recommend new lanes without tying them to a shipped AI surface gap or real tenant pressure
+- it can recommend AI file hardening, but execution still stays manual and inspectable
+- it is admin-only because operators should see workflow help, not the internal AI strategy layer
+
+Current gap patterns it watches for:
+
+- quote pressure that should expose the shipped `Estimating Assistant`
+- freeform-only `quote_rescue` guidance that should become a structured lane
+- freeform-only `retention` guidance that should become a structured lane
+- model-driven AI surfaces that should share one centralized model policy

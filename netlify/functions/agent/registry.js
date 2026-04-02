@@ -3,6 +3,7 @@
 const { runBillingBlockerDetector } = require('./agents/billing-blocker-detector');
 const { runCollectionsFollowUpAssistant } = require('./agents/collections-follow-up-assistant');
 const { runDispatchSchedulingAssistant } = require('./agents/dispatch-scheduling-assistant');
+const { runAiSystemsArchitect } = require('./agents/ai-systems-architect');
 const { runAgentWorkforceArchitect } = require('./agents/agent-workforce-architect');
 const { runAccountingContinuityAuditor } = require('./agents/accounting-continuity-auditor');
 const { runEstimatingAssistant } = require('./agents/estimating-assistant');
@@ -29,6 +30,24 @@ const AGENTS = {
     recommended_actions: 'Recommend exact next closeout moves only; execution stays manual.',
     execute: runFieldCloseoutCoach,
   },
+  ai_systems_architect: {
+    key: 'ai_systems_architect',
+    label: 'AI Systems Architect',
+    purpose: 'Reviews the shipped AI stack, freeform copilot lanes, model-driven surfaces, and tenant pressure to recommend the next internal AI upgrades with the highest leverage.',
+    inputs: [],
+    allowed_tools: ['get_agent_workforce_context'],
+    forbidden_behaviors: [
+      'Do not create, modify, or delete prompts, models, or agents automatically.',
+      'Do not recommend a new AI lane without tying it to either the shipped AI surface map or live tenant workload pressure.',
+      'Do not treat AI file hardening ideas as complete before the shared config or surface gap is actually closed.',
+    ],
+    output_schema: 'prooflink.agent.report.v1',
+    confidence_signal: 'Confidence depends on whether tenant workload, recent AI usage, and the shipped AI surface inventory are all available together.',
+    missing_data_handling: 'Call out missing workload or AI-usage signals explicitly before recommending platform AI changes.',
+    recommended_actions: 'Recommend the next internal AI architecture, exposure, or file-hardening moves only; execution stays manual.',
+    admin_only: true,
+    execute: runAiSystemsArchitect,
+  },
   agent_workforce_architect: {
     key: 'agent_workforce_architect',
     label: 'AI Workforce Architect',
@@ -44,6 +63,7 @@ const AGENTS = {
     confidence_signal: 'Confidence depends on whether workload, import-learning, service-plan, and recent agent-audit signals are all available together.',
     missing_data_handling: 'Call out unavailable workload or audit signals explicitly before recommending a new specialist lane.',
     recommended_actions: 'Recommend inspectable next agent additions or training targets only; execution stays manual.',
+    admin_only: true,
     execute: runAgentWorkforceArchitect,
   },
   job_record_auditor: {
@@ -217,6 +237,7 @@ function publicAgentDefinition(definition) {
     label: definition.label,
     purpose: definition.purpose,
     inputs: definition.inputs,
+    admin_only: definition.admin_only === true,
     allowed_tools: definition.allowed_tools,
     forbidden_behaviors: definition.forbidden_behaviors,
     output_schema: definition.output_schema,

@@ -23,6 +23,8 @@ const READ_TOOLS = new Set([
   'get_collections_followup_context', 'get_agent_workforce_context',
   'analyze_import_migration_context', 'get_field_closeout_context',
   'get_site_packet_context', 'get_accounting_continuity_context',
+  'get_quote_rescue_manager_context', 'get_service_plan_renewal_context',
+  'get_retention_reactivation_context',
 ]);
 
 const DRAFT_TOOLS = new Set([

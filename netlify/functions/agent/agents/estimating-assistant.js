@@ -19,6 +19,15 @@ async function runEstimatingAssistant({ supabase, tenantId, input }) {
   const primary = context.primary_record || {};
   const primaryType = context.primary_record_type || 'record';
   const primaryRef = primary?.id ? buildRecordRef(primaryType, primary.id, primary.title || primary.contact_name || 'Estimate record') : null;
+  const scopeSummary = [
+    primary.project_summary,
+    primary.scope_of_work,
+    primary.summary,
+    primary.description,
+    primary.notes,
+    primary.internal_notes,
+  ].filter((value) => String(value || '').trim()).join(' | ');
+  const scopeAddress = primary.service_address || primary.address || '';
 
   const factsEvidence = evidence.add({
     record_type: primaryType,
@@ -27,8 +36,8 @@ async function runEstimatingAssistant({ supabase, tenantId, input }) {
     label: 'Known scope facts',
     value: [
       primary.title || primary.requested_service || primary.summary || '',
-      primary.service_address || primary.address || '',
-      primary.notes || '',
+      scopeAddress,
+      scopeSummary,
     ].filter(Boolean).join(' | ') || 'No scope facts were found on the current record.',
   });
 
@@ -64,7 +73,7 @@ async function runEstimatingAssistant({ supabase, tenantId, input }) {
     });
   }
 
-  if (!String(primary.summary || primary.description || primary.notes || '').trim()) {
+  if (!String(scopeSummary).trim()) {
     blockers.push({
       id: 'estimate_missing_scope_summary',
       title: 'Scope summary is missing',
@@ -184,6 +193,7 @@ async function runEstimatingAssistant({ supabase, tenantId, input }) {
     context_summary: {
       primary_record_type: primaryType,
       primary_record_id: primary.id || '',
+      bid_id: context.bid?.id || '',
       prior_similar_records: (context.prior_similar_records || []).length,
     },
   };

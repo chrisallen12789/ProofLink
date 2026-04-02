@@ -45,6 +45,7 @@ var aiControlState = {
   tenants: [],
   selectedTenantId: '',
   workforceReport: null,
+  systemsReport: null,
 };
 
 // In-flight guard — prevents double-submitting async operations
@@ -1424,8 +1425,10 @@ function renderAiTenantSelect() {
   select.onchange = function() {
     aiControlState.selectedTenantId = this.value || '';
     aiControlState.workforceReport = null;
+    aiControlState.systemsReport = null;
     renderAiWorkforceReport();
-    aiControlMsg('Tenant updated. Run the workforce review to inspect the internal guidance for this business.', '');
+    renderAiSystemsReport();
+    aiControlMsg('Tenant updated. Run the workforce review or systems review to inspect the internal guidance for this business.', '');
   };
 }
 
@@ -1538,6 +1541,71 @@ function renderAiWorkforceReport() {
     + '</div>';
 }
 
+function renderAiSystemsReport() {
+  var wrap = document.getElementById('ai-systems-report-wrap');
+  if (!wrap) return;
+
+  var payload = aiControlState.systemsReport || null;
+  var report = payload && payload.report ? payload.report : null;
+  var context = payload && payload.context_summary ? payload.context_summary : {};
+  if (!report) {
+    wrap.innerHTML = '<div class="empty">Choose a tenant and run the systems review to see AI architecture gaps, lane exposure opportunities, and shared AI file hardening targets.</div>';
+    return;
+  }
+
+  var findings = Array.isArray(report.findings) ? report.findings.slice(0, 6) : [];
+  var blockers = Array.isArray(report.blockers) ? report.blockers.slice(0, 4) : [];
+  var actions = Array.isArray(report.recommended_actions) ? report.recommended_actions.slice(0, 6) : [];
+  var confidence = report.confidence && report.confidence.score != null
+    ? Math.round(Number(report.confidence.score) * 100)
+    : null;
+
+  wrap.innerHTML =
+    '<div class="ai-report-summary">'
+      + '<div class="ai-report-summary__title">' + esc(currentAiTenantName()) + '</div>'
+      + '<div class="ai-report-summary__copy">' + esc(report.summary || 'No summary returned.') + '</div>'
+      + '<div class="ai-roster-chip-row">'
+        + '<span class="badge badge-submitted">' + esc(String(context.exposure_gaps || 0) + ' exposure gap' + (Number(context.exposure_gaps || 0) === 1 ? '' : 's')) + '</span>'
+        + '<span class="badge badge-approved">' + esc(String(context.new_lane_candidates || 0) + ' new lane' + (Number(context.new_lane_candidates || 0) === 1 ? '' : 's')) + '</span>'
+        + '<span class="badge badge-provisioned">' + esc(String(context.ai_file_targets || 0) + ' AI file target' + (Number(context.ai_file_targets || 0) === 1 ? '' : 's')) + '</span>'
+        + (confidence == null ? '' : '<span class="badge badge-approved">' + esc('Confidence ' + confidence + '%') + '</span>')
+      + '</div>'
+    + '</div>'
+    + '<div class="ai-report-section">'
+      + '<div class="ai-report-section__title">Findings</div>'
+      + (findings.length
+        ? '<div class="ai-report-list">' + findings.map(function(item) {
+            return '<article class="ai-report-item">'
+              + '<div class="ai-report-item__head"><strong>' + esc(item.title || 'Finding') + '</strong><span>' + esc(String(item.severity || 'info')) + '</span></div>'
+              + '<div class="ai-report-item__copy">' + esc(item.detail || '') + '</div>'
+            + '</article>';
+          }).join('') + '</div>'
+        : '<div class="empty">No findings were returned.</div>')
+    + '</div>'
+    + '<div class="ai-report-section">'
+      + '<div class="ai-report-section__title">Blockers</div>'
+      + (blockers.length
+        ? '<div class="ai-report-list">' + blockers.map(function(item) {
+            return '<article class="ai-report-item ai-report-item--warn">'
+              + '<div class="ai-report-item__head"><strong>' + esc(item.title || 'Blocker') + '</strong></div>'
+              + '<div class="ai-report-item__copy">' + esc(item.detail || '') + '</div>'
+            + '</article>';
+          }).join('') + '</div>'
+        : '<div class="empty">No blockers were returned.</div>')
+    + '</div>'
+    + '<div class="ai-report-section">'
+      + '<div class="ai-report-section__title">Recommended actions</div>'
+      + (actions.length
+        ? '<div class="ai-report-list">' + actions.map(function(item) {
+            return '<article class="ai-report-item">'
+              + '<div class="ai-report-item__head"><strong>' + esc(item.title || 'Action') + '</strong><span>' + esc(String(item.priority || 'review')) + '</span></div>'
+              + '<div class="ai-report-item__copy">' + esc(item.detail || '') + '</div>'
+            + '</article>';
+          }).join('') + '</div>'
+        : '<div class="empty">No actions were returned.</div>')
+    + '</div>';
+}
+
 function loadAiAgentRoster() {
   aiControlMsg('Refreshing the internal agent roster…', '');
   return fetchAiAgentRoster()
@@ -1566,12 +1634,14 @@ function loadAiControl() {
     renderAiTenantSelect();
     renderAiAgentRoster();
     renderAiWorkforceReport();
+    renderAiSystemsReport();
     aiControlMsg('Internal AI controls are ready. Tenant operators do not see this layer.', '');
   })
   .catch(function(err) {
     renderAiTenantSelect();
     renderAiAgentRoster();
     renderAiWorkforceReport();
+    renderAiSystemsReport();
     aiControlMsg(err.message || 'Failed to load the internal AI controls.', 'error');
   });
 }
@@ -1607,6 +1677,40 @@ function runAiWorkforceReview() {
   })
   .catch(function(err) {
     aiControlMsg(err.message || 'Failed to run the workforce review.', 'error');
+  });
+}
+
+function runAiSystemsReview() {
+  var tenantId = String(aiControlState.selectedTenantId || '').trim();
+  if (!tenantId) {
+    aiControlMsg('Choose a tenant before running the systems review.', 'error');
+    return;
+  }
+
+  aiControlMsg('Running the internal systems reviewâ€¦', '');
+  authFetch('/.netlify/functions/ai-agent-report', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      agent_key: 'ai_systems_architect',
+      tenant_id: tenantId,
+    }),
+  })
+  .then(function(r) {
+    return r.json().then(function(d) { return { ok: r.ok, d: d }; });
+  })
+  .then(function(res) {
+    if (!res.ok) throw new Error(res.d.error || 'Failed to run the systems review');
+    aiControlState.systemsReport = {
+      report: res.d.report || null,
+      context_summary: res.d.context_summary || {},
+      generated_at: res.d.generated_at || '',
+    };
+    renderAiSystemsReport();
+    aiControlMsg('Internal systems review ready.', '');
+  })
+  .catch(function(err) {
+    aiControlMsg(err.message || 'Failed to run the systems review.', 'error');
   });
 }
 

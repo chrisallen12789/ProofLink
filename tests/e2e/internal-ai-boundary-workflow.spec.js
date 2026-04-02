@@ -293,10 +293,34 @@ test.describe("internal AI boundary workflow smoke", () => {
             agents: [
               { key: "job_record_auditor", label: "Job Record Auditor", purpose: "Reviews job records.", inputs: [], allowed_tools: ["get_job_record_audit_context"], confidence_signal: "Grounded in job data." },
               { key: "agent_workforce_architect", label: "AI Workforce Architect", purpose: "Finds new internal lanes.", inputs: [], allowed_tools: ["get_agent_workforce_context"], confidence_signal: "Grounded in tenant workload." },
+              { key: "ai_systems_architect", label: "AI Systems Architect", purpose: "Finds AI architecture gaps.", inputs: [], allowed_tools: ["get_agent_workforce_context"], confidence_signal: "Grounded in tenant pressure and AI surface design." },
             ],
           }), { status: 200, headers: { "Content-Type": "application/json" } });
         }
         if (href.includes("/.netlify/functions/ai-agent-report") && options.method === "POST") {
+          var body = JSON.parse(options.body || "{}");
+          if (body.agent_key === "ai_systems_architect") {
+            return new Response(JSON.stringify({
+              report: {
+                summary: "ProofLink should expose the estimating lane and centralize model policy before adding too many more AI surfaces.",
+                findings: [
+                  { title: "Expose the Estimating Assistant", detail: "Quote pressure is high enough to justify a visible estimate review workflow.", severity: "warning" },
+                ],
+                blockers: [
+                  { title: "Usage signal is still light", detail: "Collect more live AI runs before expanding too aggressively." },
+                ],
+                recommended_actions: [
+                  { title: "Pull model defaults into one shared module", detail: "Keep AI Brief and AI Copilot on the same upgrade rail.", priority: "medium" },
+                ],
+                confidence: { score: 0.84 },
+              },
+              context_summary: {
+                exposure_gaps: 1,
+                new_lane_candidates: 1,
+                ai_file_targets: 1,
+              },
+            }), { status: 200, headers: { "Content-Type": "application/json" } });
+          }
           return new Response(JSON.stringify({
             report: {
               summary: "ProofLink should keep training the field and accounting lanes before adding another specialist.",
@@ -327,10 +351,15 @@ test.describe("internal AI boundary workflow smoke", () => {
     await expect(aiControlSection.locator(".page-title")).toHaveText("Internal AI Control");
     await expect(aiControlSection.locator(".page-sub")).toContainText("Tenant operators should only see workflow reviews");
     await expect(page.locator("#ai-roster-wrap")).toContainText("AI Workforce Architect");
+    await expect(page.locator("#ai-roster-wrap")).toContainText("AI Systems Architect");
     await aiControlSection.getByRole("button", { name: "Run workforce review" }).click();
     await expect(page.locator("#ai-control-msg")).toContainText("Internal workforce review ready.");
     await expect(page.locator("#ai-workforce-report-wrap")).toContainText("Train the Field Closeout Coach");
     await expect(page.locator("#ai-workforce-report-wrap")).toContainText("Adoption is still shallow");
     await expect(page.locator("#ai-workforce-report-wrap")).toContainText("Run the closeout lane from Jobs");
+    await aiControlSection.getByRole("button", { name: "Run systems review" }).click();
+    await expect(page.locator("#ai-control-msg")).toContainText("Internal systems review ready.");
+    await expect(page.locator("#ai-systems-report-wrap")).toContainText("Expose the Estimating Assistant");
+    await expect(page.locator("#ai-systems-report-wrap")).toContainText("Pull model defaults into one shared module");
   });
 });

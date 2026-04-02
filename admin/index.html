@@ -443,6 +443,7 @@
               <select id="ai-tenant-select"></select>
             </label>
             <button class="btn btn-primary" type="button" onclick="runAiWorkforceReview()">Run workforce review</button>
+            <button class="btn" type="button" onclick="runAiSystemsReview()">Run systems review</button>
             <button class="btn" type="button" onclick="loadAiAgentRoster()">Refresh roster</button>
           </div>
           <div id="ai-control-msg" class="ai-control-msg">Loading internal AI controls…</div>
@@ -458,11 +459,21 @@
             </div>
           </div>
         </div>
-        <div class="panel">
-          <div class="panel-header"><span class="panel-title">Workforce guidance</span></div>
-          <div class="panel-body">
-            <div id="ai-workforce-report-wrap" class="ai-workforce-report-wrap">
-              <div class="empty">Choose a tenant and run the workforce review to see missing specialist lanes and training targets.</div>
+        <div>
+          <div class="panel">
+            <div class="panel-header"><span class="panel-title">Workforce guidance</span></div>
+            <div class="panel-body">
+              <div id="ai-workforce-report-wrap" class="ai-workforce-report-wrap">
+                <div class="empty">Choose a tenant and run the workforce review to see missing specialist lanes and training targets.</div>
+              </div>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-header"><span class="panel-title">Systems guidance</span></div>
+            <div class="panel-body">
+              <div id="ai-systems-report-wrap" class="ai-workforce-report-wrap">
+                <div class="empty">Choose a tenant and run the systems review to see AI architecture gaps, lane exposure opportunities, and shared AI file hardening targets.</div>
+              </div>
             </div>
           </div>
         </div>

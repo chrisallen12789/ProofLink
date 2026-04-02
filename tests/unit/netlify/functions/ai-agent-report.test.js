@@ -33,6 +33,7 @@ describe("ai-agent-report", () => {
       filename: registryPath,
       loaded: true,
       exports: {
+        getAgentDefinition: () => null,
         listAgentDefinitions: () => [{ key: "job_record_auditor", label: "Job Record Auditor" }],
         publicAgentDefinition: (agent) => agent,
       },
@@ -85,6 +86,7 @@ describe("ai-agent-report", () => {
       filename: registryPath,
       loaded: true,
       exports: {
+        getAgentDefinition: () => ({ key: "job_record_auditor", admin_only: false }),
         listAgentDefinitions: () => [],
         publicAgentDefinition: (agent) => agent,
       },
@@ -137,6 +139,7 @@ describe("ai-agent-report", () => {
       filename: registryPath,
       loaded: true,
       exports: {
+        getAgentDefinition: () => ({ key: "agent_workforce_architect", admin_only: true }),
         listAgentDefinitions: () => [],
         publicAgentDefinition: (agent) => agent,
       },
@@ -193,6 +196,7 @@ describe("ai-agent-report", () => {
       filename: registryPath,
       loaded: true,
       exports: {
+        getAgentDefinition: () => ({ key: "agent_workforce_architect", admin_only: true }),
         listAgentDefinitions: () => [],
         publicAgentDefinition: (agent) => agent,
       },
@@ -219,5 +223,50 @@ describe("ai-agent-report", () => {
       tenantId: "tenant_focus",
       agentKey: "agent_workforce_architect",
     }));
+  });
+
+  test("blocks the AI systems architect for non-admin operators", async () => {
+    require.cache[authPath] = {
+      id: authPath,
+      filename: authPath,
+      loaded: true,
+      exports: {
+        respond: (statusCode, body) => ({ statusCode, body: JSON.stringify(body) }),
+        getAdminClient: vi.fn(() => ({})),
+        requireAdminContext: vi.fn(),
+        requireOperatorContext: vi.fn(async () => ({
+          supabase: {},
+          tenantId: "tenant_1",
+          operatorId: "operator_2",
+          role: "owner",
+        })),
+      },
+    };
+    require.cache[registryPath] = {
+      id: registryPath,
+      filename: registryPath,
+      loaded: true,
+      exports: {
+        getAgentDefinition: () => ({ key: "ai_systems_architect", admin_only: true }),
+        listAgentDefinitions: () => [],
+        publicAgentDefinition: (agent) => agent,
+      },
+    };
+    require.cache[runtimePath] = {
+      id: runtimePath,
+      filename: runtimePath,
+      loaded: true,
+      exports: { runAgentReport: vi.fn() },
+    };
+
+    const handler = require(handlerPath).handler;
+    const res = await handler({
+      httpMethod: "POST",
+      body: JSON.stringify({ agent_key: "ai_systems_architect" }),
+    });
+    const body = JSON.parse(res.body);
+
+    expect(res.statusCode).toBe(403);
+    expect(body.error).toContain("admin role required");
   });
 });

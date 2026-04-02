@@ -18,6 +18,8 @@ describe("admin AI control source", () => {
     expect(html).toContain('id="section-ai-control"');
     expect(html).toContain("Internal AI Control");
     expect(html).toContain("Run workforce review");
+    expect(html).toContain("Run systems review");
+    expect(html).toContain("Systems guidance");
     expect(html).toContain("Tenant operators should only see workflow reviews");
   });
 
@@ -26,7 +28,9 @@ describe("admin AI control source", () => {
     expect(js).toContain("function loadAiControl()");
     expect(js).toContain("function loadAiAgentRoster()");
     expect(js).toContain("function runAiWorkforceReview()");
+    expect(js).toContain("function runAiSystemsReview()");
     expect(js).toContain("agent_key: 'agent_workforce_architect'");
+    expect(js).toContain("agent_key: 'ai_systems_architect'");
     expect(js).toContain("tenant_id: tenantId");
   });
 });
