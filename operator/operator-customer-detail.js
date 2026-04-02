@@ -2922,71 +2922,67 @@
 
       customerDetailWrap.innerHTML = `
         <div class="customer-record-shell">
-          <div class="customer-record-shell__masthead">
-            <div class="customer-record-shell__hero">
-              ${renderRecordHeroCard({
-                eyebrow: "Customer record",
-                title: customerPrimaryDisplayLabel(customer),
-                badges: [
-                  { label: `${workbenchOpenRequests} open request${workbenchOpenRequests === 1 ? "" : "s"}` },
-                  { label: `${workbenchOpenProposals} live proposal${workbenchOpenProposals === 1 ? "" : "s"}` },
-                  { label: `${workbenchActiveOrders + workbenchActiveJobs} active work item${workbenchActiveOrders + workbenchActiveJobs === 1 ? "" : "s"}` },
-                  workbenchBalance > 0 ? { label: `${formatUsd(workbenchBalance)} open`, tone: "pill-bad" } : { label: "No balance due", tone: "pill-on" },
-                ],
-                meta: [
-                  customer.company_name && customer.name ? `Primary contact: ${customer.name}` : customerContactSummary(customer),
-                  `Preferred contact: ${customer.preferred_contact || "email"}`,
-                  workbenchAddress,
-                  customer.lead_source ? `Lead source: ${titleCaseWords(String(customer.lead_source).replace(/_/g, " "))}` : "",
-                ],
-                description: "Keep requests, pricing, field work, and money follow-through attached to one clean account record.",
-                summary: [
-                  { label: "Open requests", value: String(workbenchOpenRequests), note: "Needs response or scope" },
-                  { label: "Open proposals", value: String(workbenchOpenProposals), note: "Still moving toward approval" },
-                  { label: "Booked + active work", value: String(workbenchActiveOrders + workbenchActiveJobs), note: "Execution or follow-through still open" },
-                  { label: "Outstanding balance", value: formatUsd(workbenchBalance), note: "Billed work not fully collected" },
-                ],
-              })}
-            </div>
-            <div class="customer-record-shell__rail-top">
-              ${renderCustomerOperatorBriefCard({
-                customer,
-                knownAddresses: workbenchAddresses,
-                openRequestsCount: workbenchOpenRequests,
-                openProposalCount: workbenchOpenProposals,
-                activeOrderCount: workbenchActiveOrders,
-                activeJobCount: workbenchActiveJobs,
-                balance: workbenchBalance,
-                lastTouchValue: workbenchLastTouch,
-                latestInteraction: workbenchLatestInteraction,
-                customerIdValue,
-              })}
-            </div>
+          <div class="customer-record-shell__hero">
+            ${renderRecordHeroCard({
+              eyebrow: "Customer record",
+              title: customerPrimaryDisplayLabel(customer),
+              badges: [
+                { label: `${workbenchOpenRequests} open request${workbenchOpenRequests === 1 ? "" : "s"}` },
+                { label: `${workbenchOpenProposals} live proposal${workbenchOpenProposals === 1 ? "" : "s"}` },
+                { label: `${workbenchActiveOrders + workbenchActiveJobs} active work item${workbenchActiveOrders + workbenchActiveJobs === 1 ? "" : "s"}` },
+                workbenchBalance > 0 ? { label: `${formatUsd(workbenchBalance)} open`, tone: "pill-bad" } : { label: "No balance due", tone: "pill-on" },
+              ],
+              meta: [
+                customer.company_name && customer.name ? `Primary contact: ${customer.name}` : customerContactSummary(customer),
+                `Preferred contact: ${customer.preferred_contact || "email"}`,
+                workbenchAddress,
+                customer.lead_source ? `Lead source: ${titleCaseWords(String(customer.lead_source).replace(/_/g, " "))}` : "",
+              ],
+              description: "Keep requests, pricing, field work, and money follow-through attached to one clean account record.",
+              summary: [
+                { label: "Open requests", value: String(workbenchOpenRequests), note: "Needs response or scope" },
+                { label: "Open proposals", value: String(workbenchOpenProposals), note: "Still moving toward approval" },
+                { label: "Booked + active work", value: String(workbenchActiveOrders + workbenchActiveJobs), note: "Execution or follow-through still open" },
+                { label: "Outstanding balance", value: formatUsd(workbenchBalance), note: "Billed work not fully collected" },
+              ],
+            })}
+          </div>
+          <div class="customer-record-shell__action-grid">
+            ${renderCustomerOperatorBriefCard({
+              customer,
+              knownAddresses: workbenchAddresses,
+              openRequestsCount: workbenchOpenRequests,
+              openProposalCount: workbenchOpenProposals,
+              activeOrderCount: workbenchActiveOrders,
+              activeJobCount: workbenchActiveJobs,
+              balance: workbenchBalance,
+              lastTouchValue: workbenchLastTouch,
+              latestInteraction: workbenchLatestInteraction,
+              customerIdValue,
+            })}
+            ${renderCustomerCommandCard(customerQuickActions)}
           </div>
           ${renderCustomerWorkbenchLauncher(workbenchContext)}
-          ${renderCustomerCommandCard(customerQuickActions)}
-          <div class="customer-record-shell__body">
-            <div class="customer-record-shell__main">
-              ${renderCustomerProfileCard(customer, {
-                knownAddresses: workbenchAddresses,
-                latestInteraction: workbenchLatestInteraction,
-                lastTouchValue: workbenchLastTouch,
-              })}
-              ${renderCustomerFootprintCard({
-                customer,
-                customerRequestsRows: workbenchRequests,
-                customerBidRows: workbenchBids,
-                customerOrders: workbenchOrders,
-                customerJobsRows: workbenchJobs,
-                customerPayments: workbenchPayments,
-                balance: workbenchBalance,
-                knownAddresses: workbenchAddresses,
-              })}
-            </div>
-            <div class="customer-record-shell__rail">
-              ${renderCustomerRecordFocusCard()}
-              ${renderCustomerRetentionReactivationCard(workbenchContext)}
-            </div>
+          <div class="customer-record-shell__context-grid">
+            ${renderCustomerProfileCard(customer, {
+              knownAddresses: workbenchAddresses,
+              latestInteraction: workbenchLatestInteraction,
+              lastTouchValue: workbenchLastTouch,
+            })}
+            ${renderCustomerFootprintCard({
+              customer,
+              customerRequestsRows: workbenchRequests,
+              customerBidRows: workbenchBids,
+              customerOrders: workbenchOrders,
+              customerJobsRows: workbenchJobs,
+              customerPayments: workbenchPayments,
+              balance: workbenchBalance,
+              knownAddresses: workbenchAddresses,
+            })}
+          </div>
+          <div class="customer-record-shell__support-grid">
+            ${renderCustomerRecordFocusCard()}
+            ${renderCustomerRetentionReactivationCard(workbenchContext)}
           </div>
         </div>
       `;

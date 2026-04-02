@@ -3440,8 +3440,9 @@ input:focus, textarea:focus, select:focus{
 @media (max-width: 900px) {
   .order-detail-grid { grid-template-columns:1fr; }
   .customer-money-grid { grid-template-columns:1fr; }
-  .customer-record-shell__masthead,
-  .customer-record-shell__body,
+  .customer-record-shell__action-grid,
+  .customer-record-shell__context-grid,
+  .customer-record-shell__support-grid,
   .customer-workbench-grid,
   .customer-profile-row,
   .customer-footprint-strip{ grid-template-columns:1fr; }
@@ -3748,33 +3749,27 @@ input:focus, textarea:focus, select:focus{
   display:grid;
   gap:18px;
 }
-.customer-record-shell__masthead{
-  display:grid;
-  grid-template-columns:minmax(0, 1.55fr) minmax(300px, .72fr);
-  gap:18px;
-  align-items:start;
-}
 .customer-record-shell__hero,
-.customer-record-shell__rail-top,
-.customer-record-shell__main,
-.customer-record-shell__rail{
+.customer-record-shell__action-grid,
+.customer-record-shell__context-grid,
+.customer-record-shell__support-grid{
   min-width:0;
 }
-.customer-record-shell__rail-top,
-.customer-record-shell__rail{
+.customer-record-shell__action-grid,
+.customer-record-shell__context-grid,
+.customer-record-shell__support-grid{
   display:grid;
-  gap:18px;
-  align-content:start;
-}
-.customer-record-shell__body{
-  display:grid;
-  grid-template-columns:minmax(0, 1.55fr) minmax(300px, .72fr);
   gap:18px;
   align-items:start;
 }
-.customer-record-shell__main{
-  display:grid;
-  gap:18px;
+.customer-record-shell__action-grid{
+  grid-template-columns:repeat(2, minmax(0, 1fr));
+}
+.customer-record-shell__context-grid{
+  grid-template-columns:minmax(0, 1.2fr) minmax(0, 1fr);
+}
+.customer-record-shell__support-grid{
+  grid-template-columns:repeat(2, minmax(0, 1fr));
 }
 .customer-record-shell__hero .record-hero{
   min-height:100%;
@@ -4031,8 +4026,9 @@ input:focus, textarea:focus, select:focus{
   height:100%;
 }
 @media (max-width: 1180px) {
-  .customer-record-shell__masthead,
-  .customer-record-shell__body,
+  .customer-record-shell__action-grid,
+  .customer-record-shell__context-grid,
+  .customer-record-shell__support-grid,
   .customer-workbench-grid{
     grid-template-columns:1fr;
   }
