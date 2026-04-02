@@ -87,6 +87,26 @@ async function runImportMigrationAssistant({ tenantId, input }) {
   const fileName = compact(input.file_name || input.fileName);
   const activeProfile = input.active_profile && typeof input.active_profile === 'object' ? input.active_profile : null;
   const activePreset = input.active_preset && typeof input.active_preset === 'object' ? input.active_preset : null;
+  const rawLearnedGuidance = {
+    notes: Array.isArray(activeProfile?.learning_notes || activeProfile?.learningNotes)
+      ? (activeProfile.learning_notes || activeProfile.learningNotes)
+      : [],
+    correction_fields: Array.isArray(activeProfile?.correction_fields || activeProfile?.correctionFields)
+      ? (activeProfile.correction_fields || activeProfile.correctionFields)
+      : [],
+    walkthrough_summary: activeProfile?.walkthrough_summary || activeProfile?.walkthroughSummary || '',
+  };
+  const learnedGuidance = {
+    notes: (Array.isArray(rawLearnedGuidance.notes) ? rawLearnedGuidance.notes : [])
+    .map((value) => compact(value))
+    .filter(Boolean)
+    .slice(0, 6),
+    correction_fields: (Array.isArray(rawLearnedGuidance.correction_fields) ? rawLearnedGuidance.correction_fields : [])
+      .map((value) => compact(value))
+      .filter(Boolean)
+      .slice(0, 8),
+    walkthrough_summary: compact(rawLearnedGuidance.walkthrough_summary),
+  };
   const profiles = [activeProfile, activePreset].filter(Boolean);
   const requestedKind = ImportTools.normalizeImportKind(input.import_kind || input.importKind || '');
   const recommendedKind = ImportTools.detectImportKind(normalizedHeaders, { profiles }) || requestedKind;
@@ -146,6 +166,19 @@ async function runImportMigrationAssistant({ tenantId, input }) {
       detail: activePreset?.key === matchedPreset.key
         ? `The review used the active ${matchedPreset.system_label} preset while mapping the file.`
         : `The header shape lines up with the ${matchedPreset.system_label} preset, so ProofLink can route the file more safely if that source system is correct.`,
+      evidence_ids: [headerCoverageEvidence],
+      record_refs: [],
+    });
+  }
+
+  if (learnedGuidance.notes.length || learnedGuidance.walkthrough_summary) {
+    findings.push({
+      id: 'profile_walkthrough_guidance',
+      severity: 'info',
+      category: 'import_learning',
+      title: 'ProofLink has prior walkthrough guidance for this export shape',
+      detail: learnedGuidance.walkthrough_summary
+        || `The active import profile carries ${learnedGuidance.notes.length} learned operator note(s) from prior migration walkthroughs.`,
       evidence_ids: [headerCoverageEvidence],
       record_refs: [],
     });
@@ -382,6 +415,7 @@ async function runImportMigrationAssistant({ tenantId, input }) {
       assumptions: [
         activeProfile?.key ? `The review applied the active import profile "${activeProfile.label || activeProfile.key}".` : '',
         activePreset?.key ? `The review applied the active source preset "${activePreset.label || activePreset.key}".` : '',
+        learnedGuidance.notes.length ? `The active profile also carried ${learnedGuidance.notes.length} learned walkthrough note(s) from prior operator corrections.` : '',
       ].filter(Boolean),
       missing_data: missingData,
       confidence: {
@@ -405,6 +439,11 @@ async function runImportMigrationAssistant({ tenantId, input }) {
           count: 1,
           detail: `${matchedPreset.system_label} (${matchedPreset.label || matchedPreset.key})`,
         }] : []),
+        ...(learnedGuidance.notes.length || learnedGuidance.walkthrough_summary ? [{
+          label: 'Learned walkthrough guidance',
+          count: learnedGuidance.notes.length || 1,
+          detail: learnedGuidance.walkthrough_summary || learnedGuidance.notes.join(' | '),
+        }] : []),
       ],
       scope: { tenant_id: tenantId },
       generated_at: new Date().toISOString(),
@@ -421,6 +460,9 @@ async function runImportMigrationAssistant({ tenantId, input }) {
       route_counts: routeCounts,
       active_profile_key: activeProfile?.key || '',
       active_preset_key: activePreset?.key || '',
+      learned_guidance: learnedGuidance.notes.length || learnedGuidance.walkthrough_summary
+        ? learnedGuidance
+        : null,
       source_preset: matchedPreset ? {
         key: matchedPreset.key,
         label: matchedPreset.label || matchedPreset.key,

@@ -115,6 +115,12 @@ describe("manage-import-profiles", () => {
           confidence_score: 0.84,
           source_system: "quickbooks",
           source_preset: "quickbooks_customers",
+          learning_notes: [
+            "Keep the QuickBooks invoice number visible in the linked work reference.",
+            "Review service addresses before importing open work.",
+          ],
+          correction_fields: ["service_address", "ignored_field"],
+          walkthrough_summary: "Source system: quickbooks | 12 preview rows | 2 edited | 0 skipped | 0 still flagged",
         },
       }),
     });
@@ -129,6 +135,9 @@ describe("manage-import-profiles", () => {
     });
     expect(body.profile.source_system).toBe("quickbooks");
     expect(body.profile.source_preset).toBe("quickbooks-customers");
+    expect(body.profile.learning_notes).toHaveLength(2);
+    expect(body.profile.correction_fields).toEqual(["service_address"]);
+    expect(body.profile.walkthrough_summary).toContain("Source system: quickbooks");
     expect(supabase.state.upserts).toHaveLength(1);
   });
 });

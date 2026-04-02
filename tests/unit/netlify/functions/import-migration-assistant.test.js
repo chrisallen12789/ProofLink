@@ -64,4 +64,52 @@ describe("import migration assistant", () => {
     expect(result.context_summary.source_preset?.key).toBe("jobber_open_work");
     expect(result.context_summary.profile_suggestion.source_system).toBe("jobber");
   });
+
+  test("surfaces learned walkthrough guidance from the active import profile", async () => {
+    const { runImportMigrationAssistant } = require(handlerPath);
+
+    const result = await runImportMigrationAssistant({
+      tenantId: "tenant_1",
+      input: {
+        import_kind: "payments",
+        file_name: "quickbooks-payments.csv",
+        headers: [
+          "Payment Date",
+          "Customer",
+          "Invoice Number",
+          "Payment Amount",
+          "Payment Method",
+        ],
+        sample_rows: [
+          {
+            payment_date: "2026-04-01",
+            customer: "Maple Street HOA",
+            invoice_number: "INV-1002",
+            payment_amount: "450.00",
+            payment_method: "check",
+          },
+        ],
+        active_profile: {
+          key: "quickbooks-payments-profile",
+          label: "QuickBooks payments profile",
+          import_kind: "payments",
+          field_aliases: {
+            customer_name: ["Customer"],
+            order_external_id: ["Invoice Number"],
+            amount: ["Payment Amount"],
+            paid_at: ["Payment Date"],
+          },
+          learning_notes: [
+            "Keep the QuickBooks invoice number visible so the service report and payment history stay linked.",
+          ],
+          correction_fields: ["order_external_id"],
+          walkthrough_summary: "Source system: quickbooks | 18 preview rows | 3 edited | 0 skipped | 0 still flagged",
+        },
+      },
+    });
+
+    expect(result.context_summary.learned_guidance?.notes).toHaveLength(1);
+    expect(result.context_summary.learned_guidance?.correction_fields).toEqual(["order_external_id"]);
+    expect(result.report.findings.some((finding) => finding.category === "import_learning")).toBe(true);
+  });
 });

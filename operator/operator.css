@@ -3735,6 +3735,12 @@ input:focus, textarea:focus, select:focus{
   background:linear-gradient(180deg, rgba(200,75,47,.16) 0%, rgba(255,255,255,.03) 100%);
   color:var(--text);
 }
+.import-walkthrough__next{
+  border:1px solid rgba(200,75,47,.22);
+  border-radius:14px;
+  background:rgba(200,75,47,.08);
+  padding:12px;
+}
 .setup-builder-nav{
   display:flex;
   flex-wrap:wrap;

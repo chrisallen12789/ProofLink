@@ -14,13 +14,18 @@ describe("operator import workspace source", () => {
   );
 
   test("exposes source-system preset and review-queue containers", () => {
+    expect(html).toContain('id="importWalkthroughWrap"');
     expect(html).toContain('id="importPresetWrap"');
     expect(html).toContain('id="importReviewQueueWrap"');
+    expect(html).toContain("Guided walkthrough");
     expect(html).toContain("Source system preset");
     expect(html).toContain("Review queue");
   });
 
   test("wires preset selection and row reconciliation controls in the workspace runtime", () => {
+    expect(js).toContain("function renderWalkthrough");
+    expect(js).toContain("buildWalkthroughModel");
+    expect(js).toContain("buildWalkthroughLearningData");
     expect(js).toContain("function setImportPreset");
     expect(js).toContain("function setRowDecision");
     expect(js).toContain("function setRowOverrides");

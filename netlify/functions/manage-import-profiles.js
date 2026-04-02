@@ -31,6 +31,15 @@ function clampScore(value) {
   return Number(Math.max(0, Math.min(1, score)).toFixed(2));
 }
 
+function sanitizeList(values, maxItems = 6, maxLength = 180) {
+  return Array.from(new Set(
+    (Array.isArray(values) ? values : [values])
+      .map((value) => String(value || '').trim())
+      .filter(Boolean)
+      .map((value) => value.slice(0, maxLength))
+  )).slice(0, maxItems);
+}
+
 function normalizeProfile(profile = {}, operatorId = '') {
   const importKind = ImportTools.normalizeImportKind(profile.import_kind || profile.importKind || '');
   const allowedFields = Object.keys(ImportTools.FIELD_ALIASES?.[importKind] || {});
@@ -52,6 +61,10 @@ function normalizeProfile(profile = {}, operatorId = '') {
       .map((value) => ImportTools.normalizeHeader(value))
       .filter(Boolean)
   )).slice(0, 60);
+  const learningNotes = sanitizeList(profile.learning_notes || profile.learningNotes, 6, 180);
+  const correctionFields = sanitizeList(profile.correction_fields || profile.correctionFields, 10, 60)
+    .map((value) => ImportTools.normalizeHeader(value))
+    .filter((value) => allowedFields.includes(value));
 
   const label = String(profile.label || profile.name || `${importKind} import profile`).trim().slice(0, 80)
     || `${importKind} import profile`;
@@ -66,6 +79,9 @@ function normalizeProfile(profile = {}, operatorId = '') {
     source_hint: String(profile.source_hint || profile.sourceHint || '').trim().slice(0, 120),
     source_system: String(profile.source_system || profile.sourceSystem || '').trim().slice(0, 40),
     source_preset: slugKey(profile.source_preset || profile.sourcePreset || '', ''),
+    learning_notes: learningNotes,
+    correction_fields: correctionFields,
+    walkthrough_summary: String(profile.walkthrough_summary || profile.walkthroughSummary || '').trim().slice(0, 180),
     confidence_score: clampScore(profile.confidence_score || profile.confidenceScore || 0),
     learned_at: new Date(profile.learned_at || profile.learnedAt || Date.now()).toISOString(),
     learned_by: String(profile.learned_by || operatorId || '').trim(),

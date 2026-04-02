@@ -15,6 +15,7 @@
   const importMsg = $("importMsg");
   const importAiMsg = $("importAiMsg");
   const importAiReviewWrap = $("importAiReviewWrap");
+  const importWalkthroughWrap = $("importWalkthroughWrap");
   const importProfileWrap = $("importProfileWrap");
   const importPresetWrap = $("importPresetWrap");
   const importReviewQueueWrap = $("importReviewQueueWrap");
@@ -65,6 +66,68 @@
     ],
   };
 
+  const LANE_WALKTHROUGH_GUIDANCE = {
+    customers: {
+      title: "Customer foundation",
+      tips: [
+        "Start with customers so later work and payment imports have stable people and account matches.",
+        "Names, emails, phones, and addresses matter more than internal notes on the first pass.",
+      ],
+    },
+    open_work: {
+      title: "Pipeline continuity",
+      tips: [
+        "Import open work after customers so leads, quotes, jobs, and invoice-ready work land on real accounts.",
+        "Service address, scheduled date, and the workflow stage are the first fields to verify for dispatch accuracy.",
+      ],
+    },
+    payments: {
+      title: "Money continuity",
+      tips: [
+        "Import payments after customers and open work so deposits and historical payments can link cleanly.",
+        "Payment amount, date, method, and the linked invoice or work reference are the fields that keep collections accurate.",
+      ],
+    },
+  };
+
+  const SOURCE_WALKTHROUGH_GUIDANCE = {
+    quickbooks: {
+      title: "QuickBooks continuity",
+      tips: [
+        "If QuickBooks stays the accounting source of truth, keep the QuickBooks invoice or doc number mapped into the linked work or payment reference fields.",
+        "That reference should show up in the service report or job notes so ProofLink and QuickBooks stay traceable without duplicate bookkeeping.",
+      ],
+    },
+    jobber: {
+      title: "Jobber exports",
+      tips: [
+        "Jobber exports work best in order: customers first, then open work, then payments.",
+        "Property address, job title, and scheduled date are the first fields to verify before importing jobs or quotes.",
+      ],
+    },
+    housecall_pro: {
+      title: "Housecall Pro exports",
+      tips: [
+        "Check property address and arrival window fields carefully so crew scheduling stays grounded after migration.",
+        "Use the review queue to clean up any customer rows that only have a property name without a strong contact match.",
+      ],
+    },
+    servicetitan: {
+      title: "ServiceTitan exports",
+      tips: [
+        "Verify job type, appointment date, and invoice number before importing open work from ServiceTitan.",
+        "If a payment file is separate, bring it in last so invoice references can attach to migrated work cleanly.",
+      ],
+    },
+    generic: {
+      title: "Legacy spreadsheet guidance",
+      tips: [
+        "Preview first, then fix only the rows that block routing or billing history. You do not need a perfect sheet before starting.",
+        "Save the learned profile after review so the next export from the same system takes far less cleanup.",
+      ],
+    },
+  };
+
   if (!importFile || !importPreviewWrap) return;
 
   let IMPORT_STATE = {
@@ -82,6 +145,7 @@
     rowDecisions: {},
     rowOverrides: {},
     expandedReviewRow: 0,
+    lastSavedProfileKey: "",
     aiReview: null,
   };
 
@@ -130,6 +194,10 @@
     return REVIEW_FIELD_CONFIG[Tools.normalizeImportKind(importKind)] || [];
   }
 
+  function laneWalkthroughGuidance(importKind = kind()) {
+    return LANE_WALKTHROUGH_GUIDANCE[Tools.normalizeImportKind(importKind)] || LANE_WALKTHROUGH_GUIDANCE.customers;
+  }
+
   function allImportDetectionProfiles() {
     return [
       ...profileList(),
@@ -175,6 +243,10 @@
     return String(value || "").trim();
   }
 
+  function uniqueList(values, maxItems = 6) {
+    return Array.from(new Set((Array.isArray(values) ? values : [values]).map((value) => compact(value)).filter(Boolean))).slice(0, maxItems);
+  }
+
   function rowNumberToIndex(rowNumber) {
     const number = Number(rowNumber || 0);
     return number >= 2 ? number - 2 : -1;
@@ -198,6 +270,30 @@
 
   function hasRowOverrides(rowOrNumber) {
     return Object.keys(rowOverrideMap(rowOrNumber)).length > 0;
+  }
+
+  function currentSourcePresetSummary() {
+    return IMPORT_STATE.aiReview?.context_summary?.source_preset || null;
+  }
+
+  function currentSourceSystem() {
+    return compact(
+      activeImportPreset()?.source_system
+      || activeImportProfile()?.source_system
+      || currentSourcePresetSummary()?.source_system
+    ).toLowerCase();
+  }
+
+  function sourceWalkthroughGuidance(sourceSystem = currentSourceSystem()) {
+    return SOURCE_WALKTHROUGH_GUIDANCE[sourceSystem] || SOURCE_WALKTHROUGH_GUIDANCE.generic;
+  }
+
+  function activeLearningNotes() {
+    return uniqueList(activeImportProfile()?.learning_notes || []);
+  }
+
+  function activeWalkthroughSummary() {
+    return compact(activeImportProfile()?.walkthrough_summary);
   }
 
   function baseImportField(row, importKind, fieldKey) {
@@ -721,6 +817,47 @@
     `;
   }
 
+  function renderWalkthrough() {
+    if (!importWalkthroughWrap) return;
+    const model = buildWalkthroughModel();
+    const statusClass = {
+      done: "memory-checklist__item--ready",
+      warn: "memory-checklist__item--warn",
+      current: "memory-checklist__item--ready",
+      pending: "",
+    };
+    importWalkthroughWrap.innerHTML = `
+      <div class="detail-card">
+        <div class="kicker">Guided walkthrough</div>
+        <div><strong>${escapeHtml(model.title || "Guided walkthrough")}</strong></div>
+        <div class="detail-copy">${escapeHtml(model.subtitle || "")}</div>
+        <div class="import-walkthrough__next u-mt-10">
+          <div class="kicker">Best next move</div>
+          <strong>${escapeHtml(model.nextAction.title || "Keep going")}</strong>
+          <div class="detail-copy">${escapeHtml(model.nextAction.detail || "")}</div>
+        </div>
+        ${model.learningSummary ? `<div class="detail-copy u-mt-10"><strong>Learned guidance:</strong> ${escapeHtml(model.learningSummary)}</div>` : ""}
+      </div>
+      <div class="memory-checklist u-mt-10">
+        ${model.steps.map((step) => `
+          <div class="memory-checklist__item ${statusClass[step.status] || ""}">
+            <div class="workspace-chip-row">
+              <span class="pill ${step.status === "done" ? "pill-on" : (step.status === "warn" ? "pill-warn" : "")}">${escapeHtml(step.status === "done" ? "done" : (step.status === "warn" ? "needs attention" : (step.status === "current" ? "next" : "pending")))}</span>
+            </div>
+            <div class="memory-checklist__title u-mt-10">${escapeHtml(step.label)}</div>
+            <div class="detail-copy memory-checklist__note">${escapeHtml(step.detail || "")}</div>
+          </div>
+        `).join("")}
+      </div>
+      ${model.guidanceNotes.length ? `
+        <div class="detail-card u-mt-10">
+          <div class="kicker">Operator coaching</div>
+          ${model.guidanceNotes.map((note) => `<div class="detail-copy">${escapeHtml(note)}</div>`).join("")}
+        </div>
+      ` : ""}
+    `;
+  }
+
   function renderProfileSummary() {
     if (!importProfileWrap) return;
     const activeProfile = activeImportProfile();
@@ -741,6 +878,7 @@
 
     const confidence = Number(activeProfile?.confidence_score || activeProfile?.confidenceScore || 0);
     const mappedFields = Object.keys(activeProfile?.field_aliases || activeProfile?.fieldAliases || {});
+    const learningNotes = uniqueList(activeProfile?.learning_notes || []);
     importProfileWrap.innerHTML = `
       <div class="detail-card">
         <div class="kicker">Import profile</div>
@@ -750,7 +888,9 @@
           <span class="pill pill-on">${escapeHtml(kindMeta(activeProfile?.import_kind || activeProfile?.importKind).label)}</span>
           <span class="pill">${escapeHtml(`${mappedFields.length} mapped field${mappedFields.length === 1 ? "" : "s"}`)}</span>
           <span class="pill">${escapeHtml(`confidence ${Math.round(confidence * 100)}%`)}</span>
+          ${learningNotes.length ? `<span class="pill">${escapeHtml(`${learningNotes.length} learned note${learningNotes.length === 1 ? "" : "s"}`)}</span>` : ""}
         </div>
+        ${activeProfile?.walkthrough_summary ? `<div class="detail-copy u-mt-10">${escapeHtml(activeProfile.walkthrough_summary)}</div>` : ""}
       </div>
     `;
   }
@@ -826,6 +966,176 @@
       });
       return serialized;
       });
+  }
+
+  function editedRowCount() {
+    return IMPORT_STATE.preview?.rows?.filter((row) => row.hasOverrides).length || 0;
+  }
+
+  function skippedRowCount() {
+    return IMPORT_STATE.preview?.rows?.filter((row) => row.skipped).length || 0;
+  }
+
+  function unresolvedRowCount() {
+    return IMPORT_STATE.preview?.rows?.filter((row) => !row.skipped && row.ready === false).length || 0;
+  }
+
+  function correctionFieldKeys(limit = 5) {
+    const counts = {};
+    Object.values(IMPORT_STATE.rowOverrides || {}).forEach((override) => {
+      Object.keys(override || {}).forEach((fieldKey) => {
+        counts[fieldKey] = (counts[fieldKey] || 0) + 1;
+      });
+    });
+    return Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, limit)
+      .map(([fieldKey]) => fieldKey);
+  }
+
+  function correctionFieldLabels(limit = 3) {
+    const labels = correctionFieldKeys(limit).map((fieldKey) =>
+      reviewFieldConfig().find((field) => field.key === fieldKey)?.label || fieldKey.replace(/_/g, " ")
+    );
+    return uniqueList(labels, limit);
+  }
+
+  function activeWalkthroughHints() {
+    const laneGuidance = laneWalkthroughGuidance();
+    const sourceGuidance = sourceWalkthroughGuidance();
+    return uniqueList([
+      ...(laneGuidance?.tips || []),
+      ...(sourceGuidance?.tips || []),
+      ...activeLearningNotes(),
+    ], 6);
+  }
+
+  function buildWalkthroughLearningData() {
+    const sourceSystem = currentSourceSystem();
+    const sourceGuidance = sourceWalkthroughGuidance(sourceSystem);
+    const editedRows = editedRowCount();
+    const skippedRows = skippedRowCount();
+    const unresolvedRows = unresolvedRowCount();
+    const correctedLabels = correctionFieldLabels(3);
+    const activeProfile = activeImportProfile();
+    const mergedNotes = uniqueList([
+      ...(activeProfile?.learning_notes || []),
+      `Bring ${kindMeta().label.toLowerCase()} through this walkthrough before importing so ProofLink can explain and verify the mapping safely.`,
+      ...(sourceGuidance?.tips || []).slice(0, 2),
+      editedRows ? `${editedRows} row(s) needed operator edits in the last walkthrough${correctedLabels.length ? `, mainly around ${correctedLabels.join(", ")}` : ""}.` : "",
+      skippedRows ? `${skippedRows} row(s) were skipped during the last walkthrough because they still needed manual cleanup.` : "",
+    ], 6);
+    const correctionFields = uniqueList([
+      ...(activeProfile?.correction_fields || []),
+      ...correctionFieldKeys(6),
+    ], 6);
+    const walkthroughSummary = [
+      currentSourceSystem() ? `Source system: ${currentSourceSystem().replace(/_/g, " ")}` : "",
+      IMPORT_STATE.preview?.rows?.length ? `${IMPORT_STATE.preview.rows.length} preview row(s)` : "",
+      editedRows ? `${editedRows} edited` : "0 edited",
+      skippedRows ? `${skippedRows} skipped` : "0 skipped",
+      unresolvedRows ? `${unresolvedRows} still flagged` : "0 still flagged",
+    ].filter(Boolean).join(" | ");
+
+    return {
+      learning_notes: mergedNotes,
+      correction_fields: correctionFields,
+      walkthrough_summary: walkthroughSummary,
+    };
+  }
+
+  function buildWalkthroughModel() {
+    const preview = IMPORT_STATE.preview;
+    const fileLoaded = !!compact(IMPORT_STATE.fileName);
+    const hasAiReview = !!IMPORT_STATE.aiReview?.report;
+    const hasProfile = !!activeImportProfile() || !!compact(IMPORT_STATE.lastSavedProfileKey);
+    const editedRows = editedRowCount();
+    const skippedRows = skippedRowCount();
+    const unresolvedRows = unresolvedRowCount();
+    const sourcePreset = activeImportPreset() || currentSourcePresetSummary();
+    const sourceGuidance = sourceWalkthroughGuidance();
+    const laneGuidance = laneWalkthroughGuidance();
+    const guidanceNotes = activeWalkthroughHints();
+
+    const steps = [
+      {
+        label: "Confirm the lane and source",
+        status: fileLoaded ? "done" : "current",
+        detail: fileLoaded
+          ? `${kindMeta().label} is active${sourcePreset?.label ? ` and ProofLink is guiding from ${sourcePreset.label}.` : "."}`
+          : `Choose the best lane first. ${laneGuidance.title} keeps this migration grounded.`,
+      },
+      {
+        label: "Preview the file",
+        status: preview ? "done" : (fileLoaded ? "current" : "pending"),
+        detail: preview
+          ? `ProofLink mapped ${preview.rows.length} preview row(s) and will not write anything until you confirm.`
+          : "Load a CSV and preview it so ProofLink can detect the likely source system and route.",
+      },
+      {
+        label: "Reconcile risky rows",
+        status: !preview ? "pending" : (unresolvedRows ? "warn" : "done"),
+        detail: !preview
+          ? "The review queue appears after preview."
+          : unresolvedRows
+            ? `${unresolvedRows} row(s) still need identity, amount, or linked-record cleanup. Use edit fields or skip row to keep moving.`
+            : `${editedRows ? `${editedRows} row(s) were corrected. ` : ""}${skippedRows ? `${skippedRows} row(s) were intentionally skipped. ` : ""}The current preview no longer has unresolved blockers.`,
+      },
+      {
+        label: "Run the AI migration review",
+        status: !preview ? "pending" : (hasAiReview ? "done" : "current"),
+        detail: hasAiReview
+          ? "The migration assistant reviewed the corrected sample and explained what can be routed safely."
+          : "Run the AI review after the preview looks right so ProofLink can explain mapping coverage and routing risk.",
+      },
+      {
+        label: "Teach ProofLink this export",
+        status: hasProfile ? "done" : (hasAiReview ? "current" : "pending"),
+        detail: hasProfile
+          ? "A tenant-scoped learned profile is active for this export shape, so future files from the same system should need less cleanup."
+          : "Save the learned profile after review so the migration assistant remembers this export shape next time.",
+      },
+    ];
+
+    let nextAction = {
+      title: "Upload and preview a CSV",
+      detail: "ProofLink will detect the likely source system and show the safest import path.",
+    };
+    if (fileLoaded && !preview) {
+      nextAction = {
+        title: "Preview the file",
+        detail: "This is the safest way to see what will create, update, link, or skip before anything writes.",
+      };
+    } else if (preview && unresolvedRows) {
+      nextAction = {
+        title: "Fix or skip the flagged rows",
+        detail: "Use the review queue to edit identity, schedule, invoice, or payment fields until only safe rows remain.",
+      };
+    } else if (preview && !hasAiReview) {
+      nextAction = {
+        title: "Run AI migration review",
+        detail: "The agent will explain mapping coverage, likely source system, and any remaining risk before import.",
+      };
+    } else if (preview && hasAiReview && !hasProfile) {
+      nextAction = {
+        title: "Save the learned profile",
+        detail: "This is how ProofLink improves the migration assistant for the next export from the same system.",
+      };
+    } else if (preview?.readyRows?.length) {
+      nextAction = {
+        title: "Import into ProofLink",
+        detail: "The current preview has write-ready rows and the walkthrough is satisfied with the visible blockers.",
+      };
+    }
+
+    return {
+      title: sourceGuidance?.title || "Guided walkthrough",
+      subtitle: `ProofLink is guiding this ${kindMeta().label.toLowerCase()} import in the safest order it can detect.`,
+      steps,
+      nextAction,
+      guidanceNotes,
+      learningSummary: activeWalkthroughSummary(),
+    };
   }
 
   function renderAiReview() {
@@ -1006,6 +1316,7 @@
     if (btnClearImport) btnClearImport.disabled = IMPORT_STATE.importing;
     if (btnRunImportAiReview) btnRunImportAiReview.disabled = IMPORT_STATE.importing || !IMPORT_STATE.preview?.rows?.length;
     renderPreview();
+    renderWalkthrough();
     renderPresetSummary();
     renderProfileSummary();
     renderAiReview();
@@ -1028,6 +1339,7 @@
       rowDecisions: {},
       rowOverrides: {},
       expandedReviewRow: 0,
+      lastSavedProfileKey: "",
       aiReview: null,
     };
     if (importFile) importFile.value = "";
@@ -1048,6 +1360,7 @@
     IMPORT_STATE.rowDecisions = {};
     IMPORT_STATE.rowOverrides = {};
     IMPORT_STATE.expandedReviewRow = 0;
+    IMPORT_STATE.lastSavedProfileKey = "";
     IMPORT_STATE.aiReview = null;
     if (importFile) importFile.value = "";
     setImportMessage("");
@@ -1064,6 +1377,7 @@
     IMPORT_STATE.rowDecisions = {};
     IMPORT_STATE.rowOverrides = {};
     IMPORT_STATE.expandedReviewRow = 0;
+    IMPORT_STATE.lastSavedProfileKey = "";
     if (IMPORT_STATE.rows.length) {
       IMPORT_STATE.preview = buildPreview();
       IMPORT_STATE.aiReview = null;
@@ -1121,6 +1435,7 @@
     IMPORT_STATE.rowDecisions = {};
     IMPORT_STATE.rowOverrides = {};
     IMPORT_STATE.expandedReviewRow = 0;
+    IMPORT_STATE.lastSavedProfileKey = "";
     IMPORT_STATE.aiReview = null;
     const pinnedPreset = IMPORT_STATE.presetPinned ? activeImportPreset() : null;
     const matchedProfile = typeof Tools.chooseImportProfile === "function"
@@ -1608,6 +1923,11 @@
           sample_headers: activeProfile.sample_headers || activeProfile.sampleHeaders || [],
           confidence_score: activeProfile.confidence_score || activeProfile.confidenceScore || 0,
           source_hint: activeProfile.source_hint || activeProfile.sourceHint || "",
+          source_system: activeProfile.source_system || activeProfile.sourceSystem || "",
+          source_preset: activeProfile.source_preset || activeProfile.sourcePreset || "",
+          learning_notes: activeProfile.learning_notes || activeProfile.learningNotes || [],
+          correction_fields: activeProfile.correction_fields || activeProfile.correctionFields || [],
+          walkthrough_summary: activeProfile.walkthrough_summary || activeProfile.walkthroughSummary || "",
         } : null,
         active_preset: activePreset ? {
           key: activePreset.key,
@@ -1633,16 +1953,21 @@
     if (!suggestion) throw new Error("Run the migration review first so ProofLink has a profile to save.");
     if (typeof requestOperatorFunction !== "function") throw new Error("Operator function access is not ready yet.");
     setImportAiMessage("Saving the learned import profile...", "");
+    const learningData = buildWalkthroughLearningData();
     const payload = await requestOperatorFunction("manage-import-profiles", {
       method: "POST",
       body: {
         action: "upsert",
-        profile: suggestion,
+        profile: {
+          ...suggestion,
+          ...learningData,
+        },
       },
     });
     IMPORT_STATE.profiles = Array.isArray(payload?.profiles) ? payload.profiles : profileList();
     IMPORT_STATE.profilesLoaded = true;
     IMPORT_STATE.profileKey = payload?.profile?.key || suggestion.key || "";
+    IMPORT_STATE.lastSavedProfileKey = IMPORT_STATE.profileKey;
     IMPORT_STATE.preview = buildPreview();
     renderImportWorkspace();
     setImportAiMessage(`Saved ${payload?.profile?.label || "the learned profile"}. Future imports from the same export shape will match faster.`, "ok");

@@ -111,6 +111,22 @@ The audit is advisory. Operators still decide whether to update records, create 
 The import profile loop is intentionally narrow:
 
 - Profiles are scoped to the tenant.
-- They store header aliases only, not imported row values.
+- They store header aliases plus short walkthrough guidance from prior operator corrections.
 - Saving a profile is an explicit operator action.
 - The migration assistant never writes records or profiles automatically.
+
+## Guided Import Learning
+
+- `operator/import-workspace.js`
+  Adds a source-aware walkthrough that explains the next best migration step, flags risky rows, and lets operators reconcile fields inline before import.
+- `manage-import-profiles.js`
+  Persists learned import notes, corrected field hotspots, and a walkthrough summary alongside the reusable profile.
+- `import_migration_assistant`
+  Reads that tenant-scoped guidance back during later reviews so the import agent gets more grounded over time without any uncontrolled model fine-tuning.
+
+This is the current "training" loop for the migration agents:
+
+- source presets improve first-pass detection
+- saved profiles improve column matching
+- operator walkthrough edits improve future coaching
+- all learning stays tenant-scoped and inspectable
