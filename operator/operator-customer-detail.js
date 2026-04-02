@@ -461,12 +461,17 @@
       plumbing: plumbingItems,
     };
 
-    return map[businessKey] || customerTemplateRecordFocus().map((item) => ({
-      label: "Relationship memory",
+    const fallbackNote = firstFilled(customer?.service_notes, customer?.preferences, customer?.notes);
+    const fallbackLabels = [
+      "Relationship memory",
+      "Access context",
+      "Service notes",
+      "Next-step memory",
+    ];
+    return map[businessKey] || customerTemplateRecordFocus().map((item, index) => ({
+      label: fallbackLabels[index] || `Memory ${index + 1}`,
       ready: hasAny(customer?.notes, customer?.service_notes, customer?.preferences),
-      note: hasAny(customer?.notes, customer?.service_notes, customer?.preferences)
-        ? (customer?.service_notes || customer?.preferences || customer?.notes || item)
-        : item,
+      note: fallbackNote || item,
     }));
   }
 
@@ -1112,13 +1117,21 @@
     const blueprint = typeof currentWorkspaceBlueprint === "function"
       ? currentWorkspaceBlueprint()
       : { business: { key: "service_business" } };
-    const focus = customerMemoryChecklist(customer, blueprint);
+    const seenFocus = new Set();
+    const focus = customerMemoryChecklist(customer, blueprint)
+      .filter((item) => {
+        const key = `${String(item?.label || "").trim().toLowerCase()}::${String(item?.note || "").trim().toLowerCase()}`;
+        if (!key || seenFocus.has(key)) return false;
+        seenFocus.add(key);
+        return true;
+      })
+      .slice(0, 4);
     if (!focus.length) return "";
     return `
       <div class="detail-card detail-card--spaced customer-support-card customer-support-card--focus">
-        <div class="kicker">Business-specific memory</div>
-        <div><strong>Keep the details this business depends on</strong></div>
-        <div class="detail-copy">Use this customer record to hold the repeat details the team should not have to relearn on every visit.</div>
+        <div class="kicker">Service memory</div>
+        <div><strong>Keep the repeat-visit details the team should not have to relearn</strong></div>
+        <div class="detail-copy">Access notes, scope memory, and trade-specific context stay compact here so crews and operators can scan them fast.</div>
         <div class="memory-checklist">
           ${focus.map((item) => `
             <div class="memory-checklist__item ${item.ready ? "memory-checklist__item--ready" : ""}">
@@ -1203,13 +1216,18 @@
     );
     return `
       <div class="detail-card detail-card--spaced customer-operator-brief">
-        <div class="kicker">Operator brief</div>
-        <div><strong>See the account pressure fast</strong></div>
+        <div class="customer-operator-brief__head">
+          <div>
+            <div class="kicker">Operator brief</div>
+            <div><strong>${escapeHtml(stage.label)}</strong></div>
+          </div>
+          <span class="pill ${escapeAttr(openRequestsCount || openProposalCount || activeOrderCount || activeJobCount || balance > 0 ? "pill-warn" : "pill-on")}">${escapeHtml(openRequestsCount + openProposalCount + activeOrderCount + activeJobCount > 0 ? "Needs eyes" : "Stable")}</span>
+        </div>
         <div class="detail-copy">${escapeHtml(stage.note)}</div>
-        <div class="customer-operator-brief__rows">
+        <div class="customer-operator-brief__grid">
           <div class="customer-operator-brief__item">
-            <span>Stage</span>
-            <strong>${escapeHtml(stage.label)}</strong>
+            <span>Relationship signals</span>
+            <strong>${escapeHtml(String(openRequestsCount + openProposalCount + activeOrderCount + activeJobCount))}</strong>
             <small>${escapeHtml(openRequestsCount + openProposalCount + activeOrderCount + activeJobCount > 0
               ? `${openRequestsCount + openProposalCount + activeOrderCount + activeJobCount} active relationship signal${openRequestsCount + openProposalCount + activeOrderCount + activeJobCount === 1 ? "" : "s"}`
               : "No active pipeline or work pressure right now")}</small>
@@ -1237,9 +1255,13 @@
   function renderCustomerCommandCard(actions = []) {
     return `
       <div class="detail-card detail-card--spaced customer-command-card">
-        <div class="kicker">Quick moves</div>
-        <div><strong>Do the next useful thing without hunting</strong></div>
-        <div class="detail-copy">Keep the common actions here, then use the app shelf below when you need deeper customer work.</div>
+        <div class="customer-command-card__head">
+          <div>
+            <div class="kicker">Quick moves</div>
+            <div><strong>Keep the next useful move one click away</strong></div>
+          </div>
+          <div class="detail-copy">Common actions stay here. The app shelf below handles deeper work.</div>
+        </div>
         <div class="customer-command-card__buttons">
           ${actions.map((action) => `<button type="button" class="${escapeAttr(action.className || "btn btn-ghost")}" ${Object.entries(action.data || {}).map(([key, value]) => `${key}="${escapeAttr(value)}"`).join(" ")}>${escapeHtml(action.label || "Open")}</button>`).join("")}
         </div>
@@ -1298,21 +1320,26 @@
 
     return `
       <div class="detail-card customer-support-card customer-support-card--profile" id="customerProfileSection">
-        <div class="kicker">Profile</div>
-        <div><strong>Account snapshot</strong></div>
-        <div class="detail-copy">Use this section as the quick read on who the customer is, how they like to work, and where the account lives.</div>
-        <div class="customer-profile-grid">
+        <div class="kicker">Account profile</div>
+        <div><strong>Read the essentials without squinting through six tiny boxes</strong></div>
+        <div class="detail-copy">The basics live here: who this account belongs to, how to reach them, and which site the team expects to serve.</div>
+        <div class="customer-profile-list">
           ${profileItems.map((item) => `
-            <div class="customer-profile-item">
+            <div class="customer-profile-row">
               <span>${escapeHtml(item.label)}</span>
-              <strong>${escapeHtml(item.value || "Not recorded")}</strong>
-              <small>${escapeHtml(item.note || "")}</small>
+              <div class="customer-profile-row__value">
+                <strong>${escapeHtml(item.value || "Not recorded")}</strong>
+                <small>${escapeHtml(item.note || "")}</small>
+              </div>
             </div>
           `).join("")}
         </div>
         ${knownAddresses.length ? `
           <div class="customer-site-list">
-            ${knownAddresses.slice(0, 5).map((address) => `<span class="pill">${escapeHtml(address)}</span>`).join("")}
+            <span class="customer-site-list__label">Known sites</span>
+            <div class="customer-site-list__chips">
+              ${knownAddresses.slice(0, 5).map((address) => `<span class="pill">${escapeHtml(address)}</span>`).join("")}
+            </div>
           </div>
         ` : ""}
       </div>
@@ -1365,12 +1392,12 @@
 
     return `
       <div class="detail-card customer-support-card customer-support-card--footprint" id="customerFootprintSection">
-        <div class="kicker">Footprint</div>
-        <div><strong>See what exists with this customer</strong></div>
-        <div class="detail-copy">This gives the operator a one-glance read on how much history, work, and money is already attached to the account.</div>
-        <div class="customer-footprint-grid">
+        <div class="kicker">Attached work</div>
+        <div><strong>See how much history is already tied to this account</strong></div>
+        <div class="detail-copy">Requests, proposals, work, payments, and site count stay in one strip so the record feels scannable instead of stacked.</div>
+        <div class="customer-footprint-strip">
           ${footprintItems.map((item) => `
-            <div class="customer-footprint-item">
+            <div class="customer-footprint-stat">
               <span>${escapeHtml(item.label)}</span>
               <strong>${escapeHtml(item.value || "0")}</strong>
               <small>${escapeHtml(item.note || "")}</small>
@@ -1706,8 +1733,8 @@
         <div class="customer-workbench-launcher__head">
           <div>
             <div class="kicker">Customer apps</div>
-            <div><strong>Open one focused panel instead of scrolling through the whole account</strong></div>
-            <div class="detail-copy">Each panel stays attached to this customer, keeps its own draft, and drops you back into the exact part of the record you meant to work.</div>
+            <div><strong>Open one focused panel and keep the rest of the account quiet</strong></div>
+            <div class="detail-copy">Each panel stays tied to this customer, keeps its own draft, and drops you back where you left off.</div>
           </div>
           <div class="customer-workbench-launcher__stats">
             <span class="pill">${escapeHtml(`${cards.length} app${cards.length === 1 ? "" : "s"}`)}</span>
@@ -2895,7 +2922,7 @@
 
       customerDetailWrap.innerHTML = `
         <div class="customer-record-shell">
-          <div class="customer-record-shell__top">
+          <div class="customer-record-shell__masthead">
             <div class="customer-record-shell__hero">
               ${renderRecordHeroCard({
                 eyebrow: "Customer record",
@@ -2912,7 +2939,7 @@
                   workbenchAddress,
                   customer.lead_source ? `Lead source: ${titleCaseWords(String(customer.lead_source).replace(/_/g, " "))}` : "",
                 ],
-                description: "Open the customer once, then move requests, pricing, field work, and payment follow-through from the same record.",
+                description: "Keep requests, pricing, field work, and money follow-through attached to one clean account record.",
                 summary: [
                   { label: "Open requests", value: String(workbenchOpenRequests), note: "Needs response or scope" },
                   { label: "Open proposals", value: String(workbenchOpenProposals), note: "Still moving toward approval" },
@@ -2921,7 +2948,7 @@
                 ],
               })}
             </div>
-            <div class="customer-record-shell__side">
+            <div class="customer-record-shell__rail-top">
               ${renderCustomerOperatorBriefCard({
                 customer,
                 knownAddresses: workbenchAddresses,
@@ -2934,19 +2961,17 @@
                 latestInteraction: workbenchLatestInteraction,
                 customerIdValue,
               })}
-              ${renderCustomerCommandCard(customerQuickActions)}
             </div>
           </div>
           ${renderCustomerWorkbenchLauncher(workbenchContext)}
-          <div class="customer-support-grid">
-            <div class="customer-support-grid__profile">
+          ${renderCustomerCommandCard(customerQuickActions)}
+          <div class="customer-record-shell__body">
+            <div class="customer-record-shell__main">
               ${renderCustomerProfileCard(customer, {
                 knownAddresses: workbenchAddresses,
                 latestInteraction: workbenchLatestInteraction,
                 lastTouchValue: workbenchLastTouch,
               })}
-            </div>
-            <div class="customer-support-grid__footprint">
               ${renderCustomerFootprintCard({
                 customer,
                 customerRequestsRows: workbenchRequests,
@@ -2958,7 +2983,7 @@
                 knownAddresses: workbenchAddresses,
               })}
             </div>
-            <div class="customer-support-grid__focus">
+            <div class="customer-record-shell__rail">
               ${renderCustomerRecordFocusCard()}
               ${renderCustomerRetentionReactivationCard(workbenchContext)}
             </div>
