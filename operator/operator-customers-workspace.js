@@ -295,6 +295,11 @@ function customerDisplayContactLine(customer = null) {
   return parts.length ? parts.join(" | ") : "No contact details on file";
 }
 
+function customerWorkbenchCountLabel(count, singular, plural = `${singular}s`) {
+  const safeCount = Number(count || 0);
+  return `${safeCount} ${safeCount === 1 ? singular : plural}`;
+}
+
 function customerKnownAddressesForWorkbench(customerIdValue, customer = null) {
   if (typeof customerKnownAddresses === "function") return customerKnownAddresses(customerIdValue, customer);
   const known = new Set();
@@ -369,6 +374,101 @@ function customerWorkbenchMetrics(customer = null) {
     staleDays,
     addresses,
   };
+}
+
+function customerWorkbenchViewCards(customers = sortedCustomers(CUSTOMERS_CACHE)) {
+  const activeCount = customers.filter((customer) => customerWorkbenchMetrics(customer).activeRelationshipCount > 0).length;
+  const staleCount = customers.filter((customer) => {
+    const metrics = customerWorkbenchMetrics(customer);
+    return metrics.staleDays !== null && metrics.staleDays >= 30;
+  }).length;
+  const multiSiteCount = customers.filter((customer) => customerWorkbenchMetrics(customer).siteCount > 1).length;
+  const openBalanceCustomers = customers.filter((customer) => customerWorkbenchMetrics(customer).balance > 0);
+  const openBalanceTotal = openBalanceCustomers.reduce((sum, customer) => sum + customerWorkbenchMetrics(customer).balance, 0);
+  const topValueCount = Math.min(customers.length, Math.max(0, Math.min(10, Math.ceil(customers.length * 0.2) || 0)));
+  return [
+    {
+      filter: "all",
+      label: "All",
+      value: customerWorkbenchCountLabel(customers.length, "account"),
+      summary: customers.length
+        ? "Search on the left, then open the next account that needs work."
+        : "Create the first customer record to start the CRM.",
+    },
+    {
+      filter: "active_work",
+      label: "Active work",
+      value: customerWorkbenchCountLabel(activeCount, "account"),
+      summary: activeCount
+        ? "Requests, proposals, orders, or jobs are still moving here."
+        : "No customers have live work in motion right now.",
+    },
+    {
+      filter: "open_balance",
+      label: "Open balance",
+      value: openBalanceCustomers.length ? `${formatUsd(openBalanceTotal)} open` : "Nothing open",
+      summary: openBalanceCustomers.length
+        ? `${customerWorkbenchCountLabel(openBalanceCustomers.length, "account")} still need collection attention.`
+        : "Nothing outstanding right now.",
+    },
+    {
+      filter: "stale",
+      label: "Needs follow-up",
+      value: customerWorkbenchCountLabel(staleCount, "account"),
+      summary: staleCount
+        ? "Thirty-plus days have passed since the last recorded touch."
+        : "No stale relationships are waiting on a follow-up.",
+    },
+    {
+      filter: "multi_site",
+      label: "Multi-site",
+      value: customerWorkbenchCountLabel(multiSiteCount, "account"),
+      summary: multiSiteCount
+        ? "These accounts already span more than one known service address."
+        : "No multi-site accounts have been identified yet.",
+    },
+    {
+      filter: "top_value",
+      label: "Top value",
+      value: customerWorkbenchCountLabel(topValueCount, "account"),
+      summary: customers.length
+        ? "ProofLink keeps the highest-value accounts close without crowding the list."
+        : "Value builds as work gets billed and paid.",
+    },
+  ];
+}
+
+function customerWorkbenchPrioritySignal(customer = null, metrics = customerWorkbenchMetrics(customer)) {
+  if (metrics.balance > 0) {
+    return { label: `${formatUsd(metrics.balance)} open`, toneClass: "pill-bad" };
+  }
+  if (metrics.activeRelationshipCount > 0) {
+    return { label: customerWorkbenchCountLabel(metrics.activeRelationshipCount, "active item"), toneClass: "pill-on" };
+  }
+  if (metrics.staleDays !== null && metrics.staleDays >= 30) {
+    return { label: `${metrics.staleDays}d quiet`, toneClass: "pill-warn" };
+  }
+  if (metrics.siteCount > 1) {
+    return { label: customerWorkbenchCountLabel(metrics.siteCount, "site"), toneClass: "pill-muted" };
+  }
+  const lifetimeValue = typeof customerLifetimeValueCents === "function" ? customerLifetimeValueCents(customer) : 0;
+  if (lifetimeValue > 0) {
+    return { label: `${formatUsd(lifetimeValue)} lifetime`, toneClass: "pill-muted" };
+  }
+  return { label: "Ready", toneClass: "pill-muted" };
+}
+
+function customerWorkbenchSummaryBits(customer = null, metrics = customerWorkbenchMetrics(customer)) {
+  const bits = [];
+  const pipelineCount = Number(metrics.openRequestsCount || 0) + Number(metrics.openProposalCount || 0);
+  const activeWorkCount = Number(metrics.activeOrderCount || 0) + Number(metrics.activeJobCount || 0);
+
+  if (pipelineCount > 0) bits.push(customerWorkbenchCountLabel(pipelineCount, "pipeline item"));
+  if (activeWorkCount > 0) bits.push(customerWorkbenchCountLabel(activeWorkCount, "active work item"));
+  if (metrics.siteCount > 1) bits.push(customerWorkbenchCountLabel(metrics.siteCount, "site"));
+  else if (Number(customer?.order_count || 0) > 0) bits.push(customerWorkbenchCountLabel(customer.order_count, "order"));
+  else bits.push("No billed history yet");
+  return bits.slice(0, 3);
 }
 
 function buildCustomerWorkbenchState(filter = "") {
@@ -462,61 +562,33 @@ function renderCustomerWorkbenchStats() {
   const container = customerWorkbenchStatsEl();
   if (!container) return;
   const customers = sortedCustomers(CUSTOMERS_CACHE);
-  const activeCount = customers.filter((customer) => customerWorkbenchMetrics(customer).activeRelationshipCount > 0).length;
-  const staleCount = customers.filter((customer) => {
-    const metrics = customerWorkbenchMetrics(customer);
-    return metrics.staleDays !== null && metrics.staleDays >= 30;
-  }).length;
-  const multiSiteCount = customers.filter((customer) => customerWorkbenchMetrics(customer).siteCount > 1).length;
-  const openBalanceCustomers = customers.filter((customer) => customerWorkbenchMetrics(customer).balance > 0);
-  const openBalanceTotal = openBalanceCustomers.reduce((sum, customer) => sum + customerWorkbenchMetrics(customer).balance, 0);
+  const views = customerWorkbenchViewCards(customers);
   const activeFilter = currentCustomerWorkbenchFilter();
-  const cards = [
-    {
-      filter: "all",
-      label: "Customers",
-      value: String(customers.length),
-      note: customers.length ? "All customer records in this workspace" : "Create the first record to start the CRM",
-    },
-    {
-      filter: "active_work",
-      label: "Active work",
-      value: String(activeCount),
-      note: activeCount ? "Requests, proposals, work, or jobs still moving" : "No customer has active pipeline work",
-    },
-    {
-      filter: "open_balance",
-      label: "Open balance",
-      value: formatUsd(openBalanceTotal),
-      note: openBalanceCustomers.length ? `${openBalanceCustomers.length} customer${openBalanceCustomers.length === 1 ? "" : "s"} still collectible` : "Nothing outstanding right now",
-    },
-    {
-      filter: "stale",
-      label: "Needs follow-up",
-      value: String(staleCount),
-      note: staleCount ? "30+ days since the last recorded touch" : "No stale relationships detected",
-    },
-    {
-      filter: "multi_site",
-      label: "Multi-site",
-      value: String(multiSiteCount),
-      note: multiSiteCount ? "Accounts with more than one known address" : "No multi-site accounts identified yet",
-    },
-    {
-      filter: "top_value",
-      label: "Top value",
-      value: formatUsd(customers.slice(0, Math.min(customers.length, 10)).reduce((sum, customer) => sum + customerLifetimeValueCents(customer), 0)),
-      note: customers.length ? "Top ten customers by lifetime value" : "Value starts appearing as work gets paid",
-    },
-  ];
+  const activeView = views.find((card) => card.filter === activeFilter) || views[0];
 
-  container.innerHTML = cards.map((card) => `
-    <button type="button" class="workspace-summary-card customer-stat-card ${activeFilter === card.filter ? "is-active" : ""}" data-customer-filter="${escapeAttr(card.filter)}">
-      <span class="customer-stat-card__label">${escapeHtml(card.label)}</span>
-      <strong class="customer-stat-card__value">${escapeHtml(card.value)}</strong>
-      <span class="customer-stat-card__note">${escapeHtml(card.note)}</span>
-    </button>
-  `).join("");
+  container.innerHTML = `
+      <div class="customer-workbench-toolbar">
+        <div class="customer-workbench-toolbar__summary">
+          <span class="customer-workbench-toolbar__eyebrow">Customer views</span>
+          <strong>${escapeHtml(activeView?.value || customerWorkbenchCountLabel(customers.length, "account"))}</strong>
+          <span class="customer-workbench-toolbar__focus">${escapeHtml(activeView?.label || "All")}</span>
+          <span class="muted">${escapeHtml(activeView?.summary || "Search on the left, then open the next account that needs work.")}</span>
+        </div>
+      <div class="customer-workbench-filter-row" role="group" aria-label="Customer views">
+        ${views.map((card) => `
+          <button
+            type="button"
+            class="customer-filter-chip ${activeFilter === card.filter ? "is-active" : ""}"
+            data-customer-filter="${escapeAttr(card.filter)}"
+            aria-pressed="${activeFilter === card.filter ? "true" : "false"}"
+          >
+            <span class="customer-filter-chip__label">${escapeHtml(card.label)}</span>
+            <strong class="customer-filter-chip__value">${escapeHtml(card.value)}</strong>
+          </button>
+        `).join("")}
+      </div>
+    </div>
+  `;
 
   container.querySelectorAll("[data-customer-filter]").forEach((button) => {
     button.addEventListener("click", () => {
@@ -576,36 +648,30 @@ function renderCustomersList(filter = "") {
     const primaryAddress = typeof customerDisplayAddress === "function"
       ? customerDisplayAddress(customer)
       : [customer.address_line1, [customer.city, customer.state, customer.zip].filter(Boolean).join(" ").trim()].filter(Boolean).join(", ");
+    const summaryBits = customerWorkbenchSummaryBits(customer, metrics);
     const supportBits = [
       metrics.lastTouchAt ? `Last touch ${formatDateTime(metrics.lastTouchAt)}` : "No touch logged yet",
-      metrics.siteCount > 1 ? `${metrics.siteCount} known service sites` : (primaryAddress || "No service address yet"),
+      metrics.siteCount > 1 ? customerWorkbenchCountLabel(metrics.siteCount, "known site") : (primaryAddress || "No service address yet"),
     ];
+    const prioritySignal = customerWorkbenchPrioritySignal(customer, metrics);
     const element = document.createElement("button");
     element.type = "button";
     element.className = `list-item list-item--top customer-list-item ${ACTIVE_CUSTOMER_ID === customer.id && !CUSTOMER_CREATING ? "is-active" : ""}`;
     element.innerHTML = `
-      <div class="customer-list-item__main">
-        <div>
-          ${customer.company_name ? `<div class="customer-list-item__eyebrow">${escapeHtml(customer.name || "Primary contact not set")}</div>` : ""}
-          <div class="li-title">${escapeHtml(customerDisplayTitle(customer))}</div>
+      <div class="customer-list-item__topline">
+        <div class="customer-list-item__main">
+          <div>
+            ${customer.company_name ? `<div class="customer-list-item__eyebrow">${escapeHtml(customer.name || "Primary contact not set")}</div>` : ""}
+            <div class="li-title">${escapeHtml(customerDisplayTitle(customer))}</div>
+          </div>
+          <div class="customer-list-item__contact">${escapeHtml(customerDisplayContactLine(customer))}</div>
         </div>
-        <div class="customer-list-item__contact">${escapeHtml(customerDisplayContactLine(customer))}</div>
-        <div class="customer-list-item__support">${escapeHtml(supportBits.join(" | "))}</div>
+        <span class="pill customer-list-item__signal ${escapeAttr(prioritySignal.toneClass || "pill-muted")}">${escapeHtml(prioritySignal.label || "Ready")}</span>
       </div>
-      <div class="customer-list-item__meta">
-        <div class="customer-list-item__badges">
-          <span class="pill pill-on">${formatUsd(customerLifetimeValueCents(customer))}</span>
-          <span class="pill">${escapeHtml(String(customer.order_count || 0))} orders</span>
-          ${metrics.activeRelationshipCount ? `<span class="pill">${escapeHtml(String(metrics.activeRelationshipCount))} active</span>` : ""}
-          ${metrics.balance > 0 ? `<span class="pill pill-bad">${escapeHtml(formatUsd(metrics.balance))} open</span>` : ""}
-          ${metrics.siteCount > 1 ? `<span class="pill">${escapeHtml(String(metrics.siteCount))} sites</span>` : ""}
-          ${metrics.staleDays !== null && metrics.staleDays >= 30 ? `<span class="pill pill-warn">${escapeHtml(String(metrics.staleDays))}d quiet</span>` : ""}
-        </div>
-        <div class="customer-list-item__submetrics">
-          <span>${escapeHtml(String(metrics.openRequestsCount + metrics.openProposalCount))} pipeline items</span>
-          <span>${escapeHtml(String(metrics.activeOrderCount + metrics.activeJobCount))} booked / active work</span>
-        </div>
+      <div class="customer-list-item__summary">
+        ${summaryBits.map((bit) => `<span>${escapeHtml(bit)}</span>`).join("")}
       </div>
+      <div class="customer-list-item__support">${escapeHtml(supportBits.join(" | "))}</div>
     `;
     element.addEventListener("click", () => {
       openCustomerRecord(customer.id, { scrollIntoView: window.innerWidth < 980 });
