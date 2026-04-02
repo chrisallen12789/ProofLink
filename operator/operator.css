@@ -3804,7 +3804,7 @@ input:focus, textarea:focus, select:focus{
 .customer-operator-brief__grid{
   display:grid;
   gap:10px;
-  grid-template-columns:repeat(2, minmax(0, 1fr));
+  grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));
   margin-top:14px;
 }
 .customer-operator-brief__item{
@@ -4110,9 +4110,24 @@ input:focus, textarea:focus, select:focus{
 }
 .customer-footprint-strip{
   display:grid;
-  grid-template-columns:repeat(3, minmax(0, 1fr));
+  grid-template-columns:repeat(auto-fit, minmax(170px, 1fr));
   gap:10px;
   margin-top:14px;
+}
+.customer-footprint-note{
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+  margin-top:14px;
+  color:var(--muted);
+  font-size:12px;
+  line-height:1.5;
+}
+.customer-footprint-note span{
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:999px;
+  padding:6px 10px;
+  background:rgba(255,255,255,.02);
 }
 .customer-activity-timeline{
   display:grid;

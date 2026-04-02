@@ -1226,13 +1226,6 @@
         <div class="detail-copy">${escapeHtml(stage.note)}</div>
         <div class="customer-operator-brief__grid">
           <div class="customer-operator-brief__item">
-            <span>Relationship signals</span>
-            <strong>${escapeHtml(String(openRequestsCount + openProposalCount + activeOrderCount + activeJobCount))}</strong>
-            <small>${escapeHtml(openRequestsCount + openProposalCount + activeOrderCount + activeJobCount > 0
-              ? `${openRequestsCount + openProposalCount + activeOrderCount + activeJobCount} active relationship signal${openRequestsCount + openProposalCount + activeOrderCount + activeJobCount === 1 ? "" : "s"}`
-              : "No active pipeline or work pressure right now")}</small>
-          </div>
-          <div class="customer-operator-brief__item">
             <span>Last touch</span>
             <strong>${escapeHtml(lastTouchValue ? formatDateTime(lastTouchValue) : "Not recorded")}</strong>
             <small>${escapeHtml(latestInteraction ? customerInteractionLabel(latestInteraction.type) : "No interaction logged yet")}</small>
@@ -1246,6 +1239,13 @@
             <span>Draft state</span>
             <strong>${escapeHtml(latestDraft ? `${customerWorkbenchAppLabel(latestDraft.appKey)} panel saved` : "No draft waiting")}</strong>
             <small>${escapeHtml(latestDraft?.draft?.updated_at ? `Autosaved ${formatDateTime(latestDraft.draft.updated_at)}` : "Close any panel and ProofLink will hold your place automatically.")}</small>
+          </div>
+          <div class="customer-operator-brief__item">
+            <span>Live pressure</span>
+            <strong>${escapeHtml(String(openRequestsCount + openProposalCount + activeOrderCount + activeJobCount))}</strong>
+            <small>${escapeHtml(openRequestsCount + openProposalCount + activeOrderCount + activeJobCount > 0
+              ? `${openRequestsCount + openProposalCount + activeOrderCount + activeJobCount} active relationship signal${openRequestsCount + openProposalCount + activeOrderCount + activeJobCount === 1 ? "" : "s"}`
+              : "No active pipeline or work pressure right now")}</small>
           </div>
         </div>
       </div>
@@ -1282,8 +1282,6 @@
 
   function renderCustomerProfileCard(customer, {
     knownAddresses = [],
-    latestInteraction = null,
-    lastTouchValue = "",
   } = {}) {
     const profileItems = [
       {
@@ -1310,11 +1308,6 @@
         label: "Primary address",
         value: customerDisplayAddress(customer),
         note: knownAddresses.length > 1 ? `${knownAddresses.length} known service sites` : "Primary location on file",
-      },
-      {
-        label: "Last touch",
-        value: lastTouchValue ? formatDateTime(lastTouchValue) : "Not recorded",
-        note: latestInteraction ? customerInteractionLabel(latestInteraction.type) : "No interaction logged yet",
       },
     ];
 
@@ -1357,36 +1350,28 @@
     knownAddresses = [],
   } = {}) {
     const totalValue = customerLifetimeValueCents(customer);
+    const totalSites = Math.max(knownAddresses.length, customerDisplayAddress(customer) === "No service address yet." ? 0 : 1);
+    const totalWorkRecords = customerOrders.length + customerJobsRows.length;
     const footprintItems = [
       {
-        label: "Requests",
+        label: "Request history",
         value: String(customerRequestsRows.length),
-        note: customerRequestsRows.length ? "Intake records attached to this account" : "No requests attached yet",
+        note: customerRequestsRows.length ? "All intake records ever attached" : "No requests attached yet",
       },
       {
-        label: "Proposals",
+        label: "Proposal history",
         value: String(customerBidRows.length),
-        note: customerBidRows.length ? "Walkthrough bids and pricing history" : "No proposals attached yet",
+        note: customerBidRows.length ? "Saved walkthrough and pricing history" : "No proposals attached yet",
       },
       {
-        label: "Booked work",
-        value: String(customerOrders.length + customerJobsRows.length),
+        label: "Work history",
+        value: String(totalWorkRecords),
         note: `${customerOrders.length} order${customerOrders.length === 1 ? "" : "s"} | ${customerJobsRows.length} job${customerJobsRows.length === 1 ? "" : "s"}`,
-      },
-      {
-        label: "Payments",
-        value: String(customerPayments.length),
-        note: customerPayments.length ? `${formatUsd(balance)} still open` : "No payments recorded yet",
       },
       {
         label: "Lifetime value",
         value: formatUsd(totalValue),
         note: totalValue > 0 ? "Best available paid history for this account" : "Value builds as payments get recorded",
-      },
-      {
-        label: "Known sites",
-        value: String(Math.max(knownAddresses.length, customerDisplayAddress(customer) === "No service address yet." ? 0 : 1)),
-        note: knownAddresses.length > 1 ? "Multi-site account history is attached" : "Single-site or still being documented",
       },
     ];
 
@@ -1394,7 +1379,7 @@
       <div class="detail-card customer-support-card customer-support-card--footprint" id="customerFootprintSection">
         <div class="kicker">Attached work</div>
         <div><strong>See how much history is already tied to this account</strong></div>
-        <div class="detail-copy">Requests, proposals, work, payments, and site count stay in one strip so the record feels scannable instead of stacked.</div>
+        <div class="detail-copy">This strip is about account depth, not live status. It keeps the long-view history separate from the hero above.</div>
         <div class="customer-footprint-strip">
           ${footprintItems.map((item) => `
             <div class="customer-footprint-stat">
@@ -1403,6 +1388,11 @@
               <small>${escapeHtml(item.note || "")}</small>
             </div>
           `).join("")}
+        </div>
+        <div class="customer-footprint-note">
+          <span>${escapeHtml(`${customerPayments.length} payment${customerPayments.length === 1 ? "" : "s"} recorded`)}</span>
+          <span>${escapeHtml(totalSites > 1 ? `${totalSites} known sites attached` : "Single-site account so far")}</span>
+          ${balance > 0 ? `<span>${escapeHtml(`${formatUsd(balance)} still open`)}</span>` : ""}
         </div>
       </div>
     `;
@@ -2933,10 +2923,8 @@
                 workbenchBalance > 0 ? { label: `${formatUsd(workbenchBalance)} open`, tone: "pill-bad" } : { label: "No balance due", tone: "pill-on" },
               ],
               meta: [
-                customer.company_name && customer.name ? `Primary contact: ${customer.name}` : customerContactSummary(customer),
-                `Preferred contact: ${customer.preferred_contact || "email"}`,
+                customerContactSummary(customer),
                 workbenchAddress,
-                customer.lead_source ? `Lead source: ${titleCaseWords(String(customer.lead_source).replace(/_/g, " "))}` : "",
               ],
               description: "Keep requests, pricing, field work, and money follow-through attached to one clean account record.",
               summary: [
@@ -2966,8 +2954,6 @@
           <div class="customer-record-shell__context-grid">
             ${renderCustomerProfileCard(customer, {
               knownAddresses: workbenchAddresses,
-              latestInteraction: workbenchLatestInteraction,
-              lastTouchValue: workbenchLastTouch,
             })}
             ${renderCustomerFootprintCard({
               customer,
