@@ -7,6 +7,10 @@ describe("netlify/functions/submit-onboarding-request", () => {
     process.cwd(),
     "netlify/functions/submit-onboarding-request.js"
   );
+  const helperPath = path.resolve(
+    process.cwd(),
+    "netlify/functions/lib/public-onboarding.js"
+  );
   const authModulePath = require.resolve(
     path.resolve(process.cwd(), "netlify/functions/utils/auth.js")
   );
@@ -87,6 +91,7 @@ describe("netlify/functions/submit-onboarding-request", () => {
     process.env.SUPABASE_URL = "http://localhost:54321";
     process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-key";
     delete require.cache[handlerPath];
+    delete require.cache[helperPath];
     delete require.cache[authModulePath];
     delete require.cache[emailModulePath];
     delete require.cache[rateLimitModulePath];
@@ -192,6 +197,7 @@ describe("netlify/functions/submit-onboarding-request", () => {
     );
 
     expect(JSON.parse(res.body)).toEqual({
+      ok: true,
       message: "Onboarding request submitted successfully",
       request_id: "req_123",
       business: "Test Biz",
@@ -199,6 +205,35 @@ describe("netlify/functions/submit-onboarding-request", () => {
       selected_plan: "growth",
     });
     expect(sendEmailMock).toHaveBeenCalledTimes(2);
+  });
+
+  test("accepts legacy onboarding payload keys", async () => {
+    const handler = await loadHandler();
+    const res = await handler({
+      httpMethod: "POST",
+      headers: {},
+      body: JSON.stringify({
+        businessName: "Legacy Biz",
+        ownerName: "Legacy Owner",
+        email: "LEGACY@example.com",
+        businessCategory: "bakery",
+        selectedPlan: "starter",
+        subdomainPreference: "legacy-biz",
+        startedAt: Date.now() - 5000,
+      }),
+    });
+
+    expect(res.statusCode).toBe(201);
+    expect(slugifyMock).toHaveBeenCalledWith("legacy-biz");
+    expect(insertMock).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({
+          business_name: "Legacy Biz",
+          owner_email: "legacy@example.com",
+          business_type: "bakery",
+        }),
+      ])
+    );
   });
 
   test("returns 400 for invalid selected_plan", async () => {

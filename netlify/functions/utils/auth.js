@@ -59,6 +59,21 @@ async function requireOperatorContext(event) {
   const supabase = getAdminClient();
   const { user } = await verifyBearerUser(event, supabase);
 
+  const { data: operator, error: opErr } = await supabase
+    .from('operators')
+    .select('id, email, role, tenant_id')
+    .eq('email', user.email)
+    .maybeSingle();
+
+  if (opErr) {
+    const err = new Error('Forbidden: operator lookup failed');
+    err.statusCode = 403;
+    throw err;
+  }
+
+  const platformAdminOperator =
+    operator && operator.role === 'platform_admin' ? operator : null;
+
   const { data: memberships, error: membershipErr } = await supabase
     .from('operator_members')
     .select('operator_id, tenant_id, role, operators!operator_id(id, email, role, tenant_id)')
@@ -92,33 +107,27 @@ async function requireOperatorContext(event) {
     };
   }
 
+  if (platformAdminOperator) {
+    return {
+      operatorId : platformAdminOperator.id,
+      email      : platformAdminOperator.email,
+      role       : platformAdminOperator.role,
+      tenantId   : platformAdminOperator.tenant_id || null,
+      memberships: rows,
+      supabase,
+      user,
+    };
+  }
+
   if (rows.length > 0 && requested) {
     const err = new Error('Forbidden: tenant mismatch');
     err.statusCode = 403;
     throw err;
   }
 
-  const { data: operator, error: opErr } = await supabase
-    .from('operators')
-    .select('id, email, role, tenant_id')
-    .eq('email', user.email)
-    .maybeSingle();
-
-  if (opErr || !operator || operator.role !== 'platform_admin') {
-    const err = new Error('Forbidden: user is not a registered operator');
-    err.statusCode = 403;
-    throw err;
-  }
-
-  return {
-    operatorId : operator.id,
-    email      : operator.email,
-    role       : operator.role,
-    tenantId   : operator.tenant_id || null,
-    memberships: rows,
-    supabase,
-    user,
-  };
+  const err = new Error('Forbidden: user is not a registered operator');
+  err.statusCode = 403;
+  throw err;
 }
 
 /**
@@ -134,11 +143,9 @@ async function requireOperatorContext(event) {
  * Throws:  Error with statusCode 403 if role is insufficient.
  */
 async function requireAdminContext(event) {
-  const requestedTenantId = arguments[1] || '';
-  const ctx = await requireOperatorContext(event, requestedTenantId);
+  const ctx = await requireOperatorContext(event);
 
-  const adminRoles = new Set(['admin', 'owner', 'manager', 'platform_admin']);
-  if (!adminRoles.has(ctx.role)) {
+  if (ctx.role !== 'platform_admin') {
     const err = new Error('Forbidden: admin role required');
     err.statusCode = 403;
     throw err;
@@ -148,63 +155,7 @@ async function requireAdminContext(event) {
 }
 
 async function requireOnboardingAdminContext(event) {
-  const supabase = getAdminClient();
-  const { user } = await verifyBearerUser(event, supabase);
-  const adminRoles = new Set(['admin', 'platform_admin']);
-  const membershipAdminRoles = new Set(['admin', 'owner']);
-
-  const { data: memberships, error: membershipError } = await supabase
-    .from('operator_members')
-    .select('operator_id, tenant_id, role, operators!operator_id(id, email, role, tenant_id)')
-    .eq('user_id', user.id);
-
-  if (membershipError) {
-    const err = new Error('Forbidden: unable to resolve operator membership');
-    err.statusCode = 403;
-    throw err;
-  }
-
-  const membershipRows = Array.isArray(memberships) ? memberships : [];
-  const adminMembership = membershipRows.find((row) => membershipAdminRoles.has(row.role)) || null;
-  const operatorFromMembership = adminMembership?.operators || null;
-
-  let platformOperator = null;
-  if (!operatorFromMembership) {
-    const { data: operator, error: operatorError } = await supabase
-      .from('operators')
-      .select('id, email, role, tenant_id')
-      .eq('email', user.email)
-      .maybeSingle();
-
-    if (operatorError) {
-      const err = new Error('Forbidden: operator lookup failed');
-      err.statusCode = 403;
-      throw err;
-    }
-
-    if (operator && operator.role === 'platform_admin') {
-      platformOperator = operator;
-    }
-  }
-
-  const resolvedOperator = platformOperator || operatorFromMembership;
-  const resolvedRole = platformOperator?.role || adminMembership?.role || operatorFromMembership?.role || '';
-
-  if (!resolvedOperator || !adminRoles.has(platformOperator?.role || operatorFromMembership?.role || resolvedRole)) {
-    const err = new Error('Forbidden: onboarding admin role required');
-    err.statusCode = 403;
-    throw err;
-  }
-
-  return {
-    operatorId: resolvedOperator.id || adminMembership?.operator_id || null,
-    email: resolvedOperator.email || user.email || '',
-    role: platformOperator?.role || operatorFromMembership?.role || resolvedRole,
-    tenantId: adminMembership?.tenant_id || resolvedOperator.tenant_id || null,
-    memberships: membershipRows,
-    supabase,
-    user,
-  };
+  return requireAdminContext(event);
 }
 
 /**

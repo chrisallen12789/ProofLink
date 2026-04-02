@@ -21,7 +21,10 @@ function requireEnv(name) {
 
 function getPriceIdForPlan(targetPlan) {
   const map = {
-    growth: process.env.STRIPE_PRICE_GROWTH || "",
+    growth:
+      process.env.STRIPE_PRICE_GROWTH_MONTHLY ||
+      process.env.STRIPE_PRICE_GROWTH ||
+      "",
     enterprise: process.env.STRIPE_PRICE_ENTERPRISE || ""
   };
 

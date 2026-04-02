@@ -388,7 +388,20 @@ exports.handler = async (event) => {
     if (!mailFrom || !mailTo) throw new Error("Missing MAIL_FROM or MAIL_TO");
 
     const saveResult = await saveOrderToSupabase(payload);
-    const emailResult = await sendOrderEmails(payload, { mailFrom, mailTo });
+    const normalized = saveResult?.normalized || {};
+    const emailPayload = {
+      ...payload,
+      tenantId: normalized.tenant_id || payload.tenantId,
+      tenantSlug: normalized.tenant_slug || payload.tenantSlug,
+      tenantBusinessName:
+        normalized.tenant_business_name || payload.tenantBusinessName,
+      fulfillment: normalized.fulfillment || payload.fulfillment,
+      requestedDate: normalized.scheduled_date || payload.requestedDate,
+      requestedTime: normalized.scheduled_time || payload.requestedTime,
+      cartSummary: normalized.cart_summary || payload.cartSummary,
+    };
+
+    const emailResult = await sendOrderEmails(emailPayload, { mailFrom, mailTo });
     if (!emailResult.ok) {
       console.warn("[order] order saved but one or more emails failed:", emailResult.failures);
     }

@@ -59,7 +59,8 @@ function loadHandlerWithStripeMock(mockCreate) {
 describe("create-billing-upgrade-session integration", () => {
   beforeEach(() => {
     process.env.STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || "sk_test_pltest";
-    process.env.STRIPE_PRICE_GROWTH = process.env.STRIPE_PRICE_GROWTH || "price_growth_pltest";
+    process.env.STRIPE_PRICE_GROWTH_MONTHLY =
+      process.env.STRIPE_PRICE_GROWTH_MONTHLY || "price_growth_pltest";
     process.env.URL = process.env.URL || process.env.TEST_SITE_URL || "http://127.0.0.1:8888";
   });
 

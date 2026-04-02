@@ -1,7 +1,7 @@
 // netlify/functions/update-tenant-config.js
 // Operator-only. Updates editable tenant site configuration.
 
-const { requireAdminContext, respond } = require('./utils/auth');
+const { requireOperatorContext, respond } = require('./utils/auth');
 
 const ALLOWED_KEYS = new Set([
   'tagline', 'hero_heading', 'hero_subheading',
@@ -37,6 +37,7 @@ const BUTTON_STYLES = new Set(['rounded', 'solid', 'outline']);
 const CARD_STYLES = new Set(['soft', 'lined', 'elevated']);
 const HERO_LAYOUTS = new Set(['split', 'stacked', 'statement']);
 const PUBLISH_STATUSES = new Set(['draft', 'ready', 'published']);
+const TENANT_CONFIG_ADMIN_ROLES = new Set(['owner', 'admin', 'manager', 'platform_admin']);
 
 function normalizeValue(key, value) {
   if (value === null || value === undefined) return '';
@@ -100,13 +101,16 @@ exports.handler = async (event) => {
 
   let ctx;
   try {
-    ctx = await requireAdminContext(event, body.tenant_id || body.tenantId || '');
+    ctx = await requireOperatorContext(event, body.tenant_id || body.tenantId || '');
   } catch (err) {
     return respond(err.statusCode || 401, { error: err.message });
   }
 
-  const { supabase, tenantId } = ctx;
+  const { supabase, tenantId, role } = ctx;
   if (!tenantId) return respond(403, { error: 'Operator is not linked to a tenant' });
+  if (!TENANT_CONFIG_ADMIN_ROLES.has(role)) {
+    return respond(403, { error: 'Elevated tenant role required' });
+  }
 
   const { tenant_id, config } = body;
   if (!tenant_id) return respond(400, { error: 'tenant_id is required' });

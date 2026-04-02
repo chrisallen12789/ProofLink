@@ -81,6 +81,53 @@ function getSupabaseIdempotencyClient() {
   return require('@supabase/supabase-js').createClient(url, serviceRoleKey);
 }
 
+async function claimWebhookEvent(supabase, eventId) {
+  if (!supabase || !eventId) return { claimed: false, skipped: false };
+
+  try {
+    const { error } = await supabase
+      .from('processed_webhook_events')
+      .insert({
+        event_id: eventId,
+        processed_at: new Date().toISOString(),
+      });
+
+    if (!error) return { claimed: true, skipped: false };
+
+    if (
+      error.code === '23505' ||
+      error.code === '409' ||
+      /duplicate key/i.test(error.message || '')
+    ) {
+      return { claimed: false, skipped: true };
+    }
+
+    if (error.code === '42P01' || /does not exist/i.test(error.message || '')) {
+      console.warn('[stripe-webhook] processed_webhook_events table does not exist - skipping idempotency');
+      return { claimed: false, skipped: false };
+    }
+
+    console.warn('[stripe-webhook] idempotency claim failed:', error.message);
+    return { claimed: false, skipped: false };
+  } catch (err) {
+    console.warn('[stripe-webhook] idempotency claim failed, proceeding:', err?.message);
+    return { claimed: false, skipped: false };
+  }
+}
+
+async function releaseWebhookEvent(supabase, eventId) {
+  if (!supabase || !eventId) return;
+
+  try {
+    await supabase
+      .from('processed_webhook_events')
+      .delete()
+      .eq('event_id', eventId);
+  } catch (err) {
+    console.warn('[stripe-webhook] failed to release idempotency claim:', err?.message);
+  }
+}
+
 async function stripeRequest(path, options = {}) {
   const secretKey = getStripeSecretKey();
   if (!secretKey) {
@@ -318,6 +365,10 @@ exports.handler = async (event) => {
     return json(400, { ok: false, error: 'Invalid Stripe signature.' });
   }
 
+  let eventId = '';
+  let idempotencyClient = null;
+  let claimedEvent = false;
+
   try {
     const evt = JSON.parse(body || '{}');
     const type = String(evt?.type || '');
@@ -325,35 +376,14 @@ exports.handler = async (event) => {
 
     // ── Idempotency check ──────────────────────────────────────────────────────
     // Idempotency check
-    const eventId = clean(evt?.id || '');
+    eventId = clean(evt?.id || '');
     if (eventId) {
-      try {
-        const supabase = getSupabaseIdempotencyClient();
-        if (supabase) {
-          const { data: existing } = await supabase
-            .from('processed_webhook_events')
-            .select('id')
-            .eq('event_id', eventId)
-            .maybeSingle();
-
-          if (existing) {
-            return json(200, { ok: true, skipped: true });
-          }
-
-          await supabase
-            .from('processed_webhook_events')
-            .insert({ event_id: eventId, processed_at: new Date().toISOString() })
-            .catch((insertErr) => {
-              if (insertErr?.message?.includes('does not exist') || insertErr?.code === '42P01') {
-                console.warn('[stripe-webhook] processed_webhook_events table does not exist - skipping idempotency insert');
-              } else {
-                console.warn('[stripe-webhook] idempotency insert failed:', insertErr?.message);
-              }
-            });
-        }
-      } catch (idempErr) {
-        console.warn('[stripe-webhook] idempotency check failed, proceeding:', idempErr?.message);
+      idempotencyClient = getSupabaseIdempotencyClient();
+      const claim = await claimWebhookEvent(idempotencyClient, eventId);
+      if (claim.skipped) {
+        return json(200, { ok: true, skipped: true });
       }
+      claimedEvent = claim.claimed;
     }
 
     console.log(
@@ -511,6 +541,9 @@ exports.handler = async (event) => {
 
     return json(200, { ok: true });
   } catch (e) {
+    if (claimedEvent && idempotencyClient && eventId) {
+      await releaseWebhookEvent(idempotencyClient, eventId);
+    }
     return json(500, { ok: false, error: e.message || String(e) });
   }
 };

@@ -998,7 +998,7 @@ declare
   v_email                text    := lower(nullif(trim(coalesce(payload->>'email', '')), ''));
   v_phone                text    := nullif(trim(coalesce(payload->>'phone', '')), '');
   v_preferred_contact    text    := coalesce(nullif(trim(payload->>'preferred_contact'), ''), 'email');
-  v_status               text    := coalesce(nullif(trim(payload->>'status'), ''), 'new');
+  v_status               text    := 'new';
   v_fulfillment          text    := coalesce(nullif(trim(payload->>'fulfillment'), ''), 'pickup');
   v_scheduled_date       date    := nullif(payload->>'scheduled_date', '')::date;
   v_scheduled_time       text    := nullif(trim(coalesce(payload->>'scheduled_time', '')), '');
@@ -1027,6 +1027,18 @@ begin
   end if;
   if jsonb_typeof(v_items) <> 'array' or jsonb_array_length(v_items) = 0 then
     raise exception 'submit_storefront_order: items are required';
+  end if;
+
+  if v_tenant_slug is not null then
+    perform 1
+    from public.tenants t
+    where t.id::text = v_tenant_id
+      and t.slug = v_tenant_slug
+      and coalesce(t.active, true) = true;
+
+    if not found then
+      raise exception 'submit_storefront_order: tenant_id and tenant_slug do not match';
+    end if;
   end if;
 
   -- Find the operator for this tenant
@@ -1106,7 +1118,7 @@ end;
 $$;
 
 revoke all on function public.submit_storefront_order(jsonb) from public;
-grant execute on function public.submit_storefront_order(jsonb) to anon, authenticated, service_role;
+grant execute on function public.submit_storefront_order(jsonb) to service_role;
 
 
 -- ── 14. get_public_catalog_by_tenant RPC ────────────────────────────────────
