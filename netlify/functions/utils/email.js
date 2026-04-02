@@ -616,7 +616,7 @@ const templates = {
     };
   },
 
-  bidProposal({ customer_name, customer_email, business_name, title, project_summary, scope_of_work, total_cents, valid_until, cover_note, proposal_url: _proposal_url }) {
+  bidProposal({ customer_name, customer_email, business_name, title, project_summary, scope_of_work, total_cents, valid_until, cover_note, proposal_url }) {
     const fmt = total_cents != null ? '$' + (total_cents / 100).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',') : null;
     const validStr = valid_until
       ? new Date(valid_until).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
@@ -635,6 +635,7 @@ const templates = {
           ...(fmt ? [['Estimate', fmt]] : []),
           ...(validStr ? [['Valid until', validStr]] : []),
         ])}
+        ${proposal_url ? `<div style="text-align:center;margin:0 0 28px;">${cta('Review proposal →', proposal_url, T.red)}</div>` : ''}
         ${scope_of_work ? `${divider()}${p(`<strong style="color:${T.ink};">Scope of work:</strong><br/>${escHtml(scope_of_work).replace(/\n/g, '<br/>')}`)}` : ''}
         ${divider()}
         ${p(`<span style="color:${T.hint};">Questions about this proposal? Just reply to this email and we\u2019ll go through it together.</span>`)}

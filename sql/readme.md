@@ -62,6 +62,22 @@ It adds:
 - service-workflow RLS/policy extensions
 - payment-state recompute triggers and supporting indexes
 
+### `proposal_document_engine.sql`
+Additive proposal document schema. Run this after `catchup_run_this.sql` and `service_workflow_phase1.sql`.
+
+It adds:
+- `document_templates`
+- `document_template_versions`
+- `tenant_branding_profiles`
+- `user_document_profiles`
+- `proposal_documents`
+- `proposal_document_versions`
+- `proposal_options`
+- `reusable_terms_templates`
+- `reusable_exclusions_templates`
+- tenant-scoped access helpers and RLS for shared proposal-document records
+- seeded system layouts plus seeded default terms/exclusions
+
 ### `service_recurring_plans.sql`
 Additive recurring-service schema. Run this after `catchup_run_this.sql` and `service_workflow_phase1.sql`.
 
@@ -136,10 +152,11 @@ The bundle currently concatenates, in this exact order:
 
 1. `catchup_run_this.sql`
 2. `service_workflow_phase1.sql`
-3. `service_recurring_plans.sql`
-4. `provision_failures.sql`
-5. `service_deposit_control.sql`
-6. `hydrovac_module_foundation.sql`
+3. `proposal_document_engine.sql`
+4. `service_recurring_plans.sql`
+5. `provision_failures.sql`
+6. `service_deposit_control.sql`
+7. `hydrovac_module_foundation.sql`
 
 Do not edit `rebuild_supabase_full.sql` by hand. Update the source SQL files above and rebuild.
 
@@ -159,23 +176,25 @@ The `/archive/` folder contains older migrations kept for reference. Some schema
 2. Open SQL Editor.
 3. Run `catchup_run_this.sql`.
 4. Run `service_workflow_phase1.sql`.
-5. Run `service_recurring_plans.sql` if you want recurring service plans enabled.
-6. Run `provision_failures.sql` if you want provisioning rollback failures recorded for admin follow-up.
-7. Run `service_deposit_control.sql` if you want deposit requirements, overrides, and booking/job enforcement enabled.
-8. Run `hydrovac_module_foundation.sql` if you want hydrovac / Vactor compliance, manifest, and dispatch schema enabled.
-9. Point `.env.test` or `TEST_*` secrets at that same project.
-10. Run `npm run test:preflight:service-workflow`.
-11. Set the required environment variables from the root `.env.example`.
-12. Deploy or run the app against that project.
+5. Run `proposal_document_engine.sql` if you want the versioned customer-facing proposal document system enabled.
+6. Run `service_recurring_plans.sql` if you want recurring service plans enabled.
+7. Run `provision_failures.sql` if you want provisioning rollback failures recorded for admin follow-up.
+8. Run `service_deposit_control.sql` if you want deposit requirements, overrides, and booking/job enforcement enabled.
+9. Run `hydrovac_module_foundation.sql` if you want hydrovac / Vactor compliance, manifest, and dispatch schema enabled.
+10. Point `.env.test` or `TEST_*` secrets at that same project.
+11. Run `npm run test:preflight:service-workflow`.
+12. Set the required environment variables from the root `.env.example`.
+13. Deploy or run the app against that project.
 
 ## Change process
 
 1. Add core schema changes to `catchup_run_this.sql` when they belong in the base platform schema.
 2. Add additive service-workflow changes to `service_workflow_phase1.sql` until they are intentionally promoted into catch-up.
-3. If the change is also needed as a safe live-environment repair, update `get_tenant_plan_limits_compat.sql`, `sync_tenant_usage_counters_compat.sql`, or add a similarly targeted helper.
-4. Apply the same change in Supabase SQL Editor for the target environment.
-5. Rerun `npm run test:preflight:service-workflow` against that environment when the change affects the service workflow.
-6. Commit the SQL source-of-truth and any targeted live repair together.
+3. Add proposal-document specific schema to `proposal_document_engine.sql` unless it truly belongs in the base catch-up file.
+4. If the change is also needed as a safe live-environment repair, update `get_tenant_plan_limits_compat.sql`, `sync_tenant_usage_counters_compat.sql`, or add a similarly targeted helper.
+5. Apply the same change in Supabase SQL Editor for the target environment.
+6. Rerun `npm run test:preflight:service-workflow` against that environment when the change affects the service workflow.
+7. Commit the SQL source-of-truth and any targeted live repair together.
 
 ## Standalone migration rollback
 
