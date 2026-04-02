@@ -1269,6 +1269,78 @@
     `;
   }
 
+  function renderCustomerActionCard({
+    customer = null,
+    knownAddresses = [],
+    openRequestsCount = 0,
+    openProposalCount = 0,
+    activeOrderCount = 0,
+    activeJobCount = 0,
+    balance = 0,
+    lastTouchValue = "",
+    latestInteraction = null,
+    customerIdValue = "",
+    actions = [],
+  } = {}) {
+    const stage = customerWorkbenchStageSummary({
+      openRequestsCount,
+      openProposalCount,
+      activeOrderCount,
+      activeJobCount,
+      balance,
+      latestInteraction,
+    });
+    const latestDraft = latestCustomerWorkbenchDraftForCustomer(customerIdValue);
+    const siteCount = Math.max(
+      knownAddresses.length,
+      customerDisplayAddress(customer) === "No service address yet." ? 0 : 1
+    );
+    const activeSignals = openRequestsCount + openProposalCount + activeOrderCount + activeJobCount;
+    return `
+      <div class="detail-card detail-card--spaced customer-action-card">
+        <div class="customer-action-card__head">
+          <div>
+            <div class="kicker">Account control</div>
+            <div><strong>${escapeHtml(stage.label)}</strong></div>
+            <div class="detail-copy">${escapeHtml(stage.note)}</div>
+          </div>
+          <span class="pill ${escapeAttr(activeSignals > 0 || balance > 0 ? "pill-warn" : "pill-on")}">${escapeHtml(activeSignals > 0 || balance > 0 ? "Needs eyes" : "Stable")}</span>
+        </div>
+        <div class="customer-action-card__meta">
+          <div class="customer-action-card__item">
+            <span>Last touch</span>
+            <strong>${escapeHtml(lastTouchValue ? formatDateTime(lastTouchValue) : "Not recorded")}</strong>
+            <small>${escapeHtml(latestInteraction
+              ? (typeof customerInteractionLabel === "function"
+                  ? customerInteractionLabel(latestInteraction.type)
+                  : String(latestInteraction.type || "Interaction"))
+              : "No interaction logged yet")}</small>
+          </div>
+          <div class="customer-action-card__item">
+            <span>Account shape</span>
+            <strong>${escapeHtml(siteCount > 1 ? `${siteCount} sites on file` : "Single-site account")}</strong>
+            <small>${escapeHtml(customer?.company_name ? "Company-style account with primary contact attached" : "Direct customer record with one main contact")}</small>
+          </div>
+          <div class="customer-action-card__item">
+            <span>Draft state</span>
+            <strong>${escapeHtml(latestDraft ? `${customerWorkbenchAppLabel(latestDraft.appKey)} panel saved` : "No draft waiting")}</strong>
+            <small>${escapeHtml(latestDraft?.draft?.updated_at ? `Autosaved ${formatDateTime(latestDraft.draft.updated_at)}` : "Panels hold your place automatically.")}</small>
+          </div>
+          <div class="customer-action-card__item">
+            <span>Live pressure</span>
+            <strong>${escapeHtml(String(activeSignals))}</strong>
+            <small>${escapeHtml(activeSignals > 0
+              ? `${activeSignals} live signal${activeSignals === 1 ? "" : "s"} still need operator attention.`
+              : "No active pipeline or work pressure right now.")}</small>
+          </div>
+        </div>
+        <div class="customer-action-card__buttons">
+          ${actions.map((action) => `<button type="button" class="${escapeAttr(action.className || "btn btn-ghost")}" ${Object.entries(action.data || {}).map(([key, value]) => `${key}="${escapeAttr(value)}"`).join(" ")}>${escapeHtml(action.label || "Open")}</button>`).join("")}
+        </div>
+      </div>
+    `;
+  }
+
   function renderCustomerJumpRow() {
     return `
       <div class="customer-jump-row">
@@ -1349,7 +1421,9 @@
     balance = 0,
     knownAddresses = [],
   } = {}) {
-    const totalValue = customerLifetimeValueCents(customer);
+    const totalValue = typeof customerLifetimeValueCents === "function"
+      ? customerLifetimeValueCents(customer)
+      : Number(customer?.lifetime_value_cents || 0);
     const totalSites = Math.max(knownAddresses.length, customerDisplayAddress(customer) === "No service address yet." ? 0 : 1);
     const totalWorkRecords = customerOrders.length + customerJobsRows.length;
     const footprintItems = [
@@ -1393,6 +1467,122 @@
           <span>${escapeHtml(`${customerPayments.length} payment${customerPayments.length === 1 ? "" : "s"} recorded`)}</span>
           <span>${escapeHtml(totalSites > 1 ? `${totalSites} known sites attached` : "Single-site account so far")}</span>
           ${balance > 0 ? `<span>${escapeHtml(`${formatUsd(balance)} still open`)}</span>` : ""}
+        </div>
+      </div>
+    `;
+  }
+
+  function renderCustomerOverviewCard({
+    customer = null,
+    knownAddresses = [],
+    customerRequestsRows = [],
+    customerBidRows = [],
+    customerOrders = [],
+    customerJobsRows = [],
+    customerPayments = [],
+    balance = 0,
+  } = {}) {
+    const totalValue = typeof customerLifetimeValueCents === "function"
+      ? customerLifetimeValueCents(customer)
+      : Number(customer?.lifetime_value_cents || 0);
+    const formatCase = (value) => {
+      const normalized = String(value || "").replace(/_/g, " ").trim();
+      if (!normalized) return "";
+      if (typeof titleCaseWords === "function") return titleCaseWords(normalized);
+      return normalized.replace(/\b\w/g, (char) => char.toUpperCase());
+    };
+    const totalSites = Math.max(
+      knownAddresses.length,
+      customerDisplayAddress(customer) === "No service address yet." ? 0 : 1
+    );
+    const profileItems = [
+      {
+        label: "Primary contact",
+        value: customer?.name || "Not recorded",
+        note: customerContactSummary(customer),
+      },
+      {
+        label: "Preferred contact",
+        value: formatCase(customer?.preferred_contact || "email"),
+        note: customer?.email || customer?.phone || "Add an email or phone number to improve follow-through",
+      },
+      {
+        label: "Lead source",
+        value: customer?.lead_source ? formatCase(customer.lead_source) : "Manual or unknown",
+        note: customer?.created_at ? `Added ${formatDateTime(customer.created_at)}` : "Created in CRM",
+      },
+      {
+        label: "Primary address",
+        value: customerDisplayAddress(customer),
+        note: totalSites > 1 ? `${totalSites} known service sites` : "Primary location on file",
+      },
+    ];
+    const footprintItems = [
+      {
+        label: "Request history",
+        value: String(customerRequestsRows.length),
+        note: customerRequestsRows.length ? "All intake records ever attached" : "No requests attached yet",
+      },
+      {
+        label: "Proposal history",
+        value: String(customerBidRows.length),
+        note: customerBidRows.length ? "Saved walkthrough and pricing history" : "No proposals attached yet",
+      },
+      {
+        label: "Work history",
+        value: String(customerOrders.length + customerJobsRows.length),
+        note: `${customerOrders.length} order${customerOrders.length === 1 ? "" : "s"} | ${customerJobsRows.length} job${customerJobsRows.length === 1 ? "" : "s"}`,
+      },
+      {
+        label: "Lifetime value",
+        value: formatUsd(totalValue),
+        note: totalValue > 0 ? "Best available paid history for this account" : "Value builds as payments get recorded",
+      },
+    ];
+    return `
+      <div class="detail-card customer-overview-card" id="customerProfileSection">
+        <div class="kicker">Overview</div>
+        <div><strong>Identity and history stay together here</strong></div>
+        <div class="customer-overview-card__grid">
+          <div class="customer-overview-card__section">
+            <div class="customer-overview-card__label">Account basics</div>
+            <div class="customer-profile-list">
+              ${profileItems.map((item) => `
+                <div class="customer-profile-row">
+                  <span>${escapeHtml(item.label)}</span>
+                  <div class="customer-profile-row__value">
+                    <strong>${escapeHtml(item.value || "Not recorded")}</strong>
+                    <small>${escapeHtml(item.note || "")}</small>
+                  </div>
+                </div>
+              `).join("")}
+            </div>
+            ${knownAddresses.length ? `
+              <div class="customer-site-list">
+                <span class="customer-site-list__label">Known sites</span>
+                <div class="customer-site-list__chips">
+                  ${knownAddresses.slice(0, 5).map((address) => `<span class="pill">${escapeHtml(address)}</span>`).join("")}
+                </div>
+              </div>
+            ` : ""}
+          </div>
+          <div class="customer-overview-card__section" id="customerFootprintSection">
+            <div class="customer-overview-card__label">Account depth</div>
+            <div class="customer-footprint-strip">
+              ${footprintItems.map((item) => `
+                <div class="customer-footprint-stat">
+                  <span>${escapeHtml(item.label)}</span>
+                  <strong>${escapeHtml(item.value || "0")}</strong>
+                  <small>${escapeHtml(item.note || "")}</small>
+                </div>
+              `).join("")}
+            </div>
+            <div class="customer-footprint-note">
+              <span>${escapeHtml(`${customerPayments.length} payment${customerPayments.length === 1 ? "" : "s"} recorded`)}</span>
+              <span>${escapeHtml(totalSites > 1 ? `${totalSites} known sites attached` : "Single-site account so far")}</span>
+              ${balance > 0 ? `<span>${escapeHtml(`${formatUsd(balance)} still open`)}</span>` : ""}
+            </div>
+          </div>
         </div>
       </div>
     `;
@@ -2935,37 +3125,30 @@
               ],
             })}
           </div>
-          <div class="customer-record-shell__action-grid">
-            ${renderCustomerOperatorBriefCard({
-              customer,
-              knownAddresses: workbenchAddresses,
-              openRequestsCount: workbenchOpenRequests,
-              openProposalCount: workbenchOpenProposals,
-              activeOrderCount: workbenchActiveOrders,
-              activeJobCount: workbenchActiveJobs,
-              balance: workbenchBalance,
-              lastTouchValue: workbenchLastTouch,
-              latestInteraction: workbenchLatestInteraction,
-              customerIdValue,
-            })}
-            ${renderCustomerCommandCard(customerQuickActions)}
-          </div>
+          ${renderCustomerActionCard({
+            customer,
+            knownAddresses: workbenchAddresses,
+            openRequestsCount: workbenchOpenRequests,
+            openProposalCount: workbenchOpenProposals,
+            activeOrderCount: workbenchActiveOrders,
+            activeJobCount: workbenchActiveJobs,
+            balance: workbenchBalance,
+            lastTouchValue: workbenchLastTouch,
+            latestInteraction: workbenchLatestInteraction,
+            customerIdValue,
+            actions: customerQuickActions,
+          })}
           ${renderCustomerWorkbenchLauncher(workbenchContext)}
-          <div class="customer-record-shell__context-grid">
-            ${renderCustomerProfileCard(customer, {
-              knownAddresses: workbenchAddresses,
-            })}
-            ${renderCustomerFootprintCard({
-              customer,
-              customerRequestsRows: workbenchRequests,
-              customerBidRows: workbenchBids,
-              customerOrders: workbenchOrders,
-              customerJobsRows: workbenchJobs,
-              customerPayments: workbenchPayments,
-              balance: workbenchBalance,
-              knownAddresses: workbenchAddresses,
-            })}
-          </div>
+          ${renderCustomerOverviewCard({
+            customer,
+            knownAddresses: workbenchAddresses,
+            customerRequestsRows: workbenchRequests,
+            customerBidRows: workbenchBids,
+            customerOrders: workbenchOrders,
+            customerJobsRows: workbenchJobs,
+            customerPayments: workbenchPayments,
+            balance: workbenchBalance,
+          })}
           <div class="customer-record-shell__support-grid">
             ${renderCustomerRecordFocusCard()}
             ${renderCustomerRetentionReactivationCard(workbenchContext)}
@@ -3540,6 +3723,8 @@
     customerWorkbenchAppCards,
     customerWorkbenchStageSummary,
     renderCustomerOperatorBriefCard,
+    renderCustomerActionCard,
+    renderCustomerOverviewCard,
     renderCustomerWorkbenchLauncher,
     handleCustomerWorkbenchAction,
     openCustomerWorkbenchApp,

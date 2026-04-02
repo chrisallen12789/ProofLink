@@ -3440,6 +3440,7 @@ input:focus, textarea:focus, select:focus{
 @media (max-width: 900px) {
   .order-detail-grid { grid-template-columns:1fr; }
   .customer-money-grid { grid-template-columns:1fr; }
+  .customer-overview-card__grid,
   .customer-record-shell__action-grid,
   .customer-record-shell__context-grid,
   .customer-record-shell__support-grid,
@@ -3447,7 +3448,9 @@ input:focus, textarea:focus, select:focus{
   .customer-profile-row,
   .customer-footprint-strip{ grid-template-columns:1fr; }
   .customer-record-shell__hero .record-hero__summary,
+  .customer-action-card__meta,
   .customer-operator-brief__grid,
+  .customer-action-card__buttons,
   .customer-command-card__buttons,
   .customer-workbench-app-grid{ grid-template-columns:1fr; }
   .customer-workbench-modal{
@@ -3833,6 +3836,59 @@ input:focus, textarea:focus, select:focus{
   font-size:12px;
   line-height:1.5;
 }
+.customer-action-card{
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.045), rgba(255,255,255,.02)),
+    rgba(255,255,255,.025);
+}
+.customer-action-card__head{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:16px;
+}
+.customer-action-card__meta{
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));
+  gap:10px;
+  margin-top:14px;
+}
+.customer-action-card__item{
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:14px;
+  background:rgba(255,255,255,.03);
+  padding:12px;
+}
+.customer-action-card__item span{
+  display:block;
+  color:var(--muted);
+  font-size:11px;
+  text-transform:uppercase;
+  letter-spacing:.08em;
+}
+.customer-action-card__item strong{
+  display:block;
+  margin-top:6px;
+  font-size:15px;
+  line-height:1.4;
+}
+.customer-action-card__item small{
+  display:block;
+  margin-top:6px;
+  color:var(--muted);
+  font-size:12px;
+  line-height:1.5;
+}
+.customer-action-card__buttons{
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));
+  gap:10px;
+  margin-top:14px;
+}
+.customer-action-card__buttons .btn{
+  width:100%;
+  justify-content:center;
+}
 .customer-command-card{
   background:rgba(255,255,255,.025);
 }
@@ -4022,10 +4078,32 @@ input:focus, textarea:focus, select:focus{
 .customer-workbench-app-grid{
   grid-template-columns:repeat(3, minmax(0, 1fr));
 }
+.customer-overview-card{
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02)),
+    rgba(255,255,255,.025);
+}
+.customer-overview-card__grid{
+  display:grid;
+  grid-template-columns:minmax(0, 1.1fr) minmax(0, .95fr);
+  gap:16px;
+  margin-top:14px;
+}
+.customer-overview-card__section{
+  min-width:0;
+}
+.customer-overview-card__label{
+  color:var(--muted);
+  font-size:11px;
+  text-transform:uppercase;
+  letter-spacing:.08em;
+  margin-bottom:10px;
+}
 .customer-support-card{
   height:100%;
 }
 @media (max-width: 1180px) {
+  .customer-overview-card__grid,
   .customer-record-shell__action-grid,
   .customer-record-shell__context-grid,
   .customer-record-shell__support-grid,
@@ -4044,6 +4122,7 @@ input:focus, textarea:focus, select:focus{
     max-height:none;
     overflow:visible;
   }
+  .customer-action-card__head,
   .customer-command-card__head{
     flex-direction:column;
   }

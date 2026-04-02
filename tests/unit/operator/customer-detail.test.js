@@ -523,6 +523,78 @@ describe("operator customer detail", () => {
     expect(html).toContain("Requests panel saved");
   });
 
+  test("renderCustomerActionCard consolidates operator context and quick actions", () => {
+    const storage = createStorage();
+    const api = loadCustomerDetail({
+      formatDateTime: (value) => `formatted:${value}`,
+      window: {
+        localStorage: storage,
+      },
+    });
+
+    api.writeCustomerWorkbenchDraft("customer_1", "requests", { summary: "Call back city hall" });
+
+    const html = api.renderCustomerActionCard({
+      customer: {
+        id: "customer_1",
+        company_name: "Riverside City Services",
+        name: "Alicia Grant",
+        address_line1: "101 Civic Center Plaza",
+      },
+      knownAddresses: ["101 Civic Center Plaza", "402 Water Plant Road"],
+      openRequestsCount: 1,
+      openProposalCount: 0,
+      activeOrderCount: 0,
+      activeJobCount: 0,
+      balance: 0,
+      lastTouchValue: "2026-04-02T12:00:00.000Z",
+      latestInteraction: { type: "call" },
+      customerIdValue: "customer_1",
+      actions: [
+        { label: "Edit details", className: "btn btn-ghost", data: { "customer-action": "edit" } },
+        { label: "New request", className: "btn btn-primary", data: { "customer-action": "request" } },
+      ],
+    });
+
+    expect(html).toContain("Account control");
+    expect(html).toContain("Requests panel saved");
+    expect(html).toContain("New request");
+    expect(html).toContain("2 sites on file");
+  });
+
+  test("renderCustomerOverviewCard keeps history separate from live status", () => {
+    const api = loadCustomerDetail({
+      formatDateTime: (value) => `formatted:${value}`,
+      formatUsd: (value) => `$${value}`,
+    });
+
+    const html = api.renderCustomerOverviewCard({
+      customer: {
+        id: "customer_1",
+        company_name: "Riverside City Services",
+        name: "Alicia Grant",
+        preferred_contact: "email",
+        address_line1: "101 Civic Center Plaza",
+        lead_source: "referral",
+        created_at: "2026-03-24T16:04:00.000Z",
+        lifetime_value_cents: 125000,
+      },
+      knownAddresses: ["101 Civic Center Plaza", "402 Water Plant Road"],
+      customerRequestsRows: [{ id: "lead_1" }],
+      customerBidRows: [{ id: "bid_1" }],
+      customerOrders: [{ id: "order_1" }],
+      customerJobsRows: [{ id: "job_1" }],
+      customerPayments: [{ id: "payment_1" }],
+      balance: 0,
+    });
+
+    expect(html).toContain("Overview");
+    expect(html).toContain("Account basics");
+    expect(html).toContain("Account depth");
+    expect(html).not.toContain("Last touch");
+    expect(html).not.toContain("Outstanding balance");
+  });
+
   test("openCustomerPlanOrder runs the linked recurring plan when the next booked work is ready", async () => {
     const runServicePlanRecord = vi.fn(async () => ({
       existing: false,
