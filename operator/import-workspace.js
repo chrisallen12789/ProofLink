@@ -129,6 +129,34 @@
     return `${current}\n\n${prefix ? `${prefix}: ` : ""}${next}`;
   }
 
+  function currentAccountingPreference() {
+    const accountingApi = window.PROOFLINK_OPERATOR_ACCOUNTING || {};
+    const snapshot = typeof accountingApi.currentAccountingConfig === "function"
+      ? accountingApi.currentAccountingConfig()
+      : null;
+    return {
+      system: String(snapshot?.system || "prooflink").trim().toLowerCase() || "prooflink",
+      label: String(snapshot?.label || "Accounting invoice #").trim() || "Accounting invoice #",
+      usesExternalAccounting: snapshot?.usesExternalAccounting === true,
+    };
+  }
+
+  function extractOrderAccountingReference(order) {
+    const accountingApi = window.PROOFLINK_OPERATOR_ACCOUNTING || {};
+    if (typeof accountingApi.extractOrderAccountingReference === "function") {
+      return accountingApi.extractOrderAccountingReference(order, currentAccountingPreference().label);
+    }
+    return "";
+  }
+
+  function mergeOrderAccountingNote(existingNotes, reference) {
+    const accountingApi = window.PROOFLINK_OPERATOR_ACCOUNTING || {};
+    if (typeof accountingApi.mergeAccountingReferenceNote === "function") {
+      return accountingApi.mergeAccountingReferenceNote(existingNotes, reference, currentAccountingPreference().label);
+    }
+    return mergeNotes(existingNotes, reference, currentAccountingPreference().label);
+  }
+
   function mergeTags(existing, incoming) {
     return Array.from(new Set([...(Array.isArray(existing) ? existing : []), ...(Array.isArray(incoming) ? incoming : [])]));
   }
@@ -194,7 +222,7 @@
     const externalId = compact(row.externalId);
     return externalId
       ? importRef("csv-payment", [externalId])
-      : importRef("csv-payment", [row.customerEmail, row.customerPhone, row.orderExternalId, row.amountCents, row.paidAt, row.reference]);
+      : importRef("csv-payment", [row.customerEmail, row.customerPhone, row.orderExternalId, row.accountingInvoiceNumber, row.amountCents, row.paidAt, row.reference]);
   }
 
   function existingLeadByRef(ref) {
@@ -368,6 +396,7 @@
       const stageRaw = compact(importField(raw, "open_work", "stage"));
       const stage = normalizeWorkStage(stageRaw, { totalCents });
       const paymentState = inferPaymentState(totalCents, amountPaidCents, paymentDueDate, stage.paymentState);
+      const accountingInvoiceNumber = compact(importField(raw, "open_work", "accounting_invoice_number"));
       const sourceRef = stage.recordType === "order"
         ? workRef({ externalId: importField(raw, "open_work", "external_id"), customerEmail, customerPhone, title, scheduledDate: importField(raw, "open_work", "scheduled_date"), totalCents, stageRaw })
         : leadRef({ externalId: importField(raw, "open_work", "external_id"), customerEmail, customerPhone, title, summary, stageRaw });
@@ -394,6 +423,7 @@
         serviceAddress: compact(importField(raw, "open_work", "service_address")),
         scheduledDate: compact(importField(raw, "open_work", "scheduled_date")),
         scheduleWindow: compact(importField(raw, "open_work", "schedule_window")),
+        accountingInvoiceNumber,
         totalCents,
         amountPaidCents,
         amountDueCents: Math.max(totalCents - amountPaidCents, 0),
@@ -412,7 +442,9 @@
         tone: existing ? "" : "ok",
         primary: title,
         secondary: `${customerName || "Customer"} | ${stage.recordType === "bid" ? "Lead + bid" : stage.recordType === "lead" ? "Lead" : "Tracked work"}`,
-        detail: existing ? "ProofLink already has this imported record and will skip it safely." : `${formatUsd(totalCents)} total${depositRequiredCents > 0 ? ` | ${formatUsd(depositRequiredCents)} deposit` : ""}${stage.createJob ? " | job included" : ""}`,
+        detail: existing
+          ? "ProofLink already has this imported record and will skip it safely."
+          : `${formatUsd(totalCents)} total${depositRequiredCents > 0 ? ` | ${formatUsd(depositRequiredCents)} deposit` : ""}${stage.createJob ? " | job included" : ""}${accountingInvoiceNumber ? ` | ${currentAccountingPreference().label} ${accountingInvoiceNumber}` : ""}`,
       };
     });
   }
@@ -430,6 +462,7 @@
         customerEmail,
         customerPhone,
         orderExternalId: compact(importField(raw, "payments", "order_external_id")),
+        accountingInvoiceNumber: compact(importField(raw, "payments", "accounting_invoice_number")),
         amountCents,
         status: normalizePaymentStatus(importField(raw, "payments", "status")),
         method: normalizePaymentMethod(importField(raw, "payments", "method")),
@@ -458,7 +491,11 @@
         tone: existing ? "" : "ok",
         primary: customerName || customerEmail || customerPhone || "Imported payment",
         secondary: `${formatUsd(amountCents)} | ${rowData.status} | ${rowData.method}`,
-        detail: rowData.orderExternalId ? `Will try to link to imported work id ${rowData.orderExternalId}.` : "Will import as customer-linked payment history.",
+        detail: rowData.orderExternalId
+          ? `Will try to link to imported work id ${rowData.orderExternalId}.`
+          : (rowData.accountingInvoiceNumber
+            ? `Will try to match ${currentAccountingPreference().label} ${rowData.accountingInvoiceNumber}.`
+            : "Will import as customer-linked payment history."),
       };
     });
   }
@@ -1020,6 +1057,10 @@
     const scheduledDate = normalizeIsoDate(row.scheduledDate);
     const totalCents = Math.max(0, Number(row.totalCents || 0));
     const paymentDueDate = normalizeIsoDate(row.paymentDueDate) || scheduledDate || null;
+    const notesWithAccounting = mergeOrderAccountingNote(
+      mergeNotes("", row.note || row.summary, "Imported work note"),
+      row.accountingInvoiceNumber
+    );
     const payload = withTenantScope({
       operator_id: opId(),
       customer_id: customer?.id || null,
@@ -1037,7 +1078,7 @@
       item_count: 1,
       unpriced_count: totalCents > 0 ? 0 : 1,
       cart_summary: row.title || "Imported work",
-      notes: mergeNotes("", row.note || row.summary, "Imported work note"),
+      notes: notesWithAccounting,
       customer_name: customer?.name || row.customerName || "Customer",
       email: row.customerEmail || customer?.email || null,
       phone: row.customerPhone || customer?.phone || null,
@@ -1099,6 +1140,13 @@
       const order = existingOrderByRef(sourceRef);
       if (order) return order;
     }
+    const accountingInvoiceNumber = compact(row.accountingInvoiceNumber).toLowerCase();
+    if (accountingInvoiceNumber) {
+      const order = CRM_ORDERS_CACHE.find((item) => (
+        extractOrderAccountingReference(item).toLowerCase() === accountingInvoiceNumber
+      )) || null;
+      if (order) return order;
+    }
     return CRM_ORDERS_CACHE.find((order) => {
       const sameCustomer = row.customerEmail && email(order.email) === row.customerEmail
         || (row.customerPhone && phoneDigits(order.phone) === phoneDigits(row.customerPhone));
@@ -1133,6 +1181,27 @@
     if (order?.id) {
       await removeImportedRollupPayments(order.id);
     }
+    if (order?.id && row.accountingInvoiceNumber && !extractOrderAccountingReference(order)) {
+      try {
+        const mergedNotes = mergeOrderAccountingNote(order.notes || "", row.accountingInvoiceNumber);
+        const { data: updatedOrder, error: orderUpdateError } = await sb.from("orders")
+          .update({
+            notes: mergedNotes,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", order.id)
+          .eq(OPERATOR_COLUMN, opId())
+          .eq(TENANT_COLUMN, TENANT_ID)
+          .select("*")
+          .single();
+        if (!orderUpdateError && updatedOrder) {
+          order = updatedOrder;
+          updateOrdersCache(updatedOrder);
+        }
+      } catch (_error) {
+        // Keep the payment import moving even if the accounting label cannot be backfilled.
+      }
+    }
 
     const nowIso = new Date().toISOString();
     const paidAt = normalizeIsoDateTime(row.paidAt) || nowIso;
@@ -1152,6 +1221,7 @@
       metadata: {
         import_ref: row.sourceRef,
         imported_via: "csv",
+        accounting_invoice_number: row.accountingInvoiceNumber || null,
         reference: row.reference || null,
         note: row.note || null,
       },

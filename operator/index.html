@@ -1826,6 +1826,22 @@
                       <div class="muted u-help-copy">This shapes how ProofLink organizes the business for the way you actually work. It does not change your original signup record.</div>
                     </label>
 
+                    <div class="grid two form-grid">
+                      <label>Accounting system
+                        <select id="setupAccountingSystem">
+                          <option value="prooflink">ProofLink only</option>
+                          <option value="quickbooks">QuickBooks</option>
+                          <option value="other">Another accounting system</option>
+                        </select>
+                        <div class="muted u-help-copy">Choose this only if the office still invoices or closes books outside ProofLink.</div>
+                      </label>
+
+                      <label>External invoice label
+                        <input id="setupAccountingReferenceLabel" placeholder="QuickBooks invoice #" />
+                        <div class="muted u-help-copy">ProofLink uses this label on booked work and job closeout so service reports stay tied to the outside invoice number.</div>
+                      </label>
+                    </div>
+
                       <label>Accent color
                         <input id="setupAccentColor" placeholder="#c84b2f" />
                       </label>

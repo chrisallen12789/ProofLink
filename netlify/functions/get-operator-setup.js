@@ -83,6 +83,11 @@ exports.handler = async (event) => {
     site_hero_layout: rawConfig.site_hero_layout || 'split',
     site_primary_cta_label: rawConfig.site_primary_cta_label || 'Request service',
     site_booking_cta_label: rawConfig.site_booking_cta_label || 'Book now',
+    accounting_system: rawConfig.accounting_system || 'prooflink',
+    accounting_reference_label: rawConfig.accounting_reference_label
+      || (String(rawConfig.accounting_system || '').trim().toLowerCase() === 'quickbooks'
+        ? 'QuickBooks invoice #'
+        : 'Accounting invoice #'),
     site_publish_status: rawConfig.site_publish_status || 'draft',
     site_published_at: rawConfig.site_published_at || '',
   };
@@ -96,6 +101,7 @@ exports.handler = async (event) => {
       'service_area', 'review_platform_label', 'review_link_url', 'referral_message',
       'instagram', 'facebook', 'hours_notes', 'fulfillment_notes',
       'workspace_business_type',
+      'accounting_system', 'accounting_reference_label',
       'show_prices', 'allow_custom_requests', 'onboarding_complete',
       'site_font_preset', 'site_surface_style', 'site_button_style', 'site_card_style',
       'site_hero_layout', 'site_primary_cta_label', 'site_booking_cta_label',

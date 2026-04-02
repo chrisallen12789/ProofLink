@@ -335,11 +335,31 @@ function renderJobAgentAuditCard(job) {
   `;
 }
 
+function jobAccountingSnapshot(order) {
+  const accountingApi = window.PROOFLINK_OPERATOR_ACCOUNTING || {};
+  const config = typeof accountingApi.currentAccountingConfig === "function"
+    ? accountingApi.currentAccountingConfig()
+    : { system: "prooflink", label: "Accounting invoice #", usesExternalAccounting: false };
+  const label = String(config?.label || "Accounting invoice #").trim() || "Accounting invoice #";
+  const reference = typeof accountingApi.extractOrderAccountingReference === "function"
+    ? accountingApi.extractOrderAccountingReference(order, label)
+    : "";
+  const usesExternalAccounting = config?.usesExternalAccounting === true || !!reference;
+  return {
+    label,
+    reference,
+    usesExternalAccounting,
+    systemName: config?.system === "quickbooks" ? "QuickBooks" : ((config?.system === "other" || usesExternalAccounting) ? "accounting" : "ProofLink"),
+    shouldRender: usesExternalAccounting || !!reference,
+  };
+}
+
 function jobCloseoutChecklistItems(job, order, linkedCustomer, blueprint = jobsWorkspaceBlueprint(), amountDueCents = 0, readiness = null) {
   const businessKey = String(blueprint?.business?.key || "service_business").trim().toLowerCase();
   const bookingsApi = window.PROOFLINK_OPERATOR_BOOKINGS_WORKSPACE || {};
   const filled = (...values) => values.some((value) => String(value || "").trim());
   const firstFilled = (...values) => values.find((value) => String(value || "").trim()) || "";
+  const accounting = jobAccountingSnapshot(order);
   const timingInsight = linkedCustomer && typeof bookingsApi.bookingDraftTimingInsight === "function"
     ? bookingsApi.bookingDraftTimingInsight(linkedCustomer, {}, blueprint)
     : null;
@@ -385,6 +405,16 @@ function jobCloseoutChecklistItems(job, order, linkedCustomer, blueprint = jobsW
           : "This account has repeat-service signals, but the next visit or follow-up step still needs to be attached before it cools off."
       )
     : null;
+  const accountingItem = accounting.shouldRender
+    ? detail(
+        "Accounting reference",
+        !!accounting.reference,
+        `${accounting.label} ${accounting.reference} is attached to the booked work. Keep the same label in the service report or field note so office and accounting stay aligned.`,
+        order?.id
+          ? `Add the ${accounting.label} on the booked work, or paste "${accounting.label}: ..." into the field note before closeout so the outside invoice trail stays attached.`
+          : `No booked work is linked yet. Paste "${accounting.label}: ..." into the field note so the outside invoice trail still follows this job.`
+      )
+    : null;
 
   const landscaping = [
     detail(
@@ -405,8 +435,9 @@ function jobCloseoutChecklistItems(job, order, linkedCustomer, blueprint = jobsW
       "No balance is left open on this work.",
       "Decide whether payment should be collected now or followed up right away after the visit."
     ),
+    accountingItem,
     renewalRiskItem,
-  ];
+  ].filter(Boolean);
 
   const cleaning = [
     detail(
@@ -427,8 +458,9 @@ function jobCloseoutChecklistItems(job, order, linkedCustomer, blueprint = jobsW
       "No balance is left open on this visit.",
       "Keep payment or reminder follow-through attached so this visit closes out cleanly for the customer."
     ),
+    accountingItem,
     renewalRiskItem,
-  ];
+  ].filter(Boolean);
 
   const hvac = [
     detail(
@@ -449,8 +481,9 @@ function jobCloseoutChecklistItems(job, order, linkedCustomer, blueprint = jobsW
       amountDueCents <= 0 ? "Money is closed or already handled." : firstFilled(linkedCustomer?.approval_notes),
       "Confirm whether approval, estimate follow-up, or payment collection is the next move after the technician leaves."
     ),
+    accountingItem,
     renewalRiskItem,
-  ];
+  ].filter(Boolean);
 
   const plumbing = [
     detail(
@@ -471,8 +504,9 @@ function jobCloseoutChecklistItems(job, order, linkedCustomer, blueprint = jobsW
       "No balance is left open on this repair.",
       "Keep payment or reminder follow-through attached so the repair closes out cleanly."
     ),
+    accountingItem,
     renewalRiskItem,
-  ];
+  ].filter(Boolean);
 
   const fallback = [
     detail(
@@ -493,8 +527,9 @@ function jobCloseoutChecklistItems(job, order, linkedCustomer, blueprint = jobsW
       "No balance is left open on this job.",
       "Decide whether payment should be collected now or followed up right away."
     ),
+    accountingItem,
     renewalRiskItem,
-  ];
+  ].filter(Boolean);
 
   return ({
     landscaping,
@@ -687,6 +722,7 @@ async function renderJobDetail(jobIdValue) {
     : null;
   const fieldStatus = normalizeWorkflowStatusValue(job.status || "scheduled");
   const fieldDueNow = Number(job.amount_due_cents || orderAmountDueCents(order) || 0);
+  const accounting = jobAccountingSnapshot(order);
   const closeoutGuidance = buildJobCloseoutGuidance(job, order, readiness, fieldDueNow, linkedCustomer, blueprint);
   const completionActions = buildJobCompletionActions(job, order, linkedCustomer, fieldDueNow, blueprint);
   const fieldActionButtons = [
@@ -694,6 +730,7 @@ async function renderJobDetail(jobIdValue) {
     fieldStatus === "blocked" ? { label: "Resume work", className: "btn btn-primary", data: { "job-field-action": "resume" } } : null,
     ["scheduled", "dispatched", "in_progress"].includes(fieldStatus) ? { label: "Mark blocked", className: "btn btn-ghost", data: { "job-field-action": "block" } } : null,
     !["completed", "cancelled"].includes(fieldStatus) ? { label: "Complete job", className: "btn btn-ghost", data: { "job-field-action": "complete" } } : null,
+    accounting.shouldRender ? { label: `Insert ${accounting.label}`, className: "btn btn-ghost", data: { "job-field-action": "insert-accounting-label" } } : null,
     { label: "Save field note", id: "btnJobSaveFieldNote", className: "btn btn-ghost" },
   ].filter(Boolean);
   const jobActionButtons = [
@@ -822,6 +859,7 @@ async function renderJobDetail(jobIdValue) {
         { label: "Proposal", value: linkedBid?.title || "Not linked", note: linkedBid ? titleCaseWords(String(linkedBid.status || "draft")) : "No proposal attached yet" },
         { label: "Booked work", value: order?.customer_name || order?.title || "Not linked", note: order ? formatOrderWorkflowStatus(order.status || "new") : "Link or create booked work to keep billing attached" },
         { label: "Customer", value: linkedCustomer?.name || "Not linked", note: linkedCustomer ? "Customer history is attached" : "Link a customer so future work and payments stay together" },
+        ...(accounting.shouldRender ? [{ label: accounting.label, value: accounting.reference || "Not added yet", note: accounting.reference ? "Outside invoice tracking is attached to this booked work." : "Add the same label here or in the field note before closeout." }] : []),
         { label: "Service address", value: job.service_address || order?.service_address || "No service address recorded", note: "Field location for the crew and office" },
       ],
       footerHtml: `
@@ -908,7 +946,26 @@ async function renderJobDetail(jobIdValue) {
     button.addEventListener("click", async () => {
       const action = button.getAttribute("data-job-field-action") || "";
       const msgEl = jobDetailWrap.querySelector('#jobFieldUpdateMsg');
-      const nextNote = jobDetailWrap.querySelector('#jobFieldUpdateNote')?.value?.trim() || "";
+      const noteEl = jobDetailWrap.querySelector('#jobFieldUpdateNote');
+      const nextNote = noteEl?.value?.trim() || "";
+      if (action === "insert-accounting-label") {
+        const accountingApi = window.PROOFLINK_OPERATOR_ACCOUNTING || {};
+        const label = accounting.label || "Accounting invoice #";
+        const existingReference = typeof accountingApi.extractAccountingReferenceFromText === "function"
+          ? accountingApi.extractAccountingReferenceFromText(nextNote, label)
+          : "";
+        if (existingReference) {
+          setInlineMessage(msgEl, `${label} is already in the field note.`, "ok");
+          return;
+        }
+        const appendedNote = nextNote
+          ? `${nextNote}\n${label}: ${accounting.reference || ""}`.trimEnd()
+          : `${label}: ${accounting.reference || ""}`.trimEnd();
+        if (noteEl) noteEl.value = appendedNote;
+        if (jobNotes) jobNotes.value = appendedNote;
+        setInlineMessage(msgEl, `${label} inserted into the field note. Save when ready.`, "ok");
+        return;
+      }
       const nowIso = new Date().toISOString();
       const patch = {
         id: job.id,

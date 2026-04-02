@@ -20,6 +20,15 @@ function loadSetupWorkspace(overrides = {}) {
     console,
     window: {
       location: { origin: "https://app.prooflink.test" },
+      PROOFLINK_OPERATOR_ACCOUNTING: {
+        normalizeAccountingSystem: (value) => {
+          const raw = String(value || "").trim().toLowerCase();
+          return ["quickbooks", "other"].includes(raw) ? raw : "prooflink";
+        },
+        defaultAccountingReferenceLabel: (system) => String(system || "").trim().toLowerCase() === "quickbooks"
+          ? "QuickBooks invoice #"
+          : "Accounting invoice #",
+      },
     },
     URL,
     document: {
@@ -57,6 +66,8 @@ function loadSetupWorkspace(overrides = {}) {
     setupPublicContactEmail: null,
     setupPublicBusinessPhone: null,
     setupServiceArea: null,
+    setupAccountingSystem: null,
+    setupAccountingReferenceLabel: null,
     setupReviewPlatformLabel: null,
     setupReviewLinkUrl: null,
     setupReferralMessage: null,
@@ -143,5 +154,19 @@ describe("operator setup workspace", () => {
     expect(context.btnPreviewWebsite.addEventListener).toHaveBeenCalledTimes(1);
     expect(context.btnSaveSetup.addEventListener).toHaveBeenCalledTimes(1);
     expect(context.btnPublishWebsite.addEventListener).toHaveBeenCalledTimes(1);
+  });
+
+  test("collectSetupPayload keeps external accounting preferences in the saved setup", () => {
+    const context = loadSetupWorkspace({
+      setupAccountingSystem: { value: "quickbooks" },
+      setupAccountingReferenceLabel: { value: "" },
+      setupTagline: { value: "Clean sites, clear proof." },
+    });
+
+    const payload = context.window.collectSetupPayload();
+
+    expect(payload.accounting_system).toBe("quickbooks");
+    expect(payload.accounting_reference_label).toBe("QuickBooks invoice #");
+    expect(payload.tagline).toBe("Clean sites, clear proof.");
   });
 });

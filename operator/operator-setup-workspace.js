@@ -149,12 +149,22 @@ function setupPreviewHtml(payload = {}, record = null) {
 }
 
 function fillSetupForm(payload = {}, record = null) {
+  const accountingApi = window.PROOFLINK_OPERATOR_ACCOUNTING || {};
+  const normalizeAccountingSystem = typeof accountingApi.normalizeAccountingSystem === "function"
+    ? accountingApi.normalizeAccountingSystem
+    : ((value) => String(value || "").trim().toLowerCase() || "prooflink");
+  const defaultAccountingReferenceLabel = typeof accountingApi.defaultAccountingReferenceLabel === "function"
+    ? accountingApi.defaultAccountingReferenceLabel
+    : ((system) => normalizeAccountingSystem(system) === "quickbooks" ? "QuickBooks invoice #" : "Accounting invoice #");
+  const accountingSystem = normalizeAccountingSystem(payload.accounting_system || "prooflink");
   hydrateWorkspaceProfileOptions(payload.workspace_business_type || record?.business_type || "");
   if (setupTagline) setupTagline.value = payload.tagline || "";
   if (setupHeroHeading) setupHeroHeading.value = payload.hero_heading || "";
   if (setupHeroSubheading) setupHeroSubheading.value = payload.hero_subheading || "";
   if (setupAbout) setupAbout.value = payload.about || "";
   if (setupWorkspaceBusinessType) setupWorkspaceBusinessType.value = String(payload.workspace_business_type || record?.business_type || "").trim().toLowerCase();
+  if (setupAccountingSystem) setupAccountingSystem.value = accountingSystem;
+  if (setupAccountingReferenceLabel) setupAccountingReferenceLabel.value = payload.accounting_reference_label || defaultAccountingReferenceLabel(accountingSystem);
   if (setupAccentColor) setupAccentColor.value = payload.accent_color || window.PROOFLINK_BRAND?.accent || "#c84b2f";
   if (setupPrimaryCtaLabel) setupPrimaryCtaLabel.value = payload.site_primary_cta_label || "Request service";
   if (setupBookingCtaLabel) setupBookingCtaLabel.value = payload.site_booking_cta_label || "Book now";
@@ -188,12 +198,22 @@ function fillSetupForm(payload = {}, record = null) {
 }
 
 function collectSetupPayload(extra = {}) {
+  const accountingApi = window.PROOFLINK_OPERATOR_ACCOUNTING || {};
+  const normalizeAccountingSystem = typeof accountingApi.normalizeAccountingSystem === "function"
+    ? accountingApi.normalizeAccountingSystem
+    : ((value) => String(value || "").trim().toLowerCase() || "prooflink");
+  const defaultAccountingReferenceLabel = typeof accountingApi.defaultAccountingReferenceLabel === "function"
+    ? accountingApi.defaultAccountingReferenceLabel
+    : ((system) => normalizeAccountingSystem(system) === "quickbooks" ? "QuickBooks invoice #" : "Accounting invoice #");
+  const accountingSystem = normalizeAccountingSystem(setupAccountingSystem?.value || "prooflink");
   return {
     tagline: setupTagline?.value?.trim() || "",
     hero_heading: setupHeroHeading?.value?.trim() || "",
     hero_subheading: setupHeroSubheading?.value?.trim() || "",
     about: setupAbout?.value?.trim() || "",
     workspace_business_type: setupWorkspaceBusinessType?.value?.trim() || "",
+    accounting_system: accountingSystem,
+    accounting_reference_label: setupAccountingReferenceLabel?.value?.trim() || defaultAccountingReferenceLabel(accountingSystem),
     accent_color: setupAccentColor?.value?.trim() || "",
     site_primary_cta_label: setupPrimaryCtaLabel?.value?.trim() || "Request service",
     site_booking_cta_label: setupBookingCtaLabel?.value?.trim() || "Book now",
@@ -445,6 +465,7 @@ function initSetupWorkspaceBindings() {
     setupFacebook,
     setupHoursNotes,
     setupFulfillmentNotes,
+    setupAccountingReferenceLabel,
     setupAccentColor,
     setupPrimaryCtaLabel,
     setupBookingCtaLabel,
@@ -460,6 +481,7 @@ function initSetupWorkspaceBindings() {
     setupShowPrices,
     setupAllowCustomRequests,
     setupWorkspaceBusinessType,
+    setupAccountingSystem,
     setupSiteFontPreset,
     setupSiteSurfaceStyle,
     setupSiteButtonStyle,
@@ -471,6 +493,17 @@ function initSetupWorkspaceBindings() {
       renderSetupPublishMeta(collectSetupPayload());
       renderSetupPreviewActions();
     });
+  });
+
+  setupAccountingSystem?.addEventListener("change", () => {
+    const accountingApi = window.PROOFLINK_OPERATOR_ACCOUNTING || {};
+    const defaultAccountingReferenceLabel = typeof accountingApi.defaultAccountingReferenceLabel === "function"
+      ? accountingApi.defaultAccountingReferenceLabel
+      : ((system) => String(system || "").trim().toLowerCase() === "quickbooks" ? "QuickBooks invoice #" : "Accounting invoice #");
+    const currentValue = setupAccountingReferenceLabel?.value?.trim() || "";
+    if (!currentValue || ["Accounting invoice #", "QuickBooks invoice #"].includes(currentValue)) {
+      if (setupAccountingReferenceLabel) setupAccountingReferenceLabel.value = defaultAccountingReferenceLabel(setupAccountingSystem?.value || "prooflink");
+    }
   });
 
   initSetupBuilderNav();

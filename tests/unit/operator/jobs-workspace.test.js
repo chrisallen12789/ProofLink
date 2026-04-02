@@ -353,6 +353,38 @@ describe("operator jobs workspace", () => {
     ]);
   });
 
+  test("jobCloseoutChecklistItems keeps the QuickBooks invoice reference visible during closeout", () => {
+    const { context } = loadJobsWorkspace({
+      window: {
+        PROOFLINK_OPERATOR_ACCOUNTING: {
+          currentAccountingConfig: vi.fn(() => ({
+            system: "quickbooks",
+            label: "QuickBooks invoice #",
+            usesExternalAccounting: true,
+          })),
+          extractOrderAccountingReference: vi.fn(() => "QB-2048"),
+        },
+      },
+    });
+
+    const items = context.jobCloseoutChecklistItems(
+      { notes: "Water heater relit and tested." },
+      { id: "order_1", notes: "QuickBooks invoice #: QB-2048" },
+      null,
+      { business: { key: "other" } },
+      0,
+      null
+    );
+
+    expect(items).toEqual(expect.arrayContaining([
+      {
+        label: "Accounting reference",
+        ready: true,
+        note: expect.stringContaining("QB-2048"),
+      },
+    ]));
+  });
+
   test("jobs workspace source uses shared memory checklist classes for readiness and customer memory", () => {
     const source = fs.readFileSync(
       path.resolve(process.cwd(), "operator/operator-jobs-workspace.js"),

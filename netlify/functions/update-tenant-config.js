@@ -10,6 +10,7 @@ const ALLOWED_KEYS = new Set([
   'instagram', 'facebook', 'hours_notes', 'fulfillment_notes',
   'accent_color', 'show_prices', 'allow_custom_requests', 'about', 'onboarding_complete',
   'workspace_business_type', 'booking_page_enabled',
+  'accounting_system', 'accounting_reference_label',
   'site_font_preset', 'site_surface_style', 'site_button_style', 'site_card_style',
   'site_hero_layout', 'site_primary_cta_label', 'site_booking_cta_label',
   'site_publish_status', 'site_published_at',
@@ -37,6 +38,7 @@ const BUTTON_STYLES = new Set(['rounded', 'solid', 'outline']);
 const CARD_STYLES = new Set(['soft', 'lined', 'elevated']);
 const HERO_LAYOUTS = new Set(['split', 'stacked', 'statement']);
 const PUBLISH_STATUSES = new Set(['draft', 'ready', 'published']);
+const ACCOUNTING_SYSTEMS = new Set(['prooflink', 'quickbooks', 'other']);
 const TENANT_CONFIG_ADMIN_ROLES = new Set(['owner', 'admin', 'manager', 'platform_admin']);
 
 function normalizeValue(key, value) {
@@ -78,6 +80,14 @@ function normalizeValue(key, value) {
     const status = String(value).trim().toLowerCase() || 'draft';
     if (!PUBLISH_STATUSES.has(status)) throw Object.assign(new Error('site_publish_status is invalid'), { statusCode: 400 });
     return status;
+  }
+  if (key === 'accounting_system') {
+    const system = String(value).trim().toLowerCase() || 'prooflink';
+    if (!ACCOUNTING_SYSTEMS.has(system)) throw Object.assign(new Error('accounting_system is invalid'), { statusCode: 400 });
+    return system;
+  }
+  if (key === 'accounting_reference_label') {
+    return String(value).trim().slice(0, 80);
   }
   if (key === 'site_published_at') {
     const stamp = String(value).trim();

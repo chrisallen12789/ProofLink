@@ -248,4 +248,33 @@ describe("operator orders workspace", () => {
       { label: "Open customer", action: "open-reactivation-customer", className: "btn btn-ghost btn-sm" },
     ]);
   });
+
+  test("orderAccountingSnapshot keeps a QuickBooks invoice reference visible for operator follow-through", () => {
+    const api = loadOrdersWorkspace({
+      window: {
+        PROOFLINK_OPERATOR_ACCOUNTING: {
+          currentAccountingConfig: vi.fn(() => ({
+            system: "quickbooks",
+            label: "QuickBooks invoice #",
+            usesExternalAccounting: true,
+          })),
+          extractOrderAccountingReference: vi.fn(() => "QB-1450"),
+        },
+      },
+    });
+
+    const snapshot = api.orderAccountingSnapshot({
+      id: "order_1",
+      notes: "QuickBooks invoice #: QB-1450",
+    });
+
+    expect(snapshot).toEqual({
+      system: "quickbooks",
+      label: "QuickBooks invoice #",
+      reference: "QB-1450",
+      usesExternalAccounting: true,
+      shouldRender: true,
+      systemName: "QuickBooks",
+    });
+  });
 });

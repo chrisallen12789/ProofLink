@@ -83,4 +83,16 @@ describe("ProofLink import tools", () => {
 
     expect(matched?.key).toBe("legacy-customers");
   });
+
+  test("payments aliases recognize QuickBooks invoice numbers for accounting continuity", () => {
+    const tools = require(toolsPath);
+
+    const aliases = tools.resolveFieldAliases("payments", "accounting_invoice_number");
+
+    expect(aliases).toEqual(expect.arrayContaining([
+      "invoice_number",
+      "doc_number",
+      "quickbooks_invoice_number",
+    ]));
+  });
 });

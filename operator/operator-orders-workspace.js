@@ -34,6 +34,56 @@ function orderCollectionGuidance(order, amountDue, paymentState, depositGap, rec
   };
 }
 
+function orderAccountingSnapshot(order) {
+  const accountingApi = window.PROOFLINK_OPERATOR_ACCOUNTING || {};
+  const config = typeof accountingApi.currentAccountingConfig === "function"
+    ? accountingApi.currentAccountingConfig()
+    : { system: "prooflink", label: "Accounting invoice #", usesExternalAccounting: false };
+  const reference = typeof accountingApi.extractOrderAccountingReference === "function"
+    ? accountingApi.extractOrderAccountingReference(order, config.label || "Accounting invoice #")
+    : "";
+  const system = String(config?.system || "prooflink").trim().toLowerCase() || "prooflink";
+  const label = String(config?.label || "Accounting invoice #").trim() || "Accounting invoice #";
+  const usesExternalAccounting = config?.usesExternalAccounting === true || !!reference;
+  return {
+    system,
+    label,
+    reference,
+    usesExternalAccounting,
+    shouldRender: usesExternalAccounting || !!reference,
+    systemName: system === "quickbooks"
+      ? "QuickBooks"
+      : ((system === "other" || usesExternalAccounting) ? "your accounting system" : "ProofLink"),
+  };
+}
+
+function renderOrderAccountingCard(order) {
+  const snapshot = orderAccountingSnapshot(order);
+  if (!snapshot.shouldRender) return "";
+  return `
+    <div class="detail-card u-mt-14">
+      <div class="kicker">Accounting continuity</div>
+      <div><strong>${escapeHtml(snapshot.usesExternalAccounting ? `${snapshot.systemName} stays tied to this work` : "External invoice tracking")}</strong></div>
+      <div class="detail-copy">${escapeHtml(
+        snapshot.reference
+          ? `${snapshot.label} ${snapshot.reference} is already attached here. Keep the same label in the service report or field note so the office, field, and accounting stay on the same record.`
+          : `If this work will be invoiced in ${snapshot.systemName}, save the same ${snapshot.label.toLowerCase()} here before money updates come back into ProofLink.`
+      )}</div>
+      <div class="workspace-chip-row u-mt-10">
+        <span class="pill">${escapeHtml(snapshot.systemName)}</span>
+        <span class="pill ${snapshot.reference ? "pill-good" : "pill-warn"}">${escapeHtml(snapshot.reference ? `${snapshot.label} on file` : `${snapshot.label} still needed`)}</span>
+      </div>
+      <label class="u-mt-10">${escapeHtml(snapshot.label)}
+        <input id="orderAccountingInvoiceNumber" type="text" placeholder="${escapeAttr(snapshot.label)}" value="${escapeAttr(snapshot.reference || "")}" />
+      </label>
+      <div class="row action-row--wrap u-mt-10">
+        <button id="btnSaveOrderAccountingReference" class="btn btn-primary" type="button">Save accounting link</button>
+      </div>
+      <div id="orderAccountingMsg" class="msg"></div>
+    </div>
+  `;
+}
+
 function isOrderInlinePanelOpen(panel) {
   return !!panel && !panel.classList.contains("u-hidden");
 }
@@ -828,6 +878,8 @@ function renderOrders() {
       <div id="orderDepositMsg" class="msg"></div>
     </div>
 
+    ${renderOrderAccountingCard(active)}
+
     ${renderRecordFollowThroughCard({
       eyebrow: "Follow-through",
       title: "Keep status, reminders, and collection aligned",
@@ -1402,6 +1454,50 @@ function renderOrders() {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("btnOrderSmsSend")?.click(); }
   });
 
+  async function saveOrderAccountingReference(options = {}) {
+    const msgEl = $("orderAccountingMsg");
+    const silent = !!options.silent;
+    if (!silent) setInlineMessage(msgEl, "Saving...");
+    const sourceOrder = CRM_ORDERS_CACHE.find((row) => row.id === active.id) || active;
+    const accountingApi = window.PROOFLINK_OPERATOR_ACCOUNTING || {};
+    const snapshot = orderAccountingSnapshot(sourceOrder);
+    const nextReference = typeof accountingApi.normalizeAccountingReferenceValue === "function"
+      ? accountingApi.normalizeAccountingReferenceValue($("orderAccountingInvoiceNumber")?.value || "")
+      : String($("orderAccountingInvoiceNumber")?.value || "").trim();
+    const nextNotes = typeof accountingApi.mergeAccountingReferenceNote === "function"
+      ? accountingApi.mergeAccountingReferenceNote(sourceOrder.notes || "", nextReference, snapshot.label)
+      : (sourceOrder.notes || "");
+    const payload = {
+      notes: nextNotes,
+      updated_at: new Date().toISOString(),
+    };
+    if (Object.prototype.hasOwnProperty.call(sourceOrder || {}, "accounting_invoice_number")) {
+      payload.accounting_invoice_number = nextReference || null;
+    }
+    const { data, error } = await sb.from("orders")
+      .update(payload)
+      .eq("id", sourceOrder.id)
+      .eq(OPERATOR_COLUMN, opId())
+      .eq(TENANT_COLUMN, TENANT_ID)
+      .select("*")
+      .single();
+    if (error) throw error;
+    ACTIVE_ORDER_ID = data.id;
+    CRM_ORDERS_CACHE = CRM_ORDERS_CACHE.some((row) => row.id === sourceOrder.id)
+      ? CRM_ORDERS_CACHE.map((row) => row.id === sourceOrder.id ? data : row)
+      : [data, ...CRM_ORDERS_CACHE];
+    TABS_LOADED.delete("orders");
+    FETCH_OFFSETS.orders = 0;
+    TABS_LOADED.delete("jobs");
+    renderOrders();
+    renderJobs(jobSearch?.value || "");
+    renderDashboard();
+    renderGuidance();
+    renderMoney().catch(console.error);
+    if (!silent) setInlineMessage(msgEl, nextReference ? "Accounting link saved." : "Accounting link cleared.", "ok");
+    return data;
+  }
+
   async function saveOrderDepositSettings(options = {}) {
     const msgEl = $("orderDepositMsg");
     const silent = !!options.silent;
@@ -1584,6 +1680,13 @@ function renderOrders() {
       await saveOrderDepositSettings();
     } catch (err) {
       setInlineMessage($("orderDepositMsg"), err.message || String(err), "error");
+    }
+  });
+  $("btnSaveOrderAccountingReference")?.addEventListener("click", async () => {
+    try {
+      await saveOrderAccountingReference();
+    } catch (err) {
+      setInlineMessage($("orderAccountingMsg"), err.message || String(err), "error");
     }
   });
   $("btnClearOrderDepositOverride")?.addEventListener("click", async () => {

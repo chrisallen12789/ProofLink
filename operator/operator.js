@@ -41,6 +41,113 @@ function withTenantScope(payload) {
   return { ...payload, [TENANT_COLUMN]: TENANT_ID };
 }
 
+const ACCOUNTING_SYSTEM_KEYS = new Set(["prooflink", "quickbooks", "other"]);
+
+function normalizeAccountingSystem(value) {
+  const raw = String(value || "").trim().toLowerCase();
+  if (["quickbooks", "qb", "quick_books"].includes(raw)) return "quickbooks";
+  if (["other", "external", "outside"].includes(raw)) return "other";
+  return ACCOUNTING_SYSTEM_KEYS.has(raw) ? raw : "prooflink";
+}
+
+function defaultAccountingReferenceLabel(system = "prooflink") {
+  const normalized = normalizeAccountingSystem(system);
+  if (normalized === "quickbooks") return "QuickBooks invoice #";
+  if (normalized === "other") return "Accounting invoice #";
+  return "Accounting invoice #";
+}
+
+function accountingReferenceLabels(label = "") {
+  return Array.from(new Set(
+    [
+      String(label || "").trim(),
+      "QuickBooks invoice #",
+      "Accounting invoice #",
+      "QB invoice #",
+    ].filter(Boolean)
+  ));
+}
+
+function normalizeAccountingReferenceValue(value) {
+  return String(value || "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .slice(0, 80);
+}
+
+function escapeRegexValue(value) {
+  return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function isAccountingReferenceLine(line, label = "") {
+  const source = String(line || "").trim();
+  if (!source) return false;
+  return accountingReferenceLabels(label).some((candidate) => (
+    new RegExp(`^${escapeRegexValue(candidate)}(?:\\s*[:#-]\\s*|\\s+)`, "i").test(source)
+  ));
+}
+
+function extractAccountingReferenceFromText(text, label = "") {
+  const source = String(text || "");
+  if (!source.trim()) return "";
+  for (const candidate of accountingReferenceLabels(label)) {
+    const match = source.match(new RegExp(
+      `${escapeRegexValue(candidate)}(?:\\s*[:#-]\\s*|\\s+)([^\\r\\n|]+)`,
+      "i"
+    ));
+    const value = normalizeAccountingReferenceValue(match?.[1] || "");
+    if (value) return value;
+  }
+  return "";
+}
+
+function mergeAccountingReferenceNote(existingNotes, reference, label = "") {
+  const nextReference = normalizeAccountingReferenceValue(reference);
+  const nextLabel = String(label || "").trim() || "Accounting invoice #";
+  const filtered = String(existingNotes || "")
+    .split(/\r?\n/)
+    .map((line) => line.trimEnd())
+    .filter((line) => !isAccountingReferenceLine(line, nextLabel))
+    .join("\n")
+    .trim();
+  if (!nextReference) return filtered;
+  return filtered ? `${filtered}\n${nextLabel}: ${nextReference}` : `${nextLabel}: ${nextReference}`;
+}
+
+function currentAccountingConfig() {
+  const setupState = typeof SETUP_STATE !== "undefined" ? SETUP_STATE : null;
+  const rawConfig = setupState && typeof setupState === "object" ? (setupState.config || {}) : {};
+  const system = normalizeAccountingSystem(rawConfig.accounting_system || rawConfig.accountingSystem || "");
+  const label = String(rawConfig.accounting_reference_label || rawConfig.accountingReferenceLabel || "").trim()
+    || defaultAccountingReferenceLabel(system);
+  return {
+    system,
+    label,
+    usesExternalAccounting: system !== "prooflink",
+  };
+}
+
+function extractOrderAccountingReference(order, label = "") {
+  const direct = normalizeAccountingReferenceValue(
+    order?.accounting_invoice_number
+    || order?.external_invoice_number
+    || order?.invoice_number
+    || ""
+  );
+  if (direct) return direct;
+  return extractAccountingReferenceFromText(order?.notes || "", label);
+}
+
+window.PROOFLINK_OPERATOR_ACCOUNTING = {
+  normalizeAccountingSystem,
+  defaultAccountingReferenceLabel,
+  normalizeAccountingReferenceValue,
+  currentAccountingConfig,
+  extractAccountingReferenceFromText,
+  mergeAccountingReferenceNote,
+  extractOrderAccountingReference,
+};
+
 function getOperatorRedirectUrl() {
   const host = window.location.hostname.toLowerCase();
   const isLocal = host === "localhost" || host === "127.0.0.1" || host.endsWith(".local");
@@ -557,6 +664,8 @@ const setupHeroHeading = $("setupHeroHeading");
 const setupHeroSubheading = $("setupHeroSubheading");
 const setupAbout = $("setupAbout");
 const setupWorkspaceBusinessType = $("setupWorkspaceBusinessType");
+const setupAccountingSystem = $("setupAccountingSystem");
+const setupAccountingReferenceLabel = $("setupAccountingReferenceLabel");
 const setupAccentColor = $("setupAccentColor");
 const setupLogoUrl = $("setupLogoUrl");
 const setupHeroImageUrl = $("setupHeroImageUrl");
