@@ -352,6 +352,7 @@ const bidProposalOptionType = $("bidProposalOptionType");
 const bidProposalOptionPriceLabel = $("bidProposalOptionPriceLabel");
 const bidProposalOptionPrice = $("bidProposalOptionPrice");
 const bidProposalOptionPriceUnit = $("bidProposalOptionPriceUnit");
+const bidProposalOptionFees = $("bidProposalOptionFees");
 const bidProposalOptionScope = $("bidProposalOptionScope");
 const bidProposalOptionNotes = $("bidProposalOptionNotes");
 const btnClearBidProposalOption = $("btnClearBidProposalOption");

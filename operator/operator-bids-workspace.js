@@ -28,6 +28,9 @@ function setBidWorkspaceBootstrapping(pending, message = "") {
   state.hidden = !pending;
   state.textContent = pending ? (message || "Opening proposal builder...") : "";
 }
+function proposalDocumentsApi() {
+  return window.PROOFLINK_OPERATOR_PROPOSAL_DOCUMENTS || null;
+}
 function loadBidDrafts() {
   try {
     const raw = window.localStorage.getItem(bidStorageKey());
@@ -41,7 +44,11 @@ function loadBidDrafts() {
 async function loadPersistedBids() {
   const remoteRows = await fetchPersistedBids();
   const remoteDrafts = remoteRows.map(draftFromBidRow);
-  BIDS_CACHE = mergeBidDraftCollections(BIDS_CACHE, remoteDrafts);
+  const proposalApi = proposalDocumentsApi();
+  const hydratedDrafts = proposalApi?.hydrateDrafts
+    ? await proposalApi.hydrateDrafts(remoteDrafts).catch(() => remoteDrafts)
+    : remoteDrafts;
+  BIDS_CACHE = mergeBidDraftCollections(BIDS_CACHE, hydratedDrafts);
   persistBidDrafts();
   ACTIVE_BID_ID = ACTIVE_BID_ID && BIDS_CACHE.some((row) => row.id === ACTIVE_BID_ID)
     ? ACTIVE_BID_ID
@@ -99,10 +106,18 @@ async function flushBidDraftSync(options = {}) {
             },
           };
 
-      BIDS_CACHE = BIDS_CACHE.map((row) => row.id === baseDraft.id ? nextDraft : row);
-      ACTIVE_BID_ID = nextDraft.id;
+      const proposalApi = proposalDocumentsApi();
+      const proposalSyncOptions = options.proposalSync && typeof options.proposalSync === "object"
+        ? options.proposalSync
+        : { createVersion: false };
+      const syncedDocumentDraft = proposalApi?.syncFromBidDraft
+        ? await proposalApi.syncFromBidDraft(nextDraft, proposalSyncOptions).catch(() => nextDraft)
+        : nextDraft;
+
+      BIDS_CACHE = BIDS_CACHE.map((row) => row.id === baseDraft.id ? syncedDocumentDraft : row);
+      ACTIVE_BID_ID = syncedDocumentDraft.id;
       persistBidDrafts();
-      lastSyncedDraft = nextDraft;
+      lastSyncedDraft = syncedDocumentDraft;
 
       if (!changedWhileSyncing) return lastSyncedDraft;
     }
@@ -250,6 +265,7 @@ function clearBidPhotoForm() {
 function collectBidFormDraft() {
   const active = currentBid();
   const profileKey = normalizeBidProfile(bidProfile?.value || active?.profile || preferredBidProfile());
+
   const draft = {
     ...(active || emptyBidDraft(profileKey)),
     id: bidId?.value || active?.id || createLocalId("bid"),
@@ -259,6 +275,25 @@ function collectBidFormDraft() {
     customer_id: bidCustomerId?.value || "",
     profile: profileKey,
     status: String(bidStatus?.value || "draft"),
+    template_type: bidTemplateType?.value || active?.template_type || "",
+    prepared_by_user_id: bidPreparedByUser?.value || active?.prepared_by_user_id || "",
+    sender_user_id: bidSenderUser?.value || active?.sender_user_id || "",
+    recipient_company: bidRecipientCompany?.value?.trim() || "",
+    recipient_address: bidRecipientAddress?.value?.trim() || "",
+    attention_line: bidAttentionLine?.value?.trim() || "",
+    subject_line: bidSubjectLine?.value?.trim() || "",
+    project_name: bidProjectName?.value?.trim() || "",
+    intro_text: bidIntroText?.value?.trim() || "",
+    value_proposition_text: bidValuePropositionText?.value?.trim() || "",
+    proposal_notes: active?.proposal_notes || "",
+    proposal_status: active?.proposal_status || "",
+    proposal_document_id: active?.proposal_document_id || "",
+    proposal_public_token: active?.proposal_public_token || "",
+    proposal_revision_number: Number(active?.proposal_revision_number || 1),
+    terms_template_id: bidTermsTemplateId?.value || active?.terms_template_id || "",
+    exclusions_template_id: bidExclusionsTemplateId?.value || active?.exclusions_template_id || "",
+    terms_override: bidTermsOverride?.value?.trim() || "",
+    exclusions_override: bidExclusionsOverride?.value?.trim() || "",
     walkthrough_at: toIsoDateTime(bidWalkthroughAt?.value) || active?.walkthrough_at || null,
     valid_until: bidValidUntil?.value || "",
     service_address: bidServiceAddress?.value?.trim() || "",
@@ -277,6 +312,7 @@ function collectBidFormDraft() {
     deposit_amount_cents: toCents(bidDepositAmount?.value || 0),
     terms: bidTerms?.value?.trim() || "",
     line_items: cloneJson(active?.line_items || [], []),
+    proposal_options: cloneJson(active?.proposal_options || [], []),
     photos: cloneJson(active?.photos || [], []),
     updated_at: new Date().toISOString(),
   };
@@ -343,14 +379,24 @@ function populateBidForm(draft) {
   if (bidId) bidId.value = draft?.id || "";
   if (bidTitle) bidTitle.value = draft?.title || "";
   if (bidProfile) bidProfile.value = normalizeBidProfile(draft?.profile);
+  if (bidTemplateType) bidTemplateType.value = draft?.template_type || "standard_operational";
   hydrateBidPhotoCategoryOptions(draft?.profile, bidPhotoCategory?.value || "");
   if (bidStatus) bidStatus.value = String(draft?.status || "draft");
   if (bidWalkthroughAt) bidWalkthroughAt.value = toDateTimeLocalValue(draft?.walkthrough_at);
   if (bidValidUntil) bidValidUntil.value = draft?.valid_until || "";
+  if (bidPreparedByUser) bidPreparedByUser.value = draft?.prepared_by_user_id || "";
+  if (bidSenderUser) bidSenderUser.value = draft?.sender_user_id || "";
   if (bidServiceAddress) bidServiceAddress.value = draft?.service_address || "";
   if (bidSiteContact) bidSiteContact.value = draft?.site_contact || "";
   if (bidScheduleWindow) bidScheduleWindow.value = draft?.schedule_window || "";
   if (bidProjectSummary) bidProjectSummary.value = draft?.project_summary || "";
+  if (bidRecipientCompany) bidRecipientCompany.value = draft?.recipient_company || "";
+  if (bidAttentionLine) bidAttentionLine.value = draft?.attention_line || "";
+  if (bidRecipientAddress) bidRecipientAddress.value = draft?.recipient_address || "";
+  if (bidProjectName) bidProjectName.value = draft?.project_name || "";
+  if (bidSubjectLine) bidSubjectLine.value = draft?.subject_line || "";
+  if (bidIntroText) bidIntroText.value = draft?.intro_text || "";
+  if (bidValuePropositionText) bidValuePropositionText.value = draft?.value_proposition_text || "";
   if (bidScopeOfWork) bidScopeOfWork.value = draft?.scope_of_work || "";
   if (bidProposedSolution) bidProposedSolution.value = draft?.proposed_solution || "";
   if (bidMaterialsPlan) bidMaterialsPlan.value = draft?.materials_plan || "";
@@ -362,6 +408,10 @@ function populateBidForm(draft) {
   if (bidDepositPercent) bidDepositPercent.value = String(draft?.deposit_percent ?? 0);
   if (bidDepositAmount) bidDepositAmount.value = money(draft?.deposit_amount_cents || 0);
   if (bidTerms) bidTerms.value = draft?.terms || "";
+  if (bidTermsTemplateId) bidTermsTemplateId.value = draft?.terms_template_id || "";
+  if (bidExclusionsTemplateId) bidExclusionsTemplateId.value = draft?.exclusions_template_id || "";
+  if (bidTermsOverride) bidTermsOverride.value = draft?.terms_override || "";
+  if (bidExclusionsOverride) bidExclusionsOverride.value = draft?.exclusions_override || "";
   if (bidFormTitle) bidFormTitle.textContent = draft?.title || "Proposal builder";
 }
 function clearBidForm() {
@@ -369,14 +419,24 @@ function clearBidForm() {
   if (bidId) bidId.value = "";
   if (bidTitle) bidTitle.value = "";
   if (bidProfile) bidProfile.value = preferredBidProfile();
+  if (bidTemplateType) bidTemplateType.value = "standard_operational";
   hydrateBidPhotoCategoryOptions(preferredBidProfile(), bidPhotoCategory?.value || "");
   if (bidStatus) bidStatus.value = "draft";
   if (bidWalkthroughAt) bidWalkthroughAt.value = "";
   if (bidValidUntil) bidValidUntil.value = "";
+  if (bidPreparedByUser) bidPreparedByUser.value = "";
+  if (bidSenderUser) bidSenderUser.value = "";
   if (bidServiceAddress) bidServiceAddress.value = "";
   if (bidSiteContact) bidSiteContact.value = "";
   if (bidScheduleWindow) bidScheduleWindow.value = "";
   if (bidProjectSummary) bidProjectSummary.value = "";
+  if (bidRecipientCompany) bidRecipientCompany.value = "";
+  if (bidAttentionLine) bidAttentionLine.value = "";
+  if (bidRecipientAddress) bidRecipientAddress.value = "";
+  if (bidProjectName) bidProjectName.value = "";
+  if (bidSubjectLine) bidSubjectLine.value = "";
+  if (bidIntroText) bidIntroText.value = "";
+  if (bidValuePropositionText) bidValuePropositionText.value = "";
   if (bidScopeOfWork) bidScopeOfWork.value = "";
   if (bidProposedSolution) bidProposedSolution.value = "";
   if (bidMaterialsPlan) bidMaterialsPlan.value = "";
@@ -388,6 +448,10 @@ function clearBidForm() {
   if (bidDepositPercent) bidDepositPercent.value = "0";
   if (bidDepositAmount) bidDepositAmount.value = "0.00";
   if (bidTerms) bidTerms.value = "";
+  if (bidTermsTemplateId) bidTermsTemplateId.value = "";
+  if (bidExclusionsTemplateId) bidExclusionsTemplateId.value = "";
+  if (bidTermsOverride) bidTermsOverride.value = "";
+  if (bidExclusionsOverride) bidExclusionsOverride.value = "";
   if (bidFormTitle) bidFormTitle.textContent = "Proposal builder";
   clearBidLineItemForm();
   clearBidPhotoForm();
@@ -1069,6 +1133,193 @@ function renderBidLineItems(draft) {
     });
   });
 }
+function fillProposalSelect(selectEl, rows, currentValue, placeholder) {
+  if (!selectEl) return;
+  const current = String(currentValue || "").trim();
+  const normalizedRows = Array.isArray(rows) ? rows : [];
+  selectEl.innerHTML = [
+    `<option value="">${escapeHtml(placeholder || "Select")}</option>`,
+    ...normalizedRows.map((row) => {
+      const value = String(row.value || row.id || "").trim();
+      const label = String(row.label || row.name || value || "Option").trim();
+      const detail = String(row.detail || "").trim();
+      return `<option value="${escapeAttr(value)}"${value === current ? " selected" : ""}>${escapeHtml(detail ? `${label} - ${detail}` : label)}</option>`;
+    }),
+  ].join("");
+}
+function bidProposalEngine() {
+  return window.ProofLinkProposalDocuments || null;
+}
+function stringifyProposalOptionScope(scopeNodes, depth = 0) {
+  if (!Array.isArray(scopeNodes) || !scopeNodes.length) return "";
+  return scopeNodes.map((node) => {
+    const text = String(node?.text || "").trim();
+    const children = stringifyProposalOptionScope(node?.children || [], depth + 1);
+    return `${"  ".repeat(depth)}- ${text}${children ? `\n${children}` : ""}`;
+  }).join("\n");
+}
+function parseProposalFeeRows(value) {
+  return String(value || "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const [label = "", amount = "", ...descriptionParts] = line.split("|").map((part) => part.trim());
+      return {
+        label,
+        amount_cents: toCents(amount || 0),
+        description: descriptionParts.join(" | "),
+      };
+    })
+    .filter((row) => row.label || row.amount_cents || row.description);
+}
+function stringifyProposalFeeRows(rows) {
+  if (!Array.isArray(rows) || !rows.length) return "";
+  return rows.map((row) => {
+    const label = String(row?.label || "").trim();
+    const amount = money(Number(row?.amount_cents || 0));
+    const description = String(row?.description || "").trim();
+    return [label, amount, description].filter(Boolean).join(" | ");
+  }).join("\n");
+}
+function collectBidProposalOptionDraft() {
+  const engine = bidProposalEngine();
+  const scopeText = bidProposalOptionScope?.value?.trim() || "";
+  return {
+    id: bidProposalOptionId?.value || createLocalId("proposal_option"),
+    option_type: bidProposalOptionType?.value || "option",
+    option_title: bidProposalOptionTitle?.value?.trim() || "",
+    pricing_label: bidProposalOptionPriceLabel?.value?.trim() || "Investment",
+    price_amount_cents: toCents(bidProposalOptionPrice?.value || 0),
+    price_unit: bidProposalOptionPriceUnit?.value?.trim() || "",
+    fee_rows: parseProposalFeeRows(bidProposalOptionFees?.value || ""),
+    scope_content: typeof engine?.parseBulletText === "function" ? engine.parseBulletText(scopeText) : scopeText,
+    notes: bidProposalOptionNotes?.value?.trim() || "",
+  };
+}
+function currentBidProposalViewModel(draft) {
+  const proposalApi = proposalDocumentsApi();
+  if (!draft || !proposalApi?.buildViewModelForBid) return null;
+  try {
+    return proposalApi.buildViewModelForBid(draft);
+  } catch (_) {
+    return null;
+  }
+}
+function clearBidProposalOptionForm() {
+  if (bidProposalOptionId) bidProposalOptionId.value = "";
+  if (bidProposalOptionTitle) bidProposalOptionTitle.value = "";
+  if (bidProposalOptionType) bidProposalOptionType.value = "option";
+  if (bidProposalOptionPriceLabel) bidProposalOptionPriceLabel.value = "Investment";
+  if (bidProposalOptionPrice) bidProposalOptionPrice.value = "0.00";
+  if (bidProposalOptionPriceUnit) bidProposalOptionPriceUnit.value = "";
+  if (bidProposalOptionFees) bidProposalOptionFees.value = "";
+  if (bidProposalOptionScope) bidProposalOptionScope.value = "";
+  if (bidProposalOptionNotes) bidProposalOptionNotes.value = "";
+  setInlineMessage(bidProposalOptionMsg, "");
+}
+function populateBidProposalOptionForm(option) {
+  if (!option) return clearBidProposalOptionForm();
+  if (bidProposalOptionId) bidProposalOptionId.value = option.id || "";
+  if (bidProposalOptionTitle) bidProposalOptionTitle.value = option.option_title || option.optionTitle || "";
+  if (bidProposalOptionType) bidProposalOptionType.value = option.option_type || option.optionType || "option";
+  if (bidProposalOptionPriceLabel) bidProposalOptionPriceLabel.value = option.pricing_label || option.pricingLabel || "Investment";
+  if (bidProposalOptionPrice) bidProposalOptionPrice.value = money(option.price_amount_cents || option.priceAmountCents || 0);
+  if (bidProposalOptionPriceUnit) bidProposalOptionPriceUnit.value = option.price_unit || option.priceUnit || "";
+  if (bidProposalOptionFees) bidProposalOptionFees.value = stringifyProposalFeeRows(option.fee_rows || option.feeRows || []);
+  if (bidProposalOptionScope) bidProposalOptionScope.value = Array.isArray(option.scope_content)
+    ? stringifyProposalOptionScope(option.scope_content)
+    : (option.scope_content || option.scopeContent || "");
+  if (bidProposalOptionNotes) bidProposalOptionNotes.value = option.notes || "";
+}
+function renderBidProposalOptions(draft) {
+  if (!bidProposalOptionsList) return;
+  const options = Array.isArray(draft?.proposal_options) ? draft.proposal_options : [];
+  if (!options.length) {
+    bidProposalOptionsList.innerHTML = `<div class="muted">No customer-facing proposal options yet. Add at least one option so the preview follows the final document structure.</div>`;
+    return;
+  }
+  bidProposalOptionsList.innerHTML = options.map((option) => `
+    <div class="line-item-card">
+      <div class="line-item-card__top">
+        <div>
+          <div class="line-item-card__title">${escapeHtml(option.option_title || option.optionTitle || "Option")}</div>
+          <div class="line-item-card__copy">${escapeHtml(option.pricing_label || option.pricingLabel || "Investment")} ${escapeHtml(option.price_unit || option.priceUnit || "")}</div>
+        </div>
+        <div class="line-item-card__meta">
+          <span class="pill">${escapeHtml(titleCaseWords(String(option.option_type || option.optionType || "option").replace(/_/g, " ")))}</span>
+          <span class="pill pill-on">${formatUsd(Number(option.price_amount_cents || option.priceAmountCents || 0))}</span>
+          ${(option.fee_rows || option.feeRows || []).length ? `<span class="pill">${escapeHtml(String((option.fee_rows || option.feeRows || []).length))} fee rows</span>` : ""}
+        </div>
+      </div>
+      <div class="line-item-card__copy">${escapeParagraphs((option.scope_content || []).length ? (option.scope_content || []).map((node) => node.text || "").join("\n") : (option.scope_content || option.scopeContent || option.notes || ""))}</div>
+      <div class="line-item-actions">
+        <button class="btn btn-ghost btn-sm" type="button" data-edit-proposal-option="${escapeAttr(option.id)}">Edit</button>
+        <button class="btn btn-ghost btn-sm" type="button" data-remove-proposal-option="${escapeAttr(option.id)}">Remove</button>
+      </div>
+    </div>
+  `).join("");
+  bidProposalOptionsList.querySelectorAll("[data-edit-proposal-option]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const active = currentBid();
+      const option = active?.proposal_options?.find((row) => row.id === btn.getAttribute("data-edit-proposal-option"));
+      populateBidProposalOptionForm(option);
+    });
+  });
+  bidProposalOptionsList.querySelectorAll("[data-remove-proposal-option]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const active = currentBid();
+      if (!active) return;
+      const optionId = btn.getAttribute("data-remove-proposal-option");
+      const nextDraft = {
+        ...active,
+        proposal_options: (active.proposal_options || []).filter((row) => row.id !== optionId),
+        updated_at: new Date().toISOString(),
+      };
+      replaceBidDraft(nextDraft);
+      clearBidProposalOptionForm();
+      renderBidWorkspace(nextDraft, { preserveForm: true });
+      renderBidList(bidSearch?.value || "");
+      setInlineMessage(bidProposalOptionMsg, "Proposal option removed.", "ok");
+    });
+  });
+}
+function renderBidProposalDocumentControls(draft) {
+  const proposalApi = proposalDocumentsApi();
+  if (!proposalApi) return;
+  proposalApi.loadSupport().then(() => {
+    const activeDraft = draft || currentBid() || null;
+    const mergedDraft = activeDraft
+      ? proposalApi.mergeDraftDefaults(activeDraft)
+      : emptyBidDraft(preferredBidProfile());
+    fillProposalSelect(bidTemplateType, proposalApi.templateChoices(), mergedDraft.template_type, "Choose a template");
+    fillProposalSelect(bidPreparedByUser, proposalApi.senderChoices(), mergedDraft.prepared_by_user_id, "Prepared by");
+    fillProposalSelect(bidSenderUser, proposalApi.senderChoices(), mergedDraft.sender_user_id, "Send as");
+    fillProposalSelect(bidTermsTemplateId, proposalApi.termsChoices(mergedDraft.profile), mergedDraft.terms_template_id, "Use default terms");
+    fillProposalSelect(bidExclusionsTemplateId, proposalApi.exclusionsChoices(mergedDraft.profile), mergedDraft.exclusions_template_id, "Use default exclusions");
+    renderBidProposalOptions(activeDraft ? mergedDraft : { proposal_options: [] });
+    if (bidBrandSetupStatus) {
+      const status = proposalApi.brandSetupStatus() || {};
+      const rows = [
+        { label: "Company name", ready: !!status.companyName },
+        { label: "Logo", ready: !!status.logo },
+        { label: "Default terms", ready: !!status.defaultTerms },
+        { label: "Default exclusions", ready: !!status.defaultExclusions },
+        { label: "Default signer", ready: !!status.defaultSigner },
+        { label: "Signer signature image", ready: !!status.defaultSignerSignature },
+      ];
+      bidBrandSetupStatus.innerHTML = rows.map((row) => `
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:4px 0;">
+          <span>${escapeHtml(row.label)}</span>
+          <span class="pill ${row.ready ? "pill-on" : "pill-muted"}">${row.ready ? "Ready" : "Needs setup"}</span>
+        </div>
+      `).join("");
+    }
+    if (activeDraft) renderBidProposalPreview(mergedDraft);
+  }).catch((err) => {
+    if (bidBrandSetupStatus) bidBrandSetupStatus.textContent = err.message || "Proposal defaults could not be loaded.";
+  });
+}
 function renderBidWorkspace(draft, opts = {}) {
   renderProposalWorkspace();
   if (!BID_WORKSPACE_BOOTSTRAPPING) setBidWorkspaceBootstrapping(false);
@@ -1088,6 +1339,8 @@ function renderBidWorkspace(draft, opts = {}) {
     renderBidDeliveryCard(null);
     if (bidPhotosList) bidPhotosList.innerHTML = `<div class="muted">No walkthrough photos saved yet.</div>`;
     if (bidLineItemsList) bidLineItemsList.innerHTML = `<div class="muted">No line items added yet.</div>`;
+    clearBidProposalOptionForm();
+    renderBidProposalDocumentControls(null);
     renderBidProposalPreview(null);
     return;
   }
@@ -1109,6 +1362,7 @@ function renderBidWorkspace(draft, opts = {}) {
   renderBidDeliveryCard(draft);
   renderBidPhotos(draft);
   renderBidLineItems(draft);
+  renderBidProposalDocumentControls(draft);
   renderBidProposalPreview(draft);
 }
 function renderBids(filter = "", opts = {}) {
@@ -1123,6 +1377,7 @@ function startNewBid(profileKey = preferredBidProfile()) {
   persistBidDrafts();
   clearBidLineItemForm();
   clearBidPhotoForm();
+  clearBidProposalOptionForm();
   renderBids(bidSearch?.value || "");
   setInlineMessage(bidMsg, "New walkthrough bid ready.", "ok");
   return draft;
@@ -1133,16 +1388,27 @@ function duplicateCurrentBid() {
   const copy = {
     ...cloneJson(active, {}),
     id: createLocalId("bid"),
+    record_id: "",
     title: `${active.title || defaultBidTitleFromDraft(active)} copy`,
     status: "draft",
+    proposal_document_id: "",
+    proposal_public_token: "",
+    proposal_status: "draft",
+    proposal_revision_number: 1,
     line_items: (active.line_items || []).map((item) => ({ ...item, id: createLocalId("line") })),
+    proposal_options: (active.proposal_options || []).map((option) => ({ ...cloneJson(option, {}), id: createLocalId("proposal_option") })),
     photos: (active.photos || []).map((photo) => ({ ...photo, id: createLocalId("photo") })),
+    converted_order_id: "",
+    converted_at: null,
+    sent_at: null,
+    approved_at: null,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   };
   replaceBidDraft(copy);
   clearBidLineItemForm();
   clearBidPhotoForm();
+  clearBidProposalOptionForm();
   renderBids(bidSearch?.value || "");
   setInlineMessage(bidMsg, "Bid duplicated into a fresh draft.", "ok");
   return copy;
@@ -1178,6 +1444,11 @@ function renderProposalLineItemRows(items) {
 }
 function buildBidProposalMarkup(draft) {
   if (!draft) return `<div class="muted">Create a walkthrough bid or select one from the list to preview the proposal.</div>`;
+  const proposalEngine = bidProposalEngine();
+  const proposalModel = currentBidProposalViewModel(draft);
+  if (proposalEngine?.renderDocumentBody && proposalModel) {
+    return `<div class="pl-doc-page">${proposalEngine.renderDocumentBody(proposalModel)}</div>`;
+  }
   const brand = bidBrandContext();
   const customer = findBidCustomer(draft.customer_id);
   const profile = bidProfileConfig(draft.profile);
@@ -1318,9 +1589,44 @@ function buildBidProposalMarkup(draft) {
 }
 function renderBidProposalPreview(draft) {
   if (!bidProposalPreview) return;
-  bidProposalPreview.innerHTML = buildBidProposalMarkup(draft);
+  if (!draft) {
+    bidProposalPreview.innerHTML = `<div class="muted">Create a walkthrough bid or select one from the list to preview the proposal.</div>`;
+    return;
+  }
+  const frame = document.createElement("iframe");
+  frame.title = "Proposal preview";
+  frame.setAttribute("loading", "lazy");
+  frame.style.width = "100%";
+  frame.style.minHeight = "980px";
+  frame.style.height = "980px";
+  frame.style.border = "0";
+  frame.style.background = "#f3f3ef";
+  frame.style.borderRadius = "16px";
+  frame.srcdoc = bidDocumentHtml(draft);
+  frame.addEventListener("load", () => {
+    try {
+      const win = frame.contentWindow;
+      const nextHeight = Math.max(
+        win?.document?.body?.scrollHeight || 0,
+        win?.document?.documentElement?.scrollHeight || 0,
+        980,
+      );
+      frame.style.height = `${nextHeight + 12}px`;
+    } catch (_) {
+      // Keep the default preview height when the document cannot be measured.
+    }
+  });
+  bidProposalPreview.innerHTML = "";
+  bidProposalPreview.appendChild(frame);
 }
 function bidDocumentHtml(draft) {
+  const proposalEngine = bidProposalEngine();
+  const proposalModel = currentBidProposalViewModel(draft);
+  if (proposalEngine?.renderDocumentPage && proposalModel) {
+    return proposalEngine.renderDocumentPage(proposalModel, {
+      title: draft?.project_name || draft?.title || "ProofLink proposal",
+    });
+  }
   const accent = bidBrandContext().accent;
   const body = buildBidProposalMarkup(draft);
   return `<!doctype html>
@@ -1501,6 +1807,7 @@ async function convertBidToTrackedOrder() {
       await Promise.all([fetchCrmOrders(), fetchCustomers(), fetchPayments(), fetchLeads(), fetchJobs(), loadPersistedBids()]);
       let order = CRM_ORDERS_CACHE.find((row) => row.id === data?.order_id) || await existingOrderForBidId(recordId);
       if (!order) throw new Error("The bid converted, but the tracked order could not be reloaded.");
+
       order = await seedOrderDepositDefaults(order, {
         depositRequiredCents: totals.deposit,
         depositPolicy: totals.deposit > 0 ? "required_before_job" : "optional",
@@ -1520,6 +1827,7 @@ async function convertBidToTrackedOrder() {
   const payload = withTenantScope({
     operator_id: opId(),
     customer_id: customer.id,
+
     lead_id: baseDraft.lead_id || null,
     bid_id: recordId || null,
     status,
@@ -1729,7 +2037,10 @@ bidForm?.addEventListener("submit", async (e) => {
     BID_SYNC_TIMER = null;
   }
   try {
-    const syncedDraft = await flushBidDraftSync({ throwOnError: true });
+    const syncedDraft = await flushBidDraftSync({
+      throwOnError: true,
+      proposalSync: { createVersion: true, triggerEvent: "manual_save" },
+    });
       if (syncedDraft) {
         await loadPersistedBids();
         const refreshed = currentBid() || syncedDraft;
@@ -1742,7 +2053,7 @@ bidForm?.addEventListener("submit", async (e) => {
     setInlineMessage(bidMsg, err.message || String(err), "error");
   }
 });
-[bidTitle, bidCustomerId, bidProfile, bidStatus, bidWalkthroughAt, bidValidUntil, bidServiceAddress, bidSiteContact, bidScheduleWindow, bidProjectSummary, bidScopeOfWork, bidProposedSolution, bidMaterialsPlan, bidUnusedMaterialsPlan, bidExclusions, bidWarranty, bidCoverNote, bidInternalNotes, bidDepositPercent, bidDepositAmount, bidTerms].forEach((el) => {
+[bidTitle, bidCustomerId, bidProfile, bidStatus, bidTemplateType, bidPreparedByUser, bidSenderUser, bidWalkthroughAt, bidValidUntil, bidRecipientCompany, bidAttentionLine, bidRecipientAddress, bidProjectName, bidSubjectLine, bidIntroText, bidValuePropositionText, bidServiceAddress, bidSiteContact, bidScheduleWindow, bidProjectSummary, bidScopeOfWork, bidProposedSolution, bidMaterialsPlan, bidUnusedMaterialsPlan, bidExclusions, bidWarranty, bidCoverNote, bidInternalNotes, bidDepositPercent, bidDepositAmount, bidTerms, bidTermsTemplateId, bidExclusionsTemplateId, bidTermsOverride, bidExclusionsOverride].forEach((el) => {
   el?.addEventListener("input", scheduleBidAutosave);
   el?.addEventListener("change", () => {
     scheduleBidAutosave();
@@ -1833,6 +2144,35 @@ bidLineItemForm?.addEventListener("submit", (e) => {
   renderBidList(bidSearch?.value || "");
   setInlineMessage(bidLineItemMsg, "Line item saved.", "ok");
 });
+btnClearBidProposalOption?.addEventListener("click", clearBidProposalOptionForm);
+bidProposalOptionForm?.addEventListener("submit", (e) => {
+  e.preventDefault();
+  let active = currentBid();
+  if (!active) active = startNewBid(preferredBidProfile());
+  const optionDraft = collectBidProposalOptionDraft();
+  if (!optionDraft.option_title) {
+    setInlineMessage(bidProposalOptionMsg, "Option title is required.", "error");
+    return;
+  }
+  const baseDraft = updateCurrentBidFromForm({ allowCreate: true }) || active;
+  const proposalOptions = Array.isArray(baseDraft.proposal_options) ? [...baseDraft.proposal_options] : [];
+  const existingIndex = proposalOptions.findIndex((row) => row.id === optionDraft.id);
+  if (existingIndex >= 0) {
+    proposalOptions[existingIndex] = optionDraft;
+  } else {
+    proposalOptions.push(optionDraft);
+  }
+  const nextDraft = {
+    ...baseDraft,
+    proposal_options: proposalOptions,
+    updated_at: new Date().toISOString(),
+  };
+  replaceBidDraft(nextDraft);
+  clearBidProposalOptionForm();
+  renderBidWorkspace(nextDraft, { preserveForm: true });
+  renderBidList(bidSearch?.value || "");
+  setInlineMessage(bidProposalOptionMsg, "Proposal option saved.", "ok");
+});
 btnPrintBidProposal?.addEventListener("click", () => {
   const active = updateCurrentBidFromForm({ allowCreate: true }) || currentBid();
   if (!active) {
@@ -1865,18 +2205,35 @@ $("btnEmailBidToCustomer")?.addEventListener("click", async () => {
   if (btn) btn.disabled = true;
   setInlineMessage(bidMsg, "Sending...", "ok");
   try {
+    const syncedDraft = await flushBidDraftSync({
+      throwOnError: true,
+      proposalSync: { createVersion: true, triggerEvent: "manual_save" },
+    });
+    const readyDraft = syncedDraft || currentBid() || active;
+    const remoteBidId = bidRecordId(readyDraft);
+    if (!remoteBidId) throw new Error("Save the proposal before emailing it.");
     const tok = await getAccessToken();
     const res = await fetch("/.netlify/functions/send-bid-email", {
       method : "POST",
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${tok}` },
-      body   : JSON.stringify({ bid_id: active.id }),
+      body   : JSON.stringify({
+        bid_id: remoteBidId,
+        proposal_document_id: readyDraft.proposal_document_id || null,
+      }),
     });
     const d = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(d.error || "Failed to send");
     setInlineMessage(bidMsg, `Proposal emailed to ${customer.email}.`, "ok");
-    // Update local cache status
+    const sentAt = new Date().toISOString();
     const idx = BIDS_CACHE.findIndex((r) => r.id === active.id);
-    if (idx >= 0) BIDS_CACHE[idx] = { ...BIDS_CACHE[idx], status: "sent" };
+    if (idx >= 0) {
+      BIDS_CACHE[idx] = {
+        ...BIDS_CACHE[idx],
+        status: "sent",
+        proposal_status: "sent",
+        sent_at: sentAt,
+      };
+    }
     renderBids(bidSearch?.value || "");
   } catch (err) {
     setInlineMessage(bidMsg, err.message || "Error sending.", "error");
@@ -1980,3 +2337,4 @@ window.PROOFLINK_OPERATOR_BIDS_WORKSPACE = {
 };
 
 Object.assign(window, BID_WORKSPACE_HELPERS);
+

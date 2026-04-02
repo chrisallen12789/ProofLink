@@ -10,6 +10,7 @@ const outputFile = path.join(sqlDir, "rebuild_supabase_full.sql");
 const orderedSqlFiles = [
   "catchup_run_this.sql",
   "service_workflow_phase1.sql",
+  "proposal_document_engine.sql",
   "service_recurring_plans.sql",
   "provision_failures.sql",
   "service_deposit_control.sql",

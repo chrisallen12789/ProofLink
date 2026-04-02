@@ -1,657 +1,630 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Estimate</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Proposal</title>
   <link rel="icon" href="/assets/favicon.png" />
-  <link rel="manifest" href="/site.webmanifest" />
+  <script src="/shared/proposal-document-engine.js"></script>
+  <style id="proposalEngineStyles"></style>
   <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: #12141c;
-      color: #e8e9eb;
-      min-height: 100vh;
-      padding: 32px 16px 64px;
+    :root {
+      color-scheme: light;
+      --viewer-accent: #c84b2f;
+      --viewer-bg: #ebe6dd;
+      --viewer-card: #ffffff;
+      --viewer-border: #d9d1c4;
+      --viewer-ink: #1d1a17;
+      --viewer-muted: #6a635c;
+      --viewer-success: #2e7d32;
+      --viewer-danger: #b3261e;
     }
-    .wrap { max-width: 680px; margin: 0 auto; width: 100%; }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: linear-gradient(180deg, #f6f2ea 0%, var(--viewer-bg) 100%);
+      color: var(--viewer-ink);
+      font-family: Arial, sans-serif;
+    }
+
+    .viewer-shell {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 24px 16px 48px;
+    }
+
     .hidden { display: none !important; }
 
-    /* Loading */
-    #loadingView {
+    #loadingView,
+    #errorView {
+      min-height: 100vh;
       display: flex;
-      flex-direction: column;
       align-items: center;
       justify-content: center;
-      min-height: 60vh;
-      gap: 14px;
-      color: rgba(255,255,255,.45);
+      padding: 32px 20px;
     }
+
+    .viewer-state {
+      width: min(420px, 100%);
+      background: rgba(255,255,255,.72);
+      border: 1px solid rgba(0,0,0,.08);
+      border-radius: 20px;
+      padding: 28px 24px;
+      text-align: center;
+      box-shadow: 0 18px 45px rgba(0,0,0,.08);
+      backdrop-filter: blur(8px);
+    }
+
     .spinner {
-      width: 36px; height: 36px;
-      border: 3px solid rgba(255,255,255,.1);
-      border-top-color: #c84b2f;
-      border-radius: 50%;
+      width: 42px;
+      height: 42px;
+      margin: 0 auto 14px;
+      border: 3px solid rgba(0,0,0,.12);
+      border-top-color: var(--viewer-accent);
+      border-radius: 999px;
       animation: spin .8s linear infinite;
     }
-    @keyframes spin { to { transform: rotate(360deg); } }
 
-    /* Error */
-    #errorView {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      min-height: 60vh;
-      text-align: center;
-      gap: 12px;
+    @keyframes spin {
+      to { transform: rotate(360deg); }
     }
-    .error-icon { font-size: 2.5rem; }
-    .error-title { font-size: 1.2rem; font-weight: 700; color: #e8e9eb; }
-    .error-sub { font-size: .875rem; color: rgba(255,255,255,.45); max-width: 320px; line-height: 1.5; }
 
-    /* Header */
-    .page-header {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      margin-bottom: 28px;
-    }
-    .biz-logo-wrap {
-      width: 48px; height: 48px;
-      background: rgba(200,75,47,.15);
-      border: 1px solid rgba(200,75,47,.3);
-      border-radius: 10px;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 1.3rem; font-weight: 800; color: #c84b2f;
-      flex-shrink: 0;
-      overflow: hidden;
-    }
-    .biz-logo-img {
-      width: 48px; height: 48px;
-      object-fit: cover;
-    }
-    .biz-info-name { font-size: 1.1rem; font-weight: 700; color: #e8e9eb; }
-    .biz-info-sub  { font-size: .8rem; color: rgba(255,255,255,.4); margin-top: 2px; }
-
-    /* Cards */
-    .card {
-      background: #1e2029;
-      border: 1px solid rgba(255,255,255,.1);
-      border-radius: 12px;
-      padding: 24px;
-      margin-bottom: 14px;
-    }
-    .card-label {
-      font-size: .7rem;
+    .viewer-state__title {
+      margin: 0;
+      font-size: 1.2rem;
       font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: .07em;
-      color: rgba(255,255,255,.35);
-      margin-bottom: 14px;
     }
 
-    /* Proposal meta */
-    .proposal-title { font-size: 1.35rem; font-weight: 700; margin-bottom: 10px; line-height: 1.3; }
-    .meta-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-      gap: 12px;
-      margin-top: 14px;
+    .viewer-state__copy {
+      margin: 12px 0 0;
+      color: var(--viewer-muted);
+      line-height: 1.6;
+      font-size: .95rem;
     }
-    .meta-item .ml { font-size: .72rem; color: rgba(255,255,255,.35); font-weight: 600; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 3px; }
-    .meta-item .mv { font-size: .9rem; color: #e8e9eb; font-weight: 500; }
-    .meta-item .mv.expiring { color: #fbbf24; }
 
-    /* Line items table */
-    .items-table { width: 100%; border-collapse: collapse; }
-    .items-table thead th {
-      font-size: .72rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: .06em;
-      color: rgba(255,255,255,.35);
-      padding: 0 0 10px;
-      text-align: left;
-      border-bottom: 1px solid rgba(255,255,255,.07);
+    .proposal-actions {
+      margin-top: 18px;
+      background: rgba(255,255,255,.88);
+      border: 1px solid var(--viewer-border);
+      border-radius: 18px;
+      padding: 18px;
+      box-shadow: 0 10px 28px rgba(0,0,0,.06);
     }
-    .items-table thead th.right { text-align: right; }
-    .items-table tbody td {
-      padding: 12px 0;
-      border-bottom: 1px solid rgba(255,255,255,.05);
-      font-size: .875rem;
-      vertical-align: top;
-    }
-    .items-table tbody tr:last-child td { border-bottom: none; }
-    .items-table td.right { text-align: right; white-space: nowrap; }
-    .item-desc { font-weight: 500; color: #e8e9eb; }
-    .item-note { font-size: .78rem; color: rgba(255,255,255,.4); margin-top: 3px; }
 
-    /* Totals */
-    .totals-row {
+    .proposal-actions__top {
       display: flex;
+      align-items: center;
       justify-content: space-between;
-      align-items: center;
-      padding: 8px 0;
-      font-size: .875rem;
-      border-bottom: 1px solid rgba(255,255,255,.05);
-    }
-    .totals-row:last-child { border-bottom: none; }
-    .totals-label { color: rgba(255,255,255,.55); }
-    .totals-value { font-weight: 500; color: #e8e9eb; }
-    .totals-total { padding-top: 12px; margin-top: 4px; border-top: 1px solid rgba(255,255,255,.12) !important; border-bottom: none !important; }
-    .totals-total .totals-label { font-size: 1rem; font-weight: 700; color: #e8e9eb; }
-    .totals-total .totals-value { font-size: 1.15rem; font-weight: 700; color: #c84b2f; }
-
-    /* Notes */
-    .notes-body {
-      font-size: .875rem;
-      color: rgba(255,255,255,.6);
-      line-height: 1.65;
-      white-space: pre-wrap;
+      gap: 16px;
+      flex-wrap: wrap;
     }
 
-    /* Actions card */
-    .actions-card { text-align: center; }
-    .btn-accept {
-      display: inline-block;
-      background: #c84b2f;
-      color: #fff;
-      border: none;
-      border-radius: 8px;
-      padding: 14px 36px;
-      font-size: 1rem;
+    .proposal-actions__copy {
+      color: var(--viewer-muted);
+      line-height: 1.6;
+      font-size: .92rem;
+    }
+
+    .proposal-actions__meta {
+      margin-top: 12px;
+      color: var(--viewer-muted);
+      font-size: .85rem;
+      line-height: 1.6;
+    }
+
+    .btn-primary,
+    .btn-secondary {
+      border: 0;
+      border-radius: 999px;
+      padding: 12px 22px;
+      font-size: .95rem;
       font-weight: 700;
       cursor: pointer;
-      transition: background .2s, transform .1s;
-      width: 100%;
-      max-width: 320px;
+      transition: transform .12s ease, opacity .12s ease, background .12s ease;
     }
-    .btn-accept:hover { background: #a93e28; }
-    .btn-accept:active { transform: scale(.98); }
-    .btn-accept:disabled { opacity: .5; cursor: not-allowed; }
+
+    .btn-primary {
+      background: var(--viewer-accent);
+      color: #fff;
+    }
+
+    .btn-secondary {
+      background: rgba(0,0,0,.06);
+      color: var(--viewer-ink);
+    }
+
+    .btn-primary:hover,
+    .btn-secondary:hover {
+      transform: translateY(-1px);
+    }
+
+    .btn-primary:disabled,
+    .btn-secondary:disabled {
+      opacity: .5;
+      cursor: not-allowed;
+      transform: none;
+    }
+
     .accepted-state {
       display: none;
       padding: 16px;
-      background: rgba(34,197,94,.08);
-      border: 1px solid rgba(34,197,94,.2);
-      border-radius: 8px;
-      text-align: center;
-    }
-    .accepted-state .check { font-size: 2rem; margin-bottom: 8px; }
-    .accepted-state .atitle { font-weight: 700; color: #4ade80; margin-bottom: 6px; }
-    .accepted-state .asub { font-size: .875rem; color: rgba(255,255,255,.5); }
-    .contact-row {
-      margin-top: 18px;
-      font-size: .82rem;
-      color: rgba(255,255,255,.4);
-      line-height: 1.6;
-    }
-    .contact-row a { color: rgba(200,75,47,.85); text-decoration: none; }
-    .contact-row a:hover { text-decoration: underline; }
-
-    /* Confirmation modal */
-    .modal-overlay {
-      position: fixed; inset: 0;
-      background: rgba(0,0,0,.65);
-      display: flex; align-items: center; justify-content: center;
-      z-index: 100;
-      padding: 16px;
-    }
-    .modal-box {
-      background: #1e2029;
-      border: 1px solid rgba(255,255,255,.12);
       border-radius: 14px;
-      padding: 28px 24px;
-      max-width: 380px;
+      background: rgba(46,125,50,.08);
+      border: 1px solid rgba(46,125,50,.2);
+    }
+
+    .accepted-state__title {
+      font-weight: 700;
+      color: var(--viewer-success);
+    }
+
+    .accepted-state__copy {
+      margin-top: 6px;
+      color: var(--viewer-muted);
+      line-height: 1.6;
+      font-size: .92rem;
+    }
+
+    .contact-links a {
+      color: var(--viewer-accent);
+      text-decoration: none;
+    }
+
+    .contact-links a:hover {
+      text-decoration: underline;
+    }
+
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      background: rgba(24, 20, 16, .58);
+      z-index: 20;
+    }
+
+    .modal-box {
+      width: min(440px, 100%);
+      background: var(--viewer-card);
+      border: 1px solid var(--viewer-border);
+      border-radius: 20px;
+      padding: 24px 22px;
+      box-shadow: 0 24px 50px rgba(0,0,0,.16);
+    }
+
+    .modal-title {
+      margin: 0;
+      font-size: 1.15rem;
+      font-weight: 700;
+    }
+
+    .modal-copy {
+      margin: 10px 0 0;
+      color: var(--viewer-muted);
+      line-height: 1.6;
+      font-size: .92rem;
+    }
+
+    .modal-summary {
+      margin-top: 18px;
+      border: 1px solid var(--viewer-border);
+      border-radius: 14px;
+      padding: 14px;
+      background: #faf8f4;
+    }
+
+    .modal-summary__label {
+      font-size: .72rem;
+      color: var(--viewer-muted);
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      margin-bottom: 4px;
+    }
+
+    .modal-summary__value {
+      font-size: .95rem;
+      line-height: 1.5;
+      font-weight: 600;
+    }
+
+    .modal-summary__grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 12px;
+    }
+
+    .modal-field {
+      margin-top: 16px;
+    }
+
+    .modal-field label {
+      display: block;
+      margin-bottom: 6px;
+      color: var(--viewer-muted);
+      font-size: .84rem;
+    }
+
+    .modal-field input {
       width: 100%;
-      text-align: center;
+      border: 1px solid var(--viewer-border);
+      border-radius: 12px;
+      padding: 12px 14px;
+      font-size: .95rem;
+      color: var(--viewer-ink);
+      background: #fff;
     }
-    .modal-title { font-size: 1.05rem; font-weight: 700; margin-bottom: 8px; }
-    .modal-sub { font-size: .875rem; color: rgba(255,255,255,.5); margin-bottom: 22px; line-height: 1.5; }
-    .modal-actions { display: flex; gap: 10px; justify-content: center; }
-    .btn-modal-confirm {
-      background: #c84b2f; color: #fff; border: none;
-      border-radius: 7px; padding: 11px 28px;
-      font-size: .9rem; font-weight: 700; cursor: pointer;
-      transition: background .2s;
-    }
-    .btn-modal-confirm:hover { background: #a93e28; }
-    .btn-modal-confirm:disabled { opacity: .5; cursor: not-allowed; }
-    .btn-modal-cancel {
-      background: rgba(255,255,255,.07); color: rgba(255,255,255,.75); border: none;
-      border-radius: 7px; padding: 11px 22px;
-      font-size: .9rem; font-weight: 600; cursor: pointer;
-      transition: background .2s;
-    }
-    .btn-modal-cancel:hover { background: rgba(255,255,255,.13); }
 
-    /* Powered */
-    .powered { text-align: center; font-size: .72rem; color: rgba(255,255,255,.25); margin-top: 28px; }
-    .powered a { color: rgba(255,255,255,.3); text-decoration: none; }
+    .modal-field__hint {
+      margin-top: 6px;
+      color: var(--viewer-muted);
+      font-size: .78rem;
+      line-height: 1.5;
+    }
 
-    @media (max-width: 480px) {
-      body { padding: 20px 12px 48px; }
-      .card { padding: 18px 16px; }
-      .proposal-title { font-size: 1.15rem; }
-      .items-table thead th,
-      .items-table tbody td { font-size: .8rem; }
+    .modal-error {
+      margin-top: 12px;
+      color: var(--viewer-danger);
+      font-size: .85rem;
+      line-height: 1.5;
+    }
+
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-top: 18px;
+      flex-wrap: wrap;
+    }
+
+    @media (max-width: 720px) {
+      .viewer-shell {
+        padding: 12px 8px 28px;
+      }
+
+      .proposal-actions__top,
+      .modal-actions,
+      .modal-summary__grid {
+        grid-template-columns: 1fr;
+        flex-direction: column;
+      }
+
+      .btn-primary,
+      .btn-secondary {
+        width: 100%;
+      }
     }
   </style>
 </head>
 <body>
-
-<!-- Loading state -->
-<div id="loadingView">
-  <div class="spinner"></div>
-  <span>Loading estimate&hellip;</span>
-</div>
-
-<!-- Error state -->
-<div id="errorView" class="hidden">
-  <div class="error-icon">&#x1F50D;</div>
-  <div class="error-title">We could not open this estimate</div>
-  <div class="error-sub">This link may have expired or already been used. Please contact the business for a fresh one.</div>
-</div>
-
-<!-- Confirmation modal (hidden by default) -->
-<div id="confirmModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
-  <div class="modal-box">
-    <div class="modal-title" id="modalTitle">Approve this estimate?</div>
-    <div class="modal-sub">Approving this estimate from <strong id="modalBizName"></strong> lets them know you are ready to move forward.</div>
-    <div class="card" style="padding:14px 16px;margin-bottom:18px;text-align:left;">
-      <div class="meta-item"><div class="ml">Estimate</div><div class="mv" id="modalEstimateTitle">-</div></div>
-      <div class="meta-grid" style="margin-top:12px;">
-        <div class="meta-item">
-          <div class="ml">Amount</div>
-          <div class="mv" id="modalEstimateAmount">-</div>
-        </div>
-        <div class="meta-item">
-          <div class="ml">Valid until</div>
-          <div class="mv" id="modalEstimateValidUntil">-</div>
-        </div>
-      </div>
-    </div>
-    <div id="modalEmailWrap" class="hidden" style="text-align:left;margin-bottom:18px;">
-      <label for="modalCustomerEmail" style="display:block;font-size:.8rem;color:rgba(255,255,255,.6);margin-bottom:6px;">Confirm the email this estimate was sent to</label>
-      <input id="modalCustomerEmail" type="email" placeholder="you@example.com" autocomplete="email" style="width:100%;background:#12141c;border:1px solid rgba(255,255,255,.14);border-radius:8px;color:#e8e9eb;padding:11px 12px;font-size:.9rem;" />
-      <div id="modalEmailHint" style="margin-top:6px;font-size:.76rem;color:rgba(255,255,255,.5);"></div>
-    </div>
-    <div class="modal-actions">
-      <button class="btn-modal-cancel" id="btnModalCancel" type="button">Go back</button>
-      <button class="btn-modal-confirm" id="btnModalConfirm" type="button">Yes, accept</button>
+  <div id="loadingView">
+    <div class="viewer-state">
+      <div class="spinner"></div>
+      <h1 class="viewer-state__title">Opening proposal</h1>
+      <p class="viewer-state__copy">Loading the document and approval details now.</p>
     </div>
   </div>
-</div>
 
-<!-- Proposal view -->
-<div id="proposalView" class="hidden">
-  <div class="wrap">
-
-    <!-- Business header -->
-    <div class="page-header">
-      <div id="bizLogoWrap" class="biz-logo-wrap" aria-hidden="true">P</div>
-      <div>
-        <div class="biz-info-name" id="bizName">Business</div>
-        <div class="biz-info-sub">Estimate for your service</div>
-      </div>
+  <div id="errorView" class="hidden">
+    <div class="viewer-state">
+      <h1 class="viewer-state__title">We could not open this proposal</h1>
+      <p class="viewer-state__copy">This link may have expired, been replaced, or not be available anymore. Please contact the business for a fresh copy.</p>
     </div>
-
-    <!-- Proposal summary card -->
-    <div class="card">
-      <div class="card-label">Estimate</div>
-      <div class="proposal-title" id="proposalTitle">-</div>
-      <div id="proposalCustomer" style="font-size:.875rem;color:rgba(255,255,255,.5);"></div>
-      <div class="meta-grid">
-        <div class="meta-item">
-          <div class="ml">Issued</div>
-          <div class="mv" id="metaIssued">-</div>
-        </div>
-        <div class="meta-item">
-          <div class="ml">Valid until</div>
-          <div class="mv" id="metaValidUntil">-</div>
-        </div>
-        <div class="meta-item">
-          <div class="ml">Status</div>
-          <div class="mv" id="metaStatus">-</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Line items card -->
-    <div class="card" id="lineItemsCard">
-      <div class="card-label">Services &amp; Items</div>
-      <table class="items-table">
-        <thead>
-          <tr>
-            <th>Description</th>
-            <th class="right" style="width:50px;">Qty</th>
-            <th class="right" style="width:90px;">Unit price</th>
-            <th class="right" style="width:90px;">Total</th>
-          </tr>
-        </thead>
-        <tbody id="lineItemsBody"></tbody>
-      </table>
-    </div>
-
-    <!-- Totals card -->
-    <div class="card" id="totalsCard">
-      <div id="totalsBody"></div>
-    </div>
-
-    <!-- Notes / Terms card (hidden until populated) -->
-    <div class="card hidden" id="notesCard">
-      <div class="card-label">Notes &amp; Details</div>
-      <div class="notes-body" id="notesBody"></div>
-    </div>
-
-    <!-- Actions card -->
-    <div class="card actions-card">
-      <div id="acceptedState" class="accepted-state">
-        <div class="check">&#x2705;</div>
-        <div class="atitle">Estimate approved</div>
-        <div class="asub" id="acceptedMsg">The business has been notified and will follow up with the next steps shortly.</div>
-      </div>
-      <button class="btn-accept" id="btnAccept" type="button">Approve and continue</button>
-      <div class="contact-row" id="contactRow">
-        Have a question before you approve? <span id="contactLinks">Contact the business</span>
-      </div>
-    </div>
-
   </div>
-</div>
 
-<script>
-(function () {
-  'use strict';
+  <div id="proposalView" class="hidden">
+    <div class="viewer-shell">
+      <div id="proposalMount"></div>
 
-  function escHtml(s) {
-    return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-  }
+      <section class="proposal-actions">
+        <div id="acceptedState" class="accepted-state">
+          <div class="accepted-state__title" id="acceptedTitle">Proposal accepted</div>
+          <div class="accepted-state__copy" id="acceptedMsg">The business has been notified and will follow up with the next steps shortly.</div>
+        </div>
 
-  function fmtCurrency(amount) {
-    if (amount === null || amount === undefined || amount === '') return '-';
-    var n = typeof amount === 'number' ? amount : parseFloat(amount);
-    if (isNaN(n)) return '-';
-    return '$' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-  }
+        <div id="proposalActionWrap">
+          <div class="proposal-actions__top">
+            <div>
+              <div class="proposal-actions__copy" id="actionCopy">Review the proposal above and approve it when you are ready to move forward.</div>
+            </div>
+            <button id="btnAccept" class="btn-primary" type="button">Approve proposal</button>
+          </div>
+          <div class="proposal-actions__meta">
+            Questions before you approve?
+            <span id="contactLinks" class="contact-links">Contact the business directly.</span>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
 
-  function fmtDate(str) {
-    if (!str) return '-';
-    var d = new Date(str);
-    if (isNaN(d.getTime())) return '-';
-    return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-  }
+  <div id="confirmModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal-box">
+      <h2 class="modal-title" id="modalTitle">Approve this proposal?</h2>
+      <p class="modal-copy">Approving this proposal lets the business know you are ready to move forward with the scope and pricing shown in the document.</p>
 
-  function showEl(id) {
-    var el = document.getElementById(id);
-    if (el) { el.classList.remove('hidden'); el.style.display = ''; }
-  }
-  function hideEl(id) {
-    var el = document.getElementById(id);
-    if (el) el.classList.add('hidden');
-  }
+      <div class="modal-summary">
+        <div class="modal-summary__label">Proposal</div>
+        <div class="modal-summary__value" id="modalProposalTitle">-</div>
+        <div class="modal-summary__grid">
+          <div>
+            <div class="modal-summary__label">Amount</div>
+            <div class="modal-summary__value" id="modalProposalAmount">-</div>
+          </div>
+          <div>
+            <div class="modal-summary__label">Valid until</div>
+            <div class="modal-summary__value" id="modalProposalValidUntil">-</div>
+          </div>
+        </div>
+      </div>
 
-  var params = new URLSearchParams(location.search);
-  var token  = params.get('token') || params.get('id');
-  var BIZ_NAME = '';
-  var CURRENT_QUOTE = null;
+      <div id="modalEmailWrap" class="modal-field hidden">
+        <label for="modalCustomerEmail">Confirm the email address this proposal was sent to</label>
+        <input id="modalCustomerEmail" type="email" autocomplete="email" placeholder="you@example.com" />
+        <div id="modalEmailHint" class="modal-field__hint"></div>
+      </div>
 
-  if (!token) {
-    hideEl('loadingView');
-    showEl('errorView');
-    return;
-  }
+      <div id="modalError" class="modal-error hidden"></div>
 
-  fetch('/.netlify/functions/get-quote?token=' + encodeURIComponent(token))
-    .then(function (r) {
-      if (!r.ok) throw new Error('not_found');
-      return r.json();
-    })
-    .then(function (data) {
-      renderProposal(data.quote || data);
-      hideEl('loadingView');
-      showEl('proposalView');
-    })
-    .catch(function () {
-      hideEl('loadingView');
-      showEl('errorView');
-    });
+      <div class="modal-actions">
+        <button id="btnModalCancel" class="btn-secondary" type="button">Go back</button>
+        <button id="btnModalConfirm" class="btn-primary" type="button">Yes, approve it</button>
+      </div>
+    </div>
+  </div>
 
-  function renderProposal(data) {
-    CURRENT_QUOTE = data || null;
-    // Business info
-    BIZ_NAME = data.business_name || 'the business';
-    document.getElementById('bizName').textContent = BIZ_NAME;
-    document.title = 'Estimate from ' + BIZ_NAME;
+  <script>
+    (function () {
+      'use strict';
 
-    var logoWrap = document.getElementById('bizLogoWrap');
-    if (data.business_logo_url || data.logo_url) {
-      var img = document.createElement('img');
-      img.src = data.business_logo_url || data.logo_url;
-      img.alt = escHtml(BIZ_NAME);
-      img.className = 'biz-logo-img';
-      logoWrap.innerHTML = '';
-      logoWrap.appendChild(img);
-    } else {
-      logoWrap.textContent = (BIZ_NAME || 'P').charAt(0).toUpperCase();
-    }
+      var params = new URLSearchParams(window.location.search);
+      var token = params.get('token') || params.get('id');
+      var CURRENT_QUOTE = null;
+      var BUSINESS_NAME = 'the business';
 
-    // Proposal meta
-    document.getElementById('proposalTitle').textContent = data.title || 'Estimate';
-    if (data.customer_name) {
-      document.getElementById('proposalCustomer').textContent = 'Prepared for ' + data.customer_name;
-    }
-    document.getElementById('metaIssued').textContent = fmtDate(data.created_at || data.issued_at);
-
-    var validUntilEl = document.getElementById('metaValidUntil');
-    if (data.valid_until) {
-      var vd = new Date(data.valid_until);
-      var daysLeft = Math.ceil((vd.getTime() - Date.now()) / 86400000);
-      validUntilEl.textContent = fmtDate(data.valid_until);
-      if (daysLeft <= 7 && daysLeft >= 0) {
-        validUntilEl.classList.add('expiring');
-        validUntilEl.textContent += ' (' + daysLeft + ' day' + (daysLeft !== 1 ? 's' : '') + ' left)';
-      } else if (daysLeft < 0) {
-        validUntilEl.classList.add('expiring');
-        validUntilEl.textContent += ' (expired)';
+      function escHtml(value) {
+        return String(value || '')
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
       }
-    } else {
-      validUntilEl.textContent = 'No expiration listed';
-    }
 
-    var statusMap = {
-      pending:  'Waiting on your approval',
-      sent:     'Waiting on your approval',
-      accepted: 'Accepted',
-      declined: 'Declined',
-      expired:  'Expired'
-    };
-    document.getElementById('metaStatus').textContent = statusMap[data.status] || (data.status || 'Pending');
+      function show(id) {
+        var el = document.getElementById(id);
+        if (el) el.classList.remove('hidden');
+      }
 
-    // Line items
-    var items = data.line_items || data.items || [];
-    var tbodyEl = document.getElementById('lineItemsBody');
-    if (items.length > 0) {
-      tbodyEl.innerHTML = items.map(function (item) {
-        var qty   = parseFloat(item.qty || item.quantity || 1);
-        var unit  = parseFloat(item.unit_price || item.price || 0);
-        var total = parseFloat(item.line_total !== undefined ? item.line_total : item.total !== undefined ? item.total : qty * unit);
-        var title = item.name || item.description || 'Item';
-        var note = item.description && item.description !== title
-          ? item.description
-          : (item.note || '');
-        return '<tr>' +
-          '<td>' +
-            '<div class="item-desc">' + escHtml(title) + '</div>' +
-            (note ? '<div class="item-note">' + escHtml(note) + '</div>' : '') +
-          '</td>' +
-          '<td class="right" style="color:rgba(255,255,255,.55);">' + escHtml(String(qty % 1 === 0 ? qty : qty.toFixed(2))) + '</td>' +
-          '<td class="right" style="color:rgba(255,255,255,.7);">' + escHtml(fmtCurrency(unit)) + '</td>' +
-          '<td class="right" style="font-weight:600;">' + escHtml(fmtCurrency(total)) + '</td>' +
-        '</tr>';
-      }).join('');
-    } else {
-      hideEl('lineItemsCard');
-    }
+      function hide(id) {
+        var el = document.getElementById(id);
+        if (el) el.classList.add('hidden');
+      }
 
-    // Totals
-    var subtotal = data.subtotal;
-    if ((subtotal === undefined || subtotal === null) && items.length > 0) {
-      subtotal = items.reduce(function (acc, item) {
-        var qty  = parseFloat(item.qty || item.quantity || 1);
-        var unit = parseFloat(item.unit_price || item.price || 0);
-        var line = parseFloat(item.line_total !== undefined ? item.line_total : item.total !== undefined ? item.total : qty * unit);
-        return acc + line;
-      }, 0);
-    }
+      function setModalError(message) {
+        var el = document.getElementById('modalError');
+        if (!el) return;
+        if (!message) {
+          el.textContent = '';
+          el.classList.add('hidden');
+          return;
+        }
+        el.textContent = message;
+        el.classList.remove('hidden');
+      }
 
-    var rows = [];
-    if (subtotal !== undefined && subtotal !== null) {
-      rows.push({ label: 'Subtotal', value: fmtCurrency(subtotal), isTotal: false });
-    }
-    if (data.discount_amount) {
-      rows.push({ label: 'Discount', value: '\u2212' + fmtCurrency(data.discount_amount), isTotal: false });
-    }
-    if (data.tax_amount) {
-      rows.push({ label: 'Tax', value: fmtCurrency(data.tax_amount), isTotal: false });
-    }
-    var grandTotal = data.total !== undefined ? data.total : data.total_amount;
-    if (grandTotal !== undefined && grandTotal !== null) {
-      rows.push({ label: 'Total', value: fmtCurrency(grandTotal), isTotal: true });
-    } else if (subtotal !== undefined) {
-      var calc = (subtotal || 0) - (parseFloat(data.discount_amount) || 0) + (parseFloat(data.tax_amount) || 0);
-      rows.push({ label: 'Total', value: fmtCurrency(calc), isTotal: true });
-    }
+      function formatMoney(value) {
+        if (value == null || value === '') return '-';
+        var numeric = typeof value === 'number' ? value : Number(value);
+        if (!isFinite(numeric)) return '-';
+        return new Intl.NumberFormat('en-US', {
+          style: 'currency',
+          currency: 'USD',
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        }).format(numeric);
+      }
 
-    var totalsEl = document.getElementById('totalsBody');
-    if (rows.length > 0) {
-      totalsEl.innerHTML = rows.map(function (r) {
-        return '<div class="totals-row' + (r.isTotal ? ' totals-total' : '') + '">' +
-          '<span class="totals-label">' + escHtml(r.label) + '</span>' +
-          '<span class="totals-value">' + escHtml(r.value) + '</span>' +
-        '</div>';
-      }).join('');
-    } else {
-      hideEl('totalsCard');
-    }
+      function formatMoneyFromQuote(data) {
+        if (!data) return '-';
+        if (data.total_amount != null) return formatMoney(data.total_amount);
+        if (data.total_cents != null) return formatMoney(Number(data.total_cents) / 100);
+        return '-';
+      }
 
-    // Notes / Terms
-    var notes = data.notes || data.cover_note || data.terms || data.scope_of_work || '';
-    if (notes) {
-      document.getElementById('notesBody').textContent = notes;
-      showEl('notesCard');
-    }
-
-    // Contact links
-    var contactParts = [];
-    if (data.business_email) {
-      contactParts.push('<a href="mailto:' + escHtml(data.business_email) + '">' + escHtml(data.business_email) + '</a>');
-    }
-    if (data.business_phone) {
-      contactParts.push('<a href="tel:' + escHtml(data.business_phone.replace(/\s/g, '')) + '">' + escHtml(data.business_phone) + '</a>');
-    }
-    if (contactParts.length > 0) {
-      document.getElementById('contactLinks').innerHTML = contactParts.join(' or ');
-    } else {
-      document.getElementById('contactLinks').textContent = 'Contact ' + BIZ_NAME;
-    }
-
-    // Already accepted. Hide the action button and show the accepted state.
-    if (data.status === 'accepted') {
-      showAcceptedState();
-      return;
-    }
-
-    // Expired. Hide the action button and show the expired state.
-    var isExpiredByDate = data.valid_until && new Date(data.valid_until) < new Date();
-    if (data.status === 'expired' || (data.status !== 'accepted' && isExpiredByDate)) {
-      document.getElementById('btnAccept').style.display = 'none';
-      var st = document.getElementById('acceptedState');
-      st.style.display = 'block';
-      st.querySelector('.atitle').textContent = 'This estimate has expired';
-      st.querySelector('.atitle').style.color = '#f87171';
-      document.getElementById('acceptedMsg').textContent =
-        'This estimate is no longer active. Please contact ' + BIZ_NAME + ' for an updated estimate.';
-    }
-  }
-
-  function showAcceptedState() {
-    document.getElementById('btnAccept').style.display = 'none';
-    var st = document.getElementById('acceptedState');
-    st.style.display = 'block';
-    document.getElementById('acceptedMsg').textContent =
-      BIZ_NAME + ' has been notified. They\u2019ll follow up shortly.';
-  }
-
-  // Accept button. Open the confirmation modal.
-  document.getElementById('btnAccept').addEventListener('click', function () {
-    document.getElementById('modalBizName').textContent = BIZ_NAME;
-    document.getElementById('modalEstimateTitle').textContent = (CURRENT_QUOTE && CURRENT_QUOTE.title) || 'Estimate';
-    document.getElementById('modalEstimateAmount').textContent = fmtCurrency((CURRENT_QUOTE && (CURRENT_QUOTE.total_amount != null ? CURRENT_QUOTE.total_amount : CURRENT_QUOTE.total_cents / 100)) || 0);
-    document.getElementById('modalEstimateValidUntil').textContent = (CURRENT_QUOTE && CURRENT_QUOTE.valid_until) ? fmtDate(CURRENT_QUOTE.valid_until) : 'No expiration listed';
-    var emailHint = (CURRENT_QUOTE && CURRENT_QUOTE.recipient_email_hint) || '';
-    document.getElementById('modalCustomerEmail').value = '';
-    document.getElementById('modalEmailHint').textContent = emailHint ? ('For security, enter the email that received this estimate. Expected account: ' + emailHint) : '';
-    document.getElementById('modalEmailWrap').classList.toggle('hidden', !emailHint);
-    showEl('confirmModal');
-  });
-
-  // Close modal on cancel or overlay click
-  document.getElementById('btnModalCancel').addEventListener('click', function () {
-    hideEl('confirmModal');
-  });
-  document.getElementById('confirmModal').addEventListener('click', function (e) {
-    if (e.target === this) hideEl('confirmModal');
-  });
-
-  // Confirm acceptance
-  document.getElementById('btnModalConfirm').addEventListener('click', function () {
-    var confirmBtn = document.getElementById('btnModalConfirm');
-    var emailInput = document.getElementById('modalCustomerEmail');
-    var expectedEmailHint = (CURRENT_QUOTE && CURRENT_QUOTE.recipient_email_hint) || '';
-    if (expectedEmailHint && !String(emailInput.value || '').trim()) {
-      emailInput.focus();
-      return;
-    }
-    confirmBtn.disabled = true;
-    confirmBtn.textContent = 'Sending\u2026';
-
-    var acceptReq = token
-      ? fetch('/.netlify/functions/get-quote', {
-          method : 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body   : JSON.stringify({ bid_id: token, token: token, action: 'accept', customer_email: String(emailInput.value || '').trim() || undefined }),
-        })
-      : Promise.resolve({ ok: true });
-
-    acceptReq.then(function (res) {
-      if (res && typeof res.json === 'function') {
-        return res.json().catch(function () { return { ok: res.ok }; }).then(function (d) {
-          hideEl('confirmModal');
-          if (!res.ok) {
-            var msg = d && d.error ? d.error : 'Unable to accept at this time. Please try again or contact us directly.';
-            confirmBtn.disabled = false;
-            confirmBtn.textContent = 'Yes, accept';
-            var errEl = document.createElement('div');
-            errEl.style.cssText = 'color:#f87171;font-size:.85rem;margin-top:10px;text-align:center;';
-            errEl.textContent = msg;
-            confirmBtn.parentNode.appendChild(errEl);
-            return;
-          }
-          showAcceptedState();
+      function formatDate(value) {
+        if (!value) return '-';
+        var date = new Date(value);
+        if (isNaN(date.getTime())) return '-';
+        return date.toLocaleDateString('en-US', {
+          month: 'long',
+          day: 'numeric',
+          year: 'numeric'
         });
       }
-      hideEl('confirmModal');
-      showAcceptedState();
-    }).catch(function () {
-      hideEl('confirmModal');
-      showAcceptedState();
-    });
-  });
 
-})();
-</script>
+      function setAccentFromQuote(data) {
+        var accent = data && data.document_model && data.document_model.branding
+          ? data.document_model.branding.primaryColor
+          : data.primary_color;
+        if (accent) {
+          document.documentElement.style.setProperty('--viewer-accent', accent);
+        }
+      }
+
+      function renderDocument(data) {
+        var mount = document.getElementById('proposalMount');
+        var engine = window.ProofLinkProposalDocuments;
+        var styles = document.getElementById('proposalEngineStyles');
+        var model = data.document_model || null;
+        var html = data.rendered_html_snapshot || data.document_html || '';
+
+        if (engine && typeof engine.renderDocumentStyles === 'function') {
+          styles.textContent = engine.renderDocumentStyles();
+        }
+
+        if (engine && model && typeof engine.renderDocumentBody === 'function') {
+          mount.innerHTML = '<div class="pl-doc-page">' + engine.renderDocumentBody(model) + '</div>';
+          return;
+        }
+
+        if (html) {
+          mount.innerHTML = '<div class="pl-doc-page">' + html + '</div>';
+          return;
+        }
+
+        mount.innerHTML = '<div class="viewer-state"><h1 class="viewer-state__title">Proposal unavailable</h1><p class="viewer-state__copy">The document could not be rendered. Please contact the business for an updated copy.</p></div>';
+      }
+
+      function renderContact(data) {
+        var parts = [];
+        if (data.business_email) {
+          parts.push('<a href="mailto:' + escHtml(data.business_email) + '">' + escHtml(data.business_email) + '</a>');
+        }
+        if (data.business_phone) {
+          parts.push('<a href="tel:' + escHtml(String(data.business_phone).replace(/\s+/g, '')) + '">' + escHtml(data.business_phone) + '</a>');
+        }
+        document.getElementById('contactLinks').innerHTML = parts.length
+          ? parts.join(' or ')
+          : 'Contact ' + escHtml(BUSINESS_NAME);
+      }
+
+      function showAcceptedState(title, copy, color) {
+        var acceptedState = document.getElementById('acceptedState');
+        document.getElementById('proposalActionWrap').classList.add('hidden');
+        acceptedState.style.display = 'block';
+        document.getElementById('acceptedTitle').textContent = title;
+        document.getElementById('acceptedTitle').style.color = color || 'var(--viewer-success)';
+        document.getElementById('acceptedMsg').textContent = copy;
+      }
+
+      function applyStatusState(data) {
+        var status = String(data.status || '').toLowerCase();
+        var expiration = data.valid_until ? new Date(data.valid_until) : null;
+        var isExpired = expiration && !isNaN(expiration.getTime()) && expiration < new Date() && status !== 'accepted';
+
+        if (status === 'accepted') {
+          showAcceptedState('Proposal accepted', BUSINESS_NAME + ' has been notified and will follow up with the next steps shortly.');
+          return;
+        }
+        if (status === 'rejected') {
+          showAcceptedState('Proposal closed', 'This proposal has already been declined. Please contact ' + BUSINESS_NAME + ' if you need a revised version.', 'var(--viewer-danger)');
+          return;
+        }
+        if (status === 'archived' || status === 'superseded' || isExpired) {
+          showAcceptedState('Proposal expired', 'This proposal is no longer active. Please contact ' + BUSINESS_NAME + ' for an updated copy.', 'var(--viewer-danger)');
+        }
+      }
+
+      function renderProposal(data) {
+        CURRENT_QUOTE = data || null;
+        BUSINESS_NAME = data.business_name || (data.document_model && data.document_model.branding && data.document_model.branding.companyName) || 'the business';
+        document.title = (data.title ? data.title + ' - ' : '') + BUSINESS_NAME;
+        setAccentFromQuote(data);
+        renderDocument(data);
+        renderContact(data);
+        applyStatusState(data);
+      }
+
+      function openConfirmModal() {
+        if (!CURRENT_QUOTE) return;
+        setModalError('');
+        document.getElementById('modalProposalTitle').textContent = CURRENT_QUOTE.title || 'Proposal';
+        document.getElementById('modalProposalAmount').textContent = formatMoneyFromQuote(CURRENT_QUOTE);
+        document.getElementById('modalProposalValidUntil').textContent = CURRENT_QUOTE.valid_until ? formatDate(CURRENT_QUOTE.valid_until) : 'No expiration listed';
+        document.getElementById('modalCustomerEmail').value = '';
+        var emailHint = CURRENT_QUOTE.recipient_email_hint || '';
+        document.getElementById('modalEmailWrap').classList.toggle('hidden', !emailHint);
+        document.getElementById('modalEmailHint').textContent = emailHint
+          ? 'For security, enter the email that received this proposal. Expected account: ' + emailHint
+          : '';
+        show('confirmModal');
+      }
+
+      function closeConfirmModal() {
+        hide('confirmModal');
+        setModalError('');
+        document.getElementById('btnModalConfirm').disabled = false;
+        document.getElementById('btnModalConfirm').textContent = 'Yes, approve it';
+      }
+
+      if (!token) {
+        hide('loadingView');
+        show('errorView');
+        return;
+      }
+
+      fetch('/.netlify/functions/get-quote?token=' + encodeURIComponent(token))
+        .then(function (response) {
+          if (!response.ok) throw new Error('not_found');
+          return response.json();
+        })
+        .then(function (payload) {
+          renderProposal(payload.quote || payload);
+          hide('loadingView');
+          show('proposalView');
+        })
+        .catch(function () {
+          hide('loadingView');
+          show('errorView');
+        });
+
+      document.getElementById('btnAccept').addEventListener('click', openConfirmModal);
+      document.getElementById('btnModalCancel').addEventListener('click', closeConfirmModal);
+      document.getElementById('confirmModal').addEventListener('click', function (event) {
+        if (event.target === this) closeConfirmModal();
+      });
+
+      document.getElementById('btnModalConfirm').addEventListener('click', function () {
+        var confirmBtn = document.getElementById('btnModalConfirm');
+        var emailInput = document.getElementById('modalCustomerEmail');
+        var requiresEmail = !!(CURRENT_QUOTE && CURRENT_QUOTE.recipient_email_hint);
+
+        if (requiresEmail && !String(emailInput.value || '').trim()) {
+          emailInput.focus();
+          setModalError('Enter the email address this proposal was sent to before approving it.');
+          return;
+        }
+
+        setModalError('');
+        confirmBtn.disabled = true;
+        confirmBtn.textContent = 'Sending...';
+
+        fetch('/.netlify/functions/get-quote', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            bid_id: token,
+            token: token,
+            action: 'accept',
+            customer_email: String(emailInput.value || '').trim() || undefined,
+          }),
+        })
+          .then(function (response) {
+            return response.json().catch(function () { return {}; }).then(function (payload) {
+              if (!response.ok) {
+                throw new Error(payload.error || 'Unable to approve this proposal right now.');
+              }
+              return payload;
+            });
+          })
+          .then(function () {
+            closeConfirmModal();
+            if (CURRENT_QUOTE) CURRENT_QUOTE.status = 'accepted';
+            showAcceptedState('Proposal accepted', BUSINESS_NAME + ' has been notified and will follow up with the next steps shortly.');
+          })
+          .catch(function (error) {
+            confirmBtn.disabled = false;
+            confirmBtn.textContent = 'Yes, approve it';
+            setModalError(error.message || 'Unable to approve this proposal right now.');
+          });
+      });
+    })();
+  </script>
 </body>
 </html>
