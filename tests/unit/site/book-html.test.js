@@ -9,19 +9,18 @@ describe("booking page html", () => {
     "utf8"
   );
 
-  test("uses clearer appointment-request guidance", () => {
+  test("loads the richer scheduler experience", () => {
     expect(source).toContain("<title>Request an appointment</title>");
-    expect(source).toContain("we will confirm the final appointment shortly");
+    expect(source).toContain("Daily</button>");
+    expect(source).toContain("Weekly</button>");
+    expect(source).toContain("Monthly</button>");
+    expect(source).toContain("Yearly</button>");
     expect(source).toContain("Send appointment request");
-    expect(source).toContain("This form keeps things simple.");
+    expect(source).toContain("book.css");
+    expect(source).toContain("book.js");
     expect(source).toContain("Morning (8am-12pm)");
-    expect(source).toContain("dateInput.value = d.toISOString().slice(0, 10)");
-    expect(source).toContain("dateInput.min = today.toISOString().slice(0, 10)");
-    expect(source).toContain("We could not confirm availability right now.");
-    expect(source).toContain("Please choose a time in the future.");
-    expect(source).toContain("referral_source: referralSource || undefined");
-    expect(source).toContain("notes          : rawNotes || undefined");
-    expect(source).toContain("sanitizeTelHref(phone)");
+    expect(source).toContain("Suggested starting times");
+    expect(source).toContain("Range-based availability");
   });
 
   test("does not carry mojibake into the booking page", () => {

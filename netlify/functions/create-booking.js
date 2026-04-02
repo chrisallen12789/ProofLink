@@ -1,6 +1,6 @@
 ﻿// netlify/functions/create-booking.js
 // Creates a new booking.
-// POST { customer_name, customer_email?, title, starts_at, ends_at, notes?, order_id? }
+// POST { customer_name, customer_email?, title, starts_at, ends_at, notes?, order_id?, service_address? }
 // Also accepts unauthenticated public bookings (no Authorization header) - used by book.html.
 
 'use strict';
@@ -44,6 +44,24 @@ function formatBookingWindow(startsAt, endsAt, timezone) {
   };
 }
 
+function cleanText(value) {
+  return String(value || '').trim();
+}
+
+function buildBookingNotes({ notes, serviceAddress, preferredTime, referralSource }) {
+  const parts = [];
+  const baseNotes = cleanText(notes);
+  if (baseNotes) parts.push(baseNotes);
+
+  const extras = [
+    serviceAddress ? `Service address: ${cleanText(serviceAddress)}` : '',
+    preferredTime ? `Preferred time: ${cleanText(preferredTime)}` : '',
+    referralSource ? `Referral source: ${cleanText(referralSource)}` : '',
+  ].filter(Boolean);
+
+  return [...parts, ...extras].join('\n');
+}
+
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return respond(200, {});
   if (event.httpMethod !== 'POST')    return respond(405, { error: 'Method not allowed' });
@@ -52,7 +70,19 @@ exports.handler = async (event) => {
   try { body = JSON.parse(event.body || '{}'); }
   catch { return respond(400, { error: 'Invalid JSON' }); }
 
-  const { customer_name, customer_email, title, starts_at, ends_at, notes, order_id, tenant_id, preferred_time, referral_source } = body;
+  const {
+    customer_name,
+    customer_email,
+    title,
+    starts_at,
+    ends_at,
+    notes,
+    order_id,
+    tenant_id,
+    preferred_time,
+    referral_source,
+    service_address,
+  } = body;
 
   if (!customer_name || !title || !starts_at || !ends_at) {
     return respond(400, { error: 'Missing required fields: customer_name, title, starts_at, ends_at' });
@@ -69,6 +99,13 @@ exports.handler = async (event) => {
   if (new Date(starts_at).getTime() < (Date.now() - 60 * 1000)) {
     return respond(400, { error: 'Bookings must be requested for a future time.' });
   }
+
+  const bookingNotes = buildBookingNotes({
+    notes,
+    serviceAddress: service_address,
+    preferredTime: preferred_time,
+    referralSource: referral_source,
+  });
 
   let resolvedTenantId = tenant_id || null;
   let resolvedOperatorId = null;
@@ -100,7 +137,7 @@ exports.handler = async (event) => {
       title,
       starts_at,
       ends_at,
-      notes         : notes || null,
+      notes         : bookingNotes || null,
       order_id      : order_id || null,
       status        : 'confirmed',
       created_at    : new Date().toISOString(),
@@ -178,7 +215,7 @@ exports.handler = async (event) => {
         customer_name,
         service_title : title,
         starts_at,
-        notes         : [notes, preferred_time ? `Preferred time: ${preferred_time}` : null, referral_source ? `Referral: ${referral_source}` : null].filter(Boolean).join('\n'),
+        notes         : bookingNotes || null,
         booking_url   : `${siteUrl}/operator/`,
       })).catch((e) => console.warn('[create-booking] operator notification failed:', e.message));
     }

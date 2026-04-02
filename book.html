@@ -6,432 +6,195 @@
   <title>Request an appointment</title>
   <link rel="icon" href="/assets/favicon.png" />
   <link rel="manifest" href="/site.webmanifest" />
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: #0f1117;
-      color: #e8e9eb;
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 24px 16px;
-    }
-    .card {
-      background: #1a1d27;
-      border: 1px solid rgba(255,255,255,.1);
-      border-radius: 12px;
-      padding: 32px;
-      max-width: 480px;
-      width: 100%;
-    }
-    .logo { font-size: 1.4rem; font-weight: 700; color: #c84b2f; margin-bottom: 4px; }
-    .biz-name { font-size: 1.1rem; font-weight: 600; margin-bottom: 2px; }
-    .sub { font-size: .875rem; color: rgba(255,255,255,.5); margin-bottom: 18px; line-height: 1.5; }
-    .helper-copy { font-size: .84rem; color: rgba(255,255,255,.62); margin-bottom: 18px; line-height: 1.55; }
-    h2 { font-size: 1rem; font-weight: 600; margin-bottom: 16px; }
-    label { display: block; font-size: .8rem; color: rgba(255,255,255,.6); margin-bottom: 4px; }
-    input, select, textarea {
-      width: 100%;
-      background: #0f1117;
-      border: 1px solid rgba(255,255,255,.15);
-      border-radius: 6px;
-      color: #e8e9eb;
-      padding: 10px 12px;
-      font-size: .9rem;
-      margin-bottom: 14px;
-      outline: none;
-      transition: border-color .2s;
-    }
-    input:focus, select:focus, textarea:focus { border-color: #c84b2f; }
-    textarea { resize: vertical; min-height: 80px; }
-    .row { display: flex; gap: 12px; }
-    .row > * { flex: 1; }
-    .btn {
-      width: 100%;
-      background: #c84b2f;
-      color: #fff;
-      border: none;
-      border-radius: 6px;
-      padding: 12px;
-      font-size: .95rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: background .2s;
-      margin-top: 4px;
-    }
-    .btn:hover { background: #a93e28; }
-    .btn:disabled { opacity: .5; cursor: not-allowed; }
-    .msg { margin-top: 14px; font-size: .875rem; padding: 10px 12px; border-radius: 6px; display: none; }
-    .msg.success { background: rgba(34,197,94,.1); color: #4ade80; border: 1px solid rgba(34,197,94,.2); display: block; }
-    .msg.error   { background: rgba(239,68,68,.1);  color: #f87171; border: 1px solid rgba(239,68,68,.2); display: block; }
-    .divider { border: none; border-top: 1px solid rgba(255,255,255,.08); margin: 20px 0; }
-    .powered { text-align: center; font-size: .75rem; color: rgba(255,255,255,.3); margin-top: 20px; }
-    .powered a { color: rgba(255,255,255,.4); text-decoration: none; }
-    .repeat-note {
-      font-size: .78rem;
-      color: rgba(255,255,255,.4);
-      margin-bottom: 14px;
-      margin-top: -8px;
-    }
-    .avail-notice {
-      font-size: .825rem;
-      color: rgba(255,255,255,.45);
-      background: rgba(255,255,255,.04);
-      border: 1px solid rgba(255,255,255,.08);
-      border-radius: 6px;
-      padding: 10px 12px;
-      margin-bottom: 16px;
-      line-height: 1.5;
-    }
-    .hidden { display: none; }
-    .avail-block-error {
-      font-size: .825rem;
-      color: #f87171;
-      background: rgba(239,68,68,.08);
-      border: 1px solid rgba(239,68,68,.2);
-      border-radius: 6px;
-      padding: 10px 12px;
-      margin-bottom: 14px;
-      display: none;
-    }
-    .avail-block-error.visible { display: block; }
-    .form-legend {
-      font-size: .78rem;
-      color: rgba(255,255,255,.5);
-      margin-bottom: 14px;
-      margin-top: -8px;
-    }
-    @media (max-width: 500px) {
-      .address-row, .field-row {
-        flex-direction: column !important;
-      }
-      .address-row input, .field-row input {
-        max-width: 100% !important;
-        flex: 1 1 100% !important;
-      }
-    }
-    #successView { text-align: center; padding: 16px 0; }
-    #successView .check { font-size: 3rem; margin-bottom: 12px; }
-    #successView h2 { margin-bottom: 8px; }
-    #successView p { font-size: .875rem; color: rgba(255,255,255,.6); }
-  </style>
+  <link rel="stylesheet" href="/book.css" />
 </head>
 <body>
-<div class="card">
-  <div class="logo">Appointment request</div>
-  <div class="biz-name" id="bizName">Loading...</div>
-  <div class="sub">Choose a preferred time, tell us what you need, and we will confirm the final appointment shortly.</div>
-
-  <div id="bookForm">
-    <p class="form-legend"><span aria-hidden="true">*</span> Required fields</p>
-    <p class="helper-copy">This form keeps things simple. Share the basics, and the business will follow up with the confirmed time and any next steps.</p>
-    <h2>Your info</h2>
-    <label>Your name <span aria-hidden="true">*</span></label>
-    <input type="text" id="customerName" placeholder="Jane Smith" autocomplete="name" aria-required="true" />
-
-    <label>Email address</label>
-    <input type="email" id="customerEmail" placeholder="jane@example.com" autocomplete="email" />
-
-    <div style="margin-top:14px;">
-      <label style="font-size:.78rem;color:rgba(255,255,255,.55);display:block;margin-bottom:6px;">Service address <span style="color:rgba(255,255,255,.3);">(where should we come?)</span></label>
-      <input type="text" id="serviceAddress" class="input" placeholder="Street address" style="width:100%;margin-bottom:6px;" />
-      <div class="address-row" style="display:flex;gap:6px;">
-        <input type="text" id="serviceCity" class="input" placeholder="City" style="flex:2;" />
-        <input type="text" id="serviceState" class="input" placeholder="State" style="flex:1;max-width:80px;" />
-        <input type="text" id="serviceZip" class="input" placeholder="Zip" style="flex:1;max-width:90px;" />
+  <main class="book-shell">
+    <section class="book-hero">
+      <p class="book-eyebrow">ProofLink Scheduling</p>
+      <div class="book-hero-grid">
+        <div>
+          <h1 id="bizName">Loading...</h1>
+          <p class="book-copy">
+            Browse availability by daily, weekly, monthly, or yearly view, then send an appointment request that feels fast and polished on every device.
+          </p>
+          <div class="book-chip-row">
+            <span class="book-chip">Responsive booking experience</span>
+            <span class="book-chip">Suggested time slots</span>
+            <span class="book-chip">Range-based availability</span>
+          </div>
+        </div>
+        <div class="book-hero-side">
+          <div class="book-stat">
+            <strong id="heroStatus">Select a day</strong>
+            <p>Your chosen date and time stay synced with the request form while you browse.</p>
+          </div>
+          <div class="book-stat">
+            <strong id="heroView">Monthly view</strong>
+            <p>Switch between daily, weekly, monthly, and yearly browsing without losing your place.</p>
+          </div>
+        </div>
       </div>
+    </section>
+
+    <div id="bookForm" class="book-grid">
+      <section class="book-panel">
+        <p class="book-kicker">Availability explorer</p>
+        <h2>Find the window that feels right</h2>
+        <p class="book-copy">Compare dates without pinching around a tiny picker. Tap a day to sync it into the form and use the suggested slots to move faster.</p>
+
+        <div class="book-tabs" role="tablist" aria-label="Availability view">
+          <button class="book-tab active" data-view="day" type="button">Daily</button>
+          <button class="book-tab" data-view="week" type="button">Weekly</button>
+          <button class="book-tab" data-view="month" type="button">Monthly</button>
+          <button class="book-tab" data-view="year" type="button">Yearly</button>
+        </div>
+
+        <div class="book-rangebar">
+          <div>
+            <strong id="rangeLabel">Loading availability</strong>
+            <div id="rangeMeta" class="book-muted">Checking the calendar for open dates.</div>
+          </div>
+          <div class="book-nav">
+            <button id="schedulePrev" class="book-navbtn" type="button" aria-label="Previous range">&#8249;</button>
+            <button id="scheduleNext" class="book-navbtn" type="button" aria-label="Next range">&#8250;</button>
+          </div>
+        </div>
+
+        <div class="book-summary">
+          <div class="book-statbox">
+            <span>Selected day</span>
+            <strong id="selectedDayLabel">Choose a date</strong>
+            <p id="selectedDayMeta">We will sync the form as you browse.</p>
+          </div>
+          <div class="book-statbox">
+            <span>Open days in view</span>
+            <strong id="openDaysCount">--</strong>
+            <p id="openDaysMeta">Good options appear here as you move through the schedule.</p>
+          </div>
+          <div class="book-statbox">
+            <span>Blocked days in view</span>
+            <strong id="blockedDaysCount">--</strong>
+            <p id="blockedDaysMeta">Unavailable dates stay visible before you submit.</p>
+          </div>
+        </div>
+
+        <div id="availabilityFeedback" class="book-feedback">Choose a view to start browsing dates.</div>
+        <div id="scheduleBoard" class="book-board"></div>
+
+        <div class="book-slots">
+          <div class="book-slots-head">
+            <div>
+              <strong>Suggested starting times</strong>
+              <div class="book-muted">Tap a slot to prefill the request, or type your exact time on the form.</div>
+            </div>
+            <div id="slotHint" class="book-muted">Select a date to unlock time suggestions.</div>
+          </div>
+          <div id="timeSlotGrid" class="book-slotgrid"></div>
+        </div>
+      </section>
+
+      <section class="book-panel">
+        <p class="book-kicker">Appointment request</p>
+        <h2>Share the details once, clearly</h2>
+        <p class="book-legend"><span aria-hidden="true">*</span> Required fields</p>
+        <p class="book-copy">This form keeps things simple while still capturing the details the business actually needs to follow up well.</p>
+
+        <div class="book-form">
+          <div>
+            <label for="customerName">Your name <span aria-hidden="true">*</span></label>
+            <input type="text" id="customerName" placeholder="Jane Smith" autocomplete="name" aria-required="true" />
+          </div>
+
+          <div>
+            <label for="customerEmail">Email address</label>
+            <input type="email" id="customerEmail" placeholder="jane@example.com" autocomplete="email" />
+            <p class="book-note">Already a customer? Use the same email and we will match your past details when we can.</p>
+          </div>
+
+          <div>
+            <label for="serviceAddress">Service address</label>
+            <input type="text" id="serviceAddress" placeholder="Street address" />
+            <div class="book-three">
+              <input type="text" id="serviceCity" placeholder="City" />
+              <input type="text" id="serviceState" placeholder="State" />
+              <input type="text" id="serviceZip" placeholder="ZIP" />
+            </div>
+          </div>
+
+          <div>
+            <label for="bookingTitle">Service or reason <span aria-hidden="true">*</span></label>
+            <input type="text" id="bookingTitle" placeholder="Lawn mowing, consultation, deep clean..." aria-required="true" />
+          </div>
+
+          <div class="book-two">
+            <div>
+              <label for="bookingDate">Preferred date <span aria-hidden="true">*</span></label>
+              <input type="date" id="bookingDate" aria-required="true" />
+            </div>
+            <div>
+              <label for="bookingStart">Preferred start time <span aria-hidden="true">*</span></label>
+              <input type="time" id="bookingStart" value="09:00" aria-required="true" />
+            </div>
+          </div>
+
+          <div class="book-two">
+            <div>
+              <label for="bookingDuration">Duration</label>
+              <select id="bookingDuration">
+                <option value="30">30 minutes</option>
+                <option value="60" selected>1 hour</option>
+                <option value="90">1.5 hours</option>
+                <option value="120">2 hours</option>
+                <option value="180">3 hours</option>
+                <option value="240">4 hours</option>
+              </select>
+            </div>
+            <div>
+              <label for="preferredTime">Preferred time of day</label>
+              <select id="preferredTime">
+                <option value="">No preference</option>
+                <option value="Morning (8am-12pm)">Morning (8am-12pm)</option>
+                <option value="Afternoon (12pm-5pm)">Afternoon (12pm-5pm)</option>
+                <option value="Evening (5pm-8pm)">Evening (5pm-8pm)</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label for="bookingNotes">Notes</label>
+            <textarea id="bookingNotes" placeholder="Access details, gate instructions, project notes, or anything else the team should know..."></textarea>
+          </div>
+
+          <div>
+            <label for="referralSource">How did you hear about us?</label>
+            <select id="referralSource">
+              <option value="">Select an option</option>
+              <option value="Google Search">Google Search</option>
+              <option value="Social Media">Social Media</option>
+              <option value="Word of Mouth / Referral">Word of Mouth / Referral</option>
+              <option value="Returning Customer">Returning Customer</option>
+              <option value="Flyer / Advertisement">Flyer / Advertisement</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+
+          <div class="book-cta-row">
+            <button class="book-btn" id="btnBook" type="button">Send appointment request</button>
+            <div id="bookMsg" class="book-msg" role="alert"></div>
+          </div>
+
+          <div id="pricingNote" class="book-contact-note">Have questions before you book? Contact the business directly<span id="pricingContact"></span>.</div>
+        </div>
+      </section>
     </div>
 
-    <p class="repeat-note">Already a customer? Use the same email and we will match your past details when we can.</p>
-
-    <hr class="divider" />
-    <h2>Appointment details</h2>
-
-    <div class="avail-notice">
-      Choose your preferred date and time. We will confirm the final appointment shortly.
-    </div>
-
-    <label>Service / reason <span aria-hidden="true">*</span></label>
-    <input type="text" id="bookingTitle" placeholder="e.g. Lawn mowing, Consultation, Deep clean" aria-required="true" />
-
-    <div class="avail-block-error" id="availBlockError" role="alert" aria-live="assertive"></div>
-
-    <div class="row">
-      <div>
-        <label>Date <span aria-hidden="true">*</span></label>
-        <input type="date" id="bookingDate" aria-required="true" />
-      </div>
-      <div>
-        <label>Start time <span aria-hidden="true">*</span></label>
-        <input type="time" id="bookingStart" value="09:00" aria-required="true" />
-      </div>
-    </div>
-
-    <label>Duration</label>
-    <select id="bookingDuration">
-      <option value="30">30 minutes</option>
-      <option value="60" selected>1 hour</option>
-      <option value="90">1.5 hours</option>
-      <option value="120">2 hours</option>
-      <option value="180">3 hours</option>
-      <option value="240">4 hours</option>
-    </select>
-
-    <label>Preferred time of day</label>
-    <select id="preferredTime">
-      <option value="">No preference</option>
-      <option value="Morning (8am-12pm)">Morning (8am-12pm)</option>
-      <option value="Afternoon (12pm-5pm)">Afternoon (12pm-5pm)</option>
-      <option value="Evening (5pm-8pm)">Evening (5pm-8pm)</option>
-    </select>
-
-    <label>Notes (optional)</label>
-    <textarea id="bookingNotes" placeholder="Any details, access instructions, or special requests..."></textarea>
-
-    <label>How did you hear about us?</label>
-    <select id="referralSource">
-      <option value="">- Select an option -</option>
-      <option value="Google Search">Google Search</option>
-      <option value="Social Media">Social Media</option>
-      <option value="Word of Mouth / Referral">Word of Mouth / Referral</option>
-      <option value="Returning Customer">Returning Customer</option>
-      <option value="Flyer / Advertisement">Flyer / Advertisement</option>
-      <option value="Other">Other</option>
-    </select>
-
-    <button class="btn" id="btnBook" type="button">Send appointment request</button>
-    <div class="msg" id="bookMsg" role="alert"></div>
-    <div id="pricingNote" style="display:none;margin-top:16px;padding:12px 14px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:8px;font-size:.8rem;color:rgba(255,255,255,.55);line-height:1.5;">
-      Have questions about pricing? Contact us directly.<span id="pricingContact"></span>
-    </div>
-  </div>
-
-  <div id="successView" class="hidden" role="status" aria-live="polite">
-    <div class="check">&#x2705;</div>
-    <h2>Request received</h2>
-    <p id="successDetail">Your appointment has been requested. You'll hear from us shortly to confirm.</p>
-  </div>
-
-</div>
-
-<script>
-(function () {
-  'use strict';
-
-  const params    = new URLSearchParams(location.search);
-  const tenantId  = params.get('tenant');
-  const prefillEmail = params.get('email');
-  const bizNameEl = document.getElementById('bizName');
-
-  // Pre-fill email if coming from portal link
-  if (prefillEmail) {
-    var emailEl = document.getElementById('customerEmail');
-    if (emailEl) emailEl.value = prefillEmail;
-  }
-
-  function sanitizeTelHref(value) {
-    var digits = String(value || '').replace(/[^\d+]/g, '');
-    return digits ? 'tel:' + digits : '';
-  }
-
-  // Pre-fill date to tomorrow
-  (function () {
-    var dateInput = document.getElementById('bookingDate');
-    if (!dateInput) return;
-    const d = new Date();
-    const today = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-    dateInput.min = today.toISOString().slice(0, 10);
-    d.setDate(d.getDate() + 1);
-    dateInput.value = d.toISOString().slice(0, 10);
-  })();
-
-  // Availability block check
-  var availErrorEl = document.getElementById('availBlockError');
-  var bookBtn      = document.getElementById('btnBook');
-
-  function checkDateAvailability(dateStr) {
-    if (!tenantId || !dateStr) return;
-    fetch(
-      '/.netlify/functions/get-availability?tenant_id=' +
-      encodeURIComponent(tenantId) + '&date=' + encodeURIComponent(dateStr)
-    )
-      .then(function (r) {
-        return r.json().then(function (data) {
-          if (!r.ok) throw new Error((data && data.error) || 'Availability could not be checked.');
-          return data;
-        });
-      })
-      .then(function (data) {
-        if (!data.available) {
-          availErrorEl.textContent = data.reason || 'This date is not available for booking.';
-          availErrorEl.classList.add('visible');
-          bookBtn.disabled = true;
-        } else {
-          availErrorEl.textContent = '';
-          availErrorEl.classList.remove('visible');
-          bookBtn.disabled = false;
-        }
-      })
-      .catch(function () {
-        availErrorEl.textContent = 'We could not confirm availability right now. Please try again in a moment or contact the business directly before booking.';
-        availErrorEl.classList.add('visible');
-        bookBtn.disabled = true;
-      });
-  }
-
-  document.getElementById('bookingDate').addEventListener('change', function () {
-    checkDateAvailability(this.value);
-  });
-
-  // Check the pre-filled tomorrow date on page load once tenant is known.
-  // We defer until after tenantId is confirmed (it comes from URL params so it's
-  // available immediately).
-  (function () {
-    var initialDate = document.getElementById('bookingDate').value;
-    if (initialDate) checkDateAvailability(initialDate);
-  })();
-
-  // Load business name
-  if (tenantId) {
-    fetch('/.netlify/functions/get-public-tenant-info?tenant_id=' + encodeURIComponent(tenantId))
-      .then(function (r) { return r.json(); })
-      .then(function (d) {
-        if (d && d.business_name) {
-          bizNameEl.textContent = d.business_name;
-          document.title = 'Request an appointment with ' + d.business_name;
-        } else {
-          bizNameEl.textContent = 'Schedule with us';
-          document.title = 'Request an appointment';
-        }
-        // Show pricing contact note if business has a phone or email on file
-        var phone = d && (d.phone || d.business_phone);
-        var email = d && (d.email || d.business_email);
-        if (phone || email) {
-          var contactEl = document.getElementById('pricingContact');
-          var noteEl    = document.getElementById('pricingNote');
-          if (contactEl && noteEl) {
-            var parts = [];
-            if (phone) parts.push('<a href="' + sanitizeTelHref(phone) + '" style="color:rgba(255,255,255,.7);text-decoration:underline;">' + phone + '</a>');
-            if (email) parts.push('<a href="mailto:' + email + '" style="color:rgba(255,255,255,.7);text-decoration:underline;">' + email + '</a>');
-            contactEl.innerHTML = ' ' + parts.join(' or ');
-            noteEl.style.display = 'block';
-          }
-        }
-      })
-      .catch(function () {
-        bizNameEl.textContent = 'Schedule with us';
-        document.title = 'Request an appointment';
-      });
-  } else {
-    bizNameEl.textContent = 'Schedule with us';
-    document.title = 'Request an appointment';
-  }
-
-  document.getElementById('btnBook').addEventListener('click', function () {
-    const btn            = document.getElementById('btnBook');
-    const msg            = document.getElementById('bookMsg');
-    const name           = document.getElementById('customerName').value.trim();
-    const email          = document.getElementById('customerEmail').value.trim();
-    const title          = document.getElementById('bookingTitle').value.trim();
-    const date           = document.getElementById('bookingDate').value;
-    const time           = document.getElementById('bookingStart').value;
-    const dur            = parseInt(document.getElementById('bookingDuration').value, 10);
-    const preferredTime  = document.getElementById('preferredTime').value;
-    const referralSource = document.getElementById('referralSource').value;
-    const rawNotes       = document.getElementById('bookingNotes').value.trim();
-    const serviceAddress = [
-      document.getElementById('serviceAddress')?.value?.trim(),
-      document.getElementById('serviceCity')?.value?.trim(),
-      document.getElementById('serviceState')?.value?.trim(),
-      document.getElementById('serviceZip')?.value?.trim(),
-    ].filter(Boolean).join(', ');
-
-    msg.className = 'msg';
-    msg.textContent = '';
-
-    if (!name || !title || !date || !time) {
-      msg.textContent = 'Please fill in all required fields.';
-      msg.className   = 'msg error';
-      return;
-    }
-    if (!tenantId) {
-      msg.textContent = 'This booking page is missing business information. Please ask for a fresh link.';
-      msg.className   = 'msg error';
-      return;
-    }
-    if (availErrorEl && availErrorEl.classList.contains('visible')) {
-      msg.textContent = availErrorEl.textContent || 'The selected date is not available.';
-      msg.className   = 'msg error';
-      return;
-    }
-
-    const localStart = new Date(date + 'T' + time + ':00');
-    const now = new Date();
-    if (!Number.isFinite(localStart.getTime()) || localStart.getTime() < (now.getTime() - 60000)) {
-      msg.textContent = 'Please choose a time in the future.';
-      msg.className   = 'msg error';
-      return;
-    }
-
-    const startsAt = localStart.toISOString();
-    const endsAt   = new Date(new Date(startsAt).getTime() + dur * 60000).toISOString();
-
-    btn.disabled    = true;
-    btn.textContent = 'Sending...';
-
-    fetch('/.netlify/functions/create-booking', {
-      method : 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body   : JSON.stringify({
-        tenant_id      : tenantId,
-        customer_name  : name,
-        customer_email : email || undefined,
-        title,
-        starts_at      : startsAt,
-        ends_at        : endsAt,
-        preferred_time : preferredTime || undefined,
-        referral_source: referralSource || undefined,
-        notes          : rawNotes || undefined,
-        service_address: serviceAddress || undefined,
-      }),
-    })
-      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, status: r.status, d: d }; }); })
-      .then(function (res) {
-        if (!res.ok) {
-          var errMsg = (res.d && res.d.error) || '';
-          var httpStatus = res.status;
-          var friendly;
-          if (httpStatus >= 500) {
-            friendly = 'We hit a snag on our end. Please try again in a moment.';
-          } else if (errMsg && /duplicate|already.book/i.test(errMsg)) {
-            friendly = "Looks like you may have already booked this. Check your confirmation email.";
-          } else if (errMsg && /unavailable|not available/i.test(errMsg)) {
-            friendly = "This date isn\u2019t available. Please choose a different time.";
-          } else {
-            friendly = errMsg || 'We could not send your request. Please try again.';
-          }
-          throw new Error(friendly);
-        }
-        document.getElementById('bookForm').classList.add('hidden');
-        document.getElementById('successView').classList.remove('hidden');
-        const start = new Date(startsAt);
-        document.getElementById('successDetail').textContent =
-          'We received your request for ' + start.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' }) +
-          ' at ' + start.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) + '. We will confirm the final time shortly.';
-      })
-      .catch(function (err) {
-        var isNetworkError = err instanceof TypeError;
-        msg.textContent = isNetworkError
-          ? 'Connection problem. Your request was not sent. Check your internet and try again.'
-          : (err.message || 'Something went wrong. Please try again or contact the business directly.');
-        msg.className   = 'msg error';
-        btn.disabled    = false;
-        btn.textContent = 'Send appointment request';
-      });
-  });
-})();
-</script>
+    <section id="successView" class="book-panel book-success hidden" role="status" aria-live="polite">
+      <div class="book-successmark">&#10003;</div>
+      <h2>Request received</h2>
+      <p id="successDetail" class="book-muted">Your appointment has been requested. You will hear from the business shortly to confirm the final time.</p>
+    </section>
+  </main>
+  <script src="/book.js"></script>
 </body>
 </html>

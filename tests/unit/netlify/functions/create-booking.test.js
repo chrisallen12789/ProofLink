@@ -76,4 +76,77 @@ describe("netlify/functions/create-booking", () => {
     expect(JSON.parse(res.body).error).toBe("Bookings must be requested for a future time.");
     expect(supabase.from).not.toHaveBeenCalled();
   });
+
+  test("persists scheduling context in the stored booking notes", async () => {
+    let insertedPayload = null;
+    const queryBuilder = (result) => ({
+      eq() { return this; },
+      limit() { return this; },
+      maybeSingle: async () => result,
+    });
+    const supabase = {
+      from: vi.fn((table) => {
+        if (table === "bookings") {
+          return {
+            insert: vi.fn((payload) => {
+              insertedPayload = payload;
+              return {
+                select: () => ({
+                  maybeSingle: async () => ({
+                    data: { id: "booking_1", ...payload },
+                    error: null,
+                  }),
+                }),
+              };
+            }),
+          };
+        }
+        if (table === "tenants") {
+          return { select: () => queryBuilder({ data: { name: "ProofLink Test" }, error: null }) };
+        }
+        if (table === "tenant_config") {
+          return {
+            select: () => ({
+              eq() { return this; },
+              maybeSingle: async () => ({ data: null, error: null }),
+            }),
+          };
+        }
+        if (table === "availability") {
+          return { select: () => queryBuilder({ data: { timezone: "America/New_York" }, error: null }) };
+        }
+        if (table === "operators") {
+          return { select: () => queryBuilder({ data: { email: "ops@example.com", name: "Ops" }, error: null }) };
+        }
+        throw new Error(`Unexpected table: ${table}`);
+      }),
+    };
+    installMocks({ supabase });
+    const handler = require(handlerPath).handler;
+
+    const start = new Date(Date.now() + (2 * 60 * 60 * 1000)).toISOString();
+    const end = new Date(Date.now() + (3 * 60 * 60 * 1000)).toISOString();
+    const res = await handler({
+      httpMethod: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        tenant_id: "tenant_1",
+        customer_name: "Chris",
+        customer_email: "chris@example.com",
+        title: "Visit",
+        starts_at: start,
+        ends_at: end,
+        notes: "Please ring the side door.",
+        service_address: "100 Market Street, Buffalo, NY 14201",
+        preferred_time: "Morning (8am-12pm)",
+        referral_source: "Google Search",
+      }),
+    });
+
+    expect(res.statusCode).toBe(201);
+    expect(insertedPayload.notes).toContain("Please ring the side door.");
+    expect(insertedPayload.notes).toContain("Service address: 100 Market Street, Buffalo, NY 14201");
+    expect(insertedPayload.notes).toContain("Preferred time: Morning (8am-12pm)");
+    expect(insertedPayload.notes).toContain("Referral source: Google Search");
+  });
 });
