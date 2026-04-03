@@ -131,6 +131,16 @@ The audit is advisory. Operators still decide whether to update records, create 
 - Import workspace
   Use `Run AI migration review` after previewing a CSV to see grounded mapping coverage, row-routing risk, and the learned import profile ProofLink can save for future legacy exports.
 
+The retention training loop is intentionally tied to the shipped customer workbench:
+
+- `operator/operator-customer-detail.js` exposes repeat-service memory such as cadence notes, checklist memory, equipment follow-up, and post-work recovery cues.
+- `netlify/functions/agent/tools.js`
+  Loads those same customer-memory fields into the retention context so the reactivation lane is trained on the operator workflow that actually shipped.
+- `retention_reactivation_manager`
+  Uses those saved customer-memory fields as grounded repeat-service signals before ranking dormant accounts for follow-up.
+- `tests/unit/netlify/functions/retention-reactivation-manager.test.js`
+  Protects that training path so new customer-memory fields stay connected to the backend lane instead of drifting into UI-only logic.
+
 ## Admin Usage
 
 - Admin panel

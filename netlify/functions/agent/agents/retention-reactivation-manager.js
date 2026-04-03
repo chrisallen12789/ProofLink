@@ -7,6 +7,10 @@ function firstText(...values) {
   return values.find((value) => String(value || '').trim()) || '';
 }
 
+function compactText(value, max = 160) {
+  return String(value || '').trim().slice(0, max);
+}
+
 function groupByCustomer(rows = []) {
   const grouped = new Map();
   (rows || []).forEach((row) => {
@@ -33,8 +37,40 @@ function repeatSignal(customer = {}) {
     customer.maintenance_notes,
     customer.parts_follow_up,
     customer.warranty_notes,
-    customer.seasonal_notes
+    customer.seasonal_notes,
+    customer.service_notes,
+    customer.scope_notes,
+    customer.checklist_notes,
+    customer.equipment_notes,
+    customer.equipment_serial,
+    customer.issue_summary,
+    customer.restoration_notes,
+    customer.preferences,
+    customer.notes
   );
+}
+
+function repeatSignalFields(customer = {}) {
+  return [
+    ['service_plan_name', customer.service_plan_name],
+    ['recurring_notes', customer.recurring_notes],
+    ['service_schedule', customer.service_schedule],
+    ['frequency', customer.frequency],
+    ['follow_up_notes', customer.follow_up_notes],
+    ['maintenance_notes', customer.maintenance_notes],
+    ['parts_follow_up', customer.parts_follow_up],
+    ['warranty_notes', customer.warranty_notes],
+    ['seasonal_notes', customer.seasonal_notes],
+    ['service_notes', customer.service_notes],
+    ['scope_notes', customer.scope_notes],
+    ['checklist_notes', customer.checklist_notes],
+    ['equipment_notes', customer.equipment_notes],
+    ['equipment_serial', customer.equipment_serial],
+    ['issue_summary', customer.issue_summary],
+    ['restoration_notes', customer.restoration_notes],
+    ['preferences', customer.preferences],
+    ['notes', customer.notes],
+  ].filter(([, value]) => String(value || '').trim());
 }
 
 async function runRetentionReactivationManager({ supabase, tenantId, input }) {
@@ -100,12 +136,14 @@ async function runRetentionReactivationManager({ supabase, tenantId, input }) {
       const customerId = String(customer?.id || '').trim();
       const planCount = (plansByCustomer.get(customerId) || []).length;
       const workCount = (ordersByCustomer.get(customerId) || []).length + (jobsByCustomer.get(customerId) || []).length;
+      const signalFields = repeatSignalFields(customer);
+      const primarySignal = signalFields[0] || [];
       const evidenceId = evidence.add({
         record_type: 'customer',
         record_id: customerId,
         field: 'retention_state',
         label: `Retention ${bucketKey.replace(/_/g, ' ')}`,
-        value: `${customer.name || customer.company_name || 'Customer'} | ${repeatSignal(customer) || 'no repeat signal on file'} | ${planCount} plan(s) | ${workCount} recent work record(s)`,
+        value: `${customer.name || customer.company_name || 'Customer'} | ${compactText(primarySignal[1] || 'no repeat signal on file')} | signal source ${primarySignal[0] || 'none'} | ${planCount} plan(s) | ${workCount} recent work record(s)`,
       });
       findings.push({
         id: `retention_${bucketKey}_${index + 1}`,
@@ -119,7 +157,7 @@ async function runRetentionReactivationManager({ supabase, tenantId, input }) {
               ? 'be recovered through the plan lane'
               : 'get a lighter follow-up touch'}`,
         detail: bucketKey === 'reactivate_now'
-          ? 'This customer still looks like repeat-service work, but the record has gone quiet and there is no active plan or open work keeping the next visit visible.'
+          ? `This customer still looks like repeat-service work from ${primarySignal[0] || 'the saved customer memory'}, but the record has gone quiet and there is no active plan or open work keeping the next visit visible.`
           : bucketKey === 'recent_work_still_open'
             ? 'There is still open work or a current operational path attached to this customer, so reactivation should wait until that flow closes cleanly.'
             : bucketKey === 'plan_recovery'
