@@ -26,6 +26,8 @@ ProofLink now has a structured agent layer under `netlify/functions/agent`.
   Reviews one job and its linked order, proof, payments, invoices, expenses, time segments, and compliance state to produce a billing-readiness report.
 - `estimating_assistant`
   Separates known estimate facts from missing inputs from the Walkthrough Bids workflow. It never invents prices.
+- `proposal_readiness_auditor`
+  Reviews proposal defaults, signer readiness, validity timing, terms coverage, and deposit setup before a walkthrough bid is sent or converted.
 - `quote_rescue_manager`
   Builds a grounded rescue queue for live quotes and walkthrough proposals so operators can separate follow-up-ready work from estimate cleanup and stale records that should be reworked first.
 - `service_plan_renewal_manager`
@@ -110,6 +112,8 @@ The audit is advisory. Operators still decide whether to update records, create 
 
 - Money workspace
   Use `Run blocker review` in the `Billing blocker queue` card to build a job queue of invoice blockers with direct `Open job` actions.
+- Walkthrough Bids workspace
+  Use `Run proposal readiness review` for the active bid before send or convert so branding defaults, signer setup, validity timing, terms, exclusions, and deposit expectations stay inspectable.
 - Walkthrough Bids workspace
   Use `Run estimate review` for the active bid and `Run quote rescue review` for the proposal queue so estimate gaps and follow-up timing stay grounded in real proposal records.
 - Dispatch workspace

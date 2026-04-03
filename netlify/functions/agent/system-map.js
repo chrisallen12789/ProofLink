@@ -55,6 +55,12 @@ const STRUCTURED_AGENT_SURFACES = {
     exposed: true,
     surface_scope: 'operator',
   },
+  proposal_readiness_auditor: {
+    label: 'Proposal Readiness Auditor',
+    ui_surface: 'Walkthrough Bids workspace proposal readiness review',
+    exposed: true,
+    surface_scope: 'operator',
+  },
   quote_rescue_manager: {
     label: 'Quote Rescue Manager',
     ui_surface: 'Walkthrough Bids workspace proposal rescue review',

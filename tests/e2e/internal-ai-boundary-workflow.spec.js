@@ -32,7 +32,18 @@ async function openStubbedOperatorWorkspace(page) {
     DASHBOARD_LAUNCH_CHECKLIST = { steps: [], percent: 0, launch_ready: false };
     DASHBOARD_PAYMENT_STATE = null;
     LEADS_CACHE = [];
-    BIDS_CACHE = [];
+    BIDS_CACHE = [
+      {
+        id: "bid_1",
+        record_id: "bid_1",
+        customer_id: "customer_1",
+        title: "Lobby cleanup proposal",
+        status: "ready_to_send",
+        valid_until: "2026-04-12",
+        sender_user_id: "user_1",
+        cover_note: "Attached is the cleanup proposal from today's walkthrough.",
+      },
+    ];
     PAYMENTS_CACHE = [];
     PRODUCTS_CACHE = [];
     BOOKINGS_CACHE = [];
@@ -156,6 +167,32 @@ async function openStubbedOperatorWorkspace(page) {
         };
       }
 
+      if (key === "proposal_readiness_auditor") {
+        return {
+          report: {
+            summary: "Proposal delivery should wait until reusable defaults are tightened.",
+            findings: [
+              {
+                title: "Signer signature still needs setup",
+                detail: "Open Proposal settings and attach the signer signature before sending this proposal.",
+                severity: "warning",
+              },
+            ],
+            blockers: [
+              {
+                title: "Default terms are still missing",
+                detail: "The bid needs default terms attached before it should be sent.",
+              },
+            ],
+            evidence: [],
+            assumptions: [],
+            confidence: { score: 0.79, rationale: "Grounded in the bid and proposal-default records." },
+            recommended_actions: [],
+          },
+          context_summary: { ready_checks: 4, missing_required_checks: 2, missing_optional_checks: 1 },
+        };
+      }
+
       if (key === "field_closeout_coach") {
         return {
           report: {
@@ -269,6 +306,15 @@ test.describe("internal AI boundary workflow smoke", () => {
     await expect(page.locator("#orderAccountingAuditMsg")).toContainText("Continuity audit ready.");
     await expect(page.locator("#orderAccountingAuditReport")).toContainText("QB-221");
     await expect(page.getByText("Accounting Continuity Auditor")).toHaveCount(0);
+
+    await page.evaluate(async () => {
+      await switchTab("bids", { force: true, updateHash: false });
+      renderBids();
+    });
+    await expect(page.locator("#bidProposalReadinessWrap")).toBeVisible();
+    await page.locator("#bidProposalReadinessWrap").getByRole("button", { name: "Run proposal readiness review" }).click();
+    await expect(page.locator("#bidProposalReadinessMsg")).toContainText("Proposal readiness review refreshed.");
+    await expect(page.locator("#bidProposalReadinessReport")).toContainText("Signer signature still needs setup");
   });
 
   test("admin portal keeps the internal workforce controls on the admin side only", async ({ page }) => {

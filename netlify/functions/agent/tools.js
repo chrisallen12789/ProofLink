@@ -54,6 +54,10 @@ function compactText(value, max = 240) {
   return text.slice(0, max);
 }
 
+function hasText(value) {
+  return !!String(value || '').trim();
+}
+
 function firstFilledText(...values) {
   for (const value of values) {
     const text = compactText(value);
@@ -1622,6 +1626,110 @@ async function getEstimateRecordContext(supabase, tenantId, input = {}) {
   };
 }
 
+async function getProposalReadinessContext(supabase, tenantId, input = {}) {
+  const assumptions = [];
+  const bidId = String(input.bid_id || input.bidId || '').trim();
+  const bid = bidId
+    ? await resolveOptionalSingle(
+        supabase.from('bids').select('*').eq('tenant_id', tenantId).eq('id', bidId).maybeSingle(),
+        assumptions,
+        'Proposal bid context was unavailable because the bids table could not be queried.'
+      )
+    : null;
+
+  const customerId = String(bid?.customer_id || '').trim();
+  const [customer, brandingProfile, senderProfiles, termsTemplates, exclusionsTemplates] = await Promise.all([
+    customerId
+      ? resolveOptionalSingle(
+          supabase.from('customers').select('*').eq('tenant_id', tenantId).eq('id', customerId).maybeSingle(),
+          assumptions,
+          'Proposal customer context was unavailable because the customers table could not be queried.'
+        )
+      : Promise.resolve(null),
+    resolveOptionalSingle(
+      supabase.from('tenant_branding_profiles').select('*').eq('tenant_id', tenantId).maybeSingle(),
+      assumptions,
+      'Proposal branding defaults were unavailable because the tenant_branding_profiles table could not be queried.'
+    ),
+    resolveOptionalRows(
+      supabase.from('user_document_profiles').select('*').eq('tenant_id', tenantId).order('updated_at', { ascending: false }).limit(25),
+      assumptions,
+      'Signer profiles were unavailable because the user_document_profiles table could not be queried.'
+    ),
+    resolveOptionalRows(
+      supabase.from('reusable_terms_templates').select('*').order('name', { ascending: true }).limit(50),
+      assumptions,
+      'Reusable terms templates were unavailable because the reusable_terms_templates table could not be queried.'
+    ),
+    resolveOptionalRows(
+      supabase.from('reusable_exclusions_templates').select('*').order('name', { ascending: true }).limit(50),
+      assumptions,
+      'Reusable exclusions templates were unavailable because the reusable_exclusions_templates table could not be queried.'
+    ),
+  ]);
+
+  const senderRows = Array.isArray(senderProfiles) ? senderProfiles : [];
+  const activeTermsTemplates = (Array.isArray(termsTemplates) ? termsTemplates : []).filter((row) => row?.active !== false);
+  const activeExclusionsTemplates = (Array.isArray(exclusionsTemplates) ? exclusionsTemplates : []).filter((row) => row?.active !== false);
+  const activeSenderUserId = String(bid?.sender_user_id || brandingProfile?.default_sender_user_id || '').trim();
+  const activeSender = senderRows.find((row) => String(row?.user_id || '').trim() === activeSenderUserId) || null;
+  const activeTermsTemplateId = String(bid?.terms_template_id || brandingProfile?.default_terms_template_id || '').trim();
+  const activeExclusionsTemplateId = String(bid?.exclusions_template_id || brandingProfile?.default_exclusions_template_id || '').trim();
+  const totalCents = Number(bid?.total_cents || 0);
+  const explicitDeposit = Math.max(0, Number(bid?.deposit_amount_cents || 0));
+  const percentDeposit = totalCents > 0 ? Math.round(totalCents * (Math.max(0, Number(bid?.deposit_percent || 0)) / 100)) : 0;
+  const depositAmountCents = explicitDeposit > 0 ? explicitDeposit : percentDeposit;
+  const status = {
+    company_name: hasText(brandingProfile?.company_name),
+    logo: hasText(brandingProfile?.logo_image_url),
+    default_terms: hasText(brandingProfile?.default_terms_template_id),
+    default_exclusions: hasText(brandingProfile?.default_exclusions_template_id),
+    default_signer: hasText(brandingProfile?.default_sender_user_id),
+    default_signer_signature: hasText(activeSender?.signature_image_url),
+    bid_sender: hasText(bid?.sender_user_id || brandingProfile?.default_sender_user_id),
+    delivery_note: hasText(firstFilledText(bid?.cover_note, bid?.intro_text, bid?.subject_line)),
+    valid_until: hasText(bid?.valid_until),
+    terms_applied: hasText(activeTermsTemplateId) || hasText(bid?.terms_override) || hasText(bid?.terms),
+    exclusions_applied: hasText(activeExclusionsTemplateId) || hasText(bid?.exclusions_override) || hasText(bid?.exclusions),
+    deposit_requested: depositAmountCents > 0,
+  };
+
+  const missingData = [];
+  if (!bid) {
+    missingData.push({
+      id: 'proposal_readiness_missing_bid',
+      label: 'Saved walkthrough bid is missing',
+      detail: 'Proposal readiness requires a saved walkthrough bid so delivery fields and reusable defaults can be inspected together.',
+      field: 'bid_id',
+      required_for: 'analysis',
+    });
+  }
+
+  return {
+    snapshot_at: new Date().toISOString(),
+    tenant_id: tenantId,
+    bid,
+    customer,
+    branding_profile: brandingProfile || null,
+    sender_profiles: senderRows,
+    active_sender: activeSender,
+    terms_templates: activeTermsTemplates,
+    exclusions_templates: activeExclusionsTemplates,
+    deposit_amount_cents: depositAmountCents,
+    status,
+    missing_data: missingData,
+    assumptions,
+    data_used: [
+      { label: 'Walkthrough bid', count: bid ? 1 : 0, detail: 'bids' },
+      { label: 'Customer', count: customer ? 1 : 0, detail: 'customers' },
+      { label: 'Proposal branding defaults', count: brandingProfile ? 1 : 0, detail: 'tenant_branding_profiles' },
+      { label: 'Signer profiles', count: senderRows.length, detail: 'user_document_profiles' },
+      { label: 'Terms templates', count: activeTermsTemplates.length, detail: 'reusable_terms_templates' },
+      { label: 'Exclusions templates', count: activeExclusionsTemplates.length, detail: 'reusable_exclusions_templates' },
+    ],
+  };
+}
+
 async function getDispatchSchedulingContext(supabase, tenantId, input = {}) {
   const targetDate = normalizeAgentDate(input.target_date || input.targetDate);
   const jobType = String(input.job_type || input.jobType || '').trim().toLowerCase();
@@ -1733,6 +1841,7 @@ module.exports = {
   getCollectionsContext,
   getDispatchSchedulingContext,
   getEstimateRecordContext,
+  getProposalReadinessContext,
   getCrewPrepContext,
   getFieldCloseoutContext,
   getJobRecordAuditContext,

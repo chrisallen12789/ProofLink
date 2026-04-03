@@ -10,6 +10,7 @@ const { runEstimatingAssistant } = require('./agents/estimating-assistant');
 const { runFieldCloseoutCoach } = require('./agents/field-closeout-coach');
 const { runImportMigrationAssistant } = require('./agents/import-migration-assistant');
 const { runJobRecordAuditor } = require('./agents/job-record-auditor');
+const { runProposalReadinessAuditor } = require('./agents/proposal-readiness-auditor');
 const { runQuoteRescueManager } = require('./agents/quote-rescue-manager');
 const { runRetentionReactivationManager } = require('./agents/retention-reactivation-manager');
 const { runServicePlanRenewalManager } = require('./agents/service-plan-renewal-manager');
@@ -124,6 +125,25 @@ const AGENTS = {
     missing_data_handling: 'Highlight which inputs are still missing before pricing should be reviewed.',
     recommended_actions: 'Recommend evidence-backed estimate next steps only.',
     execute: runEstimatingAssistant,
+  },
+  proposal_readiness_auditor: {
+    key: 'proposal_readiness_auditor',
+    label: 'Proposal Readiness Auditor',
+    purpose: 'Reviews proposal defaults, signer readiness, validity timing, terms coverage, and deposit setup before a walkthrough bid is sent or converted.',
+    inputs: [
+      { key: 'bid_id', required: true, description: 'The walkthrough bid or proposal draft to review.' },
+    ],
+    allowed_tools: ['get_proposal_readiness_context'],
+    forbidden_behaviors: [
+      'Do not send, approve, or convert proposals automatically.',
+      'Do not claim proposal delivery is ready when signer, terms, exclusions, or validity fields are still missing.',
+      'Do not invent branding defaults, signature assets, or customer-facing terms.',
+    ],
+    output_schema: 'prooflink.agent.report.v1',
+    confidence_signal: 'Confidence depends on whether the bid record, tenant proposal defaults, signer profile, and reusable template coverage are all available together.',
+    missing_data_handling: 'Call out missing branding defaults, signer details, delivery text, and validity timing explicitly before a proposal is sent.',
+    recommended_actions: 'Recommend proposal-readiness fixes only; execution stays manual.',
+    execute: runProposalReadinessAuditor,
   },
   quote_rescue_manager: {
     key: 'quote_rescue_manager',

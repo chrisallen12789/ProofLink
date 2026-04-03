@@ -1,6 +1,7 @@
 // Proposal workspace extracted from operator.js
 // so bid drafting, proposal previews, and conversion stay in one domain module.
 const BID_ESTIMATE_REVIEW_CACHE = window.PROOFLINK_BID_ESTIMATE_REVIEW_CACHE || (window.PROOFLINK_BID_ESTIMATE_REVIEW_CACHE = {});
+const BID_PROPOSAL_READINESS_CACHE = window.PROOFLINK_BID_PROPOSAL_READINESS_CACHE || (window.PROOFLINK_BID_PROPOSAL_READINESS_CACHE = {});
 const BID_QUOTE_RESCUE_STATE = window.PROOFLINK_BID_QUOTE_RESCUE_STATE || (window.PROOFLINK_BID_QUOTE_RESCUE_STATE = {
   loading: false,
   error: "",
@@ -96,7 +97,137 @@ function openBidAiRecordRef(ref) {
       return true;
     }
   }
+  if (recordType === "workspace") {
+    if (recordId === "proposal-settings" && typeof switchTab === "function") {
+      switchTab("proposal-settings");
+      return true;
+    }
+  }
   return false;
+}
+function renderBidProposalReadinessReport(state = null) {
+  const report = state?.report || null;
+  if (!report) {
+    return `<div class="detail-copy">Run proposal readiness review to inspect branding defaults, signer setup, delivery fields, and send/convert blockers before the proposal goes out.</div>`;
+  }
+  const findings = Array.isArray(report.findings) ? report.findings : [];
+  const blockers = Array.isArray(report.blockers) ? report.blockers : [];
+  const summary = state?.context_summary || {};
+  const generatedAt = report.generated_at || state?.generated_at || "";
+  return `
+    <div class="detail-copy">${escapeHtml(report.summary || "")}</div>
+    <div class="workspace-chip-row u-mt-10">
+      <span class="pill ${bidAiStatusTone(report.summary_status || "review_needed")}">${escapeHtml(bidAiFormatStatus(report.summary_status || "review_needed"))}</span>
+      <span class="pill">${escapeHtml(`${summary.ready_checks || 0} ready`)}</span>
+      ${summary.missing_required_checks ? `<span class="pill pill-bad">${escapeHtml(`${summary.missing_required_checks} required missing`)}</span>` : `<span class="pill pill-good">Required checks ready</span>`}
+      ${summary.missing_optional_checks ? `<span class="pill pill-warn">${escapeHtml(`${summary.missing_optional_checks} optional missing`)}</span>` : ""}
+    </div>
+    ${blockers.length ? `
+      <div class="memory-checklist u-mt-10">
+        ${blockers.slice(0, 2).map((item) => `
+          <div class="memory-checklist__item memory-checklist__item--warn">
+            <div class="memory-checklist__title">${escapeHtml(item.title || "Proposal blocker")}</div>
+            <div class="detail-copy memory-checklist__note">${escapeHtml(item.detail || "")}</div>
+          </div>
+        `).join("")}
+      </div>
+    ` : ""}
+    ${findings.length ? `
+      <div class="memory-checklist u-mt-10">
+        ${findings.slice(0, 4).map((item) => `
+          <div class="memory-checklist__item ${item.severity === "warning" ? "memory-checklist__item--warn" : "memory-checklist__item--ready"}">
+            <div class="memory-checklist__title">${escapeHtml(item.title || "Proposal finding")}</div>
+            <div class="detail-copy memory-checklist__note">${escapeHtml(item.detail || "")}</div>
+          </div>
+        `).join("")}
+      </div>
+    ` : ""}
+    ${generatedAt ? `<div class="detail-copy u-mt-10 muted">Generated ${escapeHtml(bidAiFormatDate(generatedAt))}</div>` : ""}
+  `;
+}
+function renderBidProposalReadinessCard(draft) {
+  if (!bidProposalReadinessWrap) return;
+  if (!draft) {
+    bidProposalReadinessWrap.innerHTML = `<div class="detail-copy">Select a walkthrough bid to run proposal readiness review from this workspace.</div>`;
+    return;
+  }
+  const cacheKey = String(draft.id || bidRecordId(draft) || "").trim();
+  const state = BID_PROPOSAL_READINESS_CACHE[cacheKey] || null;
+  bidProposalReadinessWrap.innerHTML = `
+    <div class="detail-copy">Check proposal defaults, signer setup, delivery note, validity timing, and deposit readiness before send or convert.</div>
+    <div class="action-row action-row--wrap u-mt-10">
+      <button type="button" class="btn btn-ghost btn-sm" id="btnRunBidProposalReadinessReview">${state?.report ? "Run again" : "Run proposal readiness review"}</button>
+      <button type="button" class="btn btn-ghost btn-sm" id="btnOpenProposalSettingsFromReview">Open proposal settings</button>
+    </div>
+    <div id="bidProposalReadinessMsg" class="msg ${state?.error ? "error" : state?.loading ? "" : state?.message ? "ok" : ""} u-mt-10">${escapeHtml(state?.loading ? "Reviewing proposal readiness..." : state?.error || state?.message || "")}</div>
+    <div id="bidProposalReadinessReport" class="u-mt-10">${renderBidProposalReadinessReport(state)}</div>
+  `;
+  bidProposalReadinessWrap.querySelector("#btnRunBidProposalReadinessReview")?.addEventListener("click", () => {
+    runBidProposalReadinessReview(draft).catch(console.error);
+  });
+  bidProposalReadinessWrap.querySelector("#btnOpenProposalSettingsFromReview")?.addEventListener("click", () => {
+    if (typeof switchTab === "function") Promise.resolve(switchTab("proposal-settings")).catch(console.error);
+  });
+}
+async function runBidProposalReadinessReview(draft = currentBid(), options = {}) {
+  const activeDraft = draft || currentBid();
+  if (!activeDraft) return null;
+  const cacheKey = String(activeDraft.id || bidRecordId(activeDraft) || "").trim() || "__draft__";
+  BID_PROPOSAL_READINESS_CACHE[cacheKey] = {
+    ...(BID_PROPOSAL_READINESS_CACHE[cacheKey] || {}),
+    loading: true,
+    error: "",
+    message: "",
+  };
+  if (options.rerender !== false) renderBidWorkspace(activeDraft, { preserveForm: true });
+  if (typeof requestOperatorFunction !== "function") {
+    BID_PROPOSAL_READINESS_CACHE[cacheKey] = {
+      ...(BID_PROPOSAL_READINESS_CACHE[cacheKey] || {}),
+      loading: false,
+      error: "Proposal readiness tools are not ready yet.",
+      message: "",
+    };
+    if (options.rerender !== false) renderBidWorkspace(activeDraft, { preserveForm: true });
+    return BID_PROPOSAL_READINESS_CACHE[cacheKey];
+  }
+  try {
+    let readyDraft = activeDraft;
+    let remoteBidId = bidRecordId(readyDraft);
+    if (!remoteBidId) {
+      const syncedDraft = await flushBidDraftSync({ throwOnError: true });
+      readyDraft = syncedDraft || currentBid() || readyDraft;
+      remoteBidId = bidRecordId(readyDraft);
+    }
+    if (!remoteBidId) throw new Error("Save the proposal before running proposal readiness review.");
+    const payload = await requestOperatorFunction("ai-agent-report", {
+      method: "POST",
+      body: {
+        agent_key: "proposal_readiness_auditor",
+        bid_id: remoteBidId,
+      },
+    });
+    const nextKey = String(readyDraft.id || remoteBidId || cacheKey).trim() || cacheKey;
+    BID_PROPOSAL_READINESS_CACHE[nextKey] = {
+      loading: false,
+      error: "",
+      message: "Proposal readiness review refreshed.",
+      report: payload?.report || null,
+      context_summary: payload?.context_summary || null,
+      generated_at: payload?.generated_at || payload?.report?.generated_at || "",
+    };
+    if (nextKey !== cacheKey) delete BID_PROPOSAL_READINESS_CACHE[cacheKey];
+    if (options.rerender !== false) renderBidWorkspace(currentBid() || readyDraft, { preserveForm: true });
+    return BID_PROPOSAL_READINESS_CACHE[nextKey];
+  } catch (error) {
+    BID_PROPOSAL_READINESS_CACHE[cacheKey] = {
+      ...(BID_PROPOSAL_READINESS_CACHE[cacheKey] || {}),
+      loading: false,
+      error: error?.message || String(error),
+      message: "",
+    };
+    if (options.rerender !== false) renderBidWorkspace(currentBid() || activeDraft, { preserveForm: true });
+    return BID_PROPOSAL_READINESS_CACHE[cacheKey];
+  }
 }
 function renderBidEstimateReviewReport(state = null) {
   const report = state?.report || null;
@@ -1761,6 +1892,7 @@ function renderBidWorkspace(draft, opts = {}) {
     renderBidCatalogStarters(null);
     renderBidStatsCard(null);
     renderBidDeliveryCard(null);
+    renderBidProposalReadinessCard(null);
     renderBidEstimateReviewCard(null);
     renderBidQuoteRescueCard();
     if (bidPhotosList) bidPhotosList.innerHTML = `<div class="muted">No walkthrough photos saved yet.</div>`;
@@ -1786,6 +1918,7 @@ function renderBidWorkspace(draft, opts = {}) {
   renderBidCatalogStarters(draft);
   renderBidStatsCard(draft);
   renderBidDeliveryCard(draft);
+  renderBidProposalReadinessCard(draft);
   renderBidEstimateReviewCard(draft);
   renderBidQuoteRescueCard();
   renderBidPhotos(draft);
@@ -2697,6 +2830,9 @@ btnExportBidJson?.addEventListener("click", () => {
 }
 
 const BID_WORKSPACE_HELPERS = {
+  runBidProposalReadinessReview,
+  renderBidProposalReadinessCard,
+  renderBidProposalReadinessReport,
   runBidEstimateReview,
   renderBidEstimateReviewCard,
   runBidQuoteRescueReview,

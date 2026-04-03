@@ -152,6 +152,7 @@ function loadBidsWorkspace(overrides = {}) {
     bidProfileGuide: makeContainer(),
     bidStatsWrap: makeContainer(),
     bidDeliveryWrap: makeContainer(),
+    bidProposalReadinessWrap: makeContainer(),
     bidEstimateReviewWrap: makeContainer(),
     bidQuoteRescueWrap: makeContainer(),
     bidPhotoGuide: makeContainer(),
@@ -256,6 +257,8 @@ describe("operator bids workspace", () => {
     expect(source).toContain("Proposal emailed to ${customer.email}.");
     expect(source).toContain("data-proposal-settings-focus");
     expect(source).toContain("Each item disappears here as soon as it is configured.");
+    expect(source).toContain("Run proposal readiness review");
+    expect(source).toContain("proposal_readiness_auditor");
     expect(source).toContain("Run estimate review");
     expect(source).toContain("quote_rescue_manager");
     expect(source).toContain("estimating_assistant");
@@ -382,6 +385,43 @@ describe("operator bids workspace", () => {
       body: expect.objectContaining({
         agent_key: "estimating_assistant",
         bid_id: "bid_remote_1",
+      }),
+    }));
+  });
+
+  test("runBidProposalReadinessReview sends bid_id to the structured readiness report", async () => {
+    const requestOperatorFunction = vi.fn(async () => ({
+      report: {
+        summary: "Proposal readiness review ready.",
+        summary_status: "review_needed",
+        findings: [],
+        blockers: [],
+        recommended_actions: [],
+        data_used: [],
+        generated_at: "2026-04-02T10:00:00.000Z",
+      },
+      context_summary: {
+        bid_id: "bid_remote_3",
+        ready_checks: 5,
+      },
+      generated_at: "2026-04-02T10:00:00.000Z",
+    }));
+    const context = loadBidsWorkspace({
+      requestOperatorFunction,
+      currentBid: vi.fn(() => ({
+        id: "bid_local_3",
+        record_id: "bid_remote_3",
+        title: "Harbor proposal",
+      })),
+    });
+
+    await context.window.runBidProposalReadinessReview(context.currentBid(), { rerender: false });
+
+    expect(requestOperatorFunction).toHaveBeenCalledWith("ai-agent-report", expect.objectContaining({
+      method: "POST",
+      body: expect.objectContaining({
+        agent_key: "proposal_readiness_auditor",
+        bid_id: "bid_remote_3",
       }),
     }));
   });
