@@ -323,6 +323,192 @@ function renderDispatchAgentReview(state = null, targetDate = "") {
   `;
 }
 
+function buildDispatchWorkspaceSnapshot({ hydrovacJobs = [], trucks = [], targetDate = "" } = {}) {
+  const scheduled = hydrovacJobs.filter((job) => String(job.status || "").toLowerCase() === "scheduled").length;
+  const dispatched = hydrovacJobs.filter((job) => String(job.status || "").toLowerCase() === "dispatched").length;
+  const inProgress = hydrovacJobs.filter((job) => String(job.status || "").toLowerCase() === "in_progress").length;
+  const unassigned = hydrovacJobs.filter((job) => !job.assigned_truck_id).length;
+  const carryoverRisk = hydrovacJobs.filter((job) => {
+    if (!job.assigned_truck_id) return false;
+    return dispatchTruckPlanner(job.assigned_truck_id, job, targetDate).warnings.some((item) => item.blocking);
+  }).length;
+  const disposalDue = trucks.reduce((sum, truck) => sum + dispatchTruckPlanner(truck, null, targetDate).dueLoads.length, 0);
+  const liveLoads = trucks.reduce((sum, truck) => sum + dispatchTruckPlanner(truck, null, targetDate).liveLoads.length, 0);
+
+  return {
+    totalJobs: hydrovacJobs.length,
+    scheduled,
+    dispatched,
+    inProgress,
+    moving: dispatched + inProgress,
+    unassigned,
+    carryoverRisk,
+    disposalDue,
+    liveLoads,
+    activeTrucks: trucks.length,
+  };
+}
+
+function renderDispatchWorkspaceSignalBand(snapshot = {}) {
+  return `
+    <div class="workspace-signal-band">
+      <div class="workspace-signal-band__item ${snapshot.totalJobs ? "workspace-signal-band__item--good" : ""}">
+        <span>Hydrovac work</span>
+        <strong>${escapeHtml(String(snapshot.totalJobs || 0))}</strong>
+        <small>${escapeHtml(snapshot.totalJobs ? "Jobs tied to the selected dispatch day." : "No hydrovac jobs are scheduled on this day yet.")}</small>
+      </div>
+      <div class="workspace-signal-band__item ${snapshot.unassigned ? "workspace-signal-band__item--warn" : "workspace-signal-band__item--good"}">
+        <span>Truck still open</span>
+        <strong>${escapeHtml(String(snapshot.unassigned || 0))}</strong>
+        <small>${escapeHtml(snapshot.unassigned ? "These jobs still need a truck before the route is real." : "Every visible job already has a truck assigned.")}</small>
+      </div>
+      <div class="workspace-signal-band__item ${snapshot.carryoverRisk ? "workspace-signal-band__item--danger" : "workspace-signal-band__item--good"}">
+        <span>Carryover risk</span>
+        <strong>${escapeHtml(String(snapshot.carryoverRisk || 0))}</strong>
+        <small>${escapeHtml(snapshot.carryoverRisk ? "Assigned trucks are still carrying conflicting live-load pressure." : "No assigned truck is blocked by conflicting live loads.")}</small>
+      </div>
+      <div class="workspace-signal-band__item ${snapshot.disposalDue ? "workspace-signal-band__item--warn" : "workspace-signal-band__item--good"}">
+        <span>Disposal due</span>
+        <strong>${escapeHtml(String(snapshot.disposalDue || 0))}</strong>
+        <small>${escapeHtml(snapshot.disposalDue ? "Loads already marked ready for disposal today still need a plan." : "No ready-for-disposal loads are due today.")}</small>
+      </div>
+    </div>
+  `;
+}
+
+function renderDispatchWorkspaceActionCard(snapshot = {}, targetDate = "", dispatchAgentState = null) {
+  const reviewReport = dispatchAgentState?.report || null;
+  const blockers = Array.isArray(reviewReport?.blockers) ? reviewReport.blockers.length : 0;
+  return `
+    <div class="detail-card detail-card--spaced workspace-focus-card">
+      <div class="workspace-focus-card__head">
+        <div>
+          <div class="kicker">Dispatch focus</div>
+          <div><strong>Keep the route executable in the real world</strong></div>
+        </div>
+        <span class="pill ${blockers ? "pill-bad" : "pill-on"}">${escapeHtml(blockers ? `${blockers} blocker${blockers === 1 ? "" : "s"}` : "No hard blockers")}</span>
+      </div>
+      <div class="detail-copy">${escapeHtml(snapshot.totalJobs ? `Use ${targetDate || "the selected date"}, live-load state, and crew assignment to make the route feel calm before trucks roll.` : "When jobs land on this day, ProofLink will surface truck, disposal, and crew pressure here first.")}</div>
+      <div class="workspace-focus-card__meta">
+        <div class="workspace-focus-card__item ${snapshot.moving ? "workspace-focus-card__item--good" : "workspace-focus-card__item--warn"}">
+          <span>Rolling now</span>
+          <strong>${escapeHtml(String(snapshot.moving || 0))}</strong>
+          <small>${escapeHtml(snapshot.moving ? "Jobs are already dispatched or in progress." : "Nothing is currently rolling from this dispatch board.")}</small>
+        </div>
+        <div class="workspace-focus-card__item ${snapshot.liveLoads ? "workspace-focus-card__item--warn" : "workspace-focus-card__item--good"}">
+          <span>Live loads tracked</span>
+          <strong>${escapeHtml(String(snapshot.liveLoads || 0))}</strong>
+          <small>${escapeHtml(snapshot.liveLoads ? "Truck load state is still active and needs audit discipline." : "No live loads are still active across the current truck set.")}</small>
+        </div>
+        <div class="workspace-focus-card__item ${snapshot.activeTrucks ? "workspace-focus-card__item--good" : "workspace-focus-card__item--warn"}">
+          <span>Active trucks</span>
+          <strong>${escapeHtml(String(snapshot.activeTrucks || 0))}</strong>
+          <small>${escapeHtml(snapshot.activeTrucks ? "Available trucks on this board right now." : "No active equipment is showing up on the dispatch board.")}</small>
+        </div>
+        <div class="workspace-focus-card__item ${blockers ? "workspace-focus-card__item--danger" : "workspace-focus-card__item--good"}">
+          <span>AI dispatch review</span>
+          <strong>${escapeHtml(reviewReport ? titleCaseWords(String(reviewReport.summary_status || "review needed").replace(/_/g, " ")) : "Not run yet")}</strong>
+          <small>${escapeHtml(reviewReport?.summary || "Run the dispatch review to surface assignment conflicts and route opportunities before the day gets noisy.")}</small>
+        </div>
+      </div>
+      <div class="workspace-focus-card__buttons">
+        <button type="button" class="btn btn-primary" data-dispatch-action="jobs">Open jobs</button>
+        <button type="button" class="btn btn-ghost" data-dispatch-action="manifests">Open disposal board</button>
+        <button type="button" class="btn btn-ghost" data-dispatch-action="locates">Open locate tickets</button>
+        <button type="button" class="btn btn-ghost" data-dispatch-action="team">Open team</button>
+        <button type="button" class="btn btn-ghost" data-dispatch-action="equipment">Open equipment</button>
+      </div>
+    </div>
+  `;
+}
+
+function renderDispatchJobSignalBand({
+  activeLocates = [],
+  activePermits = [],
+  manifestSnapshot = null,
+  truckPlanner = null,
+  dispatchBlocked = false,
+} = {}) {
+  return `
+    <div class="workspace-signal-band">
+      <div class="workspace-signal-band__item ${dispatchBlocked ? "workspace-signal-band__item--danger" : "workspace-signal-band__item--good"}">
+        <span>Dispatch state</span>
+        <strong>${escapeHtml(dispatchBlocked ? "Blocked" : "Ready")}</strong>
+        <small>${escapeHtml(dispatchBlocked ? "Truck or compliance pressure still blocks dispatch." : "This job can move if the selected truck and driver stay clean.")}</small>
+      </div>
+      <div class="workspace-signal-band__item ${activeLocates.length ? "workspace-signal-band__item--good" : "workspace-signal-band__item--warn"}">
+        <span>Locate coverage</span>
+        <strong>${escapeHtml(String(activeLocates.length))}</strong>
+        <small>${escapeHtml(activeLocates.length ? "Active locate coverage is already on file." : "This job still needs locate coverage confirmed here.")}</small>
+      </div>
+      <div class="workspace-signal-band__item ${activePermits.length ? "workspace-signal-band__item--good" : "workspace-signal-band__item--warn"}">
+        <span>Open permits</span>
+        <strong>${escapeHtml(String(activePermits.length))}</strong>
+        <small>${escapeHtml(activePermits.length ? "Permit coverage is already attached to this work." : "No open permit is attached on this record yet.")}</small>
+      </div>
+      <div class="workspace-signal-band__item ${truckPlanner?.carryoverLoads?.length ? "workspace-signal-band__item--danger" : Number(manifestSnapshot?.openLoads || 0) ? "workspace-signal-band__item--warn" : "workspace-signal-band__item--good"}">
+        <span>Truck load pressure</span>
+        <strong>${escapeHtml(String(truckPlanner?.carryoverLoads?.length || Number(manifestSnapshot?.openLoads || 0)))}</strong>
+        <small>${escapeHtml(truckPlanner?.carryoverLoads?.length ? "The selected truck is still carrying load pressure from other work." : Number(manifestSnapshot?.openLoads || 0) ? "This job still has open hauled loads attached." : "No live-load pressure is hanging on this assignment.")}</small>
+      </div>
+    </div>
+  `;
+}
+
+function renderDispatchExecutionFocusCard({
+  activeJob = null,
+  assignedTruck = null,
+  assignedDriver = null,
+  dispatchBlocked = false,
+  truckPlanner = null,
+  manifestSnapshot = null,
+} = {}) {
+  if (!activeJob) return "";
+  const nextMove = dispatchBlocked
+    ? (truckPlanner?.warnings?.[0]?.note || "Clear the blocking truck or compliance issue before dispatch.")
+    : "Truck, driver, and paperwork are lined up closely enough to dispatch from here.";
+  return `
+    <div class="detail-card detail-card--spaced workspace-focus-card">
+      <div class="workspace-focus-card__head">
+        <div>
+          <div class="kicker">Dispatch move</div>
+          <div><strong>Keep the next truck move obvious</strong></div>
+        </div>
+        <span class="pill ${dispatchBlocked ? "pill-bad" : "pill-on"}">${escapeHtml(dispatchBlocked ? "Blocked" : "Ready")}</span>
+      </div>
+      <div class="detail-copy">${escapeHtml(nextMove)}</div>
+      <div class="workspace-focus-card__meta">
+        <div class="workspace-focus-card__item ${assignedTruck ? "workspace-focus-card__item--good" : "workspace-focus-card__item--warn"}">
+          <span>Truck</span>
+          <strong>${escapeHtml(assignedTruck?.unit_number || assignedTruck?.name || "Still open")}</strong>
+          <small>${escapeHtml(assignedTruck ? "This is the truck currently tied to the job." : "Pick the truck that can actually roll this work.")}</small>
+        </div>
+        <div class="workspace-focus-card__item ${assignedDriver ? "workspace-focus-card__item--good" : "workspace-focus-card__item--warn"}">
+          <span>Driver</span>
+          <strong>${escapeHtml(assignedDriver ? teamMemberLabel(assignedDriver) : "Still open")}</strong>
+          <small>${escapeHtml(assignedDriver ? "A driver is already attached to the dispatch plan." : "Assign the driver who owns the route and the paperwork.")}</small>
+        </div>
+        <div class="workspace-focus-card__item ${Number(manifestSnapshot?.unbilledChargeCents || 0) > 0 ? "workspace-focus-card__item--warn" : "workspace-focus-card__item--good"}">
+          <span>Disposal to bill</span>
+          <strong>${escapeHtml(formatUsd(Number(manifestSnapshot?.unbilledChargeCents || 0)))}</strong>
+          <small>${escapeHtml(Number(manifestSnapshot?.unbilledChargeCents || 0) > 0 ? "Confirmed disposal is still waiting on invoice capture." : "No disposal charge is waiting to be pushed into billing.")}</small>
+        </div>
+        <div class="workspace-focus-card__item ${truckPlanner?.warnings?.length ? "workspace-focus-card__item--danger" : "workspace-focus-card__item--good"}">
+          <span>Load warnings</span>
+          <strong>${escapeHtml(String(truckPlanner?.warnings?.length || 0))}</strong>
+          <small>${escapeHtml(truckPlanner?.warnings?.length ? truckPlanner.warnings[0].note : "No truck-load warnings are attached to this assignment.")}</small>
+        </div>
+      </div>
+      <div class="workspace-focus-card__buttons">
+        <button id="btnDispatchOpenJob" class="btn btn-primary" type="button">Open job</button>
+        <button id="btnDispatchOpenLocates" class="btn btn-ghost" type="button">Open locate tickets</button>
+        <button id="btnDispatchOpenCompliance" class="btn btn-ghost" type="button">Open compliance</button>
+        <button id="btnDispatchOpenManifests" class="btn btn-ghost" type="button">Open disposal board</button>
+      </div>
+    </div>
+  `;
+}
+
 function renderDispatchWorkspace() {
   if (!dispatchBoard || !dispatchDetail) return;
   const targetDate = dispatchDate?.value || new Date().toISOString().slice(0, 10);
@@ -333,42 +519,41 @@ function renderDispatchWorkspace() {
     .filter((job) => isHydrovacJob(job) && hydrovacJobSortDate(job) === targetDate)
     .sort((a, b) => String(a.scheduled_time || "").localeCompare(String(b.scheduled_time || "")));
   const trucks = (EQUIPMENT_CACHE || []).filter((unit) => unit.is_active !== false);
-  const scheduled = hydrovacJobs.filter((job) => String(job.status || "").toLowerCase() === "scheduled").length;
-  const dispatched = hydrovacJobs.filter((job) => String(job.status || "").toLowerCase() === "dispatched").length;
-  const inProgress = hydrovacJobs.filter((job) => String(job.status || "").toLowerCase() === "in_progress").length;
-  const unassigned = hydrovacJobs.filter((job) => !job.assigned_truck_id).length;
-  const carryoverRisk = hydrovacJobs.filter((job) => {
-    if (!job.assigned_truck_id) return false;
-    return dispatchTruckPlanner(job.assigned_truck_id, job, targetDate).warnings.some((item) => item.blocking);
-  }).length;
-  const disposalDue = trucks.reduce((sum, truck) => sum + dispatchTruckPlanner(truck, null, targetDate).dueLoads.length, 0);
+  const snapshot = buildDispatchWorkspaceSnapshot({
+    hydrovacJobs,
+    trucks,
+    targetDate,
+  });
 
   if (dispatchStageStrip) {
-    dispatchStageStrip.innerHTML = [
-      { eyebrow: "Today", value: hydrovacJobs.length, title: "Hydrovac work", copy: "Scheduled hydrovac jobs on the selected day." },
-      { eyebrow: "Queued", value: scheduled, title: "Still waiting", copy: "Scheduled jobs that still need truck or driver confirmation." },
-      { eyebrow: "Rolling", value: dispatched + inProgress, title: "In motion", copy: "Jobs already dispatched or currently in progress." },
-      { eyebrow: "Carryover", value: carryoverRisk, title: "Truck conflict", copy: "Jobs whose assigned truck is still carrying a conflicting live load." },
-      { eyebrow: "Dump", value: disposalDue, title: "Due today", copy: "Live loads already marked ready for disposal today." },
-      { eyebrow: "Open", value: unassigned, title: "Truck not assigned", copy: "Work that still needs a truck before it can roll." },
-    ].map((stage) => `
-      <div class="pipeline-stage-card is-active">
-        <div class="pipeline-stage-card__eyebrow">${escapeHtml(stage.eyebrow)}</div>
-        <div class="pipeline-stage-card__value">${escapeHtml(String(stage.value))}</div>
-        <div class="pipeline-stage-card__title">${escapeHtml(stage.title)}</div>
-        <div class="pipeline-stage-card__copy">${escapeHtml(stage.copy)}</div>
-      </div>
-    `).join("");
+    dispatchStageStrip.innerHTML = renderRecordHeroCard({
+      eyebrow: "Dispatch board",
+      title: hydrovacJobs.length ? `Hydrovac dispatch for ${targetDate}` : `No hydrovac dispatch queued for ${targetDate}`,
+      badges: [
+        { label: `${snapshot.totalJobs} job${snapshot.totalJobs === 1 ? "" : "s"}` },
+        { label: `${snapshot.activeTrucks} truck${snapshot.activeTrucks === 1 ? "" : "s"} active` },
+        snapshot.carryoverRisk
+          ? { label: `${snapshot.carryoverRisk} carryover risk`, tone: "pill-bad" }
+          : { label: "No carryover conflict", tone: "pill-on" },
+      ],
+      meta: [
+        hydrovacJobs.length
+          ? "Use one board to keep truck assignment, load pressure, and compliance aligned."
+          : "The board is clear right now. When jobs land here, truck and disposal pressure will show up first.",
+      ],
+      description: "Dispatch should stay easy to understand on both phone and desktop, especially when live loads and crew assignment can change the whole day.",
+      summary: [
+        { label: "Still waiting", value: String(snapshot.scheduled), note: "Jobs not yet dispatched" },
+        { label: "In motion", value: String(snapshot.moving), note: "Dispatched or in progress" },
+        { label: "Truck still open", value: String(snapshot.unassigned), note: "Needs a truck before it can roll" },
+        { label: "Disposal due", value: String(snapshot.disposalDue), note: "Ready-for-disposal loads due today" },
+      ],
+      actionsHtml: renderDispatchWorkspaceSignalBand(snapshot),
+    });
   }
 
   if (dispatchActionBar) {
-    dispatchActionBar.innerHTML = `
-      <button type="button" class="pipeline-action-chip" data-dispatch-action="jobs">Open jobs</button>
-      <button type="button" class="pipeline-action-chip" data-dispatch-action="manifests">Open disposal board</button>
-      <button type="button" class="pipeline-action-chip" data-dispatch-action="locates">Open locate tickets</button>
-      <button type="button" class="pipeline-action-chip" data-dispatch-action="team">Open team</button>
-      <button type="button" class="pipeline-action-chip" data-dispatch-action="equipment">Open equipment</button>
-    `;
+    dispatchActionBar.innerHTML = renderDispatchWorkspaceActionCard(snapshot, targetDate, dispatchAgentState);
     dispatchActionBar.querySelectorAll("[data-dispatch-action]").forEach((button) => {
       button.addEventListener("click", () => {
         const action = button.getAttribute("data-dispatch-action");
@@ -387,46 +572,59 @@ function renderDispatchWorkspace() {
     unit: truck,
   }))];
 
-  dispatchBoard.innerHTML = columns.map((column) => {
-    const columnJobs = hydrovacJobs.filter((job) => String(job.assigned_truck_id || "") === column.id);
-    const planner = column.unit ? dispatchTruckPlanner(column.unit, null, targetDate) : null;
-    const warningCount = column.unit
-      ? ((HYDROVAC_EQUIPMENT_COMPLIANCE_CACHE.find((row) => row.id === column.unit.id)?.warnings || []).length) + (planner?.warnings?.length || 0)
-      : 0;
-    return `
-      <div class="dispatch-column">
-        <div class="dispatch-column__header">
-          <div>
-            <strong>${escapeHtml(column.label)}</strong>
-            <div class="muted">${column.unit ? escapeHtml(column.unit.name || "Equipment record") : "Jobs still waiting on a truck"}</div>
-            ${column.unit && planner?.carryoverLoads?.length ? `<div class="muted">${escapeHtml(`${planner.carryoverLoads.length} live load${planner.carryoverLoads.length === 1 ? "" : "s"} still attached`)}</div>` : ``}
-          </div>
-          <span class="pill ${warningCount ? "pill-warn" : "pill-on"}">${warningCount ? `${warningCount} watch` : `${columnJobs.length} job${columnJobs.length === 1 ? "" : "s"}`}</span>
+  dispatchBoard.innerHTML = `
+    <div class="workspace-board dispatch-workspace-board">
+      <div class="workspace-board__head">
+        <div>
+          <div class="kicker">Truck board</div>
+          <strong>See truck assignment, load pressure, and open work together</strong>
         </div>
-        <div class="dispatch-column__body">
-          ${columnJobs.length ? columnJobs.map((job) => {
-            const member = (TEAM_MEMBERS_CACHE || []).find((row) => row.id === job.assigned_member_id) || null;
-            const locateCount = (HYDROVAC_LOCATE_TICKETS_CACHE || []).filter((row) => row.job_id === job.id && ["active", "extended"].includes(String(row.status || "").toLowerCase())).length;
-            const plannerWarnings = column.unit ? dispatchTruckPlanner(column.unit, job, targetDate).warnings : [];
-            return `
-              <button type="button" class="dispatch-job-card ${job.id === ACTIVE_DISPATCH_JOB_ID ? "is-active" : ""}" data-dispatch-job-id="${escapeAttr(job.id)}">
-                <div class="dispatch-job-card__title">${escapeHtml(job.title || "Untitled job")}</div>
-                <div class="dispatch-job-card__meta">${escapeHtml(job.customer_name || job.service_address || "Customer not linked")}</div>
-                <div class="dispatch-job-card__meta">${escapeHtml(job.scheduled_time || "Time not set")} - ${escapeHtml(titleCaseWords(String(job.status || "scheduled").replace(/_/g, " ")))}</div>
-                <div class="dispatch-job-card__chips">
-                  <span class="pill ${locateCount ? "pill-on" : "pill-warn"}">${locateCount ? `${locateCount} ticket` : "No locate"}</span>
-                  <span class="pill">${escapeHtml(member ? teamMemberLabel(member) : "Driver open")}</span>
-                  ${plannerWarnings.some((item) => item.blocking) ? `<span class="pill pill-bad">Truck blocked</span>` : ``}
-                </div>
-              </button>
-            `;
-          }).join("") : `<div class="muted">No jobs in this column for ${escapeHtml(targetDate)}.</div>`}
-        </div>
+        <div class="detail-copy">${escapeHtml(snapshot.totalJobs ? "Each column should answer one question fast: can this truck actually roll this work without creating the next problem?" : "When work lands here, the truck board will show assignment, load pressure, and compliance tension at a glance.")}</div>
       </div>
-    `;
-  }).join("");
+      <div class="workspace-board__grid dispatch-workspace-board__grid">
+        ${columns.map((column) => {
+          const columnJobs = hydrovacJobs.filter((job) => String(job.assigned_truck_id || "") === column.id);
+          const planner = column.unit ? dispatchTruckPlanner(column.unit, null, targetDate) : null;
+          const warningCount = column.unit
+            ? ((HYDROVAC_EQUIPMENT_COMPLIANCE_CACHE.find((row) => row.id === column.unit.id)?.warnings || []).length) + (planner?.warnings?.length || 0)
+            : 0;
+          return `
+            <div class="dispatch-column workspace-board-card dispatch-workspace-board__column">
+              <div class="dispatch-column__header">
+                <div>
+                  <strong>${escapeHtml(column.label)}</strong>
+                  <div class="muted">${column.unit ? escapeHtml(column.unit.name || "Equipment record") : "Jobs still waiting on a truck"}</div>
+                  ${column.unit && planner?.carryoverLoads?.length ? `<div class="muted">${escapeHtml(`${planner.carryoverLoads.length} live load${planner.carryoverLoads.length === 1 ? "" : "s"} still attached`)}</div>` : ``}
+                </div>
+                <span class="pill ${warningCount ? "pill-warn" : "pill-on"}">${warningCount ? `${warningCount} watch` : `${columnJobs.length} job${columnJobs.length === 1 ? "" : "s"}`}</span>
+              </div>
+              <div class="dispatch-column__body">
+                ${columnJobs.length ? columnJobs.map((job) => {
+                  const member = (TEAM_MEMBERS_CACHE || []).find((row) => row.id === job.assigned_member_id) || null;
+                  const locateCount = (HYDROVAC_LOCATE_TICKETS_CACHE || []).filter((row) => row.job_id === job.id && ["active", "extended"].includes(String(row.status || "").toLowerCase())).length;
+                  const plannerWarnings = column.unit ? dispatchTruckPlanner(column.unit, job, targetDate).warnings : [];
+                  return `
+                    <button type="button" class="dispatch-job-card ${job.id === ACTIVE_DISPATCH_JOB_ID ? "is-active" : ""}" data-dispatch-job-id="${escapeAttr(job.id)}">
+                      <div class="dispatch-job-card__title">${escapeHtml(job.title || "Untitled job")}</div>
+                      <div class="dispatch-job-card__meta">${escapeHtml(job.customer_name || job.service_address || "Customer not linked")}</div>
+                      <div class="dispatch-job-card__meta">${escapeHtml(job.scheduled_time || "Time not set")} - ${escapeHtml(titleCaseWords(String(job.status || "scheduled").replace(/_/g, " ")))}</div>
+                      <div class="dispatch-job-card__chips">
+                        <span class="pill ${locateCount ? "pill-on" : "pill-warn"}">${locateCount ? `${locateCount} ticket` : "No locate"}</span>
+                        <span class="pill">${escapeHtml(member ? teamMemberLabel(member) : "Driver open")}</span>
+                        ${plannerWarnings.some((item) => item.blocking) ? `<span class="pill pill-bad">Truck blocked</span>` : ``}
+                      </div>
+                    </button>
+                  `;
+                }).join("") : `<div class="muted">No jobs in this column for ${escapeHtml(targetDate)}.</div>`}
+              </div>
+            </div>
+          `;
+        }).join("")}
+      </div>
+    </div>
+  `;
 
-  Array.from(dispatchBoard.children).forEach((columnEl, index) => {
+  Array.from(dispatchBoard.querySelectorAll(".dispatch-column")).forEach((columnEl, index) => {
     const column = columns[index];
     if (!column?.unit) return;
     const columnJobs = hydrovacJobs.filter((job) => String(job.assigned_truck_id || "") === column.id);
@@ -566,8 +764,53 @@ function renderDispatchWorkspace() {
   const dispatchBlocked = truckPlanner.warnings.some((item) => item.blocking);
 
   dispatchDetail.innerHTML = `
-    ${renderDispatchAgentReview(dispatchAgentState, targetDate)}
-    <div class="detail-card">
+    <div class="workspace-command-center workspace-command-center--hydrovac">
+      <div class="workspace-command-center__top">
+        <div class="workspace-command-center__hero">
+          ${renderRecordHeroCard({
+            eyebrow: "Dispatch record",
+            title: activeJob.title || "Untitled hydrovac job",
+            badges: [
+              { label: titleCaseWords(String(activeJob.status || "scheduled").replace(/_/g, " ")) },
+              assignedTruck ? { label: assignedTruck.unit_number || assignedTruck.name || "Truck assigned" } : { label: "Truck open", tone: "pill-warn" },
+              assignedDriver ? { label: teamMemberLabel(assignedDriver), tone: "pill-on" } : { label: "Driver open", tone: "pill-warn" },
+              dispatchBlocked ? { label: "Dispatch blocked", tone: "pill-bad" } : { label: "Ready to dispatch", tone: "pill-on" },
+            ],
+            meta: [
+              activeJob.customer_name || activeJob.service_address || "Customer not linked",
+              `${activeJob.scheduled_date || targetDate}${activeJob.scheduled_time ? ` | ${activeJob.scheduled_time}` : ""}`,
+              activeJob.service_address || "No service address recorded",
+            ],
+            description: "Keep the truck, the driver, the paperwork, and the live-load state tied to one dispatch record so the route does not fall apart on the way out the door.",
+            summary: [
+              { label: "Locate tickets", value: String(activeLocates.length), note: activeLocates.length ? "Coverage is already on file." : "Coverage still needs attention." },
+              { label: "Open permits", value: String(activePermits.length), note: activePermits.length ? "Permit coverage is attached." : "No open permit is attached." },
+              { label: "Open loads", value: String(manifestSnapshot.openLoads), note: manifestSnapshot.openLoads ? "Hauled loads are still active on this job." : "No hauled loads are still open." },
+              { label: "Unbilled disposal", value: formatUsd(manifestSnapshot.unbilledChargeCents), note: manifestSnapshot.unbilledChargeCents ? "Billing still needs disposal closeout." : "No disposal charge is waiting on billing." },
+            ],
+            actionsHtml: renderDispatchJobSignalBand({
+              activeLocates,
+              activePermits,
+              manifestSnapshot,
+              truckPlanner,
+              dispatchBlocked,
+            }),
+          })}
+        </div>
+        <div class="workspace-command-center__sidebar">
+          ${renderDispatchExecutionFocusCard({
+            activeJob,
+            assignedTruck,
+            assignedDriver,
+            dispatchBlocked,
+            truckPlanner,
+            manifestSnapshot,
+          })}
+        </div>
+      </div>
+      <div class="workspace-command-center__main">
+        ${renderDispatchAgentReview(dispatchAgentState, targetDate)}
+        <div class="detail-card">
       <div class="detail-card__header">
         <strong>${escapeHtml(activeJob.title || "Untitled hydrovac job")}</strong>
         <span class="pill ${hydrovacManifestToneClass(activeJob.status)}">${escapeHtml(titleCaseWords(String(activeJob.status || "scheduled").replace(/_/g, " ")))}</span>
@@ -595,12 +838,11 @@ function renderDispatchWorkspace() {
       </div>
       <div class="row" style="margin-top:12px;">
         <button id="btnDispatchJobNow" class="btn btn-primary" type="button"${dispatchBlocked ? " disabled" : ""}>${String(activeJob.status || "").toLowerCase() === "dispatched" ? "Refresh dispatch" : "Dispatch job"}</button>
-        <button id="btnDispatchOpenJob" class="btn btn-ghost" type="button">Open job</button>
-        <button id="btnDispatchOpenLocates" class="btn btn-ghost" type="button">Open locate tickets</button>
-        <button id="btnDispatchOpenCompliance" class="btn btn-ghost" type="button">Open compliance</button>
-        <button id="btnDispatchOpenManifests" class="btn btn-ghost" type="button">Open disposal board</button>
+        <button id="btnDispatchRefreshLoads" class="btn btn-ghost" type="button">Refresh truck loads</button>
       </div>
       <div id="dispatchMsg" class="msg"></div>
+        </div>
+      </div>
     </div>
   `;
   bindDispatchAgentActions();
@@ -679,6 +921,11 @@ function renderDispatchWorkspace() {
   $("btnDispatchOpenLocates")?.addEventListener("click", () => switchTab("locates"));
   $("btnDispatchOpenCompliance")?.addEventListener("click", () => switchTab("compliance"));
   $("btnDispatchOpenManifests")?.addEventListener("click", () => switchTab("manifests"));
+  $("btnDispatchRefreshLoads")?.addEventListener("click", async () => {
+    if (!currentTruckId) return;
+    await fetchDispatchTruckLoads(currentTruckId, { force: true });
+    renderDispatchWorkspace();
+  });
   $("btnDispatchCopyAuditPacket")?.addEventListener("click", async () => {
     const coreUtils = window.PROOFLINK_OPERATOR_UTILS || {};
     if (typeof coreUtils.showCopyModal !== "function" || !currentTruckId) return;

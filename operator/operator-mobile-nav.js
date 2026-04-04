@@ -2,10 +2,24 @@
   var mbn = document.getElementById('mobileBottomNav');
   if (!mbn) return;
   var sidebar = document.querySelector('.sidebar');
+  var menuButton = document.getElementById('mbnMenuBtn');
+
+  function syncMenuButton(isOpen) {
+    if (!menuButton) return;
+    menuButton.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+  }
+
+  function openSidebar() {
+    if (!sidebar) return;
+    sidebar.classList.add('mobile-open');
+    document.body.classList.add('sidebar-overlay-open');
+    syncMenuButton(true);
+  }
 
   function closeSidebar() {
     if (sidebar) sidebar.classList.remove('mobile-open');
     document.body.classList.remove('sidebar-overlay-open');
+    syncMenuButton(false);
   }
 
   function syncMbn(tab) {
@@ -18,10 +32,8 @@
     btn.addEventListener('click', async function () {
       var tab = btn.dataset.mbnTab;
       if (tab === '__menu') {
-        if (sidebar) {
-          sidebar.classList.toggle('mobile-open');
-          document.body.classList.toggle('sidebar-overlay-open');
-        }
+        if (document.body.classList.contains('sidebar-overlay-open')) closeSidebar();
+        else openSidebar();
         return;
       }
       var switched = true;
@@ -31,19 +43,13 @@
     });
   });
 
-  sidebar?.querySelectorAll('.tab[data-tab]').forEach(function (btn) {
-    btn.addEventListener('click', function () {
-      if (!document.body.classList.contains('sidebar-overlay-open')) return;
-      window.setTimeout(closeSidebar, 0);
-    });
-  });
-
   // Keep bottom nav in sync with switchTab
   var origSwitch = window.switchTab;
   if (typeof origSwitch === 'function') {
     window.switchTab = async function (tab, opts) {
       var result = await origSwitch(tab, opts);
       if (result !== false) syncMbn(tab);
+      if (result !== false && document.body.classList.contains('sidebar-overlay-open')) closeSidebar();
       return result;
     };
   }
@@ -54,4 +60,6 @@
       closeSidebar();
     }
   });
+
+  syncMenuButton(document.body.classList.contains('sidebar-overlay-open'));
 })();

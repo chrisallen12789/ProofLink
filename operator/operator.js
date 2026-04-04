@@ -205,6 +205,7 @@ const btnSignOut = $("btnSignOut");
 const btnStartTour = $("btnStartTour");
 const sessionEmail = $("sessionEmail");
 const mobileBottomNav = $("mobileBottomNav");
+const operatorHydrovacQuickNav = $("operatorHydrovacQuickNav");
 const headerSearch = $("globalSearch");
 
 const loginForm = $("loginForm");
@@ -1323,6 +1324,15 @@ function toIsoDateTime(value) {
   const d = new Date(value);
   return Number.isNaN(d.getTime()) ? null : d.toISOString();
 }
+function daysUntil(value) {
+  if (!value) return null;
+  const target = new Date(value);
+  if (Number.isNaN(target.getTime())) return null;
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startOfTarget = new Date(target.getFullYear(), target.getMonth(), target.getDate());
+  return Math.round((startOfTarget.getTime() - startOfToday.getTime()) / 86400000);
+}
 function isManualPaymentRecord(row) {
   return String(row?.source || "").trim().toLowerCase() === "manual";
 }
@@ -2244,13 +2254,17 @@ function initBranding() {
 
 function isSidebarMoreOpen() {
   const more = $("sidebarMore");
-  return !!more && !more.classList.contains("u-hidden");
+  return !!more
+    && !more.classList.contains("u-hidden")
+    && !more.classList.contains("collapsed");
 }
 
 function setSidebarMoreOpen(isOpen) {
   const more = $("sidebarMore");
   const btn = $("btnSidebarMore");
   if (!more) return;
+  more.classList.toggle("collapsed", !isOpen);
+  more.classList.toggle("expanded", !!isOpen);
   more.classList.toggle("u-hidden", !isOpen);
   more.setAttribute("aria-hidden", String(!isOpen));
   if (btn) {
@@ -2316,11 +2330,13 @@ const SECONDARY_TABS = new Set([
 ]);
 const SIDEBAR_GROUPS = {
   workflow: ["leads", "bids", "proposal-settings", "jobs", "quotes", "plans"],
-  money: ["expenses", "money", "reviews"],
+  reports: ["expenses", "money", "reviews"],
   website: ["products", "pricing", "availability", "domains", "import"],
   operations: ["vendors", "equipment", "team", "inventory", "contracts"],
+  guidance: ["guidance", "ai"],
   hydrovac: ["facilities", "manifests", "locates", "compliance"],
 };
+const HYDROVAC_CONTEXT_TABS = ["facilities", "manifests", "locates", "compliance"];
 const WORKSPACE_PRIORITY_TAB_MAP = {
   crm: "customers",
   intake: "orders",
@@ -2848,6 +2864,32 @@ function renderPanelNotice(tab, blueprint = currentWorkspaceBlueprint()) {
   const anchor = panel.querySelector(".workspace-context-nav") || head;
   anchor.insertAdjacentHTML("afterend", html);
 }
+function renderHydrovacMobileQuickNav(blueprint = currentWorkspaceBlueprint()) {
+  if (!operatorHydrovacQuickNav) return;
+  const shouldShow = isHydrovacWorkspace(blueprint);
+  operatorHydrovacQuickNav.hidden = !shouldShow;
+  operatorHydrovacQuickNav.classList.toggle("u-hidden", !shouldShow);
+  if (!shouldShow) {
+    operatorHydrovacQuickNav.innerHTML = "";
+    return;
+  }
+  const activeTab = currentPanel();
+  operatorHydrovacQuickNav.innerHTML = `
+    <div class="workspace-context-nav__label">Hydrovac Quick Switch</div>
+    <div class="workspace-context-nav__tabs">
+      ${HYDROVAC_CONTEXT_TABS.map((tab) => `
+        <button type="button" class="workspace-context-tab ${activeTab === tab ? "is-active" : ""}" data-hydrovac-mobile-tab="${escapeAttr(tab)}">
+          ${escapeHtml(workspaceTabLabel(tab, blueprint))}
+        </button>
+      `).join("")}
+    </div>
+  `;
+  operatorHydrovacQuickNav.querySelectorAll("[data-hydrovac-mobile-tab]").forEach((button) => {
+    button.addEventListener("click", () => {
+      switchTab(button.getAttribute("data-hydrovac-mobile-tab") || "facilities");
+    });
+  });
+}
 function updateWorkspaceTabPresentation(tab, blueprint = currentWorkspaceBlueprint()) {
   const btn = sectionNav?.querySelector(`.tab[data-tab="${tab}"]`);
   if (!btn) return;
@@ -2879,6 +2921,13 @@ function syncSidebarGroupVisibility(blueprint = currentWorkspaceBlueprint()) {
   const more = $("sidebarMore");
   const moreButton = $("btnSidebarMore");
   if (!more) return;
+  const orderedGroups = isHydrovacWorkspace(blueprint)
+    ? ["hydrovac", "workflow", "reports", "operations", "website", "guidance"]
+    : ["workflow", "reports", "website", "operations", "guidance", "hydrovac"];
+  orderedGroups.forEach((groupKey) => {
+    const group = more.querySelector(`[data-nav-group="${groupKey}"]`);
+    if (group) more.appendChild(group);
+  });
   let visibleGroupCount = 0;
   Object.entries(SIDEBAR_GROUPS).forEach(([groupKey, tabs]) => {
     const group = more.querySelector(`[data-nav-group="${groupKey}"]`);
@@ -2940,6 +2989,7 @@ function syncOperatorShellLayout(blueprint = currentWorkspaceBlueprint()) {
   if (mobileWorkLabel) mobileWorkLabel.textContent = workspaceTabLabel("orders", blueprint);
   const mobileMenuLabel = document.querySelector('#mbnMenuBtn span');
   if (mobileMenuLabel) mobileMenuLabel.textContent = "Tools";
+  renderHydrovacMobileQuickNav(blueprint);
   ensureWebsiteQuickLinks();
 }
 function hasPricedBidDraft() {
@@ -3748,10 +3798,22 @@ async function switchTab(tab, opts = {}) {
       TABS_LOADED.add("quotes");
       fetchAndRenderQuotes().catch(console.error);
     }
-    if (nextTab === "facilities") fetchHydrovacFacilities().catch(console.error);
-    if (nextTab === "manifests") fetchHydrovacManifests().catch(console.error);
-    if (nextTab === "locates") fetchHydrovacLocateTickets().catch(console.error);
-    if (nextTab === "compliance") fetchHydrovacComplianceData().catch(console.error);
+    if (nextTab === "facilities") {
+      renderHydrovacFacilities();
+      fetchHydrovacFacilities().catch(console.error);
+    }
+    if (nextTab === "manifests") {
+      renderHydrovacManifests();
+      fetchHydrovacManifests().catch(console.error);
+    }
+    if (nextTab === "locates") {
+      renderHydrovacLocateWorkspace();
+      fetchHydrovacLocateTickets().catch(console.error);
+    }
+    if (nextTab === "compliance") {
+      renderHydrovacCompliance();
+      fetchHydrovacComplianceData().catch(console.error);
+    }
     if (nextTab === "reviews")  fetchAndRenderReviews().catch(console.error);
   if (nextTab === "messages") fetchAndRenderMessages().catch(console.error);
   if (nextTab === "ai")       initAIPanel();
@@ -3782,6 +3844,7 @@ async function switchTab(tab, opts = {}) {
     window.loadEquipmentWorkspace?.();
   }
   if (opts.updateHash !== false) syncPanelHash(nextTab);
+  renderHydrovacMobileQuickNav(currentWorkspaceBlueprint());
   renderPanelBackButtons();
   renderWorkspaceHub();
   scheduleWorkspaceSnapshot(nextTab);
@@ -8191,6 +8254,14 @@ async function boot() {
     await loadPersistedBids();
 
     showApp(user);
+    await fetchOperatorSetup().catch(console.warn);
+    if (isHydrovacWorkspace()) {
+      Promise.allSettled([
+        fetchHydrovacFacilities(),
+        fetchHydrovacManifests(),
+        fetchHydrovacLocateTickets(),
+      ]).catch(console.warn);
+    }
     applyWorkspaceBlueprint();
 
     renderProductsList("");
@@ -8223,7 +8294,6 @@ async function boot() {
       refreshPicklists(),
       fetchDashboardLaunchChecklist(),
       fetchDashboardPaymentState(),
-      fetchOperatorSetup(),
       fetchReviews(),
     ]).then(async (results) => {
       const pricingData = results[3];

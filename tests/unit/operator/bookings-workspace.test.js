@@ -139,6 +139,8 @@ describe("operator bookings workspace", () => {
     expect(source).toContain("bookingPrepGuidanceItems");
     expect(source).toContain("bookingAssignmentGuidanceItems");
     expect(source).toContain("bookingFollowThroughItems");
+    expect(source).toContain("renderBookingsOverview");
+    expect(source).toContain("booking-list-card");
     expect(source).toContain("After this visit");
     expect(source).toContain(">Close</button>");
     expect(source).not.toContain("â€”");
@@ -193,6 +195,40 @@ describe("operator bookings workspace", () => {
       { label: "Access ready", ready: true, note: "Side gate code 4421" },
       { label: "Route and cadence", ready: true, note: "Weekly" },
       { label: "Property focus", ready: true, note: "Front flower beds need spring cleanup" },
+    ]);
+  });
+
+  test("bookingPrepGuidanceItems turns hydrovac context into dispatch-ready visit prep", () => {
+    const { context } = loadBookingsWorkspace({
+      currentWorkspaceBlueprint: vi.fn(() => ({
+        business: {
+          key: "hydrovac",
+          label: "Hydrovac",
+          recordFocus: [],
+        },
+      })),
+      CUSTOMERS_CACHE: [{
+        id: "customer_hv_1",
+        name: "Harbor Utilities",
+        email: "ops@example.com",
+        site_access_notes: "Stage truck at east service road pullout",
+        locate_notes: "811 ticket expires Thursday",
+        disposal_notes: "Dump at South County liquid waste facility",
+      }],
+    });
+
+    const items = context.window.bookingPrepGuidanceItems({
+      id: "booking_hv_1",
+      customer_id: "customer_hv_1",
+      customer_name: "Harbor Utilities",
+      customer_email: "ops@example.com",
+      service_address: "North campus gate 3",
+    });
+
+    expect(items).toEqual([
+      { label: "Truck access ready", ready: true, note: "Stage truck at east service road pullout" },
+      { label: "Locate and permit note", ready: true, note: "811 ticket expires Thursday" },
+      { label: "Disposal and PO memory", ready: true, note: "Dump at South County liquid waste facility" },
     ]);
   });
 

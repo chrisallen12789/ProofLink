@@ -70,6 +70,7 @@ function loadMoneyWorkspace(overrides = {}) {
     notifyOperator: vi.fn(),
     renderJobs: vi.fn(),
     renderMoney: null,
+    renderRecordHeroCard: vi.fn((config = {}) => `<div class="record-hero">${String(config.title || "")}${String(config.description || "")}${String(config.actionsHtml || "")}</div>`),
     fetchExpenses: vi.fn(async () => []),
     fetchReviews: vi.fn(async () => []),
     stars: vi.fn((rating) => `${rating} stars`),
@@ -87,6 +88,16 @@ describe("operator money workspace", () => {
     path.resolve(process.cwd(), "operator/operator-payments-workspace.js"),
     "utf8"
   );
+  const moneySource = fs.readFileSync(
+    path.resolve(process.cwd(), "operator/operator-money-workspace.js"),
+    "utf8"
+  );
+
+  test("uses the shared command-center shell for the money workspace", () => {
+    expect(moneySource).toContain("workspace-command-center");
+    expect(moneySource).toContain("Money command center");
+    expect(moneySource).toContain("data-money-workspace-action");
+  });
 
   test("buildMoneyCollectionGuidance keeps deposits ahead of non-urgent balances", () => {
     const context = loadMoneyWorkspace({
@@ -253,6 +264,38 @@ describe("operator money workspace", () => {
     expect(markup).toContain("Open job");
     expect(markup).toContain("Candidate jobs: 4");
     expect(markup).toContain("Generated Apr 2, 10:00 AM");
+  });
+
+  test("renderMoneyWorkspaceActionCard keeps the next money actions visible", () => {
+    const context = loadMoneyWorkspace({
+      formatUsd: (value) => `$${value}`,
+    });
+
+    const markup = context.renderMoneyWorkspaceActionCard({
+      collectionGuidance: {
+        title: "Collect the overdue balances first",
+        description: "Old money should stay ahead of easier work.",
+      },
+      collectionMemory: {
+        customerName: "North Utility",
+        description: "Keep this collection tied to the real account context.",
+      },
+      collectionNextStep: {
+        title: "After collection",
+        description: "Send the team back to service follow-through.",
+        actions: [{ label: "Open customer" }],
+      },
+      outstandingBalance: 12000,
+      overdueBalance: 4000,
+      activePlansCount: 3,
+      duePlansCount: 1,
+      topCustomer: { name: "North Utility" },
+    });
+
+    expect(markup).toContain("Collect the overdue balances first");
+    expect(markup).toContain("data-money-workspace-action=\"expenses\"");
+    expect(markup).toContain("data-money-workspace-action=\"jobs\"");
+    expect(markup).toContain("data-money-workspace-action=\"plans\"");
   });
 
   test("initMoneyWorkspaceBindings wires the shared money handlers", () => {

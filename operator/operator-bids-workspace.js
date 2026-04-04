@@ -1372,7 +1372,73 @@ function renderBidStatsCard(draft) {
       </div>
     </div>
   `;
+}
+function renderBidSignalBand(draft) {
+  const wrap = document.getElementById("bidSignalBand");
+  if (!wrap) return;
+  if (!draft) {
+    wrap.innerHTML = "";
+    return;
   }
+  const totals = calculateBidTotals(draft);
+  const linkedOrder = currentBidOrder(draft);
+  const statusValue = String(draft?.status || "draft").trim().toLowerCase();
+  const hasPricedScope = bidIncludedLineItemsForOrder(draft).some((item) => bidLineItemTotalCents(item) > 0);
+  const hasPhotos = Array.isArray(draft?.photos) && draft.photos.length > 0;
+  const hasNarrative = !!String(draft?.project_summary || "").trim() && !!String(draft?.scope_of_work || "").trim();
+  const businessKey = String(bidWorkspaceBlueprint()?.business?.key || "").trim().toLowerCase();
+  const signalTone = (tone = "") => {
+    if (tone === "good") return "workspace-signal-band__item--good";
+    if (tone === "warn") return "workspace-signal-band__item--warn";
+    if (tone === "danger") return "workspace-signal-band__item--danger";
+    return "";
+  };
+  const items = [
+    {
+      label: "Proposal stage",
+      value: formatBidStatus(draft.status || "draft"),
+      note: linkedOrder
+        ? "This proposal is already tied to booked work."
+        : (statusValue === "sent" ? "The quote is out and needs a follow-up rhythm." : "Finish the core pieces and send while the walkthrough is fresh."),
+      tone: linkedOrder ? "good" : (statusValue === "sent" ? "warn" : ""),
+    },
+    {
+      label: "Scope pricing",
+      value: hasPricedScope ? formatUsd(totals.total) : "Needs pricing",
+      note: hasPricedScope
+        ? "Base scope already carries real pricing."
+        : "Add at least one priced base-scope line item before delivery.",
+      tone: hasPricedScope ? "good" : "warn",
+    },
+    {
+      label: "Field proof",
+      value: hasPhotos ? `${draft.photos.length} photo${draft.photos.length === 1 ? "" : "s"}` : "Needs proof",
+      note: hasPhotos
+        ? "Walkthrough proof is attached to the proposal."
+        : "Capture site proof so the quote feels grounded and professional.",
+      tone: hasPhotos ? "good" : "warn",
+    },
+    {
+      label: businessKey === "hydrovac" ? "Ops handoff" : "Next move",
+      value: linkedOrder ? "Booked work ready" : (hasNarrative ? "Finish and send" : "Tighten scope"),
+      note: businessKey === "hydrovac"
+        ? (linkedOrder
+          ? "Truck, disposal, and billing can now stay tied to the work record."
+          : "Keep locate, access, disposal, and site assumptions visible before conversion.")
+        : (linkedOrder
+          ? "Operations can now carry the work the rest of the way."
+          : "Keep the proposal easy to say yes to and easy to move into booked work."),
+      tone: linkedOrder ? "good" : (hasNarrative ? "warn" : "danger"),
+    },
+  ];
+  wrap.innerHTML = items.map((item) => `
+    <div class="workspace-signal-band__item ${signalTone(item.tone)}">
+      <span>${escapeHtml(item.label || "Signal")}</span>
+      <strong>${escapeHtml(item.value || "")}</strong>
+      <small>${escapeHtml(item.note || "")}</small>
+    </div>
+  `).join("");
+}
 function bidWorkspaceBlueprint() {
   if (typeof currentWorkspaceBlueprint === "function") return currentWorkspaceBlueprint();
   return { business: { key: "other", label: "Business", recordFocus: [] } };
@@ -1464,6 +1530,12 @@ function bidFollowThroughItems(draft, blueprint = bidWorkspaceBlueprint()) {
       !!firstFilled(customer?.checklist_notes, customer?.access_notes, customer?.add_on_notes),
       firstFilled(customer?.checklist_notes, customer?.access_notes, customer?.add_on_notes),
       "Capture access, add-ons, and checklist expectations before the quote turns into repeat work."
+    ),
+    hydrovac: detail(
+      "Dispatch and compliance handoff",
+      !!firstFilled(customer?.locate_notes, customer?.permit_notes, customer?.disposal_notes, customer?.site_access_notes, draft?.internal_notes),
+      firstFilled(customer?.locate_notes, customer?.permit_notes, customer?.disposal_notes, customer?.site_access_notes, draft?.internal_notes),
+      "Leave the locate, permit, truck-access, or disposal note inside the proposal before it moves into booked work."
     ),
     hvac: detail(
       "System follow-through",
@@ -1890,6 +1962,7 @@ function renderBidWorkspace(draft, opts = {}) {
     renderBidPhotoGuide(null);
     renderBidScopeStarters(null);
     renderBidCatalogStarters(null);
+    renderBidSignalBand(null);
     renderBidStatsCard(null);
     renderBidDeliveryCard(null);
     renderBidProposalReadinessCard(null);
@@ -1916,6 +1989,7 @@ function renderBidWorkspace(draft, opts = {}) {
   renderBidPhotoGuide(draft);
   renderBidScopeStarters(draft);
   renderBidCatalogStarters(draft);
+  renderBidSignalBand(draft);
   renderBidStatsCard(draft);
   renderBidDeliveryCard(draft);
   renderBidProposalReadinessCard(draft);
@@ -2872,13 +2946,14 @@ const BID_WORKSPACE_HELPERS = {
   renderBidScopeStarters,
   addBidCatalogStarter,
   renderBidCatalogStarters,
-    renderBidStatsCard,
+  renderBidSignalBand,
+  renderBidStatsCard,
   bidWorkspaceBlueprint,
   bidCustomerMemoryItems,
   bidFollowThroughItems,
   renderBidFollowThroughCard,
   renderBidCustomerMemoryCard,
-    renderBidDeliveryCard,
+  renderBidDeliveryCard,
   renderBidList,
   renderBidPhotos,
   renderBidLineItems,

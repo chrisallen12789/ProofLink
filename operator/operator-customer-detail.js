@@ -1281,6 +1281,8 @@
     latestInteraction = null,
     customerIdValue = "",
     actions = [],
+    blueprint = (typeof currentWorkspaceBlueprint === "function" ? currentWorkspaceBlueprint() : { business: { key: "service_business" } }),
+    hydrovacSnapshot = null,
   } = {}) {
     const stage = customerWorkbenchStageSummary({
       openRequestsCount,
@@ -1296,43 +1298,121 @@
       customerDisplayAddress(customer) === "No service address yet." ? 0 : 1
     );
     const activeSignals = openRequestsCount + openProposalCount + activeOrderCount + activeJobCount;
+    const hydrovacMode = customerHydrovacMode(blueprint);
+    const snapshot = hydrovacSnapshot || (hydrovacMode ? resolveCustomerHydrovacSnapshot(customer, blueprint) : null);
+    const metaItems = hydrovacMode && snapshot
+      ? [
+          {
+            label: "Dispatch",
+            value: snapshot.blockedJobs.length
+              ? `${snapshot.blockedJobs.length} blocked`
+              : (snapshot.activeJobs.length ? `${snapshot.readyJobs.length}/${snapshot.activeJobs.length} ready` : "Clear"),
+            note: snapshot.blockedJobs.length
+              ? "Truck, crew, locate, or permit still need attention."
+              : (snapshot.activeJobs.length ? "Hydrovac jobs are ready to move." : "No live hydrovac dispatch pressure."),
+            toneClass: snapshot.blockedJobs.length ? "customer-action-card__item--danger" : (snapshot.activeJobs.length ? "customer-action-card__item--good" : ""),
+          },
+          {
+            label: "Load pressure",
+            value: snapshot.liveLoads.length
+              ? `${snapshot.liveLoads.length} live`
+              : (snapshot.confirmedUnbilled.length ? `${snapshot.confirmedUnbilled.length} to bill` : "Clear"),
+            note: snapshot.overdueLoads.length
+              ? `${snapshot.overdueLoads.length} load${snapshot.overdueLoads.length === 1 ? "" : "s"} overdue for disposal.`
+              : (snapshot.dueLoads.length
+                  ? `${snapshot.dueLoads.length} load${snapshot.dueLoads.length === 1 ? "" : "s"} due to dump today.`
+                  : "No current dump clock is running."),
+            toneClass: snapshot.overdueLoads.length ? "customer-action-card__item--danger" : ((snapshot.liveLoads.length || snapshot.confirmedUnbilled.length) ? "customer-action-card__item--warn" : ""),
+          },
+          {
+            label: "Billing capture",
+            value: snapshot.confirmedUnbilled.length ? formatUsd(snapshot.uninvoicedChargeCents) : formatUsd(balance),
+            note: snapshot.confirmedUnbilled.length
+              ? `${snapshot.confirmedUnbilled.length} confirmed disposal item${snapshot.confirmedUnbilled.length === 1 ? "" : "s"} are waiting on invoice capture.`
+              : (balance > 0 ? "Receivable is still open on this account." : "No billing pressure is showing right now."),
+            toneClass: snapshot.confirmedUnbilled.length || balance > 0 ? "customer-action-card__item--warn" : "",
+          },
+          {
+            label: "Footprint",
+            value: siteCount > 1 ? `${siteCount} sites` : (siteCount === 1 ? "Single site" : "Needs site"),
+            note: siteCount > 1
+              ? "Multiple service addresses are already attached to this customer."
+              : (siteCount === 1 ? "One main service address is attached to the account." : "Add the primary site so the next truck does not relearn it."),
+            toneClass: siteCount > 1 ? "customer-action-card__item--good" : "",
+          },
+        ]
+      : [
+          {
+            label: "Last touch",
+            value: lastTouchValue ? formatDateTime(lastTouchValue) : "Not recorded",
+            note: latestInteraction
+              ? (typeof customerInteractionLabel === "function"
+                  ? customerInteractionLabel(latestInteraction.type)
+                  : String(latestInteraction.type || "Interaction"))
+              : "No interaction logged yet",
+            toneClass: "",
+          },
+          {
+            label: "Account shape",
+            value: siteCount > 1 ? `${siteCount} sites on file` : "Single-site account",
+            note: customer?.company_name ? "Company-style account with primary contact attached" : "Direct customer record with one main contact",
+            toneClass: "",
+          },
+          {
+            label: "Draft state",
+            value: latestDraft ? `${customerWorkbenchAppLabel(latestDraft.appKey)} panel saved` : "No draft waiting",
+            note: latestDraft?.draft?.updated_at ? `Autosaved ${formatDateTime(latestDraft.draft.updated_at)}` : "Panels hold your place automatically.",
+            toneClass: "",
+          },
+          {
+            label: "Live pressure",
+            value: String(activeSignals),
+            note: activeSignals > 0
+              ? `${activeSignals} live signal${activeSignals === 1 ? "" : "s"} still need operator attention.`
+              : "No active pipeline or work pressure right now.",
+            toneClass: activeSignals > 0 ? "customer-action-card__item--warn" : "",
+          },
+        ];
+    const statePillLabel = hydrovacMode && snapshot
+      ? (snapshot.blockedJobs.length ? "Dispatch risk" : ((snapshot.liveLoads.length || snapshot.confirmedUnbilled.length || balance > 0) ? "Operational watch" : "Hydrovac clear"))
+      : (activeSignals > 0 || balance > 0 ? "Needs eyes" : "Stable");
+    const statePillTone = hydrovacMode && snapshot
+      ? (snapshot.blockedJobs.length ? "pill-bad" : ((snapshot.liveLoads.length || snapshot.confirmedUnbilled.length || balance > 0) ? "pill-warn" : "pill-on"))
+      : (activeSignals > 0 || balance > 0 ? "pill-warn" : "pill-on");
     return `
       <div class="detail-card detail-card--spaced customer-action-card">
         <div class="customer-action-card__head">
           <div>
-            <div class="kicker">Account control</div>
-            <div><strong>${escapeHtml(stage.label)}</strong></div>
-            <div class="detail-copy">${escapeHtml(stage.note)}</div>
+            <div class="kicker">${escapeHtml(hydrovacMode ? "Account command" : "Account control")}</div>
+            <div><strong>${escapeHtml(hydrovacMode && snapshot
+              ? (snapshot.blockedJobs.length
+                  ? "Dispatch blockers are tied to this account"
+                  : (snapshot.liveLoads.length
+                      ? "Live loads and disposal pressure are visible here"
+                      : (snapshot.confirmedUnbilled.length
+                          ? "Confirmed disposal still needs invoice capture"
+                          : stage.label)))
+              : stage.label)}</strong></div>
+            <div class="detail-copy">${escapeHtml(hydrovacMode && snapshot
+              ? (snapshot.blockedJobs.length
+                  ? "The customer record now shows truck, crew, locate, and permit gaps without making the operator hunt through other tabs first."
+                  : (snapshot.liveLoads.length
+                      ? "This account is carrying live truck-load pressure, so disposal timing stays visible before the next dispatch."
+                      : (snapshot.confirmedUnbilled.length
+                          ? "Confirmed disposal and receivables stay close to the customer so billing does not rely on handwritten recap."
+                          : stage.note)))
+              : stage.note)}</div>
           </div>
-          <span class="pill ${escapeAttr(activeSignals > 0 || balance > 0 ? "pill-warn" : "pill-on")}">${escapeHtml(activeSignals > 0 || balance > 0 ? "Needs eyes" : "Stable")}</span>
+          <span class="pill ${escapeAttr(statePillTone)}">${escapeHtml(statePillLabel)}</span>
         </div>
         <div class="customer-action-card__meta">
-          <div class="customer-action-card__item">
-            <span>Last touch</span>
-            <strong>${escapeHtml(lastTouchValue ? formatDateTime(lastTouchValue) : "Not recorded")}</strong>
-            <small>${escapeHtml(latestInteraction
-              ? (typeof customerInteractionLabel === "function"
-                  ? customerInteractionLabel(latestInteraction.type)
-                  : String(latestInteraction.type || "Interaction"))
-              : "No interaction logged yet")}</small>
-          </div>
-          <div class="customer-action-card__item">
-            <span>Account shape</span>
-            <strong>${escapeHtml(siteCount > 1 ? `${siteCount} sites on file` : "Single-site account")}</strong>
-            <small>${escapeHtml(customer?.company_name ? "Company-style account with primary contact attached" : "Direct customer record with one main contact")}</small>
-          </div>
-          <div class="customer-action-card__item">
-            <span>Draft state</span>
-            <strong>${escapeHtml(latestDraft ? `${customerWorkbenchAppLabel(latestDraft.appKey)} panel saved` : "No draft waiting")}</strong>
-            <small>${escapeHtml(latestDraft?.draft?.updated_at ? `Autosaved ${formatDateTime(latestDraft.draft.updated_at)}` : "Panels hold your place automatically.")}</small>
-          </div>
-          <div class="customer-action-card__item">
-            <span>Live pressure</span>
-            <strong>${escapeHtml(String(activeSignals))}</strong>
-            <small>${escapeHtml(activeSignals > 0
-              ? `${activeSignals} live signal${activeSignals === 1 ? "" : "s"} still need operator attention.`
-              : "No active pipeline or work pressure right now.")}</small>
-          </div>
+          ${metaItems.map((item) => `
+            <div class="customer-action-card__item ${escapeAttr(item.toneClass || "")}">
+              <span>${escapeHtml(item.label)}</span>
+              <strong>${escapeHtml(item.value)}</strong>
+              <small>${escapeHtml(item.note)}</small>
+            </div>
+          `).join("")}
         </div>
         <div class="customer-action-card__buttons">
           ${actions.map((action) => `<button type="button" class="${escapeAttr(action.className || "btn btn-ghost")}" ${Object.entries(action.data || {}).map(([key, value]) => `${key}="${escapeAttr(value)}"`).join(" ")}>${escapeHtml(action.label || "Open")}</button>`).join("")}
@@ -1617,6 +1697,308 @@
     `;
   }
 
+  function customerBlueprintKey(blueprint = (typeof currentWorkspaceBlueprint === "function" ? currentWorkspaceBlueprint() : { business: { key: "service_business" } })) {
+    return String(blueprint?.business?.key || "service_business").trim().toLowerCase();
+  }
+
+  function customerHydrovacMode(blueprint = (typeof currentWorkspaceBlueprint === "function" ? currentWorkspaceBlueprint() : { business: { key: "service_business" } })) {
+    return customerBlueprintKey(blueprint) === "hydrovac";
+  }
+
+  function resolveCustomerHydrovacSnapshot(customer = null, blueprint = (typeof currentWorkspaceBlueprint === "function" ? currentWorkspaceBlueprint() : { business: { key: "service_business" } })) {
+    if (!customer?.id || !customerHydrovacMode(blueprint)) return null;
+    const customerWorkspaceApi = global.PROOFLINK_OPERATOR_CUSTOMERS_WORKSPACE || {};
+    if (typeof customerWorkspaceApi.customerHydrovacWorkbenchSnapshot !== "function") return null;
+    const metrics = typeof customerWorkspaceApi.customerWorkbenchMetrics === "function"
+      ? customerWorkspaceApi.customerWorkbenchMetrics(customer)
+      : null;
+    return customerWorkspaceApi.customerHydrovacWorkbenchSnapshot(customer, metrics, blueprint);
+  }
+
+  function customerHydrovacSignalBand(snapshot = null, context = {}) {
+    if (!snapshot) return "";
+    const balance = Number(context.balance || 0);
+    const siteCount = Math.max(
+      Number(snapshot.siteAddresses?.length || 0),
+      Number(context.knownAddresses?.length || 0),
+      customerDisplayAddress(context.customer) === "No service address yet." ? 0 : 1
+    );
+    const signalItems = [
+      {
+        label: "Dispatch",
+        value: snapshot.blockedJobs.length
+          ? `${snapshot.blockedJobs.length} blocked`
+          : (snapshot.activeJobs.length ? `${snapshot.readyJobs.length}/${snapshot.activeJobs.length} ready` : "Clear"),
+        note: snapshot.blockedJobs.length
+          ? "Truck, crew, locate, or permit still need attention."
+          : (snapshot.activeJobs.length ? "Ready jobs have the core dispatch pieces in place." : "No active hydrovac dispatch pressure."),
+        toneClass: snapshot.blockedJobs.length ? "is-danger" : (snapshot.activeJobs.length ? "is-good" : ""),
+      },
+      {
+        label: "Loads",
+        value: snapshot.liveLoads.length ? `${snapshot.liveLoads.length} live` : "No live loads",
+        note: snapshot.overdueLoads.length
+          ? `${snapshot.overdueLoads.length} overdue for disposal.`
+          : (snapshot.dueLoads.length ? `${snapshot.dueLoads.length} due to dump today.` : "No current disposal clock is running."),
+        toneClass: snapshot.overdueLoads.length ? "is-danger" : ((snapshot.liveLoads.length || snapshot.dueLoads.length) ? "is-warn" : ""),
+      },
+      {
+        label: "Billing",
+        value: snapshot.confirmedUnbilled.length ? formatUsd(snapshot.uninvoicedChargeCents) : formatUsd(balance),
+        note: snapshot.confirmedUnbilled.length
+          ? `${snapshot.confirmedUnbilled.length} confirmed disposal item${snapshot.confirmedUnbilled.length === 1 ? "" : "s"} still need invoice capture.`
+          : (balance > 0 ? "Open receivable still needs collection follow-through." : "No disposal or receivable billing pressure."),
+        toneClass: snapshot.confirmedUnbilled.length || balance > 0 ? "is-warn" : "",
+      },
+      {
+        label: "Sites",
+        value: siteCount > 0 ? `${siteCount} mapped` : "Needs mapping",
+        note: siteCount > 1
+          ? "Multiple service addresses are already attached to this account."
+          : (siteCount === 1 ? "One primary hydrovac site is attached to the account." : "Add the main work site so dispatch stops relearning it."),
+        toneClass: siteCount > 1 ? "is-good" : "",
+      },
+    ];
+
+    return `
+      <div class="customer-signal-band">
+        ${signalItems.map((item) => `
+          <div class="customer-signal-band__item ${escapeAttr(item.toneClass || "")}">
+            <span>${escapeHtml(item.label)}</span>
+            <strong>${escapeHtml(item.value)}</strong>
+            <small>${escapeHtml(item.note)}</small>
+          </div>
+        `).join("")}
+      </div>
+    `;
+  }
+
+  function renderCustomerHydrovacMissionControl(snapshot = null, context = {}) {
+    if (!snapshot) return "";
+    const knownSites = Array.from(new Set([
+      ...(snapshot.siteAddresses || []),
+      ...(context.knownAddresses || []),
+    ].filter(Boolean))).slice(0, 6);
+    const latestPayment = context.latestPayment || context.customerPayments?.[0] || null;
+    const dispatchItems = snapshot.blockedJobs.length
+      ? snapshot.blockedJobs.slice(0, 3).map((entry) => ({
+          title: entry.job?.title || entry.job?.service_address || "Hydrovac job",
+          note: entry.reasons.join(" | "),
+        }))
+      : snapshot.activeJobs.length
+        ? snapshot.readyJobs.slice(0, 3).map((job) => ({
+            title: job?.title || job?.service_address || "Ready job",
+            note: `${titleCaseWords(String(job?.status || "scheduled").replace(/_/g, " "))} | ${job?.scheduled_date || "No date set"}`,
+          }))
+        : [{
+            title: "No active hydrovac jobs",
+            note: "This account is clear until the next request, dispatch, or repeat-work follow-up is created.",
+          }];
+    const loadItems = snapshot.liveLoads.length
+      ? snapshot.liveLoads.slice(0, 3).map((manifest) => {
+          const readyBy = typeof hydrovacManifestReadyBy === "function"
+            ? hydrovacManifestReadyBy(manifest)
+            : String(manifest?.metadata?.disposal_ready_by || "").trim();
+          const manifestStatus = titleCaseWords(String(manifest?.status || "in_transit").replace(/_/g, " "));
+          const material = typeof hydrovacMaterialLabel === "function"
+            ? hydrovacMaterialLabel(manifest?.material_type)
+            : titleCaseWords(String(manifest?.material_type || "load").replace(/_/g, " "));
+          const quantity = typeof hydrovacManifestQuantityLabel === "function"
+            ? hydrovacManifestQuantityLabel(manifest)
+            : String(manifest?.quantity_actual ?? manifest?.quantity_estimated ?? "Qty pending");
+          return {
+            title: manifest?.manifest_number || manifest?.truck_id || "Live load",
+            note: `${manifestStatus} | ${material} | ${quantity}${readyBy ? ` | dump by ${readyBy}` : ""}`,
+          };
+        })
+      : snapshot.confirmedUnbilled.length
+        ? snapshot.confirmedUnbilled.slice(0, 3).map((manifest) => ({
+            title: manifest?.manifest_number || "Confirmed manifest",
+            note: `Ready for invoice capture | ${formatUsd(Number(manifest?.disposal_charge_cents || 0))}`,
+          }))
+        : [{
+            title: "No live loads or confirmed disposal waiting",
+            note: "The account is not carrying a dump clock or disposal billing backlog right now.",
+          }];
+    const billingItems = snapshot.confirmedUnbilled.length
+      ? snapshot.confirmedUnbilled.slice(0, 3).map((manifest) => ({
+          title: manifest?.manifest_number || "Manifest waiting on invoice",
+          note: `${formatUsd(Number(manifest?.disposal_charge_cents || 0))} disposal charge not billed yet`,
+        }))
+      : [{
+          title: Number(context.balance || 0) > 0
+            ? `${formatUsd(Number(context.balance || 0))} still open`
+            : "Billing is caught up for now",
+          note: latestPayment
+            ? `Latest payment ${formatUsd(paymentAmountCents(latestPayment))} on ${formatDateTime(latestPayment?.paid_at || latestPayment?.created_at || latestPayment?.updated_at)}`
+            : "No recent payment or disposal invoice pressure is showing on this account.",
+        }];
+    const siteItems = knownSites.length
+      ? knownSites.map((site) => ({
+          title: site,
+          note: "Known service footprint for dispatch, locates, or follow-up",
+        }))
+      : [{
+          title: customerDisplayAddress(context.customer),
+          note: "Add the primary work site and access notes before the next truck rolls.",
+        }];
+
+    const cards = [
+      {
+        eyebrow: "Dispatch",
+        title: "Know whether the truck can roll",
+        badge: snapshot.blockedJobs.length
+          ? `${snapshot.blockedJobs.length} blocked`
+          : (snapshot.activeJobs.length ? `${snapshot.readyJobs.length} ready` : "Clear"),
+        toneClass: snapshot.blockedJobs.length ? "pill-bad" : (snapshot.activeJobs.length ? "pill-on" : ""),
+        metrics: [
+          {
+            label: "Active hydrovac jobs",
+            value: String(snapshot.activeJobs.length),
+            note: snapshot.activeJobs.length ? "Jobs tied to this customer that are still live." : "No jobs are active right now.",
+          },
+          {
+            label: "Locate / permit watch",
+            value: String(snapshot.expiringLocates.length + snapshot.expiringPermits.length + snapshot.expiredLocates.length + snapshot.expiredPermits.length),
+            note: "Anything expiring soon or already expired on this account.",
+          },
+        ],
+        items: dispatchItems,
+        actions: [
+          { label: "Open dispatch", action: "dispatch", className: "btn btn-primary" },
+          { label: "Open jobs", action: "jobs", className: "btn btn-ghost" },
+          { label: "Open locates", action: "locates", className: "btn btn-ghost" },
+        ],
+      },
+      {
+        eyebrow: "Loads",
+        title: "Keep disposal pressure visible",
+        badge: snapshot.liveLoads.length
+          ? `${snapshot.liveLoads.length} live`
+          : (snapshot.confirmedUnbilled.length ? `${snapshot.confirmedUnbilled.length} to bill` : "Clear"),
+        toneClass: snapshot.overdueLoads.length ? "pill-bad" : ((snapshot.liveLoads.length || snapshot.confirmedUnbilled.length) ? "pill-warn" : "pill-on"),
+        metrics: [
+          {
+            label: "Dump due",
+            value: String(snapshot.overdueLoads.length + snapshot.dueLoads.length),
+            note: snapshot.overdueLoads.length ? "Includes overdue live loads." : "Loads due today or overdue.",
+          },
+          {
+            label: "Shared truck risk",
+            value: String(snapshot.sharedTruckRiskCount),
+            note: snapshot.sharedTruckRiskCount ? "Live truck loads touch more than one customer." : "No cross-customer truck pressure showing.",
+          },
+        ],
+        items: loadItems,
+        actions: [
+          { label: "Open manifests", action: "manifests", className: "btn btn-primary" },
+          { label: "Open compliance", action: "compliance", className: "btn btn-ghost" },
+          { label: "Open jobs", action: "jobs", className: "btn btn-ghost" },
+        ],
+      },
+      {
+        eyebrow: "Billing",
+        title: "Capture what should turn into cash",
+        badge: snapshot.confirmedUnbilled.length
+          ? formatUsd(snapshot.uninvoicedChargeCents)
+          : formatUsd(Number(context.balance || 0)),
+        toneClass: snapshot.confirmedUnbilled.length || Number(context.balance || 0) > 0 ? "pill-warn" : "pill-on",
+        metrics: [
+          {
+            label: "Disposal waiting on invoice",
+            value: String(snapshot.confirmedUnbilled.length),
+            note: snapshot.confirmedUnbilled.length ? "Confirmed manifests not carried into billing yet." : "No disposal charge is waiting on invoice capture.",
+          },
+          {
+            label: "Open receivable",
+            value: formatUsd(Number(context.balance || 0)),
+            note: Number(context.balance || 0) > 0 ? "Total outstanding on this customer record." : "Nothing outstanding on the customer balance.",
+          },
+        ],
+        items: billingItems,
+        actions: [
+          { label: "Money panel", action: "money", className: "btn btn-primary" },
+          { label: "Open payments", action: "payments", className: "btn btn-ghost" },
+          { label: "Open manifests", action: "manifests", className: "btn btn-ghost" },
+        ],
+      },
+      {
+        eyebrow: "Sites",
+        title: "Keep the account footprint legible",
+        badge: `${knownSites.length || (customerDisplayAddress(context.customer) === "No service address yet." ? 0 : 1)} mapped`,
+        toneClass: knownSites.length > 1 ? "pill-on" : "",
+        metrics: [
+          {
+            label: "Known addresses",
+            value: String(knownSites.length || (customerDisplayAddress(context.customer) === "No service address yet." ? 0 : 1)),
+            note: "Mapped service footprint currently tied to the customer.",
+          },
+          {
+            label: "Last touch",
+            value: context.lastTouchValue ? formatDateTime(context.lastTouchValue) : "Not recorded",
+            note: context.latestInteraction ? customerInteractionLabel(context.latestInteraction.type) : "No interaction logged yet.",
+          },
+        ],
+        items: siteItems.slice(0, 4),
+        actions: [
+          { label: "Profile panel", action: "profile", className: "btn btn-primary" },
+          { label: "New request", action: "request", className: "btn btn-ghost" },
+          { label: "Add note", action: "note", className: "btn btn-ghost" },
+        ],
+      },
+    ];
+
+    return `
+      <div class="detail-card customer-hydrovac-board" id="customerHydrovacOpsSection">
+        <div class="customer-hydrovac-board__head">
+          <div>
+            <div class="kicker">Hydrovac account board</div>
+            <div><strong>Run dispatch, disposal, and billing from the same customer record</strong></div>
+            <div class="detail-copy">This board keeps the operational pressure visible before the account gets split across jobs, manifests, and receivables.</div>
+          </div>
+          <div class="customer-hydrovac-board__meta workspace-chip-row">
+            <span class="pill ${snapshot.blockedJobs.length ? "pill-bad" : "pill-on"}">${escapeHtml(snapshot.blockedJobs.length ? `${snapshot.blockedJobs.length} blocked` : "Dispatch clear")}</span>
+            <span class="pill ${snapshot.liveLoads.length ? "pill-warn" : "pill-on"}">${escapeHtml(snapshot.liveLoads.length ? `${snapshot.liveLoads.length} live load${snapshot.liveLoads.length === 1 ? "" : "s"}` : "No live loads")}</span>
+            <span class="pill ${snapshot.confirmedUnbilled.length || Number(context.balance || 0) > 0 ? "pill-warn" : "pill-on"}">${escapeHtml(snapshot.confirmedUnbilled.length ? `${snapshot.confirmedUnbilled.length} disposal item${snapshot.confirmedUnbilled.length === 1 ? "" : "s"} to bill` : (Number(context.balance || 0) > 0 ? `${formatUsd(Number(context.balance || 0))} open` : "Billing clear"))}</span>
+          </div>
+        </div>
+        <div class="customer-hydrovac-board__grid">
+          ${cards.map((card) => `
+            <div class="customer-hydrovac-card">
+              <div class="customer-hydrovac-card__head">
+                <div>
+                  <div class="kicker">${escapeHtml(card.eyebrow)}</div>
+                  <strong>${escapeHtml(card.title)}</strong>
+                </div>
+                <span class="pill ${escapeAttr(card.toneClass || "")}">${escapeHtml(card.badge)}</span>
+              </div>
+              <div class="customer-hydrovac-card__metrics">
+                ${card.metrics.map((metric) => `
+                  <div class="customer-hydrovac-card__metric">
+                    <span>${escapeHtml(metric.label)}</span>
+                    <strong>${escapeHtml(metric.value)}</strong>
+                    <small>${escapeHtml(metric.note)}</small>
+                  </div>
+                `).join("")}
+              </div>
+              <div class="customer-hydrovac-card__list">
+                ${card.items.map((item) => `
+                  <div class="customer-hydrovac-card__item">
+                    <strong>${escapeHtml(item.title)}</strong>
+                    <small>${escapeHtml(item.note)}</small>
+                  </div>
+                `).join("")}
+              </div>
+              <div class="customer-hydrovac-card__footer">
+                ${card.actions.map((action) => `<button type="button" class="${escapeAttr(action.className || "btn btn-ghost")}" data-customer-action="${escapeAttr(action.action || "")}">${escapeHtml(action.label || "Open")}</button>`).join("")}
+              </div>
+            </div>
+          `).join("")}
+        </div>
+      </div>
+    `;
+  }
+
   const CUSTOMER_WORKBENCH_APP_ORDER = [
     "profile",
     "requests",
@@ -1830,16 +2212,22 @@
     balance = 0,
     lastTouchValue = "",
     knownAddresses = [],
+    blueprint = (typeof currentWorkspaceBlueprint === "function" ? currentWorkspaceBlueprint() : { business: { key: "service_business" } }),
+    hydrovacSnapshot = null,
   } = {}) {
     const profileDraft = !!readCustomerWorkbenchDraft(customerIdValue, "profile");
     const requestsDraft = !!readCustomerWorkbenchDraft(customerIdValue, "requests");
     const followThroughDraft = !!readCustomerWorkbenchDraft(customerIdValue, "follow_through");
+    const hydrovacMode = customerHydrovacMode(blueprint);
+    const snapshot = hydrovacSnapshot || (hydrovacMode ? resolveCustomerHydrovacSnapshot(customer, blueprint) : null);
     return [
       {
         key: "profile",
         meta: "Account",
         title: "Profile",
-        copy: "Edit contacts, sites, and internal notes without leaving the customer workbench.",
+        copy: hydrovacMode
+          ? "Hold billing contacts, site notes, and the details dispatch should not have to relearn."
+          : "Edit contacts, sites, and internal notes without leaving the customer workbench.",
         status: profileDraft
           ? "Draft waiting"
           : (knownAddresses.length > 1 ? `${knownAddresses.length} sites on file` : (customer?.email || customer?.phone ? "Contact ready" : "Needs contact details")),
@@ -1850,7 +2238,9 @@
         key: "requests",
         meta: "Intake",
         title: "Requests",
-        copy: "Keep new requests tied to this account and draft the next follow-up without changing tabs.",
+        copy: hydrovacMode
+          ? "Tie the next potholing, daylighting, or vacuum excavation request to the same account without breaking context."
+          : "Keep new requests tied to this account and draft the next follow-up without changing tabs.",
         status: requestsDraft
           ? "Draft waiting"
           : (openRequestsCount > 0 ? `${openRequestsCount} open request${openRequestsCount === 1 ? "" : "s"}` : `${customerRequestsRows.length} total request${customerRequestsRows.length === 1 ? "" : "s"}`),
@@ -1861,7 +2251,9 @@
         key: "proposals",
         meta: "Pricing",
         title: "Proposals",
-        copy: "Review proposal history and open the estimate builder only when you need detailed pricing work.",
+        copy: hydrovacMode
+          ? "Review quote history when mobilization, disposal, or compliance-sensitive pricing needs a formal document."
+          : "Review proposal history and open the estimate builder only when you need detailed pricing work.",
         status: openProposalCount > 0
           ? `${openProposalCount} live proposal${openProposalCount === 1 ? "" : "s"}`
           : `${customerBidRows.length} saved proposal${customerBidRows.length === 1 ? "" : "s"}`,
@@ -1870,31 +2262,45 @@
       },
       {
         key: "work",
-        meta: "Execution",
+        meta: hydrovacMode ? "Dispatch" : "Execution",
         title: "Work",
-        copy: "See booked work, active jobs, and the next operational move from one place.",
-        status: activeOrderCount + activeJobCount > 0
-          ? `${activeOrderCount + activeJobCount} active work item${activeOrderCount + activeJobCount === 1 ? "" : "s"}`
-          : `${customerOrders.length + customerJobsRows.length} total work record${customerOrders.length + customerJobsRows.length === 1 ? "" : "s"}`,
+        copy: hydrovacMode
+          ? "See active jobs, readiness gaps, and truck-load pressure from one focused panel."
+          : "See booked work, active jobs, and the next operational move from one place.",
+        status: hydrovacMode && snapshot
+          ? (snapshot.blockedJobs.length
+              ? `${snapshot.blockedJobs.length} dispatch blocker${snapshot.blockedJobs.length === 1 ? "" : "s"}`
+              : (snapshot.activeJobs.length ? `${snapshot.activeJobs.length} hydrovac job${snapshot.activeJobs.length === 1 ? "" : "s"} live` : "No live hydrovac jobs"))
+          : (activeOrderCount + activeJobCount > 0
+              ? `${activeOrderCount + activeJobCount} active work item${activeOrderCount + activeJobCount === 1 ? "" : "s"}`
+              : `${customerOrders.length + customerJobsRows.length} total work record${customerOrders.length + customerJobsRows.length === 1 ? "" : "s"}`),
         openLabel: "Open panel",
         dirty: false,
       },
       {
         key: "money",
-        meta: "Collections",
+        meta: hydrovacMode ? "Billing" : "Collections",
         title: "Money",
-        copy: "Keep billed work, recent payments, and collection context close to the customer.",
-        status: balance > 0
-          ? `${formatUsd(balance)} open`
-          : (customerPayments.length ? "Collected for now" : "No payments yet"),
+        copy: hydrovacMode
+          ? "Keep disposal charges, open balances, and invoice follow-through close to the customer."
+          : "Keep billed work, recent payments, and collection context close to the customer.",
+        status: hydrovacMode && snapshot
+          ? (snapshot.confirmedUnbilled.length
+              ? `${formatUsd(snapshot.uninvoicedChargeCents)} disposal to bill`
+              : (balance > 0 ? `${formatUsd(balance)} open` : (customerPayments.length ? "Collected for now" : "No payments yet")))
+          : (balance > 0
+              ? `${formatUsd(balance)} open`
+              : (customerPayments.length ? "Collected for now" : "No payments yet")),
         openLabel: "Open panel",
         dirty: false,
       },
       {
         key: "follow_through",
-        meta: "Relationship",
+        meta: hydrovacMode ? "Site memory" : "Relationship",
         title: "Follow-through",
-        copy: "Log the latest touchpoint, see recent activity, and keep the next promise visible.",
+        copy: hydrovacMode
+          ? "Log what the crew learned, what the customer needs next, and what the office promised before it slips."
+          : "Log the latest touchpoint, see recent activity, and keep the next promise visible.",
         status: followThroughDraft
           ? "Draft waiting"
           : (lastTouchValue ? `Last touch ${formatDateTime(lastTouchValue)}` : `${activityTimeline.length} recent activity item${activityTimeline.length === 1 ? "" : "s"}`),
@@ -1906,15 +2312,18 @@
 
   function renderCustomerWorkbenchLauncher(context = {}) {
     const customerIdValue = context.customerIdValue || "";
+    const hydrovacMode = customerHydrovacMode(context.blueprint);
     const cards = customerWorkbenchAppCards(context);
     const latestDraft = latestCustomerWorkbenchDraftForCustomer(customerIdValue);
     return `
       <div class="detail-card customer-workbench-launcher" id="customerWorkflowSection">
         <div class="customer-workbench-launcher__head">
           <div>
-            <div class="kicker">Customer apps</div>
-            <div><strong>Open one focused panel and keep the rest of the account quiet</strong></div>
-            <div class="detail-copy">Each panel stays tied to this customer, keeps its own draft, and drops you back where you left off.</div>
+            <div class="kicker">${escapeHtml(hydrovacMode ? "Account panels" : "Customer apps")}</div>
+            <div><strong>${escapeHtml(hydrovacMode ? "Open one focused hydrovac panel and keep the account readable" : "Open one focused panel and keep the rest of the account quiet")}</strong></div>
+            <div class="detail-copy">${escapeHtml(hydrovacMode
+              ? "Dispatch, billing, and site memory all stay tied to this customer, but each panel gives the operator one clear job at a time."
+              : "Each panel stays tied to this customer, keeps its own draft, and drops you back where you left off.")}</div>
           </div>
           <div class="customer-workbench-launcher__stats">
             <span class="pill">${escapeHtml(`${cards.length} app${cards.length === 1 ? "" : "s"}`)}</span>
@@ -2168,6 +2577,22 @@
     if (action === "jobs") {
       closeCustomerWorkbenchModal();
       return switchTab("jobs");
+    }
+    if (action === "dispatch") {
+      closeCustomerWorkbenchModal();
+      return switchTab("dispatch");
+    }
+    if (action === "locates") {
+      closeCustomerWorkbenchModal();
+      return switchTab("locates");
+    }
+    if (action === "manifests") {
+      closeCustomerWorkbenchModal();
+      return switchTab("manifests");
+    }
+    if (action === "compliance") {
+      closeCustomerWorkbenchModal();
+      return switchTab("compliance");
     }
     if (action === "payments") {
       closeCustomerWorkbenchModal();
@@ -3058,6 +3483,24 @@
     }
 
     {
+      const blueprint = typeof currentWorkspaceBlueprint === "function"
+        ? currentWorkspaceBlueprint()
+        : { business: { key: "service_business" } };
+      const hydrovacMode = customerHydrovacMode(blueprint);
+      const hasHydrovacJobs = hydrovacMode && (customerJobs(customerIdValue) || []).some((job) => (
+        typeof isHydrovacJob === "function" ? isHydrovacJob(job, blueprint) : true
+      ));
+      if (hasHydrovacJobs
+        && !(HYDROVAC_LOCATE_TICKETS_CACHE || []).length
+        && !(HYDROVAC_MANIFESTS_CACHE || []).length
+        && !(HYDROVAC_PERMITS_CACHE || []).length) {
+        try {
+          await global.PROOFLINK_OPERATOR_HYDROVAC_OPS_WORKSPACE?.fetchHydrovacComplianceData?.();
+        } catch (error) {
+          console.error("[customer hydrovac preload]", error);
+        }
+      }
+
       const workbenchInteractions = await fetchCustomerInteractions(customerIdValue);
       const workbenchContext = normalizeCustomerWorkbenchContext({
         customer,
@@ -3079,16 +3522,26 @@
         knownAddresses: workbenchAddresses,
         lastTouchValue: workbenchLastTouch,
       } = workbenchContext;
+      const hydrovacSnapshot = hydrovacMode ? resolveCustomerHydrovacSnapshot(customer, workbenchContext.blueprint) : null;
       const workbenchAddress = customerDisplayAddress(customer);
       const hasActiveOrders = CRM_ORDERS_CACHE.some((o) => o.customer_id === customerIdValue && !["completed", "cancelled", "archived"].includes(String(o.status || "").toLowerCase()));
       const hasActiveJobs = JOBS_CACHE.some((job) => job.customer_id === customerIdValue && !["completed", "cancelled", "archived"].includes(String(job.status || "").toLowerCase()));
-      const customerQuickActions = [
-        { label: "Edit details", className: "btn btn-ghost", data: { "customer-action": "edit" } },
-        { label: "New request", className: "btn btn-primary", data: { "customer-action": "request" } },
-        { label: "Draft proposal", className: "btn btn-ghost", data: { "customer-action": "bid" } },
-        { label: "Money panel", className: "btn btn-ghost", data: { "customer-action": "money" } },
-        { label: "Add note", className: "btn btn-ghost", data: { "customer-action": "note" } },
-      ];
+      const customerQuickActions = hydrovacMode
+        ? [
+            { label: "Dispatch board", className: "btn btn-primary", data: { "customer-action": "dispatch" } },
+            { label: "Open manifests", className: "btn btn-ghost", data: { "customer-action": "manifests" } },
+            { label: "Money panel", className: "btn btn-ghost", data: { "customer-action": "money" } },
+            { label: "New request", className: "btn btn-ghost", data: { "customer-action": "request" } },
+            { label: "Edit details", className: "btn btn-ghost", data: { "customer-action": "edit" } },
+            { label: "Add note", className: "btn btn-ghost", data: { "customer-action": "note" } },
+          ]
+        : [
+            { label: "Edit details", className: "btn btn-ghost", data: { "customer-action": "edit" } },
+            { label: "New request", className: "btn btn-primary", data: { "customer-action": "request" } },
+            { label: "Draft proposal", className: "btn btn-ghost", data: { "customer-action": "bid" } },
+            { label: "Money panel", className: "btn btn-ghost", data: { "customer-action": "money" } },
+            { label: "Add note", className: "btn btn-ghost", data: { "customer-action": "note" } },
+          ];
       if (!hasActiveOrders && !hasActiveJobs) {
         customerQuickActions.push({
           label: "Archive customer",
@@ -3097,61 +3550,134 @@
         });
       }
 
+      workbenchContext.hydrovacSnapshot = hydrovacSnapshot;
       workbenchContext.lastAppKey = readCustomerWorkbenchLastApp(customerIdValue);
       global.CURRENT_CUSTOMER_DETAIL_CONTEXT = workbenchContext;
 
       customerDetailWrap.innerHTML = `
-        <div class="customer-record-shell">
-          <div class="customer-record-shell__hero">
+        <div class="customer-command-center ${hydrovacMode ? "customer-command-center--hydrovac" : ""}">
+          <div class="customer-command-center__top">
+            <div class="customer-command-center__hero">
             ${renderRecordHeroCard({
               eyebrow: "Customer record",
               title: customerPrimaryDisplayLabel(customer),
-              badges: [
+              badges: hydrovacMode && hydrovacSnapshot ? [
+                { label: `${hydrovacSnapshot.activeJobs.length} active hydrovac job${hydrovacSnapshot.activeJobs.length === 1 ? "" : "s"}` },
+                hydrovacSnapshot.blockedJobs.length
+                  ? { label: `${hydrovacSnapshot.blockedJobs.length} dispatch blocked`, tone: "pill-bad" }
+                  : { label: `${hydrovacSnapshot.readyJobs.length} ready to roll`, tone: "pill-on" },
+                hydrovacSnapshot.liveLoads.length
+                  ? {
+                      label: `${hydrovacSnapshot.liveLoads.length} live load${hydrovacSnapshot.liveLoads.length === 1 ? "" : "s"}`,
+                      tone: hydrovacSnapshot.overdueLoads.length ? "pill-bad" : "pill-warn",
+                    }
+                  : { label: "No live loads", tone: "pill-on" },
+                hydrovacSnapshot.confirmedUnbilled.length
+                  ? { label: `${formatUsd(hydrovacSnapshot.uninvoicedChargeCents)} disposal to bill`, tone: "pill-warn" }
+                  : (workbenchBalance > 0 ? { label: `${formatUsd(workbenchBalance)} open balance`, tone: "pill-bad" } : { label: "Billing clear", tone: "pill-on" }),
+              ] : [
                 { label: `${workbenchOpenRequests} open request${workbenchOpenRequests === 1 ? "" : "s"}` },
                 { label: `${workbenchOpenProposals} live proposal${workbenchOpenProposals === 1 ? "" : "s"}` },
                 { label: `${workbenchActiveOrders + workbenchActiveJobs} active work item${workbenchActiveOrders + workbenchActiveJobs === 1 ? "" : "s"}` },
                 workbenchBalance > 0 ? { label: `${formatUsd(workbenchBalance)} open`, tone: "pill-bad" } : { label: "No balance due", tone: "pill-on" },
               ],
-              meta: [
+              meta: hydrovacMode && hydrovacSnapshot ? [
+                customerContactSummary(customer),
+                workbenchAddress,
+                workbenchLastTouch ? `Last touch ${formatDateTime(workbenchLastTouch)}` : "",
+              ] : [
                 customerContactSummary(customer),
                 workbenchAddress,
               ],
-              description: "Keep requests, pricing, field work, and money follow-through attached to one clean account record.",
-              summary: [
+              description: hydrovacMode && hydrovacSnapshot
+                ? "Keep dispatch blockers, live loads, disposal billing, and site memory attached to one calm customer record."
+                : "Keep requests, pricing, field work, and money follow-through attached to one clean account record.",
+              summary: hydrovacMode && hydrovacSnapshot ? [
+                {
+                  label: "Active hydrovac jobs",
+                  value: String(hydrovacSnapshot.activeJobs.length),
+                  note: hydrovacSnapshot.activeJobs.length ? `${hydrovacSnapshot.readyJobs.length} ready to roll` : "No live jobs attached",
+                },
+                {
+                  label: "Dispatch blockers",
+                  value: String(hydrovacSnapshot.blockedJobs.length),
+                  note: hydrovacSnapshot.blockedJobs.length ? "Truck, crew, locate, or permit gaps" : "Nothing is blocking dispatch",
+                },
+                {
+                  label: "Live loads",
+                  value: String(hydrovacSnapshot.liveLoads.length),
+                  note: hydrovacSnapshot.overdueLoads.length
+                    ? `${hydrovacSnapshot.overdueLoads.length} overdue for disposal`
+                    : (hydrovacSnapshot.dueLoads.length ? `${hydrovacSnapshot.dueLoads.length} due today` : "No dump clock running"),
+                },
+                {
+                  label: "Disposal to bill",
+                  value: hydrovacSnapshot.confirmedUnbilled.length ? formatUsd(hydrovacSnapshot.uninvoicedChargeCents) : formatUsd(workbenchBalance),
+                  note: hydrovacSnapshot.confirmedUnbilled.length
+                    ? `${hydrovacSnapshot.confirmedUnbilled.length} confirmed manifest${hydrovacSnapshot.confirmedUnbilled.length === 1 ? "" : "s"} waiting on invoice capture`
+                    : (workbenchBalance > 0 ? "Open receivable still due" : "Nothing waiting on billing"),
+                },
+              ] : [
                 { label: "Open requests", value: String(workbenchOpenRequests), note: "Needs response or scope" },
                 { label: "Open proposals", value: String(workbenchOpenProposals), note: "Still moving toward approval" },
                 { label: "Booked + active work", value: String(workbenchActiveOrders + workbenchActiveJobs), note: "Execution or follow-through still open" },
                 { label: "Outstanding balance", value: formatUsd(workbenchBalance), note: "Billed work not fully collected" },
               ],
+              actionsHtml: hydrovacMode ? customerHydrovacSignalBand(hydrovacSnapshot, {
+                customer,
+                balance: workbenchBalance,
+                knownAddresses: workbenchAddresses,
+              }) : "",
             })}
+            </div>
+            <div class="customer-command-center__sidebar">
+              ${renderCustomerActionCard({
+                customer,
+                knownAddresses: workbenchAddresses,
+                openRequestsCount: workbenchOpenRequests,
+                openProposalCount: workbenchOpenProposals,
+                activeOrderCount: workbenchActiveOrders,
+                activeJobCount: workbenchActiveJobs,
+                balance: workbenchBalance,
+                lastTouchValue: workbenchLastTouch,
+                latestInteraction: workbenchLatestInteraction,
+                customerIdValue,
+                actions: customerQuickActions,
+                blueprint: workbenchContext.blueprint,
+                hydrovacSnapshot,
+              })}
+            </div>
           </div>
-          ${renderCustomerActionCard({
-            customer,
-            knownAddresses: workbenchAddresses,
-            openRequestsCount: workbenchOpenRequests,
-            openProposalCount: workbenchOpenProposals,
-            activeOrderCount: workbenchActiveOrders,
-            activeJobCount: workbenchActiveJobs,
-            balance: workbenchBalance,
-            lastTouchValue: workbenchLastTouch,
-            latestInteraction: workbenchLatestInteraction,
-            customerIdValue,
-            actions: customerQuickActions,
-          })}
           ${renderCustomerWorkbenchLauncher(workbenchContext)}
-          ${renderCustomerOverviewCard({
-            customer,
-            knownAddresses: workbenchAddresses,
-            customerRequestsRows: workbenchRequests,
-            customerBidRows: workbenchBids,
-            customerOrders: workbenchOrders,
-            customerJobsRows: workbenchJobs,
-            customerPayments: workbenchPayments,
-            balance: workbenchBalance,
-          })}
-          <div class="customer-record-shell__support-grid">
-            ${renderCustomerRecordFocusCard()}
-            ${renderCustomerRetentionReactivationCard(workbenchContext)}
+          <div class="customer-command-center__grid">
+            <div class="customer-command-center__main">
+              ${renderCustomerOverviewCard({
+                customer,
+                knownAddresses: workbenchAddresses,
+                customerRequestsRows: workbenchRequests,
+                customerBidRows: workbenchBids,
+                customerOrders: workbenchOrders,
+                customerJobsRows: workbenchJobs,
+                customerPayments: workbenchPayments,
+                balance: workbenchBalance,
+              })}
+              ${hydrovacMode ? renderCustomerHydrovacMissionControl(hydrovacSnapshot, {
+                ...workbenchContext,
+                latestPayment: workbenchPayments[0] || null,
+              }) : ""}
+              ${renderCustomerActivityTimelineCard(workbenchContext.activityTimeline || customerActivityTimeline({
+                customerRequestsRows: workbenchRequests,
+                customerBidRows: workbenchBids,
+                customerOrders: workbenchOrders,
+                customerJobsRows: workbenchJobs,
+                customerPayments: workbenchPayments,
+                interactions: workbenchInteractions,
+              }))}
+            </div>
+            <div class="customer-command-center__rail">
+              ${renderCustomerRecordFocusCard()}
+              ${renderCustomerRetentionReactivationCard(workbenchContext)}
+            </div>
           </div>
         </div>
       `;

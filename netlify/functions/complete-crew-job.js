@@ -1,7 +1,7 @@
 // netlify/functions/complete-crew-job.js
 // POST /.netlify/functions/complete-crew-job
 // Crew-member authenticated. Marks a job complete with completion note + optional signature.
-// Body: { job_id, completion_note, signature_data_url? }
+// Body: { job_id, completion_note?, signature_data_url?, completion_handoff? }
 // Returns { job: {...}, ok: true }
 
 'use strict';
@@ -9,6 +9,12 @@
 const { requireOperatorContext, getAdminClient, respond } = require('./utils/auth');
 const { requireHydrovacOperatorContext } = require('./utils/hydrovac');
 const { collectHydrovacLifecycleIssues, hydrovacJobType, logComplianceAlerts, resolveComplianceAlerts } = require('./lib/hydrovac-compliance');
+const {
+  buildHydrovacCompletionNarrative,
+  extractHydrovacCompletionHandoff,
+  mergeCrewCloseoutMetadata,
+  normalizeHydrovacCompletionHandoff,
+} = require('./lib/hydrovac-closeout');
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return respond(200, {});
@@ -31,15 +37,14 @@ exports.handler = async (event) => {
   try { body = JSON.parse(event.body || '{}'); }
   catch { return respond(400, { error: 'Invalid JSON body' }); }
 
-  const { job_id, completion_note, signature_data_url } = body;
+  const { job_id, completion_note, signature_data_url, completion_handoff } = body;
 
   if (!job_id) return respond(400, { error: 'job_id is required' });
-  if (!completion_note) return respond(400, { error: 'completion_note is required' });
 
   // Verify job belongs to tenant
   const { data: job, error: jobErr } = await adminSb
     .from('jobs')
-    .select('id, tenant_id, status, job_type, service_type, requires_confined_space_permit, total_loads_hauled, total_disposal_cost_cents, disposal_cost_cents, disposal_site, disposal_manifest_number')
+    .select('id, tenant_id, status, job_type, service_type, requires_confined_space_permit, total_loads_hauled, total_disposal_cost_cents, disposal_cost_cents, disposal_site, disposal_manifest_number, metadata')
     .eq('id', job_id)
     .eq('tenant_id', tenantId)
     .maybeSingle();
@@ -51,7 +56,24 @@ exports.handler = async (event) => {
 
   if (!job) return respond(404, { error: 'Job not found or does not belong to your tenant' });
 
-  if (hydrovacCtx && hydrovacJobType(job)) {
+  const isHydrovacLifecycle = hydrovacCtx && hydrovacJobType(job);
+  let normalizedCloseout = null;
+  if (isHydrovacLifecycle) {
+    const normalized = await normalizeHydrovacCompletionHandoff({
+      adminSb,
+      tenantId,
+      job,
+      raw: completion_handoff,
+    });
+    if (normalized.error) {
+      return respond(400, { error: normalized.error });
+    }
+    normalizedCloseout = normalized.value;
+  } else if (!completion_note) {
+    return respond(400, { error: 'completion_note is required' });
+  }
+
+  if (isHydrovacLifecycle) {
     const issues = await collectHydrovacLifecycleIssues({
       adminSb,
       tenantId,
@@ -73,10 +95,13 @@ exports.handler = async (event) => {
   const nowIso = new Date().toISOString();
   const patch = {
     status          : 'completed',
-    completion_note,
+    completion_note : normalizedCloseout ? buildHydrovacCompletionNarrative(normalizedCloseout) : completion_note,
     actual_end_at   : nowIso,
     updated_at      : nowIso,
   };
+  if (normalizedCloseout) {
+    patch.metadata = mergeCrewCloseoutMetadata(job.metadata, normalizedCloseout);
+  }
 
   if (signature_data_url !== undefined) {
     patch.signature_data_url = signature_data_url;
@@ -95,7 +120,7 @@ exports.handler = async (event) => {
     return respond(500, { error: 'Failed to complete job' });
   }
 
-  if (hydrovacCtx && hydrovacJobType(job)) {
+  if (isHydrovacLifecycle) {
     await resolveComplianceAlerts(adminSb, tenantId, {
       referenceType: 'job',
       referenceId: job_id,
@@ -109,5 +134,11 @@ exports.handler = async (event) => {
     });
   }
 
-  return respond(200, { ok: true, job: updated });
+  return respond(200, {
+    ok: true,
+    job: {
+      ...updated,
+      completion_handoff: normalizedCloseout || extractHydrovacCompletionHandoff(updated),
+    },
+  });
 };

@@ -51,8 +51,11 @@ function loadHydrovacOpsWorkspace(overrides = {}) {
     btnVerifyLocate: makeField(),
     hydrovacLocateForm: makeField(),
     btnRefreshCompliance: makeField(),
+    facilityStageStrip: makeField(),
+    facilityActionBar: { innerHTML: "", querySelectorAll: vi.fn(() => []) },
     manifestStageStrip: makeField(),
     complianceStageStrip: makeField(),
+    hydrovacFacilitiesList: makeField(),
     manifestActionBar: { innerHTML: "", querySelectorAll: vi.fn(() => []) },
     complianceActionBar: { innerHTML: "", querySelectorAll: vi.fn(() => []) },
     hydrovacManifestsList: { innerHTML: "", querySelectorAll: vi.fn(() => []) },
@@ -175,8 +178,9 @@ describe("operator hydrovac ops workspace", () => {
 
     context.window.renderHydrovacCompliance([], []);
 
-    expect(context.complianceStageStrip.innerHTML).toContain("Audit trail");
-    expect(context.hydrovacComplianceSummary.innerHTML).toContain("Logged alerts");
+    expect(context.complianceStageStrip.innerHTML).toContain("record-hero");
+    expect(context.complianceStageStrip.innerHTML).toContain("Logged alerts");
+    expect(context.hydrovacComplianceSummary.innerHTML).toContain("Audit trail");
     expect(context.hydrovacComplianceUrgent.innerHTML).toContain("locate ticket missing");
     expect(context.hydrovacComplianceCoverage.innerHTML).toContain("Open compliance alerts");
   });
@@ -265,9 +269,11 @@ describe("operator hydrovac ops workspace", () => {
 
     context.window.renderHydrovacManifests();
 
-    expect(context.manifestStageStrip.innerHTML).toContain("Still in truck");
-    expect(context.manifestStageStrip.innerHTML).toContain("Packets missing");
-    expect(hydrovacManifestsList.innerHTML).toContain("Disposal workflow board");
+    expect(context.manifestStageStrip.innerHTML).toContain("record-hero");
+    expect(context.manifestActionBar.innerHTML).toContain("workspace-focus-card");
+    expect(context.manifestStageStrip.innerHTML).toContain("Live loads");
+    expect(context.manifestStageStrip.innerHTML).toContain("Packet gaps");
+    expect(hydrovacManifestsList.innerHTML).toContain("Office board");
     expect(hydrovacManifestsList.innerHTML).toContain("MAN-100");
     expect(hydrovacManifestsList.innerHTML).toContain("Live in truck");
     expect(hydrovacManifestDetailWrap.innerHTML).toContain("BOL-88");
@@ -276,5 +282,265 @@ describe("operator hydrovac ops workspace", () => {
     expect(hydrovacManifestDetailWrap.innerHTML).toContain("Copy full audit packet");
     expect(hydrovacManifestDetailWrap.innerHTML).toContain("Minimum dump threshold not met");
     expect(hydrovacManifestDetailWrap.innerHTML).toContain("Customer records not prepared");
+  });
+
+  test("renderHydrovacManifests builds closeout buckets from crew handoff and manifest state", () => {
+    const hydrovacManifestsList = {
+      innerHTML: "",
+      querySelectorAll: vi.fn(() => []),
+    };
+    const hydrovacManifestDetailWrap = {
+      innerHTML: "",
+      querySelector: vi.fn(() => null),
+    };
+    const context = loadHydrovacOpsWorkspace({
+      hydrovacManifestsList,
+      hydrovacManifestDetailWrap,
+      JOBS_CACHE: [
+        {
+          id: "job_ready",
+          title: "North trench daylighting",
+          customer_name: "Riverfront Milling",
+          metadata: {
+            crew_closeout: {
+              load_status: "truck_clear",
+              bol_number: "BOL-4401",
+              locates_verified_on_site: true,
+              permit_status: "closed",
+              field_summary: "Crew daylighted the trench and cleared the truck.",
+              office_follow_up: ["invoice"],
+            },
+          },
+        },
+        {
+          id: "job_missing",
+          title: "South vault cleanout",
+          customer_name: "Metro Utility",
+          requires_confined_space_permit: true,
+        },
+      ],
+      CUSTOMERS_CACHE: [
+        { id: "customer_ready", name: "Riverfront Milling" },
+        { id: "customer_missing", name: "Metro Utility" },
+      ],
+      HYDROVAC_MANIFESTS_CACHE: [
+        {
+          id: "manifest_ready",
+          manifest_number: "MAN-4401",
+          job_id: "job_ready",
+          customer_id: "customer_ready",
+          status: "confirmed",
+          invoiced: false,
+          customer_records_prepared_at: "2026-04-03T12:00:00.000Z",
+          audit_packet_prepared_at: "2026-04-03T12:30:00.000Z",
+          metadata: {
+            bol_number: "BOL-4401",
+          },
+        },
+        {
+          id: "manifest_missing",
+          manifest_number: "MAN-5501",
+          job_id: "job_missing",
+          customer_id: "customer_missing",
+          status: "in_transit",
+          invoiced: false,
+          metadata: {
+            load_still_in_truck: true,
+          },
+        },
+      ],
+      HYDROVAC_LOCATE_TICKETS_CACHE: [
+        {
+          id: "loc_1",
+          job_id: "job_ready",
+          status: "active",
+          valid_until: "2026-04-05T12:00:00.000Z",
+          verified_on_site: true,
+        },
+      ],
+      HYDROVAC_PERMITS_CACHE: [
+        {
+          id: "permit_1",
+          job_id: "job_ready",
+          status: "closed",
+        },
+      ],
+    });
+
+    context.window.renderHydrovacManifests();
+
+    expect(hydrovacManifestsList.innerHTML).toContain("Closeout lane");
+    expect(hydrovacManifestsList.innerHTML).toContain("Needs field handoff");
+    expect(hydrovacManifestsList.innerHTML).toContain("Ready to invoice");
+    expect(hydrovacManifestsList.innerHTML).toContain("Crew closeout or disposal confirmation is still missing");
+    expect(hydrovacManifestsList.innerHTML).toContain("Crew daylighted the trench and cleared the truck.");
+    expect(hydrovacManifestDetailWrap.innerHTML).toContain("Crew handoff");
+    expect(hydrovacManifestDetailWrap.innerHTML).toContain("Use the structured field handoff");
+  });
+
+  test("renderHydrovacCompliance surfaces closeout release blockers", () => {
+    const context = loadHydrovacOpsWorkspace({
+      JOBS_CACHE: [
+        {
+          id: "job_1",
+          title: "South vault cleanout",
+          requires_confined_space_permit: true,
+          metadata: {
+            crew_closeout: {
+              load_status: "live_load_remaining",
+              live_load_hold_reason: "Waiting on compatible municipal load",
+              disposal_ready_by: "2026-03-29",
+              locates_verified_on_site: false,
+              permit_status: "needs_office_followup",
+              field_summary: "Crew completed the dig but left one compatible load on the truck.",
+            },
+          },
+        },
+      ],
+      HYDROVAC_MANIFESTS_CACHE: [
+        {
+          id: "manifest_1",
+          manifest_number: "MAN-8801",
+          job_id: "job_1",
+          status: "in_transit",
+          metadata: {
+            load_still_in_truck: true,
+            disposal_ready_by: "2026-03-29",
+          },
+        },
+      ],
+      HYDROVAC_LOCATE_TICKETS_CACHE: [
+        {
+          id: "loc_1",
+          job_id: "job_1",
+          status: "active",
+          valid_until: "2026-04-05T12:00:00.000Z",
+        },
+      ],
+      HYDROVAC_PERMITS_CACHE: [
+        {
+          id: "permit_1",
+          job_id: "job_1",
+          permit_number: "PLCS-8801",
+          status: "open",
+          permit_valid_until: "2026-04-05T12:00:00.000Z",
+        },
+      ],
+    });
+
+    context.window.renderHydrovacCompliance([], []);
+
+    expect(context.complianceStageStrip.innerHTML).toContain("Release blockers");
+    expect(context.hydrovacComplianceUrgent.innerHTML).toContain("MAN-8801: Live load overdue");
+    expect(context.hydrovacComplianceUrgent.innerHTML).toContain("MAN-8801: Permit still open");
+    expect(context.hydrovacComplianceCoverage.innerHTML).toContain("Closeout release blockers");
+  });
+
+  test("renderHydrovacFacilities keeps the zero state inside the command-center board", () => {
+    const context = loadHydrovacOpsWorkspace({
+      HYDROVAC_FACILITIES_CACHE: [],
+    });
+
+    context.window.renderHydrovacFacilities();
+
+    expect(context.facilityStageStrip.innerHTML).toContain("record-hero");
+    expect(context.facilityActionBar.innerHTML).toContain("workspace-focus-card");
+    expect(context.hydrovacFacilitiesList.innerHTML).toContain("workspace-board");
+    expect(context.hydrovacFacilitiesList.innerHTML).toContain("No facilities saved yet");
+  });
+
+  test("renderHydrovacPermitsWorkspace turns permit risk into a command center", () => {
+    const context = loadHydrovacOpsWorkspace({
+      JOBS_CACHE: [
+        {
+          id: "job_1",
+          title: "South vault cleanout",
+        },
+      ],
+      HYDROVAC_PERMITS_CACHE: [
+        {
+          id: "permit_1",
+          job_id: "job_1",
+          permit_number: "PLCS-4401",
+          space_description: "South vault entry",
+          status: "open",
+          permit_valid_until: "2026-04-04T17:15:00.000Z",
+          atmospheric_readings: [],
+          rescue_procedure: "",
+        },
+      ],
+    });
+
+    context.window.renderHydrovacPermitsWorkspace();
+
+    expect(context.permitStageStrip.innerHTML).toContain("record-hero");
+    expect(context.permitActionBar.innerHTML).toContain("workspace-focus-card");
+    expect(context.hydrovacPermitList.innerHTML).toContain("Entry board");
+    expect(context.hydrovacPermitList.innerHTML).toContain("PLCS-4401");
+    expect(context.hydrovacPermitDetail.innerHTML).toContain("South vault cleanout");
+    expect(context.hydrovacPermitDetail.innerHTML).toContain("Rescue plan");
+  });
+
+  test("renderHydrovacPermitsWorkspace keeps the zero state inside the command-center board", () => {
+    const context = loadHydrovacOpsWorkspace({
+      HYDROVAC_PERMITS_CACHE: [],
+    });
+
+    context.window.renderHydrovacPermitsWorkspace();
+
+    expect(context.permitStageStrip.innerHTML).toContain("record-hero");
+    expect(context.permitActionBar.innerHTML).toContain("workspace-focus-card");
+    expect(context.hydrovacPermitList.innerHTML).toContain("workspace-board");
+    expect(context.hydrovacPermitList.innerHTML).toContain("No confined-space permits logged yet");
+  });
+
+  test("renderHydrovacAssetsWorkspace keeps service due and defect pressure obvious", () => {
+    const context = loadHydrovacOpsWorkspace({
+      CUSTOMERS_CACHE: [
+        {
+          id: "customer_1",
+          name: "Riverfront Milling",
+        },
+      ],
+      HYDROVAC_ASSETS_CACHE: [
+        {
+          id: "asset_1",
+          customer_id: "customer_1",
+          asset_type: "catch_basin",
+          asset_name: "CB-047 Riverfront",
+          external_asset_id: "PL-ASSET-047",
+          status: "active",
+          address: "1200 Water Street, Detroit, MI",
+          next_service_due_date: "2026-04-08",
+          has_defects: true,
+          last_condition_rating: "poor",
+          condition_notes: "Heavy sediment and shifted frame.",
+          service_count_total: 7,
+          last_service_date: "2026-03-26",
+        },
+      ],
+    });
+
+    context.window.renderHydrovacAssetsWorkspace();
+
+    expect(context.assetStageStrip.innerHTML).toContain("record-hero");
+    expect(context.assetActionBar.innerHTML).toContain("workspace-focus-card");
+    expect(context.hydrovacAssetList.innerHTML).toContain("Asset board");
+    expect(context.hydrovacAssetList.innerHTML).toContain("CB-047 Riverfront");
+    expect(context.hydrovacAssetDetail.innerHTML).toContain("Riverfront Milling");
+    expect(context.hydrovacAssetDetail.innerHTML).toContain("Defects flagged");
+  });
+
+  test("renderHydrovacAssetsWorkspace keeps the zero state inside the command-center board", () => {
+    const context = loadHydrovacOpsWorkspace({
+      HYDROVAC_ASSETS_CACHE: [],
+    });
+
+    context.window.renderHydrovacAssetsWorkspace();
+
+    expect(context.assetStageStrip.innerHTML).toContain("record-hero");
+    expect(context.assetActionBar.innerHTML).toContain("workspace-focus-card");
+    expect(context.hydrovacAssetList.innerHTML).toContain("workspace-board");
+    expect(context.hydrovacAssetList.innerHTML).toContain("No infrastructure assets saved yet");
   });
 });

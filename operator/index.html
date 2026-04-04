@@ -128,6 +128,8 @@
         </div>
       </header>
 
+      <div id="operatorHydrovacQuickNav" class="workspace-context-nav hydrovac-mobile-quick-nav u-hidden" hidden></div>
+
       <div class="grid">
         <section id="viewLogin" class="card">
           <div class="card-hd">
@@ -372,52 +374,6 @@
                 </div>
               </div>
             </div>
-
-            <div id="permitStageStrip" class="pipeline-stage-strip"></div>
-            <div id="permitActionBar" class="pipeline-action-bar"></div>
-            <div class="grid two u-mt-14">
-              <div class="card">
-                <div class="card-hd">
-                  <strong>Confined space permits</strong>
-                  <span class="muted">Entry paperwork, atmosphere checks, and permit status</span>
-                </div>
-                <div class="card-bd">
-                  <div id="hydrovacPermitList" class="list"></div>
-                </div>
-              </div>
-              <div class="card">
-                <div class="card-hd">
-                  <strong>Permit detail</strong>
-                  <span class="muted">Create, update, and close entry permits without leaving compliance</span>
-                </div>
-                <div class="card-bd">
-                  <div id="hydrovacPermitDetail" class="muted">Select a permit or create one from a job that needs confined-space coverage.</div>
-                </div>
-              </div>
-            </div>
-
-            <div id="assetStageStrip" class="pipeline-stage-strip"></div>
-            <div id="assetActionBar" class="pipeline-action-bar"></div>
-            <div class="grid two u-mt-14">
-              <div class="card">
-                <div class="card-hd">
-                  <strong>Infrastructure assets</strong>
-                  <span class="muted">Catch basins, manholes, wet wells, tanks, and due service</span>
-                </div>
-                <div class="card-bd">
-                  <div id="hydrovacAssetList" class="list"></div>
-                </div>
-              </div>
-              <div class="card">
-                <div class="card-hd">
-                  <strong>Asset detail</strong>
-                  <span class="muted">Condition, next due date, and linked history</span>
-                </div>
-                <div class="card-bd">
-                  <div id="hydrovacAssetDetail" class="muted">Select an asset to see service history and next due work.</div>
-                </div>
-              </div>
-            </div>
           </section>
 
           <section class="panel hidden" data-panel="orders">
@@ -451,8 +407,9 @@
               </div>
             </div>
 
-            <div class="grid two">
-              <div class="card">
+            <div class="workflow-shell workflow-shell--orders">
+              <div class="workflow-shell__nav">
+                <div class="card workflow-shell__card workflow-shell__card--list">
                 <div class="card-hd">
                   <strong>Booked work</strong>
                   <span class="muted">Work that is priced, approved, or waiting to move into the field</span>
@@ -476,23 +433,18 @@
                   <div id="ordersList" class="list" data-tour="orders-list"></div>
                 </div>
               </div>
+              </div>
 
-              <div class="card">
+              <div class="workflow-shell__detail">
+                <div class="card workflow-shell__card workflow-shell__card--detail">
                 <div class="card-hd">
-                  <strong>Pipeline detail</strong>
-                  <span class="muted">Review the work record, see linked stages, and take the next action.</span>
+                  <strong>Work command center</strong>
+                  <span class="muted">Review the full record, keep linked stages visible, and move the right next step without losing context.</span>
                 </div>
                 <div class="card-bd">
                   <div id="orderDetailWrap" class="muted">Select booked work to inspect it.</div>
-                  <div id="phasesSection">
-                    <div class="section-toggle" id="phasesToggle">
-                      <span>Project Phases</span>
-                      <button onclick="openAddPhaseModal(currentOrder?.id); event.stopPropagation();" class="btn-sm">+ Phase</button>
-                      <span class="toggle-arrow">▾</span>
-                    </div>
-                    <div id="phasesContent" class="u-hidden"></div>
-                  </div>
                 </div>
+              </div>
               </div>
             </div>
           </section>
@@ -851,18 +803,23 @@
             <div id="proposalStageStrip" class="pipeline-stage-strip"></div>
             <div id="proposalActionBar" class="pipeline-action-bar"></div>
 
-            <div class="card">
-              <div class="card-hd">
-                <strong>Guided bid flow</strong>
-                <span class="muted">Simple enough to teach, strong enough to run.</span>
-              </div>
-              <div class="card-bd">
-                <div id="bidGuideFlow" class="muted">Start a bid to see the next-best action and guided workflow.</div>
-              </div>
-            </div>
+            <div class="workflow-shell workflow-shell--bids">
+              <div class="workflow-shell__nav">
+                <div class="workflow-stack">
+                  <div class="card workflow-shell__card workflow-shell__card--guide">
+                    <div class="card-hd">
+                      <strong>Guided bid flow</strong>
+                      <span class="muted">Simple enough to teach, strong enough to run.</span>
+                    </div>
+                    <div class="card-bd">
+                      <div id="bidGuideFlow" class="muted">Start a bid to see the next-best action and guided workflow.</div>
+                    </div>
+                  </div>
 
-            <div class="grid four">
-              <div class="card">
+                  <div id="bidSignalBand" class="workspace-signal-band workflow-shell__signal-band"></div>
+
+                  <div class="workflow-stack workflow-stack--tight">
+                    <div class="card workflow-shell__card">
                 <div class="card-hd">
                   <strong>Service playbook</strong>
                   <span class="muted">Profile-aware guidance</span>
@@ -872,7 +829,7 @@
                 </div>
               </div>
 
-              <div class="card">
+                    <div class="card workflow-shell__card">
                 <div class="card-hd">
                   <strong>Bid posture</strong>
                   <span class="muted">Draft health</span>
@@ -882,7 +839,7 @@
                 </div>
               </div>
 
-              <div class="card">
+                    <div class="card workflow-shell__card">
                 <div class="card-hd">
                   <strong>Delivery readiness</strong>
                   <span class="muted">What is still missing</span>
@@ -892,7 +849,7 @@
                 </div>
               </div>
 
-              <div class="card">
+                    <div class="card workflow-shell__card">
                 <div class="card-hd">
                   <strong>Proposal readiness</strong>
                   <span class="muted">Branding, signer, terms, and validity checks</span>
@@ -902,7 +859,7 @@
                 </div>
               </div>
 
-              <div class="card">
+                    <div class="card workflow-shell__card">
                 <div class="card-hd">
                   <strong>Estimate review</strong>
                   <span class="muted">Grounded pricing and scope checks</span>
@@ -911,20 +868,19 @@
                   <div id="bidEstimateReviewWrap" class="muted">Run estimate review on the active walkthrough bid to inspect grounded scope, pricing facts, and missing inputs.</div>
                 </div>
               </div>
-            </div>
+                  </div>
 
-            <div class="card">
-              <div class="card-hd">
-                <strong>Proposal rescue queue</strong>
-                <span class="muted">Separate follow-up-ready work from stale or incomplete proposal records.</span>
-              </div>
-              <div class="card-bd">
-                <div id="bidQuoteRescueWrap" class="muted">Run the quote rescue review to inspect aging bids and proposal records that need follow-up, cleanup, or rework.</div>
-              </div>
-            </div>
+                  <div class="card workflow-shell__card">
+                    <div class="card-hd">
+                      <strong>Proposal rescue queue</strong>
+                      <span class="muted">Separate follow-up-ready work from stale or incomplete proposal records.</span>
+                    </div>
+                    <div class="card-bd">
+                      <div id="bidQuoteRescueWrap" class="muted">Run the quote rescue review to inspect aging bids and proposal records that need follow-up, cleanup, or rework.</div>
+                    </div>
+                  </div>
 
-            <div class="grid two">
-              <div class="card">
+                  <div class="card workflow-shell__card workflow-shell__card--list">
                 <div class="card-hd">
                   <strong>Bid pipeline</strong>
                   <span class="muted">Saved locally in this browser, with photo assets uploaded when possible.</span>
@@ -933,8 +889,12 @@
                   <div id="bidsList" class="list"></div>
                 </div>
               </div>
+                </div>
+              </div>
 
-              <div class="card">
+              <div class="workflow-shell__detail">
+                <div class="workflow-stack">
+                  <div class="card workflow-shell__card workflow-shell__card--detail">
                 <div class="card-hd">
                   <strong id="bidFormTitle">Walkthrough builder</strong>
                   <span class="muted">Capture the scope, job facts, commercial structure, and client-facing language.</span>
@@ -1190,10 +1150,10 @@
                   </form>
                 </div>
               </div>
-            </div>
+                </div>
 
-            <div class="grid two">
-              <div class="card">
+                  <div class="grid two workflow-shell__subgrid">
+                    <div class="card workflow-shell__card">
                 <div class="card-hd">
                   <strong>Walkthrough photos</strong>
                   <span class="muted">Capture with the camera, name each image, and preserve the field context.</span>
@@ -1238,7 +1198,7 @@
                 </div>
               </div>
 
-              <div class="card">
+                    <div class="card workflow-shell__card">
                 <div class="card-hd">
                   <strong>Internal pricing / estimating inputs</strong>
                   <span class="muted">Keep internal line items separate from the customer-facing proposal options.</span>
@@ -1293,15 +1253,15 @@
                   <div id="bidLineItemsList" class="list u-mt-16"></div>
                 </div>
               </div>
-            </div>
+                  </div>
 
-            <div class="card">
-              <div class="card-hd">
-                <strong>Customer-facing proposal options</strong>
-                <span class="muted">Add one or more scoped options the client will actually receive in the proposal.</span>
-              </div>
-              <div class="card-bd">
-                <form id="bidProposalOptionForm" class="form">
+                  <div class="card workflow-shell__card">
+                    <div class="card-hd">
+                      <strong>Customer-facing proposal options</strong>
+                      <span class="muted">Add one or more scoped options the client will actually receive in the proposal.</span>
+                    </div>
+                    <div class="card-bd">
+                      <form id="bidProposalOptionForm" class="form">
                   <input type="hidden" id="bidProposalOptionId" />
 
                   <div class="grid three form-grid">
@@ -1352,22 +1312,25 @@
                   <div id="bidProposalOptionMsg" class="msg"></div>
                 </form>
 
-                <div id="bidProposalOptionsList" class="list u-mt-16"></div>
-              </div>
-            </div>
+                      <div id="bidProposalOptionsList" class="list u-mt-16"></div>
+                    </div>
+                  </div>
 
-            <div class="card">
-              <div class="card-hd">
-                <strong>Proposal preview</strong>
-                <span class="muted">Client-facing version with scope, pricing, photos, and next steps.</span>
-              </div>
-              <div class="card-bd">
-                <div class="row u-mb-14">
-                  <button id="btnCopyBidEmail" class="btn btn-ghost" type="button">Copy client email</button>
-                  <button id="btnExportBidJson" class="btn btn-ghost" type="button">Export bid JSON</button>
+                  <div class="card workflow-shell__card">
+                    <div class="card-hd">
+                      <strong>Proposal preview</strong>
+                      <span class="muted">Client-facing version with scope, pricing, photos, and next steps.</span>
+                    </div>
+                    <div class="card-bd">
+                      <div class="row u-mb-14">
+                        <button id="btnCopyBidEmail" class="btn btn-ghost" type="button">Copy client email</button>
+                        <button id="btnExportBidJson" class="btn btn-ghost" type="button">Export bid JSON</button>
+                      </div>
+
+                      <div id="bidProposalPreview" class="proposal-preview muted">Create a walkthrough bid or select one from the list to preview the proposal.</div>
+                    </div>
+                  </div>
                 </div>
-
-                <div id="bidProposalPreview" class="proposal-preview muted">Create a walkthrough bid or select one from the list to preview the proposal.</div>
               </div>
             </div>
           </section>
@@ -1525,6 +1488,9 @@
                 <input id="customerSearch" class="input" placeholder="Search customer…" />
                 <select id="customerWorkbenchFilter" class="input" aria-label="Filter customers" hidden>
                   <option value="all">All customers</option>
+                  <option value="dispatch_risk">Dispatch risk</option>
+                  <option value="active_jobs">Active jobs</option>
+                  <option value="load_pressure">Load pressure</option>
                   <option value="active_work">Active work</option>
                   <option value="open_balance">Open balance</option>
                   <option value="multi_site">Multi-site</option>
@@ -2503,95 +2469,103 @@
                 <button id="btnNewFacility" class="btn" type="button">New facility</button>
               </div>
             </div>
-            <div id="facilityStageStrip" class="pipeline-stage-strip"></div>
-            <div id="facilityActionBar" class="pipeline-action-bar"></div>
-            <div class="grid two">
-              <div class="card">
-                <div class="card-hd">
-                  <strong>Approved facilities</strong>
-                  <span class="muted">Rates, status, and permit visibility</span>
-                </div>
-                <div class="card-bd">
-                  <div id="hydrovacFacilitiesList" class="list"></div>
-                </div>
+            <div class="workspace-command-center workspace-command-center--hydrovac">
+              <div class="workspace-command-center__top">
+                <div id="facilityStageStrip" class="pipeline-stage-strip workspace-command-center__hero"></div>
+                <div id="facilityActionBar" class="pipeline-action-bar workspace-command-center__sidebar"></div>
               </div>
-              <div class="card">
-                <div class="card-hd">
-                  <strong id="hydrovacFacilityFormTitle">Facility detail</strong>
-                  <span class="muted">Save the real rates and dispatch contacts the office needs.</span>
+              <div class="workspace-command-center__grid">
+                <div class="workspace-command-center__main">
+                  <div class="card">
+                    <div class="card-hd">
+                      <strong>Approved facilities</strong>
+                      <span class="muted">Rates, status, and permit visibility</span>
+                    </div>
+                    <div class="card-bd">
+                      <div id="hydrovacFacilitiesList" class="list"></div>
+                    </div>
+                  </div>
                 </div>
-                <div class="card-bd">
-                  <form id="hydrovacFacilityForm" class="form">
-                    <input id="hydrovacFacilityId" type="hidden" />
-                    <div class="grid two form-grid">
-                      <label>Facility name
-                        <input id="hydrovacFacilityName" placeholder="Valicor Dearborn Yard" />
-                      </label>
-                      <label>Status
-                        <select id="hydrovacFacilityStatus">
-                          <option value="active">Active</option>
-                          <option value="preferred">Preferred</option>
-                          <option value="inactive">Inactive</option>
-                        </select>
-                      </label>
+                <div class="workspace-command-center__rail">
+                  <div class="card">
+                    <div class="card-hd">
+                      <strong id="hydrovacFacilityFormTitle">Facility detail</strong>
+                      <span class="muted">Save the real rates and dispatch contacts the office needs.</span>
                     </div>
-                    <div class="grid two form-grid">
-                      <label>Facility type
-                        <select id="hydrovacFacilityType">
-                          <option value="transfer_station">Transfer station</option>
-                          <option value="liquid_waste_processor">Liquid waste processor</option>
-                          <option value="treatment_plant">Treatment plant</option>
-                          <option value="landfill">Landfill</option>
-                          <option value="recycling">Recycling</option>
-                          <option value="class_1_hazardous">Class 1 hazardous</option>
-                          <option value="class_2">Class 2</option>
-                          <option value="class_3">Class 3</option>
-                        </select>
-                      </label>
-                      <label>Permit expiry
-                        <input id="hydrovacFacilityPermitExpiry" type="date" />
-                      </label>
+                    <div class="card-bd">
+                      <form id="hydrovacFacilityForm" class="form">
+                        <input id="hydrovacFacilityId" type="hidden" />
+                        <div class="grid two form-grid">
+                          <label>Facility name
+                            <input id="hydrovacFacilityName" placeholder="Valicor Dearborn Yard" />
+                          </label>
+                          <label>Status
+                            <select id="hydrovacFacilityStatus">
+                              <option value="active">Active</option>
+                              <option value="preferred">Preferred</option>
+                              <option value="inactive">Inactive</option>
+                            </select>
+                          </label>
+                        </div>
+                        <div class="grid two form-grid">
+                          <label>Facility type
+                            <select id="hydrovacFacilityType">
+                              <option value="transfer_station">Transfer station</option>
+                              <option value="liquid_waste_processor">Liquid waste processor</option>
+                              <option value="treatment_plant">Treatment plant</option>
+                              <option value="landfill">Landfill</option>
+                              <option value="recycling">Recycling</option>
+                              <option value="class_1_hazardous">Class 1 hazardous</option>
+                              <option value="class_2">Class 2</option>
+                              <option value="class_3">Class 3</option>
+                            </select>
+                          </label>
+                          <label>Permit expiry
+                            <input id="hydrovacFacilityPermitExpiry" type="date" />
+                          </label>
+                        </div>
+                        <div class="grid two form-grid">
+                          <label>Address
+                            <input id="hydrovacFacilityAddress" placeholder="Street address" />
+                          </label>
+                          <label>City / state
+                            <input id="hydrovacFacilityCityState" placeholder="Dearborn, MI" />
+                          </label>
+                        </div>
+                        <div class="grid three form-grid">
+                          <label>Rate per gallon
+                            <input id="hydrovacFacilityRateGallon" type="number" min="0" step="0.01" placeholder="0.61" />
+                          </label>
+                          <label>Rate per yard
+                            <input id="hydrovacFacilityRateYard" type="number" min="0" step="0.01" placeholder="0.00" />
+                          </label>
+                          <label>Minimum charge
+                            <input id="hydrovacFacilityMinimumCharge" type="number" min="0" step="0.01" placeholder="0.00" />
+                          </label>
+                        </div>
+                        <div class="grid two form-grid">
+                          <label>Primary contact
+                            <input id="hydrovacFacilityContact" placeholder="Name / phone / email" />
+                          </label>
+                          <label>Dispatch phone
+                            <input id="hydrovacFacilityDispatchPhone" placeholder="Dispatch line" />
+                          </label>
+                        </div>
+                        <label>Accepted waste types
+                          <input id="hydrovacFacilityWasteTypes" placeholder="soil, grease, sewage, slurry" />
+                        </label>
+                        <label>Notes
+                          <textarea id="hydrovacFacilityNotes" rows="3" placeholder="Account number, receiving rules, special billing notes, or after-hours instructions."></textarea>
+                        </label>
+                        <div class="form-actions">
+                          <button id="btnSaveFacility" class="btn btn-primary" type="submit">Save facility</button>
+                          <button id="btnSaveAndAddFacility" class="btn btn-ghost" type="button">Save &amp; add another</button>
+                          <button id="btnClearFacility" class="btn btn-ghost" type="button">Clear</button>
+                        </div>
+                        <div id="hydrovacFacilityMsg" class="msg"></div>
+                      </form>
                     </div>
-                    <div class="grid two form-grid">
-                      <label>Address
-                        <input id="hydrovacFacilityAddress" placeholder="Street address" />
-                      </label>
-                      <label>City / state
-                        <input id="hydrovacFacilityCityState" placeholder="Dearborn, MI" />
-                      </label>
-                    </div>
-                    <div class="grid three form-grid">
-                      <label>Rate per gallon
-                        <input id="hydrovacFacilityRateGallon" type="number" min="0" step="0.01" placeholder="0.61" />
-                      </label>
-                      <label>Rate per yard
-                        <input id="hydrovacFacilityRateYard" type="number" min="0" step="0.01" placeholder="0.00" />
-                      </label>
-                      <label>Minimum charge
-                        <input id="hydrovacFacilityMinimumCharge" type="number" min="0" step="0.01" placeholder="0.00" />
-                      </label>
-                    </div>
-                    <div class="grid two form-grid">
-                      <label>Primary contact
-                        <input id="hydrovacFacilityContact" placeholder="Name / phone / email" />
-                      </label>
-                      <label>Dispatch phone
-                        <input id="hydrovacFacilityDispatchPhone" placeholder="Dispatch line" />
-                      </label>
-                    </div>
-                    <label>Accepted waste types
-                      <input id="hydrovacFacilityWasteTypes" placeholder="soil, grease, sewage, slurry" />
-                    </label>
-                    <label>Notes
-                      <textarea id="hydrovacFacilityNotes" rows="3" placeholder="Account number, receiving rules, special billing notes, or after-hours instructions."></textarea>
-                    </label>
-                    <div class="form-actions">
-                      <button id="btnSaveFacility" class="btn btn-primary" type="submit">Save facility</button>
-                      <button id="btnSaveAndAddFacility" class="btn btn-ghost" type="button">Save &amp; add another</button>
-                      <button id="btnClearFacility" class="btn btn-ghost" type="button">Clear</button>
-                    </div>
-                    <div id="hydrovacFacilityMsg" class="msg"></div>
-                  </form>
+                  </div>
                 </div>
               </div>
             </div>
@@ -2607,25 +2581,33 @@
                 <button id="btnRefreshManifests" class="btn btn-ghost" type="button">Refresh</button>
               </div>
             </div>
-            <div id="manifestStageStrip" class="pipeline-stage-strip"></div>
-            <div id="manifestActionBar" class="pipeline-action-bar"></div>
-            <div class="grid two">
-              <div class="card">
-                <div class="card-hd">
-                  <strong>Manifest office queue</strong>
-                  <span class="muted">Newest loads first</span>
-                </div>
-                <div class="card-bd">
-                  <div id="hydrovacManifestsList" class="list"></div>
-                </div>
+            <div class="workspace-command-center workspace-command-center--hydrovac">
+              <div class="workspace-command-center__top">
+                <div id="manifestStageStrip" class="pipeline-stage-strip workspace-command-center__hero"></div>
+                <div id="manifestActionBar" class="pipeline-action-bar workspace-command-center__sidebar"></div>
               </div>
-              <div class="card">
-                <div class="card-hd">
-                  <strong>Manifest detail</strong>
-                  <span class="muted">Confirm loads, open the job, and see the money tied to disposal.</span>
+              <div class="workspace-command-center__grid">
+                <div class="workspace-command-center__main">
+                  <div class="card">
+                    <div class="card-hd">
+                      <strong>Manifest office queue</strong>
+                      <span class="muted">Newest loads first</span>
+                    </div>
+                    <div class="card-bd">
+                      <div id="hydrovacManifestsList" class="list"></div>
+                    </div>
+                  </div>
                 </div>
-                <div class="card-bd">
-                  <div id="hydrovacManifestDetailWrap" class="muted">Select a load to inspect it.</div>
+                <div class="workspace-command-center__rail">
+                  <div class="card">
+                    <div class="card-hd">
+                      <strong>Manifest detail</strong>
+                      <span class="muted">Confirm loads, open the job, and see the money tied to disposal.</span>
+                    </div>
+                    <div class="card-bd">
+                      <div id="hydrovacManifestDetailWrap" class="muted">Select a load to inspect it.</div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -2642,85 +2624,93 @@
                 <button id="btnNewLocate" class="btn" type="button">New ticket</button>
               </div>
             </div>
-            <div id="locateStageStrip" class="pipeline-stage-strip"></div>
-            <div id="locateActionBar" class="pipeline-action-bar"></div>
-            <div class="grid two">
-              <div class="card">
-                <div class="card-hd">
-                  <strong>Ticket board</strong>
-                  <span class="muted">Active, expiring, and expired coverage</span>
-                </div>
-                <div class="card-bd">
-                  <div id="hydrovacLocateList" class="list"></div>
-                </div>
+            <div class="workspace-command-center workspace-command-center--hydrovac">
+              <div class="workspace-command-center__top">
+                <div id="locateStageStrip" class="pipeline-stage-strip workspace-command-center__hero"></div>
+                <div id="locateActionBar" class="pipeline-action-bar workspace-command-center__sidebar"></div>
               </div>
-              <div class="card">
-                <div class="card-hd">
-                  <strong>Ticket detail</strong>
-                  <span class="muted">Log, verify, and extend coverage without leaving the office view.</span>
+              <div class="workspace-command-center__grid">
+                <div class="workspace-command-center__main">
+                  <div class="card">
+                    <div class="card-hd">
+                      <strong>Ticket board</strong>
+                      <span class="muted">Active, expiring, and expired coverage</span>
+                    </div>
+                    <div class="card-bd">
+                      <div id="hydrovacLocateList" class="list"></div>
+                    </div>
+                  </div>
                 </div>
-                <div class="card-bd">
-                  <form id="hydrovacLocateForm" class="form">
-                    <input id="hydrovacLocateId" type="hidden" />
-                    <div class="grid two form-grid">
-                      <label>Linked job
-                        <select id="hydrovacLocateJobId">
-                          <option value="">Optional</option>
-                        </select>
-                      </label>
-                      <label>Ticket type
-                        <select id="hydrovacLocateType">
-                          <option value="standard">Standard</option>
-                          <option value="emergency">Emergency</option>
-                          <option value="continue">Continue</option>
-                          <option value="update">Update</option>
-                          <option value="design">Design</option>
-                        </select>
-                      </label>
+                <div class="workspace-command-center__rail">
+                  <div class="card">
+                    <div class="card-hd">
+                      <strong>Ticket detail</strong>
+                      <span class="muted">Log, verify, and extend coverage without leaving the office view.</span>
                     </div>
-                    <div class="grid two form-grid">
-                      <label>Ticket number
-                        <input id="hydrovacLocateNumber" placeholder="2026-1234567" />
-                      </label>
-                      <label>Status
-                        <select id="hydrovacLocateStatus">
-                          <option value="requested">Requested</option>
-                          <option value="active">Active</option>
-                          <option value="extended">Extended</option>
-                          <option value="expired">Expired</option>
-                          <option value="cancelled">Cancelled</option>
-                        </select>
-                      </label>
+                    <div class="card-bd">
+                      <form id="hydrovacLocateForm" class="form">
+                        <input id="hydrovacLocateId" type="hidden" />
+                        <div class="grid two form-grid">
+                          <label>Linked job
+                            <select id="hydrovacLocateJobId">
+                              <option value="">Optional</option>
+                            </select>
+                          </label>
+                          <label>Ticket type
+                            <select id="hydrovacLocateType">
+                              <option value="standard">Standard</option>
+                              <option value="emergency">Emergency</option>
+                              <option value="continue">Continue</option>
+                              <option value="update">Update</option>
+                              <option value="design">Design</option>
+                            </select>
+                          </label>
+                        </div>
+                        <div class="grid two form-grid">
+                          <label>Ticket number
+                            <input id="hydrovacLocateNumber" placeholder="2026-1234567" />
+                          </label>
+                          <label>Status
+                            <select id="hydrovacLocateStatus">
+                              <option value="requested">Requested</option>
+                              <option value="active">Active</option>
+                              <option value="extended">Extended</option>
+                              <option value="expired">Expired</option>
+                              <option value="cancelled">Cancelled</option>
+                            </select>
+                          </label>
+                        </div>
+                        <div class="grid two form-grid">
+                          <label>One-call center
+                            <input id="hydrovacLocateCenter" placeholder="Michigan 811 / Dig Safe / USIC" />
+                          </label>
+                          <label>State
+                            <input id="hydrovacLocateState" placeholder="MI" />
+                          </label>
+                        </div>
+                        <label>Work site address
+                          <input id="hydrovacLocateAddress" placeholder="Jobsite address" />
+                        </label>
+                        <div class="grid two form-grid">
+                          <label>Valid from
+                            <input id="hydrovacLocateValidFrom" type="datetime-local" />
+                          </label>
+                          <label>Valid until
+                            <input id="hydrovacLocateValidUntil" type="datetime-local" />
+                          </label>
+                        </div>
+                        <label>Notes
+                          <textarea id="hydrovacLocateNotes" rows="3" placeholder="Utility responses, field verification notes, or locate caveats."></textarea>
+                        </label>
+                        <div class="form-actions">
+                          <button id="btnSaveLocate" class="btn btn-primary" type="submit">Save ticket</button>
+                          <button id="btnVerifyLocate" class="btn btn-ghost" type="button">Mark verified on site</button>
+                          <button id="btnClearLocate" class="btn btn-ghost" type="button">Clear</button>
+                        </div>
+                        <div id="hydrovacLocateMsg" class="msg"></div>
+                      </form>
                     </div>
-                    <div class="grid two form-grid">
-                      <label>One-call center
-                        <input id="hydrovacLocateCenter" placeholder="Michigan 811 / Dig Safe / USIC" />
-                      </label>
-                      <label>State
-                        <input id="hydrovacLocateState" placeholder="MI" />
-                      </label>
-                    </div>
-                    <label>Work site address
-                      <input id="hydrovacLocateAddress" placeholder="Jobsite address" />
-                    </label>
-                    <div class="grid two form-grid">
-                      <label>Valid from
-                        <input id="hydrovacLocateValidFrom" type="datetime-local" />
-                      </label>
-                      <label>Valid until
-                        <input id="hydrovacLocateValidUntil" type="datetime-local" />
-                      </label>
-                    </div>
-                    <label>Notes
-                      <textarea id="hydrovacLocateNotes" rows="3" placeholder="Utility responses, field verification notes, or locate caveats."></textarea>
-                    </label>
-                    <div class="form-actions">
-                      <button id="btnSaveLocate" class="btn btn-primary" type="submit">Save ticket</button>
-                      <button id="btnVerifyLocate" class="btn btn-ghost" type="button">Mark verified on site</button>
-                      <button id="btnClearLocate" class="btn btn-ghost" type="button">Clear</button>
-                    </div>
-                    <div id="hydrovacLocateMsg" class="msg"></div>
-                  </form>
+                  </div>
                 </div>
               </div>
             </div>
@@ -2736,30 +2726,96 @@
                 <button id="btnRefreshCompliance" class="btn btn-ghost" type="button">Refresh</button>
               </div>
             </div>
-            <div id="complianceStageStrip" class="pipeline-stage-strip"></div>
-            <div id="complianceActionBar" class="pipeline-action-bar"></div>
-            <div class="card">
-              <div class="card-bd">
-                <div id="hydrovacComplianceSummary" class="payments-summary-grid"></div>
+            <div class="workspace-command-center workspace-command-center--hydrovac">
+              <div class="workspace-command-center__top">
+                <div id="complianceStageStrip" class="pipeline-stage-strip workspace-command-center__hero"></div>
+                <div id="complianceActionBar" class="pipeline-action-bar workspace-command-center__sidebar"></div>
               </div>
-            </div>
-            <div class="grid two">
-              <div class="card">
-                <div class="card-hd">
-                  <strong>Action required</strong>
-                  <span class="muted">Critical items that should not hide in memory</span>
-                </div>
-                <div class="card-bd">
-                  <div id="hydrovacComplianceUrgent" class="list"></div>
+              <div class="workspace-command-center__main">
+                <div class="card">
+                  <div class="card-bd">
+                    <div id="hydrovacComplianceSummary"></div>
+                  </div>
                 </div>
               </div>
-              <div class="card">
-                <div class="card-hd">
-                  <strong>Coverage &amp; readiness</strong>
-                  <span class="muted">Truck, driver, and ticket coverage at a glance</span>
+              <div class="workspace-command-center__top u-mt-18">
+                <div id="permitStageStrip" class="pipeline-stage-strip workspace-command-center__hero"></div>
+                <div id="permitActionBar" class="pipeline-action-bar workspace-command-center__sidebar"></div>
+              </div>
+              <div class="workspace-command-center__grid u-mt-14">
+                <div class="workspace-command-center__main">
+                  <div class="card">
+                    <div class="card-hd">
+                      <strong>Confined space permits</strong>
+                      <span class="muted">Entry paperwork, atmosphere checks, and permit status</span>
+                    </div>
+                    <div class="card-bd">
+                      <div id="hydrovacPermitList" class="list"></div>
+                    </div>
+                  </div>
                 </div>
-                <div class="card-bd">
-                  <div id="hydrovacComplianceCoverage" class="list"></div>
+                <div class="workspace-command-center__rail">
+                  <div class="card">
+                    <div class="card-hd">
+                      <strong>Permit detail</strong>
+                      <span class="muted">Create, update, and close entry permits without leaving compliance</span>
+                    </div>
+                    <div class="card-bd">
+                      <div id="hydrovacPermitDetail" class="muted">Select a permit or create one from a job that needs confined-space coverage.</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="workspace-command-center__top u-mt-18">
+                <div id="assetStageStrip" class="pipeline-stage-strip workspace-command-center__hero"></div>
+                <div id="assetActionBar" class="pipeline-action-bar workspace-command-center__sidebar"></div>
+              </div>
+              <div class="workspace-command-center__grid u-mt-14">
+                <div class="workspace-command-center__main">
+                  <div class="card">
+                    <div class="card-hd">
+                      <strong>Infrastructure assets</strong>
+                      <span class="muted">Catch basins, manholes, wet wells, tanks, and due service</span>
+                    </div>
+                    <div class="card-bd">
+                      <div id="hydrovacAssetList" class="list"></div>
+                    </div>
+                  </div>
+                </div>
+                <div class="workspace-command-center__rail">
+                  <div class="card">
+                    <div class="card-hd">
+                      <strong>Asset detail</strong>
+                      <span class="muted">Condition, next due date, and linked history</span>
+                    </div>
+                    <div class="card-bd">
+                      <div id="hydrovacAssetDetail" class="muted">Select an asset to see service history and next due work.</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="workspace-command-center__grid">
+                <div class="workspace-command-center__main">
+                  <div class="card">
+                    <div class="card-hd">
+                      <strong>Action required</strong>
+                      <span class="muted">Critical items that should not hide in memory</span>
+                    </div>
+                    <div class="card-bd">
+                      <div id="hydrovacComplianceUrgent" class="list"></div>
+                    </div>
+                  </div>
+                </div>
+                <div class="workspace-command-center__rail">
+                  <div class="card">
+                    <div class="card-hd">
+                      <strong>Coverage &amp; readiness</strong>
+                      <span class="muted">Truck, driver, and ticket coverage at a glance</span>
+                    </div>
+                    <div class="card-bd">
+                      <div id="hydrovacComplianceCoverage" class="list"></div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -2908,6 +2964,8 @@
               </div>
             </div>
 
+            <div id="bookingsOverviewWrap" class="detail-card detail-card--spaced workspace-focus-card workflow-overview-card"></div>
+
             <!-- New booking form (hidden by default) -->
             <div id="newBookingForm" class="card hidden u-mb-14">
               <div class="card-hd"><strong>New booking</strong></div>
@@ -2982,26 +3040,33 @@
               </div>
             </div>
 
-            <!-- Calendar month view -->
-            <div class="card">
-              <div class="card-hd card-hd-inline">
-                <button id="btnBkPrev" class="btn btn-ghost btn-sm" type="button">‹</button>
-                <strong id="bkMonthLabel" class="card-hd-inline__fill"></strong>
-                <button id="btnBkNext" class="btn btn-ghost btn-sm" type="button">›</button>
+            <div class="workflow-shell workflow-shell--bookings">
+              <div class="workflow-shell__nav">
+                <div class="card workflow-shell__card workflow-shell__card--calendar">
+                  <div class="card-hd card-hd-inline">
+                    <button id="btnBkPrev" class="btn btn-ghost btn-sm" type="button">‹</button>
+                    <strong id="bkMonthLabel" class="card-hd-inline__fill"></strong>
+                    <button id="btnBkNext" class="btn btn-ghost btn-sm" type="button">›</button>
+                  </div>
+                  <div class="card-bd overflow-x-auto">
+                    <div id="bookingsCalendar"></div>
+                  </div>
+                </div>
               </div>
-              <div class="card-bd overflow-x-auto">
-                <div id="bookingsCalendar"></div>
-              </div>
-            </div>
 
-            <!-- Booking detail / upcoming list -->
-            <div class="card u-mt-14">
-              <div class="card-hd"><strong id="bkListLabel">Upcoming appointments</strong></div>
-              <div class="card-bd">
-                <div id="bookingsList"></div>
+              <div class="workflow-shell__detail">
+                <div class="card workflow-shell__card workflow-shell__card--detail">
+                  <div class="card-hd">
+                    <strong id="bkListLabel">Upcoming appointments</strong>
+                    <span class="muted">Review handoff risk, customer context, and next actions before dispatch.</span>
+                  </div>
+                  <div class="card-bd">
+                    <div id="bookingsList"></div>
+                    <div id="bookingsNoShowStat" class="muted u-mt-10 u-fs-80"></div>
+                  </div>
+                </div>
               </div>
             </div>
-            <div id="bookingsNoShowStat" class="muted u-mt-10 u-fs-80"></div>
           </section>
 
           <section class="panel hidden" data-panel="expenses">
@@ -3427,14 +3492,14 @@
 <script src="./operator-catalog-workspace.js" defer></script>
 <script src="./operator-money-workspace.js" defer></script>
 <script src="./operator-boot-utils.js" defer></script>
-<script src="./operator.js?v=20260402-customer-workbench" defer></script>
+<script src="./operator.js?v=20260403-hydrovac-boot" defer></script>
 <script src="./operator-proposal-documents.js" defer></script>
 <script src="./operator-proposal-settings-workspace.js" defer></script>
 <script src="./operator-orders-tools.js" defer></script>
 <script src="./operator-payments-workspace.js" defer></script>
 <script src="./import-workspace.js" defer></script>
 <script src="./walkthrough.js" defer></script>
-<script src="./operator.launch.js" defer></script>
+<script src="./operator.launch.js?v=20260403-tab-router" defer></script>
 
   <!-- First-login walkthrough modal -->
   <div id="tourModal" class="tour-modal hidden" role="dialog" aria-modal="true" aria-labelledby="tour-title">
@@ -3614,7 +3679,7 @@
   </button>
 </nav>
 
-<script src="./operator-mobile-nav.js"></script>
+<script src="./operator-mobile-nav.js?v=20260403-mobile-drawer"></script>
 </body>
 </html>
 

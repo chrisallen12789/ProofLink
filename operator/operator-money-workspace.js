@@ -612,6 +612,92 @@ function renderBillingBlockerQueueReport(state = BILLING_BLOCKER_AGENT_STATE) {
   `;
 }
 
+function renderMoneyWorkspaceSignalBand({
+  outstandingBalance = 0,
+  overdueBalance = 0,
+  openDepositCount = 0,
+  duePlansCount = 0,
+  queueCount = 0,
+} = {}) {
+  return `
+    <div class="workspace-signal-band">
+      <div class="workspace-signal-band__item ${overdueBalance > 0 ? "workspace-signal-band__item--danger" : outstandingBalance > 0 ? "workspace-signal-band__item--warn" : "workspace-signal-band__item--good"}">
+        <span>Outstanding balance</span>
+        <strong>${escapeHtml(formatUsd(outstandingBalance))}</strong>
+        <small>${escapeHtml(overdueBalance > 0 ? `${formatUsd(overdueBalance)} is already overdue and needs priority follow-through.` : outstandingBalance > 0 ? "Money is still open, but it has not aged into overdue drag yet." : "No open balance is waiting here right now.")}</small>
+      </div>
+      <div class="workspace-signal-band__item ${openDepositCount > 0 ? "workspace-signal-band__item--warn" : "workspace-signal-band__item--good"}">
+        <span>Open deposits</span>
+        <strong>${escapeHtml(String(openDepositCount))}</strong>
+        <small>${escapeHtml(openDepositCount > 0 ? "Protect the schedule before more work moves into the field." : "No deposits are still open across the current work set.")}</small>
+      </div>
+      <div class="workspace-signal-band__item ${duePlansCount > 0 ? "workspace-signal-band__item--warn" : "workspace-signal-band__item--good"}">
+        <span>Recurring due</span>
+        <strong>${escapeHtml(String(duePlansCount))}</strong>
+        <small>${escapeHtml(duePlansCount > 0 ? "Repeat work is due soon and needs clean billing follow-through." : "No recurring work is due right now.")}</small>
+      </div>
+      <div class="workspace-signal-band__item ${queueCount > 0 ? "workspace-signal-band__item--warn" : "workspace-signal-band__item--good"}">
+        <span>Billing blockers</span>
+        <strong>${escapeHtml(String(queueCount))}</strong>
+        <small>${escapeHtml(queueCount > 0 ? "Jobs are still waiting on proof or billing cleanup before invoicing." : "No billing blockers are sitting in the queue right now.")}</small>
+      </div>
+    </div>
+  `;
+}
+
+function renderMoneyWorkspaceActionCard({
+  collectionGuidance = null,
+  collectionMemory = null,
+  collectionNextStep = null,
+  outstandingBalance = 0,
+  overdueBalance = 0,
+  activePlansCount = 0,
+  duePlansCount = 0,
+  topCustomer = null,
+} = {}) {
+  return `
+    <div class="detail-card detail-card--spaced workspace-focus-card">
+      <div class="workspace-focus-card__head">
+        <div>
+          <div class="kicker">Money focus</div>
+          <div><strong>${escapeHtml(collectionGuidance?.title || "Keep cash and margin moving")}</strong></div>
+        </div>
+        <span class="pill ${overdueBalance > 0 ? "pill-bad" : outstandingBalance > 0 ? "pill-warn" : "pill-on"}">${escapeHtml(overdueBalance > 0 ? "Overdue first" : outstandingBalance > 0 ? "Collection in motion" : "Caught up")}</span>
+      </div>
+      <div class="detail-copy">${escapeHtml(collectionGuidance?.description || "Use this rail to jump into the exact workspace that clears the next money problem without breaking customer context.")}</div>
+      <div class="workspace-focus-card__meta">
+        <div class="workspace-focus-card__item ${overdueBalance > 0 ? "workspace-focus-card__item--danger" : outstandingBalance > 0 ? "workspace-focus-card__item--warn" : "workspace-focus-card__item--good"}">
+          <span>Collection pressure</span>
+          <strong>${escapeHtml(formatUsd(overdueBalance > 0 ? overdueBalance : outstandingBalance))}</strong>
+          <small>${escapeHtml(overdueBalance > 0 ? "Start with the overdue balances before the easier work distracts the team." : outstandingBalance > 0 ? "This is still open money that should stay visible." : "Nothing urgent is waiting on collection.")}</small>
+        </div>
+        <div class="workspace-focus-card__item ${duePlansCount > 0 ? "workspace-focus-card__item--warn" : "workspace-focus-card__item--good"}">
+          <span>Recurring pipeline</span>
+          <strong>${escapeHtml(`${activePlansCount} active / ${duePlansCount} due`)}</strong>
+          <small>${escapeHtml(duePlansCount > 0 ? "Recurring work is close enough to billing pressure that it should stay visible here too." : "The recurring pipeline is not creating immediate money pressure.")}</small>
+        </div>
+        <div class="workspace-focus-card__item ${collectionMemory ? "workspace-focus-card__item--good" : ""}">
+          <span>Customer context</span>
+          <strong>${escapeHtml(collectionMemory?.customerName || topCustomer?.name || topCustomer?.email || "No top account yet")}</strong>
+          <small>${escapeHtml(collectionMemory?.description || "The top-value account will show up here once customer value and open work start stacking together.")}</small>
+        </div>
+        <div class="workspace-focus-card__item ${collectionNextStep?.actions?.length ? "workspace-focus-card__item--warn" : "workspace-focus-card__item--good"}">
+          <span>After collection</span>
+          <strong>${escapeHtml(collectionNextStep?.title || "Keep service moving")}</strong>
+          <small>${escapeHtml(collectionNextStep?.description || "Once money clears, ProofLink should point the operator back to the next service move, not just a blank ledger.")}</small>
+        </div>
+      </div>
+      <div class="workspace-focus-card__buttons">
+        <button type="button" class="btn btn-primary" data-money-workspace-action="expenses">Log expense</button>
+        <button type="button" class="btn btn-ghost" data-money-workspace-action="jobs">Open jobs</button>
+        <button type="button" class="btn btn-ghost" data-money-workspace-action="customers">Open customers</button>
+        <button type="button" class="btn btn-ghost" data-money-workspace-action="products">Open catalog</button>
+        <button type="button" class="btn btn-ghost" data-money-workspace-action="plans">Open recurring plans</button>
+      </div>
+    </div>
+  `;
+}
+
 async function renderMoney() {
   if (!moneyWrap) return;
 
@@ -666,8 +752,58 @@ async function renderMoney() {
   });
   const collectionMemory = buildMoneyCollectionMemory(blueprint);
   const collectionNextStep = buildMoneyCollectionNextStep(blueprint);
+  const billingQueueCount = Number(BILLING_BLOCKER_AGENT_STATE.context_summary?.queued_jobs || BILLING_BLOCKER_AGENT_STATE.report?.findings?.length || 0);
 
   moneyWrap.innerHTML = `
+    <div class="workspace-command-center">
+      <div class="workspace-command-center__top">
+        <div class="workspace-command-center__hero">
+          ${renderRecordHeroCard({
+            eyebrow: "Money command center",
+            title: overdueBalance > 0 ? "Overdue balances need attention first" : "Keep cash and margin moving together",
+            badges: [
+              { label: `${CRM_ORDERS_CACHE.length} work item${CRM_ORDERS_CACHE.length === 1 ? "" : "s"} in money view` },
+              { label: `${activePlans.length} active plan${activePlans.length === 1 ? "" : "s"}` },
+              overdueBalance > 0
+                ? { label: `${formatUsd(overdueBalance)} overdue`, tone: "pill-bad" }
+                : outstandingBalance > 0
+                  ? { label: `${formatUsd(outstandingBalance)} open`, tone: "pill-warn" }
+                  : { label: "Balances clear", tone: "pill-on" },
+            ],
+            meta: [
+              topCustomer ? `Top customer value ${formatUsd(customerLifetimeValueCents(topCustomer))}` : "No customer value leader yet",
+              jobEconomics.length ? `${jobEconomics.length} tracked job${jobEconomics.length === 1 ? "" : "s"} with margin data` : "Tracked job economics will show here once cost logging is active",
+            ],
+            description: "Use one calm surface to handle collections, blocker cleanup, and margin visibility without bouncing between ledgers, jobs, and customers.",
+            summary: [
+              { label: "Outstanding balance", value: formatUsd(outstandingBalance), note: overdueBalance > 0 ? `${formatUsd(overdueBalance)} is already overdue` : "Open receivables across booked work" },
+              { label: "Gross profit", value: formatUsd(totalGrossProfit), note: jobEconomics.length ? "Revenue minus linked job cost" : "No tracked economics yet" },
+              { label: "Average job margin", value: formatPercent(weightedMargin), note: jobEconomics.length ? `${profitableJobs} profitable tracked jobs` : "Margin appears once jobs have linked cost" },
+              { label: "Recurring work due", value: String(duePlans.length), note: activePlans.length ? `${activePlans.length} active plans in flight` : "No active recurring plans yet" },
+            ],
+            actionsHtml: renderMoneyWorkspaceSignalBand({
+              outstandingBalance,
+              overdueBalance,
+              openDepositCount: openDepositOrders.length,
+              duePlansCount: duePlans.length,
+              queueCount: billingQueueCount,
+            }),
+          })}
+        </div>
+        <div class="workspace-command-center__sidebar">
+          ${renderMoneyWorkspaceActionCard({
+            collectionGuidance,
+            collectionMemory,
+            collectionNextStep,
+            outstandingBalance,
+            overdueBalance,
+            activePlansCount: activePlans.length,
+            duePlansCount: duePlans.length,
+            topCustomer,
+          })}
+        </div>
+      </div>
+      <div class="workspace-command-center__main">
     <div class="cards">
       <div class="card mini">
         <div class="card-bd">
@@ -893,6 +1029,8 @@ async function renderMoney() {
         </div>
       </div>
     ` : ``}
+      </div>
+    </div>
   `;
 
   moneyWrap.querySelectorAll("[data-money-reactivation-action]").forEach((button) => {
@@ -934,6 +1072,31 @@ async function renderMoney() {
             },
           });
         }
+      }
+    });
+  });
+
+  moneyWrap.querySelectorAll("[data-money-workspace-action]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const action = button.getAttribute("data-money-workspace-action") || "";
+      if (action === "expenses") {
+        switchTab("expenses");
+        return;
+      }
+      if (action === "jobs") {
+        switchTab("jobs");
+        return;
+      }
+      if (action === "customers") {
+        switchTab("customers");
+        return;
+      }
+      if (action === "products") {
+        switchTab("products");
+        return;
+      }
+      if (action === "plans") {
+        switchTab("plans");
       }
     });
   });

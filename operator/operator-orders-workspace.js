@@ -270,6 +270,27 @@ function orderPrepGuidanceItems(order, customer, blueprint = orderWorkspaceBluep
     ),
   ];
 
+  const hydrovac = [
+    detail(
+      "Truck access and arrival",
+      filled(customer?.access_notes, customer?.gate_notes, customer?.service_address, order?.service_address, customer?.site_access_notes),
+      firstFilled(customer?.site_access_notes, customer?.access_notes, customer?.gate_notes, order?.service_address, customer?.service_address),
+      "Confirm the truck path, arrival point, and site approach before this booked work turns into dispatch."
+    ),
+    detail(
+      "Locate and permit note",
+      filled(customer?.locate_notes, customer?.utility_notes, customer?.permit_notes, customer?.confined_space_notes, order?.notes),
+      firstFilled(customer?.locate_notes, customer?.permit_notes, customer?.confined_space_notes, customer?.utility_notes, order?.notes),
+      "Leave the locate, utility, permit, or confined-space note attached before the crew rolls."
+    ),
+    detail(
+      "Disposal and billing memory",
+      filled(customer?.disposal_notes, customer?.facility_notes, customer?.billing_notes, customer?.customer_po_number, order?.customer_po_number, order?.cartSummary, order?.cart_summary),
+      firstFilled(customer?.disposal_notes, customer?.facility_notes, customer?.customer_po_number, order?.customer_po_number, customer?.billing_notes, order?.cartSummary, order?.cart_summary),
+      "Keep disposal expectations, PO details, and billing memory attached so the field and office do not split apart."
+    ),
+  ];
+
   const plumbing = [
     detail(
       "Access and shutoff",
@@ -317,6 +338,7 @@ function orderPrepGuidanceItems(order, customer, blueprint = orderWorkspaceBluep
     property_maintenance: landscaping,
     pressure_washing: landscaping,
     cleaning,
+    hydrovac,
     hvac,
     plumbing,
   })[businessKey] || fallback;
@@ -408,6 +430,27 @@ function orderNextMoveItems(order, customer, amountDueCents = 0, paymentState = 
     moneyItem,
   ];
 
+  const hydrovac = [
+    detail(
+      "Dispatch package",
+      filled(order?.scheduled_date, order?.scheduled_time, order?.service_address, customer?.access_notes),
+      firstFilled(
+        order?.scheduled_date && order?.scheduled_time ? `${order.scheduled_date} at ${order.scheduled_time}` : "",
+        order?.scheduled_date,
+        customer?.access_notes,
+        order?.service_address
+      ),
+      "Lock in the schedule window, service address, and truck access note before this work reaches dispatch."
+    ),
+    detail(
+      "Compliance handoff",
+      filled(customer?.locate_notes, customer?.permit_notes, customer?.confined_space_notes, customer?.utility_notes, order?.notes),
+      firstFilled(customer?.locate_notes, customer?.permit_notes, customer?.confined_space_notes, customer?.utility_notes, order?.notes),
+      "Leave the locate, permit, or utility note attached before the office has to guess at dispatch time."
+    ),
+    moneyItem,
+  ];
+
   const plumbing = [
     detail(
       "Repair follow-through",
@@ -439,6 +482,7 @@ function orderNextMoveItems(order, customer, amountDueCents = 0, paymentState = 
     property_maintenance: landscaping,
     pressure_washing: landscaping,
     cleaning,
+    hydrovac,
     hvac,
     plumbing,
   })[businessKey] || fallback;
@@ -565,6 +609,23 @@ function orderRetentionItems(order, customer, amountDueCents = 0, paymentState =
     moneyItem,
   ].filter(Boolean);
 
+  const hydrovac = [
+    detail(
+      "Site memory stays attached",
+      filled(customer?.site_access_notes, customer?.access_notes, customer?.utility_notes, order?.service_address),
+      firstFilled(customer?.site_access_notes, customer?.access_notes, customer?.utility_notes, order?.service_address),
+      "Keep the site, access, and utility note attached before the next hydrovac round starts from scratch."
+    ),
+    detail(
+      "Disposal and invoice closeout",
+      filled(customer?.disposal_notes, customer?.facility_notes, customer?.customer_po_number, customer?.billing_notes),
+      firstFilled(customer?.disposal_notes, customer?.facility_notes, customer?.customer_po_number, customer?.billing_notes),
+      "Keep disposal, facility, and PO memory attached so the next invoice and repeat visit start cleaner."
+    ),
+    renewalRiskItem,
+    moneyItem,
+  ].filter(Boolean);
+
   const plumbing = [
     detail(
       "Repair follow-through",
@@ -598,6 +659,7 @@ function orderRetentionItems(order, customer, amountDueCents = 0, paymentState =
     property_maintenance: landscaping,
     pressure_washing: landscaping,
     cleaning,
+    hydrovac,
     hvac,
     plumbing,
   })[businessKey] || fallback;
@@ -629,6 +691,7 @@ function orderRetentionActions(order, customer, amountDueCents = 0, blueprint = 
     property_maintenance: "Schedule next site visit",
     pressure_washing: "Schedule next wash visit",
     cleaning: "Schedule next cleaning visit",
+    hydrovac: "Schedule next hydrovac visit",
     hvac: "Schedule next system visit",
     plumbing: "Schedule next follow-up visit",
   };
@@ -637,6 +700,7 @@ function orderRetentionActions(order, customer, amountDueCents = 0, blueprint = 
     property_maintenance: "Draft site follow-up request",
     pressure_washing: "Draft wash follow-up request",
     cleaning: "Draft cleaning follow-up request",
+    hydrovac: "Draft hydrovac follow-up request",
     hvac: "Draft maintenance follow-up request",
     plumbing: "Draft repair follow-up request",
   };
@@ -677,6 +741,304 @@ function renderOrderRetentionCard(order, customer, amountDueCents = 0, paymentSt
   `;
 }
 
+function orderSignalToneClass(tone = "") {
+  if (tone === "good") return "workspace-signal-band__item--good";
+  if (tone === "warn") return "workspace-signal-band__item--warn";
+  if (tone === "danger") return "workspace-signal-band__item--danger";
+  return "";
+}
+
+function orderSignalItems(order, customer, linkedLead, linkedBid, linkedJob, linkedPlan, amountDueCents = 0, paymentState = "", depositGap = 0, blueprint = orderWorkspaceBlueprint()) {
+  const businessKey = String(blueprint?.business?.key || "service_business").trim().toLowerCase();
+  const firstFilled = (...values) => values.find((value) => String(value || "").trim()) || "";
+  const detail = (label, value, note, tone = "") => ({
+    label,
+    value,
+    note,
+    tone,
+  });
+
+  if (businessKey === "hydrovac") {
+    const locatePermitNote = firstFilled(
+      customer?.locate_notes,
+      customer?.permit_notes,
+      customer?.confined_space_notes,
+      customer?.utility_notes
+    );
+    const disposalBillingNote = firstFilled(
+      customer?.disposal_notes,
+      customer?.facility_notes,
+      customer?.billing_notes,
+      customer?.customer_po_number,
+      order?.customer_po_number
+    );
+    const siteMemory = firstFilled(
+      customer?.site_access_notes,
+      customer?.access_notes,
+      customer?.gate_notes,
+      order?.service_address,
+      customer?.service_address
+    );
+    return [
+      detail(
+        "Dispatch path",
+        linkedJob ? titleCaseWords(String(linkedJob.status || "scheduled").replace(/_/g, " ")) : "Needs job",
+        linkedJob
+          ? "Booked work is already tied to field execution."
+          : "Create the hydrovac job before dispatch memory starts splitting across screens.",
+        linkedJob ? (["blocked", "cancelled"].includes(String(linkedJob.status || "").toLowerCase()) ? "danger" : "good") : "warn"
+      ),
+      detail(
+        "Locate / permit watch",
+        locatePermitNote ? "Visible" : "Needs note",
+        locatePermitNote || "Leave the locate, permit, or confined-space note attached before the truck rolls.",
+        locatePermitNote ? "good" : "warn"
+      ),
+      detail(
+        "Disposal / billing",
+        amountDueCents > 0 ? formatUsd(amountDueCents) : (disposalBillingNote ? "Tracked" : "Clear"),
+        amountDueCents > 0
+          ? "Collection or disposal billing still needs follow-through from this same record."
+          : (disposalBillingNote || "No disposal or receivable pressure is standing out right now."),
+        amountDueCents > 0 ? (paymentState === "overdue" ? "danger" : "warn") : (disposalBillingNote ? "good" : "")
+      ),
+      detail(
+        "Site memory",
+        siteMemory ? "Ready" : "Missing",
+        siteMemory || "Add the site approach, truck access, or service address before dispatch.",
+        siteMemory ? "good" : "warn"
+      ),
+    ];
+  }
+
+  return [
+    detail(
+      "Workflow chain",
+      linkedJob ? "Field linked" : linkedBid ? "Proposal linked" : linkedLead ? "Request linked" : "Needs linkage",
+      linkedJob
+        ? "Booked work, execution, and collection are tied together."
+        : linkedBid
+          ? "The proposal is linked and ready to move forward."
+          : linkedLead
+            ? "The request is linked, but downstream work still needs to be built."
+            : "Create or link the surrounding records so this work stays connected.",
+      linkedJob ? "good" : (linkedBid || linkedLead ? "warn" : "")
+    ),
+    detail(
+      "Field timing",
+      order?.scheduled_date ? (order?.scheduled_time ? `${order.scheduled_date} ${order.scheduled_time}` : order.scheduled_date) : "Unscheduled",
+      order?.scheduled_date
+        ? "The service window is visible before the job gets built."
+        : "Lock the timing before this record reaches the field.",
+      order?.scheduled_date ? "good" : "warn"
+    ),
+    detail(
+      "Deposit",
+      depositGap > 0 ? `${formatUsd(depositGap)} open` : (orderDepositStatus(order) === "not_required" ? "Not required" : "Covered"),
+      depositGap > 0
+        ? "Deposit still needs attention before the schedule gets ahead of the cash."
+        : formatDepositStatus(orderDepositStatus(order)),
+      depositGap > 0 ? "warn" : "good"
+    ),
+    detail(
+      "Customer memory",
+      customer ? "In CRM" : "Unlinked",
+      customer
+        ? "Past work and relationship notes are attached to this record."
+        : "Add or link the customer so the next request does not start from zero.",
+      customer ? "good" : "warn"
+    ),
+  ];
+}
+
+function renderOrderSignalBand(order, customer, linkedLead, linkedBid, linkedJob, linkedPlan, amountDueCents = 0, paymentState = "", depositGap = 0, blueprint = orderWorkspaceBlueprint()) {
+  const items = orderSignalItems(order, customer, linkedLead, linkedBid, linkedJob, linkedPlan, amountDueCents, paymentState, depositGap, blueprint);
+  return `
+    <div class="workspace-signal-band">
+      ${items.map((item) => `
+        <div class="workspace-signal-band__item ${orderSignalToneClass(item.tone)}">
+          <span>${escapeHtml(item.label || "Signal")}</span>
+          <strong>${escapeHtml(item.value || "")}</strong>
+          <small>${escapeHtml(item.note || "")}</small>
+        </div>
+      `).join("")}
+    </div>
+  `;
+}
+
+function renderEmptyOrdersCommandCenter(blueprint = orderWorkspaceBlueprint()) {
+  const businessKey = String(blueprint?.business?.key || "").trim().toLowerCase();
+  const hydrovacMode = businessKey === "hydrovac";
+  const bidCount = typeof BIDS_CACHE !== "undefined" && Array.isArray(BIDS_CACHE) ? BIDS_CACHE.length : 0;
+  const bookingCount = typeof BOOKINGS_CACHE !== "undefined" && Array.isArray(BOOKINGS_CACHE) ? BOOKINGS_CACHE.length : 0;
+  const customerCount = typeof CUSTOMERS_CACHE !== "undefined" && Array.isArray(CUSTOMERS_CACHE) ? CUSTOMERS_CACHE.length : 0;
+  const signalItems = hydrovacMode
+    ? [
+      {
+        label: "Booked work",
+        value: "0 live",
+        note: "Nothing is in the work queue yet.",
+        tone: "warn",
+      },
+      {
+        label: "Walkthroughs",
+        value: bidCount ? String(bidCount) : "Needs review",
+        note: bidCount ? "Proposal drafts can be converted into tracked work." : "Start with a walkthrough bid so site, locate, and disposal notes do not get lost.",
+        tone: bidCount ? "good" : "warn",
+      },
+      {
+        label: "Scheduled visits",
+        value: String(bookingCount),
+        note: bookingCount ? "Bookings already exist and can be turned into field work." : "No dispatch-ready visits are attached yet.",
+        tone: bookingCount ? "good" : "",
+      },
+      {
+        label: "Customer memory",
+        value: String(customerCount),
+        note: customerCount ? "Customer records are ready for site and billing context." : "Load or create customer records before the work board fills up.",
+        tone: customerCount ? "good" : "",
+      },
+    ]
+    : [
+      {
+        label: "Booked work",
+        value: "0 live",
+        note: "Nothing is in the work queue yet.",
+        tone: "warn",
+      },
+      {
+        label: "Quotes / bids",
+        value: bidCount ? String(bidCount) : "Needs review",
+        note: bidCount ? "Proposal drafts are ready to be converted into tracked work." : "Start with a quote or walkthrough so the work board does not begin from scratch.",
+        tone: bidCount ? "good" : "warn",
+      },
+      {
+        label: "Scheduled visits",
+        value: String(bookingCount),
+        note: bookingCount ? "Bookings already exist and can be turned into work records." : "No scheduled visits are attached yet.",
+        tone: bookingCount ? "good" : "",
+      },
+      {
+        label: "Customer context",
+        value: String(customerCount),
+        note: customerCount ? "Customers are already in the CRM and ready for handoff." : "Add a customer so the first work record does not start blank.",
+        tone: customerCount ? "good" : "",
+      },
+    ];
+
+  return `
+    <div class="workspace-command-center ${hydrovacMode ? "workspace-command-center--hydrovac" : ""}">
+      <div class="workspace-command-center__top">
+        <div class="workspace-command-center__hero">
+          ${renderRecordHeroCard({
+            eyebrow: hydrovacMode ? "Work board" : "Booked work",
+            title: hydrovacMode ? "Build the first hydrovac work package" : "Build the first tracked work package",
+            badges: [
+              { label: hydrovacMode ? "Hydrovac workflow" : "Workflow ready" },
+              { label: "No active work" },
+            ],
+            meta: hydrovacMode
+              ? "Use this board to keep site memory, dispatch detail, and money follow-through tied together once work starts moving."
+              : "Use this board to keep scope, handoff, and money follow-through tied together once work starts moving.",
+            metrics: [
+              {
+                label: "Live work",
+                value: "0",
+                note: "The queue is clear right now.",
+              },
+              {
+                label: hydrovacMode ? "Upstream walkthroughs" : "Upstream proposals",
+                value: String(bidCount),
+                note: bidCount ? "There is already work upstream that can be converted." : "Nothing upstream has been turned into booked work yet.",
+              },
+              {
+                label: "Scheduled visits",
+                value: String(bookingCount),
+                note: bookingCount ? "Bookings are already present in the calendar." : "The calendar is still empty for this queue.",
+              },
+            ],
+            actionsHtml: `
+              <div class="workspace-signal-band">
+                ${signalItems.map((item) => `
+                  <div class="workspace-signal-band__item ${orderSignalToneClass(item.tone)}">
+                    <span>${escapeHtml(item.label || "Signal")}</span>
+                    <strong>${escapeHtml(item.value || "")}</strong>
+                    <small>${escapeHtml(item.note || "")}</small>
+                  </div>
+                `).join("")}
+              </div>
+            `,
+          })}
+        </div>
+        <div class="workspace-command-center__sidebar">
+          <div class="detail-card detail-card--spaced workspace-focus-card">
+            <div class="workspace-focus-card__head">
+              <div>
+                <div class="kicker">Start here</div>
+                <div><strong>${escapeHtml(hydrovacMode ? "Keep the first hydrovac record easy to launch and impossible to lose" : "Keep the first work record easy to launch and easy to manage")}</strong></div>
+                <div class="detail-copy">${escapeHtml(hydrovacMode
+                  ? "Open the upstream workspace that already has the most context, then come back here once the work is approved."
+                  : "Open the upstream workspace that already has the most context, then come back here once the work is approved.")}</div>
+              </div>
+            </div>
+            <div class="action-row">
+              <button class="btn btn-primary" type="button" data-order-empty-action="open-bids">${escapeHtml(hydrovacMode ? "Open walkthrough bids" : "Open quotes / bids")}</button>
+              <button class="btn btn-ghost" type="button" data-order-empty-action="open-bookings">Open bookings</button>
+              <button class="btn btn-ghost" type="button" data-order-empty-action="open-customers">Open customers</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="workspace-command-center__grid">
+        <div class="workspace-command-center__main">
+          <div class="detail-card detail-card--spaced workspace-board-card workspace-board">
+            <div class="workspace-board-card__head">
+              <div>
+                <div class="kicker">${escapeHtml(hydrovacMode ? "Board intent" : "Board intent")}</div>
+                <div><strong>${escapeHtml(hydrovacMode ? "What this board will solve once work lands here" : "What this board will solve once work lands here")}</strong></div>
+              </div>
+            </div>
+            <div class="workspace-board-card__list">
+              <div class="workspace-board-card__item">
+                <strong>${escapeHtml(hydrovacMode ? "Dispatch, locate, and disposal stay attached to the same record" : "Scope, dispatch, and billing stay attached to the same record")}</strong>
+                <small>${escapeHtml(hydrovacMode ? "The operator should not need to rebuild site memory after approval." : "The operator should not need to rebuild the work package after approval.")}</small>
+              </div>
+              <div class="workspace-board-card__item">
+                <strong>${escapeHtml(hydrovacMode ? "Money follow-through stays visible before and after the truck rolls" : "Money follow-through stays visible before and after the work is done")}</strong>
+                <small>${escapeHtml("Deposits, balances, and next-step reminders should stay in the same workspace as the work record.")}</small>
+              </div>
+              <div class="workspace-board-card__item">
+                <strong>${escapeHtml("Customer context should move forward without extra clicks")}</strong>
+                <small>${escapeHtml("The team should be able to jump straight into the right customer, calendar, or field record from here.")}</small>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="workspace-command-center__rail">
+          <div class="detail-card detail-card--spaced">
+            <div class="kicker">Fast path</div>
+            <div><strong>${escapeHtml(hydrovacMode ? "Best route into the first work package" : "Best route into the first work package")}</strong></div>
+            <div class="memory-checklist">
+              <div class="memory-checklist__item ${bidCount ? "memory-checklist__item--ready" : ""}">
+                <div class="memory-checklist__label">${escapeHtml(hydrovacMode ? "Walkthrough bid" : "Quote or bid")}</div>
+                <div class="memory-checklist__note">${escapeHtml(bidCount ? "Use the existing proposal draft as the starting point." : "Create a proposal or walkthrough first so pricing and scope are grounded.")}</div>
+              </div>
+              <div class="memory-checklist__item ${bookingCount ? "memory-checklist__item--ready" : ""}">
+                <div class="memory-checklist__label">Booking handoff</div>
+                <div class="memory-checklist__note">${escapeHtml(bookingCount ? "Calendar visits already exist and can be turned into booked work." : "Use bookings when the visit is already scheduled but the work package is not built yet.")}</div>
+              </div>
+              <div class="memory-checklist__item ${customerCount ? "memory-checklist__item--ready" : ""}">
+                <div class="memory-checklist__label">Customer record</div>
+                <div class="memory-checklist__note">${escapeHtml(customerCount ? "Customer records are already available for context and follow-through." : "Load customer context before the first work order starts.")}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 function renderOrders() {
   if (!ordersList) return;
   renderPipelineWorkspace();
@@ -684,8 +1046,19 @@ function renderOrders() {
   const statusOptions = ["new", "quoted", "confirmed", "fulfilled", "completed", "paid", "cancelled"];
 
   if (!rows.length) {
+    const blueprint = orderWorkspaceBlueprint();
     ordersList.innerHTML = `<div class="muted">No active work. When you convert a request to a job, it shows up here.</div>`;
-    if (orderDetailWrap) orderDetailWrap.innerHTML = `<div class="muted">Select booked work to inspect it.</div>`;
+    if (orderDetailWrap) {
+      orderDetailWrap.innerHTML = renderEmptyOrdersCommandCenter(blueprint);
+      orderDetailWrap.querySelectorAll("[data-order-empty-action]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const action = button.getAttribute("data-order-empty-action") || "";
+          if (action === "open-bids") return switchTab("bids");
+          if (action === "open-bookings") return switchTab("bookings");
+          if (action === "open-customers") return switchTab("customers");
+        });
+      });
+    }
     return;
   }
 
@@ -805,48 +1178,56 @@ function renderOrders() {
     { label: "Download invoice", className: "btn btn-ghost", data: { "order-quick-action": "download-invoice" } },
     active.customer_phone ? { label: "Text customer", className: "btn btn-ghost", data: { "order-quick-action": "text-customer" } } : null,
   ].filter(Boolean);
+  const isHydrovacOrderView = String(blueprint?.business?.key || "").trim().toLowerCase() === "hydrovac";
 
   orderDetailWrap.innerHTML = `
-    ${renderRecordHeroCard({
-      eyebrow: "Work record",
-      title: active.customer_name || active.name || "Unnamed customer",
-      badges: [
-        { label: formatOrderWorkflowStatus(active.status || "new") },
-        { label: formatWorkflowPaymentState(paymentState), tone: paymentStateClass(paymentState) },
-        depositStatus !== "not_required" ? { label: formatDepositStatus(depositStatus), tone: depositStatusClass(depositStatus) } : null,
-        isReturnCustomer ? { label: "Returning customer", tone: "pill-on" } : null,
-      ],
-      meta: [
-        `${active.email || "No email"} | ${active.phone || "No phone"}`,
-        `Scheduled ${String(scheduledDate)} | ${String(scheduledTime)}`,
-        `Fulfillment: ${active.fulfillment || "pickup"} | ${itemCount} item${itemCount === 1 ? "" : "s"} | Source: ${sourceLabel}`,
-        active.referral_source ? `How they heard about you: ${String(active.referral_source)}` : "",
-        existingCustomer ? `In CRM as ${existingCustomer.name || "customer"} | ${existingCustomer.order_count || priorOrders.length} prior order(s)` : "",
-      ].filter(Boolean),
-      description: linkedJob
-        ? `This work is already tied to ${linkedJob.title || "a tracked job"}, so use the workflow below to keep execution and collection moving together.`
-        : "Use the workflow below to move this record into a tracked job, recurring plan, or the right payment follow-through without rebuilding anything.",
-      summary: [
-        { label: "Order value", value: formatUsd(totalCents), note: "Committed work total" },
-        { label: "Paid so far", value: formatUsd(amountPaid), note: "Money already collected" },
-        { label: "Due now", value: formatUsd(amountDue), note: paymentState === "overdue" ? "Needs payment follow-up" : "Still open", tone: paymentState === "overdue" ? "pill-bad" : "" },
-        { label: "Deposit", value: depositGap > 0 ? `${formatUsd(depositGap)} open` : formatUsd(depositPaid), note: depositStatus === "not_required" ? "No deposit required" : formatDepositStatus(depositStatus) },
-      ],
-    })}
-    ${isReturnCustomer && !existingCustomer ? `<div class="detail-card u-mt-14"><div class="kicker">Customer match</div><div class="detail-copy detail-copy--warn">${priorOrders.length} prior order(s) found for this email. Consider linking this person into CRM so the next request, job, and payment history stay together.</div></div>` : ""}
-    ${renderRecordActionRail({
-      eyebrow: "Quick actions",
-      title: "Move this work forward",
-      description: linkedJob
-        ? "The booked work, field job, and payment flow are already tied together here. Use the actions below to keep them moving without jumping around."
-        : "Use one action row to create the linked job, collect money, or open the right record without rebuilding anything.",
-      actions: orderActionButtons,
-    })}
-    ${renderOrderCustomerMemoryCard(existingCustomer, blueprint)}
-    ${renderOrderPrepGuidanceCard(active, existingCustomer, blueprint)}
-    ${renderOrderNextMoveCard(active, existingCustomer, amountDue, paymentState, blueprint)}
-    ${renderOrderRetentionCard(active, existingCustomer, amountDue, paymentState, blueprint)}
-    ${renderOrderAccountingContinuityCard(active, linkedJob)}
+    <div class="workspace-command-center ${isHydrovacOrderView ? "workspace-command-center--hydrovac" : ""}">
+      <div class="workspace-command-center__top">
+        <div class="workspace-command-center__hero">
+          ${renderRecordHeroCard({
+            eyebrow: "Work record",
+            title: active.customer_name || active.name || "Unnamed customer",
+            badges: [
+              { label: formatOrderWorkflowStatus(active.status || "new") },
+              { label: formatWorkflowPaymentState(paymentState), tone: paymentStateClass(paymentState) },
+              depositStatus !== "not_required" ? { label: formatDepositStatus(depositStatus), tone: depositStatusClass(depositStatus) } : null,
+              isReturnCustomer ? { label: "Returning customer", tone: "pill-on" } : null,
+            ],
+            meta: [
+              `${active.email || "No email"} | ${active.phone || "No phone"}`,
+              `Scheduled ${String(scheduledDate)} | ${String(scheduledTime)}`,
+              `Fulfillment: ${active.fulfillment || "pickup"} | ${itemCount} item${itemCount === 1 ? "" : "s"} | Source: ${sourceLabel}`,
+              active.referral_source ? `How they heard about you: ${String(active.referral_source)}` : "",
+              existingCustomer ? `In CRM as ${existingCustomer.name || "customer"} | ${existingCustomer.order_count || priorOrders.length} prior order(s)` : "",
+            ].filter(Boolean),
+            description: linkedJob
+              ? `This work is already tied to ${linkedJob.title || "a tracked job"}, so use the workflow below to keep execution and collection moving together.`
+              : "Use the workflow below to move this record into a tracked job, recurring plan, or the right payment follow-through without rebuilding anything.",
+            summary: [
+              { label: "Order value", value: formatUsd(totalCents), note: "Committed work total" },
+              { label: "Paid so far", value: formatUsd(amountPaid), note: "Money already collected" },
+              { label: "Due now", value: formatUsd(amountDue), note: paymentState === "overdue" ? "Needs payment follow-up" : "Still open", tone: paymentState === "overdue" ? "pill-bad" : "" },
+              { label: "Deposit", value: depositGap > 0 ? `${formatUsd(depositGap)} open` : formatUsd(depositPaid), note: depositStatus === "not_required" ? "No deposit required" : formatDepositStatus(depositStatus) },
+            ],
+            actionsHtml: renderOrderSignalBand(active, existingCustomer, linkedLead, linkedBid, linkedJob, linkedPlan, amountDue, paymentState, depositGap, blueprint),
+          })}
+          ${isReturnCustomer && !existingCustomer ? `<div class="detail-card"><div class="kicker">Customer match</div><div class="detail-copy detail-copy--warn">${priorOrders.length} prior order(s) found for this email. Consider linking this person into CRM so the next request, job, and payment history stay together.</div></div>` : ""}
+        </div>
+        <div class="workspace-command-center__sidebar">
+          ${renderRecordActionRail({
+            eyebrow: "Quick actions",
+            title: "Move this work forward",
+            description: linkedJob
+              ? "The booked work, field job, and payment flow are already tied together here. Use the actions below to keep them moving without jumping around."
+              : "Use one action row to create the linked job, collect money, or open the right record without rebuilding anything.",
+            actions: orderActionButtons,
+          })}
+        </div>
+      </div>
+      <div class="workspace-command-center__grid">
+        <div class="workspace-command-center__main">
+          ${renderOrderPrepGuidanceCard(active, existingCustomer, blueprint)}
+          ${renderOrderNextMoveCard(active, existingCustomer, amountDue, paymentState, blueprint)}
 
     ${(active.order_type === 'package' || active.order_type === 'retainer') ? `
     <div class="detail-card detail-card--spaced">
@@ -1013,6 +1394,14 @@ function renderOrders() {
         <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();openLogTimeModal('${escapeAttr(active.id)}')">+ Log Time</button>
       </div>
       <div id="timeLoggedBody" class="u-hidden u-mt-10"></div>
+    </div>
+        </div>
+        <div class="workspace-command-center__rail">
+          ${renderOrderCustomerMemoryCard(existingCustomer, blueprint)}
+          ${renderOrderRetentionCard(active, existingCustomer, amountDue, paymentState, blueprint)}
+          ${renderOrderAccountingContinuityCard(active, linkedJob)}
+        </div>
+      </div>
     </div>
   `;
 

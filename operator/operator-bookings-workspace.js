@@ -1,5 +1,7 @@
 // Scheduling workspace extracted from operator.js so bookings, rescheduling,
 // walk-ins, and quick time logging can evolve together.
+let BOOKINGS_SELECTED_DATE = "";
+
 async function fetchBookings() {
   if (FETCHING.has("bookings")) return;
   FETCHING.add("bookings");
@@ -121,10 +123,8 @@ function renderBookingsCalendar(bookings) {
   cal.innerHTML = cells.join("");
   cal.querySelectorAll("[data-bk-date]").forEach((button) => {
     button.addEventListener("click", () => {
-      const date = button.getAttribute("data-bk-date");
-      renderBookingsList(bookings.filter((booking) => booking.starts_at?.slice(0, 10) === date));
-      const listLabel = $("bkListLabel");
-      if (listLabel) listLabel.textContent = new Date(`${date}T00:00:00`).toLocaleDateString();
+      BOOKINGS_SELECTED_DATE = button.getAttribute("data-bk-date") || "";
+      renderBookingsDetailPane(bookings);
     });
   });
 }
@@ -257,6 +257,27 @@ function bookingPrepGuidanceItems(booking, blueprint = bookingWorkspaceBlueprint
     ),
   ];
 
+  const hydrovac = [
+    detail(
+      "Truck access ready",
+      filled(customer.site_access_notes, customer.access_notes, customer.gate_notes, booking.service_address),
+      firstFilled(customer.site_access_notes, customer.access_notes, customer.gate_notes, booking.service_address),
+      "Confirm the truck path, site approach, and arrival point before dispatch."
+    ),
+    detail(
+      "Locate and permit note",
+      filled(customer.locate_notes, customer.permit_notes, customer.confined_space_notes, customer.utility_notes, booking.notes_vehicle),
+      firstFilled(customer.locate_notes, customer.permit_notes, customer.confined_space_notes, customer.utility_notes, booking.notes_vehicle),
+      "Leave the locate, utility, or permit note attached before the truck is assigned."
+    ),
+    detail(
+      "Disposal and PO memory",
+      filled(customer.disposal_notes, customer.facility_notes, customer.customer_po_number, customer.billing_notes),
+      firstFilled(customer.disposal_notes, customer.facility_notes, customer.customer_po_number, customer.billing_notes),
+      "Keep disposal expectations, facility notes, and PO details attached so billing does not have to reconstruct the stop later."
+    ),
+  ];
+
   const plumbing = [
     detail(
       "Shutoff and access",
@@ -304,6 +325,7 @@ function bookingPrepGuidanceItems(booking, blueprint = bookingWorkspaceBlueprint
     property_maintenance: landscaping,
     pressure_washing: landscaping,
     cleaning,
+    hydrovac,
     hvac,
     plumbing,
   })[businessKey] || fallback;
@@ -403,6 +425,22 @@ function bookingAssignmentGuidanceItems(booking, blueprint = bookingWorkspaceBlu
     ),
   ];
 
+  const hydrovac = [
+    assignmentItem,
+    detail(
+      "Site and compliance handoff",
+      filled(customer.locate_notes, customer.permit_notes, customer.confined_space_notes, customer.utility_notes, booking.notes_vehicle),
+      firstFilled(customer.locate_notes, customer.permit_notes, customer.confined_space_notes, customer.utility_notes, booking.notes_vehicle),
+      "Leave the locate, permit, utility, or hazard note attached before this stop lands on the board."
+    ),
+    detail(
+      "Customer and site contact path",
+      filled(customer.site_access_notes, customer.phone, customer.email, customer.follow_up_notes),
+      firstFilled(customer.site_access_notes, customer.phone, customer.email, customer.follow_up_notes),
+      "Confirm who opens the site, who answers for the work, and how the crew reaches them."
+    ),
+  ];
+
   const plumbing = [
     assignmentItem,
     detail(
@@ -440,6 +478,7 @@ function bookingAssignmentGuidanceItems(booking, blueprint = bookingWorkspaceBlu
     property_maintenance: landscaping,
     pressure_washing: landscaping,
     cleaning,
+    hydrovac,
     hvac,
     plumbing,
   })[businessKey] || fallback;
@@ -558,6 +597,22 @@ function bookingFollowThroughItems(booking, blueprint = bookingWorkspaceBlueprin
         filled(customer?.tenant_notes, customer?.phone, customer?.email, customer?.follow_up_notes),
         firstFilled(customer?.tenant_notes, customer?.phone, customer?.email, customer?.follow_up_notes),
         "Confirm who should hear the outcome, approval need, or next step after the technician wraps."
+      ),
+      renewalRiskItem,
+      balanceItem,
+    ].filter(Boolean),
+    hydrovac: [
+      detail(
+        "Disposal and invoice follow-through",
+        filled(customer?.disposal_notes, customer?.facility_notes, customer?.customer_po_number, customer?.billing_notes),
+        firstFilled(customer?.disposal_notes, customer?.facility_notes, customer?.customer_po_number, customer?.billing_notes),
+        "Keep disposal, facility, and PO memory attached so the invoice side does not have to guess after the stop."
+      ),
+      detail(
+        "Site memory stays visible",
+        filled(customer?.site_access_notes, customer?.utility_notes, customer?.follow_up_notes),
+        firstFilled(customer?.site_access_notes, customer?.utility_notes, customer?.follow_up_notes),
+        "Leave the site-access, utility, or next-step note attached before the next hydrovac round starts cold."
       ),
       renewalRiskItem,
       balanceItem,
@@ -746,7 +801,7 @@ function showBookingDetail(booking) {
           : row
       ));
       renderBookingsCalendar(BOOKINGS_CACHE);
-      renderBookingsList(BOOKINGS_CACHE);
+      renderBookingsDetailPane();
       showToast("Booking updated.");
       overlay.remove();
     } catch (err) {
@@ -759,32 +814,221 @@ function showBookingDetail(booking) {
   });
 }
 
+function bookingSignalToneClass(tone = "") {
+  if (tone === "good") return "booking-list-card__signal--good";
+  if (tone === "warn") return "booking-list-card__signal--warn";
+  if (tone === "danger") return "booking-list-card__signal--danger";
+  return "";
+}
+
+function bookingStatusPillClass(status = "") {
+  const normalized = String(status || "scheduled").trim().toLowerCase();
+  if (normalized === "cancelled") return "pill-off";
+  if (normalized === "no_show") return "pill-bad";
+  if (["completed"].includes(normalized)) return "pill-on";
+  if (["scheduled", "confirmed"].includes(normalized)) return "";
+  return "pill-warn";
+}
+
+function linkedOrderForBooking(booking) {
+  if (!booking?.order_id) return null;
+  return (CRM_ORDERS_CACHE || []).find((row) => row.id === booking.order_id) || null;
+}
+
+function bookingCardSignals(booking, blueprint = bookingWorkspaceBlueprint()) {
+  const businessKey = String(blueprint?.business?.key || "service_business").trim().toLowerCase();
+  const prepItems = bookingPrepGuidanceItems(booking, blueprint);
+  const assignmentItems = bookingAssignmentGuidanceItems(booking, blueprint);
+  const followThroughItems = bookingFollowThroughItems(booking, blueprint);
+  const prepItem = prepItems[0] || null;
+  const assignmentItem = assignmentItems[0] || null;
+  const followItem = followThroughItems.find((item) => !item.ready || item.tone === "warn") || followThroughItems[0] || null;
+
+  return [
+    {
+      label: businessKey === "hydrovac" ? "Site readiness" : "Visit prep",
+      value: prepItem?.ready ? "Ready" : "Needs review",
+      note: prepItem?.note || "Review the prep details before this visit starts.",
+      tone: prepItem?.ready ? "good" : "warn",
+    },
+    {
+      label: businessKey === "hydrovac" ? "Dispatch handoff" : "Assignment",
+      value: assignmentItem?.ready ? "Attached" : "Open",
+      note: assignmentItem?.note || "Leave one clear handoff note before this visit lands in the field.",
+      tone: assignmentItem?.ready ? "good" : "warn",
+    },
+    {
+      label: "After visit",
+      value: followItem?.ready ? "Protected" : "Needs follow-up",
+      note: followItem?.note || "Keep the next step visible while this stop is still fresh.",
+      tone: followItem?.ready ? "good" : (followItem?.tone || "warn"),
+    },
+  ];
+}
+
+function bookingCardNotes(booking, blueprint = bookingWorkspaceBlueprint()) {
+  const prepItems = bookingPrepGuidanceItems(booking, blueprint);
+  const followThroughItems = bookingFollowThroughItems(booking, blueprint);
+  const highlightFollow = followThroughItems.find((item) => !item.ready || item.tone === "warn") || followThroughItems[0] || null;
+  return [
+    prepItems[1] ? {
+      label: "Visit prep",
+      title: prepItems[1].label || "Prep detail",
+      note: prepItems[1].note || "Keep the prep note attached before the visit starts.",
+    } : null,
+    highlightFollow ? {
+      label: "Follow-through",
+      title: highlightFollow.label || "Next step",
+      note: highlightFollow.note || "Keep the next step visible after this visit wraps.",
+    } : null,
+  ].filter(Boolean);
+}
+
+function renderBookingsOverview(bookings, blueprint = bookingWorkspaceBlueprint()) {
+  const wrap = $("bookingsOverviewWrap");
+  if (!wrap) return;
+  const businessKey = String(blueprint?.business?.key || "service_business").trim().toLowerCase();
+  const hydrovacMode = businessKey === "hydrovac";
+  const visibleBookings = Array.isArray(bookings) ? bookings : [];
+  const activeBookings = visibleBookings.filter((booking) => !["cancelled", "completed", "no_show"].includes(String(booking.status || "").toLowerCase()));
+  const unassignedCount = activeBookings.filter((booking) => !String(booking.assigned_operator_id || booking.assigned_operator_name || "").trim()).length;
+  const openBalanceBookings = activeBookings.filter((booking) => Number(orderAmountDueCents(linkedOrderForBooking(booking)) || 0) > 0);
+  const followThroughRisk = activeBookings.filter((booking) => bookingFollowThroughItems(booking, blueprint).some((item) => !item.ready || item.tone === "warn"));
+  wrap.innerHTML = `
+    <div class="workspace-focus-card__head">
+      <div>
+        <div class="kicker">${escapeHtml(hydrovacMode ? "Booking command" : "Scheduling command")}</div>
+        <div><strong>${escapeHtml(hydrovacMode ? "Keep dispatch, truck access, and billing follow-through visible" : "Keep the day readable before it turns into field work")}</strong></div>
+        <div class="detail-copy">${escapeHtml(hydrovacMode
+          ? "This view calls out which visits are still missing assignment, site memory, or money follow-through before the board gets noisy."
+          : "This view calls out which visits are still missing assignment, prep, or follow-through before they become field friction.")}</div>
+      </div>
+    </div>
+    <div class="workspace-focus-card__meta">
+      <div class="workspace-focus-card__item ${activeBookings.length ? "workspace-focus-card__item--good" : ""}">
+        <span>${escapeHtml(hydrovacMode ? "Board today" : "Upcoming visits")}</span>
+        <strong>${escapeHtml(String(activeBookings.length))}</strong>
+        <small>${escapeHtml(activeBookings.length ? "Live visits are still in play." : "Nothing active is on the calendar right now.")}</small>
+      </div>
+      <div class="workspace-focus-card__item ${unassignedCount ? "workspace-focus-card__item--warn" : "workspace-focus-card__item--good"}">
+        <span>Unassigned</span>
+        <strong>${escapeHtml(String(unassignedCount))}</strong>
+        <small>${escapeHtml(unassignedCount ? "These visits still need a clear owner." : "Every visible visit already has an owner.")}</small>
+      </div>
+      <div class="workspace-focus-card__item ${openBalanceBookings.length ? "workspace-focus-card__item--warn" : "workspace-focus-card__item--good"}">
+        <span>${escapeHtml(hydrovacMode ? "Billing follow-through" : "Open balances")}</span>
+        <strong>${escapeHtml(String(openBalanceBookings.length))}</strong>
+        <small>${escapeHtml(openBalanceBookings.length ? "Linked booked work still has money to collect." : "No linked booked-work balances are open.")}</small>
+      </div>
+      <div class="workspace-focus-card__item ${followThroughRisk.length ? "workspace-focus-card__item--danger" : "workspace-focus-card__item--good"}">
+        <span>${escapeHtml(hydrovacMode ? "Site / next-step watch" : "Follow-through watch")}</span>
+        <strong>${escapeHtml(String(followThroughRisk.length))}</strong>
+        <small>${escapeHtml(followThroughRisk.length ? "These visits still need cleaner handoff notes." : "The visible visits look clean from a handoff standpoint.")}</small>
+      </div>
+    </div>
+  `;
+}
+
+function filteredBookingsForWorkspace() {
+  const myBookingsActive = localStorage.getItem("pl_my_bookings_filter") === "true";
+  if (!myBookingsActive) return BOOKINGS_CACHE;
+  const myOperatorId = CURRENT_OPERATOR?.operator_id || CURRENT_OPERATOR?.id || "";
+  if (!myOperatorId) return BOOKINGS_CACHE;
+  return BOOKINGS_CACHE.filter((booking) => booking.assigned_operator_id === myOperatorId);
+}
+
+function currentBookingsPaneState(bookings = filteredBookingsForWorkspace()) {
+  const scopedBookings = Array.isArray(bookings) ? bookings : [];
+  if (BOOKINGS_SELECTED_DATE) {
+    return {
+      bookings: scopedBookings.filter((booking) => booking.starts_at?.slice(0, 10) === BOOKINGS_SELECTED_DATE),
+      label: new Date(`${BOOKINGS_SELECTED_DATE}T00:00:00`).toLocaleDateString(),
+    };
+  }
+  const upcoming = scopedBookings.filter((booking) => !["cancelled", "completed", "no_show"].includes(String(booking.status || "").toLowerCase()));
+  return {
+    bookings: upcoming.length ? upcoming : scopedBookings,
+    label: "Upcoming appointments",
+  };
+}
+
+function renderBookingsDetailPane(bookings = filteredBookingsForWorkspace()) {
+  const pane = currentBookingsPaneState(bookings);
+  renderBookingsOverview(pane.bookings);
+  renderBookingsList(pane.bookings);
+  const listLabel = $("bkListLabel");
+  if (listLabel) listLabel.textContent = pane.label;
+}
+
 function renderBookingsList(bookings) {
   const list = $("bookingsList");
   if (!list) return;
+  const blueprint = bookingWorkspaceBlueprint();
+  const businessKey = String(blueprint?.business?.key || "service_business").trim().toLowerCase();
+  const hydrovacMode = businessKey === "hydrovac";
 
   if (!bookings || !bookings.length) {
     list.innerHTML = `<div class="muted muted-small">No bookings here yet. New appointments will appear here as soon as they are scheduled.</div>`;
     return;
   }
 
-  list.innerHTML = bookings.map((booking) => `
-    <div class="list-item list-item--top">
-      <div class="li-main">
-        <div class="li-title">${escapeHtml(booking.title || "Booking")}</div>
-        <div class="li-sub muted">${escapeHtml(booking.customer_name || booking.customer_email || "Customer")}</div>
-        <div class="li-sub muted">${escapeHtml(formatDateTime(booking.starts_at))}${booking.assigned_operator_name ? ` | ${escapeHtml(booking.assigned_operator_name)}` : ""}</div>
-      </div>
-      <div class="li-meta li-meta--tight">
-        <span class="pill ${booking.status === "cancelled" ? "pill-off" : "pill-on"}">${escapeHtml(String(booking.status || "scheduled").replace(/_/g, " "))}</span>
-        ${booking.customer_email && !["cancelled", "completed", "no_show"].includes(booking.status) && booking.starts_at && new Date(booking.starts_at) > new Date()
-          ? `<button class="btn btn-ghost btn-sm bk-remind-btn" data-action="remind" data-booking-id="${booking.id}" type="button">Remind</button>`
-          : ""}
-        <button class="btn btn-ghost btn-sm bk-cancel-btn" data-action="cancel" data-booking-id="${booking.id}" type="button" ${booking.status === "cancelled" ? "disabled" : ""}>Cancel</button>
-        <button class="btn btn-ghost btn-sm bk-detail-btn" data-action="detail" data-booking-id="${booking.id}" type="button">Details</button>
-      </div>
+  list.innerHTML = `
+    <div class="booking-list">
+      ${bookings.map((booking) => {
+        const assignedLabel = booking.assigned_operator_name
+          || booking.assigned_operator?.display_name
+          || booking.assigned_operator?.email
+          || "";
+        const linkedOrder = linkedOrderForBooking(booking);
+        const openBalance = Number(orderAmountDueCents(linkedOrder) || 0);
+        const signals = bookingCardSignals(booking, blueprint);
+        const notes = bookingCardNotes(booking, blueprint);
+        return `
+          <article class="list-item list-item--top booking-list-card ${hydrovacMode ? "booking-list-card--hydrovac" : ""}">
+            <div class="booking-list-card__head">
+              <div class="booking-list-card__title">
+                <strong>${escapeHtml(booking.title || "Booking")}</strong>
+                <div class="booking-list-card__sub">${escapeHtml(booking.customer_name || booking.customer_email || "Customer")}</div>
+                <div class="booking-list-card__sub">${escapeHtml(formatDateTime(booking.starts_at))}${assignedLabel ? ` | ${escapeHtml(assignedLabel)}` : ""}${openBalance > 0 ? ` | ${escapeHtml(formatUsd(openBalance))} open` : ""}</div>
+              </div>
+              <div class="booking-list-card__meta li-meta li-meta--tight">
+                <span class="pill ${bookingStatusPillClass(booking.status)}">${escapeHtml(String(booking.status || "scheduled").replace(/_/g, " "))}</span>
+                ${booking.location_label ? `<span class="pill">${escapeHtml(booking.location_label)}</span>` : ""}
+                ${booking.order_id ? `<span class="pill">${escapeHtml(hydrovacMode ? "Linked work" : "Booked work")}</span>` : ""}
+              </div>
+            </div>
+            <div class="booking-list-card__signal-grid">
+              ${signals.map((item) => `
+                <div class="booking-list-card__signal ${bookingSignalToneClass(item.tone)}">
+                  <span>${escapeHtml(item.label || "Signal")}</span>
+                  <strong>${escapeHtml(item.value || "")}</strong>
+                  <small>${escapeHtml(item.note || "")}</small>
+                </div>
+              `).join("")}
+            </div>
+            ${notes.length ? `
+              <div class="booking-list-card__notes">
+                ${notes.map((item) => `
+                  <div class="booking-list-card__note">
+                    <span>${escapeHtml(item.label || "Note")}</span>
+                    <strong>${escapeHtml(item.title || "")}</strong>
+                    <small>${escapeHtml(item.note || "")}</small>
+                  </div>
+                `).join("")}
+              </div>
+            ` : ""}
+            <div class="booking-list-card__actions">
+              ${booking.customer_email && !["cancelled", "completed", "no_show"].includes(booking.status) && booking.starts_at && new Date(booking.starts_at) > new Date()
+                ? `<button class="btn btn-ghost btn-sm bk-remind-btn" data-action="remind" data-booking-id="${booking.id}" type="button">Remind</button>`
+                : ""}
+              <button class="btn btn-ghost btn-sm bk-cancel-btn" data-action="cancel" data-booking-id="${booking.id}" type="button" ${booking.status === "cancelled" ? "disabled" : ""}>Cancel</button>
+              <button class="btn btn-ghost btn-sm bk-detail-btn" data-action="detail" data-booking-id="${booking.id}" type="button">Details</button>
+            </div>
+          </article>
+        `;
+      }).join("")}
     </div>
-  `).join("");
+  `;
 
   list.querySelectorAll("[data-action='cancel']").forEach((button) => {
     button.addEventListener("click", async () => {
@@ -804,9 +1048,7 @@ function renderBookingsList(bookings) {
         if (!res.ok) throw new Error(d.error || "Failed to cancel booking");
         await fetchBookings();
         renderBookingsCalendar(BOOKINGS_CACHE);
-        renderBookingsList(BOOKINGS_CACHE);
-        const listLabel = $("bkListLabel");
-        if (listLabel) listLabel.textContent = "Upcoming bookings";
+        renderBookingsDetailPane();
       } catch (err) {
         notifyOperator(err.message || "Error cancelling booking");
       }
@@ -860,14 +1102,8 @@ async function renderBookings() {
     btnMyBookings.style.color = myBookingsActive ? "var(--accent)" : "";
   }
 
-  let filteredBookings = BOOKINGS_CACHE;
-  if (myBookingsActive) {
-    const myOperatorId = CURRENT_OPERATOR?.operator_id || CURRENT_OPERATOR?.id || "";
-    if (myOperatorId) filteredBookings = BOOKINGS_CACHE.filter((booking) => booking.assigned_operator_id === myOperatorId);
-  }
-
-  const upcoming = filteredBookings.filter((booking) => !["cancelled", "completed", "no_show"].includes(String(booking.status || "").toLowerCase()));
-  renderBookingsList(upcoming.length ? upcoming : filteredBookings);
+  const filteredBookings = filteredBookingsForWorkspace();
+  renderBookingsDetailPane(filteredBookings);
 
   const noShowStat = $("bookingsNoShowStat");
   if (noShowStat) {
@@ -880,6 +1116,10 @@ async function renderBookings() {
   if (linkDisplay) {
     const slug = CURRENT_OPERATOR?.tenant_slug || OPERATOR_CONFIG?.tenantSlug || "";
     linkDisplay.textContent = slug ? `${window.location.origin}/${slug}/book.html` : "--";
+  }
+
+  if (typeof renderDispatchWorkspace === "function") {
+    renderDispatchWorkspace();
   }
 }
 
@@ -1482,10 +1722,12 @@ function initBookingsWorkspaceBindings() {
   $("btnLogTime")?.addEventListener("click", openTimeLogModal);
   $("btnRefreshBookings")?.addEventListener("click", () => renderBookings());
   $("btnBkPrev")?.addEventListener("click", async () => {
+    BOOKINGS_SELECTED_DATE = "";
     BK_VIEW_DATE = new Date(BK_VIEW_DATE.getFullYear(), BK_VIEW_DATE.getMonth() - 1, 1);
     await renderBookings();
   });
   $("btnBkNext")?.addEventListener("click", async () => {
+    BOOKINGS_SELECTED_DATE = "";
     BK_VIEW_DATE = new Date(BK_VIEW_DATE.getFullYear(), BK_VIEW_DATE.getMonth() + 1, 1);
     await renderBookings();
   });
@@ -1661,6 +1903,7 @@ const BOOKINGS_WORKSPACE_HELPERS = {
     renderBookingsCalendar,
     bookingWorkspaceBlueprint,
     linkedCustomerForBooking,
+    linkedOrderForBooking,
     bookingCustomerMemoryItems,
     renderBookingCustomerMemoryCard,
     bookingPrepGuidanceItems,
@@ -1669,6 +1912,9 @@ const BOOKINGS_WORKSPACE_HELPERS = {
     renderBookingAssignmentGuidanceCard,
     bookingFollowThroughItems,
     renderBookingFollowThroughCard,
+    bookingCardSignals,
+    bookingCardNotes,
+    renderBookingsOverview,
     showBookingDetail,
     renderBookingsList,
     renderBookings,

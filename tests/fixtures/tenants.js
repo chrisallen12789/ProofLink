@@ -24,6 +24,7 @@ const TENANTS = {
     name: "pltest-tenant-b-growth",
     slug: "pltest-tenant-b-growth",
     ownerEmail: "pltest.tenant.b.owner@example.com",
+    businessType: "hydrovac",
     prooflinkPlanKey: "growth",
     billingStatus: "active",
     status: "active",

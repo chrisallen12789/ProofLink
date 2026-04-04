@@ -195,7 +195,7 @@ async function validateSupabaseConnectivity(config) {
 function printNextSteps(config) {
   section("Start Netlify Dev");
   log("When setup is complete, start the local app with:");
-  log("  npx netlify dev");
+  log("  npm run dev:test");
   log("");
   log("Expected local site URL:");
   log(`  ${config.siteUrl}`);

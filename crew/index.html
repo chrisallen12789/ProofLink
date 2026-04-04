@@ -64,6 +64,9 @@
       inset: 0;
       background: var(--bg);
     }
+    #appShell.nav-visible .screen {
+      inset: 0 0 calc(var(--nav-h) + var(--safe-bot)) 0;
+    }
     .screen.active {
       display: flex;
       z-index: 10;
@@ -261,8 +264,11 @@
       background: var(--surface);
       border-top: 1px solid var(--border);
       flex-shrink: 0;
-      position: relative;
-      z-index: 50;
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 120;
     }
     #bottomNav.visible { display: flex; }
     .nav-tabs {
@@ -366,6 +372,97 @@
       color: rgba(255,255,255,.2);
       font-size: .8rem;
     }
+    .job-card-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+    .job-time {
+      font-size: .76rem;
+      font-weight: 700;
+      color: var(--muted);
+      letter-spacing: .02em;
+    }
+    .job-customer {
+      font-size: .98rem;
+      font-weight: 700;
+      line-height: 1.3;
+    }
+    .job-title {
+      margin-top: 4px;
+      font-size: .84rem;
+      color: rgba(255,255,255,.86);
+      line-height: 1.45;
+    }
+    .job-address {
+      margin-top: 6px;
+      font-size: .78rem;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+    .job-card__signals {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 10px;
+    }
+    .job-card__signal {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      padding: 0 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,.08);
+      background: rgba(255,255,255,.05);
+      font-size: .7rem;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: .02em;
+    }
+    .job-card__signal--good {
+      border-color: rgba(34,197,94,.28);
+      background: rgba(34,197,94,.12);
+      color: #b8f5c8;
+    }
+    .job-card__signal--warn {
+      border-color: rgba(245,158,11,.3);
+      background: rgba(245,158,11,.12);
+      color: #fbd38d;
+    }
+    .job-card__signal--danger {
+      border-color: rgba(239,68,68,.3);
+      background: rgba(239,68,68,.12);
+      color: #fecaca;
+    }
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 26px;
+      padding: 0 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,.08);
+      background: rgba(255,255,255,.06);
+      font-size: .72rem;
+      font-weight: 700;
+      letter-spacing: .02em;
+      color: var(--text);
+      white-space: nowrap;
+    }
+    .status-scheduled { border-left-color: #94a3b8; }
+    .status-dispatched { border-left-color: #3b82f6; }
+    .status-inprogress { border-left-color: #f59e0b; }
+    .status-blocked { border-left-color: #ef4444; }
+    .status-completed { border-left-color: #22c55e; }
+    .status-cancelled { border-left-color: #6b7280; }
+    .status-pill.status-scheduled { background: rgba(148,163,184,.14); color: #dbe4ef; }
+    .status-pill.status-dispatched { background: rgba(59,130,246,.14); color: #bfdbfe; }
+    .status-pill.status-inprogress { background: rgba(245,158,11,.14); color: #fde68a; }
+    .status-pill.status-blocked { background: rgba(239,68,68,.14); color: #fecaca; }
+    .status-pill.status-completed { background: rgba(34,197,94,.14); color: #bbf7d0; }
+    .status-pill.status-cancelled { background: rgba(107,114,128,.16); color: #d1d5db; }
 
     /* ─── Stats Row ──────────────────────────────────────────────── */
     .stats-row {
@@ -534,6 +631,7 @@
       overflow: hidden;
       position: relative;
     }
+    #signatureCanvas,
     #sigCanvas {
       display: block;
       width: 100%;
@@ -779,6 +877,50 @@
       margin: 12px 0 16px;
       letter-spacing: -.02em;
     }
+    .date-rail {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 10px 12px;
+      margin-bottom: 16px;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      background: rgba(255,255,255,.04);
+    }
+    .date-rail__btn {
+      width: 42px;
+      height: 42px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,.04);
+      color: var(--text);
+      font-size: 1.15rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .date-rail__label {
+      flex: 1;
+      text-align: center;
+      font-size: .88rem;
+      font-weight: 700;
+      letter-spacing: .02em;
+    }
+    .offline-indicator {
+      display: none;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      margin: 0 16px 14px;
+      padding: 10px 12px;
+      border-radius: 14px;
+      border: 1px solid rgba(245,158,11,.22);
+      background: rgba(245,158,11,.12);
+      color: #fbd38d;
+      font-size: .78rem;
+      font-weight: 700;
+      letter-spacing: .02em;
+    }
 
     /* ─── Job Detail Screen ──────────────────────────────────────── */
     #screenJob { background: var(--bg); }
@@ -787,6 +929,7 @@
       flex-shrink: 0;
     }
     .job-hero__title { font-size: 1.2rem; font-weight: 800; margin-bottom: 6px; line-height: 1.3; }
+    .job-hero__meta { font-size: .8rem; color: var(--muted); margin-bottom: 10px; }
     .job-hero__status { margin-bottom: 0; }
 
     .action-zone {
@@ -795,9 +938,250 @@
     }
     .action-zone .btn + .btn { margin-top: 8px; }
     .action-zone .btn-row { margin-top: 0; }
+    .status-note {
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      background: rgba(255,255,255,.04);
+      color: rgba(255,255,255,.9);
+      padding: 14px 16px;
+      margin-bottom: 12px;
+      line-height: 1.55;
+    }
+    .status-note strong {
+      display: block;
+      margin-bottom: 8px;
+      font-size: .82rem;
+      letter-spacing: .02em;
+    }
+    .status-note ul {
+      margin: 0;
+      padding-left: 18px;
+    }
+    .status-note li + li {
+      margin-top: 6px;
+    }
+    .field-command-card {
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 22px;
+      background:
+        radial-gradient(circle at top left, rgba(200,75,47,.18), transparent 42%),
+        linear-gradient(155deg, rgba(17,24,33,.96), rgba(8,13,19,.94));
+      box-shadow: 0 18px 34px rgba(0,0,0,.22);
+      padding: 16px;
+      margin-bottom: 12px;
+      display: grid;
+      gap: 12px;
+    }
+    .field-command-card__head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .field-command-card__eyebrow {
+      font-size: .68rem;
+      font-weight: 800;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,.58);
+      margin-bottom: 6px;
+    }
+    .field-command-card__title {
+      font-size: .98rem;
+      font-weight: 800;
+      line-height: 1.35;
+      color: #fff;
+    }
+    .field-command-card__copy {
+      font-size: .82rem;
+      line-height: 1.55;
+      color: rgba(255,255,255,.76);
+    }
+    .field-command-card__grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .field-command-card__item {
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 16px;
+      background: rgba(255,255,255,.05);
+      padding: 12px;
+      display: grid;
+      gap: 6px;
+    }
+    .field-command-card__item--good {
+      border-color: rgba(34,197,94,.26);
+      background: rgba(34,197,94,.1);
+    }
+    .field-command-card__item--warn {
+      border-color: rgba(245,158,11,.28);
+      background: rgba(245,158,11,.1);
+    }
+    .field-command-card__item--danger {
+      border-color: rgba(239,68,68,.28);
+      background: rgba(239,68,68,.1);
+    }
+    .field-command-card__item span {
+      font-size: .68rem;
+      font-weight: 800;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,.56);
+    }
+    .field-command-card__item strong {
+      font-size: .96rem;
+      line-height: 1.35;
+      color: #fff;
+    }
+    .field-command-card__item small {
+      font-size: .76rem;
+      line-height: 1.5;
+      color: rgba(255,255,255,.72);
+    }
+    .field-handoff-card {
+      border: 1px solid rgba(96,165,250,.22);
+      border-radius: 22px;
+      background:
+        radial-gradient(circle at top right, rgba(96,165,250,.18), transparent 45%),
+        linear-gradient(160deg, rgba(14,23,34,.95), rgba(9,15,22,.94));
+      box-shadow: 0 18px 34px rgba(0,0,0,.2);
+      padding: 16px;
+      margin-bottom: 12px;
+      display: grid;
+      gap: 12px;
+    }
+    .field-handoff-card__head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .field-handoff-card__eyebrow {
+      font-size: .68rem;
+      font-weight: 800;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: rgba(191,219,254,.72);
+      margin-bottom: 6px;
+    }
+    .field-handoff-card__title {
+      font-size: .98rem;
+      font-weight: 800;
+      line-height: 1.35;
+      color: #fff;
+    }
+    .field-handoff-card__address {
+      font-size: .82rem;
+      line-height: 1.5;
+      color: rgba(255,255,255,.72);
+    }
+    .field-handoff-card__grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .field-handoff-card__item {
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 16px;
+      background: rgba(255,255,255,.05);
+      padding: 12px;
+      display: grid;
+      gap: 6px;
+    }
+    .field-handoff-card__item span {
+      font-size: .68rem;
+      font-weight: 800;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,.56);
+    }
+    .field-handoff-card__item strong {
+      font-size: .88rem;
+      line-height: 1.5;
+      color: #fff;
+    }
+    .field-handoff-card__recent {
+      display: grid;
+      gap: 10px;
+    }
+    .field-handoff-card__subhead {
+      font-size: .72rem;
+      font-weight: 800;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: rgba(191,219,254,.72);
+    }
+    .field-handoff-card__list {
+      display: grid;
+      gap: 8px;
+    }
+    .field-handoff-card__list-item {
+      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,.08);
+      background: rgba(255,255,255,.04);
+      padding: 12px;
+      display: grid;
+      gap: 4px;
+    }
+    .field-handoff-card__list-item strong {
+      font-size: .86rem;
+      color: #fff;
+    }
+    .field-handoff-card__list-item span,
+    .field-handoff-card__list-item small {
+      font-size: .76rem;
+      line-height: 1.45;
+      color: rgba(255,255,255,.7);
+    }
+    .completion-badge {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 54px;
+      border-radius: 18px;
+      background: rgba(34,197,94,.12);
+      border: 1px solid rgba(34,197,94,.24);
+      font-weight: 800;
+      color: #bbf7d0;
+    }
+    @media (min-width: 920px) {
+      #appShell {
+        max-width: 1080px;
+      }
+      .completion-flow.completion-flow--hydrovac {
+        grid-template-columns: minmax(0, 1.1fr) minmax(320px, .72fr);
+        align-items: start;
+      }
+      .completion-flow__side {
+        position: sticky;
+        top: calc(16px + env(safe-area-inset-top, 0px));
+      }
+    }
+    @media (max-width: 480px) {
+      .completion-grid {
+        grid-template-columns: 1fr;
+      }
+      .completion-section-card__head {
+        flex-direction: column;
+      }
+      .field-command-card__head {
+        flex-direction: column;
+      }
+      .field-command-card__grid {
+        grid-template-columns: 1fr;
+      }
+      .field-handoff-card__head {
+        flex-direction: column;
+      }
+      .field-handoff-card__grid {
+        grid-template-columns: 1fr;
+      }
+    }
 
     /* ─── Profile Screen ─────────────────────────────────────────── */
     #screenProfile { padding-bottom: var(--nav-h); }
+    #screenSchedule { padding-bottom: var(--nav-h); }
     .profile-hero {
       display: flex;
       flex-direction: column;
@@ -839,7 +1223,195 @@
     .empty-state__sub { font-size: .83rem; }
 
     /* ─── Completion Screen ───────────────────────────────────────── */
+    #screenCompletion .screen-body--padded,
     #screenComplete .screen-body--padded { padding-bottom: 24px; }
+    .completion-overview {
+      display: grid;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .completion-flow {
+      display: grid;
+      gap: 16px;
+    }
+    .completion-flow__main,
+    .completion-flow__side {
+      min-width: 0;
+    }
+    .completion-fields-stack {
+      display: grid;
+      gap: 12px;
+    }
+    .completion-section-card {
+      background: linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.01));
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 18px;
+      padding: 16px;
+    }
+    .completion-section-card__head {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: flex-start;
+      margin-bottom: 12px;
+    }
+    .completion-section-card__eyebrow {
+      font-size: .72rem;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,.56);
+      margin-bottom: 4px;
+    }
+    .completion-section-card__copy {
+      font-size: .82rem;
+      line-height: 1.5;
+      color: rgba(255,255,255,.72);
+    }
+    .completion-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .completion-field {
+      display: grid;
+      gap: 6px;
+    }
+    .completion-field--full {
+      grid-column: 1 / -1;
+    }
+    .completion-field label {
+      font-size: .78rem;
+      color: rgba(255,255,255,.7);
+      font-weight: 600;
+    }
+    .completion-field select,
+    .completion-field input,
+    .completion-field textarea {
+      background: rgba(255,255,255,.04);
+    }
+    .completion-helper {
+      font-size: .75rem;
+      line-height: 1.45;
+      color: rgba(255,255,255,.56);
+    }
+    .completion-required {
+      color: var(--accent);
+    }
+    .completion-followup-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 4px;
+    }
+    .completion-followup-chip {
+      border: 1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.04);
+      border-radius: 999px;
+      padding: 9px 14px;
+      font-size: .8rem;
+      font-weight: 700;
+      color: var(--text);
+      cursor: pointer;
+      transition: border-color .16s, background .16s, transform .12s;
+    }
+    .completion-followup-chip.is-active {
+      border-color: rgba(200,75,47,.7);
+      background: rgba(200,75,47,.18);
+      color: #ffd7ce;
+    }
+    .completion-followup-chip:active {
+      transform: scale(.98);
+    }
+    .completion-preview-card {
+      background: radial-gradient(circle at top right, rgba(200,75,47,.18), rgba(255,255,255,.02) 58%), var(--card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 16px;
+      display: grid;
+      gap: 12px;
+    }
+    .completion-preview-card__head {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: flex-start;
+    }
+    .completion-preview-card__eyebrow {
+      font-size: .72rem;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,.56);
+      margin-bottom: 4px;
+    }
+    .completion-preview-card__summary {
+      font-size: .88rem;
+      line-height: 1.6;
+      color: rgba(255,255,255,.84);
+    }
+    .completion-preview-card__signals {
+      display: grid;
+      gap: 8px;
+    }
+    .completion-preview-card__signal {
+      display: grid;
+      gap: 2px;
+      padding: 10px 12px;
+      border-radius: 14px;
+      background: rgba(255,255,255,.035);
+      border: 1px solid rgba(255,255,255,.06);
+    }
+    .completion-preview-card__signal span {
+      font-size: .72rem;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: rgba(255,255,255,.54);
+    }
+    .completion-preview-card__signal strong {
+      font-size: .88rem;
+      color: #fff;
+    }
+    .completion-preview-card__signal small {
+      font-size: .77rem;
+      line-height: 1.45;
+      color: rgba(255,255,255,.68);
+    }
+    .completion-preview-card__followups {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .completion-preview-pill {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 7px 11px;
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.09);
+      font-size: .76rem;
+      font-weight: 700;
+      color: rgba(255,255,255,.82);
+    }
+    .completion-submit-bar {
+      position: sticky;
+      bottom: 0;
+      padding-top: 14px;
+      margin-top: 16px;
+      background: linear-gradient(180deg, rgba(15,17,23,0), rgba(15,17,23,.92) 32%, rgba(15,17,23,.98));
+    }
+    .completion-submit-bar__note {
+      font-size: .75rem;
+      line-height: 1.45;
+      color: rgba(255,255,255,.56);
+      margin-top: 8px;
+      text-align: center;
+    }
+    .completion-preview-empty {
+      font-size: .84rem;
+      line-height: 1.5;
+      color: rgba(255,255,255,.68);
+    }
     .photo-count-badge {
       display: inline-flex;
       align-items: center;
@@ -854,6 +1426,58 @@
     }
     .photo-count-badge .ok   { color: var(--green); }
     .photo-count-badge .warn { color: var(--amber); }
+    .contact-links {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 4px;
+      font-size: .82rem;
+      color: var(--muted);
+    }
+    .contact-link {
+      color: var(--accent);
+      text-decoration: none;
+    }
+    .schedule-copy {
+      font-size: .82rem;
+      color: var(--muted);
+      line-height: 1.5;
+      margin-top: 4px;
+    }
+    .success-shell {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      gap: 14px;
+      padding: 32px 24px;
+    }
+    .success-shell__mark {
+      width: 84px;
+      height: 84px;
+      border-radius: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(34,197,94,.14);
+      border: 1px solid rgba(34,197,94,.22);
+      color: #bbf7d0;
+      font-size: 2rem;
+      font-weight: 800;
+    }
+    .success-shell__title {
+      font-size: 1.35rem;
+      font-weight: 800;
+      line-height: 1.25;
+    }
+    .success-shell__copy {
+      font-size: .86rem;
+      line-height: 1.55;
+      color: var(--muted);
+      max-width: 320px;
+    }
 
     /* ─── Misc helpers ───────────────────────────────────────────── */
     .mt-8  { margin-top: 8px; }
@@ -1005,6 +1629,7 @@
         </div>
 
         <button class="btn btn-accent" id="btnSignIn">Sign in</button>
+        <div class="msg error hidden" id="loginError"></div>
         <button class="forgot-link" id="btnForgot">Forgot password?</button>
       </div>
 
@@ -1021,7 +1646,7 @@
     <div class="home-header">
       <div class="home-header-row">
         <div class="home-greeting">
-          <div class="name" id="homeCrewName">Loading…</div>
+          <div class="name" id="memberName">Loading…</div>
           <div class="date" id="homeDate"></div>
         </div>
         <div class="avatar" id="homeAvatar">?</div>
@@ -1043,17 +1668,22 @@
         </div>
       </div>
 
-      <div class="tab-toggle">
-        <button class="active" id="tabToday" onclick="switchJobsTab('today')">Today</button>
-        <button id="tabUpcoming" onclick="switchJobsTab('upcoming')">Next 7 Days</button>
+      <div class="date-rail">
+        <button class="date-rail__btn" id="btnDatePrev" type="button" aria-label="Previous day">&#8249;</button>
+        <div class="date-rail__label" id="currentDateLabel">Today</div>
+        <button class="date-rail__btn" id="btnDateNext" type="button" aria-label="Next day">&#8250;</button>
       </div>
+    </div>
+
+    <div id="offlineIndicator" class="offline-indicator">
+      Offline mode: updates will sync when you reconnect.
     </div>
 
     <button id="btnQuickLog" class="quick-log-btn" type="button">
       + Log Time
     </button>
 
-    <div class="screen-body screen-body--padded" id="jobListContainer">
+    <div class="screen-body screen-body--padded" id="jobsList">
       <!-- Skeleton loading state -->
       <div class="skeleton-card">
         <div class="skeleton skeleton-line wide"></div>
@@ -1078,7 +1708,7 @@
   <!-- ════════════════════════════════════════════════════════════ -->
   <div id="screenJob" class="screen slide-in">
     <div class="topbar" style="flex-shrink:0">
-      <button class="topbar__back" onclick="App.goBack()">
+      <button class="topbar__back" id="btnJobBack" onclick="App.goBack()">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
         Jobs
       </button>
@@ -1089,20 +1719,21 @@
     </div>
 
     <div class="job-hero">
-      <div class="job-hero__title" id="jobTitle">Job Title</div>
+      <div class="job-hero__title" id="jobDetailTitle">Job Title</div>
+      <div class="job-hero__meta" id="jobDetailStatus">Status</div>
       <div class="job-hero__status">
-        <span class="pill" id="jobStatusPill">Status</span>
+        <span class="pill" id="jobDetailStatusPill">Status</span>
       </div>
     </div>
 
     <!-- Action buttons — shown/hidden by JS based on status -->
-    <div class="action-zone" id="actionZone"></div>
+    <div class="action-zone" id="jobActions"></div>
 
     <!-- Timer row — shown when clocked in -->
     <div id="timerZone" style="padding: 0 16px 16px; display:none; flex-shrink:0;">
       <div class="card" style="padding:14px 16px;">
         <div class="timer-label">Time on job</div>
-        <div class="timer-display" id="timerDisplay">00:00:00</div>
+        <div class="timer-display" id="jobTimer">00:00:00</div>
       </div>
     </div>
 
@@ -1114,25 +1745,22 @@
           <div class="info-row__icon">📍</div>
           <div class="info-row__body">
             <div class="info-row__lbl">Address</div>
-            <div class="info-row__val"><a id="jobAddress" href="#" target="_blank">Loading…</a></div>
+            <div class="info-row__val"><a id="jobDetailAddress" href="#" target="_blank">Loading…</a></div>
           </div>
         </div>
         <div class="info-row">
           <div class="info-row__icon">👤</div>
           <div class="info-row__body">
             <div class="info-row__lbl">Customer</div>
-            <div class="info-row__val" id="jobCustomerName">—</div>
-            <div style="margin-top:4px;display:flex;gap:12px;flex-wrap:wrap;">
-              <a id="jobCustomerPhone" href="#" style="font-size:.82rem;color:var(--accent);">—</a>
-              <span id="jobCustomerEmail" style="font-size:.82rem;color:var(--muted);">—</span>
-            </div>
+            <div class="info-row__val" id="jobDetailCustomer">—</div>
+            <div class="contact-links" id="jobDetailContact">—</div>
           </div>
         </div>
         <div class="info-row">
           <div class="info-row__icon">🕐</div>
           <div class="info-row__body">
             <div class="info-row__lbl">Scheduled</div>
-            <div class="info-row__val" id="jobScheduled">—</div>
+            <div class="info-row__val"><span id="jobDetailDate">—</span> <span class="muted">at</span> <span id="jobDetailTime">—</span></div>
           </div>
         </div>
         <div class="info-row">
@@ -1157,7 +1785,7 @@
           <h3>Before Photos</h3>
           <span class="label" id="beforePhotoCount">0 photos</span>
         </div>
-        <div class="photo-grid" id="beforePhotoGrid">
+        <div class="photo-grid" id="beforePhotosGrid">
           <label class="photo-add">
             <span>+</span>
             Add photo
@@ -1172,7 +1800,7 @@
           <h3>After Photos</h3>
           <span class="label" id="afterPhotoCount">0 photos</span>
         </div>
-        <div class="photo-grid" id="afterPhotoGrid">
+        <div class="photo-grid" id="afterPhotosGrid">
           <label class="photo-add">
             <span>+</span>
             Add photo
@@ -1185,7 +1813,7 @@
       <div class="card mb-12">
         <div class="card__hd"><h3>My Notes</h3></div>
         <textarea id="crewNotes" placeholder="Add notes about this job — visible to your team…" rows="3"></textarea>
-        <button class="btn btn-ghost btn-sm mt-8" onclick="App.saveCrewNotes()" style="width:auto;padding:0 16px;">Save notes</button>
+        <button class="btn btn-ghost btn-sm mt-8" id="btnSaveCrewNotes" onclick="App.saveCrewNotes()" style="width:auto;padding:0 16px;">Save notes</button>
       </div>
 
     </div>
@@ -1194,50 +1822,63 @@
   <!-- ════════════════════════════════════════════════════════════ -->
   <!-- SCREEN: Complete Job                                         -->
   <!-- ════════════════════════════════════════════════════════════ -->
-  <div id="screenComplete" class="screen slide-in">
+  <div id="screenCompletion" class="screen slide-in">
     <div class="topbar" style="flex-shrink:0">
-      <button class="topbar__back" onclick="App.showScreen('screenJob')">
+      <button class="topbar__back" id="btnCompletionBack" onclick="App.showScreen('screenJob')">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
         Back
       </button>
     </div>
 
     <div class="screen-body screen-body--padded">
-      <h1 class="mb-4" style="font-size:1.3rem;">Complete this job</h1>
+      <div class="label mb-8">Closeout</div>
+      <h1 class="mb-4" id="completionJobTitle" style="font-size:1.3rem;">Complete this job</h1>
       <p class="muted mb-16" style="font-size:.85rem;">Review before submitting. This cannot be undone.</p>
+      <div id="completionHydrovacOverview" class="completion-overview"></div>
 
-      <!-- After photo count reminder -->
-      <div class="card mb-12">
-        <div class="card__hd"><h3>After Photos</h3></div>
-        <div class="photo-count-badge" id="completePhotoStatus">
-          <span>📷</span>
-          <span id="completePhotoText">No after photos added</span>
+      <div class="completion-flow" id="completionFlow">
+        <div class="completion-flow__main">
+          <!-- After photo count reminder -->
+          <div class="card mb-12">
+            <div class="card__hd"><h3>After Photos</h3></div>
+            <div class="photo-count-badge" id="completionPhotoWarn">
+              <span>📷</span>
+              <span>No after photos added</span>
+            </div>
+            <p style="font-size:.8rem;color:var(--muted);">After photos document your completed work. Add them on the job screen.</p>
+          </div>
+
+          <div id="completionStandardFields" class="field mb-16">
+            <label for="completionNote">Completion notes <span style="color:var(--accent)">*</span></label>
+            <textarea id="completionNote" placeholder="Summarize what was done, any issues found, materials used…" rows="4"></textarea>
+          </div>
+
+          <div id="completionHydrovacFields" class="completion-fields-stack"></div>
+
+          <!-- Signature -->
+          <div class="card mb-16">
+            <div class="card__hd">
+              <h3>Customer Signature</h3>
+              <button class="sig-clear" id="btnClearSignature" onclick="App.clearSignature()">Clear</button>
+            </div>
+            <p style="font-size:.78rem;color:var(--muted);margin-bottom:10px;">Have the customer sign to confirm job completion.</p>
+            <div class="sig-wrap">
+              <canvas id="signatureCanvas"></canvas>
+              <div class="sig-hint" id="sigHint">Sign here</div>
+            </div>
+          </div>
+
+          <div class="completion-submit-bar">
+            <button class="btn btn-green" id="btnSubmitCompletion" onclick="App.submitCompletion()">
+              ✓ &nbsp;Submit completion
+            </button>
+            <div class="completion-submit-bar__note" id="completionSubmitNote">The office will use this closeout to finish billing, records, and audit follow-through.</div>
+          </div>
         </div>
-        <p style="font-size:.8rem;color:var(--muted);">After photos document your completed work. Add them on the job screen.</p>
+        <aside class="completion-flow__side" id="completionPreviewWrap">
+          <div class="completion-preview-card" id="completionPreviewCard"></div>
+        </aside>
       </div>
-
-      <!-- Completion notes -->
-      <div class="field mb-16">
-        <label for="completionNotes">Completion notes <span style="color:var(--accent)">*</span></label>
-        <textarea id="completionNotes" placeholder="Summarize what was done, any issues found, materials used…" rows="4"></textarea>
-      </div>
-
-      <!-- Signature -->
-      <div class="card mb-16">
-        <div class="card__hd">
-          <h3>Customer Signature</h3>
-          <button class="sig-clear" onclick="App.clearSignature()">Clear</button>
-        </div>
-        <p style="font-size:.78rem;color:var(--muted);margin-bottom:10px;">Have the customer sign to confirm job completion.</p>
-        <div class="sig-wrap">
-          <canvas id="sigCanvas"></canvas>
-          <div class="sig-hint" id="sigHint">Sign here</div>
-        </div>
-      </div>
-
-      <button class="btn btn-green" id="btnSubmitComplete" onclick="App.submitCompletion()">
-        ✓ &nbsp;Submit completion
-      </button>
     </div>
   </div>
 
@@ -1246,7 +1887,7 @@
   <!-- ════════════════════════════════════════════════════════════ -->
   <div id="screenBlocker" class="screen slide-in">
     <div class="topbar" style="flex-shrink:0">
-      <button class="topbar__back" onclick="App.showScreen('screenJob')">
+      <button class="topbar__back" id="btnBlockerBack" onclick="App.showScreen('screenJob')">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
         Back
       </button>
@@ -1269,8 +1910,8 @@
       </div>
 
       <div class="field">
-        <label for="blockerNotes">Details</label>
-        <textarea id="blockerNotes" placeholder="Describe what's blocking you and what's needed to continue…" rows="4"></textarea>
+        <label for="blockerNote">Details</label>
+        <textarea id="blockerNote" placeholder="Describe what's blocking you and what's needed to continue…" rows="4"></textarea>
       </div>
 
       <div class="field">
@@ -1283,10 +1924,14 @@
         <div id="blockerPhotoPreview" style="margin-top:8px;display:none;">
           <img id="blockerPhotoImg" src="" alt="Blocker photo" style="width:80px;height:80px;object-fit:cover;border-radius:8px;border:1px solid var(--border);" />
         </div>
+        <div class="photo-grid mt-8 hidden" id="blockerPhotosGrid"></div>
       </div>
 
-      <button class="btn btn-red" id="btnReportBlocker" onclick="App.reportBlocker()">
+      <button class="btn btn-red" id="btnSubmitBlocker" onclick="App.reportBlocker()">
         ⚠ &nbsp;Report blocker
+      </button>
+      <button class="btn btn-ghost mt-8" id="btnCancelBlocker" type="button" onclick="App.showScreen('screenJob')">
+        Cancel
       </button>
     </div>
   </div>
@@ -1294,6 +1939,35 @@
   <!-- ════════════════════════════════════════════════════════════ -->
   <!-- SCREEN: Profile                                              -->
   <!-- ════════════════════════════════════════════════════════════ -->
+  <div id="screenSchedule" class="screen">
+    <div class="topbar" style="flex-shrink:0">
+      <button class="topbar__back" id="btnScheduleBack" onclick="App.navTo('home')">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+        Home
+      </button>
+    </div>
+    <div class="home-header" style="padding-top:16px;">
+      <div class="today-heading" style="margin-top:0;">Upcoming schedule</div>
+      <div class="schedule-copy">Keep the next stops, route memory, and handoff risk visible before the truck rolls.</div>
+    </div>
+    <div class="screen-body screen-body--padded" id="scheduleList">
+      <div class="skeleton-card">
+        <div class="skeleton skeleton-line wide"></div>
+        <div class="skeleton skeleton-line med"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="screenSuccess" class="screen">
+    <div class="success-shell">
+      <div class="success-shell__mark">✓</div>
+      <div class="success-shell__title" id="successJobTitle">Job complete</div>
+      <div class="success-shell__copy">The office has the closeout and the field record is now ready for the next move.</div>
+      <div class="success-shell__copy" id="successCustomer">Customer</div>
+      <div class="success-shell__copy" id="successTime">Completed at 0:00</div>
+    </div>
+  </div>
+
   <div id="screenProfile" class="screen">
     <div style="padding-top: env(safe-area-inset-top, 0px); flex-shrink:0;"></div>
     <div class="profile-hero">
@@ -1335,7 +2009,7 @@
         </div>
       </div>
 
-      <button class="btn btn-ghost" onclick="App.signOut()" style="color:var(--red);">
+      <button class="btn btn-ghost" id="btnSignOut" onclick="App.signOut()" style="color:var(--red);">
         Sign out
       </button>
     </div>
@@ -1380,14 +2054,14 @@
     <div class="modal-title" id="confirmTitle">Are you sure?</div>
     <div class="modal-body"  id="confirmBody">This action cannot be undone.</div>
     <button class="btn mb-8" id="confirmOk" onclick="App.confirmOk()">Confirm</button>
-    <button class="btn btn-ghost" onclick="App.confirmCancel()">Cancel</button>
+    <button class="btn btn-ghost" id="confirmCancel" onclick="App.confirmCancel()">Cancel</button>
   </div>
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════════ -->
 <!-- Script                                                          -->
 <!-- ═══════════════════════════════════════════════════════════════ -->
-<script>
+<script type="text/plain" id="crewLegacyDemoSource">
 'use strict';
 
 /* ── Demo data ─────────────────────────────────────────────────── */
@@ -2171,6 +2845,7 @@ el('confirmModal').addEventListener('click', function(e) {
 /* ── Init ──────────────────────────────────────────────────────── */
 document.addEventListener('DOMContentLoaded', () => App.init());
 </script>
+<script src="/crew/crew.js?v=20260403-real-field"></script>
 
 <!-- Quick Log Sheet -->
 <div id="quickLogSheet" class="sheet hidden">

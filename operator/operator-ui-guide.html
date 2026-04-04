@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ProofLink Operator UI Guide</title>
+  <link rel="stylesheet" href="/operator/operator.css" />
+</head>
+<body class="operator-ui-guide-page">
+  <main class="operator-ui-guide">
+    <section class="record-hero detail-card">
+      <div class="record-hero__head">
+        <div class="record-hero__main">
+          <div class="kicker">Operator UI guide</div>
+          <h1>Use the customer command center as the visual system for the rest of the app</h1>
+          <div class="record-hero__meta">
+            <div class="record-hero__meta-line">Desktop keeps a clear hero, action rail, and dual-column work zone.</div>
+            <div class="record-hero__meta-line">Phone collapses the same flow into a single readable stack without hiding urgency.</div>
+            <div class="record-hero__meta-line">Hydrovac work stays fast by surfacing blockers, loads, billing, and site memory first.</div>
+          </div>
+          <div class="detail-copy">This page is the visual reference for upcoming jobs, dispatch, money, and compliance refreshes. Reuse the same `workspace-*` shells instead of rebuilding each tab from scratch.</div>
+        </div>
+        <div class="record-hero__badges workspace-chip-row">
+          <span class="pill pill-on">Responsive shell</span>
+          <span class="pill pill-warn">Hydrovac-first signals</span>
+          <span class="pill">Reusable workspace primitives</span>
+        </div>
+      </div>
+      <div class="record-hero__summary">
+        <div class="record-hero__metric">
+          <span>Structure</span>
+          <strong>Hero + rail + work zone</strong>
+          <small>Every advanced workspace should keep orientation, actions, and deep work separated.</small>
+        </div>
+        <div class="record-hero__metric">
+          <span>Decision speed</span>
+          <strong>One-screen urgency</strong>
+          <small>Signals should tell the operator what is blocked, live, due, or waiting on money.</small>
+        </div>
+        <div class="record-hero__metric">
+          <span>Phone behavior</span>
+          <strong>Single stacked flow</strong>
+          <small>No cramped sidebars. Important cards simply stack in the order the operator needs them.</small>
+        </div>
+      </div>
+    </section>
+
+    <section class="operator-ui-guide__principles" aria-label="Design principles">
+      <article class="operator-ui-guide__principle">
+        <span>Principle 1</span>
+        <strong>Lead with the next move, not raw data density</strong>
+        <p>Each workspace should open with a calm summary and a short list of actions that move work forward immediately.</p>
+      </article>
+      <article class="operator-ui-guide__principle">
+        <span>Principle 2</span>
+        <strong>Keep live field pressure visible across the record</strong>
+        <p>Dispatch gaps, load pressure, receivables, and site memory should stay visible without forcing a tab switch.</p>
+      </article>
+      <article class="operator-ui-guide__principle">
+        <span>Principle 3</span>
+        <strong>Use the same shell everywhere</strong>
+        <p>Jobs, dispatch, compliance, and money should all reuse the same workspace shell so the product feels deliberate instead of stitched together.</p>
+      </article>
+    </section>
+
+    <section class="workspace-command-center workspace-command-center--hydrovac" aria-label="Workspace shell example">
+      <div class="workspace-command-center__top">
+        <div class="workspace-command-center__hero">
+          <section class="record-hero detail-card">
+            <div class="record-hero__head">
+              <div class="record-hero__main">
+                <div class="kicker">Reference layout</div>
+                <h2>Hydrovac account shell</h2>
+                <div class="record-hero__meta">
+                  <div class="record-hero__meta-line">North plant daylighting program</div>
+                  <div class="record-hero__meta-line">2 active jobs | 1 dispatch blocker | 3 mapped sites</div>
+                </div>
+                <div class="detail-copy">This is the recommended shell for any advanced operator tab that needs both fast orientation and deeper operational tooling.</div>
+              </div>
+              <div class="record-hero__badges workspace-chip-row">
+                <span class="pill pill-bad">1 blocked</span>
+                <span class="pill pill-warn">2 live loads</span>
+                <span class="pill pill-on">Billing clear path</span>
+              </div>
+            </div>
+            <div class="record-hero__summary">
+              <div class="record-hero__metric">
+                <span>Active work</span>
+                <strong>2 hydrovac jobs</strong>
+                <small>One fully ready, one waiting on permit renewal.</small>
+              </div>
+              <div class="record-hero__metric">
+                <span>Load pressure</span>
+                <strong>2 live loads</strong>
+                <small>One due today, one already late to dump.</small>
+              </div>
+              <div class="record-hero__metric">
+                <span>Billing</span>
+                <strong>$1,480.00 to bill</strong>
+                <small>Confirmed disposal needs invoice capture before it slips.</small>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <aside class="workspace-command-center__sidebar">
+          <section class="detail-card detail-card--spaced workspace-focus-card">
+            <div class="workspace-focus-card__head">
+              <div>
+                <div class="kicker">Reference sidebar</div>
+                <div><strong>Use the rail for the next click</strong></div>
+                <div class="detail-copy">The sidebar should answer what is urgent now, then offer a few full-width actions with no hunting.</div>
+              </div>
+              <span class="pill pill-warn">Needs eyes</span>
+            </div>
+            <div class="workspace-focus-card__meta">
+              <div class="workspace-focus-card__item workspace-focus-card__item--danger">
+                <span>Dispatch</span>
+                <strong>1 blocked</strong>
+                <small>Permit renewal is missing on the active east trench ticket.</small>
+              </div>
+              <div class="workspace-focus-card__item workspace-focus-card__item--warn">
+                <span>Billing</span>
+                <strong>$1,480.00</strong>
+                <small>Confirmed disposal is still waiting on invoice capture.</small>
+              </div>
+              <div class="workspace-focus-card__item workspace-focus-card__item--good">
+                <span>Sites</span>
+                <strong>3 mapped</strong>
+                <small>Operators and crews do not have to relearn the footprint.</small>
+              </div>
+              <div class="workspace-focus-card__item">
+                <span>Last touch</span>
+                <strong>Apr 1, 2026</strong>
+                <small>Foreman confirmed access notes and after-hours contact.</small>
+              </div>
+            </div>
+            <div class="workspace-focus-card__buttons">
+              <button type="button" class="btn btn-primary">Open dispatch</button>
+              <button type="button" class="btn btn-ghost">Open money</button>
+              <button type="button" class="btn btn-ghost">Open manifests</button>
+              <button type="button" class="btn btn-ghost">Add note</button>
+            </div>
+          </section>
+        </aside>
+      </div>
+
+      <div class="workspace-signal-band" aria-label="Signal strip">
+        <div class="workspace-signal-band__item is-danger">
+          <span>Dispatch</span>
+          <strong>1 blocked</strong>
+          <small>Truck, crew, locate, or permit issues stay visible above the fold.</small>
+        </div>
+        <div class="workspace-signal-band__item is-warn">
+          <span>Loads</span>
+          <strong>2 live</strong>
+          <small>Live loads and dump deadlines stay attached to the account.</small>
+        </div>
+        <div class="workspace-signal-band__item is-warn">
+          <span>Billing</span>
+          <strong>$1,480.00</strong>
+          <small>Confirmed disposal should not disappear before invoicing happens.</small>
+        </div>
+        <div class="workspace-signal-band__item is-good">
+          <span>Sites</span>
+          <strong>3 mapped</strong>
+          <small>Address, access, and site memory are captured once and reused everywhere.</small>
+        </div>
+      </div>
+
+      <div class="workspace-command-center__grid">
+        <div class="workspace-command-center__main">
+          <section class="detail-card workspace-board">
+            <div class="workspace-board__head">
+              <div>
+                <div class="kicker">Reference work zone</div>
+                <div><strong>Board cards should break pain points into focused chunks</strong></div>
+                <div class="detail-copy">Use the board for domains that have to stay legible together, like dispatch readiness, load management, and billing capture.</div>
+              </div>
+              <div class="workspace-board__meta workspace-chip-row">
+                <span class="pill pill-bad">Dispatch risk</span>
+                <span class="pill pill-warn">Load pressure</span>
+                <span class="pill pill-on">Site memory</span>
+              </div>
+            </div>
+
+            <div class="workspace-board__grid">
+              <article class="workspace-board-card">
+                <div class="workspace-board-card__head">
+                  <div>
+                    <div class="kicker">Dispatch</div>
+                    <strong>Know whether the truck can roll</strong>
+                  </div>
+                  <span class="pill pill-bad">1 blocked</span>
+                </div>
+                <div class="workspace-board-card__metrics">
+                  <div class="workspace-board-card__metric">
+                    <span>Active jobs</span>
+                    <strong>2</strong>
+                    <small>One job is ready, one still has a compliance blocker.</small>
+                  </div>
+                  <div class="workspace-board-card__metric">
+                    <span>Locate / permit watch</span>
+                    <strong>3</strong>
+                    <small>Anything expiring soon or already expired belongs here.</small>
+                  </div>
+                </div>
+                <div class="workspace-board-card__list">
+                  <div class="workspace-board-card__item">
+                    <strong>East trench daylighting</strong>
+                    <small>Permit renewal missing before tomorrow morning dispatch.</small>
+                  </div>
+                  <div class="workspace-board-card__item">
+                    <strong>North plant potholing</strong>
+                    <small>Truck, crew, and locate all ready to move.</small>
+                  </div>
+                </div>
+                <div class="workspace-board-card__footer">
+                  <button type="button" class="btn btn-primary">Dispatch board</button>
+                  <button type="button" class="btn btn-ghost">Jobs</button>
+                  <button type="button" class="btn btn-ghost">Locates</button>
+                </div>
+              </article>
+
+              <article class="workspace-board-card">
+                <div class="workspace-board-card__head">
+                  <div>
+                    <div class="kicker">Loads</div>
+                    <strong>Keep disposal pressure visible</strong>
+                  </div>
+                  <span class="pill pill-warn">2 live</span>
+                </div>
+                <div class="workspace-board-card__metrics">
+                  <div class="workspace-board-card__metric">
+                    <span>Dump due</span>
+                    <strong>2</strong>
+                    <small>One load is due today and one is already overdue.</small>
+                  </div>
+                  <div class="workspace-board-card__metric">
+                    <span>Shared truck risk</span>
+                    <strong>1</strong>
+                    <small>One truck is carrying live pressure across more than one account.</small>
+                  </div>
+                </div>
+                <div class="workspace-board-card__list">
+                  <div class="workspace-board-card__item">
+                    <strong>Manifest MAN-2401</strong>
+                    <small>Dump by 4:00 PM | clay spoil | 7.5 yd</small>
+                  </div>
+                  <div class="workspace-board-card__item">
+                    <strong>Manifest MAN-2398</strong>
+                    <small>Overdue for disposal | wet vac spoil | 5.0 yd</small>
+                  </div>
+                </div>
+                <div class="workspace-board-card__footer">
+                  <button type="button" class="btn btn-primary">Manifests</button>
+                  <button type="button" class="btn btn-ghost">Compliance</button>
+                  <button type="button" class="btn btn-ghost">Jobs</button>
+                </div>
+              </article>
+            </div>
+          </section>
+        </div>
+
+        <aside class="workspace-command-center__rail">
+          <section class="detail-card detail-card--spaced">
+            <div class="kicker">Apply next</div>
+            <div><strong>Bring this shell into jobs, dispatch, money, and compliance</strong></div>
+            <div class="detail-copy">Reuse the `workspace-command-center`, `workspace-signal-band`, `workspace-focus-card`, and `workspace-board` primitives. Change the copy and card contents, not the overall choreography.</div>
+            <div class="workspace-chip-row">
+              <span class="pill">Jobs: crew + blockers + proof</span>
+              <span class="pill">Dispatch: board + rail + alerts</span>
+              <span class="pill">Money: balances + follow-through</span>
+              <span class="pill">Compliance: deadlines + gaps</span>
+            </div>
+          </section>
+        </aside>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

@@ -21,6 +21,7 @@ let DB             = null;   // IndexedDB handle
 let SIG_DRAWING    = false;  // signature pad drawing state
 let SIG_POINTS     = [];     // drawn path for blank-check
 let CURRENT_DATE   = todayString(); // date filter for home view
+window.PROOFLINK_CREW_BOOT_READY = false;
 
 // ── Quick Log State ─────────────────────────────────────────────────────────────
 let _quickLogType          = 'Travel';
@@ -76,16 +77,111 @@ function statusClass(status) {
   return map[status] || '';
 }
 
+const CREW_SCREEN_ALIASES = {
+  completion: ['screenCompletion', 'screenComplete'],
+  blocker: ['screenBlocker'],
+  success: ['screenSuccess'],
+  schedule: ['screenSchedule'],
+  home: ['screenHome'],
+  job: ['screenJob'],
+  profile: ['screenProfile'],
+  login: ['screenLogin'],
+};
+
+function resolveCrewScreenKey(name = '') {
+  const normalized = String(name || '').trim();
+  if (!normalized) return '';
+  if (CREW_SCREEN_ALIASES[normalized]) return normalized;
+  return normalized.replace(/^screen/i, '').toLowerCase();
+}
+
+function resolveCrewScreenElement(name = '') {
+  const normalized = String(name || '').trim();
+  if (!normalized) return null;
+  const direct = document.getElementById(normalized);
+  if (direct) return direct;
+
+  const key = resolveCrewScreenKey(normalized);
+  const aliasIds = CREW_SCREEN_ALIASES[key] || [`screen${capitalize(key)}`];
+  for (const id of aliasIds) {
+    const el = document.getElementById(id);
+    if (el) return el;
+  }
+  return null;
+}
+
+function bindClickHandler(id, handler) {
+  const element = document.getElementById(id);
+  if (!element) return;
+  if (element.getAttribute('onclick')) {
+    element.removeAttribute('onclick');
+    element.onclick = null;
+  }
+  element.addEventListener('click', handler);
+}
+
+function syncBottomNav(screenName = '') {
+  const nav = document.getElementById('bottomNav');
+  const appShell = document.getElementById('appShell');
+  if (!nav || !appShell) return;
+
+  const screenKey = resolveCrewScreenKey(screenName);
+  const showNav = !['login', 'completion', 'blocker', 'success'].includes(screenKey);
+  nav.classList.toggle('visible', showNav);
+  nav.setAttribute('aria-hidden', showNav ? 'false' : 'true');
+  appShell.classList.toggle('nav-visible', showNav);
+
+  const activeTab = screenKey === 'schedule'
+    ? 'schedule'
+    : screenKey === 'profile'
+      ? 'profile'
+      : 'home';
+
+  nav.querySelectorAll('.nav-tab').forEach((button) => {
+    const isActive = button.id === `nav${capitalize(activeTab)}`;
+    button.classList.toggle('active', isActive);
+    if (isActive) {
+      button.setAttribute('aria-current', 'page');
+    } else {
+      button.removeAttribute('aria-current');
+    }
+  });
+}
+
+function crewSitePacket(job = ACTIVE_JOB) {
+  return job?.site_packet && typeof job.site_packet === 'object' && !Array.isArray(job.site_packet)
+    ? job.site_packet
+    : {};
+}
+
 function crewBusinessKey(job = ACTIVE_JOB) {
-  return String(
+  const explicit = String(
     job?.business_key
     || job?.business_type
     || job?.profile
     || job?.workspace_key
     || job?.customers?.business_key
     || job?.customers?.business_type
-    || 'service_business'
+    || ''
   ).trim().toLowerCase();
+  if (explicit) return explicit;
+
+  const jobType = String(job?.service_type || job?.job_type || '').trim().toLowerCase();
+  if ([
+    'hydrovac',
+    'vactor',
+    'daylighting',
+    'potholing',
+    'basin',
+    'vacuum',
+    'vault',
+    'excavation',
+    'sewer',
+    'storm',
+  ].some((needle) => jobType.includes(needle))) {
+    return 'hydrovac';
+  }
+  return 'service_business';
 }
 
 function crewCustomerRef(job = ACTIVE_JOB) {
@@ -154,6 +250,372 @@ function crewHydrovacManifestSummary(job = ACTIVE_JOB) {
     manifestNumber: String(liveManifest?.manifest_number || liveManifest?.id || '').trim(),
   };
 }
+function crewHydrovacLocateSummary(job = ACTIVE_JOB) {
+  const tickets = Array.isArray(job?.locates)
+    ? job.locates
+    : Array.isArray(job?.locate_tickets)
+      ? job.locate_tickets
+      : Array.isArray(job?.utility_locate_tickets)
+        ? job.utility_locate_tickets
+        : [];
+  const active = [];
+  let expiringSoon = 0;
+  let expired = 0;
+  let verified = 0;
+
+  tickets.forEach((ticket) => {
+    const status = String(ticket?.status || '').trim().toLowerCase();
+    const untilRaw = ticket?.extended_until || ticket?.valid_until || '';
+    const until = Date.parse(untilRaw);
+    const isExpired = status === 'expired' || (Number.isFinite(until) && until < Date.now());
+    if (ticket?.verified_on_site === true) verified += 1;
+    if (isExpired) {
+      expired += 1;
+      return;
+    }
+    if (['active', 'extended'].includes(status)) {
+      active.push(ticket);
+      if (Number.isFinite(until)) {
+        const days = Math.ceil((until - Date.now()) / (24 * 60 * 60 * 1000));
+        if (days >= 0 && days <= 2) expiringSoon += 1;
+      }
+    }
+  });
+
+  return {
+    tickets,
+    activeCount: active.length,
+    expiringSoon,
+    expired,
+    verified,
+    primary: active[0] || tickets[0] || null,
+  };
+}
+function crewHydrovacPermitSummary(job = ACTIVE_JOB) {
+  const permits = Array.isArray(job?.permits)
+    ? job.permits
+    : Array.isArray(job?.confined_space_permits)
+      ? job.confined_space_permits
+      : [];
+  const openPermits = permits.filter((permit) => String(permit?.status || '').trim().toLowerCase() === 'open');
+  const expiredOpen = openPermits.filter((permit) => {
+    const until = Date.parse(permit?.permit_valid_until || '');
+    return Number.isFinite(until) && until < Date.now();
+  });
+  return {
+    permits,
+    openCount: openPermits.length,
+    expiredOpenCount: expiredOpen.length,
+    primary: openPermits[0] || permits[0] || null,
+    required: job?.requires_confined_space_permit === true,
+  };
+}
+const CREW_HYDROVAC_LOAD_STATUS_LABELS = {
+  truck_clear: 'Truck clear',
+  live_load_remaining: 'Live load remaining',
+  no_load: 'No load hauled',
+};
+const CREW_HYDROVAC_PERMIT_STATUS_LABELS = {
+  not_required: 'Not required',
+  open_and_safe: 'Open and safe',
+  closed: 'Closed',
+  needs_office_followup: 'Needs office follow-up',
+};
+const CREW_HYDROVAC_FOLLOW_UP_OPTIONS = [
+  { key: 'customer_records', label: 'Customer records' },
+  { key: 'audit_packet', label: 'Audit packet' },
+  { key: 'invoice', label: 'Invoice' },
+  { key: 'disposal_ticket', label: 'Disposal ticket' },
+  { key: 'site_return', label: 'Site return' },
+];
+
+function crewJobMetadata(job = ACTIVE_JOB) {
+  return job?.metadata && typeof job.metadata === 'object' && !Array.isArray(job.metadata)
+    ? job.metadata
+    : {};
+}
+
+function crewHydrovacCompletionHandoff(job = ACTIVE_JOB) {
+  if (job?.completion_handoff && typeof job.completion_handoff === 'object' && !Array.isArray(job.completion_handoff)) {
+    return job.completion_handoff;
+  }
+  const metadata = crewJobMetadata(job);
+  if (metadata.crew_closeout && typeof metadata.crew_closeout === 'object' && !Array.isArray(metadata.crew_closeout)) {
+    return metadata.crew_closeout;
+  }
+  return null;
+}
+
+function crewHydrovacPermitStatusRequired(job = ACTIVE_JOB) {
+  const permit = crewHydrovacPermitSummary(job);
+  return job?.requires_confined_space_permit === true || permit.permits.length > 0;
+}
+
+function crewHydrovacLoadStatusLabel(value = '') {
+  return CREW_HYDROVAC_LOAD_STATUS_LABELS[String(value || '').trim()] || 'Not captured';
+}
+
+function crewHydrovacPermitStatusLabel(value = '') {
+  return CREW_HYDROVAC_PERMIT_STATUS_LABELS[String(value || '').trim()] || 'Not captured';
+}
+
+function crewHydrovacFollowUpLabel(value = '') {
+  const option = CREW_HYDROVAC_FOLLOW_UP_OPTIONS.find((item) => item.key === value);
+  return option?.label || value || 'Office follow-up';
+}
+
+function completionFieldValue(id) {
+  const element = document.getElementById(id);
+  if (!element) return '';
+  return String(element.value || '').trim();
+}
+
+function normalizeCompletionText(value, max = 800) {
+  return String(value || '').trim().replace(/\s+/g, ' ').slice(0, max);
+}
+
+function collectHydrovacCompletionHandoff(job = ACTIVE_JOB) {
+  const root = document.getElementById('completionHydrovacFields');
+  const officeFollowUp = root
+    ? Array.from(root.querySelectorAll('[data-completion-followup].is-active'))
+      .map((button) => String(button.getAttribute('data-completion-followup') || '').trim())
+      .filter(Boolean)
+    : [];
+  return {
+    load_status: completionFieldValue('completionLoadStatus'),
+    bol_number: completionFieldValue('completionBolNumber'),
+    live_load_hold_reason: normalizeCompletionText(completionFieldValue('completionLiveLoadHoldReason'), 240),
+    disposal_ready_by: completionFieldValue('completionDisposalReadyBy'),
+    locates_verified_on_site: (() => {
+      const value = completionFieldValue('completionLocatesVerified');
+      if (value === 'true') return true;
+      if (value === 'false') return false;
+      return null;
+    })(),
+    permit_status: completionFieldValue('completionPermitStatus'),
+    permit_note: normalizeCompletionText(completionFieldValue('completionPermitNote'), 240),
+    field_summary: normalizeCompletionText(completionFieldValue('completionFieldSummary'), 800),
+    customer_note: normalizeCompletionText(completionFieldValue('completionCustomerNote'), 400),
+    office_follow_up: [...new Set(officeFollowUp)],
+    permit_status_required: crewHydrovacPermitStatusRequired(job),
+  };
+}
+
+function validateHydrovacCompletionHandoff(handoff, job = ACTIVE_JOB) {
+  const errors = [];
+  const permitRequired = crewHydrovacPermitStatusRequired(job);
+  if (!handoff?.field_summary) errors.push('Add the field summary so the office knows what actually happened on site.');
+  if (!handoff?.load_status) errors.push('Choose the load status before you submit the closeout.');
+  if (handoff?.load_status === 'live_load_remaining' && !handoff?.live_load_hold_reason) {
+    errors.push('Explain why the live load is still riding with the truck.');
+  }
+  if (handoff?.load_status === 'live_load_remaining' && !handoff?.disposal_ready_by) {
+    errors.push('Set the disposal-ready date for the live load still on the truck.');
+  }
+  if (permitRequired && !handoff?.permit_status) {
+    errors.push('Choose the permit status before you submit the closeout.');
+  }
+  if (permitRequired && handoff?.permit_status === 'not_required') {
+    errors.push('This job already carries permit pressure, so the permit status cannot be Not required.');
+  }
+  return {
+    ok: errors.length === 0,
+    error: errors[0] || '',
+    errors,
+  };
+}
+
+function buildCrewHydrovacCompletionNarrative(handoff = {}) {
+  const followUp = Array.isArray(handoff.office_follow_up) && handoff.office_follow_up.length
+    ? handoff.office_follow_up.map((item) => crewHydrovacFollowUpLabel(item)).join(', ')
+    : 'None';
+  const locateSummary = handoff.locates_verified_on_site === true
+    ? 'Locate verified on site.'
+    : handoff.locates_verified_on_site === false
+      ? 'Locate still needs office follow-up.'
+      : 'Locate verification not captured.';
+  const loadSummary = handoff.load_status === 'truck_clear'
+    ? 'Truck clear.'
+    : handoff.load_status === 'no_load'
+      ? 'No load hauled.'
+      : `Live load remains${handoff.disposal_ready_by ? ` until ${handoff.disposal_ready_by}` : ''}${handoff.live_load_hold_reason ? ` (${handoff.live_load_hold_reason})` : ''}.`;
+  return [
+    `Hydrovac closeout: ${loadSummary}`,
+    handoff.bol_number ? `BOL ${handoff.bol_number}.` : '',
+    locateSummary,
+    handoff.permit_status ? `Permit ${crewHydrovacPermitStatusLabel(handoff.permit_status).toLowerCase()}.` : '',
+    handoff.field_summary ? `Field summary: ${handoff.field_summary}` : '',
+    handoff.customer_note ? `Customer note: ${handoff.customer_note}` : '',
+    `Office follow-up: ${followUp}.`,
+  ].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
+}
+function crewHydrovacSignalTone(kind = '') {
+  if (kind === 'danger') return 'job-card__signal--danger';
+  if (kind === 'warn') return 'job-card__signal--warn';
+  if (kind === 'good') return 'job-card__signal--good';
+  return '';
+}
+function renderCrewSitePacketCard(job = ACTIVE_JOB) {
+  const packet = crewSitePacket(job);
+  const businessKey = crewBusinessKey(job);
+  const siteLabel = String(packet.site_label || '').trim();
+  const siteAddress = String(packet.site_address || job?.service_address || job?.address || '').trim();
+  const accessNotes = String(packet.access_notes || '').trim();
+  const siteNotes = String(packet.site_notes || '').trim();
+  const contactName = String(packet.contact_name || crewCustomerRef(job)?.name || '').trim();
+  const contactPhone = String(packet.contact_phone || crewCustomerRef(job)?.phone || '').trim();
+  const photoCount = Number(packet.current_photo_count || 0);
+  const recentWork = Array.isArray(packet.recent_work) ? packet.recent_work.filter(Boolean).slice(0, 3) : [];
+
+  if (!siteLabel && !siteAddress && !accessNotes && !siteNotes && !contactName && !contactPhone && !recentWork.length && !photoCount) {
+    return '';
+  }
+
+  return `
+    <div class="field-handoff-card">
+      <div class="field-handoff-card__head">
+        <div>
+          <div class="field-handoff-card__eyebrow">${escHtml(['hydrovac', 'vactor', 'hydrovac_vactor'].includes(businessKey) ? 'Field packet' : 'Site packet')}</div>
+          <div class="field-handoff-card__title">${escHtml(siteLabel || 'Keep the office handoff attached to the field visit')}</div>
+        </div>
+        <span class="status-pill ${recentWork.length ? 'status-inprogress' : 'status-scheduled'}">${escHtml(recentWork.length ? `${recentWork.length} recent stop${recentWork.length === 1 ? '' : 's'}` : 'Fresh visit')}</span>
+      </div>
+      ${siteAddress ? `<div class="field-handoff-card__address">${escHtml(siteAddress)}</div>` : ''}
+      <div class="field-handoff-card__grid">
+        <div class="field-handoff-card__item">
+          <span>Access</span>
+          <strong>${escHtml(accessNotes || 'No gate, lockbox, or entry note is attached yet.')}</strong>
+        </div>
+        <div class="field-handoff-card__item">
+          <span>Contact</span>
+          <strong>${escHtml([contactName, contactPhone].filter(Boolean).join(' | ') || 'No field contact is attached yet.')}</strong>
+        </div>
+        <div class="field-handoff-card__item">
+          <span>Site memory</span>
+          <strong>${escHtml(siteNotes || 'No recent property or scope memory is attached yet.')}</strong>
+        </div>
+        <div class="field-handoff-card__item">
+          <span>Proof on file</span>
+          <strong>${escHtml(photoCount ? `${photoCount} photo${photoCount === 1 ? '' : 's'} already attached` : 'No proof photos are attached yet.')}</strong>
+        </div>
+      </div>
+      ${recentWork.length ? `
+        <div class="field-handoff-card__recent">
+          <div class="field-handoff-card__subhead">Recent site work</div>
+          <div class="field-handoff-card__list">
+            ${recentWork.map((item) => `
+              <div class="field-handoff-card__list-item">
+                <strong>${escHtml(item.title || 'Recent work')}</strong>
+                <span>${escHtml([
+                  statusLabel(String(item.status || '').trim().toLowerCase()) || item.status || '',
+                  item.scheduled_date || '',
+                ].filter(Boolean).join(' | ') || 'Earlier site activity')}</span>
+                ${item.notes ? `<small>${escHtml(item.notes)}</small>` : ''}
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      ` : ''}
+    </div>
+  `;
+}
+function renderCrewHydrovacJobSignals(job = ACTIVE_JOB) {
+  const manifest = crewHydrovacManifestSummary(job);
+  const locate = crewHydrovacLocateSummary(job);
+  const permit = crewHydrovacPermitSummary(job);
+  const signals = [];
+
+  if (manifest.liveLoadCount > 0) {
+    signals.push({
+      label: manifest.manifestNumber ? `Live load ${manifest.manifestNumber}` : `Live load x${manifest.liveLoadCount}`,
+      tone: manifest.readyBy ? 'warn' : 'danger',
+    });
+  } else {
+    signals.push({ label: 'Truck clear', tone: 'good' });
+  }
+
+  if (locate.expired > 0) {
+    signals.push({ label: `${locate.expired} locate expired`, tone: 'danger' });
+  } else if (locate.activeCount > 0) {
+    signals.push({ label: `${locate.activeCount} locate active`, tone: locate.expiringSoon ? 'warn' : 'good' });
+  }
+
+  if (permit.expiredOpenCount > 0) {
+    signals.push({ label: `${permit.expiredOpenCount} permit expired`, tone: 'danger' });
+  } else if (permit.openCount > 0) {
+    signals.push({ label: `${permit.openCount} permit open`, tone: 'good' });
+  } else if (permit.required) {
+    signals.push({ label: 'Permit needed', tone: 'warn' });
+  }
+
+  if (!signals.length) return '';
+  return `
+    <div class="job-card__signals">
+      ${signals.map((signal) => `
+        <span class="job-card__signal ${crewHydrovacSignalTone(signal.tone)}">${escHtml(signal.label)}</span>
+      `).join('')}
+    </div>
+  `;
+}
+function renderCrewHydrovacFieldCard(job = ACTIVE_JOB) {
+  if (!['hydrovac', 'vactor', 'hydrovac_vactor'].includes(crewBusinessKey(job))) return '';
+  const manifest = crewHydrovacManifestSummary(job);
+  const locate = crewHydrovacLocateSummary(job);
+  const permit = crewHydrovacPermitSummary(job);
+  const statusTone = manifest.liveLoadCount > 0 || locate.expired > 0 || permit.expiredOpenCount > 0
+    ? 'status-pill status-blocked'
+    : (locate.expiringSoon > 0 || (permit.required && permit.openCount === 0))
+      ? 'status-pill status-inprogress'
+      : 'status-pill status-completed';
+  const statusLabelText = manifest.liveLoadCount > 0 || locate.expired > 0 || permit.expiredOpenCount > 0
+    ? 'Field watch'
+    : (locate.expiringSoon > 0 || (permit.required && permit.openCount === 0))
+      ? 'Prep tight'
+      : 'Field clear';
+
+  return `
+    <div class="field-command-card">
+      <div class="field-command-card__head">
+        <div>
+          <div class="field-command-card__eyebrow">Hydrovac command</div>
+          <div class="field-command-card__title">Keep the truck plan, locate, and permit state obvious</div>
+        </div>
+        <span class="${statusTone}">${statusLabelText}</span>
+      </div>
+      <div class="field-command-card__copy">${escHtml(
+        manifest.liveLoadCount > 0
+          ? 'Truck load state is still active, so the crew should treat isolation, BOL, and disposal timing like part of the job.'
+          : locate.expired > 0
+            ? 'Locate coverage has already lapsed. Do not let the field guess around expired paperwork.'
+            : permit.required && permit.openCount === 0
+              ? 'This job still needs permit coverage visible before confined-space entry becomes a field decision.'
+              : 'Hydrovac paperwork looks steady. Keep the office handoff intact as the field work moves.'
+      )}</div>
+      <div class="field-command-card__grid">
+        <div class="field-command-card__item ${manifest.liveLoadCount > 0 ? 'field-command-card__item--warn' : 'field-command-card__item--good'}">
+          <span>Truck load plan</span>
+          <strong>${escHtml(manifest.liveLoadCount > 0 ? (manifest.manifestNumber || `${manifest.liveLoadCount} live load${manifest.liveLoadCount === 1 ? '' : 's'}`) : 'Truck clear')}</strong>
+          <small>${escHtml(manifest.liveLoadCount > 0 ? (manifest.holdReason || 'The office still needs the live-load reason documented clearly.') : 'No live load is riding with the truck right now.')}</small>
+        </div>
+        <div class="field-command-card__item ${locate.expired > 0 ? 'field-command-card__item--danger' : locate.activeCount > 0 ? 'field-command-card__item--good' : 'field-command-card__item--warn'}">
+          <span>Locate coverage</span>
+          <strong>${escHtml(locate.expired > 0 ? 'Expired' : locate.activeCount > 0 ? `${locate.activeCount} active` : 'Not visible')}</strong>
+          <small>${escHtml(locate.expired > 0 ? 'Expired locate coverage should be cleared with the office before excavation continues.' : locate.primary?.ticket_number ? `Primary ticket: ${locate.primary.ticket_number}` : 'No active locate ticket is attached to this job.')}</small>
+        </div>
+        <div class="field-command-card__item ${permit.expiredOpenCount > 0 ? 'field-command-card__item--danger' : permit.openCount > 0 ? 'field-command-card__item--good' : permit.required ? 'field-command-card__item--warn' : ''}">
+          <span>Permit state</span>
+          <strong>${escHtml(permit.expiredOpenCount > 0 ? 'Expired open permit' : permit.openCount > 0 ? `${permit.openCount} open` : permit.required ? 'Required' : 'Not required')}</strong>
+          <small>${escHtml(permit.primary?.permit_number ? `Permit ${permit.primary.permit_number} stays tied to this entry.` : permit.required ? 'Confined-space coverage is still expected here.' : 'No confined-space permit is driving this job.')}</small>
+        </div>
+        <div class="field-command-card__item ${manifest.readyBy ? 'field-command-card__item--warn' : ''}">
+          <span>Disposal timing</span>
+          <strong>${escHtml(manifest.readyBy || 'No live-load timer')}</strong>
+          <small>${escHtml(manifest.readyBy ? `Clear the carried load by ${manifest.readyBy} so the next dispatch does not inherit it.` : 'No disposal-ready deadline is attached to a live load right now.')}</small>
+        </div>
+      </div>
+    </div>
+  `;
+}
 
 async function getToken() {
   if (!sb) return null;
@@ -207,7 +669,14 @@ async function openDB() {
           return new Promise((res, rej) => {
             const tx = db.transaction(store, 'readwrite');
             const os = tx.objectStore(store);
-            const r  = (key !== undefined) ? os.put(value, key) : os.add(value);
+            const r  = key === undefined
+              ? os.put(value)
+              : os.keyPath
+                ? os.put({
+                  ...value,
+                  [os.keyPath]: value?.[os.keyPath] ?? key,
+                })
+                : os.put(value, key);
             r.onsuccess = () => res(r.result);
             r.onerror   = () => rej(r.error);
           });
@@ -272,6 +741,43 @@ async function loadJobsFromIDB() {
   }
 }
 
+function mergeJobsForCache(existing = [], incoming = []) {
+  const merged = new Map();
+  for (const job of existing) {
+    if (job?.id) merged.set(job.id, job);
+  }
+  for (const job of incoming) {
+    if (job?.id) merged.set(job.id, job);
+  }
+  return Array.from(merged.values());
+}
+
+function upcomingWindowDateStrings() {
+  const today = new Date();
+  const plus7 = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+  return {
+    today: today.toISOString().slice(0, 10),
+    plus7: plus7.toISOString().slice(0, 10),
+  };
+}
+
+function filterUpcomingJobs(jobs = []) {
+  const { today, plus7 } = upcomingWindowDateStrings();
+  return (Array.isArray(jobs) ? jobs : [])
+    .filter((job) => {
+      const scheduledDate = String(job?.scheduled_date || '').trim();
+      if (!scheduledDate) return false;
+      if (scheduledDate < today || scheduledDate > plus7) return false;
+      const status = String(job?.status || '').trim().toLowerCase();
+      return status !== 'cancelled' && status !== 'completed';
+    })
+    .sort((left, right) => {
+      const leftKey = `${left?.scheduled_date || ''}T${left?.scheduled_time || '00:00:00'}`;
+      const rightKey = `${right?.scheduled_date || ''}T${right?.scheduled_time || '00:00:00'}`;
+      return leftKey.localeCompare(rightKey);
+    });
+}
+
 async function persistQueue() {
   if (!DB) return;
   try {
@@ -298,22 +804,22 @@ async function loadQueueFromIDB() {
 function showScreen(name, direction = 'forward') {
   const screens = document.querySelectorAll('.screen');
   screens.forEach((s) => {
-    s.classList.remove('screen-active', 'slide-in-right', 'slide-in-left',
-                        'slide-out-right', 'slide-out-left');
+    s.classList.remove('active', 'screen-active', 'slide-in-right', 'slide-in-left',
+                        'slide-out-right', 'slide-out-left', 'sliding-out');
     s.style.display = 'none';
   });
 
-  const target = document.getElementById('screen' + capitalize(name));
+  const target = resolveCrewScreenElement(name);
   if (!target) {
     console.warn('[showScreen] No screen found:', name);
     return;
   }
 
+  syncBottomNav(name);
   target.style.display = 'flex';
   // Trigger animation on next frame so display:flex is painted first
   requestAnimationFrame(() => {
-    target.classList.add('screen-active',
-      direction === 'back' ? 'slide-in-left' : 'slide-in-right');
+    target.classList.add('active', 'screen-active');
   });
 }
 
@@ -348,10 +854,12 @@ function fieldActionGuidance(status, job = ACTIVE_JOB) {
   const complianceMessage = String(job?.compliance_message || '').trim();
   const businessKey = crewBusinessKey(job);
   const customer = crewCustomerRef(job);
+  const packet = crewSitePacket(job);
   const routeNote = String(customer?.service_schedule || customer?.frequency || '').trim();
-  const accessNote = String(customer?.access_notes || customer?.entry_notes || customer?.alarm_notes || customer?.gate_notes || '').trim();
+  const accessNote = String(packet.access_notes || customer?.access_notes || customer?.entry_notes || customer?.alarm_notes || customer?.gate_notes || '').trim();
   const systemNote = String(customer?.equipment_notes || customer?.system_notes || customer?.diagnostic_notes || '').trim();
   const plumbingNote = String(customer?.shutoff_notes || customer?.issue_summary || customer?.approval_notes || '').trim();
+  const siteNote = String(packet.site_notes || '').trim();
   const hydrovacManifest = crewHydrovacManifestSummary(job);
 
   if (complianceMessage) {
@@ -387,7 +895,13 @@ function fieldActionGuidance(status, job = ACTIVE_JOB) {
           ? `Clock in when you are on site only after you confirm the live load plan. Truck still carries ${hydrovacManifest.manifestNumber || 'a documented load'} under BOL ${hydrovacManifest.bolNumber}, so keep that load isolated and follow the hold reason: ${hydrovacManifest.holdReason}`
           : 'Clock in when you are on site only after the office confirms the live load is documented. Keep the truck isolated until the BOL and hold reason are attached.';
       }
+      if (accessNote) {
+        return `Clock in when you are on site. Confirm truck clearance, site access, and where the crew should stage before excavation starts: ${accessNote}`;
+      }
       return 'Clock in when you are on site. Confirm the truck is cleared, the BOL packet is with the truck, and disposal timing will not stall this job before you begin.';
+    }
+    if (siteNote) {
+      return `Clock in when you are on site. Start from the handoff already attached to this visit: ${siteNote}`;
     }
     return 'Clock in when you are on site. If access, scope, safety, or compliance is not ready, report the issue before work begins.';
   }
@@ -422,11 +936,18 @@ function crewJobMemoryItems(job = ACTIVE_JOB) {
   const items = [];
   const businessKey = crewBusinessKey(job);
   const customer = crewCustomerRef(job);
-  const serviceAddress = String(job?.service_address || job?.address || '').trim();
-  const customerPhone = String(customer?.phone || '').trim();
-  const customerEmail = String(customer?.email || '').trim();
-  const workNotes = String(job?.description || job?.notes || '').trim();
+  const packet = crewSitePacket(job);
+  const serviceAddress = String(packet.site_address || job?.service_address || job?.address || '').trim();
+  const customerPhone = String(packet.contact_phone || customer?.phone || '').trim();
+  const customerEmail = String(packet.contact_email || customer?.email || '').trim();
+  const workNotes = String(packet.site_notes || job?.description || job?.notes || '').trim();
   const hydrovacManifest = crewHydrovacManifestSummary(job);
+  const accessNotes = String(packet.access_notes || '').trim();
+  const recentWork = Array.isArray(packet.recent_work) ? packet.recent_work.filter(Boolean) : [];
+
+  if (String(packet.site_label || '').trim()) {
+    items.push(`Site packet: ${String(packet.site_label).trim()}`);
+  }
 
   if (serviceAddress) {
     items.push(`Service location: ${serviceAddress}`);
@@ -447,6 +968,18 @@ function crewJobMemoryItems(job = ACTIVE_JOB) {
     items.push(`Scope and notes: ${workNotes}`);
   } else {
     items.push('Scope and notes are still light. Add a field note if the work changes so the office can finish strong.');
+  }
+
+  if (accessNotes) {
+    items.push(`Access and staging: ${accessNotes}`);
+  }
+
+  if (recentWork.length) {
+    const latest = recentWork[0];
+    const parts = [latest.title || 'Recent site work'];
+    if (latest.status) parts.push(statusLabel(String(latest.status).trim().toLowerCase()) || latest.status);
+    if (latest.scheduled_date) parts.push(latest.scheduled_date);
+    items.push(`Recent site work: ${parts.filter(Boolean).join(' | ')}`);
   }
 
   if (['landscaping', 'property_maintenance', 'pressure_washing'].includes(businessKey)) {
@@ -631,7 +1164,11 @@ async function registerServiceWorker() {
 async function signIn(email, password) {
   const btn = document.getElementById('btnSignIn');
   const err = document.getElementById('loginError');
-  if (err) { err.textContent = ''; err.style.display = 'none'; }
+  if (err) {
+    err.textContent = '';
+    err.style.display = 'none';
+    err.classList.add('hidden');
+  }
 
   if (!email || !password) {
     showLoginError('Please enter your email and password.');
@@ -644,8 +1181,21 @@ async function signIn(email, password) {
     const { data, error } = await sb.auth.signInWithPassword({ email, password });
     if (error) throw error;
     SESSION = data.session;
-    await loadMember();
-    await showHome();
+    let bootstrapped = false;
+    try {
+      await loadMember();
+      bootstrapped = true;
+    } catch (bootstrapErr) {
+      console.warn('[signIn] member bootstrap fell back to local shell:', bootstrapErr);
+      MEMBER = MEMBER || {
+        id: data?.user?.id || null,
+        name: data?.user?.user_metadata?.full_name || data?.user?.email || email || 'Crew Member',
+        role: 'member',
+        role_title: 'Crew Member',
+      };
+      showToast('Could not refresh your jobs yet. Loading the field shell.', 'info');
+    }
+    await showHome({ reload: !bootstrapped });
   } catch (err) {
     showLoginError(err.message || 'Sign-in failed. Check your credentials.');
   } finally {
@@ -657,6 +1207,7 @@ function showLoginError(msg) {
   const el = document.getElementById('loginError');
   if (el) {
     el.textContent = msg;
+    el.classList.remove('hidden');
     el.style.display = 'block';
   }
 }
@@ -694,13 +1245,27 @@ async function loadMember() {
 
 // ── Home / Job List ────────────────────────────────────────────────────────────
 
-async function showHome() {
+function renderCurrentDateLabel(targetDate = CURRENT_DATE) {
+  const dateLabel = document.getElementById('currentDateLabel');
+  if (!dateLabel) return;
+  dateLabel.textContent = targetDate === todayString()
+    ? 'Today'
+    : formatDate(targetDate + 'T00:00:00');
+}
+
+async function showHome({ reload = true } = {}) {
   // Populate member name in header
   const nameEl = document.getElementById('memberName');
   if (nameEl && MEMBER) nameEl.textContent = MEMBER.name || 'Crew Member';
 
   showScreen('home', 'back');
-  await loadJobs(CURRENT_DATE);
+  if (reload) {
+    await loadJobs(CURRENT_DATE);
+  } else {
+    renderJobCards(JOBS || []);
+    renderCurrentDateLabel(CURRENT_DATE);
+  }
+  window.PROOFLINK_CREW_BOOT_READY = true;
 }
 
 async function loadJobs(date = null) {
@@ -737,16 +1302,11 @@ async function loadJobs(date = null) {
     const { jobs, member } = await res.json();
     if (member) MEMBER = member;
     JOBS = jobs || [];
-    await saveJobsToIDB(JOBS);
+    await saveJobsToIDB(mergeJobsForCache(await loadJobsFromIDB(), JOBS));
     renderJobCards(JOBS);
 
     // Update date label
-    const dateLabel = document.getElementById('currentDateLabel');
-    if (dateLabel) {
-      dateLabel.textContent = targetDate === todayString()
-        ? 'Today'
-        : formatDate(targetDate + 'T00:00:00');
-    }
+    renderCurrentDateLabel(targetDate);
   } catch (err) {
     console.error('[loadJobs]', err);
     const cached = await loadJobsFromIDB();
@@ -774,9 +1334,19 @@ async function loadUpcomingJobs() {
 
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const { jobs } = await res.json();
-    renderScheduleList(jobs || []);
+    const upcomingJobs = jobs || [];
+    renderScheduleList(upcomingJobs);
+    await saveJobsToIDB(mergeJobsForCache(await loadJobsFromIDB(), upcomingJobs));
+    window.PROOFLINK_CREW_BOOT_READY = true;
   } catch (err) {
     console.error('[loadUpcomingJobs]', err);
+    const cachedUpcoming = filterUpcomingJobs(await loadJobsFromIDB());
+    if (cachedUpcoming.length) {
+      renderScheduleList(cachedUpcoming);
+      showToast('Schedule could not refresh. Showing saved jobs.', 'info');
+      window.PROOFLINK_CREW_BOOT_READY = true;
+      return;
+    }
     showToast('Failed to load schedule', 'error');
     if (list) list.innerHTML = '<p class="empty-state">Could not load schedule.</p>';
   }
@@ -810,9 +1380,12 @@ function renderJobCards(jobs) {
     const title     = job.orders?.title   || job.title || 'Job';
     const time      = job.scheduled_time  ? formatTime(job.scheduled_date + 'T' + job.scheduled_time) : 'TBD';
     const addr      = job.service_address || job.address || '-';
+    const hydrovacSignals = ['hydrovac', 'vactor', 'hydrovac_vactor'].includes(crewBusinessKey(job))
+      ? renderCrewHydrovacJobSignals(job)
+      : '';
 
     return `
-      <div class="job-card" data-job-id="${job.id}" role="button" tabindex="0">
+      <div class="job-card ${statusClass(job.status)} ${['hydrovac', 'vactor', 'hydrovac_vactor'].includes(crewBusinessKey(job)) ? 'job-card--hydrovac' : ''}" data-job-id="${job.id}" role="button" tabindex="0">
         <div class="job-card-top">
           <span class="job-time">${escHtml(time)}</span>
           <span class="status-pill ${statusClass(job.status)}">${statusLabel(job.status)}</span>
@@ -820,6 +1393,7 @@ function renderJobCards(jobs) {
         <div class="job-customer">${escHtml(customer)}</div>
         <div class="job-title">${escHtml(title)}</div>
         <div class="job-address">${escHtml(addr)}</div>
+        ${hydrovacSignals}
       </div>`;
   }).join('');
 
@@ -886,6 +1460,8 @@ function renderScheduleList(jobs) {
 async function openJob(job) {
   ACTIVE_JOB = job;
   stopTimer();
+  const workSummary = [job.summary, job.description].filter(Boolean).join(' ').trim();
+  const notesSummary = [workSummary, job.notes].filter(Boolean).join(' ').trim();
 
   // Populate fields
   setText('jobDetailTitle',    job.orders?.title   || job.title || 'Job');
@@ -894,7 +1470,9 @@ async function openJob(job) {
   setText('jobDetailStatus',   statusLabel(job.status));
   setText('jobDetailDate',     formatDate((job.scheduled_date || '') + 'T00:00:00'));
   setText('jobDetailTime',     job.scheduled_time ? formatTime(job.scheduled_date + 'T' + job.scheduled_time) : 'TBD');
-  setText('jobDetailNotes',    job.description || job.notes || '-');
+  setText('jobDetailNotes',    notesSummary || '-');
+  setText('jobScope',          workSummary || '-');
+  setText('jobNotes',          job.notes || workSummary || '-');
 
   // Status pill
   const pill = document.getElementById('jobDetailStatusPill');
@@ -913,6 +1491,9 @@ async function openJob(job) {
     if (email) parts.push(`<a href="mailto:${escHtml(email)}" class="contact-link">${escHtml(email)}</a>`);
     contactEl.innerHTML = parts.join(' - ') || '-';
   }
+
+  const crewNotesEl = document.getElementById('crewNotes');
+  if (crewNotesEl) crewNotesEl.value = job.crew_notes || '';
 
   // Action buttons
   renderJobActions(job.status, job);
@@ -946,11 +1527,17 @@ function renderJobActions(status, job = ACTIVE_JOB) {
   const noteHtml = guidance
     ? `<div class="status-note">${escHtml(guidance)}</div>`
     : '';
+  const hydrovacFieldCard = (status === 'scheduled' || status === 'dispatched' || status === 'in_progress' || status === 'blocked')
+    ? renderCrewHydrovacFieldCard(job)
+    : '';
+  const sitePacketCard = (status === 'scheduled' || status === 'dispatched' || status === 'in_progress' || status === 'blocked')
+    ? renderCrewSitePacketCard(job)
+    : '';
   const memoryHtml = (status === 'scheduled' || status === 'dispatched' || status === 'in_progress' || status === 'blocked')
     ? renderCrewJobMemory(job)
     : '';
 
-  let html = noteHtml + memoryHtml;
+  let html = noteHtml + hydrovacFieldCard + sitePacketCard + memoryHtml;
 
   if (status === 'scheduled' || status === 'dispatched') {
     html += `
@@ -1046,13 +1633,21 @@ async function updateJobStatus(jobId, status, extraFields = {}) {
 }
 
 function updateJobCache(jobId, fields) {
+  const nextFields = { ...fields };
+  if (nextFields.completion_handoff) {
+    const currentMetadata = crewJobMetadata(JOBS.find((job) => job.id === jobId) || ACTIVE_JOB || {});
+    nextFields.metadata = {
+      ...currentMetadata,
+      crew_closeout: nextFields.completion_handoff,
+    };
+  }
   const idx = JOBS.findIndex((j) => j.id === jobId);
   if (idx !== -1) {
-    JOBS[idx] = { ...JOBS[idx], ...fields };
+    JOBS[idx] = { ...JOBS[idx], ...nextFields };
     saveJobsToIDB(JOBS);
   }
   if (ACTIVE_JOB && ACTIVE_JOB.id === jobId) {
-    ACTIVE_JOB = { ...ACTIVE_JOB, ...fields };
+    ACTIVE_JOB = { ...ACTIVE_JOB, ...nextFields };
   }
 }
 
@@ -1388,14 +1983,247 @@ function getSignatureDataUrl() {
 
 // ── Completion Flow ────────────────────────────────────────────────────────────
 
+function renderHydrovacCompletionForm(job = ACTIVE_JOB) {
+  const existing = crewHydrovacCompletionHandoff(job) || {};
+  const permitRequired = crewHydrovacPermitStatusRequired(job);
+  return `
+    <div class="completion-section-card">
+      <div class="completion-section-card__head">
+        <div>
+          <div class="completion-section-card__eyebrow">Load and disposal</div>
+          <strong>Tell the office what is riding with the truck right now</strong>
+        </div>
+        <span class="status-pill ${existing.load_status ? 'status-inprogress' : 'status-scheduled'}">${escHtml(existing.load_status ? crewHydrovacLoadStatusLabel(existing.load_status) : 'Required')}</span>
+      </div>
+      <div class="completion-section-card__copy">This is the part the office uses to clear live-load pressure and decide whether billing can move right away.</div>
+      <div class="completion-grid" style="margin-top:12px;">
+        <div class="completion-field">
+          <label for="completionLoadStatus">Load status <span class="completion-required">*</span></label>
+          <select id="completionLoadStatus">
+            <option value="">Choose load status</option>
+            <option value="truck_clear" ${existing.load_status === 'truck_clear' ? 'selected' : ''}>Truck clear</option>
+            <option value="live_load_remaining" ${existing.load_status === 'live_load_remaining' ? 'selected' : ''}>Live load remaining</option>
+            <option value="no_load" ${existing.load_status === 'no_load' ? 'selected' : ''}>No load hauled</option>
+          </select>
+        </div>
+        <div class="completion-field">
+          <label for="completionBolNumber">BOL / load reference</label>
+          <input id="completionBolNumber" placeholder="BOL-4401" value="${escHtml(existing.bol_number || '')}">
+        </div>
+        <div class="completion-field completion-field--full" id="completionLiveLoadHoldReasonWrap">
+          <label for="completionLiveLoadHoldReason">Why is the live load still on the truck? <span class="completion-required">*</span></label>
+          <textarea id="completionLiveLoadHoldReason" rows="3" placeholder="Waiting on compatible municipal load or final dump instructions…">${escHtml(existing.live_load_hold_reason || '')}</textarea>
+          <div class="completion-helper">Only use this when the truck is still carrying material forward.</div>
+        </div>
+        <div class="completion-field" id="completionDisposalReadyByWrap">
+          <label for="completionDisposalReadyBy">Disposal ready by <span class="completion-required">*</span></label>
+          <input id="completionDisposalReadyBy" type="date" value="${escHtml(existing.disposal_ready_by || '')}">
+        </div>
+      </div>
+    </div>
+    <div class="completion-section-card">
+      <div class="completion-section-card__head">
+        <div>
+          <div class="completion-section-card__eyebrow">Locate and permit</div>
+          <strong>Confirm the paper trail the office still needs to trust</strong>
+        </div>
+        <span class="status-pill ${permitRequired ? 'status-inprogress' : 'status-scheduled'}">${escHtml(permitRequired ? 'Permit watch' : 'Locate watch')}</span>
+      </div>
+      <div class="completion-section-card__copy">A clean office handoff is not the same as “all clear.” Use this section to be explicit if locate or permit follow-through is still needed.</div>
+      <div class="completion-grid" style="margin-top:12px;">
+        <div class="completion-field">
+          <label for="completionLocatesVerified">Locate marks verified on site</label>
+          <select id="completionLocatesVerified">
+            <option value="">Not captured</option>
+            <option value="true" ${existing.locates_verified_on_site === true ? 'selected' : ''}>Yes</option>
+            <option value="false" ${existing.locates_verified_on_site === false ? 'selected' : ''}>No</option>
+          </select>
+        </div>
+        <div class="completion-field">
+          <label for="completionPermitStatus">Permit status ${permitRequired ? '<span class="completion-required">*</span>' : ''}</label>
+          <select id="completionPermitStatus">
+            <option value="">Choose permit status</option>
+            <option value="not_required" ${existing.permit_status === 'not_required' ? 'selected' : ''}>Not required</option>
+            <option value="open_and_safe" ${existing.permit_status === 'open_and_safe' ? 'selected' : ''}>Open and safe</option>
+            <option value="closed" ${existing.permit_status === 'closed' ? 'selected' : ''}>Closed</option>
+            <option value="needs_office_followup" ${existing.permit_status === 'needs_office_followup' ? 'selected' : ''}>Needs office follow-up</option>
+          </select>
+        </div>
+        <div class="completion-field completion-field--full" id="completionPermitNoteWrap">
+          <label for="completionPermitNote">Permit note</label>
+          <textarea id="completionPermitNote" rows="3" placeholder="Air check complete, permit still open with inspector, or tell the office what needs follow-through…">${escHtml(existing.permit_note || '')}</textarea>
+        </div>
+      </div>
+    </div>
+    <div class="completion-section-card">
+      <div class="completion-section-card__head">
+        <div>
+          <div class="completion-section-card__eyebrow">Office handoff</div>
+          <strong>Give the office the exact handoff they need to finish strong</strong>
+        </div>
+        <span class="status-pill ${existing.field_summary ? 'status-completed' : 'status-scheduled'}">${escHtml(existing.field_summary ? 'Summary ready' : 'Required')}</span>
+      </div>
+      <div class="completion-section-card__copy">Keep it direct. The operator will use this to finish customer records, compliance packet prep, and billing without calling the crew back.</div>
+      <div class="completion-grid" style="margin-top:12px;">
+        <div class="completion-field completion-field--full">
+          <label for="completionFieldSummary">Field summary <span class="completion-required">*</span></label>
+          <textarea id="completionFieldSummary" rows="4" placeholder="Summarize what was completed, what changed on site, and what the office needs to know next…">${escHtml(existing.field_summary || '')}</textarea>
+        </div>
+        <div class="completion-field completion-field--full">
+          <label for="completionCustomerNote">Customer-facing note</label>
+          <textarea id="completionCustomerNote" rows="3" placeholder="Optional note the office can reuse when they send records or follow up with the customer…">${escHtml(existing.customer_note || '')}</textarea>
+        </div>
+        <div class="completion-field completion-field--full">
+          <label>Office follow-up</label>
+          <div class="completion-followup-grid">
+            ${CREW_HYDROVAC_FOLLOW_UP_OPTIONS.map((option) => `
+              <button type="button" class="completion-followup-chip ${(existing.office_follow_up || []).includes(option.key) ? 'is-active' : ''}" data-completion-followup="${escHtml(option.key)}">${escHtml(option.label)}</button>
+            `).join('')}
+          </div>
+          <div class="completion-helper">Mark only the office moves that still matter after this truck leaves.</div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function syncHydrovacCompletionFieldVisibility() {
+  const loadStatus = completionFieldValue('completionLoadStatus');
+  const permitStatus = completionFieldValue('completionPermitStatus');
+  const liveLoadHoldReasonWrap = document.getElementById('completionLiveLoadHoldReasonWrap');
+  const disposalReadyByWrap = document.getElementById('completionDisposalReadyByWrap');
+  const permitNoteWrap = document.getElementById('completionPermitNoteWrap');
+  if (liveLoadHoldReasonWrap) liveLoadHoldReasonWrap.style.display = loadStatus === 'live_load_remaining' ? '' : 'none';
+  if (disposalReadyByWrap) disposalReadyByWrap.style.display = loadStatus === 'live_load_remaining' ? '' : 'none';
+  if (permitNoteWrap) permitNoteWrap.style.display = permitStatus && permitStatus !== 'not_required' ? '' : 'none';
+}
+
+function renderCompletionPreview(job = ACTIVE_JOB) {
+  const previewWrap = document.getElementById('completionPreviewWrap');
+  const previewCard = document.getElementById('completionPreviewCard');
+  if (!previewWrap || !previewCard) return;
+
+  if (crewBusinessKey(job) !== 'hydrovac') {
+    previewWrap.style.display = 'none';
+    previewCard.innerHTML = '';
+    return;
+  }
+
+  previewWrap.style.display = '';
+  const handoff = collectHydrovacCompletionHandoff(job);
+  const validation = validateHydrovacCompletionHandoff(handoff, job);
+  const followUp = Array.isArray(handoff.office_follow_up) ? handoff.office_follow_up : [];
+  const locateSummary = handoff.locates_verified_on_site === true
+    ? 'Crew verified marks on site.'
+    : handoff.locates_verified_on_site === false
+      ? 'Locate still needs office follow-up.'
+      : 'Locate verification has not been captured yet.';
+  previewCard.innerHTML = `
+    <div class="completion-preview-card__head">
+      <div>
+        <div class="completion-preview-card__eyebrow">Preview</div>
+        <strong>What the office will read next</strong>
+      </div>
+      <span class="status-pill ${validation.ok ? 'status-completed' : 'status-inprogress'}">${escHtml(validation.ok ? 'Closeout ready' : 'Still missing' )}</span>
+    </div>
+    <div class="completion-preview-card__summary">
+      ${escHtml(handoff.field_summary || 'Start with the field summary. The office should be able to understand the outcome without chasing the crew back down.')}
+    </div>
+    <div class="completion-preview-card__signals">
+      <div class="completion-preview-card__signal">
+        <span>Load</span>
+        <strong>${escHtml(crewHydrovacLoadStatusLabel(handoff.load_status || ''))}</strong>
+        <small>${escHtml(handoff.load_status === 'live_load_remaining' ? (handoff.live_load_hold_reason || 'Explain why the load is still on the truck.') : handoff.bol_number ? `BOL ${handoff.bol_number}` : 'Add the load reference if one exists.')}</small>
+      </div>
+      <div class="completion-preview-card__signal">
+        <span>Locate</span>
+        <strong>${escHtml(handoff.locates_verified_on_site === true ? 'Verified' : handoff.locates_verified_on_site === false ? 'Needs office follow-up' : 'Not captured')}</strong>
+        <small>${escHtml(locateSummary)}</small>
+      </div>
+      <div class="completion-preview-card__signal">
+        <span>Permit</span>
+        <strong>${escHtml(crewHydrovacPermitStatusLabel(handoff.permit_status || ''))}</strong>
+        <small>${escHtml(handoff.permit_note || (handoff.permit_status ? 'No extra permit note attached.' : 'Choose a permit status when the job carries permit pressure.'))}</small>
+      </div>
+    </div>
+    ${followUp.length ? `
+      <div>
+        <div class="completion-preview-card__eyebrow">Office follow-up</div>
+        <div class="completion-preview-card__followups">
+          ${followUp.map((item) => `<span class="completion-preview-pill">${escHtml(crewHydrovacFollowUpLabel(item))}</span>`).join('')}
+        </div>
+      </div>
+    ` : `
+      <div class="completion-preview-empty">No office follow-up is selected yet. Add it only when the office still needs to act after the truck leaves.</div>
+    `}
+    ${!validation.ok ? `<div class="completion-preview-empty">${escHtml(validation.error)}</div>` : `<div class="completion-preview-empty">${escHtml(buildCrewHydrovacCompletionNarrative(handoff))}</div>`}
+  `;
+}
+
+function bindHydrovacCompletionFields(job = ACTIVE_JOB) {
+  const root = document.getElementById('completionHydrovacFields');
+  if (!root) return;
+  root.querySelectorAll('input, select, textarea').forEach((element) => {
+    element.addEventListener('input', () => {
+      syncHydrovacCompletionFieldVisibility();
+      renderCompletionPreview(job);
+    });
+    element.addEventListener('change', () => {
+      syncHydrovacCompletionFieldVisibility();
+      renderCompletionPreview(job);
+    });
+  });
+  root.querySelectorAll('[data-completion-followup]').forEach((button) => {
+    button.addEventListener('click', () => {
+      button.classList.toggle('is-active');
+      renderCompletionPreview(job);
+    });
+  });
+  syncHydrovacCompletionFieldVisibility();
+  renderCompletionPreview(job);
+}
+
+function syncCompletionScreen(job = ACTIVE_JOB) {
+  const isHydrovac = crewBusinessKey(job) === 'hydrovac';
+  const overview = document.getElementById('completionHydrovacOverview');
+  const standardFields = document.getElementById('completionStandardFields');
+  const hydrovacFields = document.getElementById('completionHydrovacFields');
+  const flow = document.getElementById('completionFlow');
+  const previewWrap = document.getElementById('completionPreviewWrap');
+  const submitNote = document.getElementById('completionSubmitNote');
+
+  if (overview) {
+    overview.innerHTML = isHydrovac
+      ? `${renderCrewHydrovacFieldCard(job)}${renderCrewSitePacketCard(job)}`
+      : '';
+    overview.style.display = isHydrovac ? '' : 'none';
+  }
+
+  if (standardFields) standardFields.style.display = isHydrovac ? 'none' : '';
+  if (hydrovacFields) {
+    hydrovacFields.innerHTML = isHydrovac ? renderHydrovacCompletionForm(job) : '';
+    hydrovacFields.style.display = isHydrovac ? '' : 'none';
+  }
+  if (flow) flow.classList.toggle('completion-flow--hydrovac', isHydrovac);
+  if (previewWrap && !isHydrovac) previewWrap.style.display = 'none';
+  if (submitNote) {
+    submitNote.textContent = isHydrovac
+      ? 'Structured closeout keeps manifests, compliance, and money aligned for the office.'
+      : 'The office will use this closeout to finish billing and customer follow-through.';
+  }
+
+  if (isHydrovac) {
+    bindHydrovacCompletionFields(job);
+  } else {
+    renderCompletionPreview(job);
+  }
+}
+
 function showCompletionScreen() {
   if (!ACTIVE_JOB) return;
 
-  // Reset form
   const noteEl = document.getElementById('completionNote');
   if (noteEl) noteEl.value = '';
-  clearSignature();
-  initSignatureCanvas();
 
   const titleEl = document.getElementById('completionJobTitle');
   if (titleEl) titleEl.textContent = ACTIVE_JOB.orders?.title || ACTIVE_JOB.title || 'Job';
@@ -1404,23 +2232,40 @@ function showCompletionScreen() {
   const photoWarn   = document.getElementById('completionPhotoWarn');
   if (photoWarn) {
     photoWarn.style.display = afterPhotos.length === 0 ? 'block' : 'none';
+    const textNode = photoWarn.querySelector('span:last-child');
+    if (textNode) textNode.textContent = afterPhotos.length === 0 ? 'No after photos added' : `${afterPhotos.length} after photo${afterPhotos.length === 1 ? '' : 's'} attached`;
   }
 
+  syncCompletionScreen(ACTIVE_JOB);
+  clearSignature();
+  initSignatureCanvas();
   showScreen('completion');
 }
 
 async function submitCompletion() {
   if (!ACTIVE_JOB) return;
 
+  const isHydrovac = crewBusinessKey(ACTIVE_JOB) === 'hydrovac';
   const noteEl = document.getElementById('completionNote');
-  const note   = noteEl ? noteEl.value.trim() : '';
+  const note = noteEl ? noteEl.value.trim() : '';
+  let completionHandoff = null;
 
-  if (!note) {
+  if (isHydrovac) {
+    completionHandoff = collectHydrovacCompletionHandoff(ACTIVE_JOB);
+    const validation = validateHydrovacCompletionHandoff(completionHandoff, ACTIVE_JOB);
+    if (!validation.ok) {
+      showToast(validation.error, 'error');
+      return;
+    }
+  } else if (!note) {
     showToast('Add a completion note so the office knows what was finished.', 'error');
     if (noteEl) noteEl.focus();
     return;
   }
 
+  const narrative = isHydrovac
+    ? buildCrewHydrovacCompletionNarrative(completionHandoff)
+    : note;
   const sigDataUrl = getSignatureDataUrl();
 
   const btn = document.getElementById('btnSubmitCompletion');
@@ -1434,15 +2279,14 @@ async function submitCompletion() {
   }
 
   try {
-    // Build payload for complete-crew-job or the update-crew-job fallback.
     const body = {
-      job_id          : ACTIVE_JOB.id,
-      status          : 'completed',
-      crew_notes      : note,
-      actual_end_at   : new Date().toISOString(),
+      job_id: ACTIVE_JOB.id,
+      status: 'completed',
+      crew_notes: narrative,
+      actual_end_at: new Date().toISOString(),
+      completion_handoff: completionHandoff || undefined,
     };
 
-    // If a function for completion with signature exists, try it
     let uploaded = false;
     try {
       const res = await fetch('/.netlify/functions/complete-crew-job', {
@@ -1453,8 +2297,8 @@ async function submitCompletion() {
         },
         body: JSON.stringify({
           ...body,
-          completion_note     : note,
-          signature_data_url  : sigDataUrl || undefined,
+          completion_note    : narrative,
+          signature_data_url : sigDataUrl || undefined,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -1468,6 +2312,10 @@ async function submitCompletion() {
         const error = new Error(complianceIssueMessage(data, 'This job cannot be completed until the required compliance item is handled.'));
         error.stopFallback = true;
         throw error;
+      } else if (res.status === 400) {
+        const error = new Error(data.error || 'The closeout is missing required hydrovac details.');
+        error.stopFallback = true;
+        throw error;
       }
     } catch (err) {
       if (err?.stopFallback) throw err;
@@ -1475,7 +2323,6 @@ async function submitCompletion() {
     }
 
     if (!uploaded) {
-      // Fallback: use update-crew-job
       const res = await fetch('/.netlify/functions/update-crew-job', {
         method : 'PATCH',
         headers: {
@@ -1495,7 +2342,6 @@ async function submitCompletion() {
       }
     }
 
-    // If we have a signature and couldn't send it via complete-crew-job, upload as photo
     if (sigDataUrl && !uploaded) {
       try {
         const sigBase64 = sigDataUrl.split(',')[1];
@@ -1516,7 +2362,12 @@ async function submitCompletion() {
       } catch { /* signature upload non-fatal */ }
     }
 
-    updateJobCache(ACTIVE_JOB.id, { status: 'completed' });
+    updateJobCache(ACTIVE_JOB.id, {
+      status: 'completed',
+      completion_handoff: completionHandoff || undefined,
+      completion_note: narrative,
+      crew_notes: narrative,
+    });
     stopTimer();
     showSuccessScreen();
 
@@ -1611,15 +2462,23 @@ function spawnConfetti() {
 function showBlockerModal() {
   const modal = document.getElementById('blockerModal');
   if (modal) {
-    modal.classList.add('modal-visible');
+    modal.classList.add('modal-visible', 'open');
     const input = document.getElementById('blockerNote');
     if (input) { input.value = ''; input.focus(); }
+    return;
   }
+  showScreen('blocker');
+  const input = document.getElementById('blockerNote');
+  if (input) { input.value = ''; input.focus(); }
 }
 
 function hideBlockerModal() {
   const modal = document.getElementById('blockerModal');
-  if (modal) modal.classList.remove('modal-visible');
+  if (modal) {
+    modal.classList.remove('modal-visible', 'open');
+    return;
+  }
+  showScreen('job', 'back');
 }
 
 async function submitBlocker() {
@@ -1793,6 +2652,138 @@ function showProfile() {
   }
 }
 
+async function saveCrewNotes() {
+  if (!ACTIVE_JOB) {
+    showToast('Open a job first.', 'error');
+    return;
+  }
+  const noteEl = document.getElementById('crewNotes');
+  const crewNotes = noteEl ? noteEl.value.trim() : '';
+  const token = await getToken();
+  if (!token) {
+    showToast('Please sign in again.', 'error');
+    return;
+  }
+
+  try {
+    const res = await fetch('/.netlify/functions/update-crew-job', {
+      method : 'PATCH',
+      headers: {
+        'Authorization' : 'Bearer ' + token,
+        'Content-Type'  : 'application/json',
+      },
+      body: JSON.stringify({
+        job_id: ACTIVE_JOB.id,
+        crew_notes: crewNotes,
+      }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
+
+    const updated = body.job || { crew_notes: crewNotes };
+    ACTIVE_JOB = { ...ACTIVE_JOB, ...updated, crew_notes: crewNotes };
+    updateJobCache(ACTIVE_JOB.id, updated);
+    showToast('Notes saved for the office.', 'success');
+  } catch (error) {
+    showToast(error.message || 'Could not save notes yet.', 'error');
+  }
+}
+
+function legacyScreenKey(name = '') {
+  return String(name || '').replace(/^screen/i, '').trim().toLowerCase();
+}
+
+window.App = {
+  async goBack() {
+    showScreen('home', 'back');
+    await loadJobs(CURRENT_DATE);
+  },
+  async refreshCurrentJob() {
+    if (!ACTIVE_JOB) {
+      showToast('No active job to refresh.', 'info');
+      return;
+    }
+    await loadJobs(CURRENT_DATE);
+    const refreshed = JOBS.find((job) => job.id === ACTIVE_JOB.id);
+    if (refreshed) openJob(refreshed);
+  },
+  async navTo(name) {
+    const target = legacyScreenKey(name);
+    if (target === 'schedule') {
+      await loadUpcomingJobs();
+      return;
+    }
+    if (target === 'profile') {
+      showProfile();
+      return;
+    }
+    await showHome();
+  },
+  async showScreen(name) {
+    const target = legacyScreenKey(name);
+    if (target === 'schedule') {
+      await loadUpcomingJobs();
+      return;
+    }
+    if (target === 'profile') {
+      showProfile();
+      return;
+    }
+    if (target === 'home') {
+      await showHome();
+      return;
+    }
+    showScreen(target, 'back');
+  },
+  signOut,
+  async openJob(id) {
+    const job = JOBS.find((row) => row.id === id);
+    if (job) await openJob(job);
+  },
+  async jobAction(action) {
+    if (!ACTIVE_JOB) return;
+    if (action === 'start' || action === 'im_here' || action === 'on_my_way') {
+      await clockIn(ACTIVE_JOB.id);
+      return;
+    }
+    if (action === 'complete') {
+      showCompletionScreen();
+      return;
+    }
+    if (action === 'blocker') {
+      showBlockerModal();
+      return;
+    }
+    if (action === 'unblock') {
+      await updateJobStatus(ACTIVE_JOB.id, 'in_progress');
+    }
+  },
+  selectBlockerReason(button) {
+    const value = String(button?.dataset?.val || '').trim();
+    const noteEl = document.getElementById('blockerNote');
+    if (noteEl && value && !String(noteEl.value || '').trim()) noteEl.value = value;
+  },
+  reportBlocker: submitBlocker,
+  clearSignature,
+  submitCompletion,
+  saveCrewNotes,
+  confirmOk() {
+    document.getElementById('confirmModal')?.classList.remove('open');
+  },
+  confirmCancel() {
+    document.getElementById('confirmModal')?.classList.remove('open');
+  },
+};
+
+window.switchJobsTab = async function switchJobsTab(tab) {
+  const target = String(tab || '').trim().toLowerCase();
+  if (target === 'upcoming') {
+    await loadUpcomingJobs();
+    return;
+  }
+  await showHome();
+};
+
 // ── Event Delegation ───────────────────────────────────────────────────────────
 
 async function handleJobAction(e) {
@@ -1963,18 +2954,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Login form
   document.getElementById('btnSignIn')?.addEventListener('click', handleSignIn);
+  document.getElementById('btnForgot')?.addEventListener('click', () => {
+    showToast('Use your company password reset flow if you need a new password.', 'info');
+  });
 
   document.getElementById('loginPassword')?.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') handleSignIn();
   });
 
   // Bottom nav
-  document.getElementById('navHome')?.addEventListener('click', () => {
+  bindClickHandler('navHome', () => {
     showScreen('home', 'back');
     loadJobs(CURRENT_DATE);
   });
-  document.getElementById('navSchedule')?.addEventListener('click', loadUpcomingJobs);
-  document.getElementById('navProfile')?.addEventListener('click', showProfile);
+  bindClickHandler('navSchedule', loadUpcomingJobs);
+  bindClickHandler('navProfile', showProfile);
 
   // Job screen — delegated action buttons
   document.getElementById('screenJob')?.addEventListener('click', handleJobAction);
@@ -1987,16 +2981,47 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
+  bindClickHandler('btnJobBack', async () => {
+    showScreen('home', 'back');
+    await loadJobs(CURRENT_DATE);
+  });
+  bindClickHandler('btnJobRefresh', () => {
+    window.App?.refreshCurrentJob?.();
+  });
+  bindClickHandler('btnSaveCrewNotes', saveCrewNotes);
+  bindClickHandler('btnCompletionBack', () => {
+    showScreen('job', 'back');
+  });
+  bindClickHandler('btnBlockerBack', () => {
+    showScreen('job', 'back');
+  });
+  bindClickHandler('btnScheduleBack', async () => {
+    await showHome();
+  });
+
   // Sign out
-  document.getElementById('btnSignOut')?.addEventListener('click', signOut);
+  bindClickHandler('btnSignOut', signOut);
 
   // Blocker modal
-  document.getElementById('btnSubmitBlocker')?.addEventListener('click', submitBlocker);
-  document.getElementById('btnCancelBlocker')?.addEventListener('click', hideBlockerModal);
+  bindClickHandler('btnSubmitBlocker', submitBlocker);
+  bindClickHandler('btnCancelBlocker', hideBlockerModal);
+  document.getElementById('blockerChips')?.addEventListener('click', (event) => {
+    const button = event.target.closest('.chip');
+    if (!button) return;
+    window.App?.selectBlockerReason?.(button);
+  });
 
   // Completion screen
-  document.getElementById('btnSubmitCompletion')?.addEventListener('click', submitCompletion);
-  document.getElementById('btnClearSignature')?.addEventListener('click', clearSignature);
+  bindClickHandler('btnSubmitCompletion', submitCompletion);
+  bindClickHandler('btnClearSignature', clearSignature);
+
+  // Confirm modal
+  bindClickHandler('confirmOk', () => {
+    window.App?.confirmOk?.();
+  });
+  bindClickHandler('confirmCancel', () => {
+    window.App?.confirmCancel?.();
+  });
 
   // Date navigation on home
   document.getElementById('btnDatePrev')?.addEventListener('click', () => {

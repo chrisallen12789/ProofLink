@@ -11,7 +11,7 @@
 9. Run `npm run test:unit`.
 10. Run `npm run test:integration:service-workflow`.
 11. Run `npx playwright install chromium`.
-12. Start Netlify dev against the same environment.
+12. Start Netlify dev against the same environment with `npm run dev:test`.
 13. Run `npm run test:e2e:service-workflow`.
 14. Run `npm run test:e2e:operator-cross-device` for Chrome, Firefox, Safari/WebKit, iPhone, and Android operator smoke coverage.
 

@@ -73,6 +73,7 @@ function loadDispatchWorkspace(overrides = {}) {
     escapeAttr: (value) => String(value),
     titleCaseWords: (value) => String(value),
     formatUsd: vi.fn((value) => `$${value}`),
+    renderRecordHeroCard: vi.fn((config = {}) => `<div class="record-hero">${String(config.title || "")}${String(config.description || "")}${String(config.actionsHtml || "")}</div>`),
     setInlineMessage: vi.fn(),
     switchTab: vi.fn(),
     requestOperatorFunction: vi.fn(() => Promise.resolve()),
@@ -91,11 +92,13 @@ function loadDispatchWorkspace(overrides = {}) {
 
 describe("operator dispatch workspace", () => {
   test("renderDispatchWorkspace shows empty detail state when there are no hydrovac jobs", () => {
-    const { context, dispatchDetail, dispatchDate } = loadDispatchWorkspace();
+    const { context, dispatchDetail, dispatchDate, dispatchBoard } = loadDispatchWorkspace();
     dispatchDate.value = "2026-03-26";
 
     context.window.renderDispatchWorkspace();
 
+    expect(context.renderRecordHeroCard).toHaveBeenCalled();
+    expect(dispatchBoard.innerHTML).toContain("Truck board");
     expect(dispatchDetail.innerHTML).toContain("No hydrovac jobs are scheduled");
   });
 

@@ -19,4 +19,35 @@ describe("operator boot source", () => {
     expect(source).toContain("window.PROOFLINK_CONFIG?.supabase?.anonKey");
     expect(source).toContain("window.PROOFLINK_BOOT_READY = true;");
   });
+
+  test("loads operator setup before the shell is considered boot-ready", () => {
+    expect(source).toContain("await fetchOperatorSetup().catch(console.warn);");
+    expect(source).toContain("if (isHydrovacWorkspace()) {");
+    expect(source).toContain("fetchHydrovacFacilities()");
+    expect(source).toContain("fetchHydrovacManifests()");
+    expect(source).toContain("fetchHydrovacLocateTickets()");
+  });
+
+  test("primes hydrovac command centers before async refresh finishes", () => {
+    expect(source).toContain('renderHydrovacFacilities();');
+    expect(source).toContain('renderHydrovacManifests();');
+    expect(source).toContain('renderHydrovacLocateWorkspace();');
+    expect(source).toContain('renderHydrovacCompliance();');
+  });
+
+  test("keeps sidebar tool drawer state and visibility in sync", () => {
+    expect(source).toContain('&& !more.classList.contains("collapsed")');
+    expect(source).toContain('more.classList.toggle("collapsed", !isOpen);');
+    expect(source).toContain('more.classList.toggle("expanded", !!isOpen);');
+  });
+
+  test("defines a shared daysUntil helper for hydrovac countdown views", () => {
+    expect(source).toContain("function daysUntil(value) {");
+    expect(source).toContain("const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());");
+    expect(source).toContain("const startOfTarget = new Date(target.getFullYear(), target.getMonth(), target.getDate());");
+  });
+
+  test("prioritizes hydrovac tools at the top of the sidebar for hydrovac tenants", () => {
+    expect(source).toContain('? ["hydrovac", "workflow", "reports", "operations", "website", "guidance"]');
+  });
 });

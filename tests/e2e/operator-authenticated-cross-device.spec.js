@@ -34,15 +34,25 @@ async function loginAsTenantA(page) {
 }
 
 async function openPrimaryTab(page, tab, headingText, isMobile) {
+  const button = isMobile
+    ? page.locator(`#mobileBottomNav .mbn-item[data-mbn-tab="${tab}"]`)
+    : page.locator(`.sidebar .tab[data-tab="${tab}"]`);
+  const heading = page.locator(`[data-panel="${tab}"]:not(.hidden) .panel-head h2`).first();
+
   if (isMobile) {
-    await page.locator(`#mobileBottomNav .mbn-item[data-mbn-tab="${tab}"]`).click();
+    await button.click();
   } else {
-    await page.locator(`.sidebar .tab[data-tab="${tab}"]`).click();
+    await button.click();
   }
+
+  if (!(await heading.isVisible().catch(() => false))) {
+    await button.click({ force: true });
+  }
+
   if (headingText instanceof RegExp) {
-    await expect(page.locator(`[data-panel="${tab}"]:not(.hidden) .panel-head h2`).first()).toHaveText(headingText);
+    await expect(heading).toHaveText(headingText);
   } else {
-    await expect(page.locator(`[data-panel="${tab}"]:not(.hidden) .panel-head h2`).first()).toHaveText(headingText);
+    await expect(heading).toHaveText(headingText);
   }
   await expectNoOverflow(page);
 }

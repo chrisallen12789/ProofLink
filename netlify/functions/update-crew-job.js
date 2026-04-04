@@ -1,13 +1,19 @@
 // netlify/functions/update-crew-job.js
 // PATCH /.netlify/functions/update-crew-job
 // Crew-member authenticated. Updates job status and/or adds notes.
-// Body: { job_id, status?, crew_notes?, blocker_note?, actual_start_at?, actual_end_at?, check_in_lat?, check_in_lng? }
+// Body: { job_id, status?, crew_notes?, blocker_note?, actual_start_at?, actual_end_at?, check_in_lat?, check_in_lng?, completion_handoff? }
 
 'use strict';
 
 const { requireOperatorContext, getAdminClient, respond } = require('./utils/auth');
 const { requireHydrovacOperatorContext } = require('./utils/hydrovac');
 const { collectHydrovacLifecycleIssues, hydrovacJobType, logComplianceAlerts, resolveComplianceAlerts } = require('./lib/hydrovac-compliance');
+const {
+  buildHydrovacCompletionNarrative,
+  extractHydrovacCompletionHandoff,
+  mergeCrewCloseoutMetadata,
+  normalizeHydrovacCompletionHandoff,
+} = require('./lib/hydrovac-closeout');
 
 const ALLOWED_CREW_STATUSES = new Set(['in_progress', 'blocked', 'completed']);
 const ADMIN_ROLES = new Set(['admin', 'owner', 'manager', 'platform_admin']);
@@ -35,7 +41,7 @@ exports.handler = async (event) => {
   try { body = JSON.parse(event.body || '{}'); }
   catch { return respond(400, { error: 'Invalid JSON body' }); }
 
-  const { job_id, status, crew_notes, blocker_note, actual_start_at, actual_end_at, check_in_lat, check_in_lng } = body;
+  const { job_id, status, crew_notes, blocker_note, actual_start_at, actual_end_at, check_in_lat, check_in_lng, completion_handoff } = body;
 
   if (!job_id) return respond(400, { error: 'job_id is required' });
 
@@ -47,7 +53,7 @@ exports.handler = async (event) => {
   // Fetch the job to verify ownership and tenant
   const { data: job, error: jobErr } = await adminSb
     .from('jobs')
-    .select('id, tenant_id, assigned_operator_id, assigned_member_id, status, actual_start_at, actual_end_at, job_type, service_type, requires_confined_space_permit, total_loads_hauled, total_disposal_cost_cents, disposal_cost_cents, disposal_site, disposal_manifest_number')
+    .select('id, tenant_id, assigned_operator_id, assigned_member_id, status, actual_start_at, actual_end_at, job_type, service_type, requires_confined_space_permit, total_loads_hauled, total_disposal_cost_cents, disposal_cost_cents, disposal_site, disposal_manifest_number, metadata')
     .eq('id', job_id)
     .maybeSingle();
 
@@ -62,7 +68,7 @@ exports.handler = async (event) => {
   // Resolve member record
   const { data: member, error: memberErr } = await adminSb
     .from('operator_members')
-    .select('id, role')
+    .select('operator_id, role, role_title')
     .eq('user_id', user.id)
     .eq('tenant_id', tenantId)
     .maybeSingle();
@@ -74,10 +80,14 @@ exports.handler = async (event) => {
 
   // Authorization: must be assigned to this job OR be an admin/owner/manager
   const isAdmin = ADMIN_ROLES.has(role) || (member && ADMIN_ROLES.has(member.role));
-  const isAssigned = member && (
-    job.assigned_member_id === member.id ||
-    job.assigned_operator_id === member.id ||
-    job.assigned_operator_id === user.id
+  const assignmentKeys = new Set([
+    String(member?.id || '').trim(),
+    String(member?.operator_id || '').trim(),
+    String(user.id || '').trim(),
+  ].filter(Boolean));
+  const isAssigned = !!(
+    (job.assigned_member_id && assignmentKeys.has(String(job.assigned_member_id).trim())) ||
+    (job.assigned_operator_id && assignmentKeys.has(String(job.assigned_operator_id).trim()))
   );
 
   if (!isAssigned && !isAdmin) {
@@ -86,6 +96,8 @@ exports.handler = async (event) => {
 
   // Build patch object from allowed fields only
   const patch = {};
+  const isHydrovacLifecycle = hydrovacCtx && hydrovacJobType(job);
+  let normalizedCloseout = null;
 
   if (status !== undefined) patch.status = status;
   if (crew_notes !== undefined) patch.crew_notes = crew_notes;
@@ -94,6 +106,24 @@ exports.handler = async (event) => {
   if (actual_end_at !== undefined) patch.actual_end_at = actual_end_at;
   if (check_in_lat !== undefined) patch.check_in_lat = check_in_lat;
   if (check_in_lng !== undefined) patch.check_in_lng = check_in_lng;
+
+  if (isHydrovacLifecycle && (status === 'completed' || completion_handoff !== undefined)) {
+    const normalized = await normalizeHydrovacCompletionHandoff({
+      adminSb,
+      tenantId,
+      job,
+      raw: completion_handoff,
+    });
+    if (normalized.error) {
+      return respond(400, { error: normalized.error });
+    }
+    normalizedCloseout = normalized.value;
+    patch.metadata = mergeCrewCloseoutMetadata(job.metadata, normalizedCloseout);
+    if (status === 'completed') {
+      patch.completion_note = buildHydrovacCompletionNarrative(normalizedCloseout);
+      if (crew_notes === undefined) patch.crew_notes = patch.completion_note;
+    }
+  }
 
   // Auto-set timestamps based on status transitions
   if (status === 'completed' && !actual_end_at && !job.actual_end_at) {
@@ -109,7 +139,7 @@ exports.handler = async (event) => {
 
   patch.updated_at = new Date().toISOString();
 
-  if (hydrovacCtx && hydrovacJobType(job) && (status === 'in_progress' || status === 'completed')) {
+  if (isHydrovacLifecycle && (status === 'in_progress' || status === 'completed')) {
     const issues = await collectHydrovacLifecycleIssues({
       adminSb,
       tenantId,
@@ -140,7 +170,7 @@ exports.handler = async (event) => {
     return respond(500, { error: 'Failed to update job' });
   }
 
-  if (hydrovacCtx && hydrovacJobType(job) && (status === 'in_progress' || status === 'completed')) {
+  if (isHydrovacLifecycle && (status === 'in_progress' || status === 'completed')) {
     await resolveComplianceAlerts(adminSb, tenantId, {
       referenceType: 'job',
       referenceId: job_id,
@@ -156,5 +186,10 @@ exports.handler = async (event) => {
     });
   }
 
-  return respond(200, { job: updated });
+  return respond(200, {
+    job: {
+      ...updated,
+      completion_handoff: normalizedCloseout || extractHydrovacCompletionHandoff(updated),
+    },
+  });
 };

@@ -44,6 +44,106 @@ function hydrovacManifestNeedsCloseout(job) {
   );
 }
 
+function hydrovacManifestMeta(row) {
+  return row?.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata)
+    ? row.metadata
+    : {};
+}
+
+function hydrovacManifestPreparedAt(row, key) {
+  const metadata = hydrovacManifestMeta(row);
+  return String(metadata[key] || row?.[key] || "").trim();
+}
+
+function hydrovacManifestBolReference(row) {
+  const metadata = hydrovacManifestMeta(row);
+  return String(metadata.bol_number || metadata.bill_of_lading_number || row?.bol_number || "").trim();
+}
+
+function hydrovacJobCloseoutState(job, order, detailState = null) {
+  const hydrovac = !!(job && typeof isHydrovacJob === "function" && isHydrovacJob(job));
+  if (!hydrovac) return null;
+
+  const manifestSnapshot = typeof hydrovacJobManifestSnapshot === "function"
+    ? hydrovacJobManifestSnapshot(job?.id)
+    : { openLoads: 0, confirmedUnbilled: 0, manifests: [] };
+  const manifests = Array.isArray(detailState?.manifests)
+    ? detailState.manifests
+    : (Array.isArray(manifestSnapshot?.manifests) ? manifestSnapshot.manifests : []);
+  const hasLoadSignals = hydrovacManifestNeedsCloseout(job) || manifests.length > 0;
+  const openLoads = Math.max(
+    Number(manifestSnapshot?.openLoads || 0),
+    manifests.filter((manifest) => normalizeWorkflowStatusValue(manifest?.status || "") !== "confirmed").length
+  );
+  const customerRecordsPending = manifests.filter((manifest) => !hydrovacManifestPreparedAt(manifest, "customer_records_prepared_at"));
+  const auditPacketPending = manifests.filter((manifest) => !hydrovacManifestPreparedAt(manifest, "audit_packet_prepared_at"));
+  const invoicePending = manifests.filter((manifest) => (
+    normalizeWorkflowStatusValue(manifest?.status || "") === "confirmed"
+    && manifest?.invoiced !== true
+  ));
+  const recordDetailGaps = manifests.flatMap((manifest) => {
+    const number = manifest?.manifest_number || manifest?.id || "load";
+    const issues = [];
+    if (!hydrovacManifestBolReference(manifest)) {
+      issues.push({
+        manifest,
+        message: `${number} still needs a BOL / load reference before the office packet is clean.`,
+      });
+    }
+    if (!String(manifest?.disposal_facility_id || manifest?.disposal_facility_name || "").trim()) {
+      issues.push({
+        manifest,
+        message: `${number} still needs the disposal facility attached before closeout.`,
+      });
+    }
+    if (normalizeWorkflowStatusValue(manifest?.status || "") === "confirmed" && !String(manifest?.disposal_ticket_number || "").trim()) {
+      issues.push({
+        manifest,
+        message: `${number} is confirmed but the facility ticket is still missing.`,
+      });
+    }
+    if (manifest?.quantity_actual == null && manifest?.quantity_estimated == null) {
+      issues.push({
+        manifest,
+        message: `${number} still needs the hauled quantity logged before records are ready.`,
+      });
+    }
+    return issues;
+  });
+  const primaryManifest = manifests[0] || null;
+  const primaryRecordsManifest = customerRecordsPending[0] || primaryManifest;
+  const primaryAuditManifest = auditPacketPending[0] || primaryRecordsManifest || primaryManifest;
+  const primaryInvoiceManifest = invoicePending[0] || primaryManifest;
+  const orderBalanceCents = Number(orderAmountDueCents(order) || 0);
+  const moneyFollowThroughOpen = invoicePending.length > 0 || orderBalanceCents > 0;
+  const packetGapCount = customerRecordsPending.length + auditPacketPending.length;
+  const clean = !hasLoadSignals || (
+    openLoads === 0
+    && packetGapCount === 0
+    && recordDetailGaps.length === 0
+    && !moneyFollowThroughOpen
+  );
+
+  return {
+    manifests,
+    manifestSnapshot,
+    hasLoadSignals,
+    openLoads,
+    customerRecordsPending,
+    auditPacketPending,
+    invoicePending,
+    recordDetailGaps,
+    packetGapCount,
+    primaryManifest,
+    primaryRecordsManifest,
+    primaryAuditManifest,
+    primaryInvoiceManifest,
+    orderBalanceCents,
+    moneyFollowThroughOpen,
+    clean,
+  };
+}
+
 function buildJobReadinessSummary(job, order, linkedCustomer, hydrovacState = null, blueprint = jobsWorkspaceBlueprint()) {
   const items = [];
   const addItem = (label, ready, note, options = {}) => {
@@ -60,6 +160,7 @@ function buildJobReadinessSummary(job, order, linkedCustomer, hydrovacState = nu
   const hasCrew = !!String(job?.assigned_member_id || job?.assigned_operator_id || "").trim();
   const hasSchedule = !!String(job?.scheduled_date || "").trim();
   const hydrovac = !!(job && typeof isHydrovacJob === "function" && isHydrovacJob(job, blueprint));
+  const hydrovacCloseout = hydrovac ? hydrovacJobCloseoutState(job, order, hydrovacState) : null;
 
   addItem(
     "Customer linked",
@@ -196,6 +297,7 @@ function buildJobReadinessSummary(job, order, linkedCustomer, hydrovacState = nu
       ? "Clear these items before dispatch, start, or closeout so the crew does not find out the hard way."
       : "The essentials are in place. Use the field updates below to keep execution, proof, and money moving together.",
     nextStep,
+    hydrovacCloseout,
   };
 }
 
@@ -337,6 +439,138 @@ function renderJobAgentAuditCard(job) {
   `;
 }
 
+function summaryReadyCount(summary = null) {
+  return Number(summary?.readyCount || 0);
+}
+
+function summaryTotalCount(summary = null) {
+  return Number(summary?.totalCount || 0);
+}
+
+function trackedStatusTone(status) {
+  const normalized = normalizeWorkflowStatusValue(status || "scheduled");
+  if (normalized === "completed") return "workspace-signal-band__item--good";
+  if (["blocked", "cancelled"].includes(normalized)) return "workspace-signal-band__item--danger";
+  if (["dispatched", "in_progress"].includes(normalized)) return "workspace-signal-band__item--warn";
+  return "";
+}
+
+function renderJobExecutionSignalBand({ job, order, readiness, hydrovacState = null, amountDueCents = 0 } = {}) {
+  if (!job) return "";
+  const hydrovacExecution = typeof isHydrovacJob === "function" && isHydrovacJob(job);
+  if (hydrovacExecution) {
+    const manifestSnapshot = hydrovacState?.manifestSnapshot || hydrovacJobManifestSnapshot(job.id);
+    const carryoverLoads = Array.isArray(hydrovacState?.truckLoads)
+      ? hydrovacState.truckLoads.filter((manifest) => String(manifest?.job_id || "") !== String(job.id || ""))
+      : [];
+    return `
+      <div class="workspace-signal-band">
+        <div class="workspace-signal-band__item ${readiness?.blockers?.length ? "workspace-signal-band__item--danger" : "workspace-signal-band__item--good"}">
+          <span>Dispatch blockers</span>
+          <strong>${escapeHtml(String(readiness?.blockers?.length || 0))}</strong>
+          <small>${escapeHtml(readiness?.blockers?.length ? "Clear customer, crew, permit, or load blockers before this truck rolls." : "Nothing is blocking the next field move right now.")}</small>
+        </div>
+        <div class="workspace-signal-band__item ${Number(manifestSnapshot?.openLoads || 0) ? "workspace-signal-band__item--warn" : "workspace-signal-band__item--good"}">
+          <span>Open loads</span>
+          <strong>${escapeHtml(String(Number(manifestSnapshot?.openLoads || 0)))}</strong>
+          <small>${escapeHtml(Number(manifestSnapshot?.openLoads || 0) ? "Loads are still open on this job and need closeout attention." : "No hauled loads are hanging open on this record.")}</small>
+        </div>
+        <div class="workspace-signal-band__item ${carryoverLoads.length ? "workspace-signal-band__item--danger" : "workspace-signal-band__item--good"}">
+          <span>Truck carryover</span>
+          <strong>${escapeHtml(String(carryoverLoads.length))}</strong>
+          <small>${escapeHtml(carryoverLoads.length ? "The assigned truck is still carrying pressure from another record." : "No conflicting live-load carryover is attached.")}</small>
+        </div>
+        <div class="workspace-signal-band__item ${amountDueCents > 0 ? "workspace-signal-band__item--warn" : "workspace-signal-band__item--good"}">
+          <span>Due now</span>
+          <strong>${escapeHtml(formatUsd(amountDueCents))}</strong>
+          <small>${escapeHtml(amountDueCents > 0 ? "Close the field package and the billing follow-through together." : "No open balance is blocking clean closeout.")}</small>
+        </div>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="workspace-signal-band">
+      <div class="workspace-signal-band__item ${readiness?.blockers?.length ? "workspace-signal-band__item--danger" : "workspace-signal-band__item--good"}">
+        <span>Readiness</span>
+        <strong>${escapeHtml(`${summaryReadyCount(readiness)} / ${summaryTotalCount(readiness)}`)}</strong>
+        <small>${escapeHtml(readiness?.blockers?.length ? "A few basics still need to be cleared before this work feels easy to run." : "The core field details are in place and ready to move.")}</small>
+      </div>
+      <div class="workspace-signal-band__item ${String(job?.assigned_member_id || job?.assigned_operator_id || "").trim() ? "workspace-signal-band__item--good" : "workspace-signal-band__item--warn"}">
+        <span>Assigned crew</span>
+        <strong>${escapeHtml(String(job?.assigned_member_id || job?.assigned_operator_id || "").trim() ? "Set" : "Open")}</strong>
+        <small>${escapeHtml(String(job?.assigned_member_id || job?.assigned_operator_id || "").trim() ? "A crew owner is already attached to this work." : "Pick the tech or crew owner before the day gets noisy.")}</small>
+      </div>
+      <div class="workspace-signal-band__item ${amountDueCents > 0 ? "workspace-signal-band__item--warn" : "workspace-signal-band__item--good"}">
+        <span>Due now</span>
+        <strong>${escapeHtml(formatUsd(amountDueCents))}</strong>
+        <small>${escapeHtml(amountDueCents > 0 ? "Keep payment or invoice follow-through attached to the field record." : "No balance is still open on this work.")}</small>
+      </div>
+      <div class="workspace-signal-band__item ${trackedStatusTone(job?.status)}">
+        <span>Current stage</span>
+        <strong>${escapeHtml(titleCaseWords(String(job?.status || "scheduled").replace(/_/g, " ")))}</strong>
+        <small>${escapeHtml(order ? `Booked work is ${formatOrderWorkflowStatus(order.status || "new")}.` : "No booked-work status is attached yet.")}</small>
+      </div>
+    </div>
+  `;
+}
+
+function renderJobExecutionFocusCard({
+  job,
+  order,
+  linkedCustomer,
+  readiness,
+  depositStatus,
+  amountDueCents = 0,
+  actions = [],
+} = {}) {
+  if (!job) return "";
+  const teamMember = Array.isArray(TEAM_MEMBERS_CACHE)
+    ? TEAM_MEMBERS_CACHE.find((member) => member.id === job.assigned_member_id || member.id === job.assigned_operator_id || member.user_id === job.assigned_operator_id)
+    : null;
+  const nextMove = readiness?.blockers?.length
+    ? readiness.nextStep
+    : amountDueCents > 0 && normalizeWorkflowStatusValue(job.status || "scheduled") === "completed"
+      ? "Collect the open balance while the completed work is still fresh."
+      : "Keep field updates, proof, and billing tied to this same job record.";
+
+  return `
+    <div class="detail-card detail-card--spaced workspace-focus-card">
+      <div class="workspace-focus-card__head">
+        <div>
+          <div class="kicker">Execution focus</div>
+          <div><strong>Keep the next field move obvious</strong></div>
+        </div>
+        <span class="pill ${readiness?.blockers?.length ? "pill-bad" : "pill-on"}">${escapeHtml(readiness?.blockers?.length ? `${readiness.blockers.length} blocker${readiness.blockers.length === 1 ? "" : "s"}` : "Ready to move")}</span>
+      </div>
+      <div class="detail-copy">${escapeHtml(nextMove)}</div>
+      <div class="workspace-focus-card__meta">
+        <div class="workspace-focus-card__item ${readiness?.blockers?.length ? "workspace-focus-card__item--danger" : "workspace-focus-card__item--good"}">
+          <span>Next move</span>
+          <strong>${escapeHtml(readiness?.blockers?.length ? "Clear blockers" : "Keep momentum")}</strong>
+          <small>${escapeHtml(nextMove)}</small>
+        </div>
+        <div class="workspace-focus-card__item ${teamMember ? "workspace-focus-card__item--good" : "workspace-focus-card__item--warn"}">
+          <span>Crew owner</span>
+          <strong>${escapeHtml(teamMember?.name || teamMember?.email || "Still open")}</strong>
+          <small>${escapeHtml(teamMember ? "The field owner is already attached to this work." : "Assign the crew member who will own the field update and closeout.")}</small>
+        </div>
+        <div class="workspace-focus-card__item ${amountDueCents > 0 ? "workspace-focus-card__item--warn" : "workspace-focus-card__item--good"}">
+          <span>Money follow-through</span>
+          <strong>${escapeHtml(formatUsd(amountDueCents))}</strong>
+          <small>${escapeHtml(amountDueCents > 0 ? "Keep invoice, deposit, or collection follow-through attached." : "Nothing is still owed on this work.")}</small>
+        </div>
+        <div class="workspace-focus-card__item ${depositStatus && depositStatus !== "paid" && depositStatus !== "not_due" ? "workspace-focus-card__item--warn" : "workspace-focus-card__item--good"}">
+          <span>Deposit state</span>
+          <strong>${escapeHtml(order ? formatDepositStatus(depositStatus) : "No booked work")}</strong>
+          <small>${escapeHtml(linkedCustomer?.name ? `${linkedCustomer.name} stays tied to the work and money chain.` : "Link a customer to keep future service and payment history together.")}</small>
+        </div>
+      </div>
+      ${actions.length ? `<div class="workspace-focus-card__buttons">${renderRecordActionButtons(actions)}</div>` : ""}
+    </div>
+  `;
+}
+
 function renderJobCloseoutCoachCard(job) {
   const cached = JOB_CLOSEOUT_AGENT_CACHE[job?.id] || null;
   return `
@@ -376,6 +610,9 @@ function renderJobSitePacketCard(job) {
 function jobCloseoutChecklistItems(job, order, linkedCustomer, blueprint = jobsWorkspaceBlueprint(), amountDueCents = 0, readiness = null) {
   const businessKey = String(blueprint?.business?.key || "service_business").trim().toLowerCase();
   const bookingsApi = window.PROOFLINK_OPERATOR_BOOKINGS_WORKSPACE || {};
+  const hydrovac = !!(job && typeof isHydrovacJob === "function" && isHydrovacJob(job, blueprint));
+  const fieldStatus = normalizeWorkflowStatusValue(job?.status || "scheduled");
+  const hydrovacCloseout = hydrovac ? (readiness?.hydrovacCloseout || hydrovacJobCloseoutState(job, order)) : null;
   const filled = (...values) => values.some((value) => String(value || "").trim());
   const firstFilled = (...values) => values.find((value) => String(value || "").trim()) || "";
   const timingInsight = linkedCustomer && typeof bookingsApi.bookingDraftTimingInsight === "function"
@@ -387,12 +624,73 @@ function jobCloseoutChecklistItems(job, order, linkedCustomer, blueprint = jobsW
     note: ready ? readyNote : missingNote,
   });
 
-  if (readiness?.blockers?.length) {
+  if (readiness?.blockers?.length && !(hydrovac && fieldStatus === "completed")) {
     return readiness.blockers.slice(0, 3).map((item) => ({
       label: item.label,
       ready: false,
       note: item.note || "Clear this before closeout.",
     }));
+  }
+
+  if (hydrovac) {
+    const primaryManifest = hydrovacCloseout?.primaryManifest;
+    const primaryRecordsManifest = hydrovacCloseout?.primaryRecordsManifest || primaryManifest;
+    const primaryAuditManifest = hydrovacCloseout?.primaryAuditManifest || primaryManifest;
+    const primaryInvoiceManifest = hydrovacCloseout?.primaryInvoiceManifest || primaryManifest;
+    const manifestLabel = (manifest) => manifest?.manifest_number || manifest?.id || "the active load";
+    const hasManifestSignals = hydrovacCloseout?.hasLoadSignals;
+    const loadRecordsReady = !hasManifestSignals || (
+      Number(hydrovacCloseout?.openLoads || 0) === 0
+      && Number(hydrovacCloseout?.recordDetailGaps?.length || 0) === 0
+    );
+    const packetGapCount = Number(hydrovacCloseout?.packetGapCount || 0);
+    const orderBalanceCents = Number(hydrovacCloseout?.orderBalanceCents || amountDueCents || 0);
+    return [
+      detail(
+        "Field note saved",
+        filled(job?.notes),
+        firstFilled(job?.notes),
+        "Save the field note before the office package leaves this record so dispatch, compliance, and billing are not guessing later."
+      ),
+      detail(
+        "Load records confirmed",
+        loadRecordsReady,
+        hasManifestSignals
+          ? `${hydrovacCloseout?.manifests?.length || 0} load${hydrovacCloseout?.manifests?.length === 1 ? "" : "s"} are tied down for closeout.`
+          : "No hauled loads need closeout on this job.",
+        !hasManifestSignals
+          ? "Hauled load activity is flagged on the job, but the manifest record still needs to be attached here."
+          : Number(hydrovacCloseout?.openLoads || 0) > 0
+            ? `${hydrovacCloseout.openLoads} load${hydrovacCloseout.openLoads === 1 ? "" : "s"} still need confirmation before the office packet is clean.`
+            : (hydrovacCloseout?.recordDetailGaps?.[0]?.message || `${manifestLabel(primaryManifest)} still needs the final disposal detail attached.`)
+      ),
+      detail(
+        "Customer records ready",
+        !packetGapCount || Number(hydrovacCloseout?.customerRecordsPending?.length || 0) === 0,
+        hasManifestSignals
+          ? "Customer-facing records are already prepared on the current manifest set."
+          : "No customer-record package is needed because no hauled load is attached.",
+        `Prepare the customer-records email for ${manifestLabel(primaryRecordsManifest)} before the file leaves the office.`
+      ),
+      detail(
+        "Audit packet ready",
+        !packetGapCount || Number(hydrovacCloseout?.auditPacketPending?.length || 0) === 0,
+        hasManifestSignals
+          ? "Audit handoff is already prepared on the current manifest set."
+          : "No audit packet is needed because no hauled load is attached.",
+        `Prepare the audit handoff for ${manifestLabel(primaryAuditManifest)} before records or compliance archive this job.`
+      ),
+      detail(
+        "Billing handoff",
+        !hydrovacCloseout?.moneyFollowThroughOpen && orderBalanceCents <= 0,
+        "The hydrovac invoice and payment follow-through are already tied off.",
+        hydrovacCloseout?.invoicePending?.length
+          ? `Draft the hydrovac invoice for ${manifestLabel(primaryInvoiceManifest)} and keep the money chain attached to this job.`
+          : orderBalanceCents > 0
+            ? `Keep ${formatUsd(orderBalanceCents)} in follow-through until the balance is cleared.`
+            : "Keep the invoice and money follow-through attached to this job until closeout is fully clean."
+      ),
+    ];
   }
 
   const repeatSignal = firstFilled(
@@ -546,6 +844,42 @@ function jobCloseoutChecklistItems(job, order, linkedCustomer, blueprint = jobsW
 
 function buildJobCloseoutGuidance(job, order, readiness, amountDueCents, linkedCustomer = null, blueprint = jobsWorkspaceBlueprint()) {
   const fieldStatus = normalizeWorkflowStatusValue(job?.status || "scheduled");
+  const hydrovac = !!(job && typeof isHydrovacJob === "function" && isHydrovacJob(job, blueprint));
+  const hydrovacCloseout = hydrovac ? (readiness?.hydrovacCloseout || hydrovacJobCloseoutState(job, order)) : null;
+  if (hydrovac && fieldStatus === "completed" && hydrovacCloseout?.hasLoadSignals) {
+    const packetGapCount = Number(hydrovacCloseout.packetGapCount || 0);
+    const invoicePendingCount = Number(hydrovacCloseout.invoicePending?.length || 0);
+    const orderBalanceCents = Number(hydrovacCloseout.orderBalanceCents || amountDueCents || 0);
+    return {
+      title: hydrovacCloseout.clean
+        ? "Hydrovac closeout is clean and ready to stay closed"
+        : "Field work is done. Finish the hydrovac closeout before it leaves the office",
+      description: hydrovacCloseout.clean
+        ? "The manifest set, customer-facing records, audit handoff, and money follow-through are attached to this same job, so the office can leave it closed with confidence."
+        : hydrovacCloseout.openLoads > 0
+          ? "The crew is done, but hauled loads still need confirmation and office closeout. Keep the manifest, records, audit handoff, and billing chain on this job until the packet is clean."
+          : packetGapCount > 0
+            ? "The disposal record is in place, but the office handoff is not. Finish the customer records and audit packet while the load history is still fresh."
+            : invoicePendingCount > 0 || orderBalanceCents > 0
+              ? "The load records are ready, but the money chain is not. Draft the hydrovac invoice and clear the balance before this closeout disappears into the backlog."
+              : "Keep the hydrovac packet tied to this job so dispatch, compliance, and money stay on the same source record.",
+      chips: [
+        `${hydrovacCloseout.manifests.length} load${hydrovacCloseout.manifests.length === 1 ? "" : "s"} tracked`,
+        hydrovacCloseout.openLoads > 0
+          ? `${hydrovacCloseout.openLoads} open load${hydrovacCloseout.openLoads === 1 ? "" : "s"}`
+          : "Loads confirmed",
+        packetGapCount > 0
+          ? `${packetGapCount} packet gap${packetGapCount === 1 ? "" : "s"}`
+          : "Packet ready",
+        invoicePendingCount > 0
+          ? `${invoicePendingCount} waiting on invoice`
+          : orderBalanceCents > 0
+            ? `${formatUsd(orderBalanceCents)} still open`
+            : "Money chain ready",
+      ],
+      items: jobCloseoutChecklistItems(job, order, linkedCustomer, blueprint, amountDueCents, readiness),
+    };
+  }
   if (readiness?.blockers?.length) {
     return {
       title: "Clear the blockers before closeout",
@@ -630,6 +964,46 @@ function buildJobCompletionActions(job, order, linkedCustomer = null, amountDueC
   const fieldStatus = normalizeWorkflowStatusValue(job?.status || "scheduled");
   if (fieldStatus !== "completed") return [];
   const reviewEmail = String(order?.customer_email || order?.email || "").trim();
+  const hydrovac = !!(job && typeof isHydrovacJob === "function" && isHydrovacJob(job, blueprint));
+  const hydrovacCloseout = hydrovac ? hydrovacJobCloseoutState(job, order) : null;
+
+  if (hydrovacCloseout?.hasLoadSignals && !hydrovacCloseout.clean) {
+    const actions = [];
+    if (hydrovacCloseout.customerRecordsPending.length) {
+      actions.push({
+        label: "Prepare customer records",
+        action: "prepare-customer-records",
+        className: "btn btn-primary btn-sm",
+      });
+    }
+    if (hydrovacCloseout.auditPacketPending.length) {
+      actions.push({
+        label: "Prepare audit handoff",
+        action: "prepare-audit-handoff",
+        className: actions.length ? "btn btn-ghost btn-sm" : "btn btn-primary btn-sm",
+      });
+    }
+    if (hydrovacCloseout.invoicePending.length && order?.id) {
+      actions.push({
+        label: "Draft hydrovac invoice",
+        action: "draft-hydrovac-invoice",
+        className: "btn btn-ghost btn-sm",
+      });
+    }
+    if (hydrovacCloseout.moneyFollowThroughOpen) {
+      actions.push({
+        label: "Open money",
+        action: "open-money",
+        className: "btn btn-ghost btn-sm",
+      });
+    }
+    actions.push({
+      label: "Open hydrovac ops",
+      action: "open-hydrovac-ops",
+      className: "btn btn-ghost btn-sm",
+    });
+    return actions;
+  }
 
   const actions = [];
   if (order?.id && reviewEmail && !order?.review_requested_at) {
@@ -720,6 +1094,7 @@ async function renderJobDetail(jobIdValue) {
   const hvBreakdown = hvRev !== null ? hydrovacRevenueBreakdownHtml(job) : null;
   const hydrovacState = isHydrovacJob(job) ? hydrovacJobDetailState(job.id) : null;
   const readiness = buildJobReadinessSummary(job, order, linkedCustomer, hydrovacState, blueprint);
+  const hydrovacCloseout = isHydrovacJob(job) ? (readiness?.hydrovacCloseout || hydrovacJobCloseoutState(job, order, hydrovacState)) : null;
   const fieldActualMins = job.actual_start_at && job.actual_end_at
     ? Math.round((new Date(job.actual_end_at) - new Date(job.actual_start_at)) / 60000)
     : null;
@@ -736,12 +1111,16 @@ async function renderJobDetail(jobIdValue) {
   ].filter(Boolean);
   const jobActionButtons = [
     order ? { label: "Open booked work", className: "btn btn-primary", data: { "job-quick-action": "open-order" } } : null,
+    isHydrovacJob(job) ? { label: "Open dispatch", className: "btn btn-ghost", data: { "job-quick-action": "open-dispatch" } } : null,
     { label: linkedCustomer ? "Open customer" : "Open customers", className: "btn btn-ghost", data: { "job-quick-action": "open-customer" } },
     { label: "Record payment", className: "btn btn-ghost", data: { "job-quick-action": "record-payment" }, disabled: !order },
     { label: "Log job cost", className: "btn btn-ghost", data: { "job-quick-action": "log-cost" } },
   ].filter(Boolean);
   jobDetailWrap.innerHTML = `
-    ${renderRecordHeroCard({
+    <div class="workspace-command-center ${isHydrovacJob(job) ? "workspace-command-center--hydrovac" : ""}">
+      <div class="workspace-command-center__top">
+        <div class="workspace-command-center__hero">
+          ${renderRecordHeroCard({
       eyebrow: "Execution record",
       title: job.title || "Job",
       badges: [
@@ -758,14 +1137,35 @@ async function renderJobDetail(jobIdValue) {
       description: linkedLead
         ? `This job is already tied back to ${linkedLead.contact_name || linkedLead.title || "the original request"}, so field execution, customer context, and money stay in one chain.`
         : "Use this job record to keep field execution, proof, and money state attached to the same piece of work.",
-      summary: [
-        { label: "Revenue", value: formatUsd(revenueCents), note: "Current job revenue" },
-        { label: "Tracked cost", value: formatUsd(costCents), note: trackedExpenses.length ? `${trackedExpenses.length} linked cost item${trackedExpenses.length === 1 ? "" : "s"}` : "No cost logged yet" },
-        { label: "Gross profit", value: formatUsd(grossProfitCents), note: "Revenue minus tracked cost", tone: grossProfitToneClass(grossProfitCents) },
-        { label: "Due now", value: formatUsd(Number(job.amount_due_cents || orderAmountDueCents(order) || 0)), note: formatWorkflowPaymentState(job.payment_state || orderPaymentState(order)), tone: paymentStateClass(job.payment_state || orderPaymentState(order)) },
-      ],
-    })}
-    ${renderRecordActionRail({
+        summary: [
+          { label: "Revenue", value: formatUsd(revenueCents), note: "Current job revenue" },
+          { label: "Tracked cost", value: formatUsd(costCents), note: trackedExpenses.length ? `${trackedExpenses.length} linked cost item${trackedExpenses.length === 1 ? "" : "s"}` : "No cost logged yet" },
+          { label: "Gross profit", value: formatUsd(grossProfitCents), note: "Revenue minus tracked cost", tone: grossProfitToneClass(grossProfitCents) },
+          { label: "Due now", value: formatUsd(Number(job.amount_due_cents || orderAmountDueCents(order) || 0)), note: formatWorkflowPaymentState(job.payment_state || orderPaymentState(order)), tone: paymentStateClass(job.payment_state || orderPaymentState(order)) },
+        ],
+        actionsHtml: renderJobExecutionSignalBand({
+          job,
+          order,
+          readiness,
+          hydrovacState,
+          amountDueCents: fieldDueNow,
+        }),
+      })}
+        </div>
+        <div class="workspace-command-center__sidebar">
+          ${renderJobExecutionFocusCard({
+            job,
+            order,
+            linkedCustomer,
+            readiness,
+            depositStatus,
+            amountDueCents: fieldDueNow,
+            actions: jobActionButtons,
+          })}
+        </div>
+      </div>
+      <div class="workspace-command-center__main">
+      ${renderRecordActionRail({
       eyebrow: "Quick actions",
       title: "Keep field work and follow-through together",
       description: order
@@ -894,6 +1294,8 @@ async function renderJobDetail(jobIdValue) {
           </div>
         </div>`;
     })()}
+      </div>
+    </div>
   `;
   jobDetailWrap.querySelectorAll('[data-job-cost-action="log"]').forEach((button) => {
     button.addEventListener("click", () => openExpenseForJob(job));
@@ -974,6 +1376,118 @@ async function renderJobDetail(jobIdValue) {
     if (Object.prototype.hasOwnProperty.call(patch, "actual_end_at")) job.actual_end_at = patch.actual_end_at;
     if (Object.prototype.hasOwnProperty.call(patch, "check_in_lat")) job.check_in_lat = patch.check_in_lat;
     if (Object.prototype.hasOwnProperty.call(patch, "check_in_lng")) job.check_in_lng = patch.check_in_lng;
+  };
+  const openMoneyFollowThrough = () => {
+    ACTIVE_JOB_ID = job.id;
+    if (order?.id) {
+      ACTIVE_ORDER_ID = order.id;
+      clearPaymentForm({
+        customerId: job.customer_id || order.customer_id || "",
+        orderId: order.id,
+        amount: money(Number(job.amount_due_cents || orderAmountDueCents(order) || 0)),
+      });
+      renderPayments();
+    }
+    switchTab("payments");
+  };
+  const openHydrovacOpsCloseout = (manifest = hydrovacCloseout?.primaryManifest || hydrovacCloseout?.primaryRecordsManifest || hydrovacCloseout?.primaryInvoiceManifest) => {
+    if (manifest?.id) ACTIVE_MANIFEST_ID = manifest.id;
+    switchTab("manifests");
+  };
+  const prepareHydrovacCustomerRecords = async (manifest = hydrovacCloseout?.primaryRecordsManifest) => {
+    if (!manifest) {
+      setInlineMessage(jobMsg, "No manifest is ready for customer records yet.", "error");
+      return;
+    }
+    const coreUtils = window.PROOFLINK_OPERATOR_UTILS || {};
+    if (typeof hydrovacManifestCustomerRecordsDraft !== "function") {
+      setInlineMessage(jobMsg, "Customer-record tools are not ready yet.", "error");
+      return;
+    }
+    const draft = hydrovacManifestCustomerRecordsDraft(manifest, job, order, linkedCustomer);
+    if (typeof coreUtils.openManualEmailPrep === "function") {
+      const prepared = await coreUtils.openManualEmailPrep({
+        title: "Customer records email",
+        recipientName: linkedCustomer?.name || order?.customer_name || "Customer",
+        recipientEmail: linkedCustomer?.email || order?.customer_email || order?.email || "",
+        contextLabel: "Hydrovac load records",
+        reason: "Review this records email before you send it. ProofLink prepares the record, but the office still decides when it goes out.",
+        subject: draft.subject,
+        message: draft.body,
+        confirmText: "Mark records ready",
+        cancelText: "Keep for later",
+      });
+      if (!prepared?.confirmed) return;
+    } else if (typeof coreUtils.showCopyModal === "function") {
+      await coreUtils.showCopyModal("Prepare this customer-records email, then send it manually when you are ready.", `${draft.subject}\n\n${draft.body}`, "Done");
+    } else {
+      setInlineMessage(jobMsg, "Customer-record tools are not ready yet.", "error");
+      return;
+    }
+    setInlineMessage(jobMsg, "Marking customer records ready...");
+    await requestOperatorFunction("manage-waste-manifests", {
+      method: "PATCH",
+      body: { id: manifest.id, customer_records_prepared_at: new Date().toISOString() },
+    });
+    await Promise.all([
+      fetchJobHydrovacDetails(job.id, { force: true }).catch(() => null),
+      fetchJobs().catch(() => null),
+    ]);
+    await renderJobDetail(job.id);
+    setInlineMessage(jobMsg, "Customer records marked ready.", "good");
+  };
+  const prepareHydrovacAuditHandoff = async (manifest = hydrovacCloseout?.primaryAuditManifest) => {
+    if (!manifest) {
+      setInlineMessage(jobMsg, "No manifest is ready for audit handoff yet.", "error");
+      return;
+    }
+    const coreUtils = window.PROOFLINK_OPERATOR_UTILS || {};
+    if (typeof hydrovacManifestAuditPacket !== "function") {
+      setInlineMessage(jobMsg, "Audit-packet tools are not ready yet.", "error");
+      return;
+    }
+    const packet = hydrovacManifestAuditPacket(manifest, job, order, linkedCustomer);
+    if (typeof coreUtils.openManualEmailPrep === "function") {
+      const prepared = await coreUtils.openManualEmailPrep({
+        title: "Audit handoff",
+        recipientName: "Auditor or records contact",
+        recipientEmail: "",
+        contextLabel: "Hydrovac compliance packet",
+        reason: "Review this audit handoff before you send it. ProofLink prepares the packet, but audit communication stays manual.",
+        subject: `${manifest.manifest_number || manifest.id || "Manifest"} audit packet`,
+        message: packet,
+        confirmText: "Mark packet ready",
+        cancelText: "Keep for later",
+      });
+      if (!prepared?.confirmed) return;
+    } else if (typeof coreUtils.showCopyModal === "function") {
+      await coreUtils.showCopyModal("Copy this audit packet into the packet, email, or binder you keep for compliance records.", packet, "Done");
+    } else {
+      setInlineMessage(jobMsg, "Audit-packet tools are not ready yet.", "error");
+      return;
+    }
+    setInlineMessage(jobMsg, "Marking audit handoff ready...");
+    await requestOperatorFunction("manage-waste-manifests", {
+      method: "PATCH",
+      body: { id: manifest.id, audit_packet_prepared_at: new Date().toISOString() },
+    });
+    await Promise.all([
+      fetchJobHydrovacDetails(job.id, { force: true }).catch(() => null),
+      fetchJobs().catch(() => null),
+    ]);
+    await renderJobDetail(job.id);
+    setInlineMessage(jobMsg, "Audit handoff marked ready.", "good");
+  };
+  const draftHydrovacInvoice = async () => {
+    setInlineMessage(jobMsg, "Drafting hydrovac invoice...");
+    await postOperatorFunction("generate-hydrovac-invoice", { job_id: job.id });
+    await Promise.all([
+      fetchCrmOrders(),
+      fetchJobs(),
+      fetchJobHydrovacDetails(job.id, { force: true }).catch(() => null),
+    ]);
+    await renderJobDetail(job.id);
+    setInlineMessage(jobMsg, "Hydrovac invoice draft created on the linked order.", "good");
   };
   jobDetailWrap.querySelector('#btnJobSaveFieldNote')?.addEventListener("click", async () => {
     const msgEl = jobDetailWrap.querySelector('#jobFieldUpdateMsg');
@@ -1072,17 +1586,14 @@ async function renderJobDetail(jobIdValue) {
         switchTab("customers");
         return;
       }
+      if (action === "open-dispatch") {
+        ACTIVE_DISPATCH_JOB_ID = job.id;
+        if (dispatchDate && job.scheduled_date) dispatchDate.value = job.scheduled_date;
+        switchTab("dispatch");
+        return;
+      }
       if (action === "record-payment") {
-        if (!order?.id) return;
-        ACTIVE_ORDER_ID = order.id;
-        ACTIVE_JOB_ID = job.id;
-        clearPaymentForm({
-          customerId: job.customer_id || order.customer_id || "",
-          orderId: order.id,
-          amount: money(Number(job.amount_due_cents || orderAmountDueCents(order) || 0)),
-        });
-        renderPayments();
-        switchTab("payments");
+        openMoneyFollowThrough();
         return;
       }
       if (action === "log-cost") {
@@ -1094,6 +1605,30 @@ async function renderJobDetail(jobIdValue) {
     button.addEventListener("click", async () => {
       const action = button.getAttribute("data-job-reactivation-action") || "";
       const msgEl = jobDetailWrap.querySelector("#jobFieldUpdateMsg");
+      if (action === "prepare-customer-records") {
+        await prepareHydrovacCustomerRecords();
+        return;
+      }
+      if (action === "prepare-audit-handoff") {
+        await prepareHydrovacAuditHandoff();
+        return;
+      }
+      if (action === "draft-hydrovac-invoice") {
+        try {
+          await draftHydrovacInvoice();
+        } catch (error) {
+          setInlineMessage(msgEl, error?.message || "Failed to draft hydrovac invoice.", "error");
+        }
+        return;
+      }
+      if (action === "open-money") {
+        openMoneyFollowThrough();
+        return;
+      }
+      if (action === "open-hydrovac-ops") {
+        openHydrovacOpsCloseout();
+        return;
+      }
       if (action === "request-review") {
         if (!order?.id) return;
         try {
@@ -1307,13 +1842,11 @@ async function renderJobDetail(jobIdValue) {
         const manifestId = button.getAttribute("data-hv-customer-records") || "";
         const manifest = (hydrovacState?.manifests || []).find((row) => row.id === manifestId);
         if (!manifest) return;
-        const coreUtils = window.PROOFLINK_OPERATOR_UTILS || {};
-        if (typeof hydrovacManifestCustomerRecordsDraft !== "function" || typeof coreUtils.showCopyModal !== "function") {
-          setInlineMessage(jobMsg, "Customer-record tools are not ready yet.", "error");
-          return;
+        try {
+          await prepareHydrovacCustomerRecords(manifest);
+        } catch (error) {
+          setInlineMessage(jobMsg, error?.message || "Failed to prepare customer records.", "error");
         }
-        const draft = hydrovacManifestCustomerRecordsDraft(manifest, job, order, linkedCustomer);
-        await coreUtils.showCopyModal("Prepare this customer-records email, then send it manually when you are ready.", `${draft.subject}\n\n${draft.body}`, "Done");
       });
     });
     jobDetailWrap.querySelectorAll('[data-hv-audit-summary]').forEach((button) => {
@@ -1331,10 +1864,7 @@ async function renderJobDetail(jobIdValue) {
     });
     jobDetailWrap.querySelector('[data-hv-action="invoice"]')?.addEventListener("click", async () => {
       try {
-        setInlineMessage(jobMsg, "Drafting hydrovac invoice...");
-        await postOperatorFunction("generate-hydrovac-invoice", { job_id: job.id });
-        await Promise.all([fetchCrmOrders(), fetchJobs()]);
-        setInlineMessage(jobMsg, "Hydrovac invoice draft created on the linked order.", "good");
+        await draftHydrovacInvoice();
       } catch (error) {
         setInlineMessage(jobMsg, error?.message || "Failed to draft hydrovac invoice.", "error");
       }
@@ -1406,6 +1936,7 @@ function renderJobs(filter = "") {
 
 const JOBS_WORKSPACE_HELPERS = {
   buildJobReadinessSummary,
+  hydrovacJobCloseoutState,
   buildJobCloseoutGuidance,
   buildJobCompletionActions,
   buildJobReactivationActions,

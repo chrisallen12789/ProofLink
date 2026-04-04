@@ -105,6 +105,9 @@ describe("operator jobs workspace", () => {
     expect(source).toContain("Closeout check");
     expect(source).toContain("Run closeout review");
     expect(source).toContain("Site packet review");
+    expect(source).toContain("workspace-command-center");
+    expect(source).toContain("Execution focus");
+    expect(source).toContain("Open dispatch");
     expect(source).not.toContain("Run closeout coach");
     expect(source).not.toContain("Field Closeout Coach");
   });
@@ -207,6 +210,88 @@ describe("operator jobs workspace", () => {
     expect(summary.nextStep).toContain("Link a customer");
   });
 
+  test("buildJobCloseoutGuidance keeps hydrovac records, audit, and invoice handoff attached to the completed job", () => {
+    const job = {
+      id: "job_hv_2",
+      status: "completed",
+      job_type: "hydrovac_excavation",
+      notes: "Crew finished the vault cleanout and hauled one load.",
+    };
+    const hydrovacState = {
+      manifests: [
+        {
+          id: "manifest_hv_2",
+          manifest_number: "MAN-88",
+          status: "confirmed",
+          disposal_facility_name: "North Transfer",
+          disposal_ticket_number: "DT-44",
+          quantity_actual: 1800,
+          invoiced: false,
+          metadata: {
+            bol_number: "BOL-44",
+          },
+        },
+      ],
+    };
+    const { context } = loadJobsWorkspace({
+      isHydrovacJob: vi.fn(() => true),
+      currentWorkspaceBlueprint: vi.fn(() => ({
+        business: {
+          key: "hydrovac",
+          label: "Hydrovac",
+          recordFocus: ["Locate coverage", "Manifest closeout", "Billing handoff"],
+        },
+      })),
+      hydrovacJobManifestSnapshot: vi.fn(() => ({
+        openLoads: 0,
+        confirmedUnbilled: 1,
+        manifests: hydrovacState.manifests,
+      })),
+      normalizeWorkflowStatusValue: vi.fn((value) => value),
+      orderAmountDueCents: vi.fn(() => 4500),
+      formatUsd: vi.fn((value) => `$${value}`),
+    });
+
+    const readiness = context.buildJobReadinessSummary(job, { id: "order_hv_2" }, null, hydrovacState, {
+      business: { key: "hydrovac" },
+    });
+    const guidance = context.buildJobCloseoutGuidance(
+      job,
+      { id: "order_hv_2" },
+      readiness,
+      4500,
+      null,
+      { business: { key: "hydrovac" } }
+    );
+
+    expect(guidance.title).toContain("hydrovac closeout");
+    expect(guidance.description).toContain("audit");
+    expect(guidance.chips).toEqual(expect.arrayContaining([
+      "1 load tracked",
+      "2 packet gaps",
+      "1 waiting on invoice",
+    ]));
+    expect(guidance.items.map((item) => item.label)).toEqual([
+      "Field note saved",
+      "Load records confirmed",
+      "Customer records ready",
+      "Audit packet ready",
+      "Billing handoff",
+    ]);
+    expect(guidance.items.find((item) => item.label === "Customer records ready")).toMatchObject({
+      ready: false,
+      note: "Prepare the customer-records email for MAN-88 before the file leaves the office.",
+    });
+    expect(guidance.items.find((item) => item.label === "Audit packet ready")).toMatchObject({
+      ready: false,
+      note: "Prepare the audit handoff for MAN-88 before records or compliance archive this job.",
+    });
+    expect(guidance.items.find((item) => item.label === "Billing handoff")).toMatchObject({
+      ready: false,
+      note: "Draft the hydrovac invoice for MAN-88 and keep the money chain attached to this job.",
+    });
+  });
+
   test("buildJobCloseoutGuidance keeps payment follow-through visible after field work is done", () => {
     const { context } = loadJobsWorkspace({
       window: {
@@ -307,6 +392,55 @@ describe("operator jobs workspace", () => {
     ]);
   });
 
+  test("buildJobCompletionActions prioritizes hydrovac office handoff when closeout is not clean", () => {
+    const { context } = loadJobsWorkspace({
+      isHydrovacJob: vi.fn(() => true),
+      currentWorkspaceBlueprint: vi.fn(() => ({
+        business: {
+          key: "hydrovac",
+          label: "Hydrovac",
+          recordFocus: [],
+        },
+      })),
+      hydrovacJobManifestSnapshot: vi.fn(() => ({
+        openLoads: 0,
+        confirmedUnbilled: 1,
+        manifests: [
+          {
+            id: "manifest_hv_3",
+            manifest_number: "MAN-99",
+            status: "confirmed",
+            invoiced: false,
+            disposal_facility_name: "North Transfer",
+            disposal_ticket_number: "DT-91",
+            quantity_actual: 1200,
+            metadata: {
+              bol_number: "BOL-91",
+            },
+          },
+        ],
+      })),
+      normalizeWorkflowStatusValue: vi.fn((value) => value),
+      orderAmountDueCents: vi.fn(() => 9900),
+    });
+
+    const actions = context.buildJobCompletionActions(
+      { id: "job_hv_3", status: "completed", job_type: "hydrovac_excavation" },
+      { id: "order_hv_3", customer_email: "ops@example.com" },
+      null,
+      9900,
+      { business: { key: "hydrovac" } }
+    );
+
+    expect(actions.map((action) => action.label)).toEqual([
+      "Prepare customer records",
+      "Prepare audit handoff",
+      "Draft hydrovac invoice",
+      "Open money",
+      "Open hydrovac ops",
+    ]);
+  });
+
   test("buildJobCompletionActions can generate the next booked work when a recurring plan is due", () => {
     const { context } = loadJobsWorkspace({
       currentWorkspaceBlueprint: vi.fn(() => ({
@@ -378,6 +512,10 @@ describe("operator jobs workspace", () => {
     expect(source).toContain("jobCloseoutChecklistItems");
     expect(source).toContain("buildJobCompletionActions");
     expect(source).toContain("buildJobReactivationActions");
+    expect(source).toContain("Prepare customer records");
+    expect(source).toContain("Prepare audit handoff");
+    expect(source).toContain("Draft hydrovac invoice");
+    expect(source).toContain("Open hydrovac ops");
     expect(source).toContain("data-job-reactivation-action");
     expect(source).toContain("request-review");
     expect(source).toContain("generate-next-order");

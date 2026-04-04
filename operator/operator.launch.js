@@ -354,19 +354,22 @@
     $('helpDrawer')?.classList.add('hidden');
   }
 
-  window.switchTab = function switchTabEnhanced(tab, opts = {}) {
+  function navigateOperatorTab(tab, opts = {}) {
+    if (typeof window.switchTab === 'function') {
+      return window.switchTab(tab, opts);
+    }
     const nextTab = typeof normalizePanel === 'function' ? normalizePanel(tab) : String(tab || 'dashboard');
     document.querySelectorAll('.tab').forEach((b) => b.classList.toggle('active', b.dataset.tab === nextTab));
     document.querySelectorAll('.panel').forEach((p) => p.classList.toggle('hidden', p.dataset.panel !== nextTab));
-    if (nextTab === 'money') renderMoney().catch(console.error);
-    if (nextTab === 'dashboard') renderDashboard();
-    if (nextTab === 'orders') renderOrders();
-    if (nextTab === 'customers') renderCustomersList($('customerSearch')?.value || '');
-    if (nextTab === 'payments') renderPayments();
-    if (nextTab === 'domains') renderDomains();
-    if (nextTab === 'guidance') renderGuidance();
+    if (nextTab === 'money') renderMoney?.().catch(console.error);
+    if (nextTab === 'dashboard') renderDashboard?.();
+    if (nextTab === 'orders') renderOrders?.();
+    if (nextTab === 'customers') renderCustomersList?.($('customerSearch')?.value || '');
+    if (nextTab === 'payments') renderPayments?.();
+    if (nextTab === 'domains') renderDomains?.();
+    if (nextTab === 'guidance') renderGuidance?.();
     if (opts.updateHash !== false && typeof syncPanelHash === 'function') syncPanelHash(nextTab);
-  };
+  }
 
   function bindLaunchUi() {
     document.querySelectorAll('[data-help-topic]').forEach((btn) => {
@@ -408,7 +411,7 @@
     }
 
     if (!message) return;
-    switchTab('payments');
+    navigateOperatorTab('payments');
     setPaymentMsg(message, bad);
     params.delete('billing');
     params.delete('connect');

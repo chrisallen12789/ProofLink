@@ -9,6 +9,7 @@
 'use strict';
 
 const { requireOperatorContext, getAdminClient, respond } = require('./utils/auth');
+const { extractHydrovacCompletionHandoff } = require('./lib/hydrovac-closeout');
 
 function compactText(value, max = 240) {
   const text = String(value || '').trim();
@@ -39,6 +40,15 @@ function summarizeRecentWork(row = {}) {
     completed_at: compactText(row?.completed_at, 60),
     notes: compactText(row?.notes || row?.completion_note || row?.crew_notes || '', 220),
   };
+}
+
+function memberRoleTitle(role = '') {
+  const normalized = String(role || '').trim().toLowerCase();
+  if (normalized === 'owner') return 'Owner';
+  if (normalized === 'manager') return 'Manager';
+  if (normalized === 'admin') return 'Admin';
+  if (normalized === 'viewer') return 'Viewer';
+  return 'Crew Member';
 }
 
 function buildCrewSitePacket(job, location, recentJobs = [], currentPhotos = []) {
@@ -72,7 +82,7 @@ exports.handler = async (event) => {
   // Resolve the operator_members record for this user
   const { data: member, error: memberErr } = await adminSb
     .from('operator_members')
-    .select('id, display_name, email, role, role_title')
+    .select('operator_id, user_id, role, role_title, operators!operator_id(id, name, email, role)')
     .eq('user_id', user.id)
     .eq('tenant_id', tenantId)
     .maybeSingle();
@@ -92,12 +102,16 @@ exports.handler = async (event) => {
     .select(`
       *,
       customers ( * ),
-      orders ( * )
+      orders!jobs_order_id_fkey ( * )
     `)
     .eq('tenant_id', tenantId);
 
   // Assignment filter: jobs may reference operator_members.id, operators.id, or user.id depending on age of data.
-  query = query.or(`assigned_member_id.eq.${member.id},assigned_operator_id.eq.${member.id},assigned_operator_id.eq.${user.id}`);
+  const assignmentKeys = [
+    member.operator_id,
+    user.id,
+  ].map((value) => String(value || '').trim()).filter(Boolean);
+  query = query.or(assignmentKeys.map((value) => `assigned_member_id.eq.${value},assigned_operator_id.eq.${value}`).join(','));
 
   // Status filter
   if (params.status) {
@@ -131,6 +145,9 @@ exports.handler = async (event) => {
 
   // Fetch photos for all returned jobs
   let photos = [];
+  let manifests = [];
+  let locateTickets = [];
+  let permits = [];
   if (jobList.length > 0) {
     const jobIds = jobList.map((j) => j.id);
     const { data: photoData, error: photoErr } = await adminSb
@@ -145,6 +162,39 @@ exports.handler = async (event) => {
     } else {
       photos = photoData || [];
     }
+
+    const { data: manifestData, error: manifestErr } = await adminSb
+      .from('waste_manifests')
+      .select('id, job_id, manifest_number, status, metadata, quantity_actual, quantity_estimated')
+      .eq('tenant_id', tenantId)
+      .in('job_id', jobIds);
+    if (manifestErr) {
+      console.error('[get-crew-jobs] manifest fetch error:', manifestErr);
+    } else {
+      manifests = manifestData || [];
+    }
+
+    const { data: locateData, error: locateErr } = await adminSb
+      .from('utility_locate_tickets')
+      .select('id, job_id, ticket_number, status, valid_until, extended_until, verified_on_site')
+      .eq('tenant_id', tenantId)
+      .in('job_id', jobIds);
+    if (locateErr) {
+      console.error('[get-crew-jobs] locate fetch error:', locateErr);
+    } else {
+      locateTickets = locateData || [];
+    }
+
+    const { data: permitData, error: permitErr } = await adminSb
+      .from('confined_space_permits')
+      .select('id, job_id, permit_number, status, permit_valid_until')
+      .eq('tenant_id', tenantId)
+      .in('job_id', jobIds);
+    if (permitErr) {
+      console.error('[get-crew-jobs] permit fetch error:', permitErr);
+    } else {
+      permits = permitData || [];
+    }
   }
 
   // Attach photos to each job
@@ -152,6 +202,21 @@ exports.handler = async (event) => {
   for (const p of photos) {
     if (!photosByJob[p.job_id]) photosByJob[p.job_id] = [];
     photosByJob[p.job_id].push(p);
+  }
+  const manifestsByJob = {};
+  for (const row of manifests) {
+    if (!manifestsByJob[row.job_id]) manifestsByJob[row.job_id] = [];
+    manifestsByJob[row.job_id].push(row);
+  }
+  const locatesByJob = {};
+  for (const row of locateTickets) {
+    if (!locatesByJob[row.job_id]) locatesByJob[row.job_id] = [];
+    locatesByJob[row.job_id].push(row);
+  }
+  const permitsByJob = {};
+  for (const row of permits) {
+    if (!permitsByJob[row.job_id]) permitsByJob[row.job_id] = [];
+    permitsByJob[row.job_id].push(row);
   }
 
   let customerLocations = [];
@@ -173,7 +238,7 @@ exports.handler = async (event) => {
   if (customerIds.length) {
     const { data, error } = await adminSb
       .from('jobs')
-      .select('id, title, status, scheduled_date, completed_at, updated_at, service_address, notes, completion_note, crew_notes, customer_id, customer_location_id')
+      .select('id, title, status, scheduled_date, completed_at, updated_at, service_address, notes, completion_note, crew_notes, customer_id')
       .eq('tenant_id', tenantId)
       .in('customer_id', customerIds)
       .order('updated_at', { ascending: false })
@@ -188,7 +253,7 @@ exports.handler = async (event) => {
   if (locationIds.length) {
     const { data, error } = await adminSb
       .from('jobs')
-      .select('id, title, status, scheduled_date, completed_at, updated_at, service_address, notes, completion_note, crew_notes, customer_id, customer_location_id')
+      .select('id, title, status, scheduled_date, completed_at, updated_at, service_address, notes, completion_note, crew_notes, customer_id')
       .eq('tenant_id', tenantId)
       .in('customer_location_id', locationIds)
       .order('updated_at', { ascending: false })
@@ -209,6 +274,9 @@ exports.handler = async (event) => {
   const jobsWithPhotos = jobList.map((j) => ({
     ...j,
     photos: photosByJob[j.id] || [],
+    waste_manifests: manifestsByJob[j.id] || [],
+    locate_tickets: locatesByJob[j.id] || [],
+    confined_space_permits: permitsByJob[j.id] || [],
     customer_location: customerLocationById.get(j.customer_location_id) || null,
   })).map((job) => {
     const recentJobs = relatedJobs.filter((row) => {
@@ -221,6 +289,7 @@ exports.handler = async (event) => {
 
     return {
       ...job,
+      completion_handoff: extractHydrovacCompletionHandoff(job),
       site_packet: buildCrewSitePacket(
         job,
         job.customer_location,
@@ -233,10 +302,10 @@ exports.handler = async (event) => {
   return respond(200, {
     jobs: jobsWithPhotos,
     member: {
-      id: member.id,
-      name: member.display_name,
+      id: member.operator_id || member.operators?.id || null,
+      name: member.operators?.name || member.operators?.email || user.email || 'Crew Member',
       role: member.role,
-      role_title: member.role_title,
+      role_title: member.role_title || memberRoleTitle(member.role),
     },
   });
 };

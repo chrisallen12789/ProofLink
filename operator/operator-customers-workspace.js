@@ -376,7 +376,284 @@ function customerWorkbenchMetrics(customer = null) {
   };
 }
 
+function customerWorkbenchBlueprint() {
+  return typeof currentWorkspaceBlueprint === "function"
+    ? currentWorkspaceBlueprint()
+    : { business: { key: "service_business" } };
+}
+
+function customerWorkbenchIsHydrovac(blueprint = customerWorkbenchBlueprint()) {
+  return String(blueprint?.business?.key || "").trim().toLowerCase() === "hydrovac";
+}
+
+function customerWorkbenchHydrovacDateKey(value = "") {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return raw.slice(0, 10);
+  return parsed.toISOString().slice(0, 10);
+}
+
+function customerWorkbenchHydrovacDaysUntil(value = "") {
+  const raw = String(value || "").trim();
+  if (!raw) return null;
+  const target = new Date(raw);
+  if (Number.isNaN(target.getTime())) return null;
+  return Math.floor((target.getTime() - Date.now()) / 86400000);
+}
+
+function customerWorkbenchHydrovacLocateValid(ticket = null) {
+  const status = String(ticket?.status || "").trim().toLowerCase();
+  if (!["active", "extended"].includes(status)) return false;
+  const rawValidUntil = String(ticket?.extended_until || ticket?.valid_until || "").trim();
+  if (!rawValidUntil) return true;
+  const validUntil = Date.parse(rawValidUntil);
+  return Number.isFinite(validUntil) && validUntil > Date.now();
+}
+
+function customerWorkbenchHydrovacPermitValid(permit = null) {
+  const status = String(permit?.status || "").trim().toLowerCase();
+  if (status && status !== "open") return false;
+  const rawValidUntil = String(permit?.permit_valid_until || "").trim();
+  if (!rawValidUntil) return true;
+  const validUntil = Date.parse(rawValidUntil);
+  return Number.isFinite(validUntil) && validUntil > Date.now();
+}
+
+function customerWorkbenchHydrovacManifestLive(manifest = null) {
+  if (typeof hydrovacManifestIsLive === "function") return hydrovacManifestIsLive(manifest);
+  if (typeof hydrovacManifestLiveLoad === "function") return hydrovacManifestLiveLoad(manifest);
+  const metadata = manifest?.metadata && typeof manifest.metadata === "object" && !Array.isArray(manifest.metadata)
+    ? manifest.metadata
+    : {};
+  if (metadata.load_still_in_truck === true) return true;
+  const loadState = String(metadata.load_state || "").trim().toLowerCase();
+  const status = String(manifest?.status || "").trim().toLowerCase();
+  return loadState === "live_in_truck" || ["in_transit", "delivered"].includes(status);
+}
+
+function customerWorkbenchHydrovacManifestReadyBy(manifest = null) {
+  if (typeof hydrovacManifestReadyBy === "function") return hydrovacManifestReadyBy(manifest);
+  const metadata = manifest?.metadata && typeof manifest.metadata === "object" && !Array.isArray(manifest.metadata)
+    ? manifest.metadata
+    : {};
+  return String(metadata.disposal_ready_by || "").trim();
+}
+
+function customerHydrovacWorkbenchSnapshot(customer = null, metrics = customerWorkbenchMetrics(customer), blueprint = customerWorkbenchBlueprint()) {
+  if (!customer?.id || !customerWorkbenchIsHydrovac(blueprint)) {
+    return {
+      jobs: [],
+      activeJobs: [],
+      readyJobs: [],
+      blockedJobs: [],
+      locateRows: [],
+      permitRows: [],
+      manifestRows: [],
+      liveLoads: [],
+      dueLoads: [],
+      overdueLoads: [],
+      confirmedUnbilled: [],
+      expiringLocates: [],
+      expiredLocates: [],
+      expiringPermits: [],
+      expiredPermits: [],
+      activeFlags: 0,
+      siteAddresses: metrics?.addresses || [],
+      uninvoicedChargeCents: 0,
+      sharedTruckRiskCount: 0,
+    };
+  }
+
+  const customerIdValue = String(customer.id || "").trim();
+  const jobs = (JOBS_CACHE || []).filter((job) => (
+    String(job?.customer_id || "").trim() === customerIdValue
+    && (typeof isHydrovacJob === "function" ? isHydrovacJob(job, blueprint) : true)
+  ));
+  const activeJobs = jobs.filter((job) => !["completed", "cancelled", "archived"].includes(String(job?.status || "").trim().toLowerCase()));
+  const jobIds = new Set(jobs.map((job) => String(job?.id || "").trim()).filter(Boolean));
+  const locateRows = (HYDROVAC_LOCATE_TICKETS_CACHE || []).filter((ticket) => jobIds.has(String(ticket?.job_id || "").trim()));
+  const permitRows = (HYDROVAC_PERMITS_CACHE || []).filter((permit) => jobIds.has(String(permit?.job_id || "").trim()));
+  const manifestRows = (HYDROVAC_MANIFESTS_CACHE || []).filter((manifest) => (
+    String(manifest?.customer_id || "").trim() === customerIdValue
+    || jobIds.has(String(manifest?.job_id || "").trim())
+  ));
+  const expiringLocates = locateRows.filter((ticket) => {
+    const days = customerWorkbenchHydrovacDaysUntil(ticket?.extended_until || ticket?.valid_until || "");
+    return days != null && days >= 0 && days <= 3;
+  });
+  const expiredLocates = locateRows.filter((ticket) => {
+    const days = customerWorkbenchHydrovacDaysUntil(ticket?.extended_until || ticket?.valid_until || "");
+    return days != null && days < 0;
+  });
+  const expiringPermits = permitRows.filter((permit) => {
+    if (String(permit?.status || "").trim().toLowerCase() !== "open") return false;
+    const days = customerWorkbenchHydrovacDaysUntil(permit?.permit_valid_until || "");
+    return days != null && days >= 0 && days <= 3;
+  });
+  const expiredPermits = permitRows.filter((permit) => {
+    if (String(permit?.status || "").trim().toLowerCase() !== "open") return false;
+    const days = customerWorkbenchHydrovacDaysUntil(permit?.permit_valid_until || "");
+    return days != null && days < 0;
+  });
+  const readyJobs = [];
+  const blockedJobs = [];
+
+  activeJobs.forEach((job) => {
+    const reasons = [];
+    const jobLocates = locateRows.filter((ticket) => String(ticket?.job_id || "").trim() === String(job?.id || "").trim());
+    const jobPermits = permitRows.filter((permit) => String(permit?.job_id || "").trim() === String(job?.id || "").trim());
+    const hasValidLocate = jobLocates.some((ticket) => customerWorkbenchHydrovacLocateValid(ticket));
+    const hasValidPermit = jobPermits.some((permit) => customerWorkbenchHydrovacPermitValid(permit));
+    if (!String(job?.assigned_truck_id || "").trim()) reasons.push("Truck missing");
+    if (!String(job?.assigned_member_id || "").trim()) reasons.push("Crew missing");
+    if (typeof hydrovacJobNeedsLocate === "function" && hydrovacJobNeedsLocate(job) && !hasValidLocate) reasons.push("Locate not ready");
+    if (typeof hydrovacJobNeedsPermit === "function" && hydrovacJobNeedsPermit(job) && !hasValidPermit) reasons.push("Permit not ready");
+    if (reasons.length) {
+      blockedJobs.push({ job, reasons });
+      return;
+    }
+    readyJobs.push(job);
+  });
+
+  const liveLoads = manifestRows.filter((manifest) => customerWorkbenchHydrovacManifestLive(manifest));
+  const todayKey = new Date().toISOString().slice(0, 10);
+  const dueLoads = liveLoads.filter((manifest) => customerWorkbenchHydrovacManifestReadyBy(manifest) === todayKey);
+  const overdueLoads = liveLoads.filter((manifest) => {
+    const readyBy = customerWorkbenchHydrovacManifestReadyBy(manifest);
+    return readyBy && customerWorkbenchHydrovacDateKey(readyBy) < todayKey;
+  });
+  const confirmedUnbilled = manifestRows.filter((manifest) => (
+    String(manifest?.status || "").trim().toLowerCase() === "confirmed"
+    && manifest?.invoiced !== true
+  ));
+  const uninvoicedChargeCents = confirmedUnbilled.reduce((sum, manifest) => sum + Number(manifest?.disposal_charge_cents || 0), 0);
+  const liveTruckIds = new Set(liveLoads.map((manifest) => String(manifest?.truck_id || "").trim()).filter(Boolean));
+  const sharedTruckRiskCount = [...liveTruckIds].filter((truckId) => (HYDROVAC_MANIFESTS_CACHE || []).some((manifest) => (
+    customerWorkbenchHydrovacManifestLive(manifest)
+    && String(manifest?.truck_id || "").trim() === truckId
+    && String(manifest?.customer_id || "").trim()
+    && String(manifest?.customer_id || "").trim() !== customerIdValue
+  ))).length;
+  const siteAddresses = Array.from(new Set([
+    ...(metrics?.addresses || []),
+    ...jobs.map((job) => String(job?.service_address || "").trim()),
+    ...locateRows.map((ticket) => String(ticket?.work_site_address || "").trim()),
+  ].filter(Boolean)));
+
+  return {
+    jobs,
+    activeJobs,
+    readyJobs,
+    blockedJobs,
+    locateRows,
+    permitRows,
+    manifestRows,
+    liveLoads,
+    dueLoads,
+    overdueLoads,
+    confirmedUnbilled,
+    expiringLocates,
+    expiredLocates,
+    expiringPermits,
+    expiredPermits,
+    activeFlags: blockedJobs.length + overdueLoads.length + dueLoads.length + confirmedUnbilled.length + expiredLocates.length + expiredPermits.length + expiringLocates.length + expiringPermits.length,
+    siteAddresses,
+    uninvoicedChargeCents,
+    sharedTruckRiskCount,
+  };
+}
+
+function customerHydrovacWorkbenchScore(customer = null, metrics = customerWorkbenchMetrics(customer), snapshot = customerHydrovacWorkbenchSnapshot(customer, metrics)) {
+  const lifetimeValue = typeof customerLifetimeValueCents === "function"
+    ? customerLifetimeValueCents(customer)
+    : Number(customer?.lifetime_value_cents || 0);
+  return (
+    (snapshot.blockedJobs.length * 1200)
+    + (snapshot.overdueLoads.length * 1000)
+    + (snapshot.expiredLocates.length * 950)
+    + (snapshot.expiredPermits.length * 950)
+    + (snapshot.dueLoads.length * 820)
+    + (snapshot.expiringLocates.length * 620)
+    + (snapshot.expiringPermits.length * 620)
+    + (snapshot.confirmedUnbilled.length * 520)
+    + (snapshot.liveLoads.length * 420)
+    + (snapshot.activeJobs.length * 180)
+    + (metrics.balance > 0 ? 120 : 0)
+    + Math.min(99, Math.round(lifetimeValue / 500000))
+  );
+}
+
 function customerWorkbenchViewCards(customers = sortedCustomers(CUSTOMERS_CACHE)) {
+  if (customerWorkbenchIsHydrovac()) {
+    const dispatchRiskCount = customers.filter((customer) => {
+      const snapshot = customerHydrovacWorkbenchSnapshot(customer);
+      return snapshot.blockedJobs.length
+        || snapshot.expiringLocates.length
+        || snapshot.expiringPermits.length
+        || snapshot.expiredLocates.length
+        || snapshot.expiredPermits.length;
+    }).length;
+    const activeJobsCount = customers.filter((customer) => customerHydrovacWorkbenchSnapshot(customer).activeJobs.length > 0).length;
+    const loadPressureCount = customers.filter((customer) => {
+      const snapshot = customerHydrovacWorkbenchSnapshot(customer);
+      return snapshot.liveLoads.length > 0 || snapshot.confirmedUnbilled.length > 0;
+    }).length;
+    const openBalanceCustomers = customers.filter((customer) => customerWorkbenchMetrics(customer).balance > 0);
+    const openBalanceTotal = openBalanceCustomers.reduce((sum, customer) => sum + customerWorkbenchMetrics(customer).balance, 0);
+    const multiSiteCount = customers.filter((customer) => customerWorkbenchMetrics(customer).siteCount > 1).length;
+    return [
+      {
+        filter: "all",
+        label: "All",
+        value: customerWorkbenchCountLabel(customers.length, "account"),
+        summary: customers.length
+          ? "Open the next municipal, plant, or contractor account without losing dispatch context."
+          : "Create the first hydrovac account to start tying work, compliance, and billing together.",
+      },
+      {
+        filter: "dispatch_risk",
+        label: "Dispatch risk",
+        value: customerWorkbenchCountLabel(dispatchRiskCount, "account"),
+        summary: dispatchRiskCount
+          ? "Truck, crew, locate, or permit issues are attached to these accounts."
+          : "No customer account is showing dispatch blockers right now.",
+      },
+      {
+        filter: "active_jobs",
+        label: "Active jobs",
+        value: customerWorkbenchCountLabel(activeJobsCount, "account"),
+        summary: activeJobsCount
+          ? "These accounts still have live hydrovac execution in motion."
+          : "No hydrovac customer account has active jobs right now.",
+      },
+      {
+        filter: "load_pressure",
+        label: "Load pressure",
+        value: customerWorkbenchCountLabel(loadPressureCount, "account"),
+        summary: loadPressureCount
+          ? "Live loads or uninvoiced disposal still need attention on these accounts."
+          : "No customer account is carrying live-load or disposal billing pressure.",
+      },
+      {
+        filter: "open_balance",
+        label: "Open balance",
+        value: openBalanceCustomers.length ? `${formatUsd(openBalanceTotal)} open` : "Nothing open",
+        summary: openBalanceCustomers.length
+          ? `${customerWorkbenchCountLabel(openBalanceCustomers.length, "account")} still need collection follow-through.`
+          : "No customer account is still waiting on money.",
+      },
+      {
+        filter: "multi_site",
+        label: "Multi-site",
+        value: customerWorkbenchCountLabel(multiSiteCount, "account"),
+        summary: multiSiteCount
+          ? "These hydrovac accounts already span more than one known site or service address."
+          : "No multi-site hydrovac accounts have been identified yet.",
+      },
+    ];
+  }
+
   const activeCount = customers.filter((customer) => customerWorkbenchMetrics(customer).activeRelationshipCount > 0).length;
   const staleCount = customers.filter((customer) => {
     const metrics = customerWorkbenchMetrics(customer);
@@ -439,6 +716,36 @@ function customerWorkbenchViewCards(customers = sortedCustomers(CUSTOMERS_CACHE)
 }
 
 function customerWorkbenchPrioritySignal(customer = null, metrics = customerWorkbenchMetrics(customer)) {
+  if (customerWorkbenchIsHydrovac()) {
+    const snapshot = customerHydrovacWorkbenchSnapshot(customer, metrics);
+    const permitRiskCount = snapshot.expiredPermits.length + snapshot.expiringPermits.length;
+    const locateRiskCount = snapshot.expiredLocates.length + snapshot.expiringLocates.length;
+    if (snapshot.blockedJobs.length) {
+      return { label: customerWorkbenchCountLabel(snapshot.blockedJobs.length, "blocked job"), toneClass: "pill-bad" };
+    }
+    if (snapshot.overdueLoads.length) {
+      return { label: customerWorkbenchCountLabel(snapshot.overdueLoads.length, "dump overdue"), toneClass: "pill-bad" };
+    }
+    if (snapshot.dueLoads.length) {
+      return { label: customerWorkbenchCountLabel(snapshot.dueLoads.length, "dump due"), toneClass: "pill-warn" };
+    }
+    if (locateRiskCount > 0) {
+      return { label: customerWorkbenchCountLabel(locateRiskCount, "locate risk"), toneClass: snapshot.expiredLocates.length ? "pill-bad" : "pill-warn" };
+    }
+    if (permitRiskCount > 0) {
+      return { label: customerWorkbenchCountLabel(permitRiskCount, "permit risk"), toneClass: snapshot.expiredPermits.length ? "pill-bad" : "pill-warn" };
+    }
+    if (snapshot.confirmedUnbilled.length) {
+      return { label: customerWorkbenchCountLabel(snapshot.confirmedUnbilled.length, "uninvoiced item"), toneClass: "pill-warn" };
+    }
+    if (snapshot.liveLoads.length) {
+      return { label: customerWorkbenchCountLabel(snapshot.liveLoads.length, "live load"), toneClass: "pill-warn" };
+    }
+    if (snapshot.activeJobs.length) {
+      return { label: customerWorkbenchCountLabel(snapshot.activeJobs.length, "active job"), toneClass: "pill-on" };
+    }
+  }
+
   if (metrics.balance > 0) {
     return { label: `${formatUsd(metrics.balance)} open`, toneClass: "pill-bad" };
   }
@@ -459,6 +766,19 @@ function customerWorkbenchPrioritySignal(customer = null, metrics = customerWork
 }
 
 function customerWorkbenchSummaryBits(customer = null, metrics = customerWorkbenchMetrics(customer)) {
+  if (customerWorkbenchIsHydrovac()) {
+    const snapshot = customerHydrovacWorkbenchSnapshot(customer, metrics);
+    const bits = [];
+    if (snapshot.activeJobs.length > 0) bits.push(customerWorkbenchCountLabel(snapshot.activeJobs.length, "active job"));
+    if (snapshot.blockedJobs.length > 0) bits.push(customerWorkbenchCountLabel(snapshot.blockedJobs.length, "dispatch blocker"));
+    if (snapshot.liveLoads.length > 0) bits.push(customerWorkbenchCountLabel(snapshot.liveLoads.length, "open load"));
+    if (snapshot.confirmedUnbilled.length > 0) bits.push(customerWorkbenchCountLabel(snapshot.confirmedUnbilled.length, "disposal item to bill"));
+    if (metrics.siteCount > 1) bits.push(customerWorkbenchCountLabel(metrics.siteCount, "site"));
+    if (!bits.length && Number(customer?.order_count || 0) > 0) bits.push(customerWorkbenchCountLabel(customer.order_count, "job-linked order"));
+    if (!bits.length) bits.push("No hydrovac work attached yet");
+    return bits.slice(0, 3);
+  }
+
   const bits = [];
   const pipelineCount = Number(metrics.openRequestsCount || 0) + Number(metrics.openProposalCount || 0);
   const activeWorkCount = Number(metrics.activeOrderCount || 0) + Number(metrics.activeJobCount || 0);
@@ -474,6 +794,7 @@ function customerWorkbenchSummaryBits(customer = null, metrics = customerWorkben
 function buildCustomerWorkbenchState(filter = "") {
   const query = String(filter || "").trim().toLowerCase();
   const filterValue = currentCustomerWorkbenchFilter();
+  const hydrovacMode = customerWorkbenchIsHydrovac();
   const ranked = sortedCustomers(CUSTOMERS_CACHE);
   const metricsMap = new Map(ranked.map((customer) => [customer.id, customerWorkbenchMetrics(customer)]));
   const topIds = new Set(
@@ -481,6 +802,7 @@ function buildCustomerWorkbenchState(filter = "") {
   );
   const rows = ranked.filter((customer) => {
     const metrics = metricsMap.get(customer.id) || customerWorkbenchMetrics(customer);
+    const hydrovacSnapshot = hydrovacMode ? customerHydrovacWorkbenchSnapshot(customer, metrics) : null;
     const haystack = [
       customer.company_name,
       customer.name,
@@ -495,12 +817,33 @@ function buildCustomerWorkbenchState(filter = "") {
     ].join(" ").toLowerCase();
     if (query && !haystack.includes(query)) return false;
 
+    if (filterValue === "dispatch_risk") {
+      return !!hydrovacSnapshot && (
+        hydrovacSnapshot.blockedJobs.length
+        || hydrovacSnapshot.expiringLocates.length
+        || hydrovacSnapshot.expiredLocates.length
+        || hydrovacSnapshot.expiringPermits.length
+        || hydrovacSnapshot.expiredPermits.length
+      );
+    }
+    if (filterValue === "active_jobs") return !!hydrovacSnapshot && hydrovacSnapshot.activeJobs.length > 0;
+    if (filterValue === "load_pressure") {
+      return !!hydrovacSnapshot && (hydrovacSnapshot.liveLoads.length > 0 || hydrovacSnapshot.confirmedUnbilled.length > 0);
+    }
     if (filterValue === "active_work") return metrics.activeRelationshipCount > 0;
     if (filterValue === "open_balance") return metrics.balance > 0;
     if (filterValue === "multi_site") return metrics.siteCount > 1;
     if (filterValue === "top_value") return topIds.has(customer.id);
     if (filterValue === "stale") return metrics.staleDays !== null && metrics.staleDays >= 30;
     return true;
+  }).sort((a, b) => {
+    if (hydrovacMode) {
+      const hydrovacDiff = customerHydrovacWorkbenchScore(b, metricsMap.get(b.id)) - customerHydrovacWorkbenchScore(a, metricsMap.get(a.id));
+      if (hydrovacDiff) return hydrovacDiff;
+    }
+    const valueDiff = customerLifetimeValueCents(b) - customerLifetimeValueCents(a);
+    if (valueDiff) return valueDiff;
+    return new Date(b?.updated_at || 0).getTime() - new Date(a?.updated_at || 0).getTime();
   });
   return { rows, metricsMap };
 }
@@ -540,11 +883,22 @@ function setCustomerWorkbenchContext(customer = null, rows = buildCustomerWorkbe
     if (customer && metrics) {
       const balanceLabel = metrics.balance > 0 ? `${formatUsd(metrics.balance)} still open` : "No balance due";
       const footprintLabel = metrics.siteCount > 1 ? `${metrics.siteCount} known sites` : "1 known site";
-      subtitleEl.textContent = `${metrics.activeRelationshipCount} active relationship items | ${balanceLabel} | ${footprintLabel}`;
+      if (customerWorkbenchIsHydrovac()) {
+        const snapshot = customerHydrovacWorkbenchSnapshot(customer, metrics);
+        const operationalFlags = snapshot.activeFlags;
+        const opsLabel = operationalFlags
+          ? `${operationalFlags} hydrovac flag${operationalFlags === 1 ? "" : "s"}`
+          : (snapshot.activeJobs.length ? `${snapshot.activeJobs.length} active hydrovac job${snapshot.activeJobs.length === 1 ? "" : "s"}` : "Hydrovac account ready");
+        subtitleEl.textContent = `${opsLabel} | ${balanceLabel} | ${footprintLabel}`;
+      } else {
+        subtitleEl.textContent = `${metrics.activeRelationshipCount} active relationship items | ${balanceLabel} | ${footprintLabel}`;
+      }
     } else if (CUSTOMER_CREATING) {
       subtitleEl.textContent = "Create the account first, then keep requests, proposals, jobs, money, and notes tied to the same record.";
     } else {
-      subtitleEl.textContent = "Select a customer to inspect requests, proposals, work, payments, and relationship history.";
+      subtitleEl.textContent = customerWorkbenchIsHydrovac()
+        ? "Select a customer to inspect dispatch readiness, load pressure, billing follow-through, and account history."
+        : "Select a customer to inspect requests, proposals, work, payments, and relationship history.";
     }
   }
   if (prevButton) prevButton.disabled = activeIndex <= 0;
@@ -645,14 +999,28 @@ function renderCustomersList(filter = "") {
 
   rows.forEach((customer) => {
     const metrics = metricsMap.get(customer.id) || customerWorkbenchMetrics(customer);
+    const hydrovacSnapshot = customerWorkbenchIsHydrovac() ? customerHydrovacWorkbenchSnapshot(customer, metrics) : null;
     const primaryAddress = typeof customerDisplayAddress === "function"
       ? customerDisplayAddress(customer)
       : [customer.address_line1, [customer.city, customer.state, customer.zip].filter(Boolean).join(" ").trim()].filter(Boolean).join(", ");
     const summaryBits = customerWorkbenchSummaryBits(customer, metrics);
-    const supportBits = [
-      metrics.lastTouchAt ? `Last touch ${formatDateTime(metrics.lastTouchAt)}` : "No touch logged yet",
-      metrics.siteCount > 1 ? customerWorkbenchCountLabel(metrics.siteCount, "known site") : (primaryAddress || "No service address yet"),
-    ];
+    const supportBits = customerWorkbenchIsHydrovac()
+      ? [
+          hydrovacSnapshot?.blockedJobs?.length
+            ? `${customerWorkbenchCountLabel(hydrovacSnapshot.blockedJobs.length, "dispatch blocker")} attached`
+            : hydrovacSnapshot?.overdueLoads?.length
+              ? `${customerWorkbenchCountLabel(hydrovacSnapshot.overdueLoads.length, "overdue dump")} still on this account`
+              : hydrovacSnapshot?.dueLoads?.length
+                ? `${customerWorkbenchCountLabel(hydrovacSnapshot.dueLoads.length, "dump due today")} on this account`
+                : hydrovacSnapshot?.liveLoads?.length
+                  ? `${customerWorkbenchCountLabel(hydrovacSnapshot.liveLoads.length, "open load")} still tied to this customer`
+                  : (metrics.lastTouchAt ? `Last touch ${formatDateTime(metrics.lastTouchAt)}` : "No touch logged yet"),
+          metrics.siteCount > 1 ? customerWorkbenchCountLabel(metrics.siteCount, "known site") : (primaryAddress || "No service address yet"),
+        ]
+      : [
+          metrics.lastTouchAt ? `Last touch ${formatDateTime(metrics.lastTouchAt)}` : "No touch logged yet",
+          metrics.siteCount > 1 ? customerWorkbenchCountLabel(metrics.siteCount, "known site") : (primaryAddress || "No service address yet"),
+        ];
     const prioritySignal = customerWorkbenchPrioritySignal(customer, metrics);
     const element = document.createElement("button");
     element.type = "button";
@@ -899,6 +1267,8 @@ const CUSTOMERS_WORKSPACE_HELPERS = {
   importBridgeOrdersToCrm,
   populateCustomerForm,
   customerWorkbenchMetrics,
+  customerHydrovacWorkbenchSnapshot,
+  customerHydrovacWorkbenchScore,
   renderCustomerWorkbenchStats,
   openCustomerRecord,
   moveCustomerWorkbenchSelection,

@@ -33,12 +33,20 @@ describe("operator bookings workspace source", () => {
 
   test("keeps the bookings list on shared list classes instead of inline layout", () => {
     expect(source).toContain('class="muted muted-small"');
-    expect(source).toContain('class="list-item list-item--top"');
-    expect(source).toContain('class="li-meta li-meta--tight"');
+    expect(source).toContain('class="list-item list-item--top booking-list-card');
+    expect(source).toContain("booking-list-card__signal-grid");
+    expect(source).toContain("renderBookingsOverview");
+    expect(source).toContain("bookingsOverviewWrap");
+    expect(source).toContain('class="booking-list-card__meta li-meta li-meta--tight"');
     expect(source).toContain("Prep for this visit");
     expect(source).toContain("Give the next stop a cleaner handoff");
     expect(source).not.toContain('style="font-size:.85rem;"');
     expect(source).not.toContain('style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;"');
     expect(source).not.toContain('style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;"');
+  });
+
+  test("refreshes the dispatch shell when the bookings workspace rerenders", () => {
+    expect(source).toContain('if (typeof renderDispatchWorkspace === "function") {');
+    expect(source).toContain("renderDispatchWorkspace();");
   });
 });

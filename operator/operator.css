@@ -1520,6 +1520,12 @@ body{
   gap:10px;
   padding: 14px 18px 0;
 }
+.hydrovac-mobile-quick-nav{
+  display:none;
+  position:relative;
+  z-index:12;
+  background:var(--bg);
+}
 .workspace-context-nav__label{
   color: var(--muted);
   font-size: 11px;
@@ -2160,6 +2166,196 @@ input:focus, textarea:focus, select:focus{
 }
 .work-command__card{
   height:100%;
+}
+.workflow-shell{
+  display:grid;
+  grid-template-columns:minmax(300px, .9fr) minmax(0, 1.32fr);
+  gap:18px;
+  align-items:start;
+}
+.workflow-shell--orders{
+  grid-template-columns:minmax(300px, .82fr) minmax(0, 1.42fr);
+}
+.workflow-shell--bids{
+  grid-template-columns:minmax(340px, .88fr) minmax(0, 1.34fr);
+}
+.workflow-shell--bookings{
+  grid-template-columns:minmax(320px, .88fr) minmax(0, 1.2fr);
+  margin-top:14px;
+}
+.workflow-shell__nav,
+.workflow-shell__detail,
+.workflow-stack{
+  min-width:0;
+  display:grid;
+  gap:18px;
+}
+.workflow-stack--tight{
+  gap:14px;
+}
+.workflow-shell__subgrid{
+  align-items:start;
+}
+.workflow-shell__card{
+  min-width:0;
+}
+.workflow-shell__card--guide{
+  background:
+    radial-gradient(circle at top left, rgba(200,75,47,.22), transparent 46%),
+    linear-gradient(145deg, rgba(14,19,27,.96), rgba(26,34,44,.88));
+  box-shadow:0 18px 34px rgba(2,6,23,.16);
+}
+.workflow-shell__card--detail .card-bd{
+  display:grid;
+  gap:16px;
+}
+.workflow-shell__signal-band{
+  grid-template-columns:repeat(2, minmax(0, 1fr));
+}
+.workflow-shell__signal-band:empty{
+  display:none;
+}
+.workflow-overview-card{
+  margin-bottom:14px;
+}
+.workspace-signal-band__item.is-good,
+.workspace-signal-band__item--good{
+  border-color:rgba(74,222,128,.25);
+  background:rgba(74,222,128,.08);
+}
+.workspace-signal-band__item.is-warn,
+.workspace-signal-band__item--warn{
+  border-color:rgba(245,158,11,.28);
+  background:rgba(245,158,11,.1);
+}
+.workspace-signal-band__item.is-danger,
+.workspace-signal-band__item--danger{
+  border-color:rgba(248,113,113,.3);
+  background:rgba(248,113,113,.1);
+}
+.booking-list{
+  display:grid;
+  gap:14px;
+}
+.booking-list-card{
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:18px;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02)),
+    rgba(255,255,255,.02);
+  padding:16px;
+  display:grid;
+  gap:14px;
+  min-width:0;
+}
+.booking-list-card--hydrovac{
+  background:
+    radial-gradient(circle at top left, rgba(200,75,47,.16), transparent 40%),
+    linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02)),
+    rgba(255,255,255,.02);
+}
+.booking-list-card__head{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:14px;
+}
+.booking-list-card__title{
+  display:grid;
+  gap:6px;
+  min-width:0;
+}
+.booking-list-card__title strong{
+  font-size:17px;
+  line-height:1.25;
+}
+.booking-list-card__meta{
+  display:flex;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+  gap:8px;
+}
+.booking-list-card__sub{
+  color:var(--muted);
+  font-size:13px;
+  line-height:1.5;
+}
+.booking-list-card__signal-grid{
+  display:grid;
+  grid-template-columns:repeat(3, minmax(0, 1fr));
+  gap:10px;
+}
+.booking-list-card__signal{
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:14px;
+  background:rgba(255,255,255,.03);
+  padding:12px;
+  display:grid;
+  gap:6px;
+}
+.booking-list-card__signal span{
+  color:var(--muted);
+  font-size:11px;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+}
+.booking-list-card__signal strong{
+  font-size:14px;
+  line-height:1.35;
+}
+.booking-list-card__signal small{
+  color:var(--muted);
+  font-size:12px;
+  line-height:1.5;
+}
+.booking-list-card__signal--good{
+  border-color:rgba(74,222,128,.24);
+  background:rgba(74,222,128,.08);
+}
+.booking-list-card__signal--warn{
+  border-color:rgba(245,158,11,.25);
+  background:rgba(245,158,11,.09);
+}
+.booking-list-card__signal--danger{
+  border-color:rgba(248,113,113,.3);
+  background:rgba(248,113,113,.11);
+}
+.booking-list-card__notes{
+  display:grid;
+  grid-template-columns:repeat(2, minmax(0, 1fr));
+  gap:10px;
+}
+.booking-list-card__note{
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:14px;
+  background:rgba(255,255,255,.025);
+  padding:12px;
+  display:grid;
+  gap:4px;
+}
+.booking-list-card__note span{
+  color:var(--muted);
+  font-size:11px;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+}
+.booking-list-card__note strong{
+  font-size:14px;
+  line-height:1.4;
+}
+.booking-list-card__note small{
+  color:var(--muted);
+  font-size:12px;
+  line-height:1.5;
+}
+.booking-list-card__actions{
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+}
+.booking-list-card__actions .btn{
+  flex:1 1 140px;
+  justify-content:center;
 }
 .hydrovac-pressure{
   border:1px solid var(--border);
@@ -3440,6 +3636,15 @@ input:focus, textarea:focus, select:focus{
 @media (max-width: 900px) {
   .order-detail-grid { grid-template-columns:1fr; }
   .customer-money-grid { grid-template-columns:1fr; }
+  .customer-signal-band,
+  .workspace-signal-band,
+  .customer-command-center__top,
+  .workspace-command-center__top,
+  .customer-command-center__grid,
+  .workspace-command-center__grid,
+  .customer-hydrovac-board__grid,
+  .hydrovac-closeout-grid,
+  .workspace-board__grid,
   .customer-overview-card__grid,
   .customer-record-shell__action-grid,
   .customer-record-shell__context-grid,
@@ -3449,8 +3654,12 @@ input:focus, textarea:focus, select:focus{
   .customer-footprint-strip{ grid-template-columns:1fr; }
   .customer-record-shell__hero .record-hero__summary,
   .customer-action-card__meta,
+  .workspace-focus-card__meta,
+  .customer-hydrovac-card__metrics,
+  .workspace-board-card__metrics,
   .customer-operator-brief__grid,
   .customer-action-card__buttons,
+  .workspace-focus-card__buttons,
   .customer-command-card__buttons,
   .customer-workbench-app-grid{ grid-template-columns:1fr; }
   .customer-workbench-modal{
@@ -3464,10 +3673,16 @@ input:focus, textarea:focus, select:focus{
   .customer-workbench-resume{ flex-direction:column; align-items:flex-start; }
   .customer-workbench-launcher__head,
   .customer-command-card__head,
+  .customer-hydrovac-board__head,
+  .workspace-board__head,
   .customer-workbench-card__head,
   .customer-editor-card__head{ flex-direction:column; }
   .customer-workbench-toolbar{
     grid-template-columns:1fr;
+  }
+  .customer-hydrovac-card__footer .btn,
+  .workspace-board-card__footer .btn{
+    flex:1 1 100%;
   }
   .customer-workbench-filter-row{
     justify-content:flex-start;
@@ -3483,6 +3698,12 @@ input:focus, textarea:focus, select:focus{
   }
   .customer-activity-item{ flex-direction:column; }
   .customer-activity-item__meta{ justify-items:start; text-align:left; }
+}
+@media (max-width: 640px) {
+  .customer-signal-band,
+  .workspace-signal-band{
+    grid-template-columns:1fr;
+  }
 }
 
 
@@ -3847,56 +4068,80 @@ input:focus, textarea:focus, select:focus{
   font-size:12px;
   line-height:1.5;
 }
-.customer-action-card{
+.customer-action-card,
+.workspace-focus-card{
   background:
     linear-gradient(180deg, rgba(255,255,255,.045), rgba(255,255,255,.02)),
     rgba(255,255,255,.025);
 }
-.customer-action-card__head{
+.customer-action-card__head,
+.workspace-focus-card__head{
   display:flex;
   align-items:flex-start;
   justify-content:space-between;
   gap:16px;
 }
-.customer-action-card__meta{
+.customer-action-card__meta,
+.workspace-focus-card__meta{
   display:grid;
   grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));
   gap:10px;
   margin-top:14px;
 }
-.customer-action-card__item{
+.customer-action-card__item,
+.workspace-focus-card__item{
   border:1px solid rgba(255,255,255,.08);
   border-radius:14px;
   background:rgba(255,255,255,.03);
   padding:12px;
 }
-.customer-action-card__item span{
+.customer-action-card__item--good,
+.workspace-focus-card__item--good{
+  border-color:rgba(74,222,128,.25);
+  background:rgba(74,222,128,.08);
+}
+.customer-action-card__item--warn,
+.workspace-focus-card__item--warn{
+  border-color:rgba(245,158,11,.28);
+  background:rgba(245,158,11,.1);
+}
+.customer-action-card__item--danger,
+.workspace-focus-card__item--danger{
+  border-color:rgba(248,113,113,.3);
+  background:rgba(248,113,113,.1);
+}
+.customer-action-card__item span,
+.workspace-focus-card__item span{
   display:block;
   color:var(--muted);
   font-size:11px;
   text-transform:uppercase;
   letter-spacing:.08em;
 }
-.customer-action-card__item strong{
+.customer-action-card__item strong,
+.workspace-focus-card__item strong{
   display:block;
   margin-top:6px;
   font-size:15px;
   line-height:1.4;
 }
-.customer-action-card__item small{
+.customer-action-card__item small,
+.workspace-focus-card__item small{
   display:block;
   margin-top:6px;
   color:var(--muted);
   font-size:12px;
   line-height:1.5;
 }
-.customer-action-card__buttons{
+.customer-action-card__buttons,
+.workspace-focus-card__buttons{
   display:grid;
   grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));
   gap:10px;
   margin-top:14px;
 }
-.customer-action-card__buttons .btn{
+.customer-action-card__buttons .btn,
+.workspace-focus-card__buttons .btn{
   width:100%;
   justify-content:center;
 }
@@ -4109,6 +4354,292 @@ input:focus, textarea:focus, select:focus{
     linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02)),
     rgba(255,255,255,.03);
 }
+.customer-command-center,
+.workspace-command-center{
+  display:grid;
+  gap:18px;
+}
+.customer-command-center__top,
+.workspace-command-center__top{
+  display:grid;
+  grid-template-columns:minmax(0, 1.45fr) minmax(320px, .92fr);
+  gap:18px;
+  align-items:start;
+}
+.customer-command-center__hero,
+.workspace-command-center__hero,
+.customer-command-center__sidebar,
+.workspace-command-center__sidebar,
+.customer-command-center__main,
+.workspace-command-center__main,
+.customer-command-center__rail,
+.workspace-command-center__rail{
+  min-width:0;
+}
+.customer-command-center__sidebar,
+.workspace-command-center__sidebar,
+.customer-command-center__main,
+.workspace-command-center__main,
+.customer-command-center__rail,
+.workspace-command-center__rail{
+  display:grid;
+  gap:18px;
+}
+.customer-command-center__grid,
+.workspace-command-center__grid{
+  display:grid;
+  grid-template-columns:minmax(0, 1.2fr) minmax(300px, .86fr);
+  gap:18px;
+  align-items:start;
+}
+.customer-command-center--hydrovac .record-hero,
+.workspace-command-center--hydrovac .record-hero{
+  background:
+    radial-gradient(circle at top left, rgba(200,75,47,.26), transparent 42%),
+    linear-gradient(145deg, rgba(8,12,18,.96), rgba(24,31,40,.9));
+  box-shadow:0 24px 46px rgba(2,6,23,.24);
+}
+.customer-command-center--hydrovac .record-hero__metric,
+.workspace-command-center--hydrovac .record-hero__metric{
+  background:rgba(8,11,16,.34);
+}
+.customer-signal-band,
+.workspace-signal-band{
+  display:grid;
+  grid-template-columns:repeat(4, minmax(0, 1fr));
+  gap:10px;
+}
+.customer-signal-band__item,
+.workspace-signal-band__item{
+  border:1px solid rgba(255,255,255,.1);
+  border-radius:16px;
+  background:rgba(255,255,255,.05);
+  padding:12px;
+  display:grid;
+  gap:6px;
+}
+.customer-signal-band__item span,
+.workspace-signal-band__item span{
+  color:var(--muted);
+  font-size:11px;
+  text-transform:uppercase;
+  letter-spacing:.08em;
+}
+.customer-signal-band__item strong,
+.workspace-signal-band__item strong{
+  font-size:18px;
+  line-height:1.15;
+}
+.customer-signal-band__item small,
+.workspace-signal-band__item small{
+  color:var(--muted);
+  font-size:12px;
+  line-height:1.45;
+}
+.customer-signal-band__item.is-good,
+.workspace-signal-band__item.is-good{
+  border-color:rgba(74,222,128,.25);
+  background:rgba(74,222,128,.08);
+}
+.customer-signal-band__item.is-warn,
+.workspace-signal-band__item.is-warn{
+  border-color:rgba(245,158,11,.28);
+  background:rgba(245,158,11,.1);
+}
+.customer-signal-band__item.is-danger,
+.workspace-signal-band__item.is-danger{
+  border-color:rgba(248,113,113,.3);
+  background:rgba(248,113,113,.1);
+}
+.customer-hydrovac-board,
+.workspace-board{
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02)),
+    rgba(255,255,255,.02);
+}
+.customer-hydrovac-board__head,
+.workspace-board__head{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:16px;
+}
+.customer-hydrovac-board__meta,
+.workspace-board__meta{
+  justify-content:flex-end;
+}
+.customer-hydrovac-board__grid,
+.workspace-board__grid{
+  display:grid;
+  grid-template-columns:repeat(2, minmax(0, 1fr));
+  gap:14px;
+  margin-top:16px;
+}
+.customer-hydrovac-card,
+.workspace-board-card{
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:18px;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.015)),
+    rgba(255,255,255,.02);
+  padding:16px;
+  display:grid;
+  gap:12px;
+  min-width:0;
+}
+.customer-hydrovac-card__head,
+.workspace-board-card__head{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+}
+.customer-hydrovac-card__head strong,
+.workspace-board-card__head strong{
+  display:block;
+  font-size:18px;
+  line-height:1.25;
+}
+.customer-hydrovac-card__metrics,
+.workspace-board-card__metrics{
+  display:grid;
+  grid-template-columns:repeat(2, minmax(0, 1fr));
+  gap:10px;
+}
+.customer-hydrovac-card__metric,
+.workspace-board-card__metric{
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:14px;
+  background:rgba(255,255,255,.03);
+  padding:12px;
+}
+.customer-hydrovac-card__metric span,
+.workspace-board-card__metric span{
+  display:block;
+  color:var(--muted);
+  font-size:11px;
+  text-transform:uppercase;
+  letter-spacing:.08em;
+}
+.customer-hydrovac-card__metric strong,
+.workspace-board-card__metric strong{
+  display:block;
+  margin-top:6px;
+  font-size:20px;
+  line-height:1.15;
+}
+.customer-hydrovac-card__metric small,
+.workspace-board-card__metric small{
+  display:block;
+  margin-top:6px;
+  color:var(--muted);
+  font-size:12px;
+  line-height:1.5;
+}
+.customer-hydrovac-card__list,
+.workspace-board-card__list{
+  display:grid;
+  gap:10px;
+}
+.customer-hydrovac-card__item,
+.workspace-board-card__item{
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:14px;
+  background:rgba(255,255,255,.03);
+  padding:10px 12px;
+  display:grid;
+  gap:4px;
+}
+.customer-hydrovac-card__item strong,
+.workspace-board-card__item strong{
+  font-size:14px;
+  line-height:1.4;
+}
+.customer-hydrovac-card__item small,
+.workspace-board-card__item small{
+  color:var(--muted);
+  font-size:12px;
+  line-height:1.5;
+}
+.customer-hydrovac-card__footer,
+.workspace-board-card__footer{
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+  margin-top:auto;
+}
+.customer-hydrovac-card__footer .btn,
+.workspace-board-card__footer .btn{
+  flex:1 1 160px;
+  justify-content:center;
+}
+.hydrovac-closeout-grid{
+  display:grid;
+  grid-template-columns:repeat(5, minmax(0, 1fr));
+  gap:14px;
+  margin-top:16px;
+}
+.hydrovac-closeout-column{
+  min-height:100%;
+}
+.hydrovac-closeout-card{
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:16px;
+  background:rgba(255,255,255,.03);
+  padding:12px;
+  display:grid;
+  gap:10px;
+}
+.hydrovac-closeout-card.is-active{
+  border-color:rgba(200,75,47,.36);
+  background:rgba(200,75,47,.08);
+}
+.hydrovac-closeout-card__open{
+  border:0;
+  padding:0;
+  margin:0;
+  background:none;
+  color:inherit;
+  text-align:left;
+  cursor:pointer;
+  display:grid;
+  gap:4px;
+}
+.hydrovac-closeout-card__open strong{
+  font-size:14px;
+  line-height:1.4;
+}
+.hydrovac-closeout-card__open small{
+  color:var(--muted);
+  font-size:12px;
+  line-height:1.5;
+}
+.hydrovac-closeout-card__tags{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+}
+.hydrovac-closeout-card__summary{
+  color:var(--muted);
+  font-size:12px;
+  line-height:1.55;
+}
+.hydrovac-closeout-card__actions{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+}
+.hydrovac-closeout-card__actions .pipeline-action-chip{
+  min-height:34px;
+  padding:0 12px;
+}
+.hydrovac-closeout-detail{
+  margin-top:14px;
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:14px;
+  padding:12px;
+  background:rgba(255,255,255,.03);
+}
 .customer-workbench-launcher__head{
   display:flex;
   align-items:flex-start;
@@ -4148,10 +4679,65 @@ input:focus, textarea:focus, select:focus{
 .customer-support-card{
   height:100%;
 }
+html[data-theme="light"] .customer-command-center--hydrovac .record-hero{
+  background:
+    radial-gradient(circle at top left, rgba(200,75,47,.18), transparent 46%),
+    linear-gradient(145deg, rgba(255,255,255,.98), rgba(245,247,250,.94));
+  box-shadow:0 20px 34px rgba(148,163,184,.18);
+}
+html[data-theme="light"] .workspace-command-center--hydrovac .record-hero{
+  background:
+    radial-gradient(circle at top left, rgba(200,75,47,.18), transparent 46%),
+    linear-gradient(145deg, rgba(255,255,255,.98), rgba(245,247,250,.94));
+  box-shadow:0 20px 34px rgba(148,163,184,.18);
+}
+html[data-theme="light"] .customer-command-center--hydrovac .record-hero__metric,
+html[data-theme="light"] .workspace-command-center--hydrovac .record-hero__metric,
+html[data-theme="light"] .customer-hydrovac-board,
+html[data-theme="light"] .workspace-board,
+html[data-theme="light"] .customer-hydrovac-card,
+html[data-theme="light"] .workspace-board-card,
+html[data-theme="light"] .hydrovac-closeout-card,
+html[data-theme="light"] .customer-signal-band__item,
+html[data-theme="light"] .workspace-signal-band__item{
+  background:rgba(255,255,255,.9);
+}
+html[data-theme="light"] .customer-action-card__item--good,
+html[data-theme="light"] .customer-action-card__item--warn,
+html[data-theme="light"] .customer-action-card__item--danger,
+html[data-theme="light"] .workspace-focus-card__item--good,
+html[data-theme="light"] .workspace-focus-card__item--warn,
+html[data-theme="light"] .workspace-focus-card__item--danger{
+  background:rgba(255,255,255,.96);
+}
+html[data-theme="light"] .workflow-shell__card--guide{
+  background:
+    radial-gradient(circle at top left, rgba(200,75,47,.14), transparent 46%),
+    linear-gradient(145deg, rgba(255,255,255,.98), rgba(245,247,250,.94));
+  box-shadow:0 20px 34px rgba(148,163,184,.16);
+}
+html[data-theme="light"] .booking-list-card,
+html[data-theme="light"] .booking-list-card__signal,
+html[data-theme="light"] .booking-list-card__note{
+  background:rgba(255,255,255,.92);
+}
 @media (max-width: 1180px) {
   .customer-workbench-toolbar{
     grid-template-columns:1fr;
   }
+  .customer-command-center__top,
+  .workspace-command-center__top,
+  .workflow-shell,
+  .workflow-shell__subgrid,
+  .customer-command-center__grid,
+  .workspace-command-center__grid,
+  .customer-signal-band,
+  .workspace-signal-band,
+  .booking-list-card__signal-grid,
+  .booking-list-card__notes,
+  .customer-hydrovac-board__grid,
+  .hydrovac-closeout-grid,
+  .workspace-board__grid,
   .customer-overview-card__grid,
   .customer-record-shell__action-grid,
   .customer-record-shell__context-grid,
@@ -4164,6 +4750,14 @@ input:focus, textarea:focus, select:focus{
   .customer-workbench-app-grid{
     grid-template-columns:repeat(2, minmax(0, 1fr));
   }
+  .customer-hydrovac-board__head,
+  .workspace-board__head,
+  .booking-list-card__head{
+    flex-direction:column;
+  }
+  .booking-list-card__meta{
+    justify-content:flex-start;
+  }
   .customer-workbench-list-card{
     position:static;
   }
@@ -4172,8 +4766,71 @@ input:focus, textarea:focus, select:focus{
     overflow:visible;
   }
   .customer-action-card__head,
+  .workspace-focus-card__head,
   .customer-command-card__head{
     flex-direction:column;
+  }
+}
+.operator-ui-guide-page{
+  min-height:100vh;
+  margin:0;
+  background:
+    radial-gradient(circle at top left, rgba(200,75,47,.16), transparent 32%),
+    radial-gradient(circle at top right, rgba(91,151,255,.12), transparent 30%),
+    linear-gradient(180deg, rgba(7,10,15,.98), rgba(10,14,20,.96));
+}
+.operator-ui-guide{
+  width:min(1220px, calc(100% - 32px));
+  margin:0 auto;
+  padding:32px 0 56px;
+  display:grid;
+  gap:18px;
+}
+.operator-ui-guide__principles{
+  display:grid;
+  grid-template-columns:repeat(3, minmax(0, 1fr));
+  gap:12px;
+}
+.operator-ui-guide__principle{
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:16px;
+  background:rgba(255,255,255,.035);
+  padding:16px;
+  display:grid;
+  gap:8px;
+}
+.operator-ui-guide__principle span{
+  color:var(--muted);
+  font-size:11px;
+  text-transform:uppercase;
+  letter-spacing:.08em;
+}
+.operator-ui-guide__principle strong{
+  font-size:18px;
+  line-height:1.3;
+}
+.operator-ui-guide__principle p{
+  margin:0;
+  color:var(--muted);
+  font-size:14px;
+  line-height:1.6;
+}
+html[data-theme="light"] .operator-ui-guide-page{
+  background:
+    radial-gradient(circle at top left, rgba(200,75,47,.12), transparent 34%),
+    radial-gradient(circle at top right, rgba(91,151,255,.08), transparent 30%),
+    linear-gradient(180deg, rgba(248,244,239,.98), rgba(243,240,234,.96));
+}
+html[data-theme="light"] .operator-ui-guide__principle{
+  background:rgba(255,255,255,.92);
+}
+@media (max-width: 900px) {
+  .operator-ui-guide{
+    width:min(100%, calc(100% - 24px));
+    padding:24px 0 44px;
+  }
+  .operator-ui-guide__principles{
+    grid-template-columns:1fr;
   }
 }
 .customer-profile-list{
@@ -4614,6 +5271,16 @@ input:focus, textarea:focus, select:focus{
   flex-direction:column;
   gap:10px;
 }
+.dispatch-workspace-board__grid{
+  grid-template-columns:repeat(auto-fit, minmax(260px, 1fr));
+}
+.dispatch-workspace-board__column{
+  min-height:240px;
+}
+.pipeline-stage-strip .record-hero,
+.pipeline-action-bar .workspace-focus-card{
+  margin:0;
+}
 .dispatch-job-card{
   width:100%;
   text-align:left;
@@ -4767,6 +5434,34 @@ input:focus, textarea:focus, select:focus{
 }
 
 @media (max-width: 768px) {
+  .hydrovac-mobile-quick-nav{
+    display:flex;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 72px;
+    padding: 0 12px 10px;
+    z-index: 1002;
+    background: linear-gradient(180deg, transparent 0%, rgba(12,18,32,.12) 30%, var(--bg) 100%);
+  }
+  .hydrovac-mobile-quick-nav .workspace-context-nav__label{
+    padding: 0 8px;
+  }
+  .hydrovac-mobile-quick-nav .workspace-context-nav__tabs{
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding: 8px;
+    padding-bottom: 2px;
+    -webkit-overflow-scrolling: touch;
+    border-radius: 999px;
+    border: 1px solid rgba(255,255,255,.16);
+    background: color-mix(in srgb, var(--panel) 90%, transparent 10%);
+    box-shadow: 0 12px 28px rgba(0,0,0,.22);
+  }
+  .hydrovac-mobile-quick-nav .workspace-context-tab{
+    flex: 0 0 auto;
+    min-height: 38px;
+  }
   /* Hide desktop sidebar, show bottom nav */
   .mobile-bottom-nav {
     display: flex;
@@ -4816,9 +5511,11 @@ input:focus, textarea:focus, select:focus{
     width: 280px;
     z-index: 999;
     transform: translateX(-100%);
-    transition: transform .25s ease;
+    transition: none;
     height: 100dvh;
     overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
     box-shadow: 4px 0 24px rgba(0,0,0,.5);
   }
 

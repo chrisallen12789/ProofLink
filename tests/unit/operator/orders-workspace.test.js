@@ -93,6 +93,9 @@ describe("operator orders workspace", () => {
     expect(source).toContain("renderOrderRetentionCard");
     expect(source).toContain("orderRetentionItems");
     expect(source).toContain("orderRetentionActions");
+    expect(source).toContain("renderOrderSignalBand");
+    expect(source).toContain("renderEmptyOrdersCommandCenter");
+    expect(source).toContain("workspace-command-center");
     expect(source).toContain("data-order-retention-action");
     expect(source).toContain("generate-next-order");
     expect(source).toContain("requestOrderReview(active.id");
@@ -167,6 +170,70 @@ describe("operator orders workspace", () => {
       { label: "Access and contact", ready: true, note: "Call tenant before rooftop access" },
       { label: "Diagnostic handoff", ready: true, note: "Cooling drops out after 20 minutes" },
     ]);
+  });
+
+  test("orderPrepGuidanceItems turns hydrovac context into dispatch prep guidance", () => {
+    const api = loadOrdersWorkspace({
+      currentWorkspaceBlueprint: vi.fn(() => ({
+        business: {
+          key: "hydrovac",
+          label: "Hydrovac",
+          recordFocus: [],
+        },
+      })),
+    });
+
+    const items = api.orderPrepGuidanceItems(
+      {
+        service_address: "North campus gate 3",
+        notes: "Permit-required entry at storm pit",
+        customer_po_number: "PO-4421",
+      },
+      {
+        site_access_notes: "Enter through north gate and stage beside the fence line",
+        locate_notes: "811 locate expires Friday",
+        disposal_notes: "Dump at City Biosolids plant under PO-4421",
+      }
+    );
+
+    expect(items).toEqual([
+      { label: "Truck access and arrival", ready: true, note: "Enter through north gate and stage beside the fence line" },
+      { label: "Locate and permit note", ready: true, note: "811 locate expires Friday" },
+      { label: "Disposal and billing memory", ready: true, note: "Dump at City Biosolids plant under PO-4421" },
+    ]);
+  });
+
+  test("renderEmptyOrdersCommandCenter keeps the work shell useful before the first order exists", () => {
+    const api = loadOrdersWorkspace({
+      escapeHtml: (value) => String(value ?? ""),
+      renderRecordHeroCard: vi.fn(({ title, actionsHtml = "" }) => `
+        <section class="record-hero">
+          <h3>${title}</h3>
+          ${actionsHtml}
+        </section>
+      `),
+      currentWorkspaceBlueprint: vi.fn(() => ({
+        business: {
+          key: "hydrovac",
+          label: "Hydrovac",
+          recordFocus: [],
+        },
+      })),
+      BIDS_CACHE: [{ id: "bid_1" }],
+      BOOKINGS_CACHE: [{ id: "booking_1" }],
+      CUSTOMERS_CACHE: [{ id: "customer_1" }, { id: "customer_2" }],
+    });
+
+    const html = api.renderEmptyOrdersCommandCenter({
+      business: {
+        key: "hydrovac",
+      },
+    });
+
+    expect(html).toContain("workspace-command-center");
+    expect(html).toContain("workspace-signal-band");
+    expect(html).toContain('data-order-empty-action="open-bids"');
+    expect(html).toContain("Build the first hydrovac work package");
   });
 
   test("orderNextMoveItems turns plumbing context into the next office move", () => {

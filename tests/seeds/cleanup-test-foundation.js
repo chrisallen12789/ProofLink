@@ -236,6 +236,7 @@ async function deleteAuthUserMaybe(userId, supabase = createSupabaseClient()) {
 }
 
 async function main() {
+  loadTestEnv();
   assertCleanupFixturesSafe();
   const supabase = createSupabaseClient();
 

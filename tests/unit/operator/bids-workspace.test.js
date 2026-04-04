@@ -253,6 +253,8 @@ describe("operator bids workspace", () => {
     expect(source).toContain("bidCustomerMemoryItems");
     expect(source).toContain("Keep the decision path obvious");
     expect(source).toContain("bidFollowThroughItems");
+    expect(source).toContain("bidSignalBand");
+    expect(source).toContain("renderBidSignalBand");
     expect(source).toContain("No proposal drafts yet.");
     expect(source).toContain("Proposal emailed to ${customer.email}.");
     expect(source).toContain("data-proposal-settings-focus");
@@ -351,6 +353,47 @@ describe("operator bids workspace", () => {
     expect(items[0].tone).toBe("warn");
     expect(items[0].note).toContain("valid through");
     expect(items[3].note).toContain("Capacitor quote still waiting on approval");
+  });
+
+  test("bidFollowThroughItems keeps hydrovac handoff details visible before conversion", () => {
+    const context = loadBidsWorkspace({
+      currentWorkspaceBlueprint: vi.fn(() => ({
+        business: {
+          key: "hydrovac",
+          label: "Hydrovac",
+          recordFocus: [],
+        },
+      })),
+      findBidCustomer: vi.fn(() => ({
+        id: "customer_9",
+        name: "Harbor Utilities",
+        locate_notes: "811 ticket expires Thursday",
+        disposal_notes: "Use South County liquid waste facility",
+      })),
+      bidIncludedLineItemsForOrder: vi.fn(() => ([{ quantity: 1, unit_price_cents: 780000 }])),
+    });
+
+    const items = context.window.bidFollowThroughItems({
+      id: "bid_hv_1",
+      customer_id: "customer_9",
+      status: "ready_to_send",
+      project_summary: "Hydrovac daylighting at valve cluster",
+      scope_of_work: "Expose and verify utilities around the valve cluster",
+      internal_notes: "Truck access through east service road",
+      photos: [{ id: "photo_1" }],
+      cover_note: "Attached is the field proposal from today's walkthrough.",
+    }, {
+      business: {
+        key: "hydrovac",
+      },
+    });
+
+    expect(items[3]).toEqual({
+      label: "Dispatch and compliance handoff",
+      ready: true,
+      note: "811 ticket expires Thursday",
+      tone: "",
+    });
   });
 
   test("runBidEstimateReview sends bid_id to the structured estimate report", async () => {

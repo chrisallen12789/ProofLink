@@ -4,6 +4,7 @@
   "description": "ProofLink serverless functions",
   "private": true,
   "scripts": {
+    "dev:test": "node scripts/start-test-netlify-dev.js",
     "lint": "eslint netlify/functions scripts tests *.js --ext .js",
     "test": "vitest run tests/unit tests/integration",
     "test:unit": "vitest run tests/unit",
