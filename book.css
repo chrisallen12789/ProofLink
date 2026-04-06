@@ -1,3 +1,5 @@
+@import url('./assets/brand/prooflink-tokens.css');
+
 :root {
   --book-bg: #f5efe6;
   --book-bg-deep: #ede1d1;
@@ -12,8 +14,8 @@
   --book-good-soft: rgba(47, 122, 82, 0.12);
   --book-bad-soft: rgba(178, 58, 44, 0.1);
   --book-shadow: 0 20px 50px rgba(88, 60, 37, 0.14);
-  --book-display: "Iowan Old Style", "Palatino Linotype", serif;
-  --book-body: "Avenir Next", "Segoe UI", sans-serif;
+  --book-display: 'Iowan Old Style', 'Palatino Linotype', serif;
+  --book-body: 'Avenir Next', 'Segoe UI', sans-serif;
 }
 
 * {
@@ -177,7 +179,10 @@ h1 {
 .book-weekbtn {
   appearance: none;
   cursor: pointer;
-  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    border-color 0.2s ease;
 }
 
 .book-tab {

@@ -1,3 +1,5 @@
+@import url('./assets/brand/prooflink-tokens.css');
+
 :root {
   --ink: var(--pl-color-ink, #142127);
   --ink-soft: var(--pl-color-ink-soft, #30424a);
@@ -18,8 +20,8 @@
   --radius-md: 16px;
   --radius-sm: 12px;
   --max: 1180px;
-  --font-display: 'Google Sans', ui-sans-serif, system-ui, sans-serif;
-  --font-body: 'Google Sans Text', ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--pl-font-display, 'Google Sans', ui-sans-serif, system-ui, sans-serif);
+  --font-body: var(--pl-font-body, 'Google Sans Text', ui-sans-serif, system-ui, sans-serif);
 }
 
 *,
@@ -194,7 +196,10 @@ a {
   text-decoration: none;
   font-size: 0.95rem;
   font-weight: 700;
-  transition: transform 0.12s ease, background 0.15s ease, border-color 0.15s ease;
+  transition:
+    transform 0.12s ease,
+    background 0.15s ease,
+    border-color 0.15s ease;
 }
 
 .btn:hover,
@@ -290,8 +295,12 @@ a {
 }
 
 .hero-panel {
-  background:
-    linear-gradient(160deg, rgba(15, 99, 112, 0.96) 0%, rgba(11, 70, 80, 0.94) 58%, rgba(13, 27, 31, 0.98) 100%);
+  background: linear-gradient(
+    160deg,
+    rgba(15, 99, 112, 0.96) 0%,
+    rgba(11, 70, 80, 0.94) 58%,
+    rgba(13, 27, 31, 0.98) 100%
+  );
   border: 1px solid rgba(15, 99, 112, 0.2);
   border-radius: 30px;
   box-shadow: 0 30px 80px rgba(11, 28, 33, 0.22);
@@ -366,7 +375,9 @@ a {
   background:
     radial-gradient(circle at 50% 40%, rgba(143, 212, 220, 0.18), transparent 30%),
     linear-gradient(160deg, rgba(4, 24, 28, 0.96), rgba(16, 56, 66, 0.86));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 24px 56px rgba(0, 0, 0, 0.24);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 24px 56px rgba(0, 0, 0, 0.24);
 }
 
 .brand-cosmos__scene {
@@ -394,7 +405,12 @@ a {
   height: 17rem;
   transform: translate3d(-50%, -50%, 10px);
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(210, 110, 57, 0.18), rgba(15, 99, 112, 0.08) 45%, transparent 68%);
+  background: radial-gradient(
+    circle,
+    rgba(210, 110, 57, 0.18),
+    rgba(15, 99, 112, 0.08) 45%,
+    transparent 68%
+  );
   filter: blur(4px);
 }
 
@@ -513,18 +529,12 @@ a {
 
 @keyframes brand-spin {
   from {
-    transform:
-      translate3d(-50%, -50%, var(--brand-z, 0px))
-      rotateX(var(--brand-x, 68deg))
-      rotateY(var(--brand-y, 0deg))
-      rotateZ(0deg);
+    transform: translate3d(-50%, -50%, var(--brand-z, 0px)) rotateX(var(--brand-x, 68deg))
+      rotateY(var(--brand-y, 0deg)) rotateZ(0deg);
   }
   to {
-    transform:
-      translate3d(-50%, -50%, var(--brand-z, 0px))
-      rotateX(var(--brand-x, 68deg))
-      rotateY(var(--brand-y, 0deg))
-      rotateZ(360deg);
+    transform: translate3d(-50%, -50%, var(--brand-z, 0px)) rotateX(var(--brand-x, 68deg))
+      rotateY(var(--brand-y, 0deg)) rotateZ(360deg);
   }
 }
 

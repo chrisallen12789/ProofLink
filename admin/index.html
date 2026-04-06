@@ -1,617 +1,1081 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-  <title>ProofLink — Admin</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com"/>
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-  <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;600;700;800&family=Google+Sans+Text:wght@400;500;600;700&display=swap" rel="stylesheet"/>
-  <link rel="stylesheet" href="admin.css"/>
-  <!--
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+    <title>ProofLink — Admin</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;600;700;800&family=Google+Sans+Text:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="admin.css" />
+    <!--
     Supabase config for browser-side password auth.
     These are the same public values used in operator/operator.js.
     The anon key is intentionally browser-safe (it is NOT a service role key).
   -->
-  <script src="admin.config.js"></script>
-</head>
-<body>
-
-<!-- ── Auth gate ─────────────────────────────────────────────────────────── -->
-<div id="auth-gate">
-  <div class="auth-card">
-    <div class="auth-logo">Proof<span>Link</span></div>
-    <div class="auth-sub">Platform admin. Operators use /operator/ instead.</div>
-    <label class="auth-label" for="login-email">Email</label>
-    <input class="auth-input" id="login-email" type="email" placeholder="admin@yourplatform.com" autocomplete="username"/>
-    <label class="auth-label" for="login-password">Password</label>
-    <input class="auth-input" id="login-password" type="password" autocomplete="current-password"/>
-    <button class="auth-btn" onclick="handleLogin()">Sign in to admin</button>
-    <div class="auth-err" id="auth-err"></div>
-  </div>
-</div>
-
-<!-- ── App shell ─────────────────────────────────────────────────────────── -->
-<div class="admin-shell" id="admin-app" style="display:none">
-
-  <!-- Sidebar -->
-  <aside class="sidebar">
-    <a href="/admin/" class="sidebar-logo">Proof<span>Link</span> Admin</a>
-
-    <span class="sidebar-section-label">Platform</span>
-    <ul class="sidebar-nav">
-      <li><a class="active" data-section="overview"     onclick="showSection('overview',this)">📊 Overview</a></li>
-      <li><a data-section="onboarding"  onclick="showSection('onboarding',this)">📋 Onboarding</a></li>
-      <li><a data-section="tenants"     onclick="showSection('tenants',this)">🏢 Tenants</a></li>
-      <li><a data-section="provisioning"onclick="showSection('provisioning',this)">⚙️ Provisioning</a></li>
-    </ul>
-
-    <span class="sidebar-section-label">System</span>
-    <ul class="sidebar-nav">
-      <li><a data-section="testers"   onclick="showSection('testers',this)">🧪 Testers</a></li>
-      <li><a data-section="audit-log" onclick="showSection('audit-log',this)">📋 Audit Log</a></li>
-      <li><a data-section="billing"   onclick="showSection('billing',this)">💳 Billing</a></li>
-      <li><a data-section="health"    onclick="showSection('health',this)">🟢 System Health</a></li>
-      <li><a data-section="ai-control" onclick="showSection('ai-control',this)">🧠 AI Control</a></li>
-      <li><a data-section="settings"  onclick="showSection('settings',this)">⚙️ Settings</a></li>
-    </ul>
-
-    <div class="sidebar-footer">
-      <div class="sidebar-user">
-        <strong id="admin-email-display">—</strong>
-        Platform admin
+    <script src="admin.config.js"></script>
+  </head>
+  <body>
+    <!-- ── Auth gate ─────────────────────────────────────────────────────────── -->
+    <div id="auth-gate">
+      <div class="auth-card">
+        <div class="auth-logo">Proof<span>Link</span></div>
+        <div class="auth-sub">Platform admin. Operators use /operator/ instead.</div>
+        <label class="auth-label" for="login-email">Email</label>
+        <input
+          class="auth-input"
+          id="login-email"
+          type="email"
+          placeholder="admin@yourplatform.com"
+          autocomplete="username"
+        />
+        <label class="auth-label" for="login-password">Password</label>
+        <input
+          class="auth-input"
+          id="login-password"
+          type="password"
+          autocomplete="current-password"
+        />
+        <button class="auth-btn" onclick="handleLogin()">Sign in to admin</button>
+        <div class="auth-err" id="auth-err"></div>
       </div>
-      <button onclick="handleSignOut()" style="margin-top:.75rem;background:none;border:1px solid rgba(255,255,255,.15);color:rgba(245,242,235,.5);border-radius:4px;padding:.35rem .75rem;font-size:.75rem;cursor:pointer;font-family:var(--font-body);">Sign out</button>
     </div>
-  </aside>
 
-  <!-- Main -->
-  <main class="admin-main">
+    <!-- ── App shell ─────────────────────────────────────────────────────────── -->
+    <div class="admin-shell admin-shell--hidden" id="admin-app">
+      <!-- Sidebar -->
+      <aside class="sidebar">
+        <a href="/admin/" class="sidebar-logo">Proof<span>Link</span> Admin</a>
 
-    <!-- ── SECTION: Overview ──────────────────────────────────────────── -->
-    <div class="section active" id="section-overview">
-      <div class="page-header">
-        <div>
-          <div class="page-title">Platform Overview</div>
-          <div class="page-sub">Live snapshot of the ProofLink platform.</div>
-        </div>
-        <button class="btn" onclick="loadOverview()">↻ Refresh</button>
-      </div>
+        <span class="sidebar-section-label">Platform</span>
+        <ul class="sidebar-nav">
+          <li>
+            <a class="active" data-section="overview" onclick="showSection('overview', this)"
+              >📊 Overview</a
+            >
+          </li>
+          <li>
+            <a data-section="onboarding" onclick="showSection('onboarding', this)">📋 Onboarding</a>
+          </li>
+          <li><a data-section="tenants" onclick="showSection('tenants', this)">🏢 Tenants</a></li>
+          <li>
+            <a data-section="provisioning" onclick="showSection('provisioning', this)"
+              >⚙️ Provisioning</a
+            >
+          </li>
+        </ul>
 
-      <div class="kpi-grid">
-        <div class="kpi-card"><div class="kpi-label">Total tenants</div><div class="kpi-value" id="kpi-tenants">—</div></div>
-        <div class="kpi-card"><div class="kpi-label">Pending applications</div><div class="kpi-value" id="kpi-pending">—</div></div>
-        <div class="kpi-card"><div class="kpi-label">Provisioned</div><div class="kpi-value" id="kpi-provisioned">—</div></div>
-        <div class="kpi-card"><div class="kpi-label">Platform GMV</div><div class="kpi-value" id="kpi-gmv">—</div></div>
-      </div>
+        <span class="sidebar-section-label">System</span>
+        <ul class="sidebar-nav">
+          <li><a data-section="testers" onclick="showSection('testers', this)">🧪 Testers</a></li>
+          <li>
+            <a data-section="audit-log" onclick="showSection('audit-log', this)">📋 Audit Log</a>
+          </li>
+          <li><a data-section="billing" onclick="showSection('billing', this)">💳 Billing</a></li>
+          <li>
+            <a data-section="health" onclick="showSection('health', this)">🟢 System Health</a>
+          </li>
+          <li>
+            <a data-section="ai-control" onclick="showSection('ai-control', this)">🧠 AI Control</a>
+          </li>
+          <li>
+            <a data-section="settings" onclick="showSection('settings', this)">⚙️ Settings</a>
+          </li>
+        </ul>
 
-      <div class="pipeline">
-        <div class="pipeline-seg pipeline-submitted"><span class="seg-count" id="pipe-submitted">0</span><span class="seg-label">Submitted</span></div>
-        <div class="pipeline-seg pipeline-approved"><span class="seg-count" id="pipe-approved">0</span><span class="seg-label">Approved</span></div>
-        <div class="pipeline-seg pipeline-provisioning"><span class="seg-count" id="pipe-provisioning">0</span><span class="seg-label">Provisioning</span></div>
-        <div class="pipeline-seg pipeline-provisioned"><span class="seg-count" id="pipe-provisioned">0</span><span class="seg-label">Provisioned</span></div>
-        <div class="pipeline-seg pipeline-failed"><span class="seg-count" id="pipe-failed">0</span><span class="seg-label">Failed</span></div>
-      </div>
-
-      <div class="two-col">
-        <div class="panel">
-          <div class="panel-header"><span class="panel-title">Recent activity</span></div>
-          <div class="panel-body"><div class="activity-feed" id="activity-feed"><div class="empty">Loading…</div></div></div>
-        </div>
-        <div class="panel">
-          <div class="panel-header"><span class="panel-title">Recent tenants</span></div>
-          <div class="panel-body">
-            <table class="data-table">
-              <thead><tr><th>Business</th><th>Status</th></tr></thead>
-              <tbody id="recent-tenants-body"><tr class="loading-row"><td colspan="2"><span class="spinner"></span></td></tr></tbody>
-            </table>
+        <div class="sidebar-footer">
+          <div class="sidebar-user">
+            <strong id="admin-email-display">—</strong>
+            Platform admin
           </div>
+          <button class="sidebar-signout" onclick="handleSignOut()">Sign out</button>
         </div>
-      </div>
+      </aside>
 
-      <div class="panel">
-        <div class="panel-header">
-          <span class="panel-title">Platform Revenue Dashboard</span>
-          <button class="btn btn-sm" onclick="loadOverview()">↻ Refresh</button>
-        </div>
-        <div class="panel-body">
-          <div class="kpi-grid" id="platform-metrics" style="grid-template-columns:repeat(4,1fr)">
-            <div class="empty">Loading metrics…</div>
+      <!-- Main -->
+      <main class="admin-main">
+        <!-- ── SECTION: Overview ──────────────────────────────────────────── -->
+        <div class="section active" id="section-overview">
+          <div class="page-header">
+            <div>
+              <div class="page-title">Platform Overview</div>
+              <div class="page-sub">Live snapshot of the ProofLink platform.</div>
+            </div>
+            <button class="btn" onclick="loadOverview()">↻ Refresh</button>
           </div>
-        </div>
-      </div>
-    </div>
 
-    <!-- ── SECTION: Onboarding ────────────────────────────────────────── -->
-    <div class="section" id="section-onboarding">
-      <div class="page-header">
-        <div>
-          <div class="page-title">Onboarding Requests</div>
-          <div class="page-sub">Applications from <code>/join</code>. Review, approve, reject, or provision.</div>
-        </div>
-        <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
-          <input class="search-input" id="ob-search" placeholder="Search name / email…" oninput="debounceObSearch()" style="width:200px"/>
-          <select id="ob-filter" onchange="loadOnboarding()" style="border:1px solid var(--border);border-radius:4px;padding:.45rem .7rem;font-size:.8rem;font-family:var(--font-body);color:var(--ink);background:#fff;outline:none">
-            <option value="">All statuses</option>
-            <option value="submitted">Submitted</option>
-            <option value="needs_review">Needs review</option>
-            <option value="approved">Approved</option>
-            <option value="provisioning">Provisioning</option>
-            <option value="provisioned">Provisioned</option>
-            <option value="failed">Failed</option>
-            <option value="rejected">Rejected</option>
-          </select>
-          <button class="btn" onclick="loadOnboarding()">↻ Refresh</button>
-        </div>
-      </div>
-
-      <!-- Onboarding bulk bar -->
-      <div id="ob-bulk-bar" style="display:none;background:var(--ink);color:#fff;border-radius:6px;padding:.6rem 1rem;margin-bottom:.75rem;display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
-        <span id="ob-bulk-count" style="font-size:.82rem;font-weight:600"></span>
-        <button class="btn btn-sm" style="background:#c84b2f;color:#fff;border:none" onclick="bulkDeleteOnboardingRequests()">🗑 Delete selected</button>
-        <button class="btn btn-sm" style="background:rgba(255,255,255,.15);color:#fff;border:none;margin-left:auto" onclick="clearObSelection()">✕ Clear</button>
-      </div>
-
-      <div class="panel">
-        <div class="panel-body" style="padding:0">
-          <table class="data-table" id="ob-table">
-            <thead>
-              <tr>
-                <th style="width:32px"><input type="checkbox" id="select-all-ob" onchange="selectAllOb(this.checked)" title="Select all"/></th>
-                <th>Business</th>
-                <th>Owner</th>
-                <th>Slug</th>
-                <th>Location</th>
-                <th>Submitted</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody id="ob-tbody">
-              <tr class="loading-row"><td colspan="8"><span class="spinner"></span></td></tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-
-    <!-- ── SECTION: Tenants ───────────────────────────────────────────── -->
-    <div class="section" id="section-tenants">
-      <div class="page-header">
-        <div>
-          <div class="page-title">Tenant Management</div>
-          <div class="page-sub">All provisioned businesses. Search, filter, and manage tenant lifecycle.</div>
-        </div>
-        <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
-          <button class="btn btn-warn" onclick="runAbuseMonitor()">Run Abuse Monitor</button>
-          <button class="btn" onclick="exportTenantsCsv()">⬇ Export CSV</button>
-          <button class="btn" onclick="loadTenants()">↻ Refresh</button>
-        </div>
-      </div>
-
-      <div class="panel" style="margin-bottom:1rem">
-        <div class="panel-body" style="padding:.75rem 1.25rem">
-          <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
-            <input class="search-input" id="tenant-search" placeholder="Search name / email / slug…" oninput="debounceTenantSearch()" style="width:220px"/>
-            <select id="tenant-status-filter" onchange="loadTenants()" style="border:1px solid var(--border);border-radius:4px;padding:.45rem .7rem;font-size:.8rem;font-family:var(--font-body);color:var(--ink);background:#fff;outline:none">
-              <option value="">All statuses</option>
-              <option value="active">Active</option>
-              <option value="flagged">Flagged</option>
-              <option value="suspended">Suspended</option>
-              <option value="terminated">Terminated</option>
-              <option value="inactive">Inactive</option>
-            </select>
-            <input class="search-input" id="tenant-city-filter" placeholder="City / State…" oninput="debounceTenantSearch()" style="width:160px"/>
-          </div>
-        </div>
-      </div>
-
-      <div id="tenant-control-tower-mount"></div>
-
-      <!-- Bulk action bar — shown when ≥1 row is checked -->
-      <div id="bulk-action-bar" style="display:none;background:var(--ink);color:#fff;border-radius:6px;padding:.6rem 1rem;margin-bottom:.75rem;display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
-        <span id="bulk-count" style="font-size:.82rem;font-weight:600"></span>
-        <button class="btn btn-sm" style="background:#fff;color:#c84b2f;border:none" onclick="bulkConductAction('flag')">Flag selected</button>
-        <button class="btn btn-sm" style="background:#fff;color:#c84b2f;border:none" onclick="bulkConductAction('suspend')">Suspend selected</button>
-        <button class="btn btn-sm" style="background:#fff;color:#2e7d32;border:none" onclick="bulkConductAction('reinstate')">Reinstate selected</button>
-        <button class="btn btn-sm" style="background:#c84b2f;color:#fff;border:none" onclick="bulkDeleteTenants()">🗑 Delete selected</button>
-        <button class="btn btn-sm" style="background:rgba(255,255,255,.15);color:#fff;border:none;margin-left:auto" onclick="clearBulkSelection()">✕ Clear</button>
-      </div>
-
-      <div class="panel">
-        <div class="panel-body" style="padding:0;overflow-x:auto">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th style="width:32px"><input type="checkbox" id="select-all-tenants" onchange="selectAllTenants(this.checked)" title="Select all"/></th>
-                <th>Business</th>
-                <th>Slug</th>
-                <th>Status</th>
-                <th>Onboarded</th>
-                <th>Stripe</th>
-                <th>Orders</th>
-                <th>GMV</th>
-                <th>Location</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody id="tenants-tbody">
-              <tr class="loading-row"><td colspan="10"><span class="spinner"></span></td></tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-
-    <!-- ── SECTION: Provisioning ──────────────────────────────────────── -->
-    <div class="section" id="section-provisioning">
-      <div class="page-header">
-        <div>
-          <div class="page-title">Provisioning</div>
-          <div class="page-sub">Manually provision an approved application, or re-run a failed one.</div>
-        </div>
-        <button class="btn" onclick="loadProvisioning()">↻ Refresh</button>
-      </div>
-
-      <div class="panel" style="margin-bottom:1.25rem">
-        <div class="panel-header">
-          <span class="panel-title">Ready to provision</span>
-          <span style="font-size:.75rem;color:var(--muted)">Approved, not yet provisioned</span>
-        </div>
-        <div class="panel-body" style="padding:0">
-          <table class="data-table">
-            <thead><tr><th>Business</th><th>Owner</th><th>Email</th><th>Submitted</th><th>Action</th></tr></thead>
-            <tbody id="prov-tbody"><tr class="loading-row"><td colspan="5"><span class="spinner"></span></td></tr></tbody>
-          </table>
-        </div>
-      </div>
-
-      <div class="panel">
-        <div class="panel-header"><span class="panel-title">Provisioning log</span></div>
-        <div class="panel-body" style="padding:0">
-          <table class="data-table">
-            <thead><tr><th>Business</th><th>Status</th><th>Slug</th><th>Updated</th><th>Error</th></tr></thead>
-            <tbody id="prov-log-tbody"><tr class="loading-row"><td colspan="5"><span class="spinner"></span></td></tr></tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-
-    <!-- ── SECTION: Testers ───────────────────────────────────────────── -->
-    <div class="section" id="section-testers">
-      <div class="page-header">
-        <div>
-          <div class="page-title">Tester Accounts</div>
-          <div class="page-sub">Grant free access for up to 3 beta testers. Choose duration per tenant.</div>
-        </div>
-        <button class="btn" onclick="loadTesters()">↻ Refresh</button>
-      </div>
-
-      <!-- Slot counter -->
-      <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:1.25rem">
-        <div class="kpi-card">
-          <div class="kpi-label">Slots used</div>
-          <div class="kpi-value" id="tester-slots-used">—</div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-label">Slots remaining</div>
-          <div class="kpi-value" id="tester-slots-remaining">—</div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-label">Max tester slots</div>
-          <div class="kpi-value">3</div>
-        </div>
-      </div>
-
-      <!-- Active testers -->
-      <div class="panel" style="margin-bottom:1.25rem">
-        <div class="panel-header">
-          <span class="panel-title">Active tester exemptions</span>
-          <span style="font-size:.75rem;color:var(--muted)">Billing is bypassed for these tenants until the expiry date</span>
-        </div>
-        <div class="panel-body" style="padding:0">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>Business</th>
-                <th>Slug</th>
-                <th>Exempt until</th>
-                <th>Days remaining</th>
-                <th>Billing status</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody id="testers-tbody">
-              <tr class="loading-row"><td colspan="6"><span class="spinner"></span></td></tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- Grant exemption -->
-      <div class="panel">
-        <div class="panel-header">
-          <span class="panel-title">Grant tester exemption</span>
-        </div>
-        <div class="panel-body">
-          <p style="font-size:.82rem;color:var(--muted);margin-bottom:1rem">
-            Find a provisioned tenant and grant them free access. Choose duration and click Grant.
-            Billing checkout is skipped entirely for exempt tenants.
-          </p>
-          <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-bottom:1rem">
-            <input class="search-input" id="tester-tenant-search" placeholder="Search tenant by name, email, or slug…" style="width:280px" oninput="searchTenantsForExempt()"/>
-            <select id="tester-duration" style="border:1px solid var(--border);border-radius:4px;padding:.45rem .7rem;font-size:.8rem;font-family:var(--font-body);color:var(--ink);background:#fff;outline:none">
-              <option value="3">3 months</option>
-              <option value="6">6 months</option>
-              <option value="12" selected>12 months</option>
-              <option value="24">24 months</option>
-            </select>
-          </div>
-          <div id="tester-tenant-results" style="margin-bottom:1rem"></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ── SECTION: Audit Log ────────────────────────────────────────── -->
-    <div class="section" id="section-audit-log">
-      <div class="page-header">
-        <div>
-          <div class="page-title">Audit Log</div>
-          <div class="page-sub">All platform admin conduct actions — flag, suspend, reinstate, terminate.</div>
-        </div>
-        <button class="btn" onclick="loadAuditLog()">↻ Refresh</button>
-      </div>
-      <div class="panel">
-        <div class="panel-body" style="padding:0;overflow-x:auto">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>Tenant</th>
-                <th>Action</th>
-                <th>Notes</th>
-                <th>Performed at</th>
-              </tr>
-            </thead>
-            <tbody id="audit-log-tbody">
-              <tr class="loading-row"><td colspan="4"><span class="spinner"></span></td></tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-      <div id="audit-log-pagination" style="display:flex;gap:.5rem;align-items:center;padding:.75rem 0;font-size:.82rem;color:var(--muted)"></div>
-    </div>
-
-    <!-- ── SECTION: Billing ───────────────────────────────────────────── -->
-    <div class="section" id="section-billing">
-      <div class="page-header">
-        <div><div class="page-title">Platform Billing</div><div class="page-sub">Stripe platform subscription and revenue overview.</div></div>
-      </div>
-      <div class="panel">
-        <div class="panel-body">
-          <p style="color:var(--muted);font-size:.85rem;line-height:1.65">
-            Billing management is handled through your Stripe dashboard.
-            Connect your Stripe account in platform settings to see live subscription data here.
-          </p>
-          <div style="margin-top:1.25rem;display:flex;gap:.75rem;flex-wrap:wrap">
-            <a class="btn btn-primary" href="https://dashboard.stripe.com" target="_blank" rel="noopener">Open Stripe dashboard ↗</a>
-            <a class="btn" href="https://dashboard.stripe.com/connect/accounts/overview" target="_blank" rel="noopener">Stripe Connect ↗</a>
-          </div>
-          <div class="health-grid" style="margin-top:1.5rem">
-            <div class="health-card"><div class="health-label">Stripe API key</div><div class="health-status" id="hc-stripe-key"><div class="health-dot unknown"></div>Checking…</div><div class="health-note" id="hc-stripe-key-note">Verifying your Stripe secret key.</div></div>
-            <div class="health-card"><div class="health-label">Connected accounts</div><div class="health-status" id="hc-stripe-connect"><div class="health-dot unknown"></div>Checking…</div><div class="health-note" id="hc-stripe-connect-note">Counting active Stripe Connect accounts.</div></div>
-            <div class="health-card"><div class="health-label">Webhook endpoint</div><div class="health-status" id="hc-stripe-webhook"><div class="health-dot unknown"></div>Checking…</div><div class="health-note" id="hc-stripe-webhook-note">Verifying webhook secret is configured.</div></div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ── SECTION: System Health ─────────────────────────────────────── -->
-    <div class="section" id="section-health">
-      <div class="page-header">
-        <div><div class="page-title">System Health</div><div class="page-sub">Live connectivity checks for Netlify functions and Supabase.</div></div>
-        <button class="btn" onclick="runHealthCheck()">↻ Run checks</button>
-      </div>
-      <div class="health-grid">
-        <div class="health-card"><div class="health-label">Platform stats function</div><div class="health-status" id="hc-stats"><div class="health-dot unknown"></div>Not checked</div><div class="health-note" id="hc-stats-note">Click "Run checks" to test.</div></div>
-        <div class="health-card"><div class="health-label">Onboarding function</div><div class="health-status" id="hc-ob"><div class="health-dot unknown"></div>Not checked</div><div class="health-note" id="hc-ob-note">Click "Run checks" to test.</div></div>
-        <div class="health-card"><div class="health-label">Tenants function</div><div class="health-status" id="hc-tenants"><div class="health-dot unknown"></div>Not checked</div><div class="health-note" id="hc-tenants-note">Click "Run checks" to test.</div></div>
-        <div class="health-card"><div class="health-label">Slug checker (public)</div><div class="health-status" id="hc-slug"><div class="health-dot unknown"></div>Not checked</div><div class="health-note" id="hc-slug-note">Click "Run checks" to test.</div></div>
-        <div class="health-card"><div class="health-label">Supabase connection</div><div class="health-status" id="hc-sb"><div class="health-dot unknown"></div>Not checked</div><div class="health-note" id="hc-sb-note">Validated through function responses.</div></div>
-        <div class="health-card"><div class="health-label">Auth service</div><div class="health-status" id="hc-auth"><div class="health-dot ok"></div>Verified</div><div class="health-note" id="hc-auth-note">Session token is valid — you are authenticated.</div></div>
-      </div>
-    </div>
-
-    <!-- ── SECTION: AI Control ───────────────────────────────────────── -->
-    <div class="section" id="section-ai-control">
-      <div class="page-header">
-        <div>
-          <div class="page-title">Internal AI Control</div>
-          <div class="page-sub">Admin-only visibility for ProofLink's agent workforce. Tenant operators should only see workflow reviews, not the agent system itself.</div>
-        </div>
-        <button class="btn" onclick="loadAiControl()">↻ Refresh</button>
-      </div>
-
-      <div class="panel">
-        <div class="panel-header">
-          <span class="panel-title">Workforce review</span>
-          <span style="font-size:.75rem;color:var(--muted)">Choose a tenant and inspect the internal guidance</span>
-        </div>
-        <div class="panel-body">
-          <div class="ai-control-toolbar">
-            <label class="ai-control-field" for="ai-tenant-select">
-              <span>Tenant</span>
-              <select id="ai-tenant-select"></select>
-            </label>
-            <button class="btn btn-primary" type="button" onclick="runAiWorkforceReview()">Run workforce review</button>
-            <button class="btn" type="button" onclick="runAiSystemsReview()">Run systems review</button>
-            <button class="btn" type="button" onclick="loadAiAgentRoster()">Refresh roster</button>
-          </div>
-          <div id="ai-control-msg" class="ai-control-msg">Loading internal AI controls…</div>
-        </div>
-      </div>
-
-      <div class="two-col">
-        <div class="panel">
-          <div class="panel-header"><span class="panel-title">Internal agent roster</span></div>
-          <div class="panel-body">
-            <div id="ai-roster-wrap" class="ai-roster-wrap">
-              <div class="empty">Loading internal agents…</div>
+          <div class="kpi-grid">
+            <div class="kpi-card">
+              <div class="kpi-label">Total tenants</div>
+              <div class="kpi-value" id="kpi-tenants">—</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label">Pending applications</div>
+              <div class="kpi-value" id="kpi-pending">—</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label">Provisioned</div>
+              <div class="kpi-value" id="kpi-provisioned">—</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label">Platform GMV</div>
+              <div class="kpi-value" id="kpi-gmv">—</div>
             </div>
           </div>
-        </div>
-        <div>
-          <div class="panel">
-            <div class="panel-header"><span class="panel-title">Workforce guidance</span></div>
-            <div class="panel-body">
-              <div id="ai-workforce-report-wrap" class="ai-workforce-report-wrap">
-                <div class="empty">Choose a tenant and run the workforce review to see missing specialist lanes and training targets.</div>
+
+          <div class="pipeline">
+            <div class="pipeline-seg pipeline-submitted">
+              <span class="seg-count" id="pipe-submitted">0</span
+              ><span class="seg-label">Submitted</span>
+            </div>
+            <div class="pipeline-seg pipeline-approved">
+              <span class="seg-count" id="pipe-approved">0</span
+              ><span class="seg-label">Approved</span>
+            </div>
+            <div class="pipeline-seg pipeline-provisioning">
+              <span class="seg-count" id="pipe-provisioning">0</span
+              ><span class="seg-label">Provisioning</span>
+            </div>
+            <div class="pipeline-seg pipeline-provisioned">
+              <span class="seg-count" id="pipe-provisioned">0</span
+              ><span class="seg-label">Provisioned</span>
+            </div>
+            <div class="pipeline-seg pipeline-failed">
+              <span class="seg-count" id="pipe-failed">0</span><span class="seg-label">Failed</span>
+            </div>
+          </div>
+
+          <div class="two-col">
+            <div class="panel">
+              <div class="panel-header"><span class="panel-title">Recent activity</span></div>
+              <div class="panel-body">
+                <div class="activity-feed" id="activity-feed">
+                  <div class="empty">Loading…</div>
+                </div>
+              </div>
+            </div>
+            <div class="panel">
+              <div class="panel-header"><span class="panel-title">Recent tenants</span></div>
+              <div class="panel-body">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>Business</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody id="recent-tenants-body">
+                    <tr class="loading-row">
+                      <td colspan="2"><span class="spinner"></span></td>
+                    </tr>
+                  </tbody>
+                </table>
               </div>
             </div>
           </div>
+
           <div class="panel">
-            <div class="panel-header"><span class="panel-title">Systems guidance</span></div>
+            <div class="panel-header">
+              <span class="panel-title">Platform Revenue Dashboard</span>
+              <button class="btn btn-sm" onclick="loadOverview()">↻ Refresh</button>
+            </div>
             <div class="panel-body">
-              <div id="ai-systems-report-wrap" class="ai-workforce-report-wrap">
-                <div class="empty">Choose a tenant and run the systems review to see AI architecture gaps, lane exposure opportunities, and shared AI file hardening targets.</div>
+              <div class="kpi-grid kpi-grid--metrics" id="platform-metrics">
+                <div class="empty">Loading metrics…</div>
               </div>
             </div>
           </div>
         </div>
-      </div>
+
+        <!-- ── SECTION: Onboarding ────────────────────────────────────────── -->
+        <div class="section" id="section-onboarding">
+          <div class="page-header">
+            <div>
+              <div class="page-title">Onboarding Requests</div>
+              <div class="page-sub">
+                Applications from <code>/join</code>. Review, approve, reject, or provision.
+              </div>
+            </div>
+            <div class="admin-toolbar">
+              <input
+                class="search-input search-input--sm"
+                id="ob-search"
+                placeholder="Search name / email…"
+                oninput="debounceObSearch()"
+              />
+              <select class="admin-select" id="ob-filter" onchange="loadOnboarding()">
+                <option value="">All statuses</option>
+                <option value="submitted">Submitted</option>
+                <option value="needs_review">Needs review</option>
+                <option value="approved">Approved</option>
+                <option value="provisioning">Provisioning</option>
+                <option value="provisioned">Provisioned</option>
+                <option value="failed">Failed</option>
+                <option value="rejected">Rejected</option>
+              </select>
+              <button class="btn" onclick="loadOnboarding()">↻ Refresh</button>
+            </div>
+          </div>
+
+          <!-- Onboarding bulk bar -->
+          <div id="ob-bulk-bar" class="bulk-bar">
+            <span id="ob-bulk-count" class="bulk-bar__count"></span>
+            <button
+              class="btn btn-sm bulk-bar__action bulk-bar__action--danger"
+              onclick="bulkDeleteOnboardingRequests()"
+            >
+              🗑 Delete selected
+            </button>
+            <button
+              class="btn btn-sm bulk-bar__action bulk-bar__action--ghost bulk-bar__action--push"
+              onclick="clearObSelection()"
+            >
+              ✕ Clear
+            </button>
+          </div>
+
+          <div class="panel">
+            <div class="panel-body panel-body--flush">
+              <table class="data-table" id="ob-table">
+                <thead>
+                  <tr>
+                    <th class="checkbox-col">
+                      <input
+                        type="checkbox"
+                        id="select-all-ob"
+                        onchange="selectAllOb(this.checked)"
+                        title="Select all"
+                      />
+                    </th>
+                    <th>Business</th>
+                    <th>Owner</th>
+                    <th>Slug</th>
+                    <th>Location</th>
+                    <th>Submitted</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="ob-tbody">
+                  <tr class="loading-row">
+                    <td colspan="8"><span class="spinner"></span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── SECTION: Tenants ───────────────────────────────────────────── -->
+        <div class="section" id="section-tenants">
+          <div class="page-header">
+            <div>
+              <div class="page-title">Tenant Management</div>
+              <div class="page-sub">
+                All provisioned businesses. Search, filter, and manage tenant lifecycle.
+              </div>
+            </div>
+            <div class="admin-toolbar">
+              <button class="btn btn-warn" onclick="runAbuseMonitor()">Run Abuse Monitor</button>
+              <button class="btn" onclick="exportTenantsCsv()">⬇ Export CSV</button>
+              <button class="btn" onclick="loadTenants()">↻ Refresh</button>
+            </div>
+          </div>
+
+          <div class="panel panel--compact">
+            <div class="panel-body panel-body--compact">
+              <div class="admin-toolbar">
+                <input
+                  class="search-input search-input--md"
+                  id="tenant-search"
+                  placeholder="Search name / email / slug…"
+                  oninput="debounceTenantSearch()"
+                />
+                <select class="admin-select" id="tenant-status-filter" onchange="loadTenants()">
+                  <option value="">All statuses</option>
+                  <option value="active">Active</option>
+                  <option value="flagged">Flagged</option>
+                  <option value="suspended">Suspended</option>
+                  <option value="terminated">Terminated</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+                <input
+                  class="search-input search-input--xs"
+                  id="tenant-city-filter"
+                  placeholder="City / State…"
+                  oninput="debounceTenantSearch()"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div id="tenant-control-tower-mount"></div>
+
+          <!-- Bulk action bar — shown when ≥1 row is checked -->
+          <div id="bulk-action-bar" class="bulk-bar">
+            <span id="bulk-count" class="bulk-bar__count"></span>
+            <button
+              class="btn btn-sm bulk-bar__action bulk-bar__action--surface"
+              onclick="bulkConductAction('flag')"
+            >
+              Flag selected
+            </button>
+            <button
+              class="btn btn-sm bulk-bar__action bulk-bar__action--surface"
+              onclick="bulkConductAction('suspend')"
+            >
+              Suspend selected
+            </button>
+            <button
+              class="btn btn-sm bulk-bar__action bulk-bar__action--success"
+              onclick="bulkConductAction('reinstate')"
+            >
+              Reinstate selected
+            </button>
+            <button
+              class="btn btn-sm bulk-bar__action bulk-bar__action--danger"
+              onclick="bulkDeleteTenants()"
+            >
+              🗑 Delete selected
+            </button>
+            <button
+              class="btn btn-sm bulk-bar__action bulk-bar__action--ghost bulk-bar__action--push"
+              onclick="clearBulkSelection()"
+            >
+              ✕ Clear
+            </button>
+          </div>
+
+          <div class="panel">
+            <div class="panel-body panel-body--flush panel-body--scroll">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th class="checkbox-col">
+                      <input
+                        type="checkbox"
+                        id="select-all-tenants"
+                        onchange="selectAllTenants(this.checked)"
+                        title="Select all"
+                      />
+                    </th>
+                    <th>Business</th>
+                    <th>Slug</th>
+                    <th>Status</th>
+                    <th>Onboarded</th>
+                    <th>Stripe</th>
+                    <th>Orders</th>
+                    <th>GMV</th>
+                    <th>Location</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="tenants-tbody">
+                  <tr class="loading-row">
+                    <td colspan="10"><span class="spinner"></span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── SECTION: Provisioning ──────────────────────────────────────── -->
+        <div class="section" id="section-provisioning">
+          <div class="page-header">
+            <div>
+              <div class="page-title">Provisioning</div>
+              <div class="page-sub">
+                Manually provision an approved application, or re-run a failed one.
+              </div>
+            </div>
+            <button class="btn" onclick="loadProvisioning()">↻ Refresh</button>
+          </div>
+
+          <div class="panel" style="margin-bottom: 1.25rem">
+            <div class="panel-header">
+              <span class="panel-title">Ready to provision</span>
+              <span style="font-size: 0.75rem; color: var(--muted)"
+                >Approved, not yet provisioned</span
+              >
+            </div>
+            <div class="panel-body panel-body--flush">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Business</th>
+                    <th>Owner</th>
+                    <th>Email</th>
+                    <th>Submitted</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody id="prov-tbody">
+                  <tr class="loading-row">
+                    <td colspan="5"><span class="spinner"></span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-header"><span class="panel-title">Provisioning log</span></div>
+            <div class="panel-body panel-body--flush">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Business</th>
+                    <th>Status</th>
+                    <th>Slug</th>
+                    <th>Updated</th>
+                    <th>Error</th>
+                  </tr>
+                </thead>
+                <tbody id="prov-log-tbody">
+                  <tr class="loading-row">
+                    <td colspan="5"><span class="spinner"></span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── SECTION: Testers ───────────────────────────────────────────── -->
+        <div class="section" id="section-testers">
+          <div class="page-header">
+            <div>
+              <div class="page-title">Tester Accounts</div>
+              <div class="page-sub">
+                Grant free access for up to 3 beta testers. Choose duration per tenant.
+              </div>
+            </div>
+            <button class="btn" onclick="loadTesters()">↻ Refresh</button>
+          </div>
+
+          <!-- Slot counter -->
+          <div
+            class="kpi-grid"
+            style="grid-template-columns: repeat(3, 1fr); margin-bottom: 1.25rem"
+          >
+            <div class="kpi-card">
+              <div class="kpi-label">Slots used</div>
+              <div class="kpi-value" id="tester-slots-used">—</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label">Slots remaining</div>
+              <div class="kpi-value" id="tester-slots-remaining">—</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label">Max tester slots</div>
+              <div class="kpi-value">3</div>
+            </div>
+          </div>
+
+          <!-- Active testers -->
+          <div class="panel" style="margin-bottom: 1.25rem">
+            <div class="panel-header">
+              <span class="panel-title">Active tester exemptions</span>
+              <span style="font-size: 0.75rem; color: var(--muted)"
+                >Billing is bypassed for these tenants until the expiry date</span
+              >
+            </div>
+            <div class="panel-body panel-body--flush">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Business</th>
+                    <th>Slug</th>
+                    <th>Exempt until</th>
+                    <th>Days remaining</th>
+                    <th>Billing status</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody id="testers-tbody">
+                  <tr class="loading-row">
+                    <td colspan="6"><span class="spinner"></span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Grant exemption -->
+          <div class="panel">
+            <div class="panel-header">
+              <span class="panel-title">Grant tester exemption</span>
+            </div>
+            <div class="panel-body">
+              <p style="font-size: 0.82rem; color: var(--muted); margin-bottom: 1rem">
+                Find a provisioned tenant and grant them free access. Choose duration and click
+                Grant. Billing checkout is skipped entirely for exempt tenants.
+              </p>
+              <div
+                style="
+                  display: flex;
+                  gap: 0.5rem;
+                  align-items: center;
+                  flex-wrap: wrap;
+                  margin-bottom: 1rem;
+                "
+              >
+                <input
+                  class="search-input"
+                  id="tester-tenant-search"
+                  placeholder="Search tenant by name, email, or slug…"
+                  style="width: 280px"
+                  oninput="searchTenantsForExempt()"
+                />
+                <select
+                  id="tester-duration"
+                  style="
+                    border: 1px solid var(--border);
+                    border-radius: 4px;
+                    padding: 0.45rem 0.7rem;
+                    font-size: 0.8rem;
+                    font-family: var(--font-body);
+                    color: var(--ink);
+                    background: #fff;
+                    outline: none;
+                  "
+                >
+                  <option value="3">3 months</option>
+                  <option value="6">6 months</option>
+                  <option value="12" selected>12 months</option>
+                  <option value="24">24 months</option>
+                </select>
+              </div>
+              <div id="tester-tenant-results" style="margin-bottom: 1rem"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── SECTION: Audit Log ────────────────────────────────────────── -->
+        <div class="section" id="section-audit-log">
+          <div class="page-header">
+            <div>
+              <div class="page-title">Audit Log</div>
+              <div class="page-sub">
+                All platform admin conduct actions — flag, suspend, reinstate, terminate.
+              </div>
+            </div>
+            <button class="btn" onclick="loadAuditLog()">↻ Refresh</button>
+          </div>
+          <div class="panel">
+            <div class="panel-body panel-body--flush panel-body--scroll">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Tenant</th>
+                    <th>Action</th>
+                    <th>Notes</th>
+                    <th>Performed at</th>
+                  </tr>
+                </thead>
+                <tbody id="audit-log-tbody">
+                  <tr class="loading-row">
+                    <td colspan="4"><span class="spinner"></span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div
+            id="audit-log-pagination"
+            style="
+              display: flex;
+              gap: 0.5rem;
+              align-items: center;
+              padding: 0.75rem 0;
+              font-size: 0.82rem;
+              color: var(--muted);
+            "
+          ></div>
+        </div>
+
+        <!-- ── SECTION: Billing ───────────────────────────────────────────── -->
+        <div class="section" id="section-billing">
+          <div class="page-header">
+            <div>
+              <div class="page-title">Platform Billing</div>
+              <div class="page-sub">Stripe platform subscription and revenue overview.</div>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-body">
+              <p style="color: var(--muted); font-size: 0.85rem; line-height: 1.65">
+                Billing management is handled through your Stripe dashboard. Connect your Stripe
+                account in platform settings to see live subscription data here.
+              </p>
+              <div style="margin-top: 1.25rem; display: flex; gap: 0.75rem; flex-wrap: wrap">
+                <a
+                  class="btn btn-primary"
+                  href="https://dashboard.stripe.com"
+                  target="_blank"
+                  rel="noopener"
+                  >Open Stripe dashboard ↗</a
+                >
+                <a
+                  class="btn"
+                  href="https://dashboard.stripe.com/connect/accounts/overview"
+                  target="_blank"
+                  rel="noopener"
+                  >Stripe Connect ↗</a
+                >
+              </div>
+              <div class="health-grid" style="margin-top: 1.5rem">
+                <div class="health-card">
+                  <div class="health-label">Stripe API key</div>
+                  <div class="health-status" id="hc-stripe-key">
+                    <div class="health-dot unknown"></div>
+                    Checking…
+                  </div>
+                  <div class="health-note" id="hc-stripe-key-note">
+                    Verifying your Stripe secret key.
+                  </div>
+                </div>
+                <div class="health-card">
+                  <div class="health-label">Connected accounts</div>
+                  <div class="health-status" id="hc-stripe-connect">
+                    <div class="health-dot unknown"></div>
+                    Checking…
+                  </div>
+                  <div class="health-note" id="hc-stripe-connect-note">
+                    Counting active Stripe Connect accounts.
+                  </div>
+                </div>
+                <div class="health-card">
+                  <div class="health-label">Webhook endpoint</div>
+                  <div class="health-status" id="hc-stripe-webhook">
+                    <div class="health-dot unknown"></div>
+                    Checking…
+                  </div>
+                  <div class="health-note" id="hc-stripe-webhook-note">
+                    Verifying webhook secret is configured.
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── SECTION: System Health ─────────────────────────────────────── -->
+        <div class="section" id="section-health">
+          <div class="page-header">
+            <div>
+              <div class="page-title">System Health</div>
+              <div class="page-sub">
+                Live connectivity checks for Netlify functions and Supabase.
+              </div>
+            </div>
+            <button class="btn" onclick="runHealthCheck()">↻ Run checks</button>
+          </div>
+          <div class="health-grid">
+            <div class="health-card">
+              <div class="health-label">Platform stats function</div>
+              <div class="health-status" id="hc-stats">
+                <div class="health-dot unknown"></div>
+                Not checked
+              </div>
+              <div class="health-note" id="hc-stats-note">Click "Run checks" to test.</div>
+            </div>
+            <div class="health-card">
+              <div class="health-label">Onboarding function</div>
+              <div class="health-status" id="hc-ob">
+                <div class="health-dot unknown"></div>
+                Not checked
+              </div>
+              <div class="health-note" id="hc-ob-note">Click "Run checks" to test.</div>
+            </div>
+            <div class="health-card">
+              <div class="health-label">Tenants function</div>
+              <div class="health-status" id="hc-tenants">
+                <div class="health-dot unknown"></div>
+                Not checked
+              </div>
+              <div class="health-note" id="hc-tenants-note">Click "Run checks" to test.</div>
+            </div>
+            <div class="health-card">
+              <div class="health-label">Slug checker (public)</div>
+              <div class="health-status" id="hc-slug">
+                <div class="health-dot unknown"></div>
+                Not checked
+              </div>
+              <div class="health-note" id="hc-slug-note">Click "Run checks" to test.</div>
+            </div>
+            <div class="health-card">
+              <div class="health-label">Supabase connection</div>
+              <div class="health-status" id="hc-sb">
+                <div class="health-dot unknown"></div>
+                Not checked
+              </div>
+              <div class="health-note" id="hc-sb-note">Validated through function responses.</div>
+            </div>
+            <div class="health-card">
+              <div class="health-label">Auth service</div>
+              <div class="health-status" id="hc-auth">
+                <div class="health-dot ok"></div>
+                Verified
+              </div>
+              <div class="health-note" id="hc-auth-note">
+                Session token is valid — you are authenticated.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── SECTION: AI Control ───────────────────────────────────────── -->
+        <div class="section" id="section-ai-control">
+          <div class="page-header">
+            <div>
+              <div class="page-title">Internal AI Control</div>
+              <div class="page-sub">
+                Admin-only visibility for ProofLink's agent workforce. Tenant operators should only
+                see workflow reviews, not the agent system itself.
+              </div>
+            </div>
+            <button class="btn" onclick="loadAiControl()">↻ Refresh</button>
+          </div>
+
+          <div class="panel">
+            <div class="panel-header">
+              <span class="panel-title">Workforce review</span>
+              <span style="font-size: 0.75rem; color: var(--muted)"
+                >Choose a tenant and inspect the internal guidance</span
+              >
+            </div>
+            <div class="panel-body">
+              <div class="ai-control-toolbar">
+                <label class="ai-control-field" for="ai-tenant-select">
+                  <span>Tenant</span>
+                  <select id="ai-tenant-select"></select>
+                </label>
+                <button class="btn btn-primary" type="button" onclick="runAiWorkforceReview()">
+                  Run workforce review
+                </button>
+                <button class="btn" type="button" onclick="runAiSystemsReview()">
+                  Run systems review
+                </button>
+                <button class="btn" type="button" onclick="loadAiAgentRoster()">
+                  Refresh roster
+                </button>
+              </div>
+              <div id="ai-control-msg" class="ai-control-msg">Loading internal AI controls…</div>
+            </div>
+          </div>
+
+          <div class="two-col">
+            <div class="panel">
+              <div class="panel-header"><span class="panel-title">Internal agent roster</span></div>
+              <div class="panel-body">
+                <div id="ai-roster-wrap" class="ai-roster-wrap">
+                  <div class="empty">Loading internal agents…</div>
+                </div>
+              </div>
+            </div>
+            <div>
+              <div class="panel">
+                <div class="panel-header"><span class="panel-title">Workforce guidance</span></div>
+                <div class="panel-body">
+                  <div id="ai-workforce-report-wrap" class="ai-workforce-report-wrap">
+                    <div class="empty">
+                      Choose a tenant and run the workforce review to see missing specialist lanes
+                      and training targets.
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="panel">
+                <div class="panel-header"><span class="panel-title">Systems guidance</span></div>
+                <div class="panel-body">
+                  <div id="ai-systems-report-wrap" class="ai-workforce-report-wrap">
+                    <div class="empty">
+                      Choose a tenant and run the systems review to see AI architecture gaps, lane
+                      exposure opportunities, and shared AI file hardening targets.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── SECTION: Settings ──────────────────────────────────────────── -->
+        <div class="section" id="section-settings">
+          <div class="page-header">
+            <div>
+              <div class="page-title">Settings</div>
+              <div class="page-sub">Platform configuration and environment variables.</div>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-header"><span class="panel-title">Environment variables</span></div>
+            <div class="panel-body">
+              <p style="font-size: 0.82rem; color: var(--muted); margin-bottom: 1rem">
+                Set in Netlify → Site settings → Environment variables. Never stored here.
+              </p>
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Variable</th>
+                    <th>Purpose</th>
+                    <th>Required</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td class="td-mono">SUPABASE_URL</td>
+                    <td>Supabase project URL</td>
+                    <td><span class="badge badge-submitted">Required</span></td>
+                  </tr>
+                  <tr>
+                    <td class="td-mono">SUPABASE_SERVICE_ROLE_KEY</td>
+                    <td>Service role key (server-side only, never expose)</td>
+                    <td><span class="badge badge-submitted">Required</span></td>
+                  </tr>
+                  <tr>
+                    <td class="td-mono">SUPABASE_ANON_KEY</td>
+                    <td>Public anon key (browser-safe)</td>
+                    <td><span class="badge badge-submitted">Required</span></td>
+                  </tr>
+                  <tr>
+                    <td class="td-mono">STRIPE_SECRET_KEY</td>
+                    <td>Stripe secret key for billing</td>
+                    <td><span class="badge badge-approved">Recommended</span></td>
+                  </tr>
+                  <tr>
+                    <td class="td-mono">RESEND_API_KEY</td>
+                    <td>Resend.com for transactional email</td>
+                    <td><span class="badge badge-approved">Recommended</span></td>
+                  </tr>
+                  <tr>
+                    <td class="td-mono">FROM_EMAIL</td>
+                    <td>Verified sender address</td>
+                    <td><span class="badge badge-approved">Recommended</span></td>
+                  </tr>
+                  <tr>
+                    <td class="td-mono">OPERATOR_ALERT_EMAIL</td>
+                    <td>Where new application alerts go</td>
+                    <td><span class="badge badge-approved">Recommended</span></td>
+                  </tr>
+                  <tr>
+                    <td class="td-mono">SITE_URL</td>
+                    <td>Full domain e.g. https://prooflink.co</td>
+                    <td><span class="badge badge-approved">Recommended</span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-header"><span class="panel-title">SQL migration files</span></div>
+            <div class="panel-body">
+              <p style="font-size: 0.82rem; color: var(--muted); line-height: 1.65">
+                Run in your Supabase SQL editor in order:
+              </p>
+              <ol
+                style="
+                  font-size: 0.82rem;
+                  color: var(--muted);
+                  padding-left: 1.25rem;
+                  margin-top: 0.75rem;
+                  line-height: 2.2;
+                "
+              >
+                <li>
+                  <code>sql/catchup_run_this.sql</code> - Core live schema for tenants, operators,
+                  storefront, customers, orders, payments, and RLS
+                </li>
+                <li>
+                  <code>sql/service_workflow_phase1.sql</code> - Adds leads, bids, jobs,
+                  payment-state normalization, and service workflow RPCs
+                </li>
+              </ol>
+              <p
+                style="
+                  font-size: 0.82rem;
+                  color: var(--muted);
+                  line-height: 1.65;
+                  margin-top: 0.75rem;
+                "
+              >
+                Before hosted integration or e2e service-workflow tests, run
+                <code>npm run test:preflight:service-workflow</code> against that same project.
+              </p>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-header"><span class="panel-title">Grant admin access</span></div>
+            <div class="panel-body">
+              <p
+                style="
+                  font-size: 0.82rem;
+                  color: var(--muted);
+                  line-height: 1.65;
+                  margin-bottom: 0.75rem;
+                "
+              >
+                Any operator can currently use this admin panel. To restrict to admin-only once
+                roles are set up:
+              </p>
+              <pre
+                style="
+                  background: var(--cream);
+                  padding: 0.75rem 1rem;
+                  border-radius: 4px;
+                  font-size: 0.8rem;
+                  overflow-x: auto;
+                "
+              >
+UPDATE operators SET role = 'admin' WHERE email = 'you@example.com';</pre
+              >
+              <p style="font-size: 0.78rem; color: var(--muted); margin-top: 0.6rem">
+                Then swap <code>requireOperatorContext</code> → <code>requireAdminContext</code> in
+                admin functions.
+              </p>
+            </div>
+          </div>
+        </div>
+      </main>
     </div>
 
-    <!-- ── SECTION: Settings ──────────────────────────────────────────── -->
-    <div class="section" id="section-settings">
-      <div class="page-header">
-        <div><div class="page-title">Settings</div><div class="page-sub">Platform configuration and environment variables.</div></div>
-      </div>
-      <div class="panel">
-        <div class="panel-header"><span class="panel-title">Environment variables</span></div>
-        <div class="panel-body">
-          <p style="font-size:.82rem;color:var(--muted);margin-bottom:1rem">Set in Netlify → Site settings → Environment variables. Never stored here.</p>
-          <table class="data-table">
-            <thead><tr><th>Variable</th><th>Purpose</th><th>Required</th></tr></thead>
-            <tbody>
-              <tr><td class="td-mono">SUPABASE_URL</td><td>Supabase project URL</td><td><span class="badge badge-submitted">Required</span></td></tr>
-              <tr><td class="td-mono">SUPABASE_SERVICE_ROLE_KEY</td><td>Service role key (server-side only, never expose)</td><td><span class="badge badge-submitted">Required</span></td></tr>
-              <tr><td class="td-mono">SUPABASE_ANON_KEY</td><td>Public anon key (browser-safe)</td><td><span class="badge badge-submitted">Required</span></td></tr>
-              <tr><td class="td-mono">STRIPE_SECRET_KEY</td><td>Stripe secret key for billing</td><td><span class="badge badge-approved">Recommended</span></td></tr>
-              <tr><td class="td-mono">RESEND_API_KEY</td><td>Resend.com for transactional email</td><td><span class="badge badge-approved">Recommended</span></td></tr>
-              <tr><td class="td-mono">FROM_EMAIL</td><td>Verified sender address</td><td><span class="badge badge-approved">Recommended</span></td></tr>
-              <tr><td class="td-mono">OPERATOR_ALERT_EMAIL</td><td>Where new application alerts go</td><td><span class="badge badge-approved">Recommended</span></td></tr>
-              <tr><td class="td-mono">SITE_URL</td><td>Full domain e.g. https://prooflink.co</td><td><span class="badge badge-approved">Recommended</span></td></tr>
-            </tbody>
-          </table>
+    <!-- ── Modals ────────────────────────────────────────────────────────────── -->
+
+    <!-- Reject -->
+    <div class="modal-overlay" id="reject-modal">
+      <div class="modal">
+        <div class="modal-title">Reject application</div>
+        <div class="modal-body">
+          This will notify the applicant by email. Include a reason below (optional).
+        </div>
+        <textarea
+          class="modal-textarea"
+          id="reject-reason"
+          placeholder="e.g. We're currently only accepting businesses in Michigan."
+          rows="3"
+        ></textarea>
+        <div class="modal-actions">
+          <button class="btn" onclick="closeModal('reject-modal')">Cancel</button>
+          <button class="btn btn-danger" onclick="confirmReject()">Reject &amp; notify</button>
         </div>
       </div>
-      <div class="panel">
-        <div class="panel-header"><span class="panel-title">SQL migration files</span></div>
-        <div class="panel-body">
-          <p style="font-size:.82rem;color:var(--muted);line-height:1.65">Run in your Supabase SQL editor in order:</p>
-          <ol style="font-size:.82rem;color:var(--muted);padding-left:1.25rem;margin-top:.75rem;line-height:2.2">
-            <li><code>sql/catchup_run_this.sql</code> - Core live schema for tenants, operators, storefront, customers, orders, payments, and RLS</li>
-            <li><code>sql/service_workflow_phase1.sql</code> - Adds leads, bids, jobs, payment-state normalization, and service workflow RPCs</li>
-          </ol>
-          <p style="font-size:.82rem;color:var(--muted);line-height:1.65;margin-top:.75rem">Before hosted integration or e2e service-workflow tests, run <code>npm run test:preflight:service-workflow</code> against that same project.</p>
+    </div>
+
+    <!-- Provision confirm -->
+    <div class="modal-overlay" id="provision-modal">
+      <div class="modal">
+        <div class="modal-title">Provision this tenant?</div>
+        <div class="modal-body" id="provision-modal-body">
+          This will create the full tenant bundle: tenant row, operator record, seed config, and
+          send the welcome email.
         </div>
-      </div>
-      <div class="panel">
-        <div class="panel-header"><span class="panel-title">Grant admin access</span></div>
-        <div class="panel-body">
-          <p style="font-size:.82rem;color:var(--muted);line-height:1.65;margin-bottom:.75rem">
-            Any operator can currently use this admin panel. To restrict to admin-only once roles are set up:
-          </p>
-          <pre style="background:var(--cream);padding:.75rem 1rem;border-radius:4px;font-size:.8rem;overflow-x:auto">UPDATE operators SET role = 'admin' WHERE email = 'you@example.com';</pre>
-          <p style="font-size:.78rem;color:var(--muted);margin-top:.6rem">Then swap <code>requireOperatorContext</code> → <code>requireAdminContext</code> in admin functions.</p>
+        <div class="modal-actions">
+          <button class="btn" onclick="closeModal('provision-modal')">Cancel</button>
+          <button class="btn btn-primary" onclick="confirmProvision()">Yes, provision</button>
         </div>
       </div>
     </div>
 
-  </main>
-</div>
-
-<!-- ── Modals ────────────────────────────────────────────────────────────── -->
-
-<!-- Reject -->
-<div class="modal-overlay" id="reject-modal">
-  <div class="modal">
-    <div class="modal-title">Reject application</div>
-    <div class="modal-body">This will notify the applicant by email. Include a reason below (optional).</div>
-    <textarea class="modal-textarea" id="reject-reason" placeholder="e.g. We're currently only accepting businesses in Michigan." rows="3"></textarea>
-    <div class="modal-actions">
-      <button class="btn" onclick="closeModal('reject-modal')">Cancel</button>
-      <button class="btn btn-danger" onclick="confirmReject()">Reject &amp; notify</button>
+    <!-- Config editor -->
+    <div class="modal-overlay" id="config-modal">
+      <div class="modal modal-lg">
+        <div class="modal-title" id="config-modal-title">Edit config</div>
+        <div id="config-modal-body" style="margin-bottom: 1rem"></div>
+        <div class="modal-actions">
+          <button class="btn" onclick="closeModal('config-modal')">Cancel</button>
+          <button class="btn btn-primary" onclick="saveConfig()">Save config</button>
+        </div>
+      </div>
     </div>
-  </div>
-</div>
 
-<!-- Provision confirm -->
-<div class="modal-overlay" id="provision-modal">
-  <div class="modal">
-    <div class="modal-title">Provision this tenant?</div>
-    <div class="modal-body" id="provision-modal-body">This will create the full tenant bundle: tenant row, operator record, seed config, and send the welcome email.</div>
-    <div class="modal-actions">
-      <button class="btn" onclick="closeModal('provision-modal')">Cancel</button>
-      <button class="btn btn-primary" onclick="confirmProvision()">Yes, provision</button>
+    <!-- Request detail -->
+    <div class="modal-overlay" id="detail-modal">
+      <div class="modal modal-lg">
+        <div class="modal-title" id="detail-modal-title">Application detail</div>
+        <div id="detail-modal-body" style="margin-bottom: 1rem"></div>
+        <div class="modal-actions" id="detail-modal-actions">
+          <button class="btn" onclick="closeModal('detail-modal')">Close</button>
+        </div>
+      </div>
     </div>
-  </div>
-</div>
 
-<!-- Config editor -->
-<div class="modal-overlay" id="config-modal">
-  <div class="modal modal-lg">
-    <div class="modal-title" id="config-modal-title">Edit config</div>
-    <div id="config-modal-body" style="margin-bottom:1rem"></div>
-    <div class="modal-actions">
-      <button class="btn" onclick="closeModal('config-modal')">Cancel</button>
-      <button class="btn btn-primary" onclick="saveConfig()">Save config</button>
+    <!-- Tenant detail drawer -->
+    <div class="modal-overlay" id="tenant-detail-modal">
+      <div class="modal modal-lg">
+        <div class="modal-title" id="tenant-detail-title">Tenant detail</div>
+        <div id="tenant-detail-body" style="margin-bottom: 1rem"></div>
+        <div style="border-top: 1px solid var(--border); padding-top: 1rem; margin-top: 0.5rem">
+          <div
+            style="
+              font-weight: 600;
+              font-size: 0.82rem;
+              margin-bottom: 0.6rem;
+              color: var(--muted);
+              text-transform: uppercase;
+              letter-spacing: 0.04em;
+            "
+          >
+            Conduct history
+          </div>
+          <div
+            id="tenant-conduct-log"
+            style="font-size: 0.8rem; max-height: 220px; overflow-y: auto"
+          >
+            <div class="empty">Loading…</div>
+          </div>
+        </div>
+        <div class="modal-actions" id="tenant-detail-actions">
+          <button class="btn" onclick="closeModal('tenant-detail-modal')">Close</button>
+        </div>
+      </div>
     </div>
-  </div>
-</div>
 
-<!-- Request detail -->
-<div class="modal-overlay" id="detail-modal">
-  <div class="modal modal-lg">
-    <div class="modal-title" id="detail-modal-title">Application detail</div>
-    <div id="detail-modal-body" style="margin-bottom:1rem"></div>
-    <div class="modal-actions" id="detail-modal-actions">
-      <button class="btn" onclick="closeModal('detail-modal')">Close</button>
+    <!-- Notify tenant modal -->
+    <div class="modal-overlay" id="notify-modal">
+      <div class="modal">
+        <div class="modal-title">Send message to tenant</div>
+        <div class="modal-body" id="notify-modal-desc" style="margin-bottom: 0.75rem"></div>
+        <div class="config-field">
+          <label>Subject</label
+          ><input
+            id="notify-subject"
+            maxlength="200"
+            placeholder="e.g. Action required — account review"
+          />
+        </div>
+        <div class="config-field">
+          <label>Message</label
+          ><textarea
+            id="notify-message"
+            rows="5"
+            maxlength="4000"
+            placeholder="Write your message here…"
+            style="
+              width: 100%;
+              border: 1px solid var(--border);
+              border-radius: 4px;
+              padding: 0.5rem 0.75rem;
+              font-family: var(--font-body);
+              font-size: 0.85rem;
+              resize: vertical;
+            "
+          ></textarea>
+        </div>
+        <div class="modal-actions">
+          <button class="btn" onclick="closeModal('notify-modal')">Cancel</button>
+          <button class="btn btn-primary" onclick="sendTenantMessage()">Send email</button>
+        </div>
+      </div>
     </div>
-  </div>
-</div>
 
-<!-- Tenant detail drawer -->
-<div class="modal-overlay" id="tenant-detail-modal">
-  <div class="modal modal-lg">
-    <div class="modal-title" id="tenant-detail-title">Tenant detail</div>
-    <div id="tenant-detail-body" style="margin-bottom:1rem"></div>
-    <div style="border-top:1px solid var(--border);padding-top:1rem;margin-top:.5rem">
-      <div style="font-weight:600;font-size:.82rem;margin-bottom:.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Conduct history</div>
-      <div id="tenant-conduct-log" style="font-size:.8rem;max-height:220px;overflow-y:auto"><div class="empty">Loading…</div></div>
-    </div>
-    <div class="modal-actions" id="tenant-detail-actions">
-      <button class="btn" onclick="closeModal('tenant-detail-modal')">Close</button>
-    </div>
-  </div>
-</div>
+    <!-- Toast container -->
+    <div id="toast"></div>
 
-<!-- Notify tenant modal -->
-<div class="modal-overlay" id="notify-modal">
-  <div class="modal">
-    <div class="modal-title">Send message to tenant</div>
-    <div class="modal-body" id="notify-modal-desc" style="margin-bottom:.75rem"></div>
-    <div class="config-field"><label>Subject</label><input id="notify-subject" maxlength="200" placeholder="e.g. Action required — account review"/></div>
-    <div class="config-field"><label>Message</label><textarea id="notify-message" rows="5" maxlength="4000" placeholder="Write your message here…" style="width:100%;border:1px solid var(--border);border-radius:4px;padding:.5rem .75rem;font-family:var(--font-body);font-size:.85rem;resize:vertical"></textarea></div>
-    <div class="modal-actions">
-      <button class="btn" onclick="closeModal('notify-modal')">Cancel</button>
-      <button class="btn btn-primary" onclick="sendTenantMessage()">Send email</button>
-    </div>
-  </div>
-</div>
-
-<!-- Toast container -->
-<div id="toast"></div>
-
-<script src="admin.js"></script>
-</body>
+    <script src="admin.js"></script>
+  </body>
 </html>

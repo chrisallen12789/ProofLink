@@ -1,1133 +1,1157 @@
-﻿<!DOCTYPE html>
+﻿<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Customer account</title>
-  <link rel="icon" href="/assets/favicon.png" />
-  <link rel="manifest" href="/site.webmanifest" />
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: #0f1117;
-      color: #e8e9eb;
-      min-height: 100vh;
-      display: flex;
-      align-items: flex-start;
-      justify-content: center;
-      padding: 40px 16px 60px;
-    }
-    .wrap { max-width: 600px; width: 100%; }
-    .logo { font-size: 1.4rem; font-weight: 700; color: #c84b2f; margin-bottom: 4px; }
-    .biz-name { font-size: 1.2rem; font-weight: 600; margin-bottom: 2px; }
-    .sub { font-size: .875rem; color: rgba(255,255,255,.5); margin-bottom: 20px; line-height: 1.5; }
-    .helper-copy { font-size: .86rem; color: rgba(255,255,255,.62); margin-bottom: 16px; line-height: 1.55; }
-    .card {
-      background: #1a1d27;
-      border: 1px solid rgba(255,255,255,.1);
-      border-radius: 12px;
-      padding: 24px;
-      margin-bottom: 16px;
-    }
-    .card-hd { font-weight: 600; margin-bottom: 14px; font-size: .95rem; }
-    label { display: block; font-size: .8rem; color: rgba(255,255,255,.6); margin-bottom: 4px; }
-    input {
-      width: 100%;
-      background: #0f1117;
-      border: 1px solid rgba(255,255,255,.15);
-      border-radius: 6px;
-      color: #e8e9eb;
-      padding: 10px 12px;
-      font-size: .9rem;
-      margin-bottom: 14px;
-      outline: none;
-    }
-    input:focus { border-color: #c84b2f; }
-    .btn {
-      background: #c84b2f;
-      color: #fff;
-      border: none;
-      border-radius: 6px;
-      padding: 10px 20px;
-      font-size: .9rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: background .2s;
-    }
-    .btn:hover { background: #a93e28; }
-    .btn:disabled { opacity: .5; cursor: not-allowed; }
-    .btn-ghost {
-      background: rgba(255,255,255,.07);
-      color: rgba(255,255,255,.8);
-    }
-    .btn-ghost:hover { background: rgba(255,255,255,.12); }
-    .msg { margin-top: 12px; font-size: .875rem; padding: 10px 12px; border-radius: 6px; display: none; }
-    .msg.error { background: rgba(239,68,68,.1); color: #f87171; border: 1px solid rgba(239,68,68,.2); display: block; }
-    .msg.info { background: rgba(96,165,250,.12); color: #bfdbfe; border: 1px solid rgba(96,165,250,.22); display: block; }
-    .hidden { display: none; }
-    .portal-notice { margin-bottom: 12px; }
-    .portal-back-btn { margin-top: 12px; }
-    .orders-summary {
-      margin-bottom: 12px;
-      padding: 14px 16px;
-      border-radius: 10px;
-      border: 1px solid rgba(255,255,255,.08);
-      background: rgba(255,255,255,.04);
-    }
-    .orders-summary--attention {
-      border-color: rgba(200,75,47,.22);
-      background: rgba(200,75,47,.08);
-    }
-    .orders-summary-kicker {
-      font-size: .72rem;
-      text-transform: uppercase;
-      letter-spacing: .05em;
-      font-weight: 700;
-      color: rgba(255,255,255,.46);
-      margin-bottom: 6px;
-    }
-    .orders-summary-title {
-      font-size: .95rem;
-      font-weight: 600;
-      color: #e8e9eb;
-    }
-    .orders-summary-copy {
-      margin-top: 4px;
-      font-size: .84rem;
-      color: rgba(255,255,255,.7);
-      line-height: 1.5;
-    }
-    .orders-summary-next {
-      margin-top: 10px;
-      font-size: .8rem;
-      color: rgba(255,255,255,.82);
-      font-weight: 600;
-    }
-    .section-title { font-size: .95rem; font-weight: 600; margin-bottom: 12px; }
-    .order-row {
-      padding: 12px 0;
-      border-bottom: 1px solid rgba(255,255,255,.06);
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-    .order-row:last-child { border-bottom: none; }
-    .order-row--top { flex-wrap: wrap; align-items: flex-start; }
-    .order-row--highlight {
-      margin: 8px -12px 0;
-      padding: 16px 12px;
-      border-radius: 10px;
-      border: 1px solid rgba(200,75,47,.28);
-      background: rgba(200,75,47,.08);
-      box-shadow: 0 0 0 1px rgba(200,75,47,.1);
-    }
-    .order-row--focus {
-      margin: 8px -12px 0;
-      padding: 16px 12px;
-      border-radius: 10px;
-      border: 1px solid rgba(251,191,36,.24);
-      background: rgba(251,191,36,.08);
-    }
-    .order-title { font-weight: 500; font-size: .9rem; }
-    .order-meta { font-size: .8rem; color: rgba(255,255,255,.5); margin-top: 2px; }
-    .payment-guidance {
-      font-size: .78rem;
-      color: rgba(255,255,255,.62);
-      margin-top: 8px;
-      line-height: 1.45;
-    }
-    .payment-next-step-note {
-      font-size: .78rem;
-      color: rgba(255,255,255,.72);
-      margin-top: 6px;
-      font-weight: 600;
-      line-height: 1.45;
-    }
-    .payment-state-note {
-      font-size: .78rem;
-      color: rgba(255,255,255,.68);
-      margin-top: 6px;
-      font-weight: 600;
-    }
-    .order-return-note {
-      font-size: .78rem;
-      color: rgba(255,255,255,.62);
-      margin-top: 6px;
-    }
-    .badge {
-      font-size: .72rem;
-      padding: 3px 8px;
-      border-radius: 12px;
-      background: rgba(255,255,255,.06);
-      white-space: nowrap;
-    }
-    .badge.completed { color: #4ade80; }
-    .badge.cancelled { color: #f87171; }
-    .badge.new, .badge.pending { color: #93c5fd; }
-    .badge.in_progress, .badge.active { color: #fbbf24; }
-    .amount { font-size: .85rem; font-weight: 600; color: rgba(255,255,255,.8); margin-left: auto; white-space: nowrap; }
-    .empty { font-size: .875rem; color: rgba(255,255,255,.35); padding: 8px 0; }
-    .powered { text-align: center; font-size: .75rem; color: rgba(255,255,255,.3); margin-top: 24px; }
-    .powered a { color: rgba(255,255,255,.4); text-decoration: none; }
-    textarea {
-      width: 100%;
-      background: #0f1117;
-      border: 1px solid rgba(255,255,255,.15);
-      border-radius: 6px;
-      color: #e8e9eb;
-      padding: 10px 12px;
-      font-size: .9rem;
-      margin-bottom: 14px;
-      outline: none;
-      resize: vertical;
-      min-height: 100px;
-      font-family: inherit;
-    }
-    textarea:focus { border-color: #c84b2f; }
-    .msg.success { background: rgba(34,197,94,.1); color: #4ade80; border: 1px solid rgba(34,197,94,.2); display: block; }
-    .tabs { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,.08); }
-    .tab-btn {
-      background: none; border: none; color: rgba(255,255,255,.5); font-size: .875rem; padding: 8px 14px;
-      cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px;
-    }
-    .tab-btn.active { color: #e8e9eb; border-bottom-color: #c84b2f; font-weight: 600; }
-    .tab-panel { display: none; }
-    .tab-panel.active { display: block; }
-    .book-link { display: inline-block; margin-top: 12px; color: #c84b2f; text-decoration: none; font-size: .875rem; }
-    .book-link:hover { text-decoration: underline; }
-    .search-row { display: flex; gap: 8px; margin-bottom: 12px; }
-    .search-row input { margin-bottom: 0; flex: 1; }
-    .btn-danger { background: rgba(239,68,68,.12); color: #f87171; border: 1px solid rgba(239,68,68,.2); }
-    .btn-danger:hover { background: rgba(239,68,68,.22); }
-    .cancel-booking-btn { font-size: .75rem; padding: 4px 10px; margin-left: auto; flex-shrink: 0; }
-    .order-financials {
-      display: flex; gap: 16px; flex-wrap: wrap; margin-top: 8px;
-      padding-top: 8px; border-top: 1px solid rgba(255,255,255,.06);
-    }
-    .fin-item { display: flex; flex-direction: column; gap: 2px; }
-    .fin-label { font-size: .72rem; color: rgba(255,255,255,.4); text-transform: uppercase; letter-spacing: .04em; }
-    .fin-value { font-size: .88rem; font-weight: 600; color: rgba(255,255,255,.85); }
-    .fin-value.due { color: #fbbf24; }
-    .fin-value.paid { color: #4ade80; }
-    .fin-value.overdue { color: #f87171; }
-    .pay-btn {
-      font-size: .78rem; padding: 5px 12px; margin-top: 2px;
-      background: rgba(200,75,47,.15); color: #c84b2f;
-      border: 1px solid rgba(200,75,47,.3); border-radius: 6px;
-      cursor: pointer; font-weight: 600; transition: background .2s;
-      text-decoration: none; display: inline-block;
-    }
-    .pay-btn:hover { background: rgba(200,75,47,.28); }
-    .stacked-row { flex-direction: column; align-items: flex-start; gap: 0; }
-    .stacked-row-main { display: flex; align-items: center; gap: 10px; width: 100%; }
-    .stacked-row-copy { flex: 1; min-width: 0; }
-    .stacked-row-note { font-size: .78rem; color: rgba(255,255,255,.4); margin-top: 4px; }
-    .stacked-row-actions { margin-top: 8px; }
-    .stacked-row--tight { gap: 6px; }
-    .due-date-note { font-size: .72rem; font-weight: 400; color: rgba(255,255,255,.4); }
-    .review-estimate-link {
-      font-size: .82rem;
-      color: #c84b2f;
-      text-decoration: none;
-      font-weight: 600;
-    }
-    .review-estimate-link:hover { text-decoration: underline; }
-    .package-balance-panel {
-      padding: 14px 16px;
-      background: rgba(200,75,47,.06);
-      border: 1px solid rgba(200,75,47,.2);
-      border-radius: 8px;
-    }
-    .package-balance-kicker {
-      font-size: .75rem;
-      font-weight: 700;
-      color: #c84b2f;
-      text-transform: uppercase;
-      letter-spacing: .05em;
-      margin-bottom: 6px;
-    }
-    .package-balance-name {
-      font-weight: 600;
-      color: #e8e9eb;
-      margin-bottom: 4px;
-    }
-    .package-balance-detail {
-      font-size: .85rem;
-      color: rgba(255,255,255,.6);
-    }
-    .package-balance-bar {
-      margin-top: 10px;
-      height: 6px;
-      background: rgba(255,255,255,.1);
-      border-radius: 3px;
-    }
-    .package-balance-fill {
-      height: 100%;
-      background: #c84b2f;
-      border-radius: 3px;
-      width: 0%;
-      transition: width .4s;
-    }
-    .package-balance-expiry {
-      font-size: .75rem;
-      color: rgba(255,255,255,.35);
-      margin-top: 6px;
-    }
-  </style>
-</head>
-<body>
-<div class="wrap">
-  <div class="logo">Customer account</div>
-  <div class="biz-name" id="bizName">Loading...</div>
-  <div class="sub" id="bizSub">See appointments, orders, estimates, payments, and messages in one place.</div>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Customer account</title>
+    <link rel="icon" href="/assets/favicon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <link rel="stylesheet" href="/assets/brand/prooflink-tokens.css" />
+    <link rel="stylesheet" href="/portal.css?v=20260406-layout-cleanup" />
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="logo">Customer account</div>
+      <div class="biz-name" id="bizName">Loading...</div>
+      <div class="sub" id="bizSub">
+        See appointments, orders, estimates, payments, and messages in one place.
+      </div>
 
-  <!-- Login form -->
-  <div class="card" id="loginCard">
-    <div class="card-hd">Use the email you book with</div>
-    <p class="helper-copy">We will show your latest appointments, orders, estimates, payment options, and messages in one calm place.</p>
-    <label>Email address</label>
-    <input type="email" id="portalEmail" placeholder="you@example.com" autocomplete="email" />
-    <button class="btn" id="btnPortalLookup" type="button">See my account</button>
-    <div class="msg" id="loginMsg"></div>
-  </div>
+      <!-- Login form -->
+      <div class="card" id="loginCard">
+        <div class="card-hd">Use the email you book with</div>
+        <p class="helper-copy">
+          We will show your latest appointments, orders, estimates, payment options, and messages in
+          one calm place.
+        </p>
+        <label>Email address</label>
+        <input type="email" id="portalEmail" placeholder="you@example.com" autocomplete="email" />
+        <button class="btn" id="btnPortalLookup" type="button">See my account</button>
+        <div class="msg" id="loginMsg"></div>
+      </div>
 
-  <!-- Portal content (shown after lookup) -->
-  <div id="portalContent" class="hidden">
-    <div class="tabs">
-      <button class="tab-btn active" data-tab="orders" type="button">Orders</button>
-      <button class="tab-btn" data-tab="bookings" type="button">Appointments</button>
-      <button class="tab-btn" data-tab="quotes" type="button">Estimates</button>
-      <button class="tab-btn" data-tab="contact" type="button">Message us</button>
-    </div>
-
-    <div class="tab-panel active" id="tab-orders">
-      <div class="search-row"><input type="text" id="orderSearch" placeholder="Search orders..." /></div>
-      <div id="ordersSummary" class="orders-summary hidden"></div>
-      <div id="ordersList"></div>
-    </div>
-
-    <div class="tab-panel" id="tab-bookings">
-      <div class="search-row"><input type="text" id="bookingSearch" placeholder="Search appointments..." /></div>
-      <div id="bookingsSummary" class="orders-summary hidden"></div>
-      <div id="packageBalanceSection" class="hidden portal-notice">
-        <div class="package-balance-panel">
-          <div class="package-balance-kicker">Active Package</div>
-          <div id="packageBalanceName" class="package-balance-name">-</div>
-          <div id="packageBalanceDetail" class="package-balance-detail">-</div>
-          <div id="packageBalanceBar" class="package-balance-bar">
-            <div id="packageBalanceFill" class="package-balance-fill"></div>
-          </div>
-          <div id="packageBalanceExpiry" class="package-balance-expiry"></div>
+      <!-- Portal content (shown after lookup) -->
+      <div id="portalContent" class="hidden">
+        <div class="tabs">
+          <button class="tab-btn active" data-tab="orders" type="button">Orders</button>
+          <button class="tab-btn" data-tab="bookings" type="button">Appointments</button>
+          <button class="tab-btn" data-tab="quotes" type="button">Estimates</button>
+          <button class="tab-btn" data-tab="contact" type="button">Message us</button>
         </div>
+
+        <div class="tab-panel active" id="tab-orders">
+          <div class="search-row">
+            <input type="text" id="orderSearch" placeholder="Search orders..." />
+          </div>
+          <div id="ordersSummary" class="orders-summary hidden"></div>
+          <div id="ordersList"></div>
+        </div>
+
+        <div class="tab-panel" id="tab-bookings">
+          <div class="search-row">
+            <input type="text" id="bookingSearch" placeholder="Search appointments..." />
+          </div>
+          <div id="bookingsSummary" class="orders-summary hidden"></div>
+          <div id="packageBalanceSection" class="hidden portal-notice">
+            <div class="package-balance-panel">
+              <div class="package-balance-kicker">Active Package</div>
+              <div id="packageBalanceName" class="package-balance-name">-</div>
+              <div id="packageBalanceDetail" class="package-balance-detail">-</div>
+              <div id="packageBalanceBar" class="package-balance-bar">
+                <div id="packageBalanceFill" class="package-balance-fill"></div>
+              </div>
+              <div id="packageBalanceExpiry" class="package-balance-expiry"></div>
+            </div>
+          </div>
+          <div id="bookingsList"></div>
+          <a class="book-link" id="newBookingLink" href="#" target="_blank"
+            >Schedule another appointment</a
+          >
+        </div>
+
+        <div class="tab-panel" id="tab-quotes">
+          <div id="quotesList"></div>
+        </div>
+
+        <div class="tab-panel" id="tab-contact">
+          <div class="card">
+            <div class="card-hd">Message the business</div>
+            <label>Your name</label>
+            <input type="text" id="contactName" placeholder="Your full name" autocomplete="name" />
+            <label>Message</label>
+            <textarea id="contactMessage" placeholder="How can we help you?"></textarea>
+            <button class="btn" id="btnSendContact" type="button">Send message</button>
+            <div class="msg" id="contactMsg"></div>
+          </div>
+        </div>
+
+        <button class="btn btn-ghost portal-back-btn" id="btnPortalBack" type="button">
+          Sign out and use another email
+        </button>
       </div>
-      <div id="bookingsList"></div>
-      <a class="book-link" id="newBookingLink" href="#" target="_blank">Schedule another appointment</a>
     </div>
 
-    <div class="tab-panel" id="tab-quotes">
-      <div id="quotesList"></div>
-    </div>
+    <script>
+      (function () {
+        'use strict';
 
-    <div class="tab-panel" id="tab-contact">
-      <div class="card">
-        <div class="card-hd">Message the business</div>
-        <label>Your name</label>
-        <input type="text" id="contactName" placeholder="Your full name" autocomplete="name" />
-        <label>Message</label>
-        <textarea id="contactMessage" placeholder="How can we help you?"></textarea>
-        <button class="btn" id="btnSendContact" type="button">Send message</button>
-        <div class="msg" id="contactMsg"></div>
-      </div>
-    </div>
-
-    <button class="btn btn-ghost portal-back-btn" id="btnPortalBack" type="button">Sign out and use another email</button>
-  </div>
-
-</div>
-
-<script>
-(function () {
-  'use strict';
-
-  function escHtml(s) {
-    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-  }
-
-  const params   = new URLSearchParams(location.search);
-  const tenantId = params.get('tenant');
-  const prefill  = params.get('email');
-  const checkoutState = params.get('checkout');
-  const checkoutOrderId = params.get('order_id');
-  const PORTAL_SESSION_KEY = 'prooflink_portal_session';
-  const PORTAL_CHECKOUT_KEY = 'prooflink_portal_checkout';
-    var portalEmail = '';
-    var ALL_ORDERS   = [];
-    var ALL_BOOKINGS = [];
-    var portalLookupCooldownUntil = 0;
-
-  if (prefill) document.getElementById('portalEmail').value = prefill;
-  document.getElementById('newBookingLink').textContent = 'Schedule another appointment';
-  document.getElementById('btnPortalBack').textContent = 'Sign out and use another email';
-
-  function readSessionValue(key) {
-    try {
-      var raw = window.sessionStorage.getItem(key);
-      return raw ? JSON.parse(raw) : null;
-    } catch (_) {
-      return null;
-    }
-  }
-
-  function writeSessionValue(key, value) {
-    try {
-      window.sessionStorage.setItem(key, JSON.stringify(value));
-    } catch (_) {}
-  }
-
-  function clearSessionValue(key) {
-    try {
-      window.sessionStorage.removeItem(key);
-    } catch (_) {}
-  }
-
-  function activatePortalTab(tabName, updateHash) {
-    var nextTab = tabName || 'orders';
-    document.querySelectorAll('.tab-btn').forEach(function (b) { b.classList.remove('active'); });
-    document.querySelectorAll('.tab-panel').forEach(function (p) { p.classList.remove('active'); });
-    var nextButton = document.querySelector('.tab-btn[data-tab="' + nextTab + '"]');
-    var nextPanel = document.getElementById('tab-' + nextTab);
-    if (!nextButton || !nextPanel) return;
-    nextButton.classList.add('active');
-    nextPanel.classList.add('active');
-    if (updateHash !== false) {
-      if (history && history.replaceState) {
-        history.replaceState(null, '', '#' + nextTab);
-      } else {
-        location.hash = nextTab;
-      }
-    }
-  }
-
-  function clearPortalSession() {
-    portalEmail = '';
-    window._portalEmail = '';
-    ALL_ORDERS = [];
-    ALL_BOOKINGS = [];
-    clearSessionValue(PORTAL_SESSION_KEY);
-    clearSessionValue(PORTAL_CHECKOUT_KEY);
-  }
-
-  function hasTrustedCheckoutReturn(orderId) {
-    if (!checkoutState || !orderId) return false;
-    var checkoutSession = readSessionValue(PORTAL_CHECKOUT_KEY);
-    return !!(checkoutSession && checkoutSession.order_id === orderId && checkoutSession.tenant_id === tenantId);
-  }
-
-  // Tab switching
-  document.querySelectorAll('.tab-btn').forEach(function (btn) {
-    btn.addEventListener('click', function () {
-      activatePortalTab(btn.dataset.tab, true);
-    });
-  });
-
-  // Load business name
-  if (tenantId) {
-    fetch('/.netlify/functions/get-public-tenant-info?tenant_id=' + encodeURIComponent(tenantId))
-      .then(function (r) { return r.json(); })
-      .then(function (d) {
-        if (d && d.business_name) {
-          document.getElementById('bizName').textContent = d.business_name;
-          document.getElementById('bizSub').textContent = 'See appointments, orders, estimates, payments, and messages with ' + d.business_name + '.';
-          document.title = d.business_name + ' customer account';
-        }
-      })
-      .catch(function () {});
-  }
-
-  function fmtDate(str) {
-    if (!str) return '-';
-    return new Date(str).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-  }
-  function fmtMoney(amount) {
-    if (!amount) return '';
-    return '$' + Number(amount).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-  }
-  function fmtCents(cents) {
-    if (cents === null || cents === undefined || cents === '') return '';
-    return '$' + (Number(cents) / 100).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-  }
-  function statusBadge(s) {
-    var key   = (s || 'new').replace(/[^a-z0-9_]/gi, '');
-    var label = escHtml((s || 'new').replace(/_/g, ' '));
-    return '<span class="badge ' + key + '">' + label + '</span>';
-  }
-
-  function showPortalNotice(message, tone) {
-    var existing = document.getElementById('portalNotice');
-    if (!existing) {
-      existing = document.createElement('div');
-      existing.id = 'portalNotice';
-      existing.className = 'msg portal-notice';
-      var target = document.getElementById('portalContent') || document.getElementById('loginCard');
-      if (target && target.parentNode) target.parentNode.insertBefore(existing, target);
-    }
-    existing.textContent = message || '';
-    existing.className = 'msg portal-notice' + (tone ? ' ' + tone : '');
-    existing.style.display = message ? 'block' : 'none';
-  }
-  window.showPortalNotice = showPortalNotice;
-
-  function getCheckoutNotice(orders) {
-    if (!checkoutState || !hasTrustedCheckoutReturn(checkoutOrderId)) return null;
-    var matchedOrder = (orders || []).find(function (order) {
-      return order && order.id === checkoutOrderId;
-    });
-    var orderTitle = matchedOrder && matchedOrder.title ? matchedOrder.title : 'your order';
-    if (checkoutState === 'success') {
-      return {
-        tone: 'success',
-        message: 'Your payment for ' + orderTitle + ' was received. We are finalizing the update now, so your balance may take a moment to refresh.',
-      };
-    }
-    if (checkoutState === 'cancel') {
-      return {
-        tone: 'info',
-        message: 'No payment was made for ' + orderTitle + '. You can come back here any time when you are ready.',
-      };
-    }
-    return null;
-  }
-
-  function focusPortalOrder(orderId) {
-    if (!orderId) return;
-    var row = document.querySelector('[data-order-id="' + orderId + '"]');
-    if (!row) return;
-    if (typeof row.scrollIntoView === 'function') {
-      row.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
-  }
-
-  function portalPaymentGuidance(order, dueCents, paidCents) {
-    var pState = String(order && order.payment_state || "").toLowerCase();
-    if (pState === "paid" || dueCents === 0) {
-      return "Paid in full. You are all set on this order.";
-    }
-    if (pState === "overdue") {
-      return "Payment is overdue. You can pay here now or contact the business if anything looks off.";
-    }
-    if (pState === "partial" || pState === "partially_paid" || (paidCents > 0 && dueCents > 0)) {
-      return "A balance is still open. You can pay the rest here any time from this page.";
-    }
-    if (dueCents > 0) {
-      return "This order still has an open balance. Pay online here whenever you are ready.";
-    }
-    return "";
-  }
-
-  function portalAfterPaymentGuidance(order, dueCents, paidCents) {
-    var pState = String(order && order.payment_state || "").toLowerCase();
-    if (pState === "paid" || dueCents === 0) {
-      return "The business can now keep your next visit, closeout, or follow-up moving from here.";
-    }
-    if (pState === "partial" || pState === "partially_paid" || (paidCents > 0 && dueCents > 0)) {
-      return "Once the remaining balance is paid, this order will show as fully closed here automatically.";
-    }
-    if (pState === "overdue") {
-      return "Paying here updates this order in the business system, so they can move back to the work instead of chasing the balance.";
-    }
-    if (dueCents > 0) {
-      return "Once this balance is paid, this order will stay here as your finished record.";
-    }
-    return "";
-  }
-
-  function portalPaymentStateLabel(order, dueCents, paidCents) {
-    var pState = String(order && order.payment_state || "").toLowerCase();
-    if (pState === "paid" || dueCents === 0) return "Paid in full";
-    if (pState === "overdue") return "Overdue";
-    if (pState === "partial" || pState === "partially_paid" || (paidCents > 0 && dueCents > 0)) return "Partially paid";
-    if (dueCents > 0) return "Balance due";
-    return "";
-  }
-
-  function summarizePortalPayments(orders) {
-    var rows = Array.isArray(orders) ? orders : [];
-    var summary = {
-      openCount: 0,
-      overdueCount: 0,
-      totalDueCents: 0,
-      nextOrder: null,
-    };
-    rows.forEach(function (order) {
-      var dueCents = order && order.amount_due_cents != null ? Number(order.amount_due_cents) : 0;
-      var paidCents = order && order.amount_paid_cents != null ? Number(order.amount_paid_cents) : 0;
-      var paymentState = String(order && order.payment_state || '').toLowerCase();
-      if (!(dueCents > 0)) return;
-      summary.openCount += 1;
-      summary.totalDueCents += dueCents;
-      if (paymentState === 'overdue') summary.overdueCount += 1;
-      if (!summary.nextOrder) {
-        summary.nextOrder = order;
-        return;
-      }
-      var nextState = String(summary.nextOrder.payment_state || '').toLowerCase();
-      var nextDue = summary.nextOrder.amount_due_cents != null ? Number(summary.nextOrder.amount_due_cents) : 0;
-      if (paymentState === 'overdue' && nextState !== 'overdue') {
-        summary.nextOrder = order;
-        return;
-      }
-      if (paymentState === nextState && dueCents > nextDue) {
-        summary.nextOrder = order;
-        return;
-      }
-      if (!paidCents && summary.nextOrder.amount_paid_cents && paymentState !== 'overdue' && nextState !== 'overdue') {
-        summary.nextOrder = order;
-      }
-    });
-    return summary;
-  }
-
-  function comparePortalOrders(a, b) {
-    var aDue = a && a.amount_due_cents != null ? Number(a.amount_due_cents) : 0;
-    var bDue = b && b.amount_due_cents != null ? Number(b.amount_due_cents) : 0;
-    var aState = String(a && a.payment_state || '').toLowerCase();
-    var bState = String(b && b.payment_state || '').toLowerCase();
-    var aOverdue = aState === 'overdue' ? 1 : 0;
-    var bOverdue = bState === 'overdue' ? 1 : 0;
-    if (aOverdue !== bOverdue) return bOverdue - aOverdue;
-    var aOpen = aDue > 0 ? 1 : 0;
-    var bOpen = bDue > 0 ? 1 : 0;
-    if (aOpen !== bOpen) return bOpen - aOpen;
-    if (aDue !== bDue) return bDue - aDue;
-    var aCreated = new Date(a && a.created_at || 0).getTime();
-    var bCreated = new Date(b && b.created_at || 0).getTime();
-    return bCreated - aCreated;
-  }
-
-  function renderOrdersSummary(orders) {
-    var el = document.getElementById('ordersSummary');
-    if (!el) return;
-    if (!Array.isArray(orders) || !orders.length) {
-      el.className = 'orders-summary hidden';
-      el.innerHTML = '';
-      return;
-    }
-    var summary = summarizePortalPayments(orders);
-    if (!summary.openCount) {
-      el.className = 'orders-summary';
-      el.innerHTML =
-        '<div class="orders-summary-kicker">Payment summary</div>' +
-        '<div class="orders-summary-title">You are paid up right now.</div>' +
-        '<div class="orders-summary-copy">If the business sends another invoice or balance update, it will show here automatically.</div>';
-      el.classList.remove('hidden');
-      return;
-    }
-    var orderLabel = summary.openCount === 1 ? 'order still has a balance due' : 'orders still have balances due';
-    var overdueCopy = summary.overdueCount
-      ? ' ' + summary.overdueCount + ' ' + (summary.overdueCount === 1 ? 'is already overdue.' : 'are already overdue.')
-      : '';
-    var nextTitle = summary.overdueCount ? 'A payment needs attention.' : 'A balance is still open.';
-    var nextOrderTitle = summary.nextOrder && summary.nextOrder.title ? summary.nextOrder.title : 'your next order';
-    el.className = 'orders-summary orders-summary--attention';
-    el.innerHTML =
-      '<div class="orders-summary-kicker">Payment summary</div>' +
-      '<div class="orders-summary-title">' + escHtml(nextTitle) + '</div>' +
-      '<div class="orders-summary-copy">' +
-        escHtml(summary.openCount + ' ' + orderLabel + ' totaling ' + fmtCents(summary.totalDueCents) + '.' + overdueCopy) +
-      '</div>' +
-      '<div class="orders-summary-next">Next best step: Review ' + escHtml(nextOrderTitle) + ' and pay any amount still due.</div>';
-    el.classList.remove('hidden');
-  }
-
-  function summarizePortalBookings(bookings) {
-    var rows = Array.isArray(bookings) ? bookings.slice() : [];
-    var now = Date.now();
-    var active = rows.filter(function (booking) {
-      return !['cancelled', 'completed', 'no_show'].includes(String(booking && booking.status || '').toLowerCase());
-    });
-    var upcoming = active
-      .filter(function (booking) {
-        return booking && booking.starts_at && new Date(booking.starts_at).getTime() >= now;
-      })
-      .sort(function (a, b) {
-        return new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime();
-      })[0] || null;
-    var completed = rows.filter(function (booking) {
-      return String(booking && booking.status || '').toLowerCase() === 'completed';
-    }).length;
-    return {
-      total: rows.length,
-      active: active.length,
-      completed: completed,
-      upcoming: upcoming,
-    };
-  }
-
-  function renderBookingsSummary(bookings) {
-    var el = document.getElementById('bookingsSummary');
-    if (!el) return;
-    var summary = summarizePortalBookings(bookings);
-    if (!summary.total) {
-      el.className = 'orders-summary hidden';
-      el.innerHTML = '';
-      return;
-    }
-    var title = '';
-    var copy = '';
-    var next = '';
-    if (summary.upcoming) {
-      title = 'Your next appointment is on the calendar';
-      copy = 'You can keep track of the next visit here, and if anything changes the business will keep your updates tied to this account.';
-      next = 'Next best step: Be ready for ' + fmtDate(summary.upcoming.starts_at) + ' at ' + new Date(summary.upcoming.starts_at).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) + '.';
-      el.className = 'orders-summary orders-summary--attention';
-    } else if (summary.active > 0) {
-      title = 'A visit is still open';
-      copy = 'The business still has active appointment work tied to your account. Check the status below or message them if anything looks off.';
-      next = 'Next best step: Keep an eye on the active appointment updates below.';
-      el.className = 'orders-summary orders-summary--attention';
-    } else {
-      title = 'Your recent appointments are wrapped up';
-      copy = 'Completed and canceled visits stay here so you can look back without guessing what happened.';
-      next = 'Next best step: Book another visit here whenever you are ready.';
-      el.className = 'orders-summary';
-    }
-    el.innerHTML =
-      '<div class="orders-summary-kicker">Appointment summary</div>' +
-      '<div class="orders-summary-title">' + escHtml(title) + '</div>' +
-      '<div class="orders-summary-copy">' + escHtml(copy) + '</div>' +
-      '<div class="orders-summary-next">' + escHtml(next) + '</div>';
-    el.classList.remove('hidden');
-  }
-
-  function renderPackageBalance(orders) {
-    var section = document.getElementById('packageBalanceSection');
-    if (!section) return;
-    var pkg = (orders || []).find(function (o) {
-      return o.order_type === 'package' && o.package_sessions_total > 0;
-    });
-    if (!pkg) { section.classList.add('hidden'); return; }
-    var total = pkg.package_sessions_total || 0;
-    var used  = pkg.package_sessions_used  || 0;
-    var remaining = Math.max(0, total - used);
-    var pct = total > 0 ? Math.min(100, Math.round((used / total) * 100)) : 0;
-    document.getElementById('packageBalanceName').textContent   = pkg.title || 'Package';
-    document.getElementById('packageBalanceDetail').textContent = remaining + ' session' + (remaining !== 1 ? 's' : '') + ' remaining of ' + total;
-    document.getElementById('packageBalanceFill').style.width   = pct + '%';
-    if (pkg.package_valid_until) {
-      var exp = new Date(pkg.package_valid_until);
-      document.getElementById('packageBalanceExpiry').textContent =
-        'Expires ' + (exp.getMonth() + 1) + '/' + exp.getDate() + '/' + exp.getFullYear();
-    } else {
-      document.getElementById('packageBalanceExpiry').textContent = '';
-    }
-    section.classList.remove('hidden');
-  }
-
-  function renderOrders(orders) {
-    var el = document.getElementById('ordersList');
-    if (!orders || !orders.length) {
-      renderOrdersSummary([]);
-      el.innerHTML = '<p class="empty">No orders yet. When the business sends one, it will appear here.</p>';
-      return;
-    }
-    var ordered = orders.slice().sort(comparePortalOrders);
-    renderOrdersSummary(ordered);
-    var summary = summarizePortalPayments(ordered);
-    var focusOrderId = summary.nextOrder && summary.nextOrder.id ? summary.nextOrder.id : '';
-    el.innerHTML = ordered.map(function (o) {
-      // Prefer cents-based fields; fall back to total_amount (legacy float field)
-      var totalCents   = (o.total_cents != null)       ? Number(o.total_cents)       : null;
-      var paidCents    = (o.amount_paid_cents != null)  ? Number(o.amount_paid_cents) : null;
-      var dueCents     = (o.amount_due_cents != null)   ? Number(o.amount_due_cents)  : null;
-      var legacyTotal  = o.total_amount ? fmtMoney(o.total_amount) : '-';
-
-      // Determine whether there are any financial figures worth showing
-      var hasFinancials = (totalCents != null && totalCents > 0) ||
-                          (paidCents  != null && paidCents  > 0) ||
-                          (dueCents   != null);
-
-      // Build the financial breakdown row
-      var financialsHtml = '';
-      if (hasFinancials) {
-        var pState = o.payment_state || '';
-        var dueClass = pState === 'overdue' ? 'overdue' : pState === 'paid' ? 'paid' : 'due';
-        var items = [];
-        var paymentGuidance = '';
-        var paymentStateLabel = '';
-
-        if (totalCents != null && totalCents > 0) {
-          items.push('<div class="fin-item"><span class="fin-label">Total</span><span class="fin-value">' + fmtCents(totalCents) + '</span></div>');
-        }
-        if (paidCents != null && paidCents > 0) {
-          items.push('<div class="fin-item"><span class="fin-label">Paid</span><span class="fin-value paid">' + fmtCents(paidCents) + '</span></div>');
-        }
-        if (dueCents != null && dueCents > 0) {
-          var dueLabel = pState === 'overdue' ? 'Overdue' : 'Balance Due';
-          var dueDateNote = (o.payment_due_date && pState !== 'paid') ?
-            ' <span class="due-date-note">by ' + fmtDate(o.payment_due_date) + '</span>' : '';
-          items.push('<div class="fin-item"><span class="fin-label">' + dueLabel + '</span><span class="fin-value ' + dueClass + '">' + fmtCents(dueCents) + dueDateNote + '</span></div>');
-        } else if (dueCents === 0 || pState === 'paid') {
-          items.push('<div class="fin-item"><span class="fin-label">Balance Due</span><span class="fin-value paid">$0.00 - Paid in full</span></div>');
+        function escHtml(s) {
+          return String(s || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
         }
 
-        paymentGuidance = portalPaymentGuidance(o, dueCents, paidCents);
-        paymentStateLabel = portalPaymentStateLabel(o, dueCents, paidCents);
-        var afterPaymentGuidance = portalAfterPaymentGuidance(o, dueCents, paidCents);
-        financialsHtml = '<div class="order-financials">' + items.join('') + '</div>' +
-          (paymentStateLabel ? '<div class="payment-state-note">Payment status: ' + escHtml(paymentStateLabel) + '</div>' : '') +
-          (paymentGuidance ? '<div class="payment-guidance">' + escHtml(paymentGuidance) + '</div>' : '') +
-          (afterPaymentGuidance ? '<div class="payment-next-step-note">' + escHtml(afterPaymentGuidance) + '</div>' : '');
-      }
+        const params = new URLSearchParams(location.search);
+        const tenantId = params.get('tenant');
+        const prefill = params.get('email');
+        const checkoutState = params.get('checkout');
+        const checkoutOrderId = params.get('order_id');
+        const PORTAL_SESSION_KEY = 'prooflink_portal_session';
+        const PORTAL_CHECKOUT_KEY = 'prooflink_portal_checkout';
+        var portalEmail = '';
+        var ALL_ORDERS = [];
+        var ALL_BOOKINGS = [];
+        var portalLookupCooldownUntil = 0;
 
-      // Show a "Pay Now" button only when there is an outstanding balance (and the order isn't void/cancelled)
-      var payNowHtml = '';
-      var canPay = dueCents > 0 && !['cancelled','void','completed'].includes(o.status);
-      if (canPay) {
-        payNowHtml = '<button class="pay-btn" data-action="pay-now" data-order-id="' + escHtml(o.id) + '" data-balance-cents="' + escHtml(String(dueCents)) + '" type="button">Pay now</button>';
-      }
+        if (prefill) document.getElementById('portalEmail').value = prefill;
+        document.getElementById('newBookingLink').textContent = 'Schedule another appointment';
+        document.getElementById('btnPortalBack').textContent = 'Sign out and use another email';
 
-      var orderClasses = ['order-row', 'stacked-row'];
-      var isCheckoutOrder = checkoutOrderId && o.id === checkoutOrderId;
-      var isFocusOrder = !isCheckoutOrder && focusOrderId && o.id === focusOrderId;
-      if (isCheckoutOrder) orderClasses.push('order-row--highlight');
-      if (isFocusOrder) orderClasses.push('order-row--focus');
-      return '<div class="' + orderClasses.join(' ') + '" data-order-id="' + escHtml(o.id) + '">' +
-        '<div class="stacked-row-main">' +
-          '<div class="stacked-row-copy">' +
-            '<div class="order-title">' + escHtml(o.title || 'Order') + '</div>' +
-            '<div class="order-meta">' + fmtDate(o.created_at) + '</div>' +
-            (isCheckoutOrder ? '<div class="order-return-note">This is the order you just came back to. You can keep paying here any time if there is still a balance due.</div>' : '') +
-            (isFocusOrder ? '<div class="order-return-note">This is the best payment to finish next based on what is still due.</div>' : '') +
-          '</div>' +
-          statusBadge(o.status) +
-          (!hasFinancials && legacyTotal ? '<div class="amount">' + legacyTotal + '</div>' : '') +
-        '</div>' +
-        financialsHtml +
-        (payNowHtml ? '<div class="stacked-row-actions">' + payNowHtml + '</div>' : '') +
-      '</div>';
-    }).join('');
-  }
-
-  function renderBookings(bookings) {
-    var el = document.getElementById('bookingsList');
-    if (!bookings || !bookings.length) {
-      renderBookingsSummary([]);
-      el.innerHTML = '<p class="empty">No appointments yet. Confirmed appointments will appear here.</p>';
-      return;
-    }
-    function portalBookingGuidance(booking) {
-      var status = String(booking && booking.status || '').toLowerCase();
-      if (status === 'cancelled') {
-        return 'This appointment was cancelled. When you are ready, you can book another visit from this page.';
-      }
-      if (status === 'completed') {
-        return 'This visit is complete. The business will keep any follow-up, payment, or next-service step attached from here.';
-      }
-      if (status === 'no_show') {
-        return 'This visit was marked as missed. Contact the business if you want help getting it back on the schedule.';
-      }
-      return 'You are booked. If anything changes, you can cancel here or message the business from this account.';
-    }
-    renderBookingsSummary(bookings);
-    el.innerHTML = bookings.map(function (b) {
-      var start = b.starts_at ? new Date(b.starts_at) : null;
-      var timeStr = start ? start.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }) + ' at ' +
-        start.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) : '-';
-      var isFuture = start && start > new Date();
-      var canCancel = isFuture && !['cancelled','completed','no_show'].includes(b.status);
-      var bookingGuidance = portalBookingGuidance(b);
-      return '<div class="order-row order-row--top">' +
-        '<div class="stacked-row-copy">' +
-          '<div class="order-title">' + escHtml(b.title || 'Appointment') + '</div>' +
-          '<div class="order-meta">' + timeStr + '</div>' +
-          (b.notes ? '<div class="stacked-row-note">' + escHtml(b.notes) + '</div>' : '') +
-          (bookingGuidance ? '<div class="payment-guidance">' + escHtml(bookingGuidance) + '</div>' : '') +
-        '</div>' +
-        statusBadge(b.status) +
-        (canCancel ? '<button class="btn btn-danger cancel-booking-btn" data-id="' + escHtml(b.id) + '" type="button">Cancel</button>' : '') +
-      '</div>';
-    }).join('');
-    // Wire up cancel buttons
-    el.querySelectorAll('.cancel-booking-btn').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        if (!window.confirm('Cancel this appointment? The business will see the update right away.')) {
-          return;
+        function readSessionValue(key) {
+          try {
+            var raw = window.sessionStorage.getItem(key);
+            return raw ? JSON.parse(raw) : null;
+          } catch (_) {
+            return null;
+          }
         }
-        showPortalNotice('');
-        btn.disabled = true;
-        btn.textContent = 'Cancelling...';
-        fetch('/.netlify/functions/cancel-booking', {
-          method : 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body   : JSON.stringify({ booking_id: btn.dataset.id, email: portalEmail }),
-        })
-          .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
-          .then(function (res) {
-            if (!res.ok) throw new Error(res.d.error || 'Failed to cancel');
-            var idx = ALL_BOOKINGS.findIndex(function (bk) { return bk.id === btn.dataset.id; });
-            if (idx >= 0) ALL_BOOKINGS[idx] = Object.assign({}, ALL_BOOKINGS[idx], { status: 'cancelled' });
-            renderBookings(ALL_BOOKINGS);
-          })
-          .catch(function (err) {
-            btn.disabled = false;
-            btn.textContent = 'Cancel';
-            showPortalNotice(err.message || 'Failed to cancel appointment', 'error');
+
+        function writeSessionValue(key, value) {
+          try {
+            window.sessionStorage.setItem(key, JSON.stringify(value));
+          } catch (_) {}
+        }
+
+        function clearSessionValue(key) {
+          try {
+            window.sessionStorage.removeItem(key);
+          } catch (_) {}
+        }
+
+        function activatePortalTab(tabName, updateHash) {
+          var nextTab = tabName || 'orders';
+          document.querySelectorAll('.tab-btn').forEach(function (b) {
+            b.classList.remove('active');
           });
-      });
-    });
-  }
-
-  function renderQuotes(quotes) {
-    var el = document.getElementById('quotesList');
-    if (!el) return;
-    if (!quotes || !quotes.length) {
-      el.innerHTML = '<p class="empty">No estimates yet. When the business sends one, it will appear here.</p>';
-      return;
-    }
-    var fmt = function(cents) { return cents ? '$' + (cents / 100).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',') : '-'; };
-    var nowMs = Date.now();
-    el.innerHTML = quotes.map(function (q) {
-      var rawStatus = String(q.status || 'pending').toLowerCase();
-      var normalizedStatus = ['sent', 'review', 'ready_to_send'].includes(rawStatus) ? 'pending' : (rawStatus === 'approved' ? 'accepted' : rawStatus);
-      var isExpired = normalizedStatus === 'expired' || (normalizedStatus === 'pending' && q.valid_until && new Date(q.valid_until).getTime() < nowMs);
-      var displayStatus = (isExpired && normalizedStatus === 'pending') ? 'expired' : normalizedStatus;
-      var reviewUrl = q.review_url || '';
-      var canReview = !!reviewUrl && displayStatus === 'pending' && !isExpired;
-      var validUntilText = q.valid_until ? (isExpired ? ' - Expired ' : ' - Valid until ') + fmtDate(q.valid_until) : '-';
-      return '<div class="order-row stacked-row stacked-row--tight">' +
-        '<div class="stacked-row-main">' +
-          '<div class="stacked-row-copy">' +
-            '<div class="order-title">' + escHtml(q.title || 'Estimate') + '</div>' +
-            '<div class="order-meta">' + fmtDate(q.created_at) + validUntilText + '</div>' +
-          '</div>' +
-          statusBadge(displayStatus) +
-          (q.amount_cents ? '<div class="amount">' + fmt(q.amount_cents) + '</div>' : '') +
-        '</div>' +
-        (canReview ? '<a href="' + escHtml(reviewUrl) + '" class="review-estimate-link">Review estimate</a>' : '') +
-      '</div>';
-    }).join('');
-  }
-
-  document.getElementById('portalEmail').addEventListener('keydown', function (e) {
-    if (e.key === 'Enter') document.getElementById('btnPortalLookup').click();
-  });
-
-  document.getElementById('btnPortalLookup').addEventListener('click', function () {
-    var btn   = document.getElementById('btnPortalLookup');
-    var msg   = document.getElementById('loginMsg');
-    var email = document.getElementById('portalEmail').value.trim();
-    msg.className = 'msg';
-    msg.style.display = 'none';
-
-    if (Date.now() < portalLookupCooldownUntil) {
-      msg.textContent = 'Please wait a moment before trying again.';
-      msg.className = 'msg error';
-      msg.style.display = 'block';
-      return;
-    }
-
-    if (!email) {
-      msg.textContent = 'Please enter your email address.';
-      msg.className = 'msg error';
-      msg.style.display = 'block';
-      return;
-    }
-    if (!tenantId) {
-      msg.textContent = 'This customer page is missing business information. Please ask for a fresh link.';
-      msg.className = 'msg error';
-      msg.style.display = 'block';
-      return;
-    }
-
-    btn.disabled = true;
-    btn.textContent = 'Loading...';
-    portalLookupCooldownUntil = Date.now() + 1500;
-
-    fetch('/.netlify/functions/get-customer-portal', {
-      method : 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body   : JSON.stringify({ email: email, tenant_id: tenantId }),
-    })
-      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
-      .then(function (res) {
-        btn.disabled = false;
-        btn.textContent = 'See my account';
-        if (!res.ok) throw new Error(res.d.error || 'Not found');
-        var d = res.d;
-        if (d.business_name) {
-          document.getElementById('bizName').textContent = d.business_name;
-          document.getElementById('bizSub').textContent = 'Welcome back. Here is everything with ' + d.business_name + '.';
-          document.title = d.business_name + ' customer account';
+          document.querySelectorAll('.tab-panel').forEach(function (p) {
+            p.classList.remove('active');
+          });
+          var nextButton = document.querySelector('.tab-btn[data-tab="' + nextTab + '"]');
+          var nextPanel = document.getElementById('tab-' + nextTab);
+          if (!nextButton || !nextPanel) return;
+          nextButton.classList.add('active');
+          nextPanel.classList.add('active');
+          if (updateHash !== false) {
+            if (history && history.replaceState) {
+              history.replaceState(null, '', '#' + nextTab);
+            } else {
+              location.hash = nextTab;
+            }
+          }
         }
-        ALL_ORDERS   = d.orders   || [];
-        ALL_BOOKINGS = d.bookings || [];
-        portalEmail  = email;
-        window._portalEmail = email;
-        writeSessionValue(PORTAL_SESSION_KEY, { tenant_id: tenantId, email: email, saved_at: Date.now() });
-        renderOrders(ALL_ORDERS);
-        renderBookings(ALL_BOOKINGS);
-        renderPackageBalance(ALL_ORDERS);
-        renderQuotes(d.quotes || []);
-        var checkoutNotice = getCheckoutNotice(ALL_ORDERS);
-        if (checkoutNotice) {
-          showPortalNotice(checkoutNotice.message, checkoutNotice.tone);
-          activatePortalTab('orders', true);
+
+        function clearPortalSession() {
+          portalEmail = '';
+          window._portalEmail = '';
+          ALL_ORDERS = [];
+          ALL_BOOKINGS = [];
+          clearSessionValue(PORTAL_SESSION_KEY);
           clearSessionValue(PORTAL_CHECKOUT_KEY);
-        } else {
-          showPortalNotice('');
         }
-        // Pre-fill contact form name from first known record
-        var knownName = (d.orders && d.orders[0] && d.orders[0].customer_name) ||
-                        (d.bookings && d.bookings[0] && d.bookings[0].customer_name) || '';
-        if (knownName) document.getElementById('contactName').value = knownName;
-        var bookLink = document.getElementById('newBookingLink');
-        if (bookLink) bookLink.href = '/book.html?tenant=' + encodeURIComponent(tenantId) + '&email=' + encodeURIComponent(email);
-        document.getElementById('loginCard').classList.add('hidden');
-        document.getElementById('portalContent').classList.remove('hidden');
-        if (checkoutNotice) focusPortalOrder(checkoutOrderId);
-      })
-      .catch(function (err) {
-        btn.disabled = false;
-        btn.textContent = 'See my account';
-        msg.textContent = (err.message === 'Not found')
-          ? 'We could not find anything for that email yet. Try the email you use with the business.'
-          : (err.message || 'Something went wrong. Please try again.');
-        msg.className = 'msg error';
-        msg.style.display = 'block';
-      });
-  });
 
-  document.getElementById('ordersList').addEventListener('click', function (event) {
-    var button = event.target.closest('[data-action="pay-now"]');
-    if (!button) return;
-    handlePayNow(button);
-  });
+        function hasTrustedCheckoutReturn(orderId) {
+          if (!checkoutState || !orderId) return false;
+          var checkoutSession = readSessionValue(PORTAL_CHECKOUT_KEY);
+          return !!(
+            checkoutSession &&
+            checkoutSession.order_id === orderId &&
+            checkoutSession.tenant_id === tenantId
+          );
+        }
 
-  document.getElementById('orderSearch').addEventListener('input', function () {
-    var q = this.value.toLowerCase();
-    var filtered = q ? ALL_ORDERS.filter(function (o) {
-      return (o.title || '').toLowerCase().includes(q) || (o.status || '').toLowerCase().includes(q);
-    }) : ALL_ORDERS;
-    renderOrders(filtered);
-  });
+        // Tab switching
+        document.querySelectorAll('.tab-btn').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            activatePortalTab(btn.dataset.tab, true);
+          });
+        });
 
-  document.getElementById('bookingSearch').addEventListener('input', function () {
-    var q = this.value.toLowerCase();
-    var filtered = q ? ALL_BOOKINGS.filter(function (b) {
-      return (b.title || '').toLowerCase().includes(q) || (b.status || '').toLowerCase().includes(q) ||
-             (b.notes || '').toLowerCase().includes(q);
-    }) : ALL_BOOKINGS;
-    renderBookings(filtered);
-  });
+        // Load business name
+        if (tenantId) {
+          fetch(
+            '/.netlify/functions/get-public-tenant-info?tenant_id=' + encodeURIComponent(tenantId)
+          )
+            .then(function (r) {
+              return r.json();
+            })
+            .then(function (d) {
+              if (d && d.business_name) {
+                document.getElementById('bizName').textContent = d.business_name;
+                document.getElementById('bizSub').textContent =
+                  'See appointments, orders, estimates, payments, and messages with ' +
+                  d.business_name +
+                  '.';
+                document.title = d.business_name + ' customer account';
+              }
+            })
+            .catch(function () {});
+        }
 
-  document.getElementById('btnPortalBack').addEventListener('click', function () {
-    clearPortalSession();
-    document.getElementById('portalContent').classList.add('hidden');
-    document.getElementById('loginCard').classList.remove('hidden');
-    document.getElementById('portalEmail').value = '';
-    showPortalNotice('');
-  });
+        function fmtDate(str) {
+          if (!str) return '-';
+          return new Date(str).toLocaleDateString(undefined, {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+          });
+        }
+        function fmtMoney(amount) {
+          if (!amount) return '';
+          return (
+            '$' +
+            Number(amount)
+              .toFixed(2)
+              .replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+          );
+        }
+        function fmtCents(cents) {
+          if (cents === null || cents === undefined || cents === '') return '';
+          return '$' + (Number(cents) / 100).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+        }
+        function statusBadge(s) {
+          var key = (s || 'new').replace(/[^a-z0-9_]/gi, '');
+          var label = escHtml((s || 'new').replace(/_/g, ' '));
+          return '<span class="badge ' + key + '">' + label + '</span>';
+        }
 
-  document.getElementById('btnSendContact').addEventListener('click', function () {
-    var btn     = document.getElementById('btnSendContact');
-    var msgEl   = document.getElementById('contactMsg');
-    var name    = document.getElementById('contactName').value.trim();
-    var message = document.getElementById('contactMessage').value.trim();
-    var email   = document.getElementById('portalEmail').value.trim();
-    msgEl.className = 'msg';
-    msgEl.style.display = 'none';
+        function showPortalNotice(message, tone) {
+          var existing = document.getElementById('portalNotice');
+          if (!existing) {
+            existing = document.createElement('div');
+            existing.id = 'portalNotice';
+            existing.className = 'msg portal-notice';
+            var target =
+              document.getElementById('portalContent') || document.getElementById('loginCard');
+            if (target && target.parentNode) target.parentNode.insertBefore(existing, target);
+          }
+          existing.textContent = message || '';
+          existing.className = 'msg portal-notice' + (tone ? ' ' + tone : '');
+          existing.style.display = message ? 'block' : 'none';
+        }
+        window.showPortalNotice = showPortalNotice;
 
-    if (!name) {
-      msgEl.textContent = 'Please enter your name.';
-      msgEl.className = 'msg error';
-      return;
-    }
-    if (!message) {
-      msgEl.textContent = 'Please enter a message.';
-      msgEl.className = 'msg error';
-      return;
-    }
-    if (message.length > 2000) {
-      msgEl.textContent = 'Message is too long (max 2000 characters).';
-      msgEl.className = 'msg error';
-      return;
-    }
+        function getCheckoutNotice(orders) {
+          if (!checkoutState || !hasTrustedCheckoutReturn(checkoutOrderId)) return null;
+          var matchedOrder = (orders || []).find(function (order) {
+            return order && order.id === checkoutOrderId;
+          });
+          var orderTitle = matchedOrder && matchedOrder.title ? matchedOrder.title : 'your order';
+          if (checkoutState === 'success') {
+            return {
+              tone: 'success',
+              message:
+                'Your payment for ' +
+                orderTitle +
+                ' was received. We are finalizing the update now, so your balance may take a moment to refresh.',
+            };
+          }
+          if (checkoutState === 'cancel') {
+            return {
+              tone: 'info',
+              message:
+                'No payment was made for ' +
+                orderTitle +
+                '. You can come back here any time when you are ready.',
+            };
+          }
+          return null;
+        }
 
-    btn.disabled = true;
-    btn.textContent = 'Sending\u2026';
+        function focusPortalOrder(orderId) {
+          if (!orderId) return;
+          var row = document.querySelector('[data-order-id="' + orderId + '"]');
+          if (!row) return;
+          if (typeof row.scrollIntoView === 'function') {
+            row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }
 
-    fetch('/.netlify/functions/portal-message', {
-      method : 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body   : JSON.stringify({ tenant_id: tenantId, email: email, name: name, message: message }),
-    })
-      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
-      .then(function (res) {
-        btn.disabled = false;
-        btn.textContent = 'Send message';
-        if (!res.ok) throw new Error(res.d.error || 'Failed to send message');
-        msgEl.textContent = 'Your message has been sent. We\u2019ll be in touch shortly.';
-        msgEl.className = 'msg success';
-        document.getElementById('contactMessage').value = '';
-      })
-      .catch(function (err) {
-        btn.disabled = false;
-        btn.textContent = 'Send message';
-        msgEl.textContent = err.message || 'Something went wrong. Please try again.';
-        msgEl.className = 'msg error';
-      });
-  });
-  if (location.hash) {
-    activatePortalTab(location.hash.replace(/^#/, ''), false);
-  }
-  if (tenantId && prefill && checkoutState) {
-    setTimeout(function () {
-      document.getElementById('btnPortalLookup').click();
-    }, 0);
-  }
-})();
+        function portalPaymentGuidance(order, dueCents, paidCents) {
+          var pState = String((order && order.payment_state) || '').toLowerCase();
+          if (pState === 'paid' || dueCents === 0) {
+            return 'Paid in full. You are all set on this order.';
+          }
+          if (pState === 'overdue') {
+            return 'Payment is overdue. You can pay here now or contact the business if anything looks off.';
+          }
+          if (
+            pState === 'partial' ||
+            pState === 'partially_paid' ||
+            (paidCents > 0 && dueCents > 0)
+          ) {
+            return 'A balance is still open. You can pay the rest here any time from this page.';
+          }
+          if (dueCents > 0) {
+            return 'This order still has an open balance. Pay online here whenever you are ready.';
+          }
+          return '';
+        }
 
-async function handlePayNow(btn) {
-  const orderId = btn && btn.dataset ? btn.dataset.orderId : '';
-  if (!orderId) return;
-  btn.disabled = true;
-  btn.textContent = 'Opening secure checkout...';
-  try {
-    // Get the customer email from the portal session
-    const email = window._portalEmail || '';
-    try {
-      window.sessionStorage.setItem('prooflink_portal_checkout', JSON.stringify({
-        order_id: orderId,
-        tenant_id: new URLSearchParams(location.search).get('tenant'),
-        email: email,
-        saved_at: Date.now(),
-      }));
-    } catch (_) {}
-    const url = '/.netlify/functions/portal-checkout?order_id=' + encodeURIComponent(orderId) + '&email=' + encodeURIComponent(email);
-    const res = await fetch(url);
-    const data = await res.json();
-    if (!res.ok) {
-      if (data.contact_needed) {
-        window.showPortalNotice && window.showPortalNotice('Online payment is not set up for this business yet. Please contact the business directly to arrange payment.', 'error');
-      } else {
-        window.showPortalNotice && window.showPortalNotice(data.error || 'Payment error. Please contact the business directly.', 'error');
+        function portalAfterPaymentGuidance(order, dueCents, paidCents) {
+          var pState = String((order && order.payment_state) || '').toLowerCase();
+          if (pState === 'paid' || dueCents === 0) {
+            return 'The business can now keep your next visit, closeout, or follow-up moving from here.';
+          }
+          if (
+            pState === 'partial' ||
+            pState === 'partially_paid' ||
+            (paidCents > 0 && dueCents > 0)
+          ) {
+            return 'Once the remaining balance is paid, this order will show as fully closed here automatically.';
+          }
+          if (pState === 'overdue') {
+            return 'Paying here updates this order in the business system, so they can move back to the work instead of chasing the balance.';
+          }
+          if (dueCents > 0) {
+            return 'Once this balance is paid, this order will stay here as your finished record.';
+          }
+          return '';
+        }
+
+        function portalPaymentStateLabel(order, dueCents, paidCents) {
+          var pState = String((order && order.payment_state) || '').toLowerCase();
+          if (pState === 'paid' || dueCents === 0) return 'Paid in full';
+          if (pState === 'overdue') return 'Overdue';
+          if (
+            pState === 'partial' ||
+            pState === 'partially_paid' ||
+            (paidCents > 0 && dueCents > 0)
+          )
+            return 'Partially paid';
+          if (dueCents > 0) return 'Balance due';
+          return '';
+        }
+
+        function summarizePortalPayments(orders) {
+          var rows = Array.isArray(orders) ? orders : [];
+          var summary = {
+            openCount: 0,
+            overdueCount: 0,
+            totalDueCents: 0,
+            nextOrder: null,
+          };
+          rows.forEach(function (order) {
+            var dueCents =
+              order && order.amount_due_cents != null ? Number(order.amount_due_cents) : 0;
+            var paidCents =
+              order && order.amount_paid_cents != null ? Number(order.amount_paid_cents) : 0;
+            var paymentState = String((order && order.payment_state) || '').toLowerCase();
+            if (!(dueCents > 0)) return;
+            summary.openCount += 1;
+            summary.totalDueCents += dueCents;
+            if (paymentState === 'overdue') summary.overdueCount += 1;
+            if (!summary.nextOrder) {
+              summary.nextOrder = order;
+              return;
+            }
+            var nextState = String(summary.nextOrder.payment_state || '').toLowerCase();
+            var nextDue =
+              summary.nextOrder.amount_due_cents != null
+                ? Number(summary.nextOrder.amount_due_cents)
+                : 0;
+            if (paymentState === 'overdue' && nextState !== 'overdue') {
+              summary.nextOrder = order;
+              return;
+            }
+            if (paymentState === nextState && dueCents > nextDue) {
+              summary.nextOrder = order;
+              return;
+            }
+            if (
+              !paidCents &&
+              summary.nextOrder.amount_paid_cents &&
+              paymentState !== 'overdue' &&
+              nextState !== 'overdue'
+            ) {
+              summary.nextOrder = order;
+            }
+          });
+          return summary;
+        }
+
+        function comparePortalOrders(a, b) {
+          var aDue = a && a.amount_due_cents != null ? Number(a.amount_due_cents) : 0;
+          var bDue = b && b.amount_due_cents != null ? Number(b.amount_due_cents) : 0;
+          var aState = String((a && a.payment_state) || '').toLowerCase();
+          var bState = String((b && b.payment_state) || '').toLowerCase();
+          var aOverdue = aState === 'overdue' ? 1 : 0;
+          var bOverdue = bState === 'overdue' ? 1 : 0;
+          if (aOverdue !== bOverdue) return bOverdue - aOverdue;
+          var aOpen = aDue > 0 ? 1 : 0;
+          var bOpen = bDue > 0 ? 1 : 0;
+          if (aOpen !== bOpen) return bOpen - aOpen;
+          if (aDue !== bDue) return bDue - aDue;
+          var aCreated = new Date((a && a.created_at) || 0).getTime();
+          var bCreated = new Date((b && b.created_at) || 0).getTime();
+          return bCreated - aCreated;
+        }
+
+        function renderOrdersSummary(orders) {
+          var el = document.getElementById('ordersSummary');
+          if (!el) return;
+          if (!Array.isArray(orders) || !orders.length) {
+            el.className = 'orders-summary hidden';
+            el.innerHTML = '';
+            return;
+          }
+          var summary = summarizePortalPayments(orders);
+          if (!summary.openCount) {
+            el.className = 'orders-summary';
+            el.innerHTML =
+              '<div class="orders-summary-kicker">Payment summary</div>' +
+              '<div class="orders-summary-title">You are paid up right now.</div>' +
+              '<div class="orders-summary-copy">If the business sends another invoice or balance update, it will show here automatically.</div>';
+            el.classList.remove('hidden');
+            return;
+          }
+          var orderLabel =
+            summary.openCount === 1
+              ? 'order still has a balance due'
+              : 'orders still have balances due';
+          var overdueCopy = summary.overdueCount
+            ? ' ' +
+              summary.overdueCount +
+              ' ' +
+              (summary.overdueCount === 1 ? 'is already overdue.' : 'are already overdue.')
+            : '';
+          var nextTitle = summary.overdueCount
+            ? 'A payment needs attention.'
+            : 'A balance is still open.';
+          var nextOrderTitle =
+            summary.nextOrder && summary.nextOrder.title
+              ? summary.nextOrder.title
+              : 'your next order';
+          el.className = 'orders-summary orders-summary--attention';
+          el.innerHTML =
+            '<div class="orders-summary-kicker">Payment summary</div>' +
+            '<div class="orders-summary-title">' +
+            escHtml(nextTitle) +
+            '</div>' +
+            '<div class="orders-summary-copy">' +
+            escHtml(
+              summary.openCount +
+                ' ' +
+                orderLabel +
+                ' totaling ' +
+                fmtCents(summary.totalDueCents) +
+                '.' +
+                overdueCopy
+            ) +
+            '</div>' +
+            '<div class="orders-summary-next">Next best step: Review ' +
+            escHtml(nextOrderTitle) +
+            ' and pay any amount still due.</div>';
+          el.classList.remove('hidden');
+        }
+
+        function summarizePortalBookings(bookings) {
+          var rows = Array.isArray(bookings) ? bookings.slice() : [];
+          var now = Date.now();
+          var active = rows.filter(function (booking) {
+            return !['cancelled', 'completed', 'no_show'].includes(
+              String((booking && booking.status) || '').toLowerCase()
+            );
+          });
+          var upcoming =
+            active
+              .filter(function (booking) {
+                return booking && booking.starts_at && new Date(booking.starts_at).getTime() >= now;
+              })
+              .sort(function (a, b) {
+                return new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime();
+              })[0] || null;
+          var completed = rows.filter(function (booking) {
+            return String((booking && booking.status) || '').toLowerCase() === 'completed';
+          }).length;
+          return {
+            total: rows.length,
+            active: active.length,
+            completed: completed,
+            upcoming: upcoming,
+          };
+        }
+
+        function renderBookingsSummary(bookings) {
+          var el = document.getElementById('bookingsSummary');
+          if (!el) return;
+          var summary = summarizePortalBookings(bookings);
+          if (!summary.total) {
+            el.className = 'orders-summary hidden';
+            el.innerHTML = '';
+            return;
+          }
+          var title = '';
+          var copy = '';
+          var next = '';
+          if (summary.upcoming) {
+            title = 'Your next appointment is on the calendar';
+            copy =
+              'You can keep track of the next visit here, and if anything changes the business will keep your updates tied to this account.';
+            next =
+              'Next best step: Be ready for ' +
+              fmtDate(summary.upcoming.starts_at) +
+              ' at ' +
+              new Date(summary.upcoming.starts_at).toLocaleTimeString(undefined, {
+                hour: 'numeric',
+                minute: '2-digit',
+              }) +
+              '.';
+            el.className = 'orders-summary orders-summary--attention';
+          } else if (summary.active > 0) {
+            title = 'A visit is still open';
+            copy =
+              'The business still has active appointment work tied to your account. Check the status below or message them if anything looks off.';
+            next = 'Next best step: Keep an eye on the active appointment updates below.';
+            el.className = 'orders-summary orders-summary--attention';
+          } else {
+            title = 'Your recent appointments are wrapped up';
+            copy =
+              'Completed and canceled visits stay here so you can look back without guessing what happened.';
+            next = 'Next best step: Book another visit here whenever you are ready.';
+            el.className = 'orders-summary';
+          }
+          el.innerHTML =
+            '<div class="orders-summary-kicker">Appointment summary</div>' +
+            '<div class="orders-summary-title">' +
+            escHtml(title) +
+            '</div>' +
+            '<div class="orders-summary-copy">' +
+            escHtml(copy) +
+            '</div>' +
+            '<div class="orders-summary-next">' +
+            escHtml(next) +
+            '</div>';
+          el.classList.remove('hidden');
+        }
+
+        function renderPackageBalance(orders) {
+          var section = document.getElementById('packageBalanceSection');
+          if (!section) return;
+          var pkg = (orders || []).find(function (o) {
+            return o.order_type === 'package' && o.package_sessions_total > 0;
+          });
+          if (!pkg) {
+            section.classList.add('hidden');
+            return;
+          }
+          var total = pkg.package_sessions_total || 0;
+          var used = pkg.package_sessions_used || 0;
+          var remaining = Math.max(0, total - used);
+          var pct = total > 0 ? Math.min(100, Math.round((used / total) * 100)) : 0;
+          document.getElementById('packageBalanceName').textContent = pkg.title || 'Package';
+          document.getElementById('packageBalanceDetail').textContent =
+            remaining + ' session' + (remaining !== 1 ? 's' : '') + ' remaining of ' + total;
+          document.getElementById('packageBalanceFill').style.width = pct + '%';
+          if (pkg.package_valid_until) {
+            var exp = new Date(pkg.package_valid_until);
+            document.getElementById('packageBalanceExpiry').textContent =
+              'Expires ' + (exp.getMonth() + 1) + '/' + exp.getDate() + '/' + exp.getFullYear();
+          } else {
+            document.getElementById('packageBalanceExpiry').textContent = '';
+          }
+          section.classList.remove('hidden');
+        }
+
+        function renderOrders(orders) {
+          var el = document.getElementById('ordersList');
+          if (!orders || !orders.length) {
+            renderOrdersSummary([]);
+            el.innerHTML =
+              '<p class="empty">No orders yet. When the business sends one, it will appear here.</p>';
+            return;
+          }
+          var ordered = orders.slice().sort(comparePortalOrders);
+          renderOrdersSummary(ordered);
+          var summary = summarizePortalPayments(ordered);
+          var focusOrderId = summary.nextOrder && summary.nextOrder.id ? summary.nextOrder.id : '';
+          el.innerHTML = ordered
+            .map(function (o) {
+              // Prefer cents-based fields; fall back to total_amount (legacy float field)
+              var totalCents = o.total_cents != null ? Number(o.total_cents) : null;
+              var paidCents = o.amount_paid_cents != null ? Number(o.amount_paid_cents) : null;
+              var dueCents = o.amount_due_cents != null ? Number(o.amount_due_cents) : null;
+              var legacyTotal = o.total_amount ? fmtMoney(o.total_amount) : '-';
+
+              // Determine whether there are any financial figures worth showing
+              var hasFinancials =
+                (totalCents != null && totalCents > 0) ||
+                (paidCents != null && paidCents > 0) ||
+                dueCents != null;
+
+              // Build the financial breakdown row
+              var financialsHtml = '';
+              if (hasFinancials) {
+                var pState = o.payment_state || '';
+                var dueClass =
+                  pState === 'overdue' ? 'overdue' : pState === 'paid' ? 'paid' : 'due';
+                var items = [];
+                var paymentGuidance = '';
+                var paymentStateLabel = '';
+
+                if (totalCents != null && totalCents > 0) {
+                  items.push(
+                    '<div class="fin-item"><span class="fin-label">Total</span><span class="fin-value">' +
+                      fmtCents(totalCents) +
+                      '</span></div>'
+                  );
+                }
+                if (paidCents != null && paidCents > 0) {
+                  items.push(
+                    '<div class="fin-item"><span class="fin-label">Paid</span><span class="fin-value paid">' +
+                      fmtCents(paidCents) +
+                      '</span></div>'
+                  );
+                }
+                if (dueCents != null && dueCents > 0) {
+                  var dueLabel = pState === 'overdue' ? 'Overdue' : 'Balance Due';
+                  var dueDateNote =
+                    o.payment_due_date && pState !== 'paid'
+                      ? ' <span class="due-date-note">by ' + fmtDate(o.payment_due_date) + '</span>'
+                      : '';
+                  items.push(
+                    '<div class="fin-item"><span class="fin-label">' +
+                      dueLabel +
+                      '</span><span class="fin-value ' +
+                      dueClass +
+                      '">' +
+                      fmtCents(dueCents) +
+                      dueDateNote +
+                      '</span></div>'
+                  );
+                } else if (dueCents === 0 || pState === 'paid') {
+                  items.push(
+                    '<div class="fin-item"><span class="fin-label">Balance Due</span><span class="fin-value paid">$0.00 - Paid in full</span></div>'
+                  );
+                }
+
+                paymentGuidance = portalPaymentGuidance(o, dueCents, paidCents);
+                paymentStateLabel = portalPaymentStateLabel(o, dueCents, paidCents);
+                var afterPaymentGuidance = portalAfterPaymentGuidance(o, dueCents, paidCents);
+                financialsHtml =
+                  '<div class="order-financials">' +
+                  items.join('') +
+                  '</div>' +
+                  (paymentStateLabel
+                    ? '<div class="payment-state-note">Payment status: ' +
+                      escHtml(paymentStateLabel) +
+                      '</div>'
+                    : '') +
+                  (paymentGuidance
+                    ? '<div class="payment-guidance">' + escHtml(paymentGuidance) + '</div>'
+                    : '') +
+                  (afterPaymentGuidance
+                    ? '<div class="payment-next-step-note">' +
+                      escHtml(afterPaymentGuidance) +
+                      '</div>'
+                    : '');
+              }
+
+              // Show a "Pay Now" button only when there is an outstanding balance (and the order isn't void/cancelled)
+              var payNowHtml = '';
+              var canPay = dueCents > 0 && !['cancelled', 'void', 'completed'].includes(o.status);
+              if (canPay) {
+                payNowHtml =
+                  '<button class="pay-btn" data-action="pay-now" data-order-id="' +
+                  escHtml(o.id) +
+                  '" data-balance-cents="' +
+                  escHtml(String(dueCents)) +
+                  '" type="button">Pay now</button>';
+              }
+
+              var orderClasses = ['order-row', 'stacked-row'];
+              var isCheckoutOrder = checkoutOrderId && o.id === checkoutOrderId;
+              var isFocusOrder = !isCheckoutOrder && focusOrderId && o.id === focusOrderId;
+              if (isCheckoutOrder) orderClasses.push('order-row--highlight');
+              if (isFocusOrder) orderClasses.push('order-row--focus');
+              return (
+                '<div class="' +
+                orderClasses.join(' ') +
+                '" data-order-id="' +
+                escHtml(o.id) +
+                '">' +
+                '<div class="stacked-row-main">' +
+                '<div class="stacked-row-copy">' +
+                '<div class="order-title">' +
+                escHtml(o.title || 'Order') +
+                '</div>' +
+                '<div class="order-meta">' +
+                fmtDate(o.created_at) +
+                '</div>' +
+                (isCheckoutOrder
+                  ? '<div class="order-return-note">This is the order you just came back to. You can keep paying here any time if there is still a balance due.</div>'
+                  : '') +
+                (isFocusOrder
+                  ? '<div class="order-return-note">This is the best payment to finish next based on what is still due.</div>'
+                  : '') +
+                '</div>' +
+                statusBadge(o.status) +
+                (!hasFinancials && legacyTotal
+                  ? '<div class="amount">' + legacyTotal + '</div>'
+                  : '') +
+                '</div>' +
+                financialsHtml +
+                (payNowHtml ? '<div class="stacked-row-actions">' + payNowHtml + '</div>' : '') +
+                '</div>'
+              );
+            })
+            .join('');
+        }
+
+        function renderBookings(bookings) {
+          var el = document.getElementById('bookingsList');
+          if (!bookings || !bookings.length) {
+            renderBookingsSummary([]);
+            el.innerHTML =
+              '<p class="empty">No appointments yet. Confirmed appointments will appear here.</p>';
+            return;
+          }
+          function portalBookingGuidance(booking) {
+            var status = String((booking && booking.status) || '').toLowerCase();
+            if (status === 'cancelled') {
+              return 'This appointment was cancelled. When you are ready, you can book another visit from this page.';
+            }
+            if (status === 'completed') {
+              return 'This visit is complete. The business will keep any follow-up, payment, or next-service step attached from here.';
+            }
+            if (status === 'no_show') {
+              return 'This visit was marked as missed. Contact the business if you want help getting it back on the schedule.';
+            }
+            return 'You are booked. If anything changes, you can cancel here or message the business from this account.';
+          }
+          renderBookingsSummary(bookings);
+          el.innerHTML = bookings
+            .map(function (b) {
+              var start = b.starts_at ? new Date(b.starts_at) : null;
+              var timeStr = start
+                ? start.toLocaleDateString(undefined, {
+                    weekday: 'short',
+                    month: 'short',
+                    day: 'numeric',
+                  }) +
+                  ' at ' +
+                  start.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+                : '-';
+              var isFuture = start && start > new Date();
+              var canCancel = isFuture && !['cancelled', 'completed', 'no_show'].includes(b.status);
+              var bookingGuidance = portalBookingGuidance(b);
+              return (
+                '<div class="order-row order-row--top">' +
+                '<div class="stacked-row-copy">' +
+                '<div class="order-title">' +
+                escHtml(b.title || 'Appointment') +
+                '</div>' +
+                '<div class="order-meta">' +
+                timeStr +
+                '</div>' +
+                (b.notes ? '<div class="stacked-row-note">' + escHtml(b.notes) + '</div>' : '') +
+                (bookingGuidance
+                  ? '<div class="payment-guidance">' + escHtml(bookingGuidance) + '</div>'
+                  : '') +
+                '</div>' +
+                statusBadge(b.status) +
+                (canCancel
+                  ? '<button class="btn btn-danger cancel-booking-btn" data-id="' +
+                    escHtml(b.id) +
+                    '" type="button">Cancel</button>'
+                  : '') +
+                '</div>'
+              );
+            })
+            .join('');
+          // Wire up cancel buttons
+          el.querySelectorAll('.cancel-booking-btn').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+              if (!window.confirm('Cancel this appointment? The business will see the update right away.')) {
+                return;
+              }
+              showPortalNotice('');
+              btn.disabled = true;
+              btn.textContent = 'Cancelling...';
+              fetch('/.netlify/functions/cancel-booking', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ booking_id: btn.dataset.id, email: portalEmail }),
+              })
+                .then(function (r) {
+                  return r.json().then(function (d) {
+                    return { ok: r.ok, d: d };
+                  });
+                })
+                .then(function (res) {
+                  if (!res.ok) throw new Error(res.d.error || 'Failed to cancel');
+                  var idx = ALL_BOOKINGS.findIndex(function (bk) {
+                    return bk.id === btn.dataset.id;
+                  });
+                  if (idx >= 0)
+                    ALL_BOOKINGS[idx] = Object.assign({}, ALL_BOOKINGS[idx], {
+                      status: 'cancelled',
+                    });
+                  renderBookings(ALL_BOOKINGS);
+                })
+                .catch(function (err) {
+                  btn.disabled = false;
+                  btn.textContent = 'Cancel';
+                  showPortalNotice(err.message || 'Failed to cancel appointment', 'error');
+                });
+            });
+          });
+        }
+
+        function renderQuotes(quotes) {
+          var el = document.getElementById('quotesList');
+          if (!el) return;
+          if (!quotes || !quotes.length) {
+            el.innerHTML =
+              '<p class="empty">No estimates yet. When the business sends one, it will appear here.</p>';
+            return;
+          }
+          var fmt = function (cents) {
+            return cents
+              ? '$' + (cents / 100).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+              : '-';
+          };
+          var nowMs = Date.now();
+          el.innerHTML = quotes
+            .map(function (q) {
+              var rawStatus = String(q.status || 'pending').toLowerCase();
+              var normalizedStatus = ['sent', 'review', 'ready_to_send'].includes(rawStatus)
+                ? 'pending'
+                : rawStatus === 'approved'
+                  ? 'accepted'
+                  : rawStatus;
+              var isExpired =
+                normalizedStatus === 'expired' ||
+                (normalizedStatus === 'pending' &&
+                  q.valid_until &&
+                  new Date(q.valid_until).getTime() < nowMs);
+              var displayStatus =
+                isExpired && normalizedStatus === 'pending' ? 'expired' : normalizedStatus;
+              var reviewUrl = q.review_url || '';
+              var canReview = !!reviewUrl && displayStatus === 'pending' && !isExpired;
+              var validUntilText = q.valid_until
+                ? (isExpired ? ' - Expired ' : ' - Valid until ') + fmtDate(q.valid_until)
+                : '-';
+              return (
+                '<div class="order-row stacked-row stacked-row--tight">' +
+                '<div class="stacked-row-main">' +
+                '<div class="stacked-row-copy">' +
+                '<div class="order-title">' +
+                escHtml(q.title || 'Estimate') +
+                '</div>' +
+                '<div class="order-meta">' +
+                fmtDate(q.created_at) +
+                validUntilText +
+                '</div>' +
+                '</div>' +
+                statusBadge(displayStatus) +
+                (q.amount_cents ? '<div class="amount">' + fmt(q.amount_cents) + '</div>' : '') +
+                '</div>' +
+                (canReview
+                  ? '<a href="' +
+                    escHtml(reviewUrl) +
+                    '" class="review-estimate-link">Review estimate</a>'
+                  : '') +
+                '</div>'
+              );
+            })
+            .join('');
+        }
+
+        document.getElementById('portalEmail').addEventListener('keydown', function (e) {
+          if (e.key === 'Enter') document.getElementById('btnPortalLookup').click();
+        });
+
+        document.getElementById('btnPortalLookup').addEventListener('click', function () {
+          var btn = document.getElementById('btnPortalLookup');
+          var msg = document.getElementById('loginMsg');
+          var email = document.getElementById('portalEmail').value.trim();
+          msg.className = 'msg';
+          msg.style.display = 'none';
+
+          if (Date.now() < portalLookupCooldownUntil) {
+            msg.textContent = 'Please wait a moment before trying again.';
+            msg.className = 'msg error';
+            msg.style.display = 'block';
+            return;
+          }
+
+          if (!email) {
+            msg.textContent = 'Please enter your email address.';
+            msg.className = 'msg error';
+            msg.style.display = 'block';
+            return;
+          }
+          if (!tenantId) {
+            msg.textContent =
+              'This customer page is missing business information. Please ask for a fresh link.';
+            msg.className = 'msg error';
+            msg.style.display = 'block';
+            return;
+          }
+
+          btn.disabled = true;
+          btn.textContent = 'Loading...';
+          portalLookupCooldownUntil = Date.now() + 1500;
+
+          fetch('/.netlify/functions/get-customer-portal', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: email, tenant_id: tenantId }),
+          })
+            .then(function (r) {
+              return r.json().then(function (d) {
+                return { ok: r.ok, d: d };
+              });
+            })
+            .then(function (res) {
+              btn.disabled = false;
+              btn.textContent = 'See my account';
+              if (!res.ok) throw new Error(res.d.error || 'Not found');
+              var d = res.d;
+              if (d.business_name) {
+                document.getElementById('bizName').textContent = d.business_name;
+                document.getElementById('bizSub').textContent =
+                  'Welcome back. Here is everything with ' + d.business_name + '.';
+                document.title = d.business_name + ' customer account';
+              }
+              ALL_ORDERS = d.orders || [];
+              ALL_BOOKINGS = d.bookings || [];
+              portalEmail = email;
+              window._portalEmail = email;
+              writeSessionValue(PORTAL_SESSION_KEY, {
+                tenant_id: tenantId,
+                email: email,
+                saved_at: Date.now(),
+              });
+              renderOrders(ALL_ORDERS);
+              renderBookings(ALL_BOOKINGS);
+              renderPackageBalance(ALL_ORDERS);
+              renderQuotes(d.quotes || []);
+              var checkoutNotice = getCheckoutNotice(ALL_ORDERS);
+              if (checkoutNotice) {
+                showPortalNotice(checkoutNotice.message, checkoutNotice.tone);
+                activatePortalTab('orders', true);
+                clearSessionValue(PORTAL_CHECKOUT_KEY);
+              } else {
+                showPortalNotice('');
+              }
+              // Pre-fill contact form name from first known record
+              var knownName =
+                (d.orders && d.orders[0] && d.orders[0].customer_name) ||
+                (d.bookings && d.bookings[0] && d.bookings[0].customer_name) ||
+                '';
+              if (knownName) document.getElementById('contactName').value = knownName;
+              var bookLink = document.getElementById('newBookingLink');
+              if (bookLink)
+                bookLink.href =
+                  '/book.html?tenant=' +
+                  encodeURIComponent(tenantId) +
+                  '&email=' +
+                  encodeURIComponent(email);
+              document.getElementById('loginCard').classList.add('hidden');
+              document.getElementById('portalContent').classList.remove('hidden');
+              if (checkoutNotice) focusPortalOrder(checkoutOrderId);
+            })
+            .catch(function (err) {
+              btn.disabled = false;
+              btn.textContent = 'See my account';
+              msg.textContent =
+                err.message === 'Not found'
+                  ? 'We could not find anything for that email yet. Try the email you use with the business.'
+                  : err.message || 'Something went wrong. Please try again.';
+              msg.className = 'msg error';
+              msg.style.display = 'block';
+            });
+        });
+
+        document.getElementById('ordersList').addEventListener('click', function (event) {
+          var button = event.target.closest('[data-action="pay-now"]');
+          if (!button) return;
+          handlePayNow(button);
+        });
+
+        document.getElementById('orderSearch').addEventListener('input', function () {
+          var q = this.value.toLowerCase();
+          var filtered = q
+            ? ALL_ORDERS.filter(function (o) {
+                return (
+                  (o.title || '').toLowerCase().includes(q) ||
+                  (o.status || '').toLowerCase().includes(q)
+                );
+              })
+            : ALL_ORDERS;
+          renderOrders(filtered);
+        });
+
+        document.getElementById('bookingSearch').addEventListener('input', function () {
+          var q = this.value.toLowerCase();
+          var filtered = q
+            ? ALL_BOOKINGS.filter(function (b) {
+                return (
+                  (b.title || '').toLowerCase().includes(q) ||
+                  (b.status || '').toLowerCase().includes(q) ||
+                  (b.notes || '').toLowerCase().includes(q)
+                );
+              })
+            : ALL_BOOKINGS;
+          renderBookings(filtered);
+        });
+
+        document.getElementById('btnPortalBack').addEventListener('click', function () {
+          clearPortalSession();
+          document.getElementById('portalContent').classList.add('hidden');
+          document.getElementById('loginCard').classList.remove('hidden');
+          document.getElementById('portalEmail').value = '';
+          showPortalNotice('');
+        });
+
+        document.getElementById('btnSendContact').addEventListener('click', function () {
+          var btn = document.getElementById('btnSendContact');
+          var msgEl = document.getElementById('contactMsg');
+          var name = document.getElementById('contactName').value.trim();
+          var message = document.getElementById('contactMessage').value.trim();
+          var email = document.getElementById('portalEmail').value.trim();
+          msgEl.className = 'msg';
+          msgEl.style.display = 'none';
+
+          if (!name) {
+            msgEl.textContent = 'Please enter your name.';
+            msgEl.className = 'msg error';
+            return;
+          }
+          if (!message) {
+            msgEl.textContent = 'Please enter a message.';
+            msgEl.className = 'msg error';
+            return;
+          }
+          if (message.length > 2000) {
+            msgEl.textContent = 'Message is too long (max 2000 characters).';
+            msgEl.className = 'msg error';
+            return;
+          }
+
+          btn.disabled = true;
+          btn.textContent = 'Sending\u2026';
+
+          fetch('/.netlify/functions/portal-message', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              tenant_id: tenantId,
+              email: email,
+              name: name,
+              message: message,
+            }),
+          })
+            .then(function (r) {
+              return r.json().then(function (d) {
+                return { ok: r.ok, d: d };
+              });
+            })
+            .then(function (res) {
+              btn.disabled = false;
+              btn.textContent = 'Send message';
+              if (!res.ok) throw new Error(res.d.error || 'Failed to send message');
+              msgEl.textContent = 'Your message has been sent. We\u2019ll be in touch shortly.';
+              msgEl.className = 'msg success';
+              document.getElementById('contactMessage').value = '';
+            })
+            .catch(function (err) {
+              btn.disabled = false;
+              btn.textContent = 'Send message';
+              msgEl.textContent = err.message || 'Something went wrong. Please try again.';
+              msgEl.className = 'msg error';
+            });
+        });
+        if (location.hash) {
+          activatePortalTab(location.hash.replace(/^#/, ''), false);
+        }
+        if (tenantId && prefill && checkoutState) {
+          setTimeout(function () {
+            document.getElementById('btnPortalLookup').click();
+          }, 0);
+        }
+      })();
+
+      async function handlePayNow(btn) {
+        const orderId = btn && btn.dataset ? btn.dataset.orderId : '';
+        if (!orderId) return;
+        btn.disabled = true;
+        btn.textContent = 'Opening secure checkout...';
+        try {
+          // Get the customer email from the portal session
+          const email = window._portalEmail || '';
+          try {
+            window.sessionStorage.setItem(
+              'prooflink_portal_checkout',
+              JSON.stringify({
+                order_id: orderId,
+                tenant_id: new URLSearchParams(location.search).get('tenant'),
+                email: email,
+                saved_at: Date.now(),
+              })
+            );
+          } catch (_) {}
+          const url =
+            '/.netlify/functions/portal-checkout?order_id=' +
+            encodeURIComponent(orderId) +
+            '&email=' +
+            encodeURIComponent(email);
+          const res = await fetch(url);
+          const data = await res.json();
+          if (!res.ok) {
+            if (data.contact_needed) {
+              window.showPortalNotice &&
+                window.showPortalNotice(
+                  'Online payment is not set up for this business yet. Please contact the business directly to arrange payment.',
+                  'error'
+                );
+            } else {
+              window.showPortalNotice &&
+                window.showPortalNotice(
+                  data.error || 'Payment error. Please contact the business directly.',
+                  'error'
+                );
+            }
+            btn.disabled = false;
+            btn.textContent = 'Pay now';
+            return;
+          }
+          // Redirect to Stripe Checkout
+          window.location.href = data.checkout_url;
+        } catch (err) {
+          window.showPortalNotice &&
+            window.showPortalNotice(
+              'Could not connect to payment service. Please try again or contact the business directly.',
+              'error'
+            );
+          btn.disabled = false;
+          btn.textContent = 'Pay now';
+        }
       }
-      btn.disabled = false;
-      btn.textContent = 'Pay now';
-      return;
-    }
-    // Redirect to Stripe Checkout
-    window.location.href = data.checkout_url;
-  } catch (err) {
-    window.showPortalNotice && window.showPortalNotice('Could not connect to payment service. Please try again or contact the business directly.', 'error');
-    btn.disabled = false;
-    btn.textContent = 'Pay now';
-  }
-}
-</script>
-</body>
+    </script>
+  </body>
 </html>
-
-
-

@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;600;700;800&family=Google+Sans+Text:wght@400;500;600;700&display=swap');
+
 :root {
   --pl-color-ink: #132027;
   --pl-color-ink-soft: #30424a;
@@ -13,9 +15,22 @@
   --pl-color-line-strong: rgba(19, 32, 39, 0.22);
   --pl-shadow-soft: 0 18px 40px rgba(19, 32, 39, 0.08);
   --pl-shadow-brand: 0 28px 72px rgba(11, 28, 33, 0.18);
+  --pl-shadow-app-dark: 0 24px 56px rgba(0, 0, 0, 0.28);
   --pl-radius-lg: 24px;
   --pl-radius-md: 16px;
   --pl-radius-sm: 12px;
   --pl-font-display: 'Google Sans', ui-sans-serif, system-ui, sans-serif;
   --pl-font-body: 'Google Sans Text', ui-sans-serif, system-ui, sans-serif;
+  --pl-app-dark-bg: #0f1117;
+  --pl-app-dark-surface: #1a1d27;
+  --pl-app-dark-panel: #20233a;
+  --pl-app-dark-text: #e8e9eb;
+  --pl-app-dark-muted: rgba(255, 255, 255, 0.58);
+  --pl-app-dark-border: rgba(255, 255, 255, 0.1);
+  --pl-app-light-bg: #f0ede6;
+  --pl-app-light-panel: #ffffff;
+  --pl-app-light-panel-soft: #e8e4dc;
+  --pl-app-light-text: #0d0d0b;
+  --pl-app-light-muted: #6b6560;
+  --pl-app-light-border: #d9d4c9;
 }

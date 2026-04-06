@@ -1,3 +1,5 @@
+@import url('./assets/brand/prooflink-tokens.css');
+
 :root {
   --ink: var(--pl-color-ink, #111820);
   --ink-soft: #2f3940;
@@ -15,8 +17,8 @@
   --radius-lg: 18px;
   --radius-md: 14px;
   --radius-sm: 10px;
-  --font-display: 'Google Sans', ui-sans-serif, system-ui, sans-serif;
-  --font-body: 'Google Sans Text', ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--pl-font-display, 'Google Sans', ui-sans-serif, system-ui, sans-serif);
+  --font-body: var(--pl-font-body, 'Google Sans Text', ui-sans-serif, system-ui, sans-serif);
   --shadow: 0 24px 60px rgba(17, 24, 32, 0.08);
 }
 
@@ -179,7 +181,10 @@ a {
   padding: 1rem;
   text-align: left;
   cursor: pointer;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.12s ease;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.12s ease;
 }
 
 .plan-choice:hover,
@@ -366,7 +371,9 @@ textarea {
   color: var(--ink);
   padding: 0.72rem 0.85rem;
   font: inherit;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
 input:focus,
@@ -426,7 +433,7 @@ textarea {
   -webkit-tap-highlight-color: transparent;
   user-select: none;
 }
-.join-password-toggle[aria-pressed="true"] {
+.join-password-toggle[aria-pressed='true'] {
   background: rgba(200, 75, 47, 0.12);
   border-color: rgba(200, 75, 47, 0.4);
 }
@@ -458,7 +465,10 @@ textarea {
   padding: 1rem;
   text-align: left;
   cursor: pointer;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.12s ease;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.12s ease;
 }
 
 .setup-mode-card:hover,
@@ -517,7 +527,10 @@ textarea {
   background: #ffffff;
   padding: 0.8rem 0.7rem;
   cursor: pointer;
-  transition: border-color 0.15s ease, transform 0.12s ease, box-shadow 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    transform 0.12s ease,
+    box-shadow 0.15s ease;
   text-align: center;
   user-select: none;
 }
@@ -562,7 +575,10 @@ textarea {
   padding: 0.72rem 1.2rem;
   border-radius: 999px;
   font: 700 0.92rem/1 var(--font-body);
-  transition: transform 0.12s ease, background 0.15s ease, border-color 0.15s ease;
+  transition:
+    transform 0.12s ease,
+    background 0.15s ease,
+    border-color 0.15s ease;
 }
 
 .btn-solid {
