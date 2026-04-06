@@ -923,17 +923,20 @@
     if (Date.now() < portalLookupCooldownUntil) {
       msg.textContent = 'Please wait a moment before trying again.';
       msg.className = 'msg error';
+      msg.style.display = 'block';
       return;
     }
 
     if (!email) {
       msg.textContent = 'Please enter your email address.';
       msg.className = 'msg error';
+      msg.style.display = 'block';
       return;
     }
     if (!tenantId) {
       msg.textContent = 'This customer page is missing business information. Please ask for a fresh link.';
       msg.className = 'msg error';
+      msg.style.display = 'block';
       return;
     }
 
@@ -991,6 +994,7 @@
           ? 'We could not find anything for that email yet. Try the email you use with the business.'
           : (err.message || 'Something went wrong. Please try again.');
         msg.className = 'msg error';
+        msg.style.display = 'block';
       });
   });
 

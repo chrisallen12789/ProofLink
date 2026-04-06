@@ -304,7 +304,7 @@ test.describe.serial("service workflow e2e", () => {
 
     await loginAsTenantA(page);
     await openTab(page, "leads");
-    await page.locator("#leadsList").getByText(state.customerName).click();
+    await page.locator(`#leadsList button[data-lead-id="${state.leadId}"]`).click();
     await page.locator("#btnLeadCreateBid").click();
 
     await expect(page.locator('[data-panel="bids"]')).not.toHaveClass(/hidden/);
@@ -313,8 +313,8 @@ test.describe.serial("service workflow e2e", () => {
     await page.locator("#bidProjectSummary").fill(`Exterior wash proposal ${state.stamp}`);
     await page.locator("#bidStatus").selectOption("sent");
     await page.locator("#bidValidUntil").fill(new Date(Date.now() + (10 * 86400000)).toISOString().slice(0, 10));
-    await page.locator("#bidCoverNote").fill("Approve this estimate when you are ready and we will take care of the next steps.");
-    await page.locator("#bidForm").getByRole("button", { name: "Save bid" }).click();
+    await page.getByLabel("Client delivery note").fill("Approve this estimate when you are ready and we will take care of the next steps.");
+    await page.locator("#bidForm").evaluate((form) => form.requestSubmit());
 
     await expect(page.locator("#bidMsg")).toContainText(/saved/i);
 
@@ -323,17 +323,23 @@ test.describe.serial("service workflow e2e", () => {
     await page.locator("#bidLineItemUnitPrice").fill("350.00");
     await page.locator("#bidLineItemForm").getByRole("button", { name: "Save line item" }).click();
     await expect(page.locator("#bidLineItemMsg")).toContainText(/saved/i);
-    await page.locator("#bidForm").getByRole("button", { name: "Save bid" }).click();
+    await page.locator("#bidForm").evaluate((form) => form.requestSubmit());
     await expect(page.locator("#bidMsg")).toContainText(/saved/i);
 
     const bidRow = await waitForBidRow(
       admin,
       state.leadId,
-      (row) => row.customer_id === state.customerId,
+      (row) => (
+        row.customer_id === state.customerId
+        && Number(row.total_cents || 0) === 35000
+        && Array.isArray(row.line_items)
+        && row.line_items.some((item) => item && item.name === "House wash")
+      ),
     );
     state.bidId = bidRow.id;
     remember("bids", state.bidId);
     expect(bidRow.customer_id).toBe(state.customerId);
+    expect(bidRow.total_cents).toBe(35000);
   });
 
   test("customer can review and approve the public estimate", async ({ page }) => {
@@ -346,16 +352,15 @@ test.describe.serial("service workflow e2e", () => {
     await expect(page.locator("#quotesList")).toContainText("Review estimate");
 
     await page.goto(`/quote.html?token=${state.bidId}`);
-    await expect(page.getByText("Estimate for your service")).toBeVisible();
-    await expect(page.locator("#proposalTitle")).toContainText(state.bidTitle);
-    await expect(page.locator("#lineItemsCard")).toContainText("House wash");
-    await expect(page.locator("#totalsCard")).toContainText("$350.00");
-    await page.getByRole("button", { name: "Approve and continue" }).click();
+    await expect(page.locator("#proposalMount")).toContainText(state.bidTitle);
+    await expect(page.locator("#proposalMount")).toContainText("$350.00");
+    await expect(page.locator("#actionCopy")).toContainText(/approve/i);
+    await page.getByRole("button", { name: "Approve proposal" }).click();
     await expect(page.getByRole("dialog")).toBeVisible();
     await page.locator("#modalCustomerEmail").fill(state.customerEmail);
-    await page.getByRole("button", { name: "Yes, accept" }).click();
+    await page.getByRole("button", { name: "Yes, approve it" }).click();
     await expect(page.locator("#acceptedState")).toBeVisible({ timeout: 15000 });
-    await expect(page.locator("#acceptedMsg")).toContainText(/follow up shortly/i);
+    await expect(page.locator("#acceptedMsg")).toContainText(/follow up with the next steps shortly/i);
 
     const acceptedBid = await waitForBidStatus(admin, state.bidId, "approved");
     expect(acceptedBid.total_cents).toBe(35000);
@@ -367,10 +372,10 @@ test.describe.serial("service workflow e2e", () => {
     await loginAsTenantA(page);
     await openTab(page, "bids");
     await page.locator("#bidSearch").fill(state.stamp);
-    await page.locator("#bidsList").getByText(state.bidTitle).click();
+    await page.locator(`#bidsList button[data-bid-id="${state.bidId}"]`).click();
     await expect(page.locator("#bidTitle")).toHaveValue(state.bidTitle);
     await page.locator("#bidDepositAmount").fill("100.00");
-    await page.locator("#bidForm").getByRole("button", { name: "Save bid" }).click();
+    await page.locator("#bidForm").evaluate((form) => form.requestSubmit());
     await expect(page.locator("#bidMsg")).toContainText(/saved/i);
 
     await waitForBidStatus(admin, state.bidId, "approved");

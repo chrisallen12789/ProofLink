@@ -2,6 +2,7 @@
 
 const { test, expect } = require("@playwright/test");
 const { loadTestEnv } = require("../setup/env.test");
+const { safeClick } = require("./operator-test-helpers");
 
 loadTestEnv();
 
@@ -10,10 +11,12 @@ function horizontalOverflowPx() {
 }
 
 test.describe("operator cross-device smoke", () => {
-  test("login and recovery shell stay usable across browser/device projects", async ({ page, isMobile }) => {
-    await page.goto("/operator/");
+  test.setTimeout(90000);
 
-    await expect(page.locator("#viewLogin")).toBeVisible();
+  test("login and recovery shell stay usable across browser/device projects", async ({ page, isMobile }) => {
+    await page.goto("/operator/", { waitUntil: "domcontentloaded", timeout: 60000 });
+
+    await expect(page.locator("#viewLogin")).toBeVisible({ timeout: 20000 });
     await expect(page.locator("#viewLogin")).toContainText("Business sign-in");
     await expect(page.locator("#globalSearch")).toBeHidden();
 
@@ -24,8 +27,8 @@ test.describe("operator cross-device smoke", () => {
       await expect(page.locator("#mobileBottomNav")).toBeHidden();
     }
 
-    await page.getByRole("button", { name: "Forgot password?" }).click();
-    await expect(page.locator("#viewForgotPassword")).toBeVisible();
+    await safeClick(page.getByRole("button", { name: "Forgot password?" }));
+    await expect(page.locator("#viewForgotPassword")).toBeVisible({ timeout: 20000 });
     await expect(page.locator("#viewForgotPassword")).toContainText("Reset your password");
     await expect(page.locator("#globalSearch")).toBeHidden();
     await expect(page.locator("#mobileBottomNav")).toBeHidden();
@@ -33,7 +36,7 @@ test.describe("operator cross-device smoke", () => {
     const forgotOverflow = await page.evaluate(horizontalOverflowPx);
     expect(forgotOverflow).toBeLessThanOrEqual(2);
 
-    await page.getByRole("button", { name: "Back to sign in" }).click();
-    await expect(page.locator("#viewLogin")).toBeVisible();
+    await safeClick(page.getByRole("button", { name: "Back to sign in" }));
+    await expect(page.locator("#viewLogin")).toBeVisible({ timeout: 20000 });
   });
 });

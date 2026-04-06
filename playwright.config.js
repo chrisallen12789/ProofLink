@@ -1,4 +1,9 @@
+const os = require('os');
+const path = require('path');
 const { defineConfig, devices } = require("@playwright/test");
+
+const captureFailureArtifacts = process.env.PLAYWRIGHT_CAPTURE_FAILURE_ARTIFACTS === "1";
+const playwrightOutputDir = process.env.PLAYWRIGHT_OUTPUT_DIR || path.join(os.tmpdir(), 'prooflink-playwright-results');
 
 module.exports = defineConfig({
   testDir: "./tests/e2e",
@@ -7,11 +12,14 @@ module.exports = defineConfig({
   retries: 0,
   workers: 1,
   reporter: "list",
+  outputDir: playwrightOutputDir,
   use: {
     baseURL: process.env.TEST_SITE_URL || "http://127.0.0.1:8888",
-    trace: "retain-on-failure",
-    screenshot: "only-on-failure",
-    video: "retain-on-failure",
+    actionTimeout: 15000,
+    navigationTimeout: 60000,
+    trace: captureFailureArtifacts ? "retain-on-failure" : "off",
+    screenshot: captureFailureArtifacts ? "only-on-failure" : "off",
+    video: captureFailureArtifacts ? "retain-on-failure" : "off",
   },
   projects: [
     {

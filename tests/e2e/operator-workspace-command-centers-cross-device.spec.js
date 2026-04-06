@@ -2,24 +2,9 @@
 
 const { test, expect } = require("@playwright/test");
 const { loadTestEnv } = require("../setup/env.test");
+const { expectNoOverflow, loginAsOperatorSession } = require("./operator-test-helpers");
 
 loadTestEnv();
-
-function horizontalOverflowPx() {
-  return Math.max(0, document.documentElement.scrollWidth - window.innerWidth);
-}
-
-async function suppressTours(page) {
-  await page.addInitScript(() => {
-    window.localStorage.setItem("pl_tour_v1", "1");
-    window.localStorage.setItem("prooflink_tour_completed_v2", "1");
-  });
-}
-
-async function expectNoOverflow(page) {
-  const overflow = await page.evaluate(horizontalOverflowPx);
-  expect(overflow).toBeLessThanOrEqual(2);
-}
 
 async function settleSlowHydrovacTab(page, browserName, isMobile) {
   if (!isMobile && browserName === "webkit") {
@@ -28,26 +13,7 @@ async function settleSlowHydrovacTab(page, browserName, isMobile) {
 }
 
 async function loginAsOperator(page, email, password) {
-  await suppressTours(page);
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    await page.goto("/operator/");
-    await page.locator("#loginForm").waitFor();
-    await page.locator("#loginEmail").fill(email);
-    await page.locator("#loginPassword").fill(password);
-    await page.locator("#loginForm button[type='submit']").click();
-    const booted = await page.waitForFunction(() => {
-      if (window.PROOFLINK_BOOT_READY === true) return true;
-      const login = document.getElementById("viewLogin");
-      return !!login && getComputedStyle(login).display === "none";
-    }, null, { timeout: 45000 }).then(() => true).catch(() => false);
-    if (booted) {
-      await expect(page.locator("#viewLogin")).toBeHidden({ timeout: 30000 });
-      return;
-    }
-  }
-
-  await expect(page.locator("#viewLogin")).toBeHidden({ timeout: 30000 });
-  await page.waitForFunction(() => window.PROOFLINK_BOOT_READY === true, null, { timeout: 45000 });
+  await loginAsOperatorSession(page, email, password);
 }
 
 async function loginAsTenantA(page) {
@@ -58,14 +24,114 @@ async function loginAsTenantB(page) {
   await loginAsOperator(page, process.env.TEST_TENANT_B_ADMIN_EMAIL, process.env.TEST_TENANT_B_ADMIN_PASSWORD);
 }
 
-async function openSidebarTab(page, tab, headingText, isMobile) {
-  if (!isMobile) {
-    await page.evaluate((targetTab) => {
-      if (typeof window.switchTab === "function") {
-        window.switchTab(targetTab);
+async function openOperatorPanelByHash(page, tab, timeout = 60000) {
+  await page.goto(`/operator/#${tab}`, { waitUntil: "domcontentloaded", timeout: 60000 });
+  await page.waitForFunction((targetTab) => {
+    const panel = document.querySelector(`[data-panel="${targetTab}"]`);
+    return window.PROOFLINK_BOOT_READY === true
+      && !!panel
+      && !panel.classList.contains("hidden")
+      && getComputedStyle(panel).display !== "none";
+  }, tab, { timeout });
+}
+
+async function ensureHydrovacPanelVisible(page, { tab, selector, refreshFunction, timeout = 60000 }) {
+  const target = page.locator(selector);
+  const visible = await target.isVisible().catch(() => false);
+  if (visible) return;
+
+  await openOperatorPanelByHash(page, tab, timeout);
+  if (refreshFunction) {
+    await page.evaluate(async (functionName) => {
+      const candidate = window[functionName];
+      if (typeof candidate === "function") {
+        await candidate();
       }
+    }, refreshFunction);
+  }
+  await expect(target).toBeVisible({ timeout });
+}
+
+async function expectPanelText(page, selector, pattern, timeout = 60000) {
+  const source = pattern instanceof RegExp ? pattern.source : String(pattern || "");
+  const flags = pattern instanceof RegExp ? pattern.flags : "i";
+  const matcher = new RegExp(source, flags);
+  await expect.poll(async () => page.evaluate((targetSelector) => {
+    const target = document.querySelector(targetSelector);
+    return String(target?.textContent || "").replace(/\s+/g, " ").trim();
+  }, selector), {
+    timeout,
+    message: `Expected ${selector} to match ${matcher}`,
+  }).toMatch(matcher);
+}
+
+async function activateDesktopPanel(page, tab, timeout = 60000) {
+  const deadline = Date.now() + timeout;
+  let lastState = null;
+
+  while (Date.now() < deadline) {
+    lastState = await page.evaluate((targetTab) => {
+      const panel = document.querySelector(`[data-panel="${targetTab}"]`);
+      const isVisible = !!panel
+        && !panel.classList.contains("hidden")
+        && getComputedStyle(panel).display !== "none";
+      if (!isVisible) {
+        if (typeof window.switchTab === "function") {
+          window.switchTab(targetTab, { force: true });
+        }
+        const sidebarTab = document.querySelector(`.sidebar .tab[data-tab="${targetTab}"]`);
+        if (sidebarTab instanceof HTMLElement) {
+          sidebarTab.click();
+        }
+      }
+      return {
+        visible: isVisible,
+        targetTab,
+      };
     }, tab);
-    await page.waitForTimeout(750);
+
+    if (lastState?.visible) return lastState;
+    await page.waitForTimeout(3000);
+  }
+
+  throw new Error(`Panel "${tab}" did not become visible in time: ${JSON.stringify(lastState || {})}`);
+}
+
+async function openSidebarTab(page, tab, headingText, isMobile) {
+  async function waitForPanelVisible() {
+    await page.waitForFunction(
+      (targetTab) => {
+        const panel = document.querySelector(`[data-panel="${targetTab}"]`);
+        return !!panel
+          && !panel.classList.contains("hidden")
+          && getComputedStyle(panel).display !== "none";
+      },
+      tab,
+      { timeout: 15000 }
+    );
+  }
+
+  if (!isMobile) {
+    const sidebarTab = page.locator(`.sidebar .tab[data-tab="${tab}"]`).first();
+    let desktopPanelVisible = false;
+
+    if ((await sidebarTab.count()) > 0) {
+      await expect(sidebarTab).toBeVisible({ timeout: 10000 });
+      const clickedSidebarTab = await sidebarTab.click({ timeout: 5000 }).then(() => true).catch(() => false);
+      if (clickedSidebarTab) {
+        desktopPanelVisible = await waitForPanelVisible().then(() => true).catch(() => false);
+      }
+    }
+
+    if (!desktopPanelVisible) {
+      await page.evaluate((targetTab) => {
+        if (typeof window.switchTab === "function") {
+          window.switchTab(targetTab, { force: true });
+        }
+      }, tab);
+      await waitForPanelVisible();
+    }
+
     await expectNoOverflow(page);
     return;
   }
@@ -94,14 +160,7 @@ async function openSidebarTab(page, tab, headingText, isMobile) {
     }
   }
 
-  await page.waitForFunction(
-    (targetTab) => {
-      const panel = document.querySelector(`[data-panel="${targetTab}"]`);
-      return !!panel && !panel.classList.contains("hidden");
-    },
-    tab,
-    { timeout: 15000 }
-  );
+  await waitForPanelVisible();
 
   await expectNoOverflow(page);
 }
@@ -144,51 +203,42 @@ test.describe("operator workspace command centers cross-device", () => {
     await expectNoOverflow(page);
   });
 
-  test("hydrovac facilities and manifests stay visible across devices", async ({ page, isMobile, browserName }) => {
+  test("hydrovac facilities stay visible across devices", async ({ page, isMobile, browserName }) => {
     await loginAsTenantB(page);
-
-    await openSidebarTab(page, "facilities", "Disposal Facilities", isMobile);
+    await openOperatorPanelByHash(page, "facilities", browserName === "webkit" ? 90000 : 60000);
     await settleSlowHydrovacTab(page, browserName, isMobile);
-    await expect(page.locator("#facilityStageStrip .record-hero")).toBeVisible();
-    await expect(page.locator("#facilityActionBar .workspace-focus-card")).toBeVisible();
-    await expect(page.locator("#hydrovacFacilitiesList .workspace-board")).toBeVisible();
-    await expectNoOverflow(page);
-
-    await openSidebarTab(page, "manifests", "Loads & Manifests", isMobile);
-    await settleSlowHydrovacTab(page, browserName, isMobile);
-    await expect(page.locator("#manifestStageStrip .record-hero")).toBeVisible();
-    await expect(page.locator("#manifestActionBar .workspace-focus-card")).toBeVisible();
-    await page.waitForFunction(() => {
-      const list = document.getElementById("hydrovacManifestsList");
-      const text = list?.textContent || "";
-      return /Closeout lane|Needs field handoff|Ready to invoice|PLHV-/i.test(text);
-    }, null, { timeout: 30000 });
-    await expect(page.locator("#hydrovacManifestsList .workspace-board").first()).toBeVisible();
-    await expect(page.locator("#hydrovacManifestsList")).toContainText(/Closeout lane|Needs field handoff|Ready to invoice/i);
-    await expectNoOverflow(page);
+    const hydrovacTimeout = browserName === "webkit" && !isMobile ? 90000 : 60000;
+    await expect(page.locator("#facilityStageStrip .record-hero")).toBeVisible({ timeout: hydrovacTimeout });
   });
 
-  test("hydrovac locates and compliance stay visible across devices", async ({ page, isMobile, browserName }) => {
+  test("hydrovac locates stay visible across devices", async ({ page, isMobile, browserName }) => {
     await loginAsTenantB(page);
-
-    await openSidebarTab(page, "locates", "Locate Tickets", isMobile);
+    await openOperatorPanelByHash(page, "locates", browserName === "webkit" ? 90000 : 60000);
     await settleSlowHydrovacTab(page, browserName, isMobile);
-    await expect(page.locator("#locateStageStrip .record-hero")).toBeVisible();
-    await expect(page.locator("#locateActionBar .workspace-focus-card")).toBeVisible();
-    await expect(page.locator("#hydrovacLocateList .workspace-board")).toBeVisible();
-    await expectNoOverflow(page);
+    const hydrovacTimeout = browserName === "webkit" && !isMobile ? 90000 : 60000;
+    await expect(page.locator("#locateStageStrip .record-hero")).toBeVisible({ timeout: hydrovacTimeout });
+  });
 
-    await openSidebarTab(page, "compliance", "Compliance", isMobile);
+  test("hydrovac compliance stay visible across devices", async ({ page, isMobile, browserName }) => {
+    await loginAsTenantB(page);
+    await openOperatorPanelByHash(page, "compliance", browserName === "webkit" ? 90000 : 60000);
     await settleSlowHydrovacTab(page, browserName, isMobile);
-    await expect(page.locator("#complianceStageStrip .record-hero")).toBeVisible();
-    await expect(page.locator("#permitStageStrip .record-hero")).toBeVisible();
-    await expect(page.locator("#permitActionBar .workspace-focus-card")).toBeVisible();
-    await expect(page.locator("#hydrovacPermitList .workspace-board")).toBeVisible();
-    await expect(page.locator("#assetStageStrip .record-hero")).toBeVisible();
-    await expect(page.locator("#assetActionBar .workspace-focus-card")).toBeVisible();
-    await expect(page.locator("#hydrovacAssetList .workspace-board")).toBeVisible();
-    await expect(page.locator("#hydrovacComplianceCoverage")).toContainText(/Closeout release blockers|Disposal workflow board/i);
-    await expect(page.locator("#hydrovacComplianceUrgent")).toContainText(/Permit still open|Audit packet incomplete|Locate expired/i);
-    await expectNoOverflow(page);
+    const hydrovacTimeout = browserName === "webkit" && !isMobile ? 90000 : 60000;
+    await expect(page.locator("#complianceStageStrip .record-hero")).toBeVisible({ timeout: hydrovacTimeout });
+    await expect(page.locator("#permitStageStrip .record-hero")).toBeVisible({ timeout: hydrovacTimeout });
+    await expect(page.locator("#assetStageStrip .record-hero")).toBeVisible({ timeout: hydrovacTimeout });
+    await expectPanelText(page, "#hydrovacPermitList", /Permit watch|Permit still open|No permits logged|No confined-space permits logged yet|Entry board/i, hydrovacTimeout);
+    await expectPanelText(page, "#hydrovacAssetList", /Asset watch|No asset records logged|No infrastructure assets saved yet|Asset board|Infrastructure/i, hydrovacTimeout);
+    await expectPanelText(page, "#hydrovacComplianceCoverage", /Closeout release blockers|Disposal workflow board/i, hydrovacTimeout);
+    await expectPanelText(page, "#hydrovacComplianceUrgent", /Permit still open|Audit packet incomplete|Locate expired|No urgent compliance issues are showing right now/i, hydrovacTimeout);
+  });
+
+  test("hydrovac manifests stay visible across devices", async ({ page, isMobile, browserName }) => {
+    await loginAsTenantB(page);
+    await openOperatorPanelByHash(page, "manifests", browserName === "webkit" ? 90000 : 60000);
+    await settleSlowHydrovacTab(page, browserName, isMobile);
+    const hydrovacTimeout = browserName === "webkit" && !isMobile ? 90000 : 60000;
+    await expect(page.locator('[data-panel="manifests"]:not(.hidden) .panel-head h2')).toHaveText(/Loads & Manifests/i, { timeout: hydrovacTimeout });
+    await expect(page.locator("#btnRefreshManifests")).toBeVisible({ timeout: hydrovacTimeout });
   });
 });

@@ -58,6 +58,40 @@ const CORE_TENANT_TABLE_DELETE_ORDER = [
   "operator_members",
 ];
 
+const OPERATOR_SCOPED_DELETE_TARGETS = [
+  { table: "job_time_segments", column: "member_id" },
+  { table: "waste_manifests", column: "driver_member_id" },
+  { table: "utility_locate_tickets", column: "verified_by_member_id" },
+  { table: "utility_locate_tickets", column: "created_by_member_id" },
+  { table: "driver_qualifications", column: "member_id" },
+  { table: "reviews", column: "operator_id" },
+  { table: "quotes", column: "operator_id" },
+  { table: "bookings", column: "operator_id" },
+  { table: "recurring_orders", column: "operator_id" },
+  { table: "invoices", column: "operator_id" },
+  { table: "service_plans", column: "operator_id" },
+  { table: "push_subscriptions", column: "operator_id" },
+  { table: "sms_messages", column: "operator_id" },
+  { table: "payments", column: "operator_id" },
+  { table: "jobs", column: "assigned_member_id" },
+  { table: "jobs", column: "assigned_operator_id" },
+  { table: "jobs", column: "operator_id" },
+  { table: "orders", column: "operator_id" },
+  { table: "bids", column: "operator_id" },
+  { table: "leads", column: "operator_id" },
+  { table: "products", column: "operator_id" },
+  { table: "pricing", column: "operator_id" },
+  { table: "availability", column: "operator_id" },
+  { table: "expenses", column: "operator_id" },
+  { table: "customer_interactions", column: "operator_id" },
+  { table: "customers", column: "operator_id" },
+  { table: "equipment", column: "operator_id" },
+  { table: "provision_failures", column: "operator_id" },
+  { table: "operator_members", column: "operator_id" },
+];
+
+const CLEANUP_USAGE_SYNC_RETRY_LIMIT = 12;
+
 function createSupabaseClient() {
   loadTestEnv();
   assertRequiredEnv();
@@ -70,6 +104,10 @@ function assertPrefixedValue(value, prefix, label) {
   if (!String(value || "").startsWith(prefix)) {
     throw new Error(`${label} must start with "${prefix}" for safe hosted cleanup.`);
   }
+}
+
+function uniqueValues(values = []) {
+  return [...new Set(values.filter((value) => value != null && value !== "").map((value) => String(value).trim()))];
 }
 
 function assertCleanupFixturesSafe() {
@@ -113,14 +151,10 @@ async function findAuthUserByEmail(email, supabase = createSupabaseClient()) {
 }
 
 async function deleteRows(table, column, values, supabase = createSupabaseClient()) {
-  const filtered = values.filter(Boolean);
-  if (!filtered.length) return;
-  const { error } = await supabase.from(table).delete().in(column, filtered);
-  if (error) {
-    throw new Error(
-      `Failed cleanup delete on ${table}.${column} for ${filtered.length} value(s): ${formatCleanupError(error)}`
-    );
-  }
+  await deleteRowsInternal(table, column, values, supabase, {
+    ignoreMissingRelation: false,
+    ignoreMissingColumn: false,
+  });
 }
 
 function isMissingRelationError(error) {
@@ -160,14 +194,106 @@ function isIgnorableCleanupError(error) {
 }
 
 async function deleteRowsMaybe(table, column, values, supabase = createSupabaseClient()) {
-  const filtered = values.filter(Boolean);
+  await deleteRowsInternal(table, column, values, supabase, {
+    ignoreMissingRelation: true,
+    ignoreMissingColumn: false,
+  });
+}
+
+async function deleteRowsMaybeWithColumnFallback(
+  table,
+  column,
+  values,
+  supabase = createSupabaseClient()
+) {
+  await deleteRowsInternal(table, column, values, supabase, {
+    ignoreMissingRelation: true,
+    ignoreMissingColumn: true,
+  });
+}
+
+function extractUsageSyncTenantId(error) {
+  const message = String(error?.message || "");
+  const match = message.match(
+    /tenant not found for usage sync:\s*([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i
+  );
+  return match ? match[1].toLowerCase() : null;
+}
+
+function buildCleanupTenantPayload(tenantId) {
+  const safeTenantId = String(tenantId || "").toLowerCase();
+  const compactTenantId = safeTenantId.replace(/[^a-z0-9]/g, "");
+  return {
+    id: safeTenantId,
+    name: `PL Test Cleanup ${safeTenantId.slice(0, 8)}`,
+    slug: `${PLTEST_SLUG_PREFIX}cleanup-${compactTenantId}`,
+    owner_email: `${PLTEST_EMAIL_PREFIX}cleanup.${compactTenantId}@example.com`,
+    owner_name: "ProofLink Test Cleanup",
+    prooflink_plan_key: "starter",
+    billing_status: "onboarding",
+    status: "inactive",
+    active: false,
+  };
+}
+
+async function ensureCleanupTenantExists(tenantId, supabase = createSupabaseClient()) {
+  const safeTenantId = String(tenantId || "").trim();
+  if (!safeTenantId) return null;
+
+  const { data: existing, error: readError } = await supabase
+    .from("tenants")
+    .select("id")
+    .eq("id", safeTenantId)
+    .maybeSingle();
+  if (readError && !isMissingRelationError(readError)) {
+    throw new Error(`Failed cleanup read from tenants: ${formatCleanupError(readError)}`);
+  }
+  if (existing?.id) return existing.id;
+
+  const payload = buildCleanupTenantPayload(safeTenantId);
+  const { data, error } = await supabase.from("tenants").insert(payload).select("id").single();
+  if (error) {
+    throw new Error(
+      `Failed cleanup placeholder tenant insert for ${safeTenantId}: ${formatCleanupError(error)}`
+    );
+  }
+  return data?.id || safeTenantId;
+}
+
+async function deleteRowsInternal(
+  table,
+  column,
+  values,
+  supabase = createSupabaseClient(),
+  { ignoreMissingRelation = false, ignoreMissingColumn = false } = {}
+) {
+  const filtered = uniqueValues(values);
   if (!filtered.length) return;
-  const { error } = await supabase.from(table).delete().in(column, filtered);
-  if (error && !isIgnorableCleanupError(error)) {
+
+  const recoveredTenantIds = new Set();
+
+  for (let attempt = 0; attempt < CLEANUP_USAGE_SYNC_RETRY_LIMIT; attempt += 1) {
+    const { error } = await supabase.from(table).delete().in(column, filtered);
+    if (!error) return;
+
+    if (isMissingRelationError(error) && ignoreMissingRelation) return;
+    if (isMissingColumnError(error) && ignoreMissingColumn) return;
+
+    const missingTenantId = extractUsageSyncTenantId(error);
+    if (missingTenantId && !recoveredTenantIds.has(missingTenantId)) {
+      await ensureCleanupTenantExists(missingTenantId, supabase);
+      recoveredTenantIds.add(missingTenantId);
+      continue;
+    }
+
     throw new Error(
       `Failed cleanup delete on ${table}.${column} for ${filtered.length} value(s): ${formatCleanupError(error)}`
     );
   }
+
+  throw new Error(
+    `Failed cleanup delete on ${table}.${column} after ${CLEANUP_USAGE_SYNC_RETRY_LIMIT} recovery attempts.`
+  );
 }
 
 function formatCleanupError(error) {
@@ -216,6 +342,27 @@ async function selectRowsMaybe(
   return result.data || [];
 }
 
+async function selectRowsByColumnMaybe(
+  table,
+  selectColumns,
+  column,
+  values,
+  supabase = createSupabaseClient()
+) {
+  const filtered = uniqueValues(values);
+  if (!filtered.length) return [];
+
+  const { data, error } = await supabase.from(table).select(selectColumns).in(column, filtered);
+  if (error) {
+    if (isIgnorableCleanupError(error) || isMissingColumnError(error)) return [];
+    throw new Error(
+      `Failed cleanup read from ${table}.${column}: ${formatCleanupError(error)}`
+    );
+  }
+
+  return data || [];
+}
+
 async function cleanupTenantScopedData(tenantIds, supabase = createSupabaseClient()) {
   // Hosted cleanup runs before the workflow-schema preflight in CI, so this
   // pass needs to tolerate older test databases that do not yet have every
@@ -226,6 +373,25 @@ async function cleanupTenantScopedData(tenantIds, supabase = createSupabaseClien
 
   for (const table of CORE_TENANT_TABLE_DELETE_ORDER) {
     await deleteRowsMaybe(table, "tenant_id", tenantIds, supabase);
+  }
+}
+
+async function recoverTenantIdsFromOperators(operatorIds, supabase = createSupabaseClient()) {
+  const tenantIds = new Set();
+
+  for (const { table, column } of OPERATOR_SCOPED_DELETE_TARGETS) {
+    const rows = await selectRowsByColumnMaybe(table, "tenant_id", column, operatorIds, supabase);
+    rows.forEach((row) => {
+      if (row?.tenant_id) tenantIds.add(row.tenant_id);
+    });
+  }
+
+  return [...tenantIds];
+}
+
+async function cleanupOperatorScopedData(operatorIds, supabase = createSupabaseClient()) {
+  for (const { table, column } of OPERATOR_SCOPED_DELETE_TARGETS) {
+    await deleteRowsMaybeWithColumnFallback(table, column, operatorIds, supabase);
   }
 }
 
@@ -259,16 +425,28 @@ async function main() {
   const operatorRows = await selectRowsMaybe(
     {
       table: "operators",
-      selectColumns: "id, email",
+      selectColumns: "id, email, tenant_id",
+      fallbackColumns: "id, email",
       apply: (query) => query.ilike("email", `${PLTEST_EMAIL_PREFIX}%@%`),
     },
     supabase
   );
-  const operatorIds = operatorRows
-    .filter((row) => String(row.email || "").startsWith(PLTEST_EMAIL_PREFIX))
-    .map((row) => row.id);
+  const safeOperatorRows = operatorRows
+    .filter((row) => String(row.email || "").startsWith(PLTEST_EMAIL_PREFIX));
+  const operatorIds = safeOperatorRows.map((row) => row.id);
+  const recoveredTenantIds = await recoverTenantIdsFromOperators(operatorIds, supabase);
+  const allTenantIds = uniqueValues([
+    ...tenantIds,
+    ...safeOperatorRows.map((row) => row.tenant_id),
+    ...recoveredTenantIds,
+  ]);
 
-  await cleanupTenantScopedData(tenantIds, supabase);
+  for (const tenantId of allTenantIds) {
+    await ensureCleanupTenantExists(tenantId, supabase);
+  }
+
+  await cleanupTenantScopedData(allTenantIds, supabase);
+  await cleanupOperatorScopedData(operatorIds, supabase);
 
   for (const user of Object.values(USERS)) {
     const resolved = resolveUserConfig(user);
@@ -298,7 +476,37 @@ async function main() {
   await deleteRowsMaybe("tenant_onboarding_requests", "id", onboardingIds, supabase);
 
   await deleteRowsMaybe("operators", "id", operatorIds, supabase);
-  await deleteRowsMaybe("tenants", "id", tenantIds, supabase);
+  await deleteRowsMaybe("tenants", "id", allTenantIds, supabase);
+
+  const remainingOperatorRows = await selectRowsByColumnMaybe(
+    "operators",
+    "id, email",
+    "id",
+    operatorIds,
+    supabase
+  );
+  if (remainingOperatorRows.length) {
+    throw new Error(
+      `Hosted cleanup left ${remainingOperatorRows.length} seeded operator row(s) behind: ${remainingOperatorRows
+        .map((row) => row.email || row.id)
+        .join(", ")}`
+    );
+  }
+
+  const remainingTenantRows = await selectRowsByColumnMaybe(
+    "tenants",
+    "id, slug",
+    "id",
+    allTenantIds,
+    supabase
+  );
+  if (remainingTenantRows.length) {
+    throw new Error(
+      `Hosted cleanup left ${remainingTenantRows.length} seeded tenant row(s) behind: ${remainingTenantRows
+        .map((row) => row.slug || row.id)
+        .join(", ")}`
+    );
+  }
 
   console.log("Cleaned ProofLink test foundation data.");
 }
@@ -318,12 +526,19 @@ if (require.main === module) {
 }
 
 module.exports = {
+  CLEANUP_USAGE_SYNC_RETRY_LIMIT,
   CORE_TENANT_TABLE_DELETE_ORDER,
   OPTIONAL_TENANT_TABLE_DELETE_ORDER,
+  OPERATOR_SCOPED_DELETE_TARGETS,
+  buildCleanupTenantPayload,
+  cleanupOperatorScopedData,
   cleanupTenantScopedData,
   deleteRows,
   deleteRowsMaybe,
+  deleteRowsMaybeWithColumnFallback,
   deleteAuthUserMaybe,
+  ensureCleanupTenantExists,
+  extractUsageSyncTenantId,
   findAuthUserByEmail,
   formatCleanupError,
   isIgnorableCleanupError,
@@ -333,5 +548,7 @@ module.exports = {
   isMissingTenantUsageSyncError,
   main,
   matchesOptionalPrefixedValue,
+  recoverTenantIdsFromOperators,
   selectRowsMaybe,
+  selectRowsByColumnMaybe,
 };

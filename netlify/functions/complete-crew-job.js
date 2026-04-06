@@ -11,8 +11,8 @@ const { requireHydrovacOperatorContext } = require('./utils/hydrovac');
 const { collectHydrovacLifecycleIssues, hydrovacJobType, logComplianceAlerts, resolveComplianceAlerts } = require('./lib/hydrovac-compliance');
 const {
   buildHydrovacCompletionNarrative,
+  buildHydrovacCloseoutPatch,
   extractHydrovacCompletionHandoff,
-  mergeCrewCloseoutMetadata,
   normalizeHydrovacCompletionHandoff,
 } = require('./lib/hydrovac-closeout');
 
@@ -44,7 +44,7 @@ exports.handler = async (event) => {
   // Verify job belongs to tenant
   const { data: job, error: jobErr } = await adminSb
     .from('jobs')
-    .select('id, tenant_id, status, job_type, service_type, requires_confined_space_permit, total_loads_hauled, total_disposal_cost_cents, disposal_cost_cents, disposal_site, disposal_manifest_number, metadata')
+    .select('*')
     .eq('id', job_id)
     .eq('tenant_id', tenantId)
     .maybeSingle();
@@ -100,7 +100,7 @@ exports.handler = async (event) => {
     updated_at      : nowIso,
   };
   if (normalizedCloseout) {
-    patch.metadata = mergeCrewCloseoutMetadata(job.metadata, normalizedCloseout);
+    Object.assign(patch, buildHydrovacCloseoutPatch(job, normalizedCloseout));
   }
 
   if (signature_data_url !== undefined) {

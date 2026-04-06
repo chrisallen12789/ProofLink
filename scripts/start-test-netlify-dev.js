@@ -58,6 +58,26 @@ function maskedKey(value) {
   return normalized ? `${normalized.slice(0, 8)}...(${normalized.length})` : '(missing)';
 }
 
+function cleanupEphemeralArtifacts() {
+  const paths = [
+    path.join(ROOT, 'test-results'),
+    path.join(ROOT, 'playwright-report'),
+  ];
+
+  paths.forEach((targetPath) => {
+    try {
+      fs.rmSync(targetPath, {
+        recursive: true,
+        force: true,
+        maxRetries: 2,
+        retryDelay: 100,
+      });
+    } catch (_error) {
+      // Netlify dev can still boot without these artifacts removed; this just trims known watcher trouble on Windows.
+    }
+  });
+}
+
 function npxCommand() {
   return process.platform === 'win32' ? 'npx.cmd' : 'npx';
 }
@@ -79,6 +99,7 @@ function spawnConfigForNetlify(args) {
 
 function main() {
   const env = resolveEnv();
+  cleanupEphemeralArtifacts();
   const extraArgs = process.argv.slice(2);
   const portIndex = extraArgs.findIndex((arg) => arg === '--port');
   const port = portIndex >= 0 ? extraArgs[portIndex + 1] : '8888';

@@ -86,8 +86,14 @@ function hydrovacJobCloseout(row = null) {
     const metadata = row?.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata)
       ? row.metadata
       : {};
-    return metadata.crew_closeout && typeof metadata.crew_closeout === "object" && !Array.isArray(metadata.crew_closeout)
-      ? metadata.crew_closeout
+    if (metadata.crew_closeout && typeof metadata.crew_closeout === "object" && !Array.isArray(metadata.crew_closeout)) {
+      return metadata.crew_closeout;
+    }
+    const customFields = row?.custom_fields && typeof row.custom_fields === "object" && !Array.isArray(row.custom_fields)
+      ? row.custom_fields
+      : {};
+    return customFields.crew_closeout && typeof customFields.crew_closeout === "object" && !Array.isArray(customFields.crew_closeout)
+      ? customFields.crew_closeout
       : null;
   }
   return row.completion_handoff;

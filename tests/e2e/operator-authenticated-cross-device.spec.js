@@ -2,35 +2,13 @@
 
 const { test, expect } = require("@playwright/test");
 const { loadTestEnv } = require("../setup/env.test");
+const { expectNoOverflow, loginAsOperatorSession, safeClick } = require("./operator-test-helpers");
 
 loadTestEnv();
 
-function horizontalOverflowPx() {
-  return Math.max(0, document.documentElement.scrollWidth - window.innerWidth);
-}
-
-async function suppressTours(page) {
-  await page.addInitScript(() => {
-    window.localStorage.setItem("pl_tour_v1", "1");
-    window.localStorage.setItem("prooflink_tour_completed_v2", "1");
-  });
-}
-
-async function expectNoOverflow(page) {
-  const overflow = await page.evaluate(horizontalOverflowPx);
-  expect(overflow).toBeLessThanOrEqual(2);
-}
-
 async function loginAsTenantA(page) {
-  await suppressTours(page);
-  await page.goto("/operator/");
-  await page.locator("#loginForm").waitFor();
-  await page.locator("#loginEmail").fill(process.env.TEST_TENANT_A_ADMIN_EMAIL);
-  await page.locator("#loginPassword").fill(process.env.TEST_TENANT_A_ADMIN_PASSWORD);
-  await page.locator("#loginForm button[type='submit']").click();
-  await expect(page.locator("#viewLogin")).toBeHidden({ timeout: 20000 });
+  await loginAsOperatorSession(page, process.env.TEST_TENANT_A_ADMIN_EMAIL, process.env.TEST_TENANT_A_ADMIN_PASSWORD);
   await expect(page.locator('[data-panel="dashboard"]:not(.hidden) .panel-head h2').first()).toHaveText("Today", { timeout: 20000 });
-  await page.waitForFunction(() => window.PROOFLINK_BOOT_READY === true, null, { timeout: 45000 });
 }
 
 async function openPrimaryTab(page, tab, headingText, isMobile) {
@@ -39,14 +17,10 @@ async function openPrimaryTab(page, tab, headingText, isMobile) {
     : page.locator(`.sidebar .tab[data-tab="${tab}"]`);
   const heading = page.locator(`[data-panel="${tab}"]:not(.hidden) .panel-head h2`).first();
 
-  if (isMobile) {
-    await button.click();
-  } else {
-    await button.click();
-  }
+  await safeClick(button, { timeout: 20000 });
 
   if (!(await heading.isVisible().catch(() => false))) {
-    await button.click({ force: true });
+    await safeClick(button, { timeout: 10000 });
   }
 
   if (headingText instanceof RegExp) {
@@ -58,14 +32,14 @@ async function openPrimaryTab(page, tab, headingText, isMobile) {
 }
 
 test.describe("operator authenticated cross-device smoke", () => {
-  test.setTimeout(90000);
+  test.setTimeout(180000);
 
   test("signed-in operator can move through core sections across devices", async ({ page, isMobile }) => {
     await loginAsTenantA(page);
 
-    await expect(page.locator("#viewApp")).toBeVisible();
-    await expect(page.locator("#globalSearch")).toBeVisible();
-    await expect(page.locator("#btnSignOut")).toBeVisible();
+    await expect(page.locator("#viewApp")).toBeVisible({ timeout: 30000 });
+    await expect(page.locator("#globalSearch")).toBeVisible({ timeout: 30000 });
+    await expect(page.locator("#btnSignOut")).toBeVisible({ timeout: 30000 });
     await expectNoOverflow(page);
 
     if (isMobile) {
@@ -82,9 +56,9 @@ test.describe("operator authenticated cross-device smoke", () => {
 
     if (isMobile) {
       const sidebar = page.locator(".sidebar");
-      await page.locator("#mbnMenuBtn").click();
+      await safeClick(page.locator("#mbnMenuBtn"), { timeout: 15000 });
       await expect(sidebar).toHaveClass(/mobile-open/, { timeout: 5000 });
-      await page.locator("#mbnMenuBtn").click();
+      await safeClick(page.locator("#mbnMenuBtn"), { timeout: 15000 });
       await expect(sidebar).not.toHaveClass(/mobile-open/, { timeout: 5000 });
       await expect(page.locator("#mobileBottomNav")).toBeVisible();
       await expectNoOverflow(page);

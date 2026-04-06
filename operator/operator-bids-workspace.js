@@ -10,6 +10,7 @@ const BID_QUOTE_RESCUE_STATE = window.PROOFLINK_BID_QUOTE_RESCUE_STATE || (windo
   context_summary: null,
   generated_at: "",
 });
+const BID_UNSUPPORTED_COLUMNS = window.PROOFLINK_BID_UNSUPPORTED_COLUMNS || (window.PROOFLINK_BID_UNSUPPORTED_COLUMNS = new Set());
 
 function bidAiStatusTone(status) {
   if (status === "ready") return "pill-good";
@@ -555,6 +556,75 @@ function setBidWorkspaceBootstrapping(pending, message = "") {
 function proposalDocumentsApi() {
   return window.PROOFLINK_OPERATOR_PROPOSAL_DOCUMENTS || null;
 }
+function bidSchemaErrorText(error) {
+  return [
+    error?.message,
+    error?.details,
+    error?.hint,
+    error?.error_description,
+  ].filter(Boolean).join(" | ");
+}
+function extractMissingBidColumn(error) {
+  const message = String(bidSchemaErrorText(error) || "");
+  const patterns = [
+    /could not find the ['"]?([^'"]+)['"]? column of ['"]?bids['"]? in the schema cache/i,
+    /column ['"]?([^'".]+)['"]? of relation ['"]?bids['"]? does not exist/i,
+  ];
+  for (const pattern of patterns) {
+    const match = message.match(pattern);
+    if (match?.[1]) return match[1];
+  }
+  return "";
+}
+function stripUnsupportedBidColumns(payload = {}) {
+  if (!payload || typeof payload !== "object" || !BID_UNSUPPORTED_COLUMNS.size) return payload;
+  const nextPayload = { ...payload };
+  BID_UNSUPPORTED_COLUMNS.forEach((column) => {
+    if (Object.prototype.hasOwnProperty.call(nextPayload, column)) delete nextPayload[column];
+  });
+  return nextPayload;
+}
+function mergeUnsupportedBidColumns(draft = {}, sourceDraft = null) {
+  if (!sourceDraft || !BID_UNSUPPORTED_COLUMNS.size) return draft;
+  const nextDraft = { ...draft };
+  BID_UNSUPPORTED_COLUMNS.forEach((column) => {
+    if (!Object.prototype.hasOwnProperty.call(sourceDraft, column)) return;
+    const sourceValue = sourceDraft[column];
+    if (sourceValue == null || sourceValue === "") return;
+    if (nextDraft[column] == null || nextDraft[column] === "") {
+      nextDraft[column] = sourceValue;
+    }
+  });
+  return nextDraft;
+}
+function matchingLocalBidDraft(targetDraft, localRows = BIDS_CACHE || []) {
+  const targetId = String(targetDraft?.id || "").trim();
+  const targetRecordId = String(bidRecordId(targetDraft) || "").trim();
+  return (localRows || []).find((row) => {
+    const rowId = String(row?.id || "").trim();
+    const rowRecordId = String(bidRecordId(row) || "").trim();
+    return (targetId && rowId === targetId) || (targetRecordId && rowRecordId === targetRecordId);
+  }) || null;
+}
+async function persistBidDraftRow(active, rowPayload) {
+  let nextPayload = stripUnsupportedBidColumns(rowPayload);
+  while (true) {
+    const recordId = bidRecordId(active);
+    const query = recordId
+      ? sb.from("bids").update(nextPayload).eq("id", recordId).eq(OPERATOR_COLUMN, opId()).eq(TENANT_COLUMN, TENANT_ID)
+      : sb.from("bids").insert({ ...nextPayload, created_at: active.created_at || new Date().toISOString() });
+    const { data, error } = await query.select("*").single();
+    if (!error) return { data, payload: nextPayload };
+
+    const missingColumn = extractMissingBidColumn(error);
+    if (!missingColumn || !Object.prototype.hasOwnProperty.call(nextPayload, missingColumn)) throw error;
+
+    BID_UNSUPPORTED_COLUMNS.add(missingColumn);
+    const retryPayload = { ...nextPayload };
+    delete retryPayload[missingColumn];
+    nextPayload = retryPayload;
+  }
+}
 function loadBidDrafts() {
   try {
     const raw = window.localStorage.getItem(bidStorageKey());
@@ -572,7 +642,8 @@ async function loadPersistedBids() {
   const hydratedDrafts = proposalApi?.hydrateDrafts
     ? await proposalApi.hydrateDrafts(remoteDrafts).catch(() => remoteDrafts)
     : remoteDrafts;
-  BIDS_CACHE = mergeBidDraftCollections(BIDS_CACHE, hydratedDrafts);
+  const compatibleDrafts = hydratedDrafts.map((draft) => mergeUnsupportedBidColumns(draft, matchingLocalBidDraft(draft)));
+  BIDS_CACHE = mergeBidDraftCollections(BIDS_CACHE, compatibleDrafts);
   persistBidDrafts();
   ACTIVE_BID_ID = ACTIVE_BID_ID && BIDS_CACHE.some((row) => row.id === ACTIVE_BID_ID)
     ? ACTIVE_BID_ID
@@ -597,18 +668,13 @@ async function flushBidDraftSync(options = {}) {
 
       const activeUpdatedAt = String(active.updated_at || "");
       const rowPayload = bidRowFromDraft(active);
-      const recordId = bidRecordId(active);
-      const query = recordId
-        ? sb.from("bids").update(rowPayload).eq("id", recordId).eq(OPERATOR_COLUMN, opId()).eq(TENANT_COLUMN, TENANT_ID)
-        : sb.from("bids").insert({ ...rowPayload, created_at: active.created_at || new Date().toISOString() });
-      const { data, error } = await query.select("*").single();
-      if (error) throw error;
+      const { data } = await persistBidDraftRow(active, rowPayload);
 
       const remoteDraft = draftFromBidRow(data);
       const latestDraft = BIDS_CACHE.find((row) => row.id === active.id) || active;
       const changedWhileSyncing = String(latestDraft.updated_at || "") !== activeUpdatedAt;
       const baseDraft = changedWhileSyncing ? latestDraft : active;
-      const nextDraft = changedWhileSyncing
+      const nextDraft = mergeUnsupportedBidColumns(changedWhileSyncing
         ? {
             ...baseDraft,
             record_id: data.id,
@@ -628,7 +694,7 @@ async function flushBidDraftSync(options = {}) {
               ...(baseDraft.metadata || {}),
               local_draft_id: baseDraft.id,
             },
-          };
+          }, baseDraft);
 
       const proposalApi = proposalDocumentsApi();
       const proposalSyncOptions = options.proposalSync && typeof options.proposalSync === "object"

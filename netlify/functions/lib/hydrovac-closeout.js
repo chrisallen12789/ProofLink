@@ -76,10 +76,43 @@ function mergeCrewCloseoutMetadata(metadata = {}, handoff = null) {
   };
 }
 
+function mergeCrewCloseoutIntoCustomFields(customFields = {}, handoff = null) {
+  const base = safeObject(customFields);
+  if (!handoff) return base;
+  return {
+    ...base,
+    crew_closeout: {
+      ...handoff,
+      version: 1,
+      captured_at: handoff.captured_at || new Date().toISOString(),
+    },
+  };
+}
+
+function buildHydrovacCloseoutPatch(job = {}, handoff = null) {
+  const patch = {};
+  if (!handoff) return patch;
+
+  const hasMetadataColumn = Object.prototype.hasOwnProperty.call(job || {}, 'metadata');
+  const hasCustomFieldsColumn = Object.prototype.hasOwnProperty.call(job || {}, 'custom_fields');
+
+  if (hasMetadataColumn) {
+    patch.metadata = mergeCrewCloseoutMetadata(job.metadata, handoff);
+  }
+  if (hasCustomFieldsColumn || !hasMetadataColumn) {
+    patch.custom_fields = mergeCrewCloseoutIntoCustomFields(job.custom_fields, handoff);
+  }
+  return patch;
+}
+
 function extractHydrovacCompletionHandoff(job = {}) {
   const metadata = safeObject(job.metadata);
   const closeout = safeObject(metadata.crew_closeout);
-  return Object.keys(closeout).length ? closeout : null;
+  if (Object.keys(closeout).length) return closeout;
+
+  const customFields = safeObject(job.custom_fields);
+  const customFieldCloseout = safeObject(customFields.crew_closeout);
+  return Object.keys(customFieldCloseout).length ? customFieldCloseout : null;
 }
 
 async function jobHasConfinedSpacePermit(adminSb, tenantId, jobId) {
@@ -167,6 +200,7 @@ module.exports = {
   PERMIT_STATUS_VALUES,
   OFFICE_FOLLOW_UP_VALUES,
   buildHydrovacCompletionNarrative,
+  buildHydrovacCloseoutPatch,
   mergeCrewCloseoutMetadata,
   extractHydrovacCompletionHandoff,
   normalizeHydrovacCompletionHandoff,

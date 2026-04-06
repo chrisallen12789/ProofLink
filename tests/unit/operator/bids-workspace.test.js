@@ -55,8 +55,12 @@ function loadBidsWorkspace(overrides = {}) {
     BIDS_CACHE: [],
     CUSTOMERS_CACHE: [],
     ACTIVE_BID_ID: "",
+    BID_SYNC_TIMER: null,
+    BID_SYNC_IN_FLIGHT: false,
+    BID_SYNC_PROMISE: null,
     BID_QUICK_CUSTOMER_OPEN: false,
     BID_WORKSPACE_BOOTSTRAPPING: false,
+    CURRENT_OPERATOR: { operator_id: "operator_1" },
     bidMsg: {},
     bidSearch: makeField(),
     btnNewBid: makeField(),
@@ -528,5 +532,140 @@ describe("operator bids workspace", () => {
       }),
     }));
     expect(context.bidQuoteRescueWrap.innerHTML).toContain("1 ready");
+  });
+
+  test("flushBidDraftSync retries without unsupported bid columns and preserves the local draft field", async () => {
+    const localDraft = {
+      id: "bid_local_1",
+      record_id: "",
+      customer_id: "customer_1",
+      customer_location_id: "location_1",
+      status: "sent",
+      title: "Walkthrough proposal",
+      created_at: "2026-04-03T10:00:00.000Z",
+      updated_at: "2026-04-03T10:00:00.000Z",
+      metadata: {},
+    };
+    const insertPayloads = [];
+    const builder = {
+      insert: vi.fn((payload) => {
+        insertPayloads.push(payload);
+        return builder;
+      }),
+      update: vi.fn(() => builder),
+      eq: vi.fn(() => builder),
+      select: vi.fn(() => builder),
+      single: vi.fn()
+        .mockResolvedValueOnce({
+          data: null,
+          error: {
+            code: "PGRST204",
+            message: "Could not find the 'customer_location_id' column of 'bids' in the schema cache",
+          },
+        })
+        .mockResolvedValueOnce({
+          data: {
+            id: "bid_remote_1",
+            customer_id: "customer_1",
+            status: "sent",
+            title: "Walkthrough proposal",
+            updated_at: "2026-04-03T10:00:00.000Z",
+            metadata: {
+              local_draft_id: "bid_local_1",
+            },
+          },
+          error: null,
+        }),
+    };
+    const context = loadBidsWorkspace({
+      BIDS_CACHE: [localDraft],
+      currentBid: vi.fn(() => context.BIDS_CACHE[0] || null),
+      bidRecordId: vi.fn((row) => row.record_id || ""),
+      bidRowFromDraft: vi.fn((draft) => ({
+        customer_id: draft.customer_id,
+        customer_location_id: draft.customer_location_id,
+        status: draft.status,
+        title: draft.title,
+        updated_at: draft.updated_at,
+        metadata: draft.metadata || {},
+      })),
+      draftFromBidRow: vi.fn((row) => ({
+        id: row.metadata?.local_draft_id || row.id,
+        record_id: row.id,
+        customer_id: row.customer_id || "",
+        customer_location_id: row.customer_location_id || "",
+        status: row.status || "draft",
+        title: row.title || "",
+        updated_at: row.updated_at || "",
+        metadata: row.metadata || {},
+      })),
+      sb: {
+        from: vi.fn(() => builder),
+      },
+    });
+
+    const syncedDraft = await context.window.flushBidDraftSync({ throwOnError: true });
+
+    expect(insertPayloads).toHaveLength(2);
+    expect(insertPayloads[0]).toMatchObject({
+      customer_id: "customer_1",
+      customer_location_id: "location_1",
+    });
+    expect(insertPayloads[1]).toMatchObject({
+      customer_id: "customer_1",
+    });
+    expect(insertPayloads[1].customer_location_id).toBeUndefined();
+    expect(syncedDraft.record_id).toBe("bid_remote_1");
+    expect(syncedDraft.customer_location_id).toBe("location_1");
+    expect(context.BIDS_CACHE[0].customer_location_id).toBe("location_1");
+  });
+
+  test("loadPersistedBids keeps unsupported local bid columns when remote rows omit them", async () => {
+    const localDraft = {
+      id: "bid_local_2",
+      record_id: "bid_remote_2",
+      customer_id: "customer_1",
+      customer_location_id: "location_2",
+      status: "sent",
+      title: "Existing proposal",
+      updated_at: "2026-04-03T10:00:00.000Z",
+      metadata: {},
+    };
+    const context = loadBidsWorkspace({
+      BIDS_CACHE: [localDraft],
+      mergeBidDraftCollections: vi.fn((localRows, remoteRows) => {
+        const byId = new Map(localRows.map((row) => [row.id, row]));
+        remoteRows.forEach((row) => {
+          byId.set(row.id, row);
+        });
+        return [...byId.values()];
+      }),
+      fetchPersistedBids: vi.fn(async () => ([{
+        id: "bid_remote_2",
+        customer_id: "customer_1",
+        status: "sent",
+        title: "Existing proposal",
+        updated_at: "2026-04-03T10:00:00.000Z",
+        metadata: {
+          local_draft_id: "bid_local_2",
+        },
+      }])),
+      draftFromBidRow: vi.fn((row) => ({
+        id: row.metadata?.local_draft_id || row.id,
+        record_id: row.id,
+        customer_id: row.customer_id || "",
+        customer_location_id: row.customer_location_id || "",
+        status: row.status || "draft",
+        title: row.title || "",
+        updated_at: row.updated_at || "",
+        metadata: row.metadata || {},
+      })),
+    });
+
+    context.window.PROOFLINK_BID_UNSUPPORTED_COLUMNS.add("customer_location_id");
+    const rows = await context.window.loadPersistedBids();
+
+    expect(rows[0].customer_location_id).toBe("location_2");
+    expect(context.BIDS_CACHE[0].customer_location_id).toBe("location_2");
   });
 });

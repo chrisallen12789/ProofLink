@@ -305,4 +305,97 @@ describe("netlify/functions/update-crew-job", () => {
     expect(res.statusCode).toBe(400);
     expect(JSON.parse(res.body).error).toContain("live load");
   });
+
+  test("falls back to custom_fields when hydrovac jobs do not expose metadata", async () => {
+    const job = {
+      id: "job_4",
+      tenant_id: "tenant_1",
+      assigned_member_id: "member_1",
+      assigned_operator_id: null,
+      status: "in_progress",
+      actual_start_at: "2026-04-03T12:00:00.000Z",
+      actual_end_at: null,
+      job_type: "hydrovac_excavation",
+      requires_confined_space_permit: false,
+      custom_fields: {},
+    };
+    const member = { id: "member_1", role: "tech" };
+    const updatedJob = { ...job };
+    let capturedPatch = null;
+    let jobFromCalls = 0;
+    const jobSelectChain = makeSelectChain({ data: job, error: null });
+    const jobUpdateChain = makeUpdateChain({ data: updatedJob, error: null }, (patch) => {
+      capturedPatch = patch;
+      Object.assign(updatedJob, patch);
+    });
+    const membersTable = makeSelectChain({ data: member, error: null });
+    const permitsTable = makeListChain({ data: [], error: null });
+    const adminSb = {
+      from: vi.fn((table) => {
+        if (table === "jobs") return jobFromCalls++ === 0 ? jobSelectChain : jobUpdateChain;
+        if (table === "operator_members") return membersTable;
+        if (table === "confined_space_permits") return permitsTable;
+        throw new Error(`Unexpected table ${table}`);
+      }),
+    };
+
+    require.cache[authPath] = {
+      id: authPath,
+      filename: authPath,
+      loaded: true,
+      exports: {
+        requireOperatorContext: vi.fn(async () => ({
+          tenantId: "tenant_1",
+          role: "tech",
+          user: { id: "user_1", email: "crew@example.com" },
+        })),
+        getAdminClient: () => adminSb,
+        respond: (statusCode, body) => ({ statusCode, body: JSON.stringify(body) }),
+      },
+    };
+    require.cache[hydrovacPath] = {
+      id: hydrovacPath,
+      filename: hydrovacPath,
+      loaded: true,
+      exports: {
+        requireHydrovacOperatorContext: vi.fn(async () => ({
+          tenantId: "tenant_1",
+          adminSb,
+          hydrovacSettings: { require_locate_ticket_for_excavation: true },
+        })),
+      },
+    };
+    require.cache[compliancePath] = {
+      id: compliancePath,
+      filename: compliancePath,
+      loaded: true,
+      exports: {
+        collectHydrovacLifecycleIssues: vi.fn(async () => []),
+        hydrovacJobType: vi.fn(() => "hydrovac_excavation"),
+        logComplianceAlerts: vi.fn(async () => []),
+        resolveComplianceAlerts: vi.fn(async () => []),
+      },
+    };
+
+    const handler = require(handlerPath).handler;
+    const res = await handler({
+      httpMethod: "PATCH",
+      body: JSON.stringify({
+        job_id: "job_4",
+        status: "completed",
+        completion_handoff: {
+          load_status: "truck_clear",
+          bol_number: "BOL-5501",
+          locates_verified_on_site: true,
+          field_summary: "Crew daylighted the trench and cleared the truck.",
+          office_follow_up: ["invoice"],
+        },
+      }),
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(capturedPatch.custom_fields.crew_closeout.bol_number).toBe("BOL-5501");
+    expect(capturedPatch.metadata).toBeUndefined();
+    expect(JSON.parse(res.body).job.completion_handoff.load_status).toBe("truck_clear");
+  });
 });

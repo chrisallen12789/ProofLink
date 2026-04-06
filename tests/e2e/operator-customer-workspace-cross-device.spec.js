@@ -2,34 +2,12 @@
 
 const { test, expect } = require("@playwright/test");
 const { loadTestEnv } = require("../setup/env.test");
+const { expectNoOverflow, loginAsOperatorSession } = require("./operator-test-helpers");
 
 loadTestEnv();
 
-function horizontalOverflowPx() {
-  return Math.max(0, document.documentElement.scrollWidth - window.innerWidth);
-}
-
-async function suppressTours(page) {
-  await page.addInitScript(() => {
-    window.localStorage.setItem("pl_tour_v1", "1");
-    window.localStorage.setItem("prooflink_tour_completed_v2", "1");
-  });
-}
-
-async function expectNoOverflow(page) {
-  const overflow = await page.evaluate(horizontalOverflowPx);
-  expect(overflow).toBeLessThanOrEqual(2);
-}
-
 async function loginAsTenantA(page) {
-  await suppressTours(page);
-  await page.goto("/operator/");
-  await page.locator("#loginForm").waitFor();
-  await page.locator("#loginEmail").fill(process.env.TEST_TENANT_A_ADMIN_EMAIL);
-  await page.locator("#loginPassword").fill(process.env.TEST_TENANT_A_ADMIN_PASSWORD);
-  await page.locator("#loginForm button[type='submit']").click();
-  await expect(page.locator("#viewLogin")).toBeHidden({ timeout: 20000 });
-  await page.waitForFunction(() => window.PROOFLINK_BOOT_READY === true, null, { timeout: 45000 });
+  await loginAsOperatorSession(page, process.env.TEST_TENANT_A_ADMIN_EMAIL, process.env.TEST_TENANT_A_ADMIN_PASSWORD);
 }
 
 async function openCustomersTab(page, isMobile) {

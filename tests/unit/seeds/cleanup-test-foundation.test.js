@@ -3,18 +3,39 @@
 const {
   CORE_TENANT_TABLE_DELETE_ORDER,
   OPTIONAL_TENANT_TABLE_DELETE_ORDER,
+  OPERATOR_SCOPED_DELETE_TARGETS,
+  buildCleanupTenantPayload,
+  cleanupOperatorScopedData,
   cleanupTenantScopedData,
   deleteAuthUserMaybe,
   deleteRows,
   deleteRowsMaybe,
+  deleteRowsMaybeWithColumnFallback,
+  ensureCleanupTenantExists,
+  extractUsageSyncTenantId,
   formatCleanupError,
   isIgnorableCleanupError,
   matchesOptionalPrefixedValue,
+  recoverTenantIdsFromOperators,
   selectRowsMaybe,
+  selectRowsByColumnMaybe,
 } = require("../../seeds/cleanup-test-foundation");
 
 function createDeleteClient(errorMap = {}) {
   const calls = [];
+  const counters = new Map();
+  const resolveEntry = (key) => {
+    if (!Object.prototype.hasOwnProperty.call(errorMap, key)) return null;
+    const entry = errorMap[key];
+    if (typeof entry === "function") return entry();
+    if (Array.isArray(entry)) {
+      const index = counters.get(key) || 0;
+      const value = entry[Math.min(index, entry.length - 1)];
+      counters.set(key, index + 1);
+      return value;
+    }
+    return entry;
+  };
   const client = {
     from(table) {
       return {
@@ -22,8 +43,48 @@ function createDeleteClient(errorMap = {}) {
           return {
             async in(column, values) {
               calls.push({ table, column, values });
-              const error = Object.prototype.hasOwnProperty.call(errorMap, table) ? errorMap[table] : null;
+              const key = `${table}:${column}`;
+              const resolved = resolveEntry(key) ?? resolveEntry(table);
+              const error = resolved && Object.prototype.hasOwnProperty.call(resolved, "error")
+                ? resolved.error
+                : resolved;
               return { error };
+            },
+          };
+        },
+        insert(payload) {
+          calls.push({ table, type: "insert", payload });
+          return {
+            select(columns) {
+              calls.push({ table, type: "insert-select", columns });
+              return {
+                async single() {
+                  const key = `${table}:insert`;
+                  const resolved = resolveEntry(key) ?? { data: { id: payload.id }, error: null };
+                  return {
+                    data: Object.prototype.hasOwnProperty.call(resolved, "data") ? resolved.data : resolved,
+                    error: resolved.error || null,
+                  };
+                },
+              };
+            },
+          };
+        },
+        select(columns) {
+          calls.push({ table, type: "select", columns });
+          return {
+            eq(column, value) {
+              calls.push({ table, type: "eq", columns, column, value });
+              return {
+                async maybeSingle() {
+                  const key = `${table}:${columns}:${column}:eq`;
+                  const resolved = resolveEntry(key) ?? { data: null, error: null };
+                  return {
+                    data: Object.prototype.hasOwnProperty.call(resolved, "data") ? resolved.data : resolved,
+                    error: resolved.error || null,
+                  };
+                },
+              };
             },
           };
         },
@@ -40,14 +101,20 @@ function createSelectClient(resultMap = {}, deleteUserResult = { error: null }) 
       return {
         select(columns) {
           const key = `${table}:${columns}`;
+          const resolveResult = (column) =>
+            resultMap[`${key}:${column}`] || resultMap[key] || resultMap[table] || { data: [], error: null };
           return {
             async like(column, pattern) {
               calls.push({ table, columns, type: "like", column, pattern });
-              return resultMap[key] || resultMap[table] || { data: [], error: null };
+              return resolveResult(column);
             },
             async ilike(column, pattern) {
               calls.push({ table, columns, type: "ilike", column, pattern });
-              return resultMap[key] || resultMap[table] || { data: [], error: null };
+              return resolveResult(column);
+            },
+            async in(column, values) {
+              calls.push({ table, columns, type: "in", column, values });
+              return resolveResult(column);
             },
           };
         },
@@ -97,6 +164,57 @@ describe("cleanup test foundation helpers", () => {
     expect(calls).toEqual([{ table: "service_plans", column: "tenant_id", values: ["tenant-1"] }]);
   });
 
+  test("deleteRowsMaybe repairs missing tenant usage sync references and retries the delete", async () => {
+    const tenantId = "11111111-1111-4111-8111-111111111111";
+    const { client, calls } = createDeleteClient({
+      orders: [
+        {
+          error: {
+            code: "P0002",
+            message: `Tenant not found for usage sync: ${tenantId}`,
+          },
+        },
+        { error: null },
+      ],
+      "tenants:id:id:eq": {
+        data: null,
+        error: null,
+      },
+      "tenants:insert": {
+        data: { id: tenantId },
+        error: null,
+      },
+    });
+
+    await expect(deleteRowsMaybe("orders", "tenant_id", [tenantId], client)).resolves.toBeUndefined();
+    expect(calls).toEqual([
+      { table: "orders", column: "tenant_id", values: [tenantId] },
+      { table: "tenants", type: "select", columns: "id" },
+      { table: "tenants", type: "eq", columns: "id", column: "id", value: tenantId },
+      {
+        table: "tenants",
+        type: "insert",
+        payload: buildCleanupTenantPayload(tenantId),
+      },
+      { table: "tenants", type: "insert-select", columns: "id" },
+      { table: "orders", column: "tenant_id", values: [tenantId] },
+    ]);
+  });
+
+  test("deleteRowsMaybeWithColumnFallback ignores missing hosted columns for operator cleanup", async () => {
+    const { client, calls } = createDeleteClient({
+      "jobs:assigned_member_id": {
+        code: "42703",
+        message: "column does not exist",
+      },
+    });
+
+    await expect(
+      deleteRowsMaybeWithColumnFallback("jobs", "assigned_member_id", ["operator-1"], client)
+    ).resolves.toBeUndefined();
+    expect(calls).toEqual([{ table: "jobs", column: "assigned_member_id", values: ["operator-1"] }]);
+  });
+
   test("cleanupTenantScopedData tolerates missing workflow tables before hosted schema preflight runs", async () => {
     const { client, calls } = createDeleteClient({
       jobs: {
@@ -113,6 +231,29 @@ describe("cleanup test foundation helpers", () => {
     expect(calls.some((call) => call.table === "jobs")).toBe(true);
     expect(calls.some((call) => call.table === "leads")).toBe(true);
     expect(calls.some((call) => call.table === "customers")).toBe(true);
+  });
+
+  test("cleanupOperatorScopedData clears operator-linked residue and tolerates older hosted columns", async () => {
+    const { client, calls } = createDeleteClient({
+      "jobs:assigned_member_id": {
+        code: "42703",
+        message: "column does not exist",
+      },
+      "push_subscriptions:operator_id": {
+        code: "42P01",
+        message: "relation does not exist",
+      },
+    });
+
+    await expect(cleanupOperatorScopedData(["operator-1", "operator-1"], client)).resolves.toBeUndefined();
+    expect(calls).toEqual(
+      expect.arrayContaining([
+        { table: "payments", column: "operator_id", values: ["operator-1"] },
+        { table: "jobs", column: "assigned_member_id", values: ["operator-1"] },
+        { table: "operator_members", column: "operator_id", values: ["operator-1"] },
+      ])
+    );
+    expect(OPERATOR_SCOPED_DELETE_TARGETS.some((target) => target.table === "operator_members")).toBe(true);
   });
 
   test("selectRowsMaybe falls back when hosted schema is missing a newer column", async () => {
@@ -156,6 +297,109 @@ describe("cleanup test foundation helpers", () => {
         column: "slug",
         pattern: "pltest-%",
       },
+    ]);
+  });
+
+  test("selectRowsByColumnMaybe tolerates missing operator columns during orphan tenant recovery", async () => {
+    const { client, calls } = createSelectClient({
+      "jobs:tenant_id:assigned_member_id": {
+        data: null,
+        error: {
+          code: "42703",
+          message: "column does not exist",
+        },
+      },
+    });
+
+    const rows = await selectRowsByColumnMaybe("jobs", "tenant_id", "assigned_member_id", ["operator-1"], client);
+
+    expect(rows).toEqual([]);
+    expect(calls).toEqual([
+      {
+        table: "jobs",
+        columns: "tenant_id",
+        type: "in",
+        column: "assigned_member_id",
+        values: ["operator-1"],
+      },
+    ]);
+  });
+
+  test("recoverTenantIdsFromOperators unions tenant ids recovered from operator-linked residue", async () => {
+    const { client, calls } = createSelectClient({
+      "operator_members:tenant_id:operator_id": {
+        data: [{ tenant_id: "tenant-1" }],
+        error: null,
+      },
+      "payments:tenant_id:operator_id": {
+        data: [{ tenant_id: "tenant-2" }, { tenant_id: "tenant-1" }],
+        error: null,
+      },
+      "jobs:tenant_id:assigned_member_id": {
+        data: null,
+        error: {
+          code: "42703",
+          message: "column does not exist",
+        },
+      },
+    });
+
+    const tenantIds = await recoverTenantIdsFromOperators(["operator-1"], client);
+
+    expect(tenantIds.sort()).toEqual(["tenant-1", "tenant-2"]);
+    expect(calls).toEqual(
+      expect.arrayContaining([
+        {
+          table: "operator_members",
+          columns: "tenant_id",
+          type: "in",
+          column: "operator_id",
+          values: ["operator-1"],
+        },
+        {
+          table: "payments",
+          columns: "tenant_id",
+          type: "in",
+          column: "operator_id",
+          values: ["operator-1"],
+        },
+      ])
+    );
+  });
+
+  test("extractUsageSyncTenantId returns the missing tenant id from hosted trigger errors", () => {
+    expect(
+      extractUsageSyncTenantId({
+        code: "P0002",
+        message: "Tenant not found for usage sync: 11111111-1111-4111-8111-111111111111",
+      })
+    ).toBe("11111111-1111-4111-8111-111111111111");
+    expect(extractUsageSyncTenantId({ message: "different cleanup failure" })).toBeNull();
+  });
+
+  test("ensureCleanupTenantExists inserts a safe placeholder only when the tenant row is missing", async () => {
+    const tenantId = "22222222-2222-4222-8222-222222222222";
+    const { client, calls } = createDeleteClient({
+      "tenants:id:id:eq": {
+        data: null,
+        error: null,
+      },
+      "tenants:insert": {
+        data: { id: tenantId },
+        error: null,
+      },
+    });
+
+    await expect(ensureCleanupTenantExists(tenantId, client)).resolves.toBe(tenantId);
+    expect(calls).toEqual([
+      { table: "tenants", type: "select", columns: "id" },
+      { table: "tenants", type: "eq", columns: "id", column: "id", value: tenantId },
+      {
+        table: "tenants",
+        type: "insert",
+        payload: buildCleanupTenantPayload(tenantId),
+      },
+      { table: "tenants", type: "insert-select", columns: "id" },
     ]);
   });
 

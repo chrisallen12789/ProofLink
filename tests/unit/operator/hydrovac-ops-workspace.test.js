@@ -378,6 +378,62 @@ describe("operator hydrovac ops workspace", () => {
     expect(hydrovacManifestDetailWrap.innerHTML).toContain("Use the structured field handoff");
   });
 
+  test("renderHydrovacManifests reads crew closeout from custom_fields when metadata is absent", () => {
+    const hydrovacManifestsList = {
+      innerHTML: "",
+      querySelectorAll: vi.fn(() => []),
+    };
+    const hydrovacManifestDetailWrap = {
+      innerHTML: "",
+      querySelector: vi.fn(() => null),
+    };
+    const context = loadHydrovacOpsWorkspace({
+      hydrovacManifestsList,
+      hydrovacManifestDetailWrap,
+      JOBS_CACHE: [
+        {
+          id: "job_custom_fields",
+          title: "Dock trench recovery",
+          customer_name: "Harbor Terminal",
+          custom_fields: {
+            crew_closeout: {
+              load_status: "truck_clear",
+              bol_number: "BOL-5501",
+              locates_verified_on_site: true,
+              permit_status: "not_required",
+              field_summary: "Crew cleared the truck and turned over the field package.",
+              office_follow_up: ["invoice"],
+            },
+          },
+        },
+      ],
+      CUSTOMERS_CACHE: [
+        { id: "customer_harbor", name: "Harbor Terminal" },
+      ],
+      HYDROVAC_MANIFESTS_CACHE: [
+        {
+          id: "manifest_custom_fields",
+          manifest_number: "MAN-5501",
+          job_id: "job_custom_fields",
+          customer_id: "customer_harbor",
+          status: "confirmed",
+          invoiced: false,
+          metadata: {
+            bol_number: "BOL-5501",
+            customer_records_prepared_at: "2026-04-03T12:00:00.000Z",
+            audit_packet_prepared_at: "2026-04-03T12:30:00.000Z",
+          },
+        },
+      ],
+    });
+
+    context.window.renderHydrovacManifests();
+
+    expect(hydrovacManifestsList.innerHTML).toContain("Ready to invoice");
+    expect(hydrovacManifestsList.innerHTML).toContain("Crew cleared the truck and turned over the field package.");
+    expect(hydrovacManifestDetailWrap.innerHTML).toContain("BOL-5501");
+  });
+
   test("renderHydrovacCompliance surfaces closeout release blockers", () => {
     const context = loadHydrovacOpsWorkspace({
       JOBS_CACHE: [

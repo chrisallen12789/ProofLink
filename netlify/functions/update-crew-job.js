@@ -10,8 +10,8 @@ const { requireHydrovacOperatorContext } = require('./utils/hydrovac');
 const { collectHydrovacLifecycleIssues, hydrovacJobType, logComplianceAlerts, resolveComplianceAlerts } = require('./lib/hydrovac-compliance');
 const {
   buildHydrovacCompletionNarrative,
+  buildHydrovacCloseoutPatch,
   extractHydrovacCompletionHandoff,
-  mergeCrewCloseoutMetadata,
   normalizeHydrovacCompletionHandoff,
 } = require('./lib/hydrovac-closeout');
 
@@ -53,7 +53,7 @@ exports.handler = async (event) => {
   // Fetch the job to verify ownership and tenant
   const { data: job, error: jobErr } = await adminSb
     .from('jobs')
-    .select('id, tenant_id, assigned_operator_id, assigned_member_id, status, actual_start_at, actual_end_at, job_type, service_type, requires_confined_space_permit, total_loads_hauled, total_disposal_cost_cents, disposal_cost_cents, disposal_site, disposal_manifest_number, metadata')
+    .select('*')
     .eq('id', job_id)
     .maybeSingle();
 
@@ -118,7 +118,7 @@ exports.handler = async (event) => {
       return respond(400, { error: normalized.error });
     }
     normalizedCloseout = normalized.value;
-    patch.metadata = mergeCrewCloseoutMetadata(job.metadata, normalizedCloseout);
+    Object.assign(patch, buildHydrovacCloseoutPatch(job, normalizedCloseout));
     if (status === 'completed') {
       patch.completion_note = buildHydrovacCompletionNarrative(normalizedCloseout);
       if (crew_notes === undefined) patch.crew_notes = patch.completion_note;
