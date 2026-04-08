@@ -8275,24 +8275,20 @@ async function boot() {
       ]).catch(console.warn);
     }
     applyWorkspaceBlueprint();
+    const initialTab = panelFromLocation();
 
     renderProductsList("");
     renderAvailability();
-    renderBookings();
     renderExpenses(EXPENSES_CACHE);
     renderPricing([]);
     renderStartupChecklist();
     applyWorkspaceBlueprint();
     renderDashboard();
     renderLeads("");
-    renderOrders();
-    renderBids("");
-    renderJobs("");
-    renderPlans("");
-    renderCustomersList("");
-    renderPayments();
-    renderGuidance();
-    switchTab(panelFromLocation(), { updateHash: false });
+    if (initialTab === "dashboard") {
+      renderOrders();
+    }
+    switchTab(initialTab, { updateHash: false });
 
     window.PROOFLINK_BOOT_READY = true;
     startRealtime();
@@ -8313,16 +8309,26 @@ async function boot() {
         renderPricing(pricingData.value || []);
       }
       renderAvailability();
-      renderBookings();
       renderExpenses(EXPENSES_CACHE);
       renderStartupChecklist();
       applyWorkspaceBlueprint();
       renderDashboard();
-      renderPlans(planSearch?.value || "");
-      renderGuidance();
-      renderReviews();
-      await renderMoney();
       const activeTab = panelFromLocation();
+      if (activeTab === "bookings") {
+        renderBookings();
+      }
+      if (activeTab === "plans") {
+        renderPlans(planSearch?.value || "");
+      }
+      if (activeTab === "guidance") {
+        renderGuidance();
+      }
+      if (activeTab === "reviews") {
+        renderReviews();
+      }
+      if (activeTab === "money" || activeTab === "payments") {
+        await renderMoney();
+      }
       if (activeTab === "setup") {
         renderSetupPreviewActions?.();
       }
