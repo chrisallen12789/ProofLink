@@ -107,6 +107,8 @@
     team: ['./operator-team-workspace.js'],
     equipment: ['./operator-equipment-workspace.js'],
     import: ['./import-workspace.js'],
+    messages: ['./operator-assistant-workspace.js'],
+    ai: ['./operator-assistant-workspace.js'],
     facilities: ['./operator-hydrovac-ops-workspace.js'],
     manifests: ['./operator-hydrovac-ops-workspace.js'],
     locates: ['./operator-hydrovac-ops-workspace.js'],

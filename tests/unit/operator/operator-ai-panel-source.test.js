@@ -12,6 +12,10 @@ describe("operator ai panel source", () => {
     path.resolve(process.cwd(), "operator/operator.js"),
     "utf8"
   );
+  const assistantJs = fs.readFileSync(
+    path.resolve(process.cwd(), "operator/operator-assistant-workspace.js"),
+    "utf8"
+  );
 
   test("exposes specialist prompts for multi-site customers, jobs, and top accounts", () => {
     expect(html).toContain("Which multi-site customers need attention right now?");
@@ -23,9 +27,10 @@ describe("operator ai panel source", () => {
   });
 
   test("briefing chips surface jobs, reminders, and multi-site account load", () => {
-    expect(js).toContain("cs.upcoming_jobs > 0");
-    expect(js).toContain("cs.reminders_needed > 0");
-    expect(js).toContain("cs.multi_site_accounts > 0");
-    expect(js).toContain('answerEl.textContent = "Thinking..."');
+    expect(js).toContain('ensureOperatorWorkspaceScript?.("ai")');
+    expect(assistantJs).toContain("cs.upcoming_jobs > 0");
+    expect(assistantJs).toContain("cs.reminders_needed > 0");
+    expect(assistantJs).toContain("cs.multi_site_accounts > 0");
+    expect(assistantJs).toContain('answerEl.textContent = "Thinking..."');
   });
 });
