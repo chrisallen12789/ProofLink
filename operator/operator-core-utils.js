@@ -66,6 +66,42 @@
     };
   }
 
+  const _scriptLoadCache = new Map();
+
+  function loadScriptOnce(src, options = {}) {
+    const url = String(src || '').trim();
+    if (!url) return Promise.reject(new Error('Missing script URL.'));
+    if (_scriptLoadCache.has(url)) return _scriptLoadCache.get(url);
+
+    const existing = document.querySelector(`script[src="${url}"]`);
+    if (existing && options.globalName ? global[options.globalName] : true) {
+      const ready = Promise.resolve(existing);
+      _scriptLoadCache.set(url, ready);
+      return ready;
+    }
+
+    const pending = new Promise((resolve, reject) => {
+      const script = existing || document.createElement('script');
+      script.src = url;
+      script.async = true;
+      script.onload = () => resolve(script);
+      script.onerror = () => {
+        _scriptLoadCache.delete(url);
+        reject(new Error(`Failed to load ${url}`));
+      };
+      if (!existing) document.head.appendChild(script);
+    });
+    _scriptLoadCache.set(url, pending);
+    return pending;
+  }
+
+  async function ensureJsPdfLoaded() {
+    if (global.jspdf?.jsPDF) return global.jspdf.jsPDF;
+    await loadScriptOnce('https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js', { globalName: 'jspdf' });
+    if (!global.jspdf?.jsPDF) throw new Error('The PDF tool did not finish loading.');
+    return global.jspdf.jsPDF;
+  }
+
   function toCents(numStr) {
     return Math.round(Number(numStr || 0) * 100);
   }
@@ -415,6 +451,8 @@
     money,
     formatUsd,
     debounce,
+    loadScriptOnce,
+    ensureJsPdfLoaded,
     toCents,
     safeFilename,
     yyyymm,

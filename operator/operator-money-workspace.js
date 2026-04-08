@@ -1331,9 +1331,14 @@ async function boot() {
 
 // Invoice PDF
 
-function generateInvoicePDF(order) {
-  const jsPDF = window.jspdf?.jsPDF;
-  if (!jsPDF) { notifyOperator("The PDF tool is not loaded yet. Refresh and try again."); return; }
+async function generateInvoicePDF(order) {
+  let jsPDF;
+  try {
+    jsPDF = await ensureJsPdfLoaded();
+  } catch (err) {
+    notifyOperator(err.message || "The PDF tool is not available right now.");
+    return;
+  }
 
   const doc  = new jsPDF({ unit: "pt", format: "letter" });
   const W    = doc.internal.pageSize.getWidth();

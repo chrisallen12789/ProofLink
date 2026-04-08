@@ -1377,10 +1377,10 @@ function renderBookingsList(bookings, externalEvents = []) {
 
 async function renderBookings() {
   try {
-    await Promise.all([
-      fetchBookings(),
-      fetchGoogleCalendarSyncState(),
-    ]);
+    await fetchBookings();
+    if (!BOOKINGS_CALENDAR_SYNC) {
+      await fetchGoogleCalendarSyncState();
+    }
   } catch (err) {
     console.error("[renderBookings]", err);
   }

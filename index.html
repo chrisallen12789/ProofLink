@@ -11,6 +11,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;600;700;800&family=Google+Sans+Text:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="preload" as="image" href="/landing-shots/operator-payments.png" fetchpriority="high" />
   <link rel="stylesheet" href="/assets/brand/prooflink-tokens.css" />
   <link rel="stylesheet" href="/landing-page.css" />
   <link rel="icon" type="image/svg+xml" href="/assets/brand/prooflink-mark.svg" />
@@ -50,6 +51,7 @@
         host &&
         host !== 'prooflink.co' &&
         host !== 'www.prooflink.co' &&
+        !host.endsWith('.netlify.app') &&
         host !== 'localhost' &&
         host !== '127.0.0.1'
       );
@@ -163,7 +165,7 @@
 
         <div class="hero-stage-grid">
           <figure class="screenshot-card screenshot-card--feature">
-            <img src="/landing-shots/operator-payments.png" alt="ProofLink money view showing open balances, received payments, and tracked customer accounts." />
+            <img src="/landing-shots/operator-payments.png" alt="ProofLink money view showing open balances, received payments, and tracked customer accounts." decoding="async" fetchpriority="high" />
             <figcaption>
               <strong>Money tracking tied to the customer account</strong>
               <span>See what was collected, what is still open, and which account needs attention next.</span>
@@ -172,14 +174,14 @@
 
           <div class="hero-stage-stack">
             <figure class="screenshot-card screenshot-card--supporting">
-              <img src="/landing-shots/operator-customers.png" alt="ProofLink customers view showing business accounts, recent history, and customer context." />
+              <img src="/landing-shots/operator-customers.png" alt="ProofLink customers view showing business accounts, recent history, and customer context." loading="lazy" decoding="async" />
               <figcaption>
                 <strong>Accounts stay legible</strong>
                 <span>Customer history, value, and current context live on one record the team can trust.</span>
               </figcaption>
             </figure>
             <figure class="screenshot-card screenshot-card--supporting">
-              <img src="/landing-shots/operator-orders.png" alt="ProofLink orders view showing active tracked work, balances due, and next actions." />
+              <img src="/landing-shots/operator-orders.png" alt="ProofLink orders view showing active tracked work, balances due, and next actions." loading="lazy" decoding="async" />
               <figcaption>
                 <strong>Work and money stay attached</strong>
                 <span>Orders keep scope, status, and amount due visible without switching systems.</span>
@@ -243,28 +245,28 @@
 
       <div class="product-tour-grid">
         <article class="tour-card tour-card--wide">
-          <img src="/landing-shots/operator-payments.png" alt="ProofLink money view showing balances, payments, and tracked customer accounts." />
+          <img src="/landing-shots/operator-payments.png" alt="ProofLink money view showing balances, payments, and tracked customer accounts." loading="lazy" decoding="async" />
           <div class="tour-card__body">
             <h3>Money is tracked in the context of the actual business account</h3>
             <p>Payment state stops being a separate mystery. Owners can see the balance, the payment trail, and what needs collection follow-up from one place.</p>
           </div>
         </article>
         <article class="tour-card">
-          <img src="/landing-shots/operator-orders.png" alt="ProofLink orders view with active tracked customer work." />
+          <img src="/landing-shots/operator-orders.png" alt="ProofLink orders view with active tracked customer work." loading="lazy" decoding="async" />
           <div class="tour-card__body">
             <h3>Tracked work stays tied to the account</h3>
             <p>Orders hold the customer, the scope, the current status, and the amount due so the team is not stitching the story together manually.</p>
           </div>
         </article>
         <article class="tour-card">
-          <img src="/landing-shots/operator-today.png" alt="ProofLink Today view showing business tracking points and analytics." />
+          <img src="/landing-shots/operator-today.png" alt="ProofLink Today view showing business tracking points and analytics." loading="lazy" decoding="async" />
           <div class="tour-card__body">
             <h3>The owner can open the day and read the operation</h3>
             <p>The command view stays focused on pipeline, open money, due work, and the numbers that actually signal whether the business is under control.</p>
           </div>
         </article>
         <article class="tour-card">
-          <img src="/landing-shots/operator-customers.png" alt="ProofLink customers view showing active business accounts and relationship context." />
+          <img src="/landing-shots/operator-customers.png" alt="ProofLink customers view showing active business accounts and relationship context." loading="lazy" decoding="async" />
           <div class="tour-card__body">
             <h3>Customer accounts feel like live records, not a spreadsheet dump</h3>
             <p>Account history, notes, relationship context, and recurring value stay in one place so future work starts with context instead of guesswork.</p>
@@ -512,7 +514,7 @@
     </footer>
   </main>
 
-  <script src="/prooflink-plan-intent.js"></script>
-  <script src="/landing-page.js"></script>
+  <script src="/prooflink-plan-intent.js" defer></script>
+  <script src="/landing-page.js" defer></script>
 </body>
 </html>
