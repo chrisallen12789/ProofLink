@@ -102,6 +102,25 @@
     return global.jspdf.jsPDF;
   }
 
+  const OPERATOR_WORKSPACE_SCRIPT_MAP = {
+    'proposal-settings': ['./operator-proposal-settings-workspace.js'],
+    team: ['./operator-team-workspace.js'],
+    equipment: ['./operator-equipment-workspace.js'],
+    import: ['./import-workspace.js'],
+    facilities: ['./operator-hydrovac-ops-workspace.js'],
+    manifests: ['./operator-hydrovac-ops-workspace.js'],
+    locates: ['./operator-hydrovac-ops-workspace.js'],
+    compliance: ['./operator-hydrovac-ops-workspace.js'],
+    bookings: ['./operator-dispatch-workspace.js'],
+  };
+
+  async function ensureOperatorWorkspaceScript(tab) {
+    const key = String(tab || '').trim().toLowerCase();
+    const scripts = OPERATOR_WORKSPACE_SCRIPT_MAP[key] || [];
+    if (!scripts.length) return [];
+    return Promise.all(scripts.map((src) => loadScriptOnce(src)));
+  }
+
   function toCents(numStr) {
     return Math.round(Number(numStr || 0) * 100);
   }
@@ -453,6 +472,7 @@
     debounce,
     loadScriptOnce,
     ensureJsPdfLoaded,
+    ensureOperatorWorkspaceScript,
     toCents,
     safeFilename,
     yyyymm,

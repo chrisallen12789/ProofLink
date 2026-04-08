@@ -3757,6 +3757,13 @@ async function switchTab(tab, opts = {}) {
     return false;
   }
   if (nextTab !== activeTab) PREVIOUS_PANEL_TAB = activeTab;
+  if (typeof ensureOperatorWorkspaceScript === "function") {
+    try {
+      await ensureOperatorWorkspaceScript(nextTab);
+    } catch (err) {
+      console.error("[switchTab] workspace script load failed:", err);
+    }
+  }
   document.querySelectorAll(".tab").forEach((b) => b.classList.toggle("active", b.dataset.tab === nextTab));
   document.querySelectorAll(".panel").forEach((p) => p.classList.toggle("hidden", p.dataset.panel !== nextTab));
   setWorkspaceCollapsed(nextTab, false);
