@@ -116,6 +116,39 @@ const FOLLOW_UP_KIND_META = {
   payment_reminder: { label: "Payment reminder", cooldownHours: 24 },
   review_request: { label: "Review request", cooldownHours: 168 },
 };
+let OPERATOR_MOBILE_NAV_LOADED = false;
+let OPERATOR_TOUR_SCRIPT_LOADED = false;
+
+function deferOperatorUiScript(task) {
+  if (typeof task !== "function") return;
+  if (typeof window.requestIdleCallback === "function") {
+    window.requestIdleCallback(() => task(), { timeout: 1200 });
+    return;
+  }
+  window.setTimeout(() => task(), 180);
+}
+
+async function ensureOperatorMobileNav() {
+  if (OPERATOR_MOBILE_NAV_LOADED) return;
+  OPERATOR_MOBILE_NAV_LOADED = true;
+  try {
+    await loadScriptOnce("./operator-mobile-nav.js?v=20260403-mobile-drawer");
+  } catch (err) {
+    OPERATOR_MOBILE_NAV_LOADED = false;
+    console.error("[operator-mobile-nav]", err);
+  }
+}
+
+async function ensureOperatorTourScript() {
+  if (OPERATOR_TOUR_SCRIPT_LOADED) return;
+  OPERATOR_TOUR_SCRIPT_LOADED = true;
+  try {
+    await loadScriptOnce("./operator-tour.js");
+  } catch (err) {
+    OPERATOR_TOUR_SCRIPT_LOADED = false;
+    console.error("[operator-tour]", err);
+  }
+}
 
 function currentMonthRevenueCents() {
   const mk = yyyymm(new Date());
@@ -3862,7 +3895,8 @@ document.querySelectorAll(".tab[data-tab]").forEach((btn) => {
 });
 window.PROOFLINK_OPERATOR_STARTUP_CHECKLIST?.initStartupChecklistBindings?.();
 
-btnStartTour?.addEventListener("click", () => {
+btnStartTour?.addEventListener("click", async () => {
+  await ensureOperatorTourScript();
   if (window.PROOFLINK_WALKTHROUGH?.start) window.PROOFLINK_WALKTHROUGH.start({ force: true });
 });
 
@@ -3901,6 +3935,7 @@ function showApp(user) {
   headerSearch?.removeAttribute("hidden");
   if (sessionEmail) sessionEmail.textContent = user?.email || "";
   if (loginMsg) loginMsg.textContent = "";
+  deferOperatorUiScript(() => ensureOperatorMobileNav());
 }
 
 function passwordHasMinimumLength(value = "") {
