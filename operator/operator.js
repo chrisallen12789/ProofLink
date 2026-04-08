@@ -8295,7 +8295,6 @@ async function boot() {
       fetchCrmOrders(),
       fetchPayments(),
       fetchJobs(),
-      fetchBookings(),
     ]);
     loadBidDrafts();
     await loadPersistedBids();
@@ -8327,7 +8326,11 @@ async function boot() {
 
     window.PROOFLINK_BOOT_READY = true;
     startRealtime();
-    registerPushNotifications();
+    deferOperatorUiScript(() => {
+      registerPushNotifications().catch((err) => {
+        console.warn("[push] deferred registration failed:", err?.message || err);
+      });
+    });
 
     Promise.allSettled([
       fetchExpenses(),
@@ -8722,7 +8725,7 @@ const globalSearchOverlay = $("globalSearchOverlay");
 const globalSearchResults = $("globalSearchResults");
 
 function runGlobalSearch(q) {
-  if (!CRM_ORDERS_CACHE?.length && !CUSTOMERS_CACHE?.length && !BOOKINGS_CACHE?.length) {
+  if (!CRM_ORDERS_CACHE?.length && !CUSTOMERS_CACHE?.length && FETCHING.has("orders") && FETCHING.has("customers")) {
     const overlay = $("globalSearchOverlay");
     if (overlay) overlay.innerHTML = '<div style="padding:20px;text-align:center;color:rgba(255,255,255,.4);font-size:.85rem;">Loading data… try again in a moment.</div>';
     return;
