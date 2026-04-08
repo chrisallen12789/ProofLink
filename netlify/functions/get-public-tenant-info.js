@@ -28,6 +28,10 @@ function lower(value) {
   return clean(value).toLowerCase();
 }
 
+function tenantBusinessName(tenant) {
+  return clean(tenant?.business_name || tenant?.name || 'Business') || 'Business';
+}
+
 function resolveHostSlug(event, query) {
   const explicit = clean(query.slug || query.tenant || '');
   if (explicit) return lower(explicit);
@@ -168,9 +172,9 @@ function toResponse(tenant, cfg) {
   const palette = surfacePalette(cfg.site_surface_style, accent);
   const resolvedBusinessType = normalizeBusinessTypeKey(cfg.workspace_business_type || tenant.business_type || '');
   const labels = serviceAwareLabels(resolvedBusinessType);
-  const heroHeading = clean(cfg.hero_heading || '') || clean(tenant.name);
+  const businessName = tenantBusinessName(tenant);
+  const heroHeading = clean(cfg.hero_heading || '') || businessName;
   const heroSubheading = clean(cfg.hero_subheading || '') || clean(cfg.tagline || '') || labels.storefrontIntro;
-  const businessName = clean(tenant.name || 'Business');
 
   return {
     business_name: businessName,
@@ -295,7 +299,7 @@ exports.handler = async (event) => {
 
   let tenantQuery = supabase
     .from('tenants')
-    .select('id, name, slug, owner_email, owner_name, logo_url, business_type, city_state, prooflink_plan_key, application_fee_bps, active')
+    .select('id, business_name, name, slug, owner_email, owner_name, logo_url, business_type, city_state, prooflink_plan_key, application_fee_bps, active')
     .eq('active', true)
     .limit(1);
 

@@ -138,6 +138,8 @@ describe("netlify/functions/create-booking", () => {
         ends_at: end,
         notes: "Please ring the side door.",
         service_address: "100 Market Street, Buffalo, NY 14201",
+        location_label: "North campus",
+        assigned_operator_id: "member_1",
         preferred_time: "Morning (8am-12pm)",
         referral_source: "Google Search",
       }),
@@ -148,5 +150,8 @@ describe("netlify/functions/create-booking", () => {
     expect(insertedPayload.notes).toContain("Service address: 100 Market Street, Buffalo, NY 14201");
     expect(insertedPayload.notes).toContain("Preferred time: Morning (8am-12pm)");
     expect(insertedPayload.notes).toContain("Referral source: Google Search");
+    expect(insertedPayload.service_address).toBe("100 Market Street, Buffalo, NY 14201");
+    expect(insertedPayload.location_label).toBe("North campus");
+    expect(insertedPayload.assigned_operator_id).toBe("member_1");
   });
 });

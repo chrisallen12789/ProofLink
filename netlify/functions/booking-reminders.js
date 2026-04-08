@@ -8,6 +8,10 @@ const { getAdminClient } = require('./utils/auth');
 const { sendEmail, templates } = require('./utils/email');
 const { getConfiguredSiteUrl } = require('./utils/runtime-config');
 
+function businessNameFromTenant(tenant) {
+  return String(tenant?.business_name || tenant?.name || '').trim() || 'Your service provider';
+}
+
 exports.handler = async () => {
   const supabase = getAdminClient();
   const now      = new Date();
@@ -46,8 +50,8 @@ exports.handler = async () => {
       const timeStr  = start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) +
                        (end ? ' – ' + end.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '');
 
-      const { data: tenant } = await supabase.from('tenants').select('name').eq('id', bk.tenant_id).maybeSingle();
-      const businessName = tenant?.name || 'Your service provider';
+      const { data: tenant } = await supabase.from('tenants').select('business_name, name').eq('id', bk.tenant_id).maybeSingle();
+      const businessName = businessNameFromTenant(tenant);
       const portalUrl    = `${siteUrl}/portal.html?tenant=${encodeURIComponent(bk.tenant_id)}&email=${encodeURIComponent(bk.customer_email)}`;
 
       const result = await sendEmail(templates.bookingReminder({

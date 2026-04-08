@@ -10,6 +10,11 @@
 
 const { requireAdminContext, respond } = require('./utils/auth');
 
+function tenantBusinessName(tenant) {
+  if (!tenant || typeof tenant !== 'object') return '';
+  return tenant.business_name || tenant.name || tenant.slug || '';
+}
+
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return respond(204, {});
   if (event.httpMethod !== 'POST')    return respond(405, { error: 'Method not allowed' });
@@ -35,25 +40,35 @@ exports.handler = async (event) => {
 
   // Safety check: block deletion of tenants with real orders unless force=true
   if (!force) {
-    const { data: withOrders } = await supabase
+    const { data: withOrders, error: withOrdersErr } = await supabase
       .from('tenants')
-      .select('id, name, order_count')
+      .select('id, slug, business_name, name, order_count')
       .in('id', tenant_ids)
       .gt('order_count', 0);
+
+    if (withOrdersErr) {
+      return respond(502, { error: 'Failed to verify tenant order state: ' + withOrdersErr.message });
+    }
 
     if (withOrders && withOrders.length) {
       return respond(409, {
         error: 'Some selected tenants have orders. Pass force=true to delete anyway.',
         tenants_with_orders: withOrders.map(t => ({
-          id: t.id, name: t.name, order_count: t.order_count,
+          id: t.id, name: tenantBusinessName(t), order_count: t.order_count,
         })),
       });
     }
   }
 
   // Clean up related records first (best-effort; DB cascades handle the rest)
-  await supabase.from('tenant_conduct_log').delete().in('tenant_id', tenant_ids);
-  await supabase.from('operator_members').delete().in('tenant_id', tenant_ids);
+  const { error: conductDeleteErr } = await supabase.from('tenant_conduct_log').delete().in('tenant_id', tenant_ids);
+  if (conductDeleteErr) {
+    return respond(502, { error: 'Failed to clean tenant conduct log: ' + conductDeleteErr.message });
+  }
+  const { error: membershipDeleteErr } = await supabase.from('operator_members').delete().in('tenant_id', tenant_ids);
+  if (membershipDeleteErr) {
+    return respond(502, { error: 'Failed to clean operator memberships: ' + membershipDeleteErr.message });
+  }
 
   // Hard-delete the tenant rows
   const { error: deleteErr } = await supabase.from('tenants').delete().in('id', tenant_ids);

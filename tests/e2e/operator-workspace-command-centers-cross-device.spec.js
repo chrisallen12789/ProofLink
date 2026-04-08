@@ -35,7 +35,7 @@ async function openOperatorPanelByHash(page, tab, timeout = 60000) {
   }, tab, { timeout });
 }
 
-async function ensureHydrovacPanelVisible(page, { tab, selector, refreshFunction, timeout = 60000 }) {
+async function _ensureHydrovacPanelVisible(page, { tab, selector, refreshFunction, timeout = 60000 }) {
   const target = page.locator(selector);
   const visible = await target.isVisible().catch(() => false);
   if (visible) return;
@@ -65,7 +65,7 @@ async function expectPanelText(page, selector, pattern, timeout = 60000) {
   }).toMatch(matcher);
 }
 
-async function activateDesktopPanel(page, tab, timeout = 60000) {
+async function _activateDesktopPanel(page, tab, timeout = 60000) {
   const deadline = Date.now() + timeout;
   let lastState = null;
 

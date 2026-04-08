@@ -7,9 +7,17 @@
 const { requireOperatorContext, respond } = require('./utils/auth');
 const { sendEmail, templates }            = require('./utils/email');
 const { getConfiguredSiteUrl }            = require('./utils/runtime-config');
+const {
+  isGoogleCalendarConfigured,
+  getOperatorCalendarConnection,
+  syncBookingsToGoogleCalendar,
+} = require('./utils/google-calendar');
 
-const ALLOWED_FIELDS = ['title', 'customer_name', 'customer_email', 'starts_at', 'ends_at', 'notes', 'status', 'preferred_time', 'location'];
+const ALLOWED_FIELDS = ['title', 'customer_name', 'customer_email', 'starts_at', 'ends_at', 'notes', 'status', 'preferred_time', 'location', 'assigned_operator_id', 'notes_vehicle', 'service_address', 'location_label'];
 const VALID_STATUSES = ['confirmed', 'cancelled', 'completed', 'no_show'];
+function businessNameFromTenant(tenant) {
+  return String(tenant?.business_name || tenant?.name || '').trim() || 'Your service provider';
+}
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return respond(200, {});
@@ -20,7 +28,7 @@ exports.handler = async (event) => {
   try { ctx = await requireOperatorContext(event); }
   catch (err) { return respond(err.statusCode || 401, { error: err.message }); }
 
-  const { supabase, tenantId } = ctx;
+  const { supabase, tenantId, operatorId } = ctx;
 
   let body;
   try { body = JSON.parse(event.body || '{}'); }
@@ -36,6 +44,12 @@ exports.handler = async (event) => {
   const patch = {};
   ALLOWED_FIELDS.forEach((f) => { if (rest[f] !== undefined) patch[f] = rest[f]; });
   if (!Object.keys(patch).length) return respond(400, { error: 'No valid fields to update' });
+  if (Object.prototype.hasOwnProperty.call(rest, 'assigned_operator_id')) {
+    patch.assigned_operator_id = rest.assigned_operator_id || null;
+  }
+  if (Object.prototype.hasOwnProperty.call(rest, 'notes_vehicle')) {
+    patch.notes_vehicle = rest.notes_vehicle || null;
+  }
   patch.updated_at = new Date().toISOString();
 
   const { data, error } = await supabase
@@ -67,8 +81,8 @@ exports.handler = async (event) => {
       const dateStr    = start ? start.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : '—';
       const timeStr    = start ? start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) + (end ? ' – ' + end.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '') : '—';
 
-      const { data: tenant } = await supabase.from('tenants').select('name').eq('id', data.tenant_id).maybeSingle();
-      const businessName = tenant?.name || 'Your service provider';
+      const { data: tenant } = await supabase.from('tenants').select('business_name, name').eq('id', data.tenant_id).maybeSingle();
+      const businessName = businessNameFromTenant(tenant);
 
       if (isCancellation) {
         sendEmail(templates.bookingCancelled({
@@ -111,6 +125,21 @@ exports.handler = async (event) => {
       }
     } catch (e) {
       console.warn('[update-booking] email setup failed:', e.message);
+    }
+  }
+
+  if (operatorId && isGoogleCalendarConfigured()) {
+    try {
+      const connection = await getOperatorCalendarConnection(supabase, tenantId, operatorId);
+      if (connection?.export_bookings === true && String(connection.sync_mode || '').trim().toLowerCase() === 'read_write') {
+        await syncBookingsToGoogleCalendar({
+          supabase,
+          connection,
+          bookings: [data],
+        });
+      }
+    } catch (syncError) {
+      console.warn('[update-booking] google calendar sync failed:', syncError.message || syncError);
     }
   }
 

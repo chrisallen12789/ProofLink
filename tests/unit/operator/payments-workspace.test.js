@@ -190,6 +190,31 @@ describe("operator payments workspace", () => {
     expect(message).toContain("Suggested next visit: 2026-04-02");
   });
 
+  test("buildPaymentSavedMessage keeps a partial payment anchored to the remaining balance", () => {
+    const context = loadPaymentsWorkspace({
+      CUSTOMERS_CACHE: [{ id: "customer_1", name: "North College" }],
+      CRM_ORDERS_CACHE: [{ id: "order_1", customer_id: "customer_1", customer_name: "North College" }],
+      orderAmountDueCents: () => 24000,
+      window: {
+        PROOFLINK_OPERATOR_BOOKINGS_WORKSPACE: {
+          bookingDraftTimingInsight: vi.fn(() => ({
+            reason: "This should not be used while the balance is still open.",
+            bookingDate: "2026-04-18",
+          })),
+        },
+      },
+    });
+
+    const message = context.window.buildPaymentSavedMessage({
+      customerId: "customer_1",
+      orderId: "order_1",
+    });
+
+    expect(message).toContain("Payment saved for North College.");
+    expect(message).toContain("$24000 still due on this order.");
+    expect(message).not.toContain("Suggested next visit");
+  });
+
   test("buildPaymentReactivationActions turns a paid cleaning account into the next visit", () => {
     const context = loadPaymentsWorkspace({
       currentWorkspaceBlueprint: () => ({ business: { key: "cleaning" } }),
@@ -324,6 +349,45 @@ describe("operator payments workspace", () => {
         }),
       })
     );
+  });
+
+  test("renderPaymentNextActions keeps partial-payment follow-through on the order balance", () => {
+    const renderOrders = vi.fn();
+    const switchTab = vi.fn();
+    const host = makeElement({
+      querySelectorAll: vi.fn(() => [{
+        getAttribute: () => "open-outstanding-order",
+        addEventListener: vi.fn((event, handler) => {
+          if (event === "click") handler();
+        }),
+      }]),
+    });
+    const paymentParent = makeElement({
+      querySelector: vi.fn(() => host),
+    });
+    const context = loadPaymentsWorkspace({
+      paymentMsg: makeElement({ parentElement: paymentParent }),
+      renderOrders,
+      switchTab,
+      CUSTOMERS_CACHE: [{ id: "customer_1", name: "North College" }],
+      CRM_ORDERS_CACHE: [{
+        id: "order_1",
+        customer_id: "customer_1",
+        customer_name: "North College",
+        status: "confirmed",
+      }],
+      orderAmountDueCents: () => 24000,
+    });
+
+    context.window.renderPaymentNextActions({
+      customerId: "customer_1",
+      orderId: "order_1",
+    });
+
+    expect(host.innerHTML).toContain("Balance still open: $24000 due on this order.");
+    expect(host.innerHTML).toContain("Open order balance");
+    expect(renderOrders).toHaveBeenCalled();
+    expect(switchTab).toHaveBeenCalledWith("orders");
   });
 
   test("renderCollectionsFollowUpReport keeps payment, order, and customer actions visible", () => {

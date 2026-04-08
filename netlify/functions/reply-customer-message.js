@@ -9,6 +9,10 @@ const { requireOperatorContext, respond } = require('./utils/auth');
 const { sendEmail, templates }            = require('./utils/email');
 const { getConfiguredSiteUrl }            = require('./utils/runtime-config');
 
+function businessNameFromTenant(tenant) {
+  return String(tenant?.business_name || tenant?.name || '').trim() || 'Your service provider';
+}
+
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return respond(200, {});
   if (event.httpMethod !== 'POST') return respond(405, { error: 'Method not allowed' });
@@ -50,8 +54,8 @@ exports.handler = async (event) => {
   if (updateErr) { console.error('[reply-customer-message] update:', updateErr); return respond(500, { error: 'Failed to save reply' }); }
 
   // Email the customer the reply
-  const { data: tenant } = await supabase.from('tenants').select('name').eq('id', tenantId).maybeSingle();
-  const businessName = tenant?.name || 'Your service provider';
+  const { data: tenant } = await supabase.from('tenants').select('business_name, name').eq('id', tenantId).maybeSingle();
+  const businessName = businessNameFromTenant(tenant);
   const siteUrl      = getConfiguredSiteUrl();
   const portalUrl    = `${siteUrl}/portal.html?tenant=${encodeURIComponent(tenantId)}&email=${encodeURIComponent(msg.customer_email)}`;
 

@@ -10,6 +10,227 @@ function jobTemplateRecordFocus(blueprint = jobsWorkspaceBlueprint()) {
   return focus.filter(Boolean).slice(0, 3);
 }
 
+function resolveAssignedTeamMember(job) {
+  const teamMembers = typeof TEAM_MEMBERS_CACHE !== "undefined" ? TEAM_MEMBERS_CACHE : [];
+  if (!job || !Array.isArray(teamMembers)) return null;
+  const assignmentIds = [
+    job.assigned_member_id,
+    job.assigned_operator_id,
+  ].map((value) => String(value || "").trim()).filter(Boolean);
+  if (!assignmentIds.length) return null;
+  return teamMembers.find((member) => (
+    assignmentIds.includes(String(member?.id || "").trim())
+    || assignmentIds.includes(String(member?.user_id || "").trim())
+    || assignmentIds.includes(String(member?.operator_id || "").trim())
+  )) || null;
+}
+
+function assignedTeamMemberLabel(member) {
+  if (!member) return "Assigned crew";
+  const name = String(member.display_name || member.name || member.email || member.id || "Assigned crew").trim();
+  const role = String(member.role_title || member.role || "").trim();
+  return role ? `${name} (${role})` : name;
+}
+
+function teamMemberOptionMarkup(selectedId = "") {
+  const members = Array.isArray(typeof TEAM_MEMBERS_CACHE !== "undefined" ? TEAM_MEMBERS_CACHE : [])
+    ? TEAM_MEMBERS_CACHE
+    : [];
+  const selectedValue = String(selectedId || "").trim();
+  return `
+    <option value="">Unassigned</option>
+    ${members.map((member) => {
+      const value = String(member?.id || "").trim();
+      const label = assignedTeamMemberLabel(member);
+      const selected = value && value === selectedValue ? " selected" : "";
+      return `<option value="${escapeAttr(value)}"${selected}>${escapeHtml(label)}</option>`;
+    }).join("")}
+  `;
+}
+
+function resolveTeamMemberById(memberId = "") {
+  const cleanId = String(memberId || "").trim();
+  if (!cleanId) return null;
+  const teamMembers = Array.isArray(typeof TEAM_MEMBERS_CACHE !== "undefined" ? TEAM_MEMBERS_CACHE : [])
+    ? TEAM_MEMBERS_CACHE
+    : [];
+  return teamMembers.find((member) => (
+    cleanId === String(member?.id || "").trim()
+    || cleanId === String(member?.user_id || "").trim()
+    || cleanId === String(member?.operator_id || "").trim()
+  )) || null;
+}
+
+function openCrewPortalForJob(job = null) {
+  const jobId = String(job?.id || "").trim();
+  const target = jobId
+    ? `/crew/?job=${encodeURIComponent(jobId)}&source=operator`
+    : "/crew/?source=operator";
+  if (window?.open) {
+    window.open(target, "_blank", "noopener");
+    return true;
+  }
+  window.location.href = target;
+  return true;
+}
+
+function jobEstimatedCrewMinutes(job = null) {
+  const minimumHours = Number(job?.minimum_hours || 0);
+  const billableHours = Number(job?.billable_hours || 0);
+  const travelHours = Number(job?.travel_hours || 0);
+  const workingHours = billableHours > 0 ? billableHours : Math.max(minimumHours, 0);
+  return Math.max(0, Math.round((workingHours + Math.max(travelHours, 0)) * 60));
+}
+
+function jobMinutesLabel(totalMinutes = 0) {
+  const minutes = Math.max(0, Number(totalMinutes || 0));
+  const hours = minutes / 60;
+  return `${Number(hours.toFixed(hours >= 10 ? 0 : 1))}h`;
+}
+
+function jobCompoundRoutePlanning(job = null, jobs = JOBS_CACHE) {
+  const member = resolveAssignedTeamMember(job);
+  const memberId = String(member?.id || job?.assigned_member_id || job?.assigned_operator_id || '').trim();
+  const sameDayJobs = Array.isArray(jobs)
+    ? jobs.filter((candidate) => {
+      if (!candidate || String(candidate.id || '') === String(job?.id || '')) return false;
+      if (String(candidate.scheduled_date || '') !== String(job?.scheduled_date || '')) return false;
+      const status = normalizeWorkflowStatusValue(candidate?.status || 'scheduled');
+      if (['completed', 'cancelled'].includes(status)) return false;
+      const assignmentIds = [
+        candidate.assigned_member_id,
+        candidate.assigned_operator_id,
+      ].map((value) => String(value || '').trim()).filter(Boolean);
+      return memberId && assignmentIds.includes(memberId);
+    })
+    : [];
+  const allJobs = [job, ...sameDayJobs].filter(Boolean);
+  const totalEstimatedMinutes = allJobs.reduce((sum, row) => sum + jobEstimatedCrewMinutes(row), 0);
+  const minimumBlockMinutes = Math.max(
+    240,
+    ...allJobs.map((row) => Math.round(Number(row?.minimum_hours || 0) * 60) || 0)
+  );
+  const eligible = sameDayJobs.length > 0 && totalEstimatedMinutes <= minimumBlockMinutes;
+  const overloaded = sameDayJobs.length > 0 && totalEstimatedMinutes > minimumBlockMinutes;
+  return {
+    member,
+    memberId,
+    sameDayJobs,
+    totalEstimatedMinutes,
+    minimumBlockMinutes,
+    eligible,
+    overloaded,
+  };
+}
+
+function crewAcknowledgementSummary(job = null) {
+  const normalizedStatus = normalizeWorkflowStatusValue(job?.status || 'scheduled');
+  const member = resolveAssignedTeamMember(job);
+  const assignee = member ? assignedTeamMemberLabel(member) : 'the assigned crew';
+  const lastFieldUpdate = job?.actual_end_at || job?.actual_start_at || job?.updated_at || '';
+  if (!String(job?.assigned_member_id || job?.assigned_operator_id || '').trim()) {
+    return {
+      label: 'No crew assigned',
+      tone: 'pill-warn',
+      detail: 'Assign a crew owner before expecting a field acknowledgment.',
+      lastFieldUpdate,
+    };
+  }
+  if (normalizedStatus === 'completed') {
+    return {
+      label: 'Crew completed the work',
+      tone: 'pill-good',
+      detail: job?.actual_end_at
+        ? `${assignee} closed this out at ${formatDateTime(job.actual_end_at)}.`
+        : `${assignee} marked the job complete.`,
+      lastFieldUpdate,
+    };
+  }
+  if (normalizedStatus === 'blocked') {
+    return {
+      label: 'Crew reported a blocker',
+      tone: 'pill-bad',
+      detail: String(job?.blocker_note || '').trim()
+        ? `${assignee} reported: ${String(job.blocker_note).trim()}`
+        : `${assignee} paused the work and needs office follow-through.`,
+      lastFieldUpdate,
+    };
+  }
+  if (normalizedStatus === 'in_progress' || job?.actual_start_at) {
+    return {
+      label: 'Crew acknowledged and started',
+      tone: 'pill-on',
+      detail: job?.actual_start_at
+        ? `${assignee} started at ${formatDateTime(job.actual_start_at)}${job?.check_in_lat ? ' and a check-in was captured.' : '.'}`
+        : `${assignee} has moved this job into active field work.`,
+      lastFieldUpdate,
+    };
+  }
+  return {
+    label: 'Waiting on crew acknowledgment',
+    tone: 'pill-warn',
+    detail: `${assignee} is assigned, but the office has not seen a field update yet.`,
+    lastFieldUpdate,
+  };
+}
+
+function jobTruckRoutePressure(job = null, jobs = JOBS_CACHE) {
+  const truckId = String(job?.assigned_truck_id || '').trim();
+  const sameDayJobs = Array.isArray(jobs)
+    ? jobs.filter((candidate) => {
+      if (!candidate || String(candidate.id || '') === String(job?.id || '')) return false;
+      if (String(candidate.scheduled_date || '') !== String(job?.scheduled_date || '')) return false;
+      const status = normalizeWorkflowStatusValue(candidate?.status || 'scheduled');
+      if (['completed', 'cancelled'].includes(status)) return false;
+      return truckId && String(candidate.assigned_truck_id || '').trim() === truckId;
+    })
+    : [];
+  const allJobs = [job, ...sameDayJobs].filter(Boolean);
+  const totalEstimatedMinutes = allJobs.reduce((sum, row) => sum + jobEstimatedCrewMinutes(row), 0);
+  const minimumBlockMinutes = Math.max(
+    240,
+    ...allJobs.map((row) => Math.round(Number(row?.minimum_hours || 0) * 60) || 0)
+  );
+  const overloaded = sameDayJobs.length > 0 && totalEstimatedMinutes > minimumBlockMinutes;
+  return {
+    truckId,
+    sameDayJobs,
+    totalEstimatedMinutes,
+    minimumBlockMinutes,
+    overloaded,
+  };
+}
+
+function jobAssignmentPressureSummary(job = null, jobs = JOBS_CACHE) {
+  const compoundPlan = jobCompoundRoutePlanning(job, jobs);
+  const truckPlan = jobTruckRoutePressure(job, jobs);
+  const warnings = [];
+  if (compoundPlan.sameDayJobs.length) {
+    warnings.push({
+      label: compoundPlan.overloaded ? 'Crew double-booked' : 'Crew route can compound',
+      tone: compoundPlan.overloaded ? 'pill-bad' : 'pill-warn',
+      note: compoundPlan.overloaded
+        ? `${assignedTeamMemberLabel(compoundPlan.member)} is already carrying about ${jobMinutesLabel(compoundPlan.totalEstimatedMinutes)} that day, which runs past the ${jobMinutesLabel(compoundPlan.minimumBlockMinutes)} minimum block.`
+        : `${assignedTeamMemberLabel(compoundPlan.member)} can cover the visible same-day work in about ${jobMinutesLabel(compoundPlan.totalEstimatedMinutes)} inside the ${jobMinutesLabel(compoundPlan.minimumBlockMinutes)} minimum block.`,
+    });
+  }
+  if (truckPlan.sameDayJobs.length) {
+    warnings.push({
+      label: truckPlan.overloaded ? 'Truck double-booked' : 'Truck route can compound',
+      tone: truckPlan.overloaded ? 'pill-bad' : 'pill-warn',
+      note: truckPlan.overloaded
+        ? `This truck is already carrying about ${jobMinutesLabel(truckPlan.totalEstimatedMinutes)} that day, which runs past the ${jobMinutesLabel(truckPlan.minimumBlockMinutes)} visible block.`
+        : `This truck can still absorb the visible same-day work inside about ${jobMinutesLabel(truckPlan.minimumBlockMinutes)} of planned time.`,
+    });
+  }
+  return {
+    compoundPlan,
+    truckPlan,
+    warnings,
+    hardConflict: warnings.some((warning) => warning.tone === 'pill-bad'),
+  };
+}
+
 function jobCustomerMemoryItems(linkedCustomer, blueprint = jobsWorkspaceBlueprint()) {
   if (!linkedCustomer) return [];
   const sharedChecklist = window.PROOFLINK_OPERATOR_CUSTOMER_DETAIL?.customerMemoryChecklist;
@@ -187,7 +408,7 @@ function buildJobReadinessSummary(job, order, linkedCustomer, hydrovacState = nu
     "Assigned crew",
     hasCrew,
     hasCrew
-      ? "A crew member is already attached to this job."
+      ? `${assignedTeamMemberLabel(resolveAssignedTeamMember(job))} is attached to this job.`
       : "Assign the crew member who will own the field update and closeout."
   );
 
@@ -525,9 +746,7 @@ function renderJobExecutionFocusCard({
   actions = [],
 } = {}) {
   if (!job) return "";
-  const teamMember = Array.isArray(TEAM_MEMBERS_CACHE)
-    ? TEAM_MEMBERS_CACHE.find((member) => member.id === job.assigned_member_id || member.id === job.assigned_operator_id || member.user_id === job.assigned_operator_id)
-    : null;
+  const teamMember = resolveAssignedTeamMember(job);
   const nextMove = readiness?.blockers?.length
     ? readiness.nextStep
     : amountDueCents > 0 && normalizeWorkflowStatusValue(job.status || "scheduled") === "completed"
@@ -552,7 +771,7 @@ function renderJobExecutionFocusCard({
         </div>
         <div class="workspace-focus-card__item ${teamMember ? "workspace-focus-card__item--good" : "workspace-focus-card__item--warn"}">
           <span>Crew owner</span>
-          <strong>${escapeHtml(teamMember?.name || teamMember?.email || "Still open")}</strong>
+          <strong>${escapeHtml(teamMember ? assignedTeamMemberLabel(teamMember) : "Still open")}</strong>
           <small>${escapeHtml(teamMember ? "The field owner is already attached to this work." : "Assign the crew member who will own the field update and closeout.")}</small>
         </div>
         <div class="workspace-focus-card__item ${amountDueCents > 0 ? "workspace-focus-card__item--warn" : "workspace-focus-card__item--good"}">
@@ -1102,6 +1321,9 @@ async function renderJobDetail(jobIdValue) {
   const fieldDueNow = Number(job.amount_due_cents || orderAmountDueCents(order) || 0);
   const closeoutGuidance = buildJobCloseoutGuidance(job, order, readiness, fieldDueNow, linkedCustomer, blueprint);
   const completionActions = buildJobCompletionActions(job, order, linkedCustomer, fieldDueNow, blueprint);
+  const crewAck = crewAcknowledgementSummary(job);
+  const compoundPlan = jobCompoundRoutePlanning(job);
+  const assignmentPressure = jobAssignmentPressureSummary(job);
   const fieldActionButtons = [
     ["scheduled", "dispatched"].includes(fieldStatus) ? { label: "Start work", className: "btn btn-primary", data: { "job-field-action": "start" } } : null,
     fieldStatus === "blocked" ? { label: "Resume work", className: "btn btn-primary", data: { "job-field-action": "resume" } } : null,
@@ -1112,6 +1334,7 @@ async function renderJobDetail(jobIdValue) {
   const jobActionButtons = [
     order ? { label: "Open booked work", className: "btn btn-primary", data: { "job-quick-action": "open-order" } } : null,
     isHydrovacJob(job) ? { label: "Open dispatch", className: "btn btn-ghost", data: { "job-quick-action": "open-dispatch" } } : null,
+    { label: String(job?.assigned_member_id || job?.assigned_operator_id || "").trim() ? "Open in crew portal" : "Open crew app", className: "btn btn-ghost", data: { "job-quick-action": "open-crew" } },
     { label: linkedCustomer ? "Open customer" : "Open customers", className: "btn btn-ghost", data: { "job-quick-action": "open-customer" } },
     { label: "Record payment", className: "btn btn-ghost", data: { "job-quick-action": "record-payment" }, disabled: !order },
     { label: "Log job cost", className: "btn btn-ghost", data: { "job-quick-action": "log-cost" } },
@@ -1272,26 +1495,120 @@ async function renderJobDetail(jobIdValue) {
         </div>
       `,
     })}
+    <div class="detail-card u-mt-14">
+      <div class="kicker">Crew acknowledgment</div>
+      <div><strong>${escapeHtml(crewAck.label)}</strong> <span class="pill ${escapeAttr(crewAck.tone)}">${escapeHtml(titleCaseWords(String(job.status || 'scheduled').replace(/_/g, ' ')))}</span></div>
+      <div class="detail-copy">${escapeHtml(crewAck.detail)}</div>
+      ${crewAck.lastFieldUpdate ? `<div class="detail-copy muted muted-small">Last field update: ${escapeHtml(formatDateTime(crewAck.lastFieldUpdate))}</div>` : ''}
+      ${String(job.blocker_note || '').trim() ? `<div class="detail-copy muted muted-small">Blocker note: ${escapeHtml(String(job.blocker_note).trim())}</div>` : ''}
+      ${job.check_in_lat ? `<div class="detail-copy muted muted-small">Last check-in: ${escapeHtml(String(job.check_in_lat))}, ${escapeHtml(String(job.check_in_lng || ''))}</div>` : ''}
+    </div>
+    <div class="detail-card u-mt-14">
+      <div class="kicker">Assignment pressure</div>
+      <div><strong>${escapeHtml(assignmentPressure.hardConflict ? "Assignment conflict needs attention" : "Assignment is workable")}</strong></div>
+      <div class="detail-copy">${escapeHtml(assignmentPressure.warnings.length ? assignmentPressure.warnings[0].note : "This job is not showing a same-day crew or truck overlap problem right now.")}</div>
+      <div class="workspace-chip-row u-mt-10">
+        ${assignmentPressure.warnings.length
+          ? assignmentPressure.warnings.map((warning) => `<span class="pill ${escapeAttr(warning.tone)}">${escapeHtml(warning.label)}</span>`).join('')
+          : `<span class="pill pill-on">No visible overlap</span>`}
+      </div>
+    </div>
+    <div class="detail-card u-mt-14">
+      <div class="kicker">Crew handoff</div>
+      <div><strong>${escapeHtml(resolveAssignedTeamMember(job) ? "Keep crew ownership clear" : "Assign this job before the day gets noisy")}</strong></div>
+      <div class="detail-copy">${escapeHtml(resolveAssignedTeamMember(job)
+        ? "Update the assigned worker here when dispatch shifts, then send the same job straight into the crew portal."
+        : "Choose the crew member who owns this work, save it on the job, and open the crew portal from the same spot."
+      )}</div>
+      <div class="grid-2 u-mt-10">
+        <label class="field">
+          <span>Assigned crew member</span>
+          <select id="jobAssignmentMember">
+            ${teamMemberOptionMarkup(job.assigned_member_id || job.assigned_operator_id || "")}
+          </select>
+        </label>
+        <div class="detail-copy muted">
+          ${escapeHtml(resolveAssignedTeamMember(job)
+            ? `Currently assigned to ${assignedTeamMemberLabel(resolveAssignedTeamMember(job))}.`
+            : "No crew owner is attached yet."
+          )}
+        </div>
+      </div>
+      <div class="action-row action-row--wrap u-mt-10">
+        <button type="button" class="btn btn-ghost" id="btnJobSaveCrewAssignment">Save assignment</button>
+        <button type="button" class="btn btn-primary" id="btnJobAssignAndOpenCrew">${String(job?.assigned_member_id || job?.assigned_operator_id || "").trim() ? "Update and open crew portal" : "Assign and open crew portal"}</button>
+      </div>
+      <div id="jobAssignmentMsg" class="msg u-mt-10"></div>
+    </div>
+    <div class="detail-card u-mt-14">
+      <div class="kicker">Compound route planning</div>
+      <div><strong>${escapeHtml(compoundPlan.memberId
+        ? compoundPlan.eligible
+          ? "This job can ride inside the same minimum block"
+          : compoundPlan.overloaded
+            ? "This route already runs past the minimum block"
+            : "This job is the only visible crew block right now"
+        : "Assign the crew to plan a compound route"
+      )}</strong></div>
+      <div class="detail-copy">${escapeHtml(
+        !compoundPlan.memberId
+          ? "Once a crew member is attached, ProofLink can compare this job against the rest of that day so you know whether a compound route is actually realistic."
+          : compoundPlan.eligible
+            ? `${assignedTeamMemberLabel(compoundPlan.member)} can cover the visible same-day work in about ${jobMinutesLabel(compoundPlan.totalEstimatedMinutes)} inside the ${jobMinutesLabel(compoundPlan.minimumBlockMinutes)} minimum block.`
+            : compoundPlan.overloaded
+              ? `${assignedTeamMemberLabel(compoundPlan.member)} is already carrying about ${jobMinutesLabel(compoundPlan.totalEstimatedMinutes)} that day, which runs past the ${jobMinutesLabel(compoundPlan.minimumBlockMinutes)} minimum block.`
+              : `${assignedTeamMemberLabel(compoundPlan.member)} is only carrying this job right now. Estimated field load is ${jobMinutesLabel(jobEstimatedCrewMinutes(job))}.`
+      )}</div>
+      <div class="workspace-chip-row u-mt-10">
+        <span class="pill">${escapeHtml(`This job ${jobMinutesLabel(jobEstimatedCrewMinutes(job))}`)}</span>
+        <span class="pill">${escapeHtml(`Minimum block ${jobMinutesLabel(compoundPlan.minimumBlockMinutes)}`)}</span>
+        <span class="pill ${compoundPlan.overloaded ? "pill-bad" : compoundPlan.eligible ? "pill-warn" : "pill-on"}">${escapeHtml(compoundPlan.sameDayJobs.length ? `${compoundPlan.sameDayJobs.length} other same-day job${compoundPlan.sameDayJobs.length === 1 ? "" : "s"}` : "No same-day overlap")}</span>
+      </div>
+      ${compoundPlan.sameDayJobs.length ? `
+        <div class="memory-checklist u-mt-10">
+          ${compoundPlan.sameDayJobs.map((row) => `
+            <div class="memory-checklist__item ${compoundPlan.overloaded ? "memory-checklist__item--warn" : "memory-checklist__item--ready"}">
+              <div class="memory-checklist__title">${escapeHtml(row.title || "Assigned job")}</div>
+              <div class="detail-copy memory-checklist__note">${escapeHtml(`${row.scheduled_time || "Time not set"} · ${jobMinutesLabel(jobEstimatedCrewMinutes(row))} estimated`)}</div>
+            </div>
+          `).join('')}
+        </div>
+      ` : ''}
+    </div>
     ${isHydrovacJob(job) ? renderHydrovacJobOperations(job, order, hydrovacState) : ""}
     ${(() => {
-      if (!job.assigned_operator_id) return '';
-      const member = (TEAM_MEMBERS_CACHE || []).find(
-        (m) => m.id === job.assigned_operator_id || m.user_id === job.assigned_operator_id
-      );
-      const memberName = member?.name || member?.email || 'Assigned crew';
+      const member = resolveAssignedTeamMember(job);
+      if (!member && !job.assigned_operator_id && !job.assigned_member_id) return '';
+      const memberName = assignedTeamMemberLabel(member);
       const actualMins = job.actual_start_at && job.actual_end_at
         ? Math.round((new Date(job.actual_end_at) - new Date(job.actual_start_at)) / 60000)
         : null;
       return `
         <div class="detail-card u-mt-14">
           <div class="kicker">Crew &amp; Hours</div>
-          <div class="detail-copy"><strong>${escapeHtml(memberName)}</strong>${member?.role ? ` &middot; ${escapeHtml(member.role)}` : ''}</div>
+          <div class="detail-copy"><strong>${escapeHtml(memberName)}</strong></div>
           ${actualMins != null ? `<div class="detail-copy">Actual time: <strong>${(actualMins / 60).toFixed(1)}h</strong> &middot; ${escapeHtml(formatDateTime(job.actual_start_at))} &rarr; ${escapeHtml(formatDateTime(job.actual_end_at))}</div>` : ''}
           ${job.billable_hours ? `<div class="detail-copy">Estimated: ${job.billable_hours}h</div>` : ''}
           ${job.check_in_lat ? `<div class="detail-copy muted muted-small">Check-in: ${job.check_in_lat}, ${job.check_in_lng}</div>` : ''}
+          <div class="grid-3 u-mt-10">
+            <label class="field">
+              <span>Expected hours</span>
+              <input id="jobCrewExpectedHours" type="number" min="0" step="0.25" value="${escapeAttr(job.billable_hours ?? "")}" />
+            </label>
+            <label class="field">
+              <span>Minimum block</span>
+              <input id="jobCrewMinimumBlock" type="number" min="0" step="0.25" value="${escapeAttr(job.minimum_hours ?? "")}" />
+            </label>
+            <label class="field">
+              <span>Travel hours</span>
+              <input id="jobCrewTravelHours" type="number" min="0" step="0.25" value="${escapeAttr(job.travel_hours ?? "")}" />
+            </label>
+          </div>
           <div class="row u-mt-10">
+            <button type="button" class="btn btn-primary btn-sm" id="btnJobSaveCrewPlanning">Save planning</button>
             <button type="button" class="btn btn-ghost btn-sm" id="btnJobLogHours">Log hours for ${escapeHtml(memberName)}</button>
           </div>
+          <div id="jobCrewPlanningMsg" class="msg u-mt-10"></div>
         </div>`;
     })()}
       </div>
@@ -1376,6 +1693,9 @@ async function renderJobDetail(jobIdValue) {
     if (Object.prototype.hasOwnProperty.call(patch, "actual_end_at")) job.actual_end_at = patch.actual_end_at;
     if (Object.prototype.hasOwnProperty.call(patch, "check_in_lat")) job.check_in_lat = patch.check_in_lat;
     if (Object.prototype.hasOwnProperty.call(patch, "check_in_lng")) job.check_in_lng = patch.check_in_lng;
+    if (Object.prototype.hasOwnProperty.call(patch, "billable_hours")) job.billable_hours = patch.billable_hours;
+    if (Object.prototype.hasOwnProperty.call(patch, "minimum_hours")) job.minimum_hours = patch.minimum_hours;
+    if (Object.prototype.hasOwnProperty.call(patch, "travel_hours")) job.travel_hours = patch.travel_hours;
   };
   const openMoneyFollowThrough = () => {
     ACTIVE_JOB_ID = job.id;
@@ -1592,6 +1912,10 @@ async function renderJobDetail(jobIdValue) {
         switchTab("dispatch");
         return;
       }
+      if (action === "open-crew") {
+        openCrewPortalForJob(job);
+        return;
+      }
       if (action === "record-payment") {
         openMoneyFollowThrough();
         return;
@@ -1687,6 +2011,63 @@ async function renderJobDetail(jobIdValue) {
         }
       }
     });
+  });
+  const saveCrewAssignment = async (openAfterSave = false) => {
+    const msgEl = jobDetailWrap.querySelector("#jobAssignmentMsg");
+    const assignmentSelect = jobDetailWrap.querySelector("#jobAssignmentMember");
+    const selectedId = assignmentSelect?.value?.trim() || "";
+    const member = resolveTeamMemberById(selectedId);
+    const patch = {
+      id: job.id,
+      assigned_member_id: selectedId || null,
+      assigned_operator_id: selectedId
+        ? (member?.operator_id || member?.user_id || member?.id || selectedId)
+        : null,
+    };
+    setInlineMessage(msgEl, openAfterSave ? "Saving assignment and opening crew portal..." : "Saving crew assignment...");
+    try {
+      const updatedJob = await saveJobRecord(patch);
+      if (typeof syncFieldJobState === "function") syncFieldJobState(updatedJob || patch);
+      await renderJobDetail((updatedJob && updatedJob.id) || job.id);
+      setInlineMessage(jobDetailWrap.querySelector("#jobAssignmentMsg"), "Crew assignment saved.", "ok");
+      if (openAfterSave) openCrewPortalForJob(updatedJob || { ...job, ...patch });
+    } catch (error) {
+      setInlineMessage(msgEl, error?.message || String(error), "error");
+    }
+  };
+  const saveCrewPlanningInputs = async () => {
+    const msgEl = jobDetailWrap.querySelector("#jobCrewPlanningMsg");
+    const billableInput = jobDetailWrap.querySelector("#jobCrewExpectedHours");
+    const minimumInput = jobDetailWrap.querySelector("#jobCrewMinimumBlock");
+    const travelInput = jobDetailWrap.querySelector("#jobCrewTravelHours");
+    const parseHours = (value, fallback = null) => {
+      const next = parseFloat(String(value || "").trim());
+      return Number.isFinite(next) ? next : fallback;
+    };
+    const patch = {
+      id: job.id,
+      billable_hours: parseHours(billableInput?.value, null),
+      minimum_hours: parseHours(minimumInput?.value, null),
+      travel_hours: parseHours(travelInput?.value, null),
+    };
+    setInlineMessage(msgEl, "Saving crew planning...");
+    try {
+      const updatedJob = await saveJobRecord(patch);
+      syncFieldJobState(updatedJob || patch);
+      await renderJobDetail((updatedJob && updatedJob.id) || job.id);
+      setInlineMessage(jobDetailWrap.querySelector("#jobCrewPlanningMsg"), "Crew planning saved.", "ok");
+    } catch (error) {
+      setInlineMessage(msgEl, error?.message || String(error), "error");
+    }
+  };
+  jobDetailWrap.querySelector("#btnJobSaveCrewAssignment")?.addEventListener("click", async () => {
+    await saveCrewAssignment(false);
+  });
+  jobDetailWrap.querySelector("#btnJobAssignAndOpenCrew")?.addEventListener("click", async () => {
+    await saveCrewAssignment(true);
+  });
+  jobDetailWrap.querySelector("#btnJobSaveCrewPlanning")?.addEventListener("click", async () => {
+    await saveCrewPlanningInputs();
   });
   jobDetailWrap.querySelector('#btnJobLogHours')?.addEventListener("click", () => maybeLogJobHours(job));
   jobDetailWrap.querySelector('#btnJobOpenRequest')?.addEventListener("click", () => {

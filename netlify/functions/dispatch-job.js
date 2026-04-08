@@ -19,6 +19,20 @@ function manifestReadyBy(manifest) {
   return clean(metadata.disposal_ready_by);
 }
 
+function estimatedDispatchMinutes(job = {}) {
+  const minimumHours = asNumber(job.minimum_hours, 0);
+  const billableHours = asNumber(job.billable_hours, 0);
+  const travelHours = asNumber(job.travel_hours, 0);
+  const workingHours = billableHours > 0 ? billableHours : Math.max(minimumHours, 0);
+  return Math.round((workingHours + Math.max(travelHours, 0)) * 60);
+}
+
+function compoundWindowMinutes(job = {}, conflictingJobs = []) {
+  const jobs = [job, ...(Array.isArray(conflictingJobs) ? conflictingJobs : [])];
+  const maxMinimumHours = jobs.reduce((max, row) => Math.max(max, asNumber(row?.minimum_hours, 0)), 0);
+  return Math.round(Math.max(4, maxMinimumHours) * 60);
+}
+
 function truckDispatchPlanner(loads = [], job = {}, dispatchDate = '') {
   const liveLoads = (Array.isArray(loads) ? loads : []).filter((manifest) => manifestMarkedLive(manifest));
   const carryoverLoads = liveLoads.filter((manifest) => String(manifest?.job_id || '') !== String(job?.id || ''));
@@ -97,6 +111,7 @@ exports.handler = async (event) => {
   const scheduledDate = clean(body.scheduled_date);
   const scheduledTime = clean(body.scheduled_time);
   const forceDispatch = asBoolean(body.force_dispatch, false);
+  const compoundRouteOverride = asBoolean(body.compound_route_override, false);
 
   if (!jobId) return respond(400, { error: 'job_id is required' });
   if (!assignedTruckId) return respond(400, { error: 'assigned_truck_id is required' });
@@ -241,19 +256,57 @@ exports.handler = async (event) => {
   if (dispatchDate) {
     const { data: conflicting, error: conflictError } = await adminSb
       .from('jobs')
-      .select('id, title, scheduled_date, status')
+      .select('id, title, scheduled_date, status, assigned_member_id, assigned_operator_id, minimum_hours, billable_hours, travel_hours')
       .eq('tenant_id', tenantId)
       .eq('assigned_truck_id', assignedTruckId)
       .eq('scheduled_date', dispatchDate)
       .in('status', ['dispatched', 'in_progress'])
       .neq('id', jobId)
-      .limit(1);
+      .limit(10);
 
     if (conflictError) return respond(500, { error: conflictError.message });
     if (Array.isArray(conflicting) && conflicting.length) {
-      return respond(409, {
-        error: 'Truck already assigned',
-        conflicting_job_id: conflicting[0].id,
+      if (!compoundRouteOverride) {
+        return respond(409, {
+          error: 'Truck already assigned',
+          conflicting_job_id: conflicting[0].id,
+        });
+      }
+
+      const conflictingDriverMismatch = conflicting.find((row) => {
+        const assignedMemberId = clean(row?.assigned_member_id);
+        const assignedOperatorId = clean(row?.assigned_operator_id);
+        return (
+          (assignedMemberId && assignedMemberId !== driverMemberId)
+          || (assignedOperatorId && assignedOperatorId !== clean(member.operator_id))
+        );
+      });
+      if (conflictingDriverMismatch) {
+        return respond(409, {
+          error: 'Compound route override only works when the same crew member owns the truck route.',
+          conflicting_job_id: conflictingDriverMismatch.id,
+          code: 'compound_route_driver_mismatch',
+        });
+      }
+
+      const totalEstimatedMinutes = estimatedDispatchMinutes(job)
+        + conflicting.reduce((sum, row) => sum + estimatedDispatchMinutes(row), 0);
+      const allowedWindowMinutes = compoundWindowMinutes(job, conflicting);
+      if (totalEstimatedMinutes > allowedWindowMinutes) {
+        return respond(409, {
+          error: 'Compound route exceeds the minimum crew block.',
+          code: 'compound_route_exceeds_minimum',
+          conflicting_job_id: conflicting[0].id,
+          total_estimated_minutes: totalEstimatedMinutes,
+          allowed_window_minutes: allowedWindowMinutes,
+        });
+      }
+
+      warnings.push({
+        type: 'compound_route_override',
+        message: `Truck route was compounded across ${conflicting.length + 1} jobs inside the ${Math.round(allowedWindowMinutes / 60)}-hour minimum block.`,
+        total_estimated_minutes: totalEstimatedMinutes,
+        allowed_window_minutes: allowedWindowMinutes,
       });
     }
   }

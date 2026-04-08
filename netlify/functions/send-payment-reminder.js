@@ -17,6 +17,10 @@ function clean(value) {
   return String(value || '').trim();
 }
 
+function businessNameFromTenant(tenant) {
+  return clean(tenant?.business_name || tenant?.name) || 'ProofLink';
+}
+
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return respond(200, {});
   if (event.httpMethod !== 'POST') return respond(405, { error: 'Method not allowed' });
@@ -43,36 +47,35 @@ exports.handler = async (event) => {
   try {
     const { data: order, error: orderError } = await supabase
       .from('orders')
-      .select('id, customer_name, customer_email, total_cents, total_amount, status, created_at')
+      .select('id, customer_name, email, cart_summary, total_cents, status, created_at')
       .eq('id', orderId)
       .eq('tenant_id', tenantId)
       .maybeSingle();
 
     if (orderError) return respond(500, { error: orderError.message });
     if (!order) return respond(404, { error: 'Order not found' });
-    if (!order.customer_email) return respond(422, { error: 'Order has no customer email' });
+    if (!order.email) return respond(422, { error: 'Order has no customer email' });
 
     const { data: tenant, error: tenantError } = await supabase
       .from('tenants')
-      .select('name')
+      .select('business_name, name')
       .eq('id', tenantId)
       .maybeSingle();
 
     if (tenantError) return respond(500, { error: tenantError.message });
 
-    const businessName = clean(tenant?.name) || 'ProofLink';
+    const businessName = businessNameFromTenant(tenant);
     const siteUrl = getConfiguredSiteUrl();
-    const portalUrl = `${siteUrl}/portal.html?tenant=${tenantId}&email=${encodeURIComponent(order.customer_email)}`;
+    const portalUrl = `${siteUrl}/portal.html?tenant=${tenantId}&email=${encodeURIComponent(order.email)}`;
 
     const totalCents = Number(order.total_cents || 0);
-    const totalAmount = order.total_amount != null
-      ? Number(order.total_amount)
-      : totalCents / 100;
+    const totalAmount = totalCents / 100;
 
     const delivery = await sendEmail(templates.paymentReminder({
       customer_name : order.customer_name || 'Customer',
-      customer_email: order.customer_email,
+      customer_email: order.email,
       business_name : businessName,
+      order_title   : order.cart_summary || 'Your order',
       total_amount  : totalAmount,
       total_cents   : totalCents,
       status        : order.status || 'pending',

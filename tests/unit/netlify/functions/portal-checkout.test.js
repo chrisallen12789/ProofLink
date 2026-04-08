@@ -72,11 +72,12 @@ describe("netlify/functions/portal-checkout", () => {
             data: [{
               id: "order_123",
               tenant_id: "tenant_123",
-              customer_email: "customer@example.com",
+              email: "customer@example.com",
               total_cents: 45000,
               amount_paid_cents: 5000,
+              amount_due_cents: 40000,
               status: "confirmed",
-              title: "Hydrovac daylighting",
+              cart_summary: "Hydrovac daylighting",
             }],
             error: null,
           });
@@ -156,11 +157,12 @@ describe("netlify/functions/portal-checkout", () => {
             data: [{
               id: "order_123",
               tenant_id: "tenant_123",
-              customer_email: "customer@example.com",
+              email: "customer@example.com",
               total_cents: 10000,
               amount_paid_cents: 0,
+              amount_due_cents: 10000,
               status: "confirmed",
-              title: "Drain cleaning",
+              cart_summary: "Drain cleaning",
             }],
             error: null,
           });
@@ -216,6 +218,86 @@ describe("netlify/functions/portal-checkout", () => {
         })
       );
       expect(stripeRequest).not.toHaveBeenCalled();
+    } finally {
+      restore();
+    }
+  });
+
+  test("prefers amount_due_cents over recalculating from stale paid totals", async () => {
+    const supabase = {
+      from: vi.fn((table) => {
+        if (table === "orders") {
+          return createQueryChain({
+            data: [{
+              id: "order_456",
+              tenant_id: "tenant_123",
+              email: "customer@example.com",
+              total_cents: 45000,
+              amount_paid_cents: 0,
+              amount_due_cents: 12500,
+              payment_state: "partially_paid",
+              status: "confirmed",
+              cart_summary: "Follow-up trench daylighting",
+            }],
+            error: null,
+          });
+        }
+        if (table === "tenants") {
+          return createQueryChain({
+            data: [{
+              id: "tenant_123",
+              stripe_connect_account_id: "acct_123",
+              stripe_account_id: null,
+            }],
+            error: null,
+          });
+        }
+        throw new Error(`Unexpected table ${table}`);
+      }),
+    };
+
+    const stripeRequest = vi.fn(async (_path, _method, payload) => ({
+      url: "https://checkout.stripe.test/session_456",
+      payload,
+    }));
+
+    const { handler, restore } = loadHandlerWithMocks({
+      authMockExports: {
+        getAdminClient: () => supabase,
+        respond: (statusCode, body) => ({ statusCode, body: JSON.stringify(body) }),
+      },
+      rateLimitMockExports: {
+        checkRateLimit: () => ({ allowed: true }),
+        rateLimitResponse: () => ({ statusCode: 429, body: JSON.stringify({ error: "rate limited" }) }),
+        getClientIP: () => "127.0.0.1",
+      },
+      paymentsMockExports: {
+        stripeRequest,
+        getBaseUrl: () => "https://prooflink.co",
+        ensureTenantApplicationFeeBps: vi.fn(async (tenant) => ({
+          ...tenant,
+          application_fee_bps: 0,
+        })),
+      },
+    });
+
+    try {
+      const res = await handler({
+        httpMethod: "GET",
+        queryStringParameters: {
+          order_id: "order_456",
+          email: "customer@example.com",
+        },
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(stripeRequest).toHaveBeenCalledWith(
+        "/checkout/sessions",
+        "POST",
+        expect.objectContaining({
+          "line_items[0][price_data][unit_amount]": 12500,
+        })
+      );
     } finally {
       restore();
     }

@@ -90,6 +90,15 @@ function normalizePressureRow(row) {
   };
 }
 
+function normalizeRecentTenant(row) {
+  row = row || {};
+  return {
+    ...row,
+    name: row.business_name || row.name || row.slug || 'Unknown tenant',
+    business_name: row.business_name || row.name || row.slug || 'Unknown tenant',
+  };
+}
+
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return respond(200, {});
   if (event.httpMethod !== 'GET') return respond(405, { error: 'Method not allowed' });
@@ -127,20 +136,20 @@ exports.handler = async (event) => {
     supabase.from('tenants').select('id', { count: 'exact', head: true }).gte('created_at', monthAgo),
     supabase.from('tenant_onboarding_requests').select('status'),
     supabase.from('tenant_onboarding_requests').select('id', { count: 'exact', head: true }).gte('created_at', weekAgo),
-    supabase.from('orders').select('id, total_amount', { count: 'exact' }),
-    supabase.from('orders').select('total_amount').gte('created_at', weekAgo),
+    supabase.from('orders').select('id, total_cents', { count: 'exact' }),
+    supabase.from('orders').select('total_cents').gte('created_at', weekAgo),
     supabase.from('tenant_onboarding_requests')
       .select('id, business_name, owner_email, status, business_type, city_state, created_at')
       .order('created_at', { ascending: false })
       .limit(8),
     supabase.from('tenants')
-      .select('id, name, slug, owner_email, created_at, status')
+      .select('id, name, business_name, slug, owner_email, created_at, status')
       .order('created_at', { ascending: false })
       .limit(5),
     supabase.from('tenants').select('id', { count: 'exact', head: true }),
     supabase.from('tenants').select('id', { count: 'exact', head: true }).eq('status', 'flagged'),
     supabase.from('tenant_onboarding_requests').select('id', { count: 'exact', head: true }).gte('created_at', monthAgo),
-    supabase.from('orders').select('total_amount').gte('created_at', monthAgo),
+    supabase.from('orders').select('total_cents').gte('created_at', monthAgo),
     supabase.from('v_tenant_limit_health').select('*'),
   ]);
 
@@ -170,9 +179,9 @@ exports.handler = async (event) => {
   const allOrders = val(ordersResult).data || [];
   const weekOrders = val(ordersWeekResult).data || [];
   const monthOrders = val(ordersMonthResult).data || [];
-  const gmvTotal = allOrders.reduce((sum, order) => sum + toNumber(order.total_amount), 0);
-  const gmvWeek = weekOrders.reduce((sum, order) => sum + toNumber(order.total_amount), 0);
-  const gmvMonth = monthOrders.reduce((sum, order) => sum + toNumber(order.total_amount), 0);
+  const gmvTotal = allOrders.reduce((sum, order) => sum + toNumber(order.total_cents) / 100, 0);
+  const gmvWeek = weekOrders.reduce((sum, order) => sum + toNumber(order.total_cents) / 100, 0);
+  const gmvMonth = monthOrders.reduce((sum, order) => sum + toNumber(order.total_cents) / 100, 0);
 
   let stripeConnected = 0;
   try {
@@ -248,7 +257,7 @@ exports.handler = async (event) => {
       top_capacity_risks: topCapacityRisks,
     },
     recent_requests: val(recentRequestsResult).data || [],
-    recent_tenants: val(recentTenantsResult).data || [],
+    recent_tenants: (val(recentTenantsResult).data || []).map(normalizeRecentTenant),
     generated_at: new Date().toISOString(),
   });
 };

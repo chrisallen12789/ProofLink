@@ -30,6 +30,11 @@ const { seedTemplateForTenant }          = require('./lib/seed-templates');
 const { getConfiguredSiteUrl }           = require('./utils/runtime-config');
 const { buildPasswordSetupUrl }          = require('./utils/auth-links');
 
+function tenantBusinessName(tenant) {
+  if (!tenant || typeof tenant !== 'object') return '';
+  return tenant.business_name || tenant.name || tenant.slug || '';
+}
+
 // ── Seed branding + contact into tenant_settings ────────────────────────────
 async function seedTenantSettings(supabase, tenantId, req) {
   const { error } = await supabase
@@ -102,7 +107,7 @@ exports.handler = async (event) => {
   // ── IDEMPOTENCY — already provisioned? ─────────────────────────────────────
   const { data: existingTenant } = await supabase
     .from('tenants')
-    .select('id, slug, name')
+    .select('id, slug, business_name, name')
     .eq('onboarding_request_id', id)
     .maybeSingle();
 
@@ -132,7 +137,7 @@ exports.handler = async (event) => {
 
   // ── Mark as provisioning ──────────────────────────────────────────────────
   const nowIso = new Date().toISOString();
-  await supabase
+  const { error: provisioningErr } = await supabase
     .from('tenant_onboarding_requests')
     .update({
       status         : 'provisioning',
@@ -141,6 +146,10 @@ exports.handler = async (event) => {
       updated_at     : nowIso,
     })
     .eq('id', id);
+
+  if (provisioningErr) {
+    return respond(500, { error: 'Failed to mark onboarding request as provisioning: ' + provisioningErr.message });
+  }
 
   // ── Failure helper ────────────────────────────────────────────────────────
   async function failProvision(message) {
@@ -164,6 +173,7 @@ exports.handler = async (event) => {
   const { data: tenant, error: tenantErr } = await supabase
     .from('tenants')
     .insert([{
+      business_name        : req.business_name,
       name                 : req.business_name,
       slug                 : tenantSlug,
       owner_email          : req.owner_email,
@@ -175,7 +185,7 @@ exports.handler = async (event) => {
       setup_complete       : false,
       active               : true,
     }])
-    .select('id, slug, name')
+    .select('id, slug, business_name, name')
     .maybeSingle();
 
   if (tenantErr) {
@@ -283,7 +293,7 @@ exports.handler = async (event) => {
   })).catch((e) => console.warn('[admin-approve] welcome email failed:', e.message));
 
   return respond(201, {
-    message     : `"${tenant.name}" approved and provisioned successfully`,
+    message     : `"${tenantBusinessName(tenant)}" approved and provisioned successfully`,
     tenant_id   : tenantId,
     slug        : tenantSlug,
     operator_id : newOperatorId,

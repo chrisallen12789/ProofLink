@@ -24,7 +24,6 @@ describe("netlify/functions/request-review", () => {
       data: {
         id: "order_1",
         customer_name: "Harbor Suites",
-        customer_email: "",
         email: "owner@example.com",
         review_requested_at: null,
         tenant_id: "tenant_1",
@@ -39,13 +38,18 @@ describe("netlify/functions/request-review", () => {
     const supabase = {
       from: vi.fn((table) => {
         if (table === "orders") {
+          const maybeSingle = vi.fn(async () => orderResult);
+          const thirdEq = { maybeSingle };
+          const secondEq = {
+            eq: vi.fn(() => thirdEq),
+            maybeSingle,
+          };
+          const firstEq = {
+            eq: vi.fn(() => secondEq),
+          };
           return {
             select: vi.fn(() => ({
-              eq: vi.fn(() => ({
-                eq: vi.fn(() => ({
-                  maybeSingle: vi.fn(async () => orderResult),
-                })),
-              })),
+              eq: vi.fn(() => firstEq),
             })),
             update: vi.fn(() => ({
               eq: vi.fn(() => ({
@@ -107,7 +111,7 @@ describe("netlify/functions/request-review", () => {
     delete process.env.URL;
   });
 
-  test("uses the fallback email column when customer_email is blank", async () => {
+  test("uses the normalized order email column", async () => {
     const { handler, email } = loadHandler();
 
     const response = await handler({
@@ -138,5 +142,20 @@ describe("netlify/functions/request-review", () => {
     expect(email.sendEmail).toHaveBeenCalled();
     expect(email.sendEmail.mock.calls[0][0].subject).toBe("Please review your hydrovac visit");
     expect(email.sendEmail.mock.calls[0][0].html).toContain("Thanks again for the work today.");
+  });
+
+  test("does not fall back to an unscoped order lookup outside the caller tenant", async () => {
+    const { handler, email } = loadHandler({
+      orderResult: { data: null, error: null },
+    });
+
+    const response = await handler({
+      httpMethod: "POST",
+      body: JSON.stringify({ order_id: "foreign_order" }),
+      headers: {},
+    });
+
+    expect(response.statusCode).toBe(404);
+    expect(email.sendEmail).not.toHaveBeenCalled();
   });
 });

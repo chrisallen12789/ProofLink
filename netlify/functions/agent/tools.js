@@ -10,18 +10,12 @@
 // - No tool returns data from another tenant
 
 'use strict';
-
-function isMissingRelationError(error) {
-  const message = String(error?.message || '').toLowerCase();
-  return (
-    message.includes('relation') && message.includes('does not exist')
-  ) || message.includes('could not find the table') || message.includes('schema cache');
-}
+const { isMissingSchemaError } = require('../utils/schema-readiness');
 
 async function resolveOptionalRows(queryPromise, assumptions, message, emptyValue = []) {
   const result = await queryPromise;
   if (!result?.error) return result.data || emptyValue;
-  if (isMissingRelationError(result.error)) {
+  if (isMissingSchemaError(result.error)) {
     assumptions.push(message);
     return emptyValue;
   }
@@ -31,7 +25,7 @@ async function resolveOptionalRows(queryPromise, assumptions, message, emptyValu
 async function resolveOptionalSingle(queryPromise, assumptions, message, emptyValue = null) {
   const result = await queryPromise;
   if (!result?.error) return result.data || emptyValue;
-  if (isMissingRelationError(result.error)) {
+  if (isMissingSchemaError(result.error)) {
     assumptions.push(message);
     return emptyValue;
   }

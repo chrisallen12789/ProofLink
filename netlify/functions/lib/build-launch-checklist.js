@@ -27,6 +27,10 @@ function hasMeaningfulWebsiteShape(config) {
   );
 }
 
+function tenantBusinessName(tenant) {
+  return String(tenant?.business_name || tenant?.name || '').trim();
+}
+
 function buildLaunchChecklist({
   tenant,
   customersResult,
@@ -51,8 +55,8 @@ function buildLaunchChecklist({
     {
       id: "workspace_ready",
       label: "Account is ready",
-      detail: tenant?.name
-        ? `${tenant.name} is provisioned and ready for the first real customer flow.`
+      detail: tenantBusinessName(tenant)
+        ? `${tenantBusinessName(tenant)} is provisioned and ready for the first real customer flow.`
         : "The account is provisioned and ready for the first real customer flow.",
       complete: true,
     },

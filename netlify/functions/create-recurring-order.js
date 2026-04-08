@@ -6,8 +6,16 @@
 'use strict';
 
 const { requireOperatorContext, respond } = require('./utils/auth');
+const { isMissingSchemaError } = require('./utils/schema-readiness');
 
 const VALID_FREQUENCIES = ['weekly', 'biweekly', 'monthly'];
+
+function isMissingRecurringSchemaError(error) {
+  return isMissingSchemaError(error, [
+    'relation "public.service_plans" does not exist',
+    'relation "public.orders" does not exist',
+  ]);
+}
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return respond(200, {});
@@ -31,21 +39,24 @@ exports.handler = async (event) => {
   // Verify order belongs to this operator/tenant
   const { data: order, error: orderErr } = await supabase
     .from('orders')
-    .select('id, title, cart_summary, description, customer_id, customer_name, customer_email, total_amount, total_cents, line_items, service_address, schedule_window, operator_id, tenant_id')
+    .select('id, cart_summary, notes, customer_id, customer_name, total_cents, items, service_address, schedule_window, operator_id, tenant_id')
     .eq('id', order_id)
     .eq('tenant_id', tenantId)
     .maybeSingle();
 
+  if (isMissingRecurringSchemaError(orderErr)) {
+    return respond(503, { error: 'Recurring service plan schema is not installed for this environment.' });
+  }
   if (orderErr || !order) return respond(404, { error: 'Order not found' });
   if (!order.customer_id) {
     return respond(409, { error: 'Recurring plans require a linked customer before they can be saved.' });
   }
 
   const nowIso = new Date().toISOString();
-  const title = order.title || order.cart_summary || `${order.customer_name || "Customer"} recurring service`;
-  const amountCents = Number(order.total_cents || order.total_amount || 0) || 0;
-  const lineItems = Array.isArray(order.line_items) ? order.line_items : [];
-  const summary = String(order.description || "").trim() || null;
+  const title = order.cart_summary || `${order.customer_name || "Customer"} recurring service`;
+  const amountCents = Number(order.total_cents || 0) || 0;
+  const lineItems = Array.isArray(order.items) ? order.items : [];
+  const summary = String(order.notes || '').trim() || null;
   const planPayload = {
     tenant_id: tenantId,
     operator_id: operatorId,
@@ -71,6 +82,9 @@ exports.handler = async (event) => {
     .maybeSingle();
 
   if (existingPlanErr) {
+    if (isMissingRecurringSchemaError(existingPlanErr)) {
+      return respond(503, { error: 'Recurring service plan schema is not installed for this environment.' });
+    }
     console.error('[create-recurring-order] existing service plan lookup failed:', existingPlanErr);
     return respond(500, { error: 'Failed to load the recurring plan for this order.' });
   }
@@ -90,6 +104,9 @@ exports.handler = async (event) => {
     .maybeSingle();
 
   if (error) {
+    if (isMissingRecurringSchemaError(error)) {
+      return respond(503, { error: 'Recurring service plan schema is not installed for this environment.' });
+    }
     console.error('[create-recurring-order]', error);
     return respond(500, { error: 'Failed to save the recurring plan' });
   }

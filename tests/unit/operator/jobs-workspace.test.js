@@ -15,7 +15,11 @@ function loadJobsWorkspace(overrides = {}) {
     _buttons: [],
     querySelectorAll: vi.fn(() => jobsList._buttons),
   };
-  const jobDetailWrap = { innerHTML: "" };
+  const jobDetailWrap = {
+    innerHTML: "",
+    querySelectorAll: vi.fn(() => []),
+    querySelector: vi.fn(() => null),
+  };
   const context = {
     console,
     window: {},
@@ -30,6 +34,8 @@ function loadJobsWorkspace(overrides = {}) {
     btnJobRecordPayment: { disabled: false },
     renderJobWorkspace: vi.fn(),
     populateJobForm: vi.fn(),
+    saveJobRecord: vi.fn(async (patch = {}) => patch),
+    setInlineMessage: vi.fn(),
     linkedOrderForJob: vi.fn(() => null),
     linkedLeadForOrder: vi.fn(() => null),
     linkedBidForOrder: vi.fn(() => null),
@@ -38,6 +44,8 @@ function loadJobsWorkspace(overrides = {}) {
     jobTrackedCostCents: vi.fn(() => 0),
     jobGrossProfitCents: vi.fn(() => 0),
     jobMarginRatio: vi.fn(() => 0),
+    grossProfitToneClass: vi.fn(() => "pill-ok"),
+    marginToneClass: vi.fn(() => "pill-ok"),
     trackedJobExpenses: vi.fn(() => []),
     normalizeExpenseType: vi.fn((value) => value),
     expenseHasLaborDetail: vi.fn(() => false),
@@ -71,10 +79,28 @@ function loadJobsWorkspace(overrides = {}) {
     })),
     normalizeWorkflowStatusValue: vi.fn((value) => value),
     orderAmountDueCents: vi.fn(() => 0),
+    orderPaymentState: vi.fn(() => "unpaid"),
     formatUsd: vi.fn((value) => `$${value}`),
     formatDateTime: vi.fn((value) => String(value)),
     formatPercent: vi.fn((value) => `${value}%`),
     paymentStateClass: vi.fn(() => "pill-ok"),
+    renderRecordHeroCard: vi.fn((config = {}) => `<div class="record-hero">${String(config.title || "")}${String(config.actionsHtml || "")}</div>`),
+    renderRecordActionButtons: vi.fn((actions = []) =>
+      actions
+        .map((action) => `<button type="button">${String(action.label || "")}</button>`)
+        .join("")
+    ),
+    renderRecordActionRail: vi.fn((config = {}) => `<div class="record-action-rail">${(Array.isArray(config)
+      ? config
+      : Array.isArray(config.actions)
+        ? config.actions
+        : [])
+      .map((action) => `<button type="button">${String(action.label || "")}</button>`)
+      .join("")}</div>`),
+    renderRecordFollowThroughCard: vi.fn((config = {}) => `<div class="record-follow-through">${String(config.title || "")}${String(config.controlsHtml || "")}${String(config.timelineHtml || "")}${(Array.isArray(config.actions) ? config.actions : [])
+      .map((action) => `<button type="button">${String(action.label || "")}</button>`)
+      .join("")}</div>`),
+    renderLinkedRecordCard: vi.fn((config = {}) => `<div class="linked-record-card">${String(config.title || "")}${String(config.footerHtml || "")}</div>`),
     formatWorkflowPaymentState: vi.fn((value) => value),
     titleCaseWords: (value) => String(value),
     escapeHtml: (value) => String(value),
@@ -208,6 +234,144 @@ describe("operator jobs workspace", () => {
       "Truck load carryover",
     ]));
     expect(summary.nextStep).toContain("Link a customer");
+  });
+
+  test("buildJobReadinessSummary and focus card use the assigned crew label from member records", () => {
+    const { context } = loadJobsWorkspace({
+      TEAM_MEMBERS_CACHE: [
+        {
+          id: "member_1",
+          display_name: "Skylar Stevens",
+          role_title: "Crew Lead",
+          user_id: "user_1",
+        },
+      ],
+      normalizeWorkflowStatusValue: vi.fn((value) => value),
+      formatUsd: vi.fn((value) => `$${value}`),
+    });
+
+    const summary = context.buildJobReadinessSummary(
+      { assigned_operator_id: "member_1", status: "scheduled" },
+      null,
+      null,
+      null,
+      { business: { key: "other" } }
+    );
+    const assignmentItem = summary.items.find((item) => item.label === "Assigned crew");
+
+    expect(assignmentItem.note).toContain("Skylar Stevens (Crew Lead)");
+
+    const markup = context.renderJobExecutionFocusCard({
+      job: { assigned_operator_id: "member_1", status: "scheduled" },
+      readiness: { blockers: [], nextStep: "" },
+      depositStatus: "not_due",
+      amountDueCents: 0,
+      actions: [],
+    });
+
+    expect(markup).toContain("Skylar Stevens (Crew Lead)");
+  });
+
+  test("renderJobDetail shows compound route planning when same-day crew work still fits the minimum block", async () => {
+    const { context, jobDetailWrap } = loadJobsWorkspace({
+      TEAM_MEMBERS_CACHE: [
+        {
+          id: "member_1",
+          display_name: "Skylar Stevens",
+          role_title: "Crew Lead",
+          user_id: "user_1",
+        },
+      ],
+      JOBS_CACHE: [
+        {
+          id: "job_1",
+          title: "North trench",
+          customer_id: "customer_1",
+          status: "scheduled",
+          scheduled_date: "2026-04-08",
+          scheduled_time: "08:00",
+          assigned_member_id: "member_1",
+          billable_hours: 1.5,
+          minimum_hours: 4,
+          travel_hours: 0.25,
+        },
+        {
+          id: "job_2",
+          title: "West basin cleanup",
+          customer_id: "customer_1",
+          status: "scheduled",
+          scheduled_date: "2026-04-08",
+          scheduled_time: "12:00",
+          assigned_member_id: "member_1",
+          billable_hours: 1,
+          minimum_hours: 4,
+          travel_hours: 0.25,
+        },
+      ],
+      CUSTOMERS_CACHE: [{ id: "customer_1", name: "North Utility" }],
+      normalizeWorkflowStatusValue: vi.fn((value) => value),
+    });
+
+    await context.renderJobDetail("job_1");
+
+    expect(jobDetailWrap.innerHTML).toContain("Compound route planning");
+    expect(jobDetailWrap.innerHTML).toContain("same minimum block");
+    expect(jobDetailWrap.innerHTML).toContain("West basin cleanup");
+    expect(jobDetailWrap.innerHTML).toContain("Expected hours");
+    expect(jobDetailWrap.innerHTML).toContain("Save planning");
+  });
+
+  test("renderJobDetail surfaces assignment pressure and last field update details", async () => {
+    const formatDateTime = vi.fn((value) => `formatted:${value}`);
+    const { context, jobDetailWrap } = loadJobsWorkspace({
+      TEAM_MEMBERS_CACHE: [
+        {
+          id: "member_1",
+          display_name: "Skylar Stevens",
+          role_title: "Crew Lead",
+          user_id: "user_1",
+        },
+      ],
+      JOBS_CACHE: [
+        {
+          id: "job_1",
+          title: "North trench",
+          customer_id: "customer_1",
+          status: "blocked",
+          scheduled_date: "2026-04-08",
+          assigned_member_id: "member_1",
+          assigned_truck_id: "truck_1",
+          billable_hours: 3,
+          minimum_hours: 4,
+          travel_hours: 0.5,
+          blocker_note: "Customer gate is locked",
+          updated_at: "2026-04-08T09:15:00Z",
+        },
+        {
+          id: "job_2",
+          title: "West basin cleanup",
+          customer_id: "customer_1",
+          status: "scheduled",
+          scheduled_date: "2026-04-08",
+          assigned_member_id: "member_1",
+          assigned_truck_id: "truck_1",
+          billable_hours: 2.5,
+          minimum_hours: 4,
+          travel_hours: 0.5,
+        },
+      ],
+      CUSTOMERS_CACHE: [{ id: "customer_1", name: "North Utility" }],
+      normalizeWorkflowStatusValue: vi.fn((value) => value),
+      formatDateTime,
+    });
+
+    await context.renderJobDetail("job_1");
+
+    expect(jobDetailWrap.innerHTML).toContain("Assignment pressure");
+    expect(jobDetailWrap.innerHTML).toContain("Crew double-booked");
+    expect(jobDetailWrap.innerHTML).toContain("Truck double-booked");
+    expect(jobDetailWrap.innerHTML).toContain("Last field update: formatted:2026-04-08T09:15:00Z");
+    expect(jobDetailWrap.innerHTML).toContain("Blocker note: Customer gate is locked");
   });
 
   test("buildJobCloseoutGuidance keeps hydrovac records, audit, and invoice handoff attached to the completed job", () => {
@@ -558,5 +722,192 @@ describe("operator jobs workspace", () => {
     expect(html).toContain("Create the invoice draft on the linked order");
     expect(html).toContain("Proof package");
     expect(html).toContain("Photos: 2");
+  });
+
+  test("jobs workspace shows a crew portal handoff action for assigned work", async () => {
+    const renderRecordActionRail = vi.fn((config = {}) => `<div class="record-action-rail">${(Array.isArray(config.actions) ? config.actions : [])
+      .map((action) => `<button type="button">${String(action.label || "")}</button>`)
+      .join("")}</div>`);
+    const { context, jobDetailWrap } = loadJobsWorkspace({
+      JOBS_CACHE: [{
+        id: "job_crew_1",
+        title: "North trench daylighting",
+        status: "scheduled",
+        customer_id: "customer_1",
+        assigned_operator_id: "member_1",
+      }],
+      CUSTOMERS_CACHE: [{ id: "customer_1", name: "North Utility" }],
+      TEAM_MEMBERS_CACHE: [{ id: "member_1", display_name: "Skylar Stevens" }],
+      renderRecordActionRail,
+    });
+
+    await context.renderJobDetail("job_crew_1");
+
+    expect(renderRecordActionRail).toHaveBeenCalledWith(expect.objectContaining({
+      actions: expect.arrayContaining([
+        expect.objectContaining({
+          label: "Open in crew portal",
+          data: expect.objectContaining({ "job-quick-action": "open-crew" }),
+        }),
+      ]),
+    }));
+    expect(jobDetailWrap.innerHTML).toContain("Open in crew portal");
+  });
+
+  test("jobs workspace can assign a crew member and open the crew portal from job detail", async () => {
+    let saveHandler = null;
+    let saveAndOpenHandler = null;
+    const assignmentSelect = { value: "member_1" };
+    const assignmentMsg = {};
+    const saveButton = {
+      addEventListener: vi.fn((eventName, handler) => {
+        if (eventName === "click") saveHandler = handler;
+      }),
+    };
+    const saveAndOpenButton = {
+      addEventListener: vi.fn((eventName, handler) => {
+        if (eventName === "click") saveAndOpenHandler = handler;
+      }),
+    };
+    const saveJobRecord = vi.fn(async (patch = {}) => {
+      const updatedJob = {
+        id: "job_crew_2",
+        title: "Downtown flush and daylighting",
+        status: "scheduled",
+        customer_id: "customer_1",
+        ...patch,
+      };
+      return updatedJob;
+    });
+    const openSpy = vi.fn();
+    const { context, jobDetailWrap } = loadJobsWorkspace({
+      JOBS_CACHE: [{
+        id: "job_crew_2",
+        title: "Downtown flush and daylighting",
+        status: "scheduled",
+        customer_id: "customer_1",
+      }],
+      CUSTOMERS_CACHE: [{ id: "customer_1", name: "Downtown Utilities" }],
+      TEAM_MEMBERS_CACHE: [{
+        id: "member_1",
+        display_name: "Skylar Stevens",
+        role_title: "Crew Lead",
+        operator_id: "operator_1",
+      }],
+      saveJobRecord,
+      window: { open: openSpy },
+    });
+
+    jobDetailWrap.querySelector = vi.fn((selector) => ({
+      "#jobAssignmentMember": assignmentSelect,
+      "#jobAssignmentMsg": assignmentMsg,
+      "#btnJobSaveCrewAssignment": saveButton,
+      "#btnJobAssignAndOpenCrew": saveAndOpenButton,
+    }[selector] || null));
+    jobDetailWrap.querySelectorAll = vi.fn(() => []);
+
+    await context.renderJobDetail("job_crew_2");
+    expect(jobDetailWrap.innerHTML).toContain("Assign and open crew portal");
+    expect(typeof saveAndOpenHandler).toBe("function");
+
+    await saveAndOpenHandler();
+
+    expect(saveJobRecord).toHaveBeenCalledWith(expect.objectContaining({
+      id: "job_crew_2",
+      assigned_member_id: "member_1",
+      assigned_operator_id: "operator_1",
+    }));
+    expect(openSpy).toHaveBeenCalledWith("/crew/?job=job_crew_2&source=operator", "_blank", "noopener");
+  });
+
+  test("jobs workspace can save crew planning from job detail", async () => {
+    const saveJobRecord = vi.fn(async (patch = {}) => patch);
+    const planningMsg = { textContent: "" };
+    const expectedInput = { value: "1.75" };
+    const minimumInput = { value: "4" };
+    const travelInput = { value: "0.5" };
+    const savePlanningButton = { addEventListener: vi.fn() };
+    const logHoursButton = { addEventListener: vi.fn() };
+    const saveAssignmentButton = { addEventListener: vi.fn() };
+    const assignAndOpenButton = { addEventListener: vi.fn() };
+    const openRequestButton = { addEventListener: vi.fn() };
+    const openBidButton = { addEventListener: vi.fn() };
+    const openCustomerButton = { addEventListener: vi.fn() };
+    const { context, jobDetailWrap } = loadJobsWorkspace({
+      TEAM_MEMBERS_CACHE: [
+        {
+          id: "member_1",
+          display_name: "Skylar Stevens",
+          role_title: "Crew Lead",
+          user_id: "user_1",
+        },
+      ],
+      JOBS_CACHE: [
+        {
+          id: "job_plan_1",
+          title: "North trench",
+          customer_id: "customer_1",
+          status: "scheduled",
+          scheduled_date: "2026-04-08",
+          assigned_member_id: "member_1",
+          billable_hours: 1.5,
+          minimum_hours: 4,
+          travel_hours: 0.25,
+        },
+      ],
+      CUSTOMERS_CACHE: [{ id: "customer_1", name: "North Utility" }],
+      saveJobRecord,
+      renderJobDetail: vi.fn(() => Promise.resolve()),
+    });
+
+    const queryMap = {
+      "#jobCrewExpectedHours": expectedInput,
+      "#jobCrewMinimumBlock": minimumInput,
+      "#jobCrewTravelHours": travelInput,
+      "#jobCrewPlanningMsg": planningMsg,
+      "#btnJobSaveCrewPlanning": savePlanningButton,
+      "#btnJobLogHours": logHoursButton,
+      "#btnJobSaveCrewAssignment": saveAssignmentButton,
+      "#btnJobAssignAndOpenCrew": assignAndOpenButton,
+      "#jobAssignmentMsg": { textContent: "" },
+      "#jobAssignmentMember": { value: "member_1" },
+      "#btnJobOpenRequest": openRequestButton,
+      "#btnJobOpenBid": openBidButton,
+      "#btnJobOpenCustomer": openCustomerButton,
+    };
+    jobDetailWrap.querySelector = vi.fn((selector) => {
+      return queryMap[selector] || null;
+    });
+
+    await context.renderJobDetail("job_plan_1");
+    await savePlanningButton.addEventListener.mock.calls[0][1]();
+
+    expect(saveJobRecord).toHaveBeenCalledWith(expect.objectContaining({
+      id: "job_plan_1",
+      billable_hours: 1.75,
+      minimum_hours: 4,
+      travel_hours: 0.5,
+    }));
+  });
+
+  test("jobs workspace surfaces crew blocker acknowledgment in job detail", async () => {
+    const { context, jobDetailWrap } = loadJobsWorkspace({
+      JOBS_CACHE: [{
+        id: "job_blocked_1",
+        title: "South main repair",
+        status: "blocked",
+        customer_id: "customer_1",
+        assigned_operator_id: "member_1",
+        blocker_note: "Customer gate is locked",
+      }],
+      CUSTOMERS_CACHE: [{ id: "customer_1", name: "South Main" }],
+      TEAM_MEMBERS_CACHE: [{ id: "member_1", display_name: "Skylar Stevens", role_title: "Crew Lead" }],
+    });
+
+    await context.renderJobDetail("job_blocked_1");
+
+    expect(jobDetailWrap.innerHTML).toContain("Crew acknowledgment");
+    expect(jobDetailWrap.innerHTML).toContain("Crew reported a blocker");
+    expect(jobDetailWrap.innerHTML).toContain("Customer gate is locked");
   });
 });

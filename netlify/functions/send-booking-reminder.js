@@ -24,6 +24,7 @@ function divider()                 { return `<div style="border-top:1px solid ${
 function cta(text, href, bg = T.red) { return `<a href="${href}" style="display:inline-block;background:${bg};color:#ffffff;padding:14px 32px;border-radius:5px;font-size:15px;font-weight:700;text-decoration:none;">${text}</a>`; }
 function infoBox(rows)             { return `<table cellpadding="0" cellspacing="0" style="width:100%;border:1px solid ${T.border};border-radius:6px;overflow:hidden;margin:0 0 28px;">${rows.map(([l, v], i) => `<tr><td style="padding:11px 16px;font-size:13px;color:${T.hint};width:120px;background:${i % 2 === 0 ? T.bg : T.card};border-bottom:1px solid ${T.border};white-space:nowrap;">${l}</td><td style="padding:11px 16px;font-size:13px;color:${T.ink};font-weight:500;background:${i % 2 === 0 ? T.bg : T.card};border-bottom:1px solid ${T.border};">${v}</td></tr>`).join('')}</table>`; }
 function escHtml(str) { return String(str == null ? '' : str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function businessNameFromTenant(tenant) { return String(tenant?.business_name || tenant?.name || '').trim() || 'your appointment provider'; }
 
 // ── Date/time formatting helpers ──────────────────────────────────────────────
 
@@ -101,11 +102,11 @@ exports.handler = async function handler(event) {
   // ── Look up tenant name ─────────────────────────────────────────────────────
   const { data: tenant } = await supabase
     .from('tenants')
-    .select('name')
+    .select('business_name, name')
     .eq('id', tenantId)
     .maybeSingle();
 
-  const businessName = tenant?.name || 'your appointment provider';
+  const businessName = businessNameFromTenant(tenant);
 
   // ── Build date / time strings ───────────────────────────────────────────────
   const dateStr  = formatDate(booking.starts_at);

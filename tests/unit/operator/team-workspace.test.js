@@ -107,4 +107,60 @@ describe("operator team workspace", () => {
     expect(elements.btnLoadHours.addEventListener).toHaveBeenCalledTimes(1);
     expect(elements.btnExportHoursCsv.addEventListener).toHaveBeenCalledTimes(1);
   });
+
+  test("fetchTeamMembers falls back to the operator token when authHeaders is unavailable", async () => {
+    const fetch = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ members: [{ id: "member_1", name: "Skylar", role: "member" }] }),
+    }));
+    const getOperatorAccessToken = vi.fn(() => Promise.resolve("token_123"));
+    const { context } = loadTeamWorkspace({
+      authHeaders: undefined,
+      fetch,
+      getOperatorAccessToken,
+    });
+
+    await context.window.fetchTeamMembers();
+
+    expect(getOperatorAccessToken).toHaveBeenCalledTimes(1);
+    expect(fetch).toHaveBeenCalledWith(
+      "/.netlify/functions/manage-operator-members",
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: "Bearer token_123",
+        }),
+      })
+    );
+    expect(context.TEAM_MEMBERS_CACHE).toHaveLength(1);
+  });
+
+  test("renderTeamPanel surfaces roster pressure, unassigned jobs, and active crew load", () => {
+    const { context, elements } = loadTeamWorkspace({
+      TEAM_MEMBERS_CACHE: [
+        { id: "member_1", display_name: "Skylar Stevens", role: "member" },
+        { id: "member_2", display_name: "Jordan Diaz", role: "member" },
+      ],
+      JOBS_CACHE: [
+        { id: "job_1", assigned_operator_id: "member_1", status: "in_progress", billable_hours: 1.5, minimum_hours: 4, travel_hours: 0.25, updated_at: "2026-04-08T09:15:00Z" },
+        { id: "job_2", assigned_operator_id: "member_1", status: "dispatched", billable_hours: 3, minimum_hours: 4, travel_hours: 0.5 },
+        { id: "job_5", assigned_operator_id: "member_1", status: "blocked", billable_hours: 0.5, minimum_hours: 4, travel_hours: 0, blocker_note: "Customer gate is locked" },
+        { id: "job_3", assigned_operator_id: "member_2", status: "scheduled", billable_hours: 1, minimum_hours: 4, travel_hours: 0.25 },
+        { id: "job_4", status: "scheduled" },
+      ],
+    });
+
+    context.window.renderTeamPanel();
+
+    expect(elements.teamMembersList.innerHTML).toContain("In the field");
+    expect(elements.teamMembersList.innerHTML).toContain("Unassigned jobs");
+    expect(elements.teamMembersList.innerHTML).toContain("Roster pressure");
+    expect(elements.teamMembersList.innerHTML).toContain("Block capacity");
+    expect(elements.teamMembersList.innerHTML).toContain("2 active");
+    expect(elements.teamMembersList.innerHTML).toContain("1 assigned job");
+    expect(elements.teamMembersList.innerHTML).toContain("planned / 4h block");
+    expect(elements.teamMembersList.innerHTML).toContain("left in block");
+    expect(elements.teamMembersList.innerHTML).toContain("Double-booked");
+    expect(elements.teamMembersList.innerHTML).toContain("Last field update 2026-04-08T09:15:00Z");
+    expect(elements.teamMembersList.innerHTML).toContain("Blocker: Customer gate is locked");
+  });
 });

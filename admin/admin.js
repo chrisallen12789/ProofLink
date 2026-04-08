@@ -1061,7 +1061,7 @@ function exportTenantsCsv() {
       tenantStatus,
       t.stripe_status || '',
       t.order_count  != null ? t.order_count : '',
-      t.gmv          != null ? (t.gmv / 100).toFixed(2) : '',
+      t.gmv          != null ? Number(t.gmv).toFixed(2) : '',
       t.city_state   || '',
       t.created_at   ? new Date(t.created_at).toLocaleDateString() : '',
     ].map(function (v) {

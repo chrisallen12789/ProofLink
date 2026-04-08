@@ -281,12 +281,12 @@ describe("crew job actions", () => {
         locate_tickets: [{
           ticket_number: "PL-811-4401",
           status: "active",
-          valid_until: "2026-04-05T18:30:00.000Z",
+          valid_until: "2099-04-05T18:30:00.000Z",
         }],
         confined_space_permits: [{
           permit_number: "PLCS-4401",
           status: "open",
-          permit_valid_until: "2026-04-05T17:15:00.000Z",
+          permit_valid_until: "2099-04-05T17:15:00.000Z",
         }],
         requires_confined_space_permit: true,
       },
@@ -448,5 +448,64 @@ describe("crew job actions", () => {
     expect(ensureElement("completionHydrovacOverview").innerHTML).toContain("Hydrovac command");
     expect(ensureElement("completionSubmitNote").textContent).toContain("Structured closeout");
     expect(context.showScreen).toHaveBeenCalledWith("completion");
+  });
+
+  test("maybeOpenRequestedCrewJob announces when the office launched the crew into a job", async () => {
+    const { context } = loadCrew({
+      URL,
+      window: {
+        location: {
+          search: "?job=job_1&source=operator",
+          href: "https://prooflink.co/crew/?job=job_1&source=operator",
+          pathname: "/crew/",
+          origin: "https://prooflink.co",
+        },
+        history: { replaceState: vi.fn() },
+      },
+    });
+    const openJob = vi.fn(() => Promise.resolve());
+    const showToast = vi.fn();
+    context.openJob = openJob;
+    context.showToast = showToast;
+    vm.runInContext("PENDING_LAUNCH_JOB_ID = 'job_1'; PENDING_LAUNCH_SOURCE = 'operator';", context);
+
+    const opened = await context.maybeOpenRequestedCrewJob([
+      { id: "job_1", title: "North trench daylighting" },
+    ]);
+
+    expect(opened).toBe(true);
+    expect(openJob).toHaveBeenCalledWith(expect.objectContaining({ id: "job_1" }));
+    expect(showToast).toHaveBeenCalledWith(
+      "The office sent you into North trench daylighting. Review the details before you roll.",
+      "info"
+    );
+  });
+
+  test("maybeOpenRequestedCrewJob opens the requested job from the launch query", async () => {
+    const replaceState = vi.fn();
+    const { context } = loadCrew({
+      URL,
+      window: {
+        location: {
+          search: "?job=job_77",
+          href: "https://prooflink.co/crew/?job=job_77",
+          pathname: "/crew/",
+          origin: "https://prooflink.co",
+        },
+        history: { replaceState },
+      },
+    });
+
+    const openJobSpy = vi.fn(async () => {});
+    context.openJob = openJobSpy;
+    vm.runInContext("PENDING_LAUNCH_JOB_ID = 'job_77';", context);
+
+    const opened = await context.maybeOpenRequestedCrewJob([
+      { id: "job_77", title: "North trench daylighting" },
+    ]);
+
+    expect(opened).toBe(true);
+    expect(openJobSpy).toHaveBeenCalledWith(expect.objectContaining({ id: "job_77" }));
+    expect(replaceState).toHaveBeenCalled();
   });
 });

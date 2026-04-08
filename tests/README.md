@@ -7,13 +7,14 @@
 5. Run `npm run test:cleanup`.
 6. Run `npm run test:seed`.
 7. Run `npm run test:preflight:env-contract` to verify docs/examples stay aligned with required `TEST_*` keys.
-8. Run `npm run test:preflight:service-workflow`.
-9. Run `npm run test:unit`.
-10. Run `npm run test:integration:service-workflow`.
-11. Run `npx playwright install chromium`.
-12. Start Netlify dev against the same environment with `npm run dev:test`.
-13. Run `npm run test:e2e:service-workflow`.
-14. Run `npm run test:e2e:operator-cross-device` for Chrome, Firefox, Safari/WebKit, iPhone, and Android operator smoke coverage.
+8. Run `npm run test:preflight:release-readiness` to verify the production env contract and scheduled-function wiring still match the repo.
+9. Run `npm run test:preflight:service-workflow`.
+10. Run `npm run test:unit`.
+11. Run `npm run test:integration:service-workflow`.
+12. Run `npx playwright install chromium`.
+13. Start Netlify dev against the same environment with `npm run dev:test`.
+14. Run `npm run test:e2e:service-workflow`.
+15. Run `npm run test:e2e:operator-cross-device` for Chrome, Firefox, Safari/WebKit, iPhone, and Android operator smoke coverage.
 
 Notes:
 - All deterministic test data uses the `pltest-` prefix.

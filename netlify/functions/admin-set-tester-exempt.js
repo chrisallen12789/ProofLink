@@ -23,6 +23,19 @@ function clean(val) {
   return String(val || '').trim();
 }
 
+function tenantBusinessName(tenant) {
+  if (!tenant || typeof tenant !== 'object') return '';
+  return tenant.business_name || tenant.name || tenant.slug || '';
+}
+
+function resolveExemptionMonths(value) {
+  if (value === undefined || value === null || value === '') return 12;
+  const months = Number(value);
+  if (!Number.isFinite(months) || !Number.isInteger(months)) return null;
+  if (months < 1 || months > 24) return null;
+  return months;
+}
+
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return respond(200, {});
 
@@ -39,7 +52,6 @@ exports.handler = async (event) => {
         })()
   );
 
-  // ── Auth ────────────────────────────────────────────────────────────────────
   let ctx;
   try {
     ctx = event.httpMethod === 'GET'
@@ -51,14 +63,13 @@ exports.handler = async (event) => {
 
   const { supabase } = ctx;
 
-  // ── GET — check exemption state for a tenant ───────────────────────────────
   if (event.httpMethod === 'GET') {
     const tenantId = requestedTenantId;
     if (!tenantId) return respond(400, { error: 'tenantId is required' });
 
     const { data: tenant, error } = await supabase
       .from('tenants')
-      .select('id, slug, name, billing_exempt, billing_exempt_until, billing_status')
+      .select('id, slug, business_name, name, billing_exempt, billing_exempt_until, billing_status')
       .eq('id', tenantId)
       .maybeSingle();
 
@@ -71,7 +82,7 @@ exports.handler = async (event) => {
     return respond(200, {
       tenantId: tenant.id,
       slug: tenant.slug,
-      name: tenant.name,
+      name: tenantBusinessName(tenant),
       billingStatus: tenant.billing_status,
       billingExempt: tenant.billing_exempt,
       billingExemptUntil: tenant.billing_exempt_until,
@@ -84,7 +95,6 @@ exports.handler = async (event) => {
 
   if (event.httpMethod !== 'POST') return respond(405, { error: 'Method not allowed' });
 
-  // ── POST — grant or revoke exemption ─────────────────────────────────────
   let body;
   try {
     body = JSON.parse(event.body || '{}');
@@ -96,17 +106,19 @@ exports.handler = async (event) => {
   if (!tenantId) return respond(400, { error: 'tenantId is required' });
 
   const exempt = body.exempt === true || body.exempt === 'true';
+  const months = exempt ? resolveExemptionMonths(body.months) : null;
+  if (exempt && months === null) {
+    return respond(400, { error: 'months must be an integer between 1 and 24' });
+  }
 
-  // ── Verify tenant exists ───────────────────────────────────────────────────
   const { data: tenant, error: fetchErr } = await supabase
     .from('tenants')
-    .select('id, slug, name, billing_exempt, billing_exempt_until')
+    .select('id, slug, business_name, name, billing_exempt, billing_exempt_until')
     .eq('id', tenantId)
     .maybeSingle();
 
   if (fetchErr || !tenant) return respond(404, { error: 'Tenant not found' });
 
-  // ── Revoke ─────────────────────────────────────────────────────────────────
   if (!exempt) {
     const { error: revokeErr } = await supabase
       .from('tenants')
@@ -124,35 +136,36 @@ exports.handler = async (event) => {
       action: 'revoked',
       tenantId,
       slug: tenant.slug,
-      name: tenant.name,
+      name: tenantBusinessName(tenant),
     });
   }
 
-  // ── Grant — check slot limit first ────────────────────────────────────────
   const { data: currentExempt, error: countErr } = await supabase
     .from('tenants')
-    .select('id, slug, name, billing_exempt_until')
+    .select('id, slug, business_name, name, billing_exempt_until')
     .eq('billing_exempt', true)
-    .neq('id', tenantId); // exclude current tenant in case we're renewing
+    .neq('id', tenantId);
 
   if (countErr) return respond(500, { error: countErr.message });
 
-  // Only count tenants whose exemption has not expired
   const now = new Date();
-  const activeExemptions = (currentExempt || []).filter(t => {
-    if (!t.billing_exempt_until) return true; // indefinite
-    return new Date(t.billing_exempt_until) > now;
+  const activeExemptions = (currentExempt || []).filter((currentTenant) => {
+    if (!currentTenant.billing_exempt_until) return true;
+    return new Date(currentTenant.billing_exempt_until) > now;
   });
 
   if (activeExemptions.length >= MAX_TESTER_SLOTS) {
     return respond(409, {
       error: `Tester slot limit reached (${MAX_TESTER_SLOTS} max). Revoke an existing exemption first.`,
-      activeTesters: activeExemptions.map(t => ({ id: t.id, slug: t.slug, name: t.name, until: t.billing_exempt_until })),
+      activeTesters: activeExemptions.map((currentTenant) => ({
+        id: currentTenant.id,
+        slug: currentTenant.slug,
+        name: tenantBusinessName(currentTenant),
+        until: currentTenant.billing_exempt_until,
+      })),
     });
   }
 
-  // ── Calculate expiry ───────────────────────────────────────────────────────
-  const months = Math.min(Math.max(Number(body.months || 12), 1), 24); // clamp 1–24 months
   const exemptUntil = new Date();
   exemptUntil.setMonth(exemptUntil.getMonth() + months);
 
@@ -167,14 +180,12 @@ exports.handler = async (event) => {
 
   if (grantErr) return respond(500, { error: grantErr.message });
 
-  console.log(`[tester-exempt] Granted ${months}-month exemption to tenant ${tenantId} (${tenant.slug}). Expires ${exemptUntil.toISOString()}. Active slots: ${activeExemptions.length + 1}/${MAX_TESTER_SLOTS}`);
-
   return respond(201, {
     ok: true,
     action: 'granted',
     tenantId,
     slug: tenant.slug,
-    name: tenant.name,
+    name: tenantBusinessName(tenant),
     months,
     billingExemptUntil: exemptUntil.toISOString(),
     slotsUsed: activeExemptions.length + 1,

@@ -44,6 +44,11 @@ function escapeHtml(value) {
   }[token]));
 }
 
+function tenantBusinessName(tenant) {
+  if (!tenant || typeof tenant !== 'object') return '';
+  return clean(tenant.business_name || tenant.name || tenant.slug);
+}
+
 function textToHtml(text, businessName, options = {}) {
   const lines = String(text || '')
     .split(/\r?\n/)
@@ -79,7 +84,7 @@ function textToHtml(text, businessName, options = {}) {
 
 async function loadBrandContext(supabase, tenantId) {
   const [{ data: tenant }, { data: cfgRow }] = await Promise.all([
-    supabase.from('tenants').select('id, name').eq('id', tenantId).maybeSingle(),
+    supabase.from('tenants').select('id, business_name, name, slug').eq('id', tenantId).maybeSingle(),
     supabase.from('tenant_config').select('config_value').eq('tenant_id', tenantId).eq('config_key', 'site_settings').maybeSingle(),
   ]);
 
@@ -93,7 +98,7 @@ async function loadBrandContext(supabase, tenantId) {
   }
 
   return {
-    tenantName: clean(tenant?.name) || 'ProofLink',
+    tenantName: tenantBusinessName(tenant) || 'ProofLink',
     replyTo: clean(config.public_contact_email || config.contact_email || ''),
     phone: clean(config.public_business_phone || config.business_phone || ''),
   };

@@ -35,7 +35,7 @@ exports.handler = async (event) => {
     // --- Fetch the order ---
     const { data: orderRows, error: orderErr } = await supabase
       .from('orders')
-      .select('id, tenant_id, customer_email, total_cents, amount_paid_cents, status, title')
+      .select('id, tenant_id, email, total_cents, amount_paid_cents, amount_due_cents, payment_state, status, cart_summary')
       .eq('id', orderId)
       .limit(1);
 
@@ -50,7 +50,7 @@ exports.handler = async (event) => {
     }
 
     // --- Verify email matches (case-insensitive) ---
-    const storedEmail  = (order.customer_email || '').toLowerCase();
+    const storedEmail  = (order.email || '').toLowerCase();
     const providedEmail = email.toLowerCase();
     if (!storedEmail || storedEmail !== providedEmail) {
       return respond(403, { ok: false, error: 'Email does not match order records' });
@@ -73,9 +73,12 @@ exports.handler = async (event) => {
     }
 
     // --- Calculate outstanding balance ---
-    const totalCents     = Number(order.total_cents)       || 0;
-    const amountPaid     = Number(order.amount_paid_cents) || 0;
-    const balanceCents   = totalCents - amountPaid;
+    const totalCents = Number(order.total_cents) || 0;
+    const amountPaid = Number(order.amount_paid_cents) || 0;
+    const explicitAmountDue = Number(order.amount_due_cents);
+    const balanceCents = Number.isFinite(explicitAmountDue)
+      ? explicitAmountDue
+      : totalCents - amountPaid;
 
     if (balanceCents <= 0) {
       return respond(400, { ok: false, error: 'No outstanding balance' });
@@ -138,7 +141,7 @@ exports.handler = async (event) => {
       : 0;
 
     // --- Create Stripe Checkout session ---
-    const productName = (order.title || 'Outstanding Balance').trim();
+    const productName = (order.cart_summary || 'Outstanding Balance').trim();
 
     const session = await stripeRequest('/checkout/sessions', 'POST', {
       mode                                              : 'payment',

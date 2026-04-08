@@ -46,14 +46,23 @@ function loadBookingsWorkspace(overrides = {}) {
     bkDate: makeButton(),
     bkStart: makeButton(),
     bkNotes: makeButton(),
+    bkLocationLabel: makeButton(),
+    bkServiceAddress: makeButton(),
     newBookingForm: { classList: { add: vi.fn(), remove: vi.fn(), toggle: vi.fn(), contains: vi.fn(() => false) } },
     newBookingMsg: { textContent: "", className: "" },
+    calendarSyncWrap: { innerHTML: "" },
+    bookingLinkDisplay: { textContent: "" },
+    bookingsNoShowStat: { textContent: "" },
+    bookingsCalendar: { innerHTML: "", querySelectorAll: vi.fn(() => []) },
+    bkMonthLabel: { textContent: "" },
+    bookingsList: { innerHTML: "", querySelectorAll: vi.fn(() => []) },
+    bkListLabel: { textContent: "" },
   };
 
   const context = {
     console,
     window: { location: { origin: "https://app.prooflink.test" } },
-    document: { createElement: vi.fn(), body: { appendChild: vi.fn() }, getElementById: vi.fn(() => null) },
+    document: { createElement: vi.fn(), body: { appendChild: vi.fn() }, getElementById: vi.fn(() => null), querySelectorAll: vi.fn(() => []) },
     localStorage: { getItem: vi.fn(() => "false"), setItem: vi.fn() },
     FETCHING: new Set(),
     BOOKINGS_CACHE: [],
@@ -140,6 +149,9 @@ describe("operator bookings workspace", () => {
     expect(source).toContain("bookingAssignmentGuidanceItems");
     expect(source).toContain("bookingFollowThroughItems");
     expect(source).toContain("renderBookingsOverview");
+    expect(source).toContain("Google Calendar sync");
+    expect(source).toContain("Duplicate exports are blocked server-side.");
+    expect(source).toContain("Connect Google Calendar");
     expect(source).toContain("booking-list-card");
     expect(source).toContain("After this visit");
     expect(source).toContain(">Close</button>");
@@ -229,6 +241,20 @@ describe("operator bookings workspace", () => {
       { label: "Truck access ready", ready: true, note: "Stage truck at east service road pullout" },
       { label: "Locate and permit note", ready: true, note: "811 ticket expires Thursday" },
       { label: "Disposal and PO memory", ready: true, note: "Dump at South County liquid waste facility" },
+    ]);
+  });
+
+  test("bookingExternalEventsForPane filters consolidated Google events by date", () => {
+    const { context } = loadBookingsWorkspace();
+    context.window.setBookingExternalEvents([
+      { id: "event_1", starts_at: "2026-04-08T13:00:00.000Z", summary: "Google event 1" },
+      { id: "event_2", starts_at: "2026-04-09T14:00:00.000Z", summary: "Google event 2" },
+    ]);
+
+    const items = context.window.bookingExternalEventsForPane("2026-04-08");
+
+    expect(items).toEqual([
+      { id: "event_1", starts_at: "2026-04-08T13:00:00.000Z", summary: "Google event 1" },
     ]);
   });
 

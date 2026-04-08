@@ -93,4 +93,64 @@ describe("netlify/functions/admin-approve-onboarding", () => {
       restore();
     }
   });
+
+  test("returns 500 when the onboarding request cannot be marked provisioning", async () => {
+    process.env.SITE_URL = "https://prooflink.co";
+
+    const onboardingSelectChain = {
+      select: vi.fn(() => onboardingSelectChain),
+      eq: vi.fn(() => onboardingSelectChain),
+      maybeSingle: vi.fn(async () => ({
+        data: {
+          id: "req_pltest_provisioning_fail",
+          status: "submitted",
+          business_name: "North College",
+          owner_name: "Taylor",
+          owner_email: "owner@example.com",
+        },
+        error: null,
+      })),
+      update: vi.fn(() => ({
+        eq: vi.fn(async () => ({ error: { message: "update blocked" } })),
+      })),
+    };
+
+    const tenantsSelectChain = {
+      select: vi.fn(() => tenantsSelectChain),
+      eq: vi.fn(() => tenantsSelectChain),
+      maybeSingle: vi.fn(async () => ({ data: null, error: null })),
+    };
+
+    const supabase = {
+      from: vi.fn((table) => {
+        if (table === "tenant_onboarding_requests") return onboardingSelectChain;
+        if (table === "tenants") return tenantsSelectChain;
+        throw new Error(`Unexpected table ${table}`);
+      }),
+      auth: { admin: {} },
+    };
+
+    const { handler, restore } = loadHandlerWithMocks({
+      authExports: {
+        requireAdminContext: vi.fn(async () => ({ operatorId: "op_pltest_admin", supabase })),
+        respond: (statusCode, body) => ({ statusCode, body: JSON.stringify(body) }),
+      },
+      emailExports: { sendEmail: vi.fn(), templates: { provisioned: vi.fn() } },
+      slugifyExports: { uniqueTenantSlug: vi.fn() },
+      seedTemplateExports: { seedTemplateForTenant: vi.fn() },
+    });
+
+    try {
+      const res = await handler({
+        httpMethod: "POST",
+        headers: {},
+        body: JSON.stringify({ id: "req_pltest_provisioning_fail" }),
+      });
+
+      expect(res.statusCode).toBe(500);
+      expect(JSON.parse(res.body).error).toBe("Failed to mark onboarding request as provisioning: update blocked");
+    } finally {
+      restore();
+    }
+  });
 });

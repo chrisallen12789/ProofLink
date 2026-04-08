@@ -8,6 +8,10 @@ const { requireOperatorContext, getAdminClient, respond } = require('./utils/aut
 const { loggedSendEmail, templates }                      = require('./utils/email');
 const { getConfiguredSiteUrl }                            = require('./utils/runtime-config');
 
+function businessNameFromTenant(tenant) {
+  return String(tenant?.business_name || tenant?.name || '').trim() || 'Your service provider';
+}
+
 async function getNextInvoiceNumber(adminSb, tenantId, tenantSlug) {
   const year = new Date().getFullYear();
   // Atomic increment: upsert and return new seq
@@ -50,7 +54,7 @@ exports.handler = async (event) => {
 
   const { data: order, error: orderErr } = await supabase
     .from('orders')
-    .select('id, customer_name, email, title, notes, total_amount, total_cents, status, created_at, tenant_id, invoice_number, payment_due_date')
+    .select('id, customer_name, email, cart_summary, notes, total_cents, status, created_at, tenant_id, invoice_number, payment_due_date')
     .eq('id', order_id)
     .eq('tenant_id', tenantId)
     .maybeSingle();
@@ -63,10 +67,10 @@ exports.handler = async (event) => {
 
   const { data: tenant } = await supabase
     .from('tenants')
-    .select('name, slug, logo_url')
+    .select('business_name, name, slug, logo_url')
     .eq('id', tenantId)
     .maybeSingle();
-  const businessName = tenant?.name || 'Your service provider';
+  const businessName = businessNameFromTenant(tenant);
 
   const siteUrl   = getConfiguredSiteUrl();
   const portalUrl = `${siteUrl}/portal.html?tenant=${encodeURIComponent(tenantId)}&email=${encodeURIComponent(customerEmail)}`;
@@ -86,9 +90,9 @@ exports.handler = async (event) => {
     customer_email: customerEmail,
     business_name : businessName,
     order_id      : order.id,
-    title         : order.title || 'Service',
+    title         : order.cart_summary || 'Service',
     description   : order.notes || null,
-    total_amount  : order.total_amount,
+    total_amount  : Number(order.total_cents || 0) / 100,
     total_cents   : order.total_cents,
     status        : order.status,
     created_at    : order.created_at,

@@ -45,7 +45,7 @@ describe("netlify/functions/process-recurring-orders", () => {
   test("returns a clean 500 when recurring plan generation fails", async () => {
     const rpc = vi.fn(async () => ({
       data: null,
-      error: { message: "function public.generate_due_service_plans does not exist" },
+      error: { message: "unexpected failure" },
     }));
     const supabase = { rpc };
 
@@ -55,5 +55,20 @@ describe("netlify/functions/process-recurring-orders", () => {
 
     expect(response.statusCode).toBe(500);
     expect(body.error).toBe("Failed to process recurring service plans");
+  });
+
+  test("returns 503 when recurring schema is not installed", async () => {
+    const rpc = vi.fn(async () => ({
+      data: null,
+      error: { code: "42883", message: "function public.generate_due_service_plans does not exist" },
+    }));
+    const supabase = { rpc };
+
+    const handler = loadHandlerWithSupabase(supabase);
+    const response = await handler({ httpMethod: "POST" });
+    const body = JSON.parse(response.body);
+
+    expect(response.statusCode).toBe(503);
+    expect(body.error).toBe("Recurring service plan schema is not installed for this environment.");
   });
 });

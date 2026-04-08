@@ -63,15 +63,30 @@ function createQueryChain(result, terminal = "limit") {
 function createSupabaseMock() {
   let ordersSelectCount = 0;
   const tenantsTable = createQueryChain({
-    data: { id: "tenant_1", name: "Benkari Vacs" },
+    data: { id: "tenant_1", business_name: "Benkari Vacs", name: "Legacy tenant name" },
     error: null,
   }, "maybeSingle");
   const ordersTable = createQueryChain({
-    data: [{ id: "order_1", title: "Hydrovac work", amount_due_cents: 25000, status: "confirmed" }],
+    data: [{
+      id: "order_1",
+      cart_summary: "Hydrovac work",
+      total_cents: 25000,
+      amount_due_cents: 25000,
+      status: "confirmed",
+      created_at: "2026-03-25T10:00:00.000Z",
+    }],
     error: null,
   });
   const linkedOrdersTable = createQueryChain({
-    data: [{ id: "order_linked_1", title: "Operator-created work", amount_due_cents: 12000, status: "confirmed", customer_id: "customer_1", created_at: "2026-03-24T10:00:00.000Z" }],
+    data: [{
+      id: "order_linked_1",
+      cart_summary: "Operator-created work",
+      total_cents: 12000,
+      amount_due_cents: 12000,
+      status: "confirmed",
+      customer_id: "customer_1",
+      created_at: "2026-03-24T10:00:00.000Z",
+    }],
     error: null,
   });
   const bookingsTable = createQueryChain({
@@ -168,8 +183,8 @@ describe("netlify/functions/get-customer-portal", () => {
       expect(body.orders).toHaveLength(2);
       expect(body.orders).toEqual(
         expect.arrayContaining([
-          expect.objectContaining({ id: "order_1", title: "Hydrovac work" }),
-          expect.objectContaining({ id: "order_linked_1", title: "Operator-created work", customer_id: "customer_1" }),
+          expect.objectContaining({ id: "order_1", title: "Hydrovac work", total_amount: 250 }),
+          expect.objectContaining({ id: "order_linked_1", title: "Operator-created work", customer_id: "customer_1", total_amount: 120 }),
         ])
       );
       expect(body.bookings).toHaveLength(1);
@@ -199,7 +214,10 @@ describe("netlify/functions/get-customer-portal", () => {
   test("uses the real orders schema instead of drifting back to missing columns", () => {
     const source = fs.readFileSync(handlerPath, "utf8");
     expect(source).toContain("function normalizePortalOrder(order)");
-    expect(source).toContain("title: order.title || order.cart_summary || order.customer_name || 'Order'");
+    expect(source).toContain("title: order.cart_summary || order.customer_name || 'Order'");
+    expect(source).toContain("total_amount: totalCents / 100");
+    expect(source).toContain("function normalizeTenantBusinessName(tenant)");
+    expect(source).toContain(".select('id, business_name, name')");
     expect(source).toContain(".ilike('email', normalizedEmail)");
     expect(source).not.toContain("customer_email.ilike");
     expect(source).toContain(".select('id, cart_summary, status");

@@ -8,6 +8,10 @@ const { requireOperatorContext, respond } = require('./utils/auth');
 const { sendEmail, templates }            = require('./utils/email');
 const { getConfiguredSiteUrl }            = require('./utils/runtime-config');
 
+function businessNameFromTenant(tenant) {
+  return String(tenant?.business_name || tenant?.name || '').trim() || 'Your service provider';
+}
+
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return respond(200, {});
   if (event.httpMethod !== 'POST')    return respond(405, { error: 'Method not allowed' });
@@ -30,7 +34,7 @@ exports.handler = async (event) => {
   // Fetch order + tenant business name
   let { data: order, error: orderErr } = await supabase
     .from('orders')
-    .select('id, customer_name, customer_email, email, status, review_requested_at, tenant_id, operator_id')
+    .select('id, customer_name, email, status, review_requested_at, tenant_id, operator_id')
     .eq('id', order_id)
     .eq('tenant_id', tenantId)
     .maybeSingle();
@@ -38,27 +42,18 @@ exports.handler = async (event) => {
   if (!orderErr && !order && operatorId) {
     const legacyLookup = await supabase
       .from('orders')
-      .select('id, customer_name, customer_email, email, status, review_requested_at, tenant_id, operator_id')
+      .select('id, customer_name, email, status, review_requested_at, tenant_id, operator_id')
       .eq('id', order_id)
+      .eq('tenant_id', tenantId)
       .eq('operator_id', operatorId)
       .maybeSingle();
     order = legacyLookup.data || null;
     orderErr = legacyLookup.error || null;
   }
 
-  if (!orderErr && !order) {
-    const directLookup = await supabase
-      .from('orders')
-      .select('id, customer_name, customer_email, email, status, review_requested_at, tenant_id, operator_id')
-      .eq('id', order_id)
-      .maybeSingle();
-    order = directLookup.data || null;
-    orderErr = directLookup.error || null;
-  }
-
   if (orderErr || !order) return respond(404, { error: 'Order not found' });
 
-  const customerEmail = String(order.customer_email || order.email || '').trim();
+  const customerEmail = String(order.email || '').trim();
   if (!customerEmail) {
     return respond(400, { error: 'No customer email on this order' });
   }
@@ -70,11 +65,11 @@ exports.handler = async (event) => {
   // Get business name from tenant
   const { data: tenant } = await supabase
     .from('tenants')
-    .select('name')
+    .select('business_name, name')
     .eq('id', tenantId)
     .maybeSingle();
 
-  const businessName = tenant?.name || 'Your service provider';
+  const businessName = businessNameFromTenant(tenant);
   const siteUrl      = getConfiguredSiteUrl();
   const reviewUrl    = `${siteUrl}/review.html?order=${encodeURIComponent(order_id)}&tenant=${encodeURIComponent(tenantId)}`;
 

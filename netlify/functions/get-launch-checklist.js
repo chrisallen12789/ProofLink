@@ -7,6 +7,10 @@ const { getAdminClient, respond } = require('./utils/auth');
 const { clean, requireOperatorContext } = require('./_prooflink_payments');
 const { buildLaunchChecklist } = require('./lib/build-launch-checklist');
 
+function tenantBusinessName(tenant) {
+  return String(tenant?.business_name || tenant?.name || '').trim();
+}
+
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return respond(200, {});
   if (event.httpMethod !== 'GET') return respond(405, { error: 'Method not allowed' });
@@ -83,7 +87,7 @@ exports.handler = async (event) => {
 
   return respond(200, {
     tenant_id    : tenant.id,
-    tenant_name  : tenant.name,
+    tenant_name  : tenantBusinessName(tenant),
     tenant_slug  : tenant.slug,
     ...checklist,
   });

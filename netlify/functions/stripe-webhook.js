@@ -188,7 +188,7 @@ async function patchPaymentBySession(sessionId, patch) {
   return supabaseAdmin(path, 'PATCH', {
     ...patch,
     updated_at: new Date().toISOString(),
-  }).catch(() => null);
+  });
 }
 
 async function resolveTenantIdFromSubscription(obj = {}) {
@@ -365,15 +365,23 @@ exports.handler = async (event) => {
     return json(400, { ok: false, error: 'Invalid Stripe signature.' });
   }
 
+  let evt = null;
+  let type = '';
+  let obj = {};
+
+  try {
+    evt = JSON.parse(body || '{}');
+    type = String(evt?.type || '');
+    obj = evt?.data?.object || {};
+  } catch (e) {
+    return json(400, { ok: false, error: e.message || String(e) });
+  }
+
   let eventId = '';
   let idempotencyClient = null;
   let claimedEvent = false;
 
   try {
-    const evt = JSON.parse(body || '{}');
-    const type = String(evt?.type || '');
-    const obj = evt?.data?.object || {};
-
     // ── Idempotency check ──────────────────────────────────────────────────────
     // Idempotency check
     eventId = clean(evt?.id || '');
@@ -448,7 +456,7 @@ exports.handler = async (event) => {
               status: 'paid',
               updated_at: new Date().toISOString(),
             }
-          ).catch(() => null);
+          );
         }
       }
     }

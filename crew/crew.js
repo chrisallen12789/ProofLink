@@ -21,6 +21,8 @@ let DB             = null;   // IndexedDB handle
 let SIG_DRAWING    = false;  // signature pad drawing state
 let SIG_POINTS     = [];     // drawn path for blank-check
 let CURRENT_DATE   = todayString(); // date filter for home view
+let PENDING_LAUNCH_JOB_ID = '';
+let PENDING_LAUNCH_SOURCE = '';
 window.PROOFLINK_CREW_BOOT_READY = false;
 
 // ── Quick Log State ─────────────────────────────────────────────────────────────
@@ -51,6 +53,59 @@ function formatDuration(seconds) {
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
   return `${h}h ${String(m).padStart(2, '0')}m`;
+}
+
+function crewLaunchJobIdFromLocation() {
+  try {
+    const search = String(window?.location?.search || '');
+    const params = new URLSearchParams(search);
+    return String(params.get('job') || '').trim();
+  } catch (_) {
+    return '';
+  }
+}
+
+function crewLaunchSourceFromLocation() {
+  try {
+    const search = String(window?.location?.search || '');
+    const params = new URLSearchParams(search);
+    return String(params.get('source') || '').trim().toLowerCase();
+  } catch (_) {
+    return '';
+  }
+}
+
+function clearCrewLaunchJobId() {
+  try {
+    const href = String(window?.location?.href || '');
+    const url = href
+      ? new URL(href)
+      : new URL(String(window?.location?.pathname || '/crew/'), String(window?.location?.origin || 'https://prooflink.co'));
+    url.searchParams.delete('job');
+    url.searchParams.delete('source');
+    if (window?.history?.replaceState) {
+      window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
+    }
+  } catch (_) {
+    // Ignore launch cleanup issues so the crew app can still open jobs.
+  }
+}
+
+async function maybeOpenRequestedCrewJob(jobList = JOBS) {
+  const requestedId = String(PENDING_LAUNCH_JOB_ID || crewLaunchJobIdFromLocation()).trim();
+  const launchSource = String(PENDING_LAUNCH_SOURCE || crewLaunchSourceFromLocation()).trim().toLowerCase();
+  if (!requestedId) return false;
+  const job = Array.isArray(jobList) ? jobList.find((row) => String(row?.id || '') === requestedId) : null;
+  if (!job) return false;
+  PENDING_LAUNCH_JOB_ID = '';
+  PENDING_LAUNCH_SOURCE = '';
+  clearCrewLaunchJobId();
+  await openJob(job);
+  if (launchSource === 'operator') {
+    const label = String(job?.title || job?.customer_name || job?.service_address || 'the assigned job').trim();
+    showToast(`The office sent you into ${label}. Review the details before you roll.`, 'info');
+  }
+  return true;
 }
 
 function statusLabel(status) {
@@ -250,6 +305,17 @@ function crewHydrovacManifestSummary(job = ACTIVE_JOB) {
     manifestNumber: String(liveManifest?.manifest_number || liveManifest?.id || '').trim(),
   };
 }
+function crewJobReferenceTime(job = ACTIVE_JOB) {
+  const scheduledDate = String(job?.scheduled_date || '').trim();
+  const scheduledTime = String(job?.scheduled_time || '').trim() || '12:00:00';
+  const scheduledAt = scheduledDate ? Date.parse(`${scheduledDate}T${scheduledTime}`) : NaN;
+  if (Number.isFinite(scheduledAt)) return scheduledAt;
+
+  const dispatchAt = Date.parse(job?.scheduled_at || job?.service_date || '');
+  if (Number.isFinite(dispatchAt)) return dispatchAt;
+
+  return Date.now();
+}
 function crewHydrovacLocateSummary(job = ACTIVE_JOB) {
   const tickets = Array.isArray(job?.locates)
     ? job.locates
@@ -258,6 +324,7 @@ function crewHydrovacLocateSummary(job = ACTIVE_JOB) {
       : Array.isArray(job?.utility_locate_tickets)
         ? job.utility_locate_tickets
         : [];
+  const referenceTime = crewJobReferenceTime(job);
   const active = [];
   let expiringSoon = 0;
   let expired = 0;
@@ -267,7 +334,7 @@ function crewHydrovacLocateSummary(job = ACTIVE_JOB) {
     const status = String(ticket?.status || '').trim().toLowerCase();
     const untilRaw = ticket?.extended_until || ticket?.valid_until || '';
     const until = Date.parse(untilRaw);
-    const isExpired = status === 'expired' || (Number.isFinite(until) && until < Date.now());
+    const isExpired = status === 'expired' || (Number.isFinite(until) && until < referenceTime);
     if (ticket?.verified_on_site === true) verified += 1;
     if (isExpired) {
       expired += 1;
@@ -276,7 +343,7 @@ function crewHydrovacLocateSummary(job = ACTIVE_JOB) {
     if (['active', 'extended'].includes(status)) {
       active.push(ticket);
       if (Number.isFinite(until)) {
-        const days = Math.ceil((until - Date.now()) / (24 * 60 * 60 * 1000));
+        const days = Math.ceil((until - referenceTime) / (24 * 60 * 60 * 1000));
         if (days >= 0 && days <= 2) expiringSoon += 1;
       }
     }
@@ -297,10 +364,11 @@ function crewHydrovacPermitSummary(job = ACTIVE_JOB) {
     : Array.isArray(job?.confined_space_permits)
       ? job.confined_space_permits
       : [];
+  const referenceTime = crewJobReferenceTime(job);
   const openPermits = permits.filter((permit) => String(permit?.status || '').trim().toLowerCase() === 'open');
   const expiredOpen = openPermits.filter((permit) => {
     const until = Date.parse(permit?.permit_valid_until || '');
-    return Number.isFinite(until) && until < Date.now();
+    return Number.isFinite(until) && until < referenceTime;
   });
   return {
     permits,
@@ -1069,6 +1137,8 @@ function loadSupabaseScript() {
 // ── App Init ───────────────────────────────────────────────────────────────────
 
 async function initApp() {
+  PENDING_LAUNCH_JOB_ID = crewLaunchJobIdFromLocation();
+  PENDING_LAUNCH_SOURCE = crewLaunchSourceFromLocation();
   try {
     await loadSupabaseScript();
   } catch (err) {
@@ -1304,6 +1374,7 @@ async function loadJobs(date = null) {
     JOBS = jobs || [];
     await saveJobsToIDB(mergeJobsForCache(await loadJobsFromIDB(), JOBS));
     renderJobCards(JOBS);
+    await maybeOpenRequestedCrewJob(JOBS);
 
     // Update date label
     renderCurrentDateLabel(targetDate);
@@ -1312,6 +1383,7 @@ async function loadJobs(date = null) {
     const cached = await loadJobsFromIDB();
     JOBS = cached;
     renderJobCards(JOBS);
+    await maybeOpenRequestedCrewJob(JOBS);
     showToast('Could not refresh. Showing saved data.', 'error');
   }
 }

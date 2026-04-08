@@ -14,6 +14,10 @@ function clean(value) {
   return String(value || '').trim();
 }
 
+function businessNameFromTenant(tenant) {
+  return clean(tenant?.business_name || tenant?.name) || 'Your service provider';
+}
+
 function isMissingDocumentEngineError(error) {
   const message = String(error?.message || error?.details || error?.hint || '');
   return /proposal_documents|proposal_document_versions|proposal_options/i.test(message);
@@ -89,8 +93,8 @@ exports.handler = async (event) => {
   }
 
   // Fetch business name
-  const { data: tenant } = await supabase.from('tenants').select('name').eq('id', tenantId).maybeSingle();
-  const businessName = tenant?.name || 'Your service provider';
+  const { data: tenant } = await supabase.from('tenants').select('business_name, name').eq('id', tenantId).maybeSingle();
+  const businessName = businessNameFromTenant(tenant);
   const siteUrl = getConfiguredSiteUrl();
   const proposalToken = clean(proposalDocument?.public_token) || bid.id;
   const proposalUrl = `${siteUrl}/quote.html?token=${encodeURIComponent(proposalToken)}`;

@@ -17,14 +17,24 @@ exports.handler = async (event) => {
 
   const { supabase } = ctx;
   const params   = event.queryStringParameters || {};
-  const limit    = Math.min(parseInt(params.limit  || '50', 10), 200);
-  const offset   = parseInt(params.offset || '0', 10);
+  const parsedLimit = parseInt(params.limit || '50', 10);
+  if (!Number.isInteger(parsedLimit) || parsedLimit <= 0) {
+    return respond(400, { error: 'limit must be a positive integer' });
+  }
+
+  const parsedOffset = parseInt(params.offset || '0', 10);
+  if (!Number.isInteger(parsedOffset) || parsedOffset < 0) {
+    return respond(400, { error: 'offset must be a non-negative integer' });
+  }
+
+  const limit    = Math.min(parsedLimit, 200);
+  const offset   = parsedOffset;
   const tenantId = params.tenant_id || null;
 
   let query = supabase
     .from('tenant_conduct_log')
     .select(
-      'id, tenant_id, action, reason_code, admin_notes, performed_by, performed_at, tenants!tenant_id(name, slug)',
+      'id, tenant_id, action, reason_code, admin_notes, performed_by, performed_at, tenants!tenant_id(business_name, slug)',
       { count: 'exact' }
     )
     .order('performed_at', { ascending: false })

@@ -33,8 +33,20 @@ exports.handler = async (event) => {
   const { supabase } = ctx;
   const params = event.queryStringParameters || {};
   const { id, status, q } = params;
-  const limit  = Math.min(parseInt(params.limit  || '100', 10), 250);
-  const offset = parseInt(params.offset || '0', 10);
+  const parsedLimit = parseInt(params.limit || '100', 10);
+  const parsedOffset = parseInt(params.offset || '0', 10);
+  const limit = Math.min(parsedLimit, 250);
+  const offset = parsedOffset;
+
+  if (status && !VALID_STATUSES.has(status)) {
+    return respond(400, { error: 'Invalid status filter' });
+  }
+  if (!Number.isFinite(limit) || limit < 1) {
+    return respond(400, { error: 'limit must be a positive integer' });
+  }
+  if (!Number.isFinite(offset) || offset < 0) {
+    return respond(400, { error: 'offset must be a non-negative integer' });
+  }
 
   // ── Single request lookup ────────────────────────────────────────────────
   if (id) {
@@ -59,7 +71,7 @@ exports.handler = async (event) => {
     .order('created_at', { ascending: false })
     .range(offset, offset + limit - 1);
 
-  if (status && VALID_STATUSES.has(status)) {
+  if (status) {
     query = query.eq('status', status);
   }
 

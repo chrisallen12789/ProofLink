@@ -29,7 +29,7 @@ exports.handler = async (event) => {
   // Verify order exists and belongs to this tenant
   const { data: order, error: orderErr } = await supabase
     .from('orders')
-    .select('id, customer_name, customer_email, tenant_id')
+    .select('id, customer_name, email, tenant_id')
     .eq('id', order_id)
     .eq('tenant_id', tenant_id)
     .maybeSingle();
@@ -52,7 +52,7 @@ exports.handler = async (event) => {
       tenant_id,
       order_id,
       customer_name : customer_name || order.customer_name || 'Anonymous',
-      customer_email: order.customer_email || null,
+      customer_email: order.email || null,
       rating        : Number(rating),
       review_text   : reviewContent, // original column
       comment       : reviewContent, // alias column added in migration

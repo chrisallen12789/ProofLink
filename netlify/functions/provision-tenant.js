@@ -6,6 +6,11 @@ const { getConfiguredSiteUrl } = require('./utils/runtime-config');
 const { buildPasswordSetupUrl } = require('./utils/auth-links');
 const { getDefaultApplicationFeeBps } = require('./utils/payment-policy');
 
+function tenantBusinessName(tenant) {
+  if (!tenant || typeof tenant !== 'object') return '';
+  return tenant.business_name || tenant.name || tenant.slug || '';
+}
+
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return respond(200, {});
   if (event.httpMethod !== 'POST') return respond(405, { error: 'Method not allowed' });
@@ -49,7 +54,7 @@ exports.handler = async (event) => {
 
   const { data: existingTenant } = await supabase
     .from('tenants')
-    .select('id, slug, name')
+    .select('id, slug, business_name, name')
     .eq('onboarding_request_id', id)
     .maybeSingle();
 
@@ -194,6 +199,7 @@ exports.handler = async (event) => {
     .from('tenants')
     .insert([
       {
+        business_name        : req.business_name,
         name                 : req.business_name,
         slug                 : tenantSlug,
         owner_email          : ownerEmail,
@@ -209,7 +215,7 @@ exports.handler = async (event) => {
         billing_exempt_until : exemptUntil,
       },
     ])
-    .select('id, slug, name')
+    .select('id, slug, business_name, name')
     .maybeSingle();
 
   if (tenantErr) {
@@ -380,7 +386,7 @@ exports.handler = async (event) => {
   ).catch((err) => console.warn('[provision] email failed:', err.message));
 
   return respond(201, {
-    message: `Tenant "${tenant.name}" provisioned successfully`,
+    message: `Tenant "${tenantBusinessName(tenant)}" provisioned successfully`,
     tenant_id: tenantId,
     slug: tenantSlug,
     operator_id: newOperatorId,

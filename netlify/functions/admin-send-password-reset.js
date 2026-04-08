@@ -11,6 +11,11 @@
 const { requireAdminContext, respond, getAdminClient } = require('./utils/auth');
 const { getConfiguredSiteUrl } = require('./utils/runtime-config');
 
+function tenantBusinessName(tenant) {
+  if (!tenant || typeof tenant !== 'object') return '';
+  return tenant.business_name || tenant.name || tenant.slug || '';
+}
+
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return respond(204, {});
   if (event.httpMethod !== 'POST')    return respond(405, { error: 'Method not allowed' });
@@ -31,7 +36,7 @@ exports.handler = async (event) => {
   // ── 1. Load the tenant ─────────────────────────────────────────────────────
   const { data: tenant, error: tenantErr } = await supabase
     .from('tenants')
-    .select('id, name, owner_email')
+    .select('id, business_name, name, slug, owner_email')
     .eq('id', tenant_id)
     .maybeSingle();
 
@@ -47,7 +52,10 @@ exports.handler = async (event) => {
   // ── 2. Ensure the auth user exists ────────────────────────────────────────
   // resetPasswordForEmail fails silently (no email sent) when the user does not
   // exist. Check first; if missing, create and re-link operator_members.
-  const { data: listData } = await supabase.auth.admin.listUsers({ perPage: 1000 });
+  const { data: listData, error: listErr } = await supabase.auth.admin.listUsers({ perPage: 1000 });
+  if (listErr) {
+    return respond(502, { error: 'Failed to load auth users: ' + listErr.message });
+  }
   const existing = (listData?.users || []).find(
     (u) => (u.email || '').toLowerCase() === email
   );
@@ -74,13 +82,17 @@ exports.handler = async (event) => {
   }
 
   // Re-link operator_members.user_id so the workspace boots correctly.
-  const { data: operator } = await supabase
+  const { data: operator, error: operatorErr } = await supabase
     .from('operators')
     .select('id')
     .ilike('email', email)
     .eq('tenant_id', tenant_id)
     .limit(1)
     .maybeSingle();
+
+  if (operatorErr) {
+    return respond(502, { error: 'Failed to load tenant operator: ' + operatorErr.message });
+  }
 
   if (operator?.id && authUserId) {
     const { error: linkErr } = await supabase
@@ -104,6 +116,7 @@ exports.handler = async (event) => {
   return respond(200, {
     ok: true,
     to: email,
+    tenant_name: tenantBusinessName(tenant),
     action: isNewUser ? 'auth_user_recreated_and_reset_sent' : 'reset_sent',
   });
 };

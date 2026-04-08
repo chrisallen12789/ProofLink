@@ -4,6 +4,7 @@ const { uniqueTenantSlug } = require("../utils/slugify");
 const { normalizeBusinessTypeKey } = require("../utils/business-type");
 const { seedTemplateForTenant } = require("./seed-templates");
 const { getDefaultApplicationFeeBps } = require("../utils/payment-policy");
+const { isMissingSchemaError } = require("../utils/schema-readiness");
 
 function clean(value) {
   return String(value || "").trim();
@@ -30,29 +31,16 @@ function normalizeBusinessType(payload) {
   ) || null;
 }
 
-function extractErrorCode(error) {
-  const directCode = clean(error?.code).toUpperCase();
-  if (directCode) return directCode;
-
-  const message = clean(error?.message);
-  if (!message) return "";
-
-  try {
-    const parsed = JSON.parse(message);
-    return clean(parsed?.code).toUpperCase();
-  } catch {
-    const match = message.match(/"code"\s*:\s*"([^"]+)"/i);
-    return clean(match && match[1]).toUpperCase();
-  }
+function isMissingCreateTenantBundleRpcError(error) {
+  return isMissingSchemaError(error, [
+    'public.create_tenant_bundle',
+    'searched for the function public.create_tenant_bundle',
+  ]);
 }
 
-function isMissingCreateTenantBundleRpcError(error) {
-  const code = extractErrorCode(error);
-  const message = clean(error?.message).toLowerCase();
-
-  return ["PGRST202", "PGRST205", "42883", "42P01"].includes(code)
-    || message.includes("public.create_tenant_bundle")
-    || message.includes("searched for the function public.create_tenant_bundle");
+function tenantBusinessName(tenant) {
+  if (!tenant || typeof tenant !== "object") return "";
+  return clean(tenant.business_name || tenant.name || tenant.slug);
 }
 
 async function seedTenantSettings(supabase, tenantId, payload) {
@@ -105,6 +93,7 @@ async function provisionTenantBundle({ supabase, payload, invitedByOperatorId = 
   const { data: tenant, error: tenantError } = await supabase
     .from("tenants")
     .insert([{
+      business_name: businessName,
       name: businessName,
       slug: tenantSlug,
       owner_email: ownerEmail,
@@ -123,7 +112,7 @@ async function provisionTenantBundle({ supabase, payload, invitedByOperatorId = 
       billing_exempt: couponApplied,
       billing_exempt_until: exemptUntil,
     }])
-    .select("id,slug,name")
+    .select("id,slug,business_name,name")
     .maybeSingle();
 
   if (tenantError) throw tenantError;
@@ -193,13 +182,13 @@ async function provisionTenantBundle({ supabase, payload, invitedByOperatorId = 
   return {
     tenant_id: tenant.id,
     tenant_slug: tenant.slug,
+    tenant_name: tenantBusinessName(tenant),
     operator_id: operator.id,
     operator_slug: "",
   };
 }
 
 module.exports = {
-  extractErrorCode,
   isMissingCreateTenantBundleRpcError,
   provisionTenantBundle,
 };

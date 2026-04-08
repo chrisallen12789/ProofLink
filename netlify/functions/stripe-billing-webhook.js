@@ -32,6 +32,12 @@ function getSupabase() {
   return createClient(url, key);
 }
 
+function malformedWebhookError(message) {
+  const error = new Error(message);
+  error.statusCode = 400;
+  return error;
+}
+
 async function claimWebhookEvent(supabase, eventId) {
   if (!eventId) return { claimed: false, skipped: false };
 
@@ -83,13 +89,17 @@ async function updateTenantPlanFromSession(session, supabase) {
   const tenantId = session?.metadata?.tenant_id;
   const targetPlan = session?.metadata?.target_plan;
 
-  if (!tenantId || !targetPlan) return;
+  if (!tenantId || !targetPlan) {
+    throw malformedWebhookError('Malformed billing webhook payload: missing tenant_id or target_plan.');
+  }
 
   const { error } = await supabase
     .from('tenants')
     .update({
       prooflink_plan_key: targetPlan,
       billing_status: 'active',
+      stripe_customer_id: session?.customer || null,
+      stripe_subscription_id: session?.subscription || null,
       updated_at: new Date().toISOString(),
     })
     .eq('id', tenantId);
@@ -99,7 +109,9 @@ async function updateTenantPlanFromSession(session, supabase) {
 
 async function updateSubscriptionState(subscription, supabase) {
   const tenantId = subscription?.metadata?.tenant_id;
-  if (!tenantId) return;
+  if (!tenantId) {
+    throw malformedWebhookError('Malformed billing webhook payload: missing tenant_id.');
+  }
 
   const billingStatus = normalizeBillingStatus(subscription.status);
 
@@ -107,6 +119,8 @@ async function updateSubscriptionState(subscription, supabase) {
     .from('tenants')
     .update({
       billing_status: billingStatus,
+      stripe_subscription_id: subscription?.id || null,
+      stripe_customer_id: subscription?.customer || null,
       updated_at: new Date().toISOString(),
     })
     .eq('id', tenantId);
@@ -123,6 +137,7 @@ exports.handler = async function(event) {
   let supabase = null;
   let eventId = '';
   let claimedEvent = false;
+  let stripeEvent = null;
 
   try {
     const stripe = getStripe();
@@ -134,9 +149,13 @@ exports.handler = async function(event) {
       : (event.body || '');
 
     const signature = event.headers['stripe-signature'] || event.headers['Stripe-Signature'];
-    const stripeEvent = stripe.webhooks.constructEvent(rawBody, signature, webhookSecret);
+    stripeEvent = stripe.webhooks.constructEvent(rawBody, signature, webhookSecret);
     eventId = String(stripeEvent?.id || '').trim();
+  } catch (error) {
+    return json(400, { ok: false, error: error.message || 'Webhook failed' });
+  }
 
+  try {
     supabase = getSupabase();
     if (eventId) {
       const claim = await claimWebhookEvent(supabase, eventId);
@@ -166,6 +185,6 @@ exports.handler = async function(event) {
     if (claimedEvent && supabase && eventId) {
       await releaseWebhookEvent(supabase, eventId);
     }
-    return json(400, { ok: false, error: error.message || 'Webhook failed' });
+    return json(error.statusCode || 500, { ok: false, error: error.message || 'Webhook failed' });
   }
 };

@@ -5,6 +5,14 @@
 'use strict';
 
 const { getAdminClient, respond } = require('./utils/auth');
+const { isMissingSchemaError } = require('./utils/schema-readiness');
+
+function isMissingRecurringSchemaError(error) {
+  return isMissingSchemaError(error, [
+    'could not find the function public.generate_due_service_plans',
+    'function public.generate_due_service_plans',
+  ]);
+}
 
 exports.handler = async (event) => {
   // Allow scheduled invocation or manual admin trigger
@@ -16,6 +24,9 @@ exports.handler = async (event) => {
   });
 
   if (error) {
+    if (isMissingRecurringSchemaError(error)) {
+      return respond(503, { error: 'Recurring service plan schema is not installed for this environment.' });
+    }
     console.error('[process-recurring-orders] generate_due_service_plans failed:', error);
     return respond(500, { error: 'Failed to process recurring service plans' });
   }

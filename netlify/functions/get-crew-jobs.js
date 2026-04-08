@@ -82,7 +82,7 @@ exports.handler = async (event) => {
   // Resolve the operator_members record for this user
   const { data: member, error: memberErr } = await adminSb
     .from('operator_members')
-    .select('operator_id, user_id, role, role_title, operators!operator_id(id, name, email, role)')
+    .select('id, operator_id, user_id, role, role_title, name, operators!operator_id(id, name, email, role)')
     .eq('user_id', user.id)
     .eq('tenant_id', tenantId)
     .maybeSingle();
@@ -108,6 +108,7 @@ exports.handler = async (event) => {
 
   // Assignment filter: jobs may reference operator_members.id, operators.id, or user.id depending on age of data.
   const assignmentKeys = [
+    member.id,
     member.operator_id,
     user.id,
   ].map((value) => String(value || '').trim()).filter(Boolean);
@@ -302,8 +303,9 @@ exports.handler = async (event) => {
   return respond(200, {
     jobs: jobsWithPhotos,
     member: {
-      id: member.operator_id || member.operators?.id || null,
-      name: member.operators?.name || member.operators?.email || user.email || 'Crew Member',
+      id: member.id || member.operator_id || member.operators?.id || null,
+      operator_id: member.operator_id || member.operators?.id || null,
+      name: member.name || member.operators?.name || member.operators?.email || user.email || 'Crew Member',
       role: member.role,
       role_title: member.role_title || memberRoleTitle(member.role),
     },

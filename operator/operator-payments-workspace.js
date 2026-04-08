@@ -81,15 +81,30 @@
     const blueprint = options.blueprint || (typeof currentWorkspaceBlueprint === "function" ? currentWorkspaceBlueprint() : { business: { key: "service_business" } });
     const { customer, order, job } = resolvePaymentContext(options);
     const customerName = customer?.name || order?.customer_name || "this customer";
+    const dueCents = order ? Number(orderAmountDueCents(order) || 0) : 0;
     const followThrough = buildPaymentFollowThroughMessage({ customer, order, job, blueprint });
     const bookingsApi = global.PROOFLINK_OPERATOR_BOOKINGS_WORKSPACE || {};
     const timingInsight = customer && typeof bookingsApi.bookingDraftTimingInsight === "function"
       ? bookingsApi.bookingDraftTimingInsight(customer, {}, blueprint)
       : null;
+    if (dueCents > 0) {
+      return `Payment saved for ${customerName}. ${formatUsd(dueCents)} still due on this order. ${followThrough}`;
+    }
     const nextVisitReason = timingInsight?.reason
       ? ` ${timingInsight.reason}${timingInsight.bookingDate ? ` Suggested next visit: ${timingInsight.bookingDate}.` : ""}`
       : "";
     return `Payment saved for ${customerName}. ${followThrough}${nextVisitReason}`;
+  }
+
+  function buildPaymentOutstandingActions(options = {}) {
+    const { customer, order } = resolvePaymentContext(options);
+    const orderDueCents = order ? Number(orderAmountDueCents(order) || 0) : 0;
+    if (!order || orderDueCents <= 0) return [];
+
+    return [
+      { label: "Open order balance", action: "open-outstanding-order", className: "btn btn-primary btn-sm" },
+      ...(customer ? [{ label: "Open customer", action: "open-reactivation-customer", className: "btn btn-ghost btn-sm" }] : []),
+    ];
   }
 
   function buildPaymentReactivationActions(options = {}) {
@@ -180,8 +195,10 @@
     const host = ensurePaymentNextActionsHost();
     if (!host) return;
     const blueprint = options.blueprint || (typeof currentWorkspaceBlueprint === "function" ? currentWorkspaceBlueprint() : { business: { key: "service_business" } });
-    const actions = buildPaymentReactivationActions(options);
-    const { customer } = resolvePaymentContext(options);
+    const outstandingActions = buildPaymentOutstandingActions(options);
+    const actions = outstandingActions.length ? outstandingActions : buildPaymentReactivationActions(options);
+    const { customer, order } = resolvePaymentContext(options);
+    const orderDueCents = order ? Number(orderAmountDueCents(order) || 0) : 0;
     const bookingsApi = global.PROOFLINK_OPERATOR_BOOKINGS_WORKSPACE || {};
     const timingInsight = customer && typeof bookingsApi.bookingDraftTimingInsight === "function"
       ? bookingsApi.bookingDraftTimingInsight(customer, {}, blueprint)
@@ -192,6 +209,7 @@
     }
     host.className = "action-row action-row--wrap u-mt-10";
     host.innerHTML = `
+      ${orderDueCents > 0 ? `<div class="detail-copy u-flex-full">${escapeHtml(`Balance still open: ${formatUsd(orderDueCents)} due on this order.`)}</div>` : ""}
       ${timingInsight?.reason ? `<div class="detail-copy u-flex-full">${escapeHtml(`Why now: ${timingInsight.reason}${timingInsight.bookingDate ? ` Suggested next visit: ${timingInsight.bookingDate}.` : ""}`)}</div>` : ""}
       ${actions.map((action) => `
       <button type="button" class="${escapeAttr(action.className || "btn btn-ghost btn-sm")}" data-payment-reactivation-action="${escapeAttr(action.action || "")}">
@@ -204,6 +222,15 @@
       button.addEventListener("click", () => {
         const action = button.getAttribute("data-payment-reactivation-action");
         const { customer, order, job } = resolvePaymentContext(options);
+
+        if (action === "open-outstanding-order") {
+          if (!order?.id) return;
+          ACTIVE_ORDER_ID = order.id;
+          if (typeof renderOrders === "function") renderOrders();
+          if (typeof switchTab === "function") switchTab("orders");
+          return;
+        }
+
         if (!customer) return;
 
         if (action === "open-reactivation-customer" || action === "reactivate-repeat" || action === "request" || action === "create-request" || action === "generate-next-order") {
@@ -718,6 +745,7 @@
     buildPaymentContextMessage,
     buildPaymentFollowThroughMessage,
     buildPaymentSavedMessage,
+    buildPaymentOutstandingActions,
     buildPaymentReactivationActions,
     renderCollectionsFollowUpReport,
     applyPaymentContextMessage,

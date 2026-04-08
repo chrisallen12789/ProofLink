@@ -8,6 +8,10 @@
 const { requireOperatorContext, respond } = require('./utils/auth');
 const { sendEmail, templates } = require('./utils/email');
 
+function businessNameFromTenant(tenant) {
+  return String(tenant?.business_name || tenant?.name || '').trim() || 'Your Business';
+}
+
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return respond(200, {});
   if (event.httpMethod !== 'POST') return respond(405, { error: 'Method not allowed' });
@@ -66,9 +70,11 @@ exports.handler = async (event) => {
   // 4. Fetch tenant name
   const { data: tenant } = await supabase
     .from('tenants')
-    .select('name')
+    .select('business_name, name')
     .eq('id', tenantId)
     .maybeSingle();
+
+  const orderTotalCents = Number(order.total_cents || 0) || 0;
 
   // 5. Build invoice record
   const invoice = {
@@ -77,8 +83,8 @@ exports.handler = async (event) => {
     order_id: order_id,
     customer_id: order.customer_id || null,
     customer_name: order.customers?.name || order.customer_name || '',
-    customer_email: order.customers?.email || order.customer_email || '',
-    business_name: tenant?.name || 'Your Business',
+    customer_email: order.customers?.email || order.email || '',
+    business_name: businessNameFromTenant(tenant),
     line_items: [...expenseRows, ...timeEntryRows].map((item) => {
       const qty            = item.quantity || item.hours || 1;
       const unitPriceCents = item.unit_price_cents || item.amount_cents || item.cost_cents || 0;
@@ -90,8 +96,8 @@ exports.handler = async (event) => {
         line_total_cents: item.line_total_cents || item.total_cents || Math.round(qty * unitPriceCents),
       };
     }),
-    subtotal_cents: order.amount_cents || order.total_cents || 0,
-    total_cents: order.amount_cents || order.total_cents || 0,
+    subtotal_cents: orderTotalCents,
+    total_cents: orderTotalCents,
     notes: notes || null,
     due_date: due_date || null,
     status: 'draft',
@@ -131,7 +137,7 @@ exports.handler = async (event) => {
         customer_email: savedInvoice.customer_email,
         business_name: savedInvoice.business_name,
         order_id: savedInvoice.order_id,
-        order_title: order.title || order.description || 'Invoice',
+        order_title: order.cart_summary || order.notes || 'Invoice',
         total_cents: savedInvoice.total_cents,
         due_date: savedInvoice.due_date,
         created_at: savedInvoice.created_at,

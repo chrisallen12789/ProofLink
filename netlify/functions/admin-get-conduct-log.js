@@ -20,7 +20,12 @@ exports.handler = async (event) => {
   const tenantId = params.tenant_id;
   if (!tenantId) return respond(400, { error: 'tenant_id is required' });
 
-  const limit = Math.min(parseInt(params.limit || '50', 10), 200);
+  const parsedLimit = parseInt(params.limit || '50', 10);
+  if (!Number.isInteger(parsedLimit) || parsedLimit <= 0) {
+    return respond(400, { error: 'limit must be a positive integer' });
+  }
+
+  const limit = Math.min(parsedLimit, 200);
 
   const { data: log, error } = await supabase
     .from('tenant_conduct_log')

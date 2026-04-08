@@ -1,5 +1,7 @@
 # ProofLink Hosted Deployment
 
+Canonical release procedure now lives in [ops/release-runbook.md](/Users/Chris/OneDrive/Desktop/ProofLink/docs/ops/release-runbook.md). This file remains the hosted Supabase schema and validation sequence for deployments that depend on hosted schema changes.
+
 This repo currently applies hosted Supabase schema changes through the Supabase SQL Editor.
 There is no linked Supabase CLI migration runner in this repo today, so the safe rollout path is:
 
@@ -22,6 +24,7 @@ From the repo root, point `.env.test` or the `TEST_*` environment variables at t
 
 ```bash
 npm run test:preflight:env-contract
+npm run test:preflight:release-readiness
 npm run test:preflight:service-workflow
 ```
 

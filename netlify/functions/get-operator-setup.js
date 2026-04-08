@@ -14,6 +14,10 @@ function parseConfig(value) {
   }
 }
 
+function tenantBusinessName(tenant) {
+  return String(tenant?.business_name || tenant?.name || '').trim();
+}
+
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return respond(200, {});
   if (event.httpMethod !== 'GET') return respond(405, { error: 'Method not allowed' });
@@ -31,7 +35,7 @@ exports.handler = async (event) => {
   const [{ data: tenant, error: tenantErr }, { data: cfgRow, error: cfgErr }] = await Promise.all([
     supabase
       .from('tenants')
-      .select('id, name, slug, owner_email, owner_name, logo_url, business_type, city_state, active, setup_complete, prooflink_plan_key')
+      .select('id, business_name, name, slug, owner_email, owner_name, logo_url, business_type, city_state, active, setup_complete, prooflink_plan_key')
       .eq('id', tenantId)
       .maybeSingle(),
     supabase
@@ -52,8 +56,9 @@ exports.handler = async (event) => {
     rawConfig.business_type ||
     ''
   );
+  const businessName = tenantBusinessName(tenant);
   const lockedRecord = {
-    legal_business_name: tenant.name || '',
+    legal_business_name: businessName,
     owner_name: tenant.owner_name || '',
     login_email: tenant.owner_email || '',
     business_type: resolvedBusinessType,

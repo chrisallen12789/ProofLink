@@ -43,10 +43,16 @@ function normalizeBidEstimate(bid) {
   };
 }
 
+function normalizeTenantBusinessName(tenant) {
+  return tenant?.business_name || tenant?.name || '';
+}
+
 function normalizePortalOrder(order) {
+  const totalCents = Number(order?.total_cents || 0) || 0;
   return {
     ...order,
-    title: order.title || order.cart_summary || order.customer_name || 'Order',
+    title: order.cart_summary || order.customer_name || 'Order',
+    total_amount: totalCents / 100,
   };
 }
 
@@ -81,7 +87,7 @@ exports.handler = async (event) => {
   // Verify tenant exists
   const { data: tenant, error: tenantErr } = await supabase
     .from('tenants')
-    .select('id, name')
+    .select('id, business_name, name')
     .eq('id', tenant_id)
     .maybeSingle();
 
@@ -91,7 +97,7 @@ exports.handler = async (event) => {
   // different sources (storefront uses `email`, operator-created use `customer_email`)
   const { data: orders } = await supabase
     .from('orders')
-    .select('id, cart_summary, status, total_amount, total_cents, amount_paid_cents, amount_due_cents, payment_state, payment_due_date, created_at, customer_name, order_type, package_sessions_total, package_sessions_used, package_valid_until')
+    .select('id, cart_summary, status, total_cents, amount_paid_cents, amount_due_cents, payment_state, payment_due_date, created_at, customer_name, order_type, package_sessions_total, package_sessions_used, package_valid_until')
     .eq('tenant_id', tenant_id)
     .ilike('email', normalizedEmail)
     .order('created_at', { ascending: false })
@@ -143,7 +149,7 @@ exports.handler = async (event) => {
   if (customerIds.length) {
     const { data } = await supabase
       .from('orders')
-      .select('id, cart_summary, status, total_amount, total_cents, amount_paid_cents, amount_due_cents, payment_state, payment_due_date, created_at, customer_name, order_type, package_sessions_total, package_sessions_used, package_valid_until, customer_id')
+      .select('id, cart_summary, status, total_cents, amount_paid_cents, amount_due_cents, payment_state, payment_due_date, created_at, customer_name, order_type, package_sessions_total, package_sessions_used, package_valid_until, customer_id')
       .eq('tenant_id', tenant_id)
       .in('customer_id', customerIds)
       .order('created_at', { ascending: false })
@@ -153,7 +159,7 @@ exports.handler = async (event) => {
   if (customerNames.length) {
     const { data } = await supabase
       .from('orders')
-      .select('id, cart_summary, status, total_amount, total_cents, amount_paid_cents, amount_due_cents, payment_state, payment_due_date, created_at, customer_name, order_type, package_sessions_total, package_sessions_used, package_valid_until, customer_id')
+      .select('id, cart_summary, status, total_cents, amount_paid_cents, amount_due_cents, payment_state, payment_due_date, created_at, customer_name, order_type, package_sessions_total, package_sessions_used, package_valid_until, customer_id')
       .eq('tenant_id', tenant_id)
       .in('customer_name', customerNames)
       .order('created_at', { ascending: false })
@@ -163,7 +169,7 @@ exports.handler = async (event) => {
   if (leadIds.length) {
     const { data } = await supabase
       .from('orders')
-      .select('id, cart_summary, status, total_amount, total_cents, amount_paid_cents, amount_due_cents, payment_state, payment_due_date, created_at, customer_name, order_type, package_sessions_total, package_sessions_used, package_valid_until, customer_id, lead_id')
+      .select('id, cart_summary, status, total_cents, amount_paid_cents, amount_due_cents, payment_state, payment_due_date, created_at, customer_name, order_type, package_sessions_total, package_sessions_used, package_valid_until, customer_id, lead_id')
       .eq('tenant_id', tenant_id)
       .in('lead_id', leadIds)
       .order('created_at', { ascending: false })
@@ -201,7 +207,7 @@ exports.handler = async (event) => {
   ].sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
 
   return respond(200, {
-    business_name: tenant.name,
+    business_name: normalizeTenantBusinessName(tenant),
     orders  : mergedOrders,
     bookings: bookings || [],
     quotes  : estimateRows,

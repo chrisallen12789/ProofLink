@@ -19,6 +19,9 @@ describe("netlify/functions/stripe-webhook", () => {
   });
 
   function loadHandler({ createClient = vi.fn() } = {}) {
+    const patchTenant = vi.fn(async () => null);
+    const supabaseAdmin = vi.fn(async () => null);
+
     require.cache[helperPath] = {
       id: helperPath,
       filename: helperPath,
@@ -29,8 +32,8 @@ describe("netlify/functions/stripe-webhook", () => {
         json: (statusCode, body) => ({ statusCode, body: JSON.stringify(body) }),
         normalizeBillingStatus: vi.fn(() => "active"),
         normalizeConnectStatus: vi.fn(() => "active"),
-        patchTenant: vi.fn(async () => null),
-        supabaseAdmin: vi.fn(async () => null),
+        patchTenant,
+        supabaseAdmin,
         verifyStripeSignature: vi.fn(() => true),
         findTenantByStripeAccount: vi.fn(async () => null),
         findTenantByStripeCustomer: vi.fn(async () => null),
@@ -44,12 +47,15 @@ describe("netlify/functions/stripe-webhook", () => {
       exports: { createClient },
     };
 
-    return require(handlerPath).handler;
+    return {
+      handler: require(handlerPath).handler,
+      helpers: require.cache[helperPath].exports,
+    };
   }
 
   test("continues processing when Supabase idempotency env is missing", async () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const handler = loadHandler({ createClient: vi.fn(() => { throw new Error("should not be called"); }) });
+    const { handler } = loadHandler({ createClient: vi.fn(() => { throw new Error("should not be called"); }) });
 
     try {
       const response = await handler({
@@ -70,5 +76,69 @@ describe("netlify/functions/stripe-webhook", () => {
     } finally {
       warnSpy.mockRestore();
     }
+  });
+
+  test("returns 400 when a verified payload is not valid JSON", async () => {
+    const { handler } = loadHandler();
+
+    const response = await handler({
+      httpMethod: "POST",
+      headers: { "stripe-signature": "sig_test" },
+      body: "{not-json",
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(JSON.parse(response.body)).toMatchObject({ ok: false });
+  });
+
+  test("returns 500 and releases idempotency claim when processing fails after verification", async () => {
+    process.env.SUPABASE_URL = "https://example.supabase.co";
+    process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-key";
+
+    const insert = vi.fn(async () => ({ error: null }));
+    const deleteEq = vi.fn(async () => ({ error: null }));
+    const deleteMock = vi.fn(() => ({ eq: deleteEq }));
+    const from = vi.fn((table) => {
+      if (table !== "processed_webhook_events") {
+        throw new Error(`unexpected table ${table}`);
+      }
+      return {
+        insert,
+        delete: deleteMock,
+      };
+    });
+
+    const { handler, helpers } = loadHandler({
+      createClient: vi.fn(() => ({ from })),
+    });
+    helpers.supabaseAdmin.mockRejectedValueOnce(new Error("payment patch failed"));
+
+    const response = await handler({
+      httpMethod: "POST",
+      headers: { "stripe-signature": "sig_test" },
+      body: JSON.stringify({
+        id: "evt_fail",
+        type: "checkout.session.completed",
+        data: {
+          object: {
+            id: "cs_test_123",
+            metadata: {
+              purpose: "tenant_order_checkout",
+              order_id: "order-123",
+              tenant_id: "tenant-123",
+            },
+          },
+        },
+      }),
+    });
+
+    expect(response.statusCode).toBe(500);
+    expect(JSON.parse(response.body)).toEqual({
+      ok: false,
+      error: "payment patch failed",
+    });
+    expect(insert).toHaveBeenCalledTimes(1);
+    expect(deleteMock).toHaveBeenCalledTimes(1);
+    expect(deleteEq).toHaveBeenCalledWith("event_id", "evt_fail");
   });
 });

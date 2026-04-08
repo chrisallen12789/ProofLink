@@ -1,5 +1,6 @@
 const { getAdminClient, respond } = require('./utils/auth');
 const { checkRateLimit, rateLimitResponse, getClientIP } = require('./utils/rate-limit');
+const { extractErrorCode, extractErrorMessage, isMissingSchemaError } = require('./utils/schema-readiness');
 
 function parseBody(event) {
   try {
@@ -13,34 +14,25 @@ function clean(value) {
   return String(value || '').trim();
 }
 
-function errorCode(error) {
-  return String(error?.code || error?.error?.code || '').trim().toUpperCase();
-}
-
-function errorMessage(error) {
-  return String(error?.message || error?.error?.message || '').trim();
-}
-
 function isMissingServiceWorkflowSchemaError(error) {
-  const code = errorCode(error);
-  const message = errorMessage(error).toLowerCase();
-  return ["PGRST202", "PGRST205", "42P01", "42883"].includes(code)
-    || message.includes("could not find the function public.submit_service_lead")
-    || message.includes("function public.submit_service_lead")
-    || message.includes("could not find the table 'public.leads'")
-    || message.includes("relation \"public.leads\" does not exist");
+  return isMissingSchemaError(error, [
+    'could not find the function public.submit_service_lead',
+    'function public.submit_service_lead',
+    "could not find the table 'public.leads'",
+    'relation "public.leads" does not exist',
+  ]);
 }
 
 function isRecoverableSubmitServiceLeadRpcError(error) {
   if (isMissingServiceWorkflowSchemaError(error)) return true;
 
-  const code = errorCode(error);
-  const message = errorMessage(error).toLowerCase();
+  const code = extractErrorCode(error);
+  const message = extractErrorMessage(error).toLowerCase();
   return code === "57014" || message.includes("statement timeout");
 }
 
 function classifySubmitServiceLeadError(error) {
-  const message = errorMessage(error);
+  const message = extractErrorMessage(error);
   const normalized = message.toLowerCase();
 
   if (isMissingServiceWorkflowSchemaError(error)) {

@@ -75,6 +75,7 @@ function loadDispatchWorkspace(overrides = {}) {
     formatUsd: vi.fn((value) => `$${value}`),
     renderRecordHeroCard: vi.fn((config = {}) => `<div class="record-hero">${String(config.title || "")}${String(config.description || "")}${String(config.actionsHtml || "")}</div>`),
     setInlineMessage: vi.fn(),
+    saveJobRecord: vi.fn(async (patch = {}) => patch),
     switchTab: vi.fn(),
     requestOperatorFunction: vi.fn(() => Promise.resolve()),
     fetchJobs: vi.fn(() => Promise.resolve()),
@@ -224,5 +225,397 @@ describe("operator dispatch workspace", () => {
     expect(markup).toContain("1 conflict");
     expect(markup).toContain("1 bundle opportunity");
     expect(markup).toContain("Open job");
+  });
+
+  test("renderDispatchWorkspace resolves assigned driver from assigned_operator_id when needed", () => {
+    const { context, dispatchDetail, dispatchDate } = loadDispatchWorkspace({
+      isHydrovacJob: vi.fn(() => true),
+      hydrovacJobSortDate: vi.fn((job) => job.scheduled_date || ""),
+      teamMemberLabel: vi.fn((member) => member.display_name || member.name || "Crew member"),
+      TEAM_MEMBERS_CACHE: [
+        { id: "member_1", display_name: "Skylar Stevens", user_id: "user_1" },
+      ],
+      JOBS_CACHE: [
+        {
+          id: "job_1",
+          title: "North trench",
+          status: "scheduled",
+          scheduled_date: "2026-04-08",
+          service_address: "123 Main St",
+          assigned_operator_id: "member_1",
+          customer_name: "North Utility",
+        },
+      ],
+    });
+    dispatchDate.value = "2026-04-08";
+
+    context.window.renderDispatchWorkspace();
+
+    expect(dispatchDetail.innerHTML).toContain("Skylar Stevens");
+    expect(dispatchDetail.innerHTML).toContain("Open in crew portal");
+  });
+
+  test("renderDispatchWorkspace shows crew acknowledgment when dispatch is still waiting on field updates", () => {
+    const { context, dispatchDetail, dispatchDate } = loadDispatchWorkspace({
+      isHydrovacJob: vi.fn(() => true),
+      hydrovacJobSortDate: vi.fn((job) => job.scheduled_date || ""),
+      teamMemberLabel: vi.fn((member) => member.display_name || member.name || "Crew member"),
+      TEAM_MEMBERS_CACHE: [
+        { id: "member_1", display_name: "Skylar Stevens", user_id: "user_1" },
+      ],
+      JOBS_CACHE: [
+        {
+          id: "job_2",
+          title: "West basin cleanup",
+          status: "scheduled",
+          scheduled_date: "2026-04-08",
+          assigned_operator_id: "member_1",
+          customer_name: "West Basin",
+        },
+      ],
+    });
+    dispatchDate.value = "2026-04-08";
+
+    context.window.renderDispatchWorkspace();
+
+    expect(dispatchDetail.innerHTML).toContain("Crew acknowledgment");
+    expect(dispatchDetail.innerHTML).toContain("Waiting on crew acknowledgment");
+  });
+
+  test("renderDispatchWorkspace surfaces blocker notes, field update timing, and assignment actions", () => {
+    const formatDateTime = vi.fn((value) => `formatted:${value}`);
+    const { context, dispatchDetail, dispatchDate } = loadDispatchWorkspace({
+      isHydrovacJob: vi.fn(() => true),
+      hydrovacJobSortDate: vi.fn((job) => job.scheduled_date || ""),
+      teamMemberLabel: vi.fn((member) => member.display_name || member.name || "Crew member"),
+      formatDateTime,
+      TEAM_MEMBERS_CACHE: [
+        { id: "member_1", display_name: "Skylar Stevens", user_id: "user_1" },
+      ],
+      JOBS_CACHE: [
+        {
+          id: "job_blocked_1",
+          title: "West basin cleanup",
+          status: "blocked",
+          scheduled_date: "2026-04-08",
+          assigned_operator_id: "member_1",
+          blocker_note: "Customer gate is locked",
+          updated_at: "2026-04-08T09:15:00Z",
+          customer_name: "West Basin",
+        },
+      ],
+    });
+    dispatchDate.value = "2026-04-08";
+
+    context.window.renderDispatchWorkspace();
+
+    expect(dispatchDetail.innerHTML).toContain("Crew reported a blocker");
+    expect(dispatchDetail.innerHTML).toContain("Blocker note: Customer gate is locked");
+    expect(dispatchDetail.innerHTML).toContain("Last field update: formatted:2026-04-08T09:15:00Z");
+    expect(dispatchDetail.innerHTML).toContain("Save assignment");
+    expect(dispatchDetail.innerHTML).toContain("Assign and open crew portal");
+    expect(dispatchDetail.innerHTML).toContain("Assignment pressure");
+  });
+
+  test("dispatchCompoundRouteSummary allows a same-day crew bundle inside the four-hour minimum", () => {
+    const { context } = loadDispatchWorkspace();
+
+    const summary = context.dispatchCompoundRouteSummary(
+      {
+        id: "job_1",
+        scheduled_date: "2026-04-08",
+        assigned_member_id: "member_1",
+        minimum_hours: 4,
+        billable_hours: 1.5,
+        travel_hours: 0.25,
+      },
+      [
+        {
+          id: "job_1",
+          scheduled_date: "2026-04-08",
+          assigned_member_id: "member_1",
+          minimum_hours: 4,
+          billable_hours: 1.5,
+          travel_hours: 0.25,
+        },
+        {
+          id: "job_2",
+          title: "West basin cleanup",
+          scheduled_date: "2026-04-08",
+          scheduled_time: "12:00",
+          assigned_member_id: "member_1",
+          minimum_hours: 4,
+          billable_hours: 1,
+          travel_hours: 0.25,
+          status: "scheduled",
+        },
+      ],
+      "member_1",
+      "2026-04-08"
+    );
+
+    expect(summary.overrideAvailable).toBe(true);
+    expect(summary.hardConflict).toBe(false);
+    expect(summary.label).toBe("Compound route available");
+  });
+
+  test("renderDispatchWorkspace surfaces the compound route override when same-day work still fits the minimum block", () => {
+    const { context, dispatchDetail, dispatchDate } = loadDispatchWorkspace({
+      isHydrovacJob: vi.fn(() => true),
+      hydrovacJobSortDate: vi.fn((job) => job.scheduled_date || ""),
+      teamMemberLabel: vi.fn((member) => member.display_name || member.name || "Crew member"),
+      TEAM_MEMBERS_CACHE: [
+        { id: "member_1", display_name: "Skylar Stevens", user_id: "user_1" },
+      ],
+      JOBS_CACHE: [
+        {
+          id: "job_1",
+          title: "North trench",
+          status: "scheduled",
+          scheduled_date: "2026-04-08",
+          scheduled_time: "08:00",
+          assigned_member_id: "member_1",
+          minimum_hours: 4,
+          billable_hours: 1.5,
+          travel_hours: 0.25,
+          customer_name: "North Utility",
+        },
+        {
+          id: "job_2",
+          title: "West basin cleanup",
+          status: "scheduled",
+          scheduled_date: "2026-04-08",
+          scheduled_time: "12:00",
+          assigned_member_id: "member_1",
+          minimum_hours: 4,
+          billable_hours: 1,
+          travel_hours: 0.25,
+          customer_name: "West Basin",
+        },
+      ],
+    });
+    dispatchDate.value = "2026-04-08";
+
+    context.window.renderDispatchWorkspace();
+
+    expect(dispatchDetail.innerHTML).toContain("Crew workload");
+    expect(dispatchDetail.innerHTML).toContain("Compound route available");
+    expect(dispatchDetail.innerHTML).toContain("Allow this crew to compound the same-day route");
+    expect(dispatchDetail.innerHTML).toContain("Expected hours");
+    expect(dispatchDetail.innerHTML).toContain("Save planning");
+  });
+
+  test("dispatchColumnCrewCapacity reports crew block availability for a loaded truck column", () => {
+    const { context } = loadDispatchWorkspace({
+      isHydrovacJob: vi.fn(() => true),
+      hydrovacJobSortDate: vi.fn((job) => job.scheduled_date || ""),
+      teamMemberLabel: vi.fn((member) => member.display_name || member.name || "Crew member"),
+    });
+    const jobs = [
+      {
+        id: "job_1",
+        title: "North trench",
+        status: "scheduled",
+        scheduled_date: "2026-04-08",
+        scheduled_time: "08:00",
+        assigned_truck_id: "truck_1",
+        assigned_member_id: "member_1",
+        minimum_hours: 4,
+        billable_hours: 1.5,
+        travel_hours: 0.25,
+        customer_name: "North Utility",
+      },
+      {
+        id: "job_2",
+        title: "West basin cleanup",
+        status: "scheduled",
+        scheduled_date: "2026-04-08",
+        scheduled_time: "12:00",
+        assigned_truck_id: "truck_1",
+        assigned_member_id: "member_1",
+        minimum_hours: 4,
+        billable_hours: 1,
+        travel_hours: 0.25,
+        customer_name: "West Basin",
+      },
+    ];
+
+    const summary = context.dispatchColumnCrewCapacity(
+      jobs,
+      jobs,
+      "2026-04-08"
+    );
+
+    expect(summary).toMatchObject({
+      label: "Crew block available",
+      tone: "pill-warn",
+    });
+    expect(summary.note).toContain("assigned crew");
+  });
+
+  test("dispatchAssignmentConflictSummary flags crew and truck double-booking separately", () => {
+    const { context } = loadDispatchWorkspace();
+    const activeJob = {
+      id: "job_1",
+      scheduled_date: "2026-04-08",
+      assigned_truck_id: "truck_1",
+      assigned_member_id: "member_1",
+      minimum_hours: 4,
+      billable_hours: 3,
+      travel_hours: 0.5,
+    };
+    const jobs = [
+      activeJob,
+      {
+        id: "job_2",
+        scheduled_date: "2026-04-08",
+        assigned_truck_id: "truck_1",
+        assigned_member_id: "member_1",
+        minimum_hours: 4,
+        billable_hours: 2.5,
+        travel_hours: 0.5,
+        status: "scheduled",
+      },
+    ];
+
+    const summary = context.dispatchAssignmentConflictSummary(
+      activeJob,
+      jobs,
+      "truck_1",
+      "member_1",
+      "2026-04-08"
+    );
+
+    expect(summary.hardConflict).toBe(true);
+    expect(summary.warnings).toEqual(expect.arrayContaining([
+      expect.objectContaining({ label: "Crew double-booked" }),
+      expect.objectContaining({ label: "Truck double-booked" }),
+    ]));
+  });
+
+  test("renderDispatchWorkspace keeps the truck board shell visible for loaded truck columns", () => {
+    const { context, dispatchBoard, dispatchDate } = loadDispatchWorkspace({
+      isHydrovacJob: vi.fn(() => true),
+      hydrovacJobSortDate: vi.fn((job) => job.scheduled_date || ""),
+      teamMemberLabel: vi.fn((member) => member.display_name || member.name || "Crew member"),
+      EQUIPMENT_CACHE: [
+        { id: "truck_1", unit_number: "HX-12", name: "HX-12", is_active: true, debris_tank_capacity_gallons: 2000 },
+      ],
+      TEAM_MEMBERS_CACHE: [
+        { id: "member_1", display_name: "Skylar Stevens", user_id: "user_1" },
+      ],
+      JOBS_CACHE: [
+        {
+          id: "job_1",
+          title: "North trench",
+          status: "scheduled",
+          scheduled_date: "2026-04-08",
+          scheduled_time: "08:00",
+          assigned_truck_id: "truck_1",
+          assigned_member_id: "member_1",
+          minimum_hours: 4,
+          billable_hours: 1.5,
+          travel_hours: 0.25,
+          customer_name: "North Utility",
+        },
+        {
+          id: "job_2",
+          title: "West basin cleanup",
+          status: "scheduled",
+          scheduled_date: "2026-04-08",
+          scheduled_time: "12:00",
+          assigned_truck_id: "truck_1",
+          assigned_member_id: "member_1",
+          minimum_hours: 4,
+          billable_hours: 1,
+          travel_hours: 0.25,
+          customer_name: "West Basin",
+        },
+      ],
+    });
+    dispatchDate.value = "2026-04-08";
+
+    context.window.renderDispatchWorkspace();
+
+    expect(dispatchBoard.innerHTML).toContain("Truck board");
+    expect(dispatchBoard.innerHTML).toContain("HX-12");
+  });
+
+  test("renderDispatchWorkspace only refreshes truck loads when the cache is stale", async () => {
+    const requestOperatorFunction = vi.fn(async () => ({ manifests: [] }));
+    const { context, dispatchDate } = loadDispatchWorkspace({
+      isHydrovacJob: vi.fn(() => true),
+      hydrovacJobSortDate: vi.fn((job) => job.scheduled_date || ""),
+      requestOperatorFunction,
+      EQUIPMENT_CACHE: [
+        { id: "truck_1", unit_number: "HX-12", name: "HX-12", is_active: true, debris_tank_capacity_gallons: 2000 },
+      ],
+      TEAM_MEMBERS_CACHE: [
+        { id: "member_1", display_name: "Skylar Stevens", user_id: "user_1" },
+      ],
+      JOBS_CACHE: [
+        {
+          id: "job_1",
+          title: "North trench",
+          status: "scheduled",
+          scheduled_date: "2026-04-08",
+          assigned_truck_id: "truck_1",
+          assigned_member_id: "member_1",
+          customer_name: "North Utility",
+        },
+      ],
+    });
+    dispatchDate.value = "2026-04-08";
+
+    context.window.renderDispatchWorkspace();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(requestOperatorFunction).toHaveBeenCalledTimes(1);
+
+    context.window.renderDispatchWorkspace();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(requestOperatorFunction).toHaveBeenCalledTimes(1);
+  });
+
+  test("saveDispatchAssignment persists truck and crew ownership using member context", async () => {
+    const saveJobRecord = vi.fn(async (patch = {}) => patch);
+    const { context } = loadDispatchWorkspace({
+      TEAM_MEMBERS_CACHE: [
+        { id: "member_1", operator_id: "operator_1", user_id: "user_1", display_name: "Skylar Stevens" },
+      ],
+      saveJobRecord,
+    });
+
+    await context.saveDispatchAssignment(
+      { id: "job_1" },
+      { truckId: "truck_1", memberId: "member_1" }
+    );
+
+    expect(saveJobRecord).toHaveBeenCalledWith({
+      id: "job_1",
+      assigned_truck_id: "truck_1",
+      assigned_member_id: "member_1",
+      assigned_operator_id: "operator_1",
+    });
+  });
+
+  test("saveDispatchCrewPlanning persists expected hours, minimum block, and travel hours", async () => {
+    const saveJobRecord = vi.fn(async (patch = {}) => patch);
+    const { context } = loadDispatchWorkspace({ saveJobRecord });
+
+    await context.saveDispatchCrewPlanning(
+      { id: "job_1" },
+      { billableHours: "1.5", minimumHours: "4", travelHours: "0.25" }
+    );
+
+    expect(saveJobRecord).toHaveBeenCalledWith({
+      id: "job_1",
+      billable_hours: 1.5,
+      minimum_hours: 4,
+      travel_hours: 0.25,
+    });
   });
 });

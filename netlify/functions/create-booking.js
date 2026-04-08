@@ -9,6 +9,11 @@ const { getAdminClient, requireOperatorContext, respond } = require('./utils/aut
 const { sendEmail, templates }  = require('./utils/email');
 const { getConfiguredSiteUrl }  = require('./utils/runtime-config');
 const { checkRateLimit, rateLimitResponse, getClientIP } = require('./utils/rate-limit');
+const {
+  isGoogleCalendarConfigured,
+  getOperatorCalendarConnection,
+  syncBookingsToGoogleCalendar,
+} = require('./utils/google-calendar');
 
 function parseConfigValue(value) {
   if (!value) return {};
@@ -48,6 +53,10 @@ function cleanText(value) {
   return String(value || '').trim();
 }
 
+function businessNameFromTenant(tenant) {
+  return cleanText(tenant?.business_name || tenant?.name) || 'Your service provider';
+}
+
 function buildBookingNotes({ notes, serviceAddress, preferredTime, referralSource }) {
   const parts = [];
   const baseNotes = cleanText(notes);
@@ -82,6 +91,11 @@ exports.handler = async (event) => {
     preferred_time,
     referral_source,
     service_address,
+    location_label,
+    assigned_operator_id,
+    notes_vehicle,
+    customer_id,
+    skip_confirmation_email,
   } = body;
 
   if (!customer_name || !title || !starts_at || !ends_at) {
@@ -109,6 +123,7 @@ exports.handler = async (event) => {
 
   let resolvedTenantId = tenant_id || null;
   let resolvedOperatorId = null;
+  let actingOperatorId = null;
   let supabase;
 
   const authHeader = (event.headers?.authorization || event.headers?.Authorization || '').trim();
@@ -119,6 +134,7 @@ exports.handler = async (event) => {
     supabase = ctx.supabase;
     resolvedTenantId = ctx.tenantId;
     resolvedOperatorId = ctx.operatorId;
+    actingOperatorId = ctx.operatorId;
   } else {
     if (!resolvedTenantId) return respond(400, { error: 'tenant_id required for public bookings' });
     const ip = getClientIP(event);
@@ -134,11 +150,16 @@ exports.handler = async (event) => {
       operator_id   : resolvedOperatorId || null,
       customer_name,
       customer_email: customer_email || null,
+      customer_id   : customer_id || null,
       title,
       starts_at,
       ends_at,
       notes         : bookingNotes || null,
       order_id      : order_id || null,
+      service_address: service_address || null,
+      location_label : location_label || null,
+      assigned_operator_id: assigned_operator_id || null,
+      notes_vehicle : notes_vehicle || null,
       status        : 'confirmed',
       created_at    : new Date().toISOString(),
       updated_at    : new Date().toISOString(),
@@ -157,20 +178,20 @@ exports.handler = async (event) => {
   let tenantContext = null;
   try {
     const [{ data: tenant }, { data: siteSettingsRow }, { data: availabilityRow }] = await Promise.all([
-      supabase.from('tenants').select('name').eq('id', resolvedTenantId).maybeSingle(),
+      supabase.from('tenants').select('business_name, name').eq('id', resolvedTenantId).maybeSingle(),
       supabase.from('tenant_config').select('config_value').eq('tenant_id', resolvedTenantId).eq('config_key', 'site_settings').maybeSingle(),
       supabase.from('availability').select('timezone').eq('tenant_id', resolvedTenantId).limit(1).maybeSingle(),
     ]);
     const siteSettings = parseConfigValue(siteSettingsRow?.config_value);
     tenantContext = {
-      businessName: tenant?.name || 'Your service provider',
+      businessName: businessNameFromTenant(tenant),
       timezone: availabilityRow?.timezone || siteSettings.timezone || siteSettings.site_timezone || 'America/New_York',
     };
   } catch (lookupError) {
     console.warn('[create-booking] tenant context lookup failed:', lookupError.message || lookupError);
   }
 
-  if (customer_email) {
+  if (customer_email && skip_confirmation_email !== true) {
     try {
       const bookingWindow = formatBookingWindow(starts_at, ends_at, tenantContext?.timezone);
       const siteUrl = getConfiguredSiteUrl();
@@ -221,6 +242,21 @@ exports.handler = async (event) => {
     }
   } catch (e) {
     console.warn('[create-booking] operator notification setup failed:', e.message);
+  }
+
+  if (actingOperatorId && isGoogleCalendarConfigured()) {
+    try {
+      const connection = await getOperatorCalendarConnection(supabase, resolvedTenantId, actingOperatorId);
+      if (connection?.export_bookings === true && String(connection.sync_mode || '').trim().toLowerCase() === 'read_write') {
+        await syncBookingsToGoogleCalendar({
+          supabase,
+          connection,
+          bookings: [data],
+        });
+      }
+    } catch (syncError) {
+      console.warn('[create-booking] google calendar sync failed:', syncError.message || syncError);
+    }
   }
 
   return respond(201, { ok: true, booking: data });

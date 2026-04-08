@@ -93,6 +93,19 @@ exports.handler = async function (event) {
     tenantUpdate.flagged_at = now;
   }
 
+  const { data: existingTenant, error: tenantLookupErr } = await supabase
+    .from('tenants')
+    .select('id')
+    .eq('id', tenant_id)
+    .maybeSingle();
+
+  if (tenantLookupErr) {
+    return respond(500, { error: 'Failed to load tenant: ' + tenantLookupErr.message });
+  }
+  if (!existingTenant) {
+    return respond(404, { error: 'Tenant not found' });
+  }
+
   // Apply the update
   const { error: updateErr } = await supabase
     .from('tenants')

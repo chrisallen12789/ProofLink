@@ -69,6 +69,10 @@ function normalizeHealthRow(row) {
   };
 }
 
+function tenantNameOrFallback(tenant = {}) {
+  return tenant.business_name || tenant.name || tenant.slug || '';
+}
+
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return respond(200, {});
   if (event.httpMethod !== 'GET') return respond(405, { error: 'Method not allowed' });
@@ -101,7 +105,7 @@ exports.handler = async (event) => {
   if (emailFilter) query = query.ilike('owner_email', `%${emailFilter}%`);
   if (slugFilter) query = query.eq('slug', slugFilter);
   if (search) {
-    query = query.or(`name.ilike.%${search}%,slug.ilike.%${search}%,owner_email.ilike.%${search}%`);
+    query = query.or(`business_name.ilike.%${search}%,name.ilike.%${search}%,slug.ilike.%${search}%,owner_email.ilike.%${search}%`);
   }
 
   const { data: tenants, error, count } = await query;
@@ -121,12 +125,12 @@ exports.handler = async (event) => {
   try {
     const { data: orders } = await supabase
       .from('orders')
-      .select('tenant_id, total_amount')
+      .select('tenant_id, total_cents')
       .in('tenant_id', tenantIds);
 
     (orders || []).forEach((order) => {
       orderCounts[order.tenant_id] = (orderCounts[order.tenant_id] || 0) + 1;
-      gmvByTenant[order.tenant_id] = (gmvByTenant[order.tenant_id] || 0) + toNumber(order.total_amount);
+      gmvByTenant[order.tenant_id] = (gmvByTenant[order.tenant_id] || 0) + toNumber(order.total_cents) / 100;
     });
   } catch {}
 
@@ -181,6 +185,7 @@ exports.handler = async (event) => {
 
     return {
       ...tenant,
+      business_name: tenantNameOrFallback(tenant),
       order_count: orderCounts[tenant.id] || 0,
       product_count: productCounts[tenant.id] || tenant.product_count || 0,
       gmv: round2(gmvByTenant[tenant.id] || 0),

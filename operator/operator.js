@@ -7256,7 +7256,12 @@ function renderJobAssignedToOptions(selectedId = "") {
   const members = OPERATOR_MEMBERS_CACHE || [];
   jobAssignedTo.innerHTML = `
     <option value="">Unassigned</option>
-    ${members.map((m) => `<option value="${escapeAttr(m.id)}">${escapeHtml(m.name || m.email)}</option>`).join("")}
+    ${members.map((m) => {
+      const name = m.display_name || m.name || m.email || m.id;
+      const role = m.role_title || m.role || "";
+      const detail = role ? ` (${role})` : "";
+      return `<option value="${escapeAttr(m.id)}">${escapeHtml(`${name}${detail}`)}</option>`;
+    }).join("")}
   `;
   jobAssignedTo.value = members.some((m) => m.id === selectedId) ? selectedId : "";
 }
@@ -7300,7 +7305,7 @@ function populateJobForm(job) {
   if (jobStatus) jobStatus.value = String(job.status || "scheduled");
   renderJobOrderOptions(job.order_id || "");
   renderJobCustomerOptions(job.customer_id || "");
-  renderJobAssignedToOptions(job.assigned_operator_id || "");
+  renderJobAssignedToOptions(job.assigned_member_id || job.assigned_operator_id || "");
   if (jobTitle) jobTitle.value = job.title || "";
   if (jobServiceAddress) jobServiceAddress.value = job.service_address || "";
   if (jobScheduledDate) jobScheduledDate.value = job.scheduled_date || "";

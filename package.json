@@ -10,6 +10,7 @@
     "test:unit": "vitest run tests/unit",
     "test:integration": "vitest run tests/integration",
     "test:preflight:env-contract": "node scripts/verify-test-env-contract.js",
+    "test:preflight:release-readiness": "node scripts/verify-release-readiness.js",
     "test:preflight:service-workflow": "npm run test:preflight:env-contract && node tests/setup/run-service-workflow-preflight.js",
     "test:integration:service-workflow": "npm run test:preflight:service-workflow && vitest run tests/integration/netlify/functions/service-intake.int.test.js tests/integration/sql/service-workflow.int.test.js",
     "test:github-actions-status": "node scripts/check-github-actions-status.js",

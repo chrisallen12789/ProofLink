@@ -1,6 +1,8 @@
 // Scheduling workspace extracted from operator.js so bookings, rescheduling,
 // walk-ins, and quick time logging can evolve together.
 let BOOKINGS_SELECTED_DATE = "";
+let BOOKINGS_EXTERNAL_CACHE = [];
+let BOOKINGS_CALENDAR_SYNC = null;
 
 async function fetchBookings() {
   if (FETCHING.has("bookings")) return;
@@ -11,13 +13,15 @@ async function fetchBookings() {
     const month = BK_VIEW_DATE.getMonth();
     const start = new Date(year, month, 1).toISOString().slice(0, 10);
     const end = new Date(year, month + 1, 0).toISOString().slice(0, 10);
-    const res = await fetch(`/.netlify/functions/get-bookings?start=${start}&end=${end}`, {
+    const res = await fetch(`/.netlify/functions/get-bookings?start=${start}&end=${end}&include_calendar_sync=1`, {
       headers: { Authorization: `Bearer ${tok}` },
       signal: _tabAbortController?.signal,
     });
     const d = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(d.error || "Failed to fetch bookings");
     BOOKINGS_CACHE = (d.bookings || []).filter((booking) => !booking.is_deleted);
+    BOOKINGS_EXTERNAL_CACHE = Array.isArray(d.external_events) ? d.external_events : [];
+    BOOKINGS_CALENDAR_SYNC = d.calendar_sync || null;
     return BOOKINGS_CACHE;
   } catch (err) {
     if (err.name === "AbortError" || err.message?.includes("abort")) return;
@@ -25,6 +29,41 @@ async function fetchBookings() {
   } finally {
     FETCHING.delete("bookings");
   }
+}
+
+async function fetchGoogleCalendarSyncState() {
+  try {
+    const tok = await getAccessToken();
+    const res = await fetch("/.netlify/functions/get-google-calendar-sync", {
+      headers: { Authorization: `Bearer ${tok}` },
+      signal: _tabAbortController?.signal,
+    });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(d.error || "Failed to load Google Calendar sync");
+    BOOKINGS_CALENDAR_SYNC = {
+      configured: d.configured !== false,
+      ...(d.connection || {}),
+    };
+    return BOOKINGS_CALENDAR_SYNC;
+  } catch (err) {
+    BOOKINGS_CALENDAR_SYNC = {
+      configured: false,
+      connected: false,
+      calendars: [],
+      last_sync_error: err.message || "Could not load Google Calendar sync.",
+    };
+    return BOOKINGS_CALENDAR_SYNC;
+  }
+}
+
+function externalEventsForDateMap(events = BOOKINGS_EXTERNAL_CACHE) {
+  const byDate = {};
+  (events || []).forEach((event) => {
+    const dateKey = String(event.starts_at || "").slice(0, 10);
+    if (!dateKey) return;
+    (byDate[dateKey] ||= []).push(event);
+  });
+  return byDate;
 }
 
 let _operatorMembersLastFetched = 0;
@@ -81,6 +120,221 @@ function computeBookingRecurrenceCount(rule, baseDate, endDate) {
   };
 }
 
+function bookingExternalEventsForPane(dateKey = "") {
+  const events = Array.isArray(BOOKINGS_EXTERNAL_CACHE) ? BOOKINGS_EXTERNAL_CACHE : [];
+  if (dateKey) {
+    return events.filter((event) => String(event.starts_at || "").slice(0, 10) === dateKey);
+  }
+  return events.filter((event) => !["cancelled"].includes(String(event.status || "").toLowerCase()));
+}
+
+function formatLastSyncLabel(value) {
+  if (!value) return "Not synced yet";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "Not synced yet";
+  return parsed.toLocaleString();
+}
+
+async function startGoogleCalendarConnect() {
+  const wrap = $("calendarSyncWrap");
+  try {
+    const tok = await getAccessToken();
+    const res = await fetch("/.netlify/functions/begin-google-calendar-connect", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${tok}` },
+    });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(d.error || "Could not start Google Calendar connection.");
+    window.open(d.auth_url, "prooflinkGoogleCalendar", "width=640,height=760");
+    showToast("Google Calendar connection opened in a new window.");
+  } catch (err) {
+    if (wrap) wrap.innerHTML = `<div class="msg error">${escapeHtml(err.message || "Could not start Google Calendar connection.")}</div>`;
+  }
+}
+
+async function saveGoogleCalendarSettings() {
+  const selectedCalendarIds = Array.from(document.querySelectorAll("[data-calendar-sync-source]:checked"))
+    .map((input) => input.value)
+    .filter(Boolean);
+  const exportCalendarId = $("calendarSyncExport")?.value || "";
+  const exportBookings = $("calendarSyncExportBookings")?.checked === true;
+  const syncMode = $("calendarSyncMode")?.value || "read_only";
+
+  const tok = await getAccessToken();
+  const res = await fetch("/.netlify/functions/update-google-calendar-sync", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${tok}`,
+    },
+    body: JSON.stringify({
+      selected_calendar_ids: selectedCalendarIds,
+      export_calendar_id: exportCalendarId,
+      export_bookings: exportBookings,
+      consolidate_calendars: true,
+      sync_mode: syncMode,
+    }),
+  });
+  const d = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(d.error || "Could not save Google Calendar settings.");
+  BOOKINGS_CALENDAR_SYNC = {
+    configured: true,
+    ...(d.connection || {}),
+  };
+  return BOOKINGS_CALENDAR_SYNC;
+}
+
+async function runGoogleCalendarSync({ bookingId = "", silent = false } = {}) {
+  const year = BK_VIEW_DATE.getFullYear();
+  const month = BK_VIEW_DATE.getMonth();
+  const start = new Date(year, month, 1).toISOString().slice(0, 10);
+  const end = new Date(year, month + 1, 0).toISOString().slice(0, 10);
+  const tok = await getAccessToken();
+  const res = await fetch("/.netlify/functions/sync-google-calendar", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${tok}`,
+    },
+    body: JSON.stringify({
+      start,
+      end,
+      ...(bookingId ? { booking_id: bookingId } : {}),
+    }),
+  });
+  const d = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(d.error || "Could not sync Google Calendar.");
+  BOOKINGS_EXTERNAL_CACHE = Array.isArray(d.external_events) ? d.external_events : BOOKINGS_EXTERNAL_CACHE;
+  if (BOOKINGS_CALENDAR_SYNC) {
+    BOOKINGS_CALENDAR_SYNC.last_synced_at = new Date().toISOString();
+    BOOKINGS_CALENDAR_SYNC.last_sync_error = null;
+  }
+  if (!silent) {
+    const exportSummary = d.export_summary || {};
+    showToast(`Calendar synced. ${Number(exportSummary.created || 0) + Number(exportSummary.updated || 0)} booking export${(Number(exportSummary.created || 0) + Number(exportSummary.updated || 0)) === 1 ? "" : "s"} checked.`);
+  }
+  return d;
+}
+
+async function disconnectGoogleCalendar() {
+  const tok = await getAccessToken();
+  const res = await fetch("/.netlify/functions/disconnect-google-calendar-sync", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${tok}` },
+  });
+  const d = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(d.error || "Could not disconnect Google Calendar.");
+  BOOKINGS_CALENDAR_SYNC = {
+    configured: true,
+    connected: false,
+    calendars: [],
+    selected_calendar_ids: [],
+    export_calendar_id: "",
+    export_bookings: false,
+    sync_mode: "read_only",
+  };
+  BOOKINGS_EXTERNAL_CACHE = [];
+}
+
+function setBookingExternalEvents(events = []) {
+  BOOKINGS_EXTERNAL_CACHE = Array.isArray(events) ? events : [];
+  return BOOKINGS_EXTERNAL_CACHE;
+}
+
+function renderCalendarSyncCard() {
+  const wrap = $("calendarSyncWrap");
+  if (!wrap) return;
+  const syncState = BOOKINGS_CALENDAR_SYNC || {};
+  if (syncState.configured === false) {
+    wrap.innerHTML = `<div class="detail-copy">Google Calendar sync is not configured in this environment yet. Add the Google client env vars and redirect URI, then refresh this page.</div>`;
+    return;
+  }
+
+  if (!syncState.connected) {
+    wrap.innerHTML = `
+      <div class="detail-copy">Connect the Google account this operator wants to use, then choose which calendars should be consolidated into the ProofLink calendar.</div>
+      <div class="action-row u-mt-10">
+        <button id="btnGoogleCalendarConnect" class="btn btn-primary" type="button">Connect Google Calendar</button>
+      </div>
+      ${syncState.last_sync_error ? `<div class="msg error u-mt-10">${escapeHtml(syncState.last_sync_error)}</div>` : ""}
+    `;
+    $("btnGoogleCalendarConnect")?.addEventListener("click", () => startGoogleCalendarConnect().catch((error) => notifyOperator(error.message || "Could not start Google Calendar connection.")));
+    return;
+  }
+
+  const calendars = Array.isArray(syncState.calendars) ? syncState.calendars : [];
+  wrap.innerHTML = `
+    <div class="detail-copy">This operator can consolidate multiple Google calendars into one ProofLink view and optionally export ProofLink bookings back to one destination calendar. Duplicate exports are blocked server-side.</div>
+    <div class="grid two form-grid u-mt-10">
+      <div>
+        <div class="section-heading-note">Source calendars</div>
+        <div class="modal-stack">
+          ${calendars.length ? calendars.map((calendar) => `
+            <label class="check">
+              <input type="checkbox" data-calendar-sync-source value="${escapeAttr(calendar.id)}" ${calendar.selected ? "checked" : ""} />
+              ${escapeHtml(calendar.summary || calendar.id)}${calendar.primary ? " (Primary)" : ""}
+            </label>
+          `).join("") : `<div class="muted">No calendars available on this Google account yet.</div>`}
+        </div>
+      </div>
+      <div class="modal-stack">
+        <label>ProofLink booking export calendar
+          <select id="calendarSyncExport" class="input u-full-width">
+            <option value="">Do not export bookings</option>
+            ${calendars.map((calendar) => `<option value="${escapeAttr(calendar.id)}"${calendar.export_target ? " selected" : ""}>${escapeHtml(calendar.summary || calendar.id)}</option>`).join("")}
+          </select>
+        </label>
+        <label class="check">
+          <input id="calendarSyncExportBookings" type="checkbox" ${syncState.export_bookings ? "checked" : ""} />
+          Export ProofLink bookings to Google
+        </label>
+        <label>Sync mode
+          <select id="calendarSyncMode" class="input u-full-width">
+            <option value="read_only"${syncState.sync_mode === "read_only" ? " selected" : ""}>Read only</option>
+            <option value="read_write"${syncState.sync_mode === "read_write" ? " selected" : ""}>Read and export bookings</option>
+          </select>
+        </label>
+        <div class="muted u-fs-82">Last sync: ${escapeHtml(formatLastSyncLabel(syncState.last_synced_at))}</div>
+        ${syncState.last_sync_error ? `<div class="msg error">${escapeHtml(syncState.last_sync_error)}</div>` : ""}
+      </div>
+    </div>
+    <div class="action-row u-mt-10">
+      <button id="btnGoogleCalendarSave" class="btn btn-primary" type="button">Save sync setup</button>
+      <button id="btnGoogleCalendarSyncNow" class="btn btn-ghost" type="button" ${syncState.sync_locked ? "disabled" : ""}>Sync now</button>
+      <button id="btnGoogleCalendarDisconnect" class="btn btn-ghost" type="button">Disconnect</button>
+    </div>
+  `;
+
+  $("btnGoogleCalendarSave")?.addEventListener("click", async () => {
+    try {
+      await saveGoogleCalendarSettings();
+      renderCalendarSyncCard();
+      showToast("Google Calendar sync settings saved.");
+    } catch (err) {
+      notifyOperator(err.message || "Could not save Google Calendar settings.");
+    }
+  });
+  $("btnGoogleCalendarSyncNow")?.addEventListener("click", async () => {
+    try {
+      await runGoogleCalendarSync();
+      await fetchBookings();
+      renderBookings();
+    } catch (err) {
+      notifyOperator(err.message || "Could not sync Google Calendar.");
+    }
+  });
+  $("btnGoogleCalendarDisconnect")?.addEventListener("click", async () => {
+    try {
+      await disconnectGoogleCalendar();
+      renderCalendarSyncCard();
+      renderBookings();
+      showToast("Google Calendar disconnected.");
+    } catch (err) {
+      notifyOperator(err.message || "Could not disconnect Google Calendar.");
+    }
+  });
+}
+
 function renderBookingsCalendar(bookings) {
   const cal = $("bookingsCalendar");
   const label = $("bkMonthLabel");
@@ -94,6 +348,7 @@ function renderBookingsCalendar(bookings) {
   const firstDow = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const byDate = {};
+  const externalByDate = externalEventsForDateMap();
 
   (bookings || []).forEach((booking) => {
     const dateKey = String(booking.starts_at || "").slice(0, 10);
@@ -108,8 +363,9 @@ function renderBookingsCalendar(bookings) {
     const date = new Date(year, month, day);
     const dateStr = date.toISOString().slice(0, 10);
     const dayBookings = byDate[dateStr] || [];
-    const dots = dayBookings.length
-      ? `<div class="cal-dots">${dayBookings.slice(0, 3).map(() => `<span class="cal-dot"></span>`).join("")}</div>`
+    const dayExternalEvents = externalByDate[dateStr] || [];
+    const dots = (dayBookings.length || dayExternalEvents.length)
+      ? `<div class="cal-dots">${dayBookings.slice(0, 2).map(() => `<span class="cal-dot"></span>`).join("")}${dayExternalEvents.slice(0, 2).map(() => `<span class="cal-dot cal-dot--external"></span>`).join("")}</div>`
       : `<div class="cal-dots"></div>`;
     const isToday = date.toDateString() === new Date().toDateString();
     cells.push(`
@@ -942,12 +1198,14 @@ function currentBookingsPaneState(bookings = filteredBookingsForWorkspace()) {
   if (BOOKINGS_SELECTED_DATE) {
     return {
       bookings: scopedBookings.filter((booking) => booking.starts_at?.slice(0, 10) === BOOKINGS_SELECTED_DATE),
+      externalEvents: bookingExternalEventsForPane(BOOKINGS_SELECTED_DATE),
       label: new Date(`${BOOKINGS_SELECTED_DATE}T00:00:00`).toLocaleDateString(),
     };
   }
   const upcoming = scopedBookings.filter((booking) => !["cancelled", "completed", "no_show"].includes(String(booking.status || "").toLowerCase()));
   return {
     bookings: upcoming.length ? upcoming : scopedBookings,
+    externalEvents: bookingExternalEventsForPane(""),
     label: "Upcoming appointments",
   };
 }
@@ -955,26 +1213,29 @@ function currentBookingsPaneState(bookings = filteredBookingsForWorkspace()) {
 function renderBookingsDetailPane(bookings = filteredBookingsForWorkspace()) {
   const pane = currentBookingsPaneState(bookings);
   renderBookingsOverview(pane.bookings);
-  renderBookingsList(pane.bookings);
+  renderBookingsList(pane.bookings, pane.externalEvents);
   const listLabel = $("bkListLabel");
   if (listLabel) listLabel.textContent = pane.label;
 }
 
-function renderBookingsList(bookings) {
+function renderBookingsList(bookings, externalEvents = []) {
   const list = $("bookingsList");
   if (!list) return;
   const blueprint = bookingWorkspaceBlueprint();
   const businessKey = String(blueprint?.business?.key || "service_business").trim().toLowerCase();
   const hydrovacMode = businessKey === "hydrovac";
 
-  if (!bookings || !bookings.length) {
+  const visibleBookings = Array.isArray(bookings) ? bookings : [];
+  const visibleExternalEvents = Array.isArray(externalEvents) ? externalEvents : [];
+
+  if (!visibleBookings.length && !visibleExternalEvents.length) {
     list.innerHTML = `<div class="muted muted-small">No bookings here yet. New appointments will appear here as soon as they are scheduled.</div>`;
     return;
   }
 
   list.innerHTML = `
     <div class="booking-list">
-      ${bookings.map((booking) => {
+      ${visibleBookings.map((booking) => {
         const assignedLabel = booking.assigned_operator_name
           || booking.assigned_operator?.display_name
           || booking.assigned_operator?.email
@@ -1027,6 +1288,33 @@ function renderBookingsList(bookings) {
           </article>
         `;
       }).join("")}
+      ${visibleExternalEvents.map((event) => `
+        <article class="list-item list-item--top booking-list-card booking-list-card--external">
+          <div class="booking-list-card__head">
+            <div class="booking-list-card__title">
+              <strong>${escapeHtml(event.summary || "Google Calendar event")}</strong>
+              <div class="booking-list-card__sub">${escapeHtml(event.calendar_name || "Google Calendar")}</div>
+              <div class="booking-list-card__sub">${escapeHtml(formatDateTime(event.starts_at))}${event.location ? ` | ${escapeHtml(event.location)}` : ""}</div>
+            </div>
+            <div class="booking-list-card__meta li-meta li-meta--tight">
+              <span class="pill">Google</span>
+              ${event.all_day ? `<span class="pill">All day</span>` : ""}
+            </div>
+          </div>
+          <div class="booking-list-card__notes">
+            <div class="booking-list-card__note">
+              <span>Calendar overlay</span>
+              <strong>${escapeHtml(event.calendar_name || "Google Calendar")}</strong>
+              <small>${escapeHtml(event.notes || "This event is being consolidated into the operator calendar from Google.")}</small>
+            </div>
+          </div>
+          ${event.html_link ? `
+            <div class="booking-list-card__actions">
+              <a class="btn btn-ghost btn-sm" href="${escapeAttr(event.html_link)}" target="_blank" rel="noreferrer">Open in Google</a>
+            </div>
+          ` : ""}
+        </article>
+      `).join("")}
     </div>
   `;
 
@@ -1089,12 +1377,16 @@ function renderBookingsList(bookings) {
 
 async function renderBookings() {
   try {
-    await fetchBookings();
+    await Promise.all([
+      fetchBookings(),
+      fetchGoogleCalendarSyncState(),
+    ]);
   } catch (err) {
     console.error("[renderBookings]", err);
   }
 
   renderBookingsCalendar(BOOKINGS_CACHE);
+  renderCalendarSyncCard();
   const myBookingsActive = localStorage.getItem("pl_my_bookings_filter") === "true";
   const btnMyBookings = $("btnMyBookings");
   if (btnMyBookings) {
@@ -1761,6 +2053,8 @@ function initBookingsWorkspaceBindings() {
     const time = $("bkStart")?.value;
     const duration = parseInt($("bkDuration")?.value || "60", 10);
     const notes = $("bkNotes")?.value.trim();
+    const locationLabel = $("bkLocationLabel")?.value.trim();
+    const serviceAddress = $("bkServiceAddress")?.value.trim();
     const recurrenceRule = $("bkRecurrenceRule")?.value || "";
     const recurrenceEnd = $("bkRecurrenceEnd")?.value || "";
 
@@ -1812,6 +2106,8 @@ function initBookingsWorkspaceBindings() {
         starts_at: startsAt,
         ends_at: endsAt,
         notes: notes || undefined,
+        location_label: locationLabel || undefined,
+        service_address: serviceAddress || undefined,
       };
       if (recurrenceRule) {
         payload.recurrence_rule = recurrenceRule;
@@ -1864,6 +2160,10 @@ function initBookingsWorkspaceBindings() {
         const field = $(id);
         if (field) field.value = "";
       });
+      ["bkLocationLabel", "bkServiceAddress"].forEach((id) => {
+        const field = $(id);
+        if (field) field.value = "";
+      });
       const recurrenceRuleEl = $("bkRecurrenceRule");
       if (recurrenceRuleEl) recurrenceRuleEl.value = "";
       if (optionsEl) optionsEl.classList.add("u-hidden");
@@ -1900,6 +2200,10 @@ const BOOKINGS_WORKSPACE_HELPERS = {
     bookingDraftTimingMessage,
     bookingDraftNotes,
     openBookingDraftForCustomer,
+    bookingExternalEventsForPane,
+    setBookingExternalEvents,
+    renderCalendarSyncCard,
+    runGoogleCalendarSync,
     renderBookingsCalendar,
     bookingWorkspaceBlueprint,
     linkedCustomerForBooking,

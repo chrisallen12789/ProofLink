@@ -14,13 +14,14 @@ describe("admin AI control source", () => {
   );
 
   test("adds an admin-only AI control section", () => {
+    const normalizedHtml = html.replace(/\s+/g, " ");
     expect(html).toContain('data-section="ai-control"');
     expect(html).toContain('id="section-ai-control"');
     expect(html).toContain("Internal AI Control");
     expect(html).toContain("Run workforce review");
     expect(html).toContain("Run systems review");
     expect(html).toContain("Systems guidance");
-    expect(html).toContain("Tenant operators should only see workflow reviews");
+    expect(normalizedHtml).toContain("Tenant operators should only see workflow reviews");
   });
 
   test("wires tenant-targeted workforce review helpers in admin runtime", () => {

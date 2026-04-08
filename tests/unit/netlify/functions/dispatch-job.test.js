@@ -372,4 +372,90 @@ describe("netlify/functions/dispatch-job", () => {
     );
     expect(updateSpy).toHaveBeenCalled();
   });
+
+  test("allows a compound route override when the same crew still fits inside the minimum block", async () => {
+    const updateSpy = vi.fn();
+    const adminSb = createAdminSb({
+      job: { ...baseJob, minimum_hours: 4, billable_hours: 1.5, travel_hours: 0.25 },
+      truck: baseTruck,
+      member: baseMember,
+      locateTickets: [{ id: "ticket_1" }],
+      qualifications: baseQualifications,
+      conflictingJobs: [{
+        id: "job_prior",
+        title: "Vault cleanout",
+        scheduled_date: "2026-03-26",
+        status: "dispatched",
+        assigned_member_id: "member_1",
+        assigned_operator_id: "operator_1",
+        minimum_hours: 4,
+        billable_hours: 1.25,
+        travel_hours: 0.25,
+      }],
+      updatedJob: { ...baseJob, status: "dispatched", assigned_truck_id: "truck_1" },
+      updateSpy,
+    });
+    installMocks({ adminSb });
+
+    const handler = require(handlerPath).handler;
+    const res = await handler({
+      httpMethod: "POST",
+      body: JSON.stringify({
+        job_id: "job_1",
+        assigned_truck_id: "truck_1",
+        driver_member_id: "member_1",
+        compound_route_override: true,
+      }),
+    });
+    const body = JSON.parse(res.body);
+
+    expect(res.statusCode).toBe(200);
+    expect(body.ok).toBe(true);
+    expect(body.warnings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: "compound_route_override" }),
+      ])
+    );
+    expect(updateSpy).toHaveBeenCalled();
+  });
+
+  test("blocks a compound route override when the total estimated work runs past the minimum block", async () => {
+    const updateSpy = vi.fn();
+    const adminSb = createAdminSb({
+      job: { ...baseJob, minimum_hours: 4, billable_hours: 2.5, travel_hours: 0.5 },
+      truck: baseTruck,
+      member: baseMember,
+      locateTickets: [{ id: "ticket_1" }],
+      qualifications: baseQualifications,
+      conflictingJobs: [{
+        id: "job_prior",
+        title: "Line expose",
+        scheduled_date: "2026-03-26",
+        status: "dispatched",
+        assigned_member_id: "member_1",
+        assigned_operator_id: "operator_1",
+        minimum_hours: 4,
+        billable_hours: 2.5,
+        travel_hours: 0.5,
+      }],
+      updateSpy,
+    });
+    installMocks({ adminSb });
+
+    const handler = require(handlerPath).handler;
+    const res = await handler({
+      httpMethod: "POST",
+      body: JSON.stringify({
+        job_id: "job_1",
+        assigned_truck_id: "truck_1",
+        driver_member_id: "member_1",
+        compound_route_override: true,
+      }),
+    });
+    const body = JSON.parse(res.body);
+
+    expect(res.statusCode).toBe(409);
+    expect(body.code).toBe("compound_route_exceeds_minimum");
+    expect(updateSpy).not.toHaveBeenCalled();
+  });
 });

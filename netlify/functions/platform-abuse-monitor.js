@@ -16,9 +16,11 @@
 'use strict';
 
 const { createClient } = require('@supabase/supabase-js');
+const { requireAdminContext } = require('./utils/auth');
 
 const SUPABASE_URL         = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const INTERNAL_SECRET      = String(process.env.INTERNAL_SECRET || '').trim();
 
 // Thresholds
 const REFUND_RATE_THRESHOLD     = 0.20;  // 20%
@@ -39,6 +41,10 @@ function normalize(str) {
   return (str || '').toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
+function tenantDisplayName(tenant = {}) {
+  return String(tenant.business_name || tenant.name || tenant.slug || '').trim();
+}
+
 async function getAdminClient() {
   if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
     throw new Error('Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY');
@@ -46,6 +52,20 @@ async function getAdminClient() {
   return createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
+}
+
+function isScheduledEvent(event = {}) {
+  return String(event.headers?.['x-nf-event'] || event.headers?.['X-Nf-Event'] || '').trim().toLowerCase() === 'schedule';
+}
+
+function hasInternalSecret(event = {}) {
+  if (!INTERNAL_SECRET) return false;
+  const header = String(
+    event.headers?.['x-prooflink-internal'] ||
+    event.headers?.['X-Prooflink-Internal'] ||
+    ''
+  ).trim();
+  return header === INTERNAL_SECRET;
 }
 
 async function flagTenant(supabase, tenantId, reasonCode, detail) {
@@ -84,7 +104,7 @@ async function checkRefundAndChargebackRates(supabase, tenant) {
     // Get order counts and refund/chargeback counts
     const { data: orders } = await supabase
       .from('orders')
-      .select('id, status, total_amount')
+      .select('id, status, total_cents')
       .eq('tenant_id', tenant.id);
 
     if (!orders || orders.length < MIN_ORDERS_FOR_RATE_CHECK) return flags;
@@ -220,24 +240,41 @@ exports.handler = async (event) => {
     return { statusCode: 200, body: '{}', headers: { 'Access-Control-Allow-Origin': '*' } };
   }
 
+  if (!['GET', 'POST'].includes(event.httpMethod)) {
+    return {
+      statusCode: 405,
+      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+      body: JSON.stringify({ error: 'Method not allowed' }),
+    };
+  }
+
+  if (event.httpMethod === 'GET' && !isScheduledEvent(event) && !hasInternalSecret(event)) {
+    return {
+      statusCode: 403,
+      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+      body: JSON.stringify({ error: 'Forbidden' }),
+    };
+  }
+
   const supabase = await getAdminClient();
 
   // Require admin token for manual POST triggers (GET is used by the scheduler)
   if (event.httpMethod === 'POST') {
-    const authHeader = (event.headers['authorization'] || '').replace('Bearer ', '').trim();
-    if (!authHeader) {
-      return { statusCode: 401, body: JSON.stringify({ error: 'Unauthorized' }) };
-    }
-    const { data: { user }, error } = await supabase.auth.getUser(authHeader);
-    if (error || !user) {
-      return { statusCode: 401, body: JSON.stringify({ error: 'Unauthorized' }) };
+    try {
+      await requireAdminContext(event);
+    } catch (error) {
+      return {
+        statusCode: error.statusCode || 401,
+        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+        body: JSON.stringify({ error: error.message || 'Unauthorized' }),
+      };
     }
   }
 
   // Fetch all active tenants (not already flagged, suspended, or terminated)
   const { data: tenants, error: tenantErr } = await supabase
     .from('tenants')
-    .select('id, slug, name, owner_email, onboarding_request_id, status')
+    .select('id, slug, business_name, name, owner_email, onboarding_request_id, status')
     .in('status', ['active']);
 
   if (tenantErr) {
@@ -271,7 +308,7 @@ exports.handler = async (event) => {
       results.details.push({
         tenant_id : tenant.id,
         slug      : tenant.slug,
-        name      : tenant.name,
+        name      : tenantDisplayName(tenant),
         flags     : allFlags,
       });
     }

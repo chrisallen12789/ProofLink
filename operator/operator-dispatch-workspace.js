@@ -509,6 +509,323 @@ function renderDispatchExecutionFocusCard({
   `;
 }
 
+function dispatchCrewAcknowledgementSummary(activeJob, assignedDriver) {
+  const normalizedStatus = normalizeWorkflowStatusValue(activeJob?.status || "scheduled");
+  const driverLabel = assignedDriver ? teamMemberLabel(assignedDriver) : "the assigned crew";
+  const lastFieldUpdate = activeJob?.actual_end_at || activeJob?.actual_start_at || activeJob?.updated_at || "";
+  if (!String(activeJob?.assigned_member_id || activeJob?.assigned_operator_id || "").trim()) {
+    return {
+      label: "No driver assigned",
+      tone: "pill-warn",
+      detail: "Assign a driver before expecting a field acknowledgment.",
+      lastFieldUpdate,
+    };
+  }
+  if (normalizedStatus === "completed") {
+    return {
+      label: "Crew completed this dispatch",
+      tone: "pill-on",
+      detail: activeJob?.actual_end_at
+        ? `${driverLabel} closed the work at ${formatDateTime(activeJob.actual_end_at)}.`
+        : `${driverLabel} marked the dispatch complete.`,
+      lastFieldUpdate,
+    };
+  }
+  if (normalizedStatus === "blocked") {
+    return {
+      label: "Crew reported a blocker",
+      tone: "pill-bad",
+      detail: String(activeJob?.blocker_note || "").trim()
+        ? `${driverLabel} reported: ${String(activeJob.blocker_note).trim()}`
+        : `${driverLabel} paused the work and needs office follow-up.`,
+      lastFieldUpdate,
+    };
+  }
+  if (normalizedStatus === "in_progress" || activeJob?.actual_start_at) {
+    return {
+      label: "Crew acknowledged and started",
+      tone: "pill-on",
+      detail: activeJob?.actual_start_at
+        ? `${driverLabel} started at ${formatDateTime(activeJob.actual_start_at)}${activeJob?.check_in_lat ? " and a field check-in is attached." : "."}`
+        : `${driverLabel} has moved this dispatch into active field work.`,
+      lastFieldUpdate,
+    };
+  }
+  return {
+    label: "Waiting on crew acknowledgment",
+    tone: "pill-warn",
+    detail: `${driverLabel} is assigned, but dispatch has not seen a field update yet.`,
+    lastFieldUpdate,
+  };
+}
+
+function dispatchJobEstimatedMinutes(job = null) {
+  const minimumHours = Number(job?.minimum_hours || 0);
+  const billableHours = Number(job?.billable_hours || 0);
+  const travelHours = Number(job?.travel_hours || 0);
+  const workingHours = billableHours > 0 ? billableHours : Math.max(minimumHours, 0);
+  return Math.max(0, Math.round((workingHours + Math.max(travelHours, 0)) * 60));
+}
+
+function dispatchMinutesLabel(totalMinutes = 0) {
+  const minutes = Math.max(0, Number(totalMinutes || 0));
+  const hours = minutes / 60;
+  return `${Number(hours.toFixed(hours >= 10 ? 0 : 1))}h`;
+}
+
+function dispatchCompoundRouteSummary(activeJob, hydrovacJobs = [], driverId = "", targetDate = "") {
+  const cleanDriverId = String(driverId || "").trim();
+  const relevantJobs = Array.isArray(hydrovacJobs) ? hydrovacJobs : [];
+  if (!activeJob || !cleanDriverId) {
+    return {
+      jobs: [],
+      totalEstimatedMinutes: dispatchJobEstimatedMinutes(activeJob),
+      activeEstimatedMinutes: dispatchJobEstimatedMinutes(activeJob),
+      minimumBlockMinutes: Math.max(240, Math.round(Number(activeJob?.minimum_hours || 0) * 60)),
+      overrideAvailable: false,
+      hardConflict: false,
+      label: "Crew still open",
+      tone: "pill-warn",
+      note: "Assign the crew member first so ProofLink can measure whether this route still fits the minimum block.",
+    };
+  }
+
+  const sameDriverJobs = relevantJobs.filter((job) => {
+    if (!job || String(job.id || "") === String(activeJob.id || "")) return false;
+    if ((targetDate && String(job.scheduled_date || "") !== String(targetDate)) || (!targetDate && String(job.scheduled_date || "") !== String(activeJob.scheduled_date || ""))) return false;
+    const status = String(job.status || "").toLowerCase();
+    if (["completed", "cancelled"].includes(status)) return false;
+    const assignmentIds = [
+      job.assigned_member_id,
+      job.assigned_operator_id,
+    ].map((value) => String(value || "").trim()).filter(Boolean);
+    return assignmentIds.includes(cleanDriverId);
+  });
+
+  const allJobs = [activeJob, ...sameDriverJobs];
+  const totalEstimatedMinutes = allJobs.reduce((sum, job) => sum + dispatchJobEstimatedMinutes(job), 0);
+  const minimumBlockMinutes = Math.max(
+    240,
+    ...allJobs.map((job) => Math.round(Number(job?.minimum_hours || 0) * 60) || 0)
+  );
+  const activeEstimatedMinutes = dispatchJobEstimatedMinutes(activeJob);
+
+  if (!sameDriverJobs.length) {
+    return {
+      jobs: [],
+      totalEstimatedMinutes,
+      activeEstimatedMinutes,
+      minimumBlockMinutes,
+      overrideAvailable: false,
+      hardConflict: false,
+      label: "Crew load is clear",
+      tone: "pill-on",
+      note: `This job is carrying about ${dispatchMinutesLabel(activeEstimatedMinutes)} against a ${dispatchMinutesLabel(minimumBlockMinutes)} minimum block.`,
+    };
+  }
+
+  if (totalEstimatedMinutes <= minimumBlockMinutes) {
+    return {
+      jobs: sameDriverJobs,
+      totalEstimatedMinutes,
+      activeEstimatedMinutes,
+      minimumBlockMinutes,
+      overrideAvailable: true,
+      hardConflict: false,
+      label: "Compound route available",
+      tone: "pill-warn",
+      note: `${sameDriverJobs.length + 1} same-day jobs add up to about ${dispatchMinutesLabel(totalEstimatedMinutes)}, so the office can compound them inside the ${dispatchMinutesLabel(minimumBlockMinutes)} minimum if the route is intentional.`,
+    };
+  }
+
+  return {
+    jobs: sameDriverJobs,
+    totalEstimatedMinutes,
+    activeEstimatedMinutes,
+    minimumBlockMinutes,
+    overrideAvailable: false,
+    hardConflict: true,
+    label: "Crew load is over the minimum block",
+    tone: "pill-bad",
+    note: `${sameDriverJobs.length + 1} same-day jobs add up to about ${dispatchMinutesLabel(totalEstimatedMinutes)}, which runs past the ${dispatchMinutesLabel(minimumBlockMinutes)} minimum block.`,
+  };
+}
+
+function dispatchColumnCrewCapacity(columnJobs = [], hydrovacJobs = [], targetDate = "") {
+  const jobs = Array.isArray(columnJobs) ? columnJobs : [];
+  const allJobs = Array.isArray(hydrovacJobs) ? hydrovacJobs : [];
+  const summaries = jobs
+    .map((job) => {
+      const driverId = String(job?.assigned_member_id || job?.assigned_operator_id || "").trim();
+      if (!driverId) return null;
+      return dispatchCompoundRouteSummary(job, allJobs, driverId, targetDate);
+    })
+    .filter(Boolean);
+
+  if (!summaries.length) {
+    return {
+      label: "Crew open",
+      tone: "pill-good",
+      note: "No driver is tied to this column yet.",
+    };
+  }
+
+  const hardConflict = summaries.some((summary) => summary.hardConflict);
+  if (hardConflict) {
+    return {
+      label: "Crew block tapped out",
+      tone: "pill-bad",
+      note: "One or more assigned crews are already running past their visible minimum block.",
+    };
+  }
+
+  const overrideAvailable = summaries.some((summary) => summary.overrideAvailable);
+  if (overrideAvailable) {
+    return {
+      label: "Crew block available",
+      tone: "pill-warn",
+      note: "At least one assigned crew can still absorb another compounded stop inside the current block.",
+    };
+  }
+
+  return {
+    label: "Crew load clear",
+    tone: "pill-on",
+    note: "Assigned crews look clear without same-day overlap pressure in this column.",
+  };
+}
+
+function dispatchTruckRouteSummary(activeJob, hydrovacJobs = [], truckId = "", targetDate = "") {
+  const cleanTruckId = String(truckId || "").trim();
+  const relevantJobs = Array.isArray(hydrovacJobs) ? hydrovacJobs : [];
+  const activeEstimatedMinutes = dispatchJobEstimatedMinutes(activeJob);
+  if (!activeJob || !cleanTruckId) {
+    return {
+      jobs: [],
+      totalEstimatedMinutes: activeEstimatedMinutes,
+      activeEstimatedMinutes,
+      minimumBlockMinutes: Math.max(240, Math.round(Number(activeJob?.minimum_hours || 0) * 60)),
+      hardConflict: false,
+      label: "Truck still open",
+      tone: "pill-warn",
+      note: "Assign a truck so ProofLink can show whether this route is stacking too much work onto one unit.",
+    };
+  }
+
+  const sameTruckJobs = relevantJobs.filter((job) => {
+    if (!job || String(job.id || "") === String(activeJob.id || "")) return false;
+    if ((targetDate && String(job.scheduled_date || "") !== String(targetDate)) || (!targetDate && String(job.scheduled_date || "") !== String(activeJob.scheduled_date || ""))) return false;
+    const status = String(job.status || "").toLowerCase();
+    if (["completed", "cancelled"].includes(status)) return false;
+    return String(job.assigned_truck_id || "").trim() === cleanTruckId;
+  });
+
+  const totalEstimatedMinutes = [activeJob, ...sameTruckJobs].reduce((sum, job) => sum + dispatchJobEstimatedMinutes(job), 0);
+  const minimumBlockMinutes = Math.max(
+    240,
+    ...[activeJob, ...sameTruckJobs].map((job) => Math.round(Number(job?.minimum_hours || 0) * 60) || 0)
+  );
+
+  if (!sameTruckJobs.length) {
+    return {
+      jobs: [],
+      totalEstimatedMinutes,
+      activeEstimatedMinutes,
+      minimumBlockMinutes,
+      hardConflict: false,
+      label: "Truck route is clear",
+      tone: "pill-on",
+      note: `This truck is only carrying about ${dispatchMinutesLabel(activeEstimatedMinutes)} on the visible route.`,
+    };
+  }
+
+  if (totalEstimatedMinutes <= minimumBlockMinutes) {
+    return {
+      jobs: sameTruckJobs,
+      totalEstimatedMinutes,
+      activeEstimatedMinutes,
+      minimumBlockMinutes,
+      hardConflict: false,
+      label: "Truck can compound this route",
+      tone: "pill-warn",
+      note: `${sameTruckJobs.length + 1} same-day stops on this truck still fit inside about ${dispatchMinutesLabel(minimumBlockMinutes)} of planned work.`,
+    };
+  }
+
+  return {
+    jobs: sameTruckJobs,
+    totalEstimatedMinutes,
+    activeEstimatedMinutes,
+    minimumBlockMinutes,
+    hardConflict: true,
+    label: "Truck route is overloaded",
+    tone: "pill-bad",
+    note: `${sameTruckJobs.length + 1} same-day stops are stacking about ${dispatchMinutesLabel(totalEstimatedMinutes)} onto this truck, which is past the visible minimum block.`,
+  };
+}
+
+function dispatchAssignmentConflictSummary(activeJob, hydrovacJobs = [], selectedTruckId = "", selectedDriverId = "", targetDate = "") {
+  const crewRoute = dispatchCompoundRouteSummary(activeJob, hydrovacJobs, selectedDriverId, targetDate);
+  const truckRoute = dispatchTruckRouteSummary(activeJob, hydrovacJobs, selectedTruckId, targetDate);
+  const warnings = [];
+  if (crewRoute.jobs.length) {
+    warnings.push({
+      type: crewRoute.hardConflict ? "crew-hard-conflict" : "crew-bundle",
+      tone: crewRoute.hardConflict ? "pill-bad" : "pill-warn",
+      label: crewRoute.hardConflict ? "Crew double-booked" : "Crew route can compound",
+      note: crewRoute.note,
+    });
+  }
+  if (truckRoute.jobs.length) {
+    warnings.push({
+      type: truckRoute.hardConflict ? "truck-hard-conflict" : "truck-bundle",
+      tone: truckRoute.hardConflict ? "pill-bad" : "pill-warn",
+      label: truckRoute.hardConflict ? "Truck double-booked" : "Truck route can compound",
+      note: truckRoute.note,
+    });
+  }
+  return {
+    crewRoute,
+    truckRoute,
+    warnings,
+    hardConflict: warnings.some((warning) => warning.type === "crew-hard-conflict" || warning.type === "truck-hard-conflict"),
+  };
+}
+
+async function saveDispatchCrewPlanning(activeJob = null, options = {}) {
+  if (!activeJob || typeof saveJobRecord !== "function") {
+    throw new Error("Crew-planning tools are not ready yet.");
+  }
+  const parseHours = (value, fallback = null) => {
+    const next = parseFloat(String(value || "").trim());
+    return Number.isFinite(next) ? next : fallback;
+  };
+  const patch = {
+    id: activeJob.id,
+    billable_hours: parseHours(options.billableHours, null),
+    minimum_hours: parseHours(options.minimumHours, null),
+    travel_hours: parseHours(options.travelHours, null),
+  };
+  return saveJobRecord(patch);
+}
+
+async function saveDispatchAssignment(activeJob = null, options = {}) {
+  if (!activeJob || typeof saveJobRecord !== "function") {
+    throw new Error("Dispatch assignment tools are not ready yet.");
+  }
+  const cleanMemberId = String(options.memberId || "").trim();
+  const cleanTruckId = String(options.truckId || "").trim();
+  const selectedMember = (TEAM_MEMBERS_CACHE || []).find((member) => String(member?.id || "").trim() === cleanMemberId) || null;
+  return saveJobRecord({
+    id: activeJob.id,
+    assigned_truck_id: cleanTruckId || null,
+    assigned_member_id: cleanMemberId || null,
+    assigned_operator_id: cleanMemberId
+      ? (selectedMember?.operator_id || selectedMember?.user_id || cleanMemberId)
+      : null,
+  });
+}
+
 function renderDispatchWorkspace() {
   if (!dispatchBoard || !dispatchDetail) return;
   const targetDate = dispatchDate?.value || new Date().toISOString().slice(0, 10);
@@ -585,6 +902,7 @@ function renderDispatchWorkspace() {
         ${columns.map((column) => {
           const columnJobs = hydrovacJobs.filter((job) => String(job.assigned_truck_id || "") === column.id);
           const planner = column.unit ? dispatchTruckPlanner(column.unit, null, targetDate) : null;
+          const crewCapacity = dispatchColumnCrewCapacity(columnJobs, hydrovacJobs, targetDate);
           const warningCount = column.unit
             ? ((HYDROVAC_EQUIPMENT_COMPLIANCE_CACHE.find((row) => row.id === column.unit.id)?.warnings || []).length) + (planner?.warnings?.length || 0)
             : 0;
@@ -595,6 +913,7 @@ function renderDispatchWorkspace() {
                   <strong>${escapeHtml(column.label)}</strong>
                   <div class="muted">${column.unit ? escapeHtml(column.unit.name || "Equipment record") : "Jobs still waiting on a truck"}</div>
                   ${column.unit && planner?.carryoverLoads?.length ? `<div class="muted">${escapeHtml(`${planner.carryoverLoads.length} live load${planner.carryoverLoads.length === 1 ? "" : "s"} still attached`)}</div>` : ``}
+                  ${columnJobs.length ? `<div class="muted">${escapeHtml(crewCapacity.note)}</div>` : ``}
                 </div>
                 <span class="pill ${warningCount ? "pill-warn" : "pill-on"}">${warningCount ? `${warningCount} watch` : `${columnJobs.length} job${columnJobs.length === 1 ? "" : "s"}`}</span>
               </div>
@@ -603,6 +922,13 @@ function renderDispatchWorkspace() {
                   const member = (TEAM_MEMBERS_CACHE || []).find((row) => row.id === job.assigned_member_id) || null;
                   const locateCount = (HYDROVAC_LOCATE_TICKETS_CACHE || []).filter((row) => row.job_id === job.id && ["active", "extended"].includes(String(row.status || "").toLowerCase())).length;
                   const plannerWarnings = column.unit ? dispatchTruckPlanner(column.unit, job, targetDate).warnings : [];
+                  const conflictSummary = dispatchAssignmentConflictSummary(
+                    job,
+                    hydrovacJobs,
+                    column.id,
+                    String(job.assigned_member_id || job.assigned_operator_id || "").trim(),
+                    targetDate
+                  );
                   return `
                     <button type="button" class="dispatch-job-card ${job.id === ACTIVE_DISPATCH_JOB_ID ? "is-active" : ""}" data-dispatch-job-id="${escapeAttr(job.id)}">
                       <div class="dispatch-job-card__title">${escapeHtml(job.title || "Untitled job")}</div>
@@ -611,6 +937,7 @@ function renderDispatchWorkspace() {
                       <div class="dispatch-job-card__chips">
                         <span class="pill ${locateCount ? "pill-on" : "pill-warn"}">${locateCount ? `${locateCount} ticket` : "No locate"}</span>
                         <span class="pill">${escapeHtml(member ? teamMemberLabel(member) : "Driver open")}</span>
+                        ${conflictSummary.warnings.slice(0, 1).map((warning) => `<span class="pill ${warning.tone}">${escapeHtml(warning.label)}</span>`).join("")}
                         ${plannerWarnings.some((item) => item.blocking) ? `<span class="pill pill-bad">Truck blocked</span>` : ``}
                       </div>
                     </button>
@@ -642,6 +969,7 @@ function renderDispatchWorkspace() {
         <span>${escapeHtml(String(columnJobs.length))} job${columnJobs.length === 1 ? "" : "s"}</span>
         <span>${escapeHtml(String(openLoadCount))} open load${openLoadCount === 1 ? "" : "s"}</span>
         <span>${escapeHtml(capacityGallons ? `${Math.round(openLoadGallons)} / ${capacityGallons} gal` : "Tank capacity not set")}</span>
+        <span class="${escapeAttr(dispatchColumnCrewCapacity(columnJobs, hydrovacJobs, targetDate).tone)}">${escapeHtml(dispatchColumnCrewCapacity(columnJobs, hydrovacJobs, targetDate).label)}</span>
       `;
       headerMain.appendChild(stats);
 
@@ -745,10 +1073,15 @@ function renderDispatchWorkspace() {
   }
 
   const assignedTruck = (EQUIPMENT_CACHE || []).find((unit) => unit.id === activeJob.assigned_truck_id) || null;
-  const assignedDriver = (TEAM_MEMBERS_CACHE || []).find((row) => row.id === activeJob.assigned_member_id) || null;
+  const assignedDriver = (TEAM_MEMBERS_CACHE || []).find((row) => (
+    row.id === activeJob.assigned_member_id
+    || row.id === activeJob.assigned_operator_id
+    || row.user_id === activeJob.assigned_operator_id
+    || row.operator_id === activeJob.assigned_operator_id
+  )) || null;
   const activeLocates = (HYDROVAC_LOCATE_TICKETS_CACHE || []).filter((row) => row.job_id === activeJob.id && ["active", "extended"].includes(String(row.status || "").toLowerCase()));
   const currentTruckId = assignedTruck?.id || activeJob.assigned_truck_id || "";
-  const currentDriverId = assignedDriver?.id || activeJob.assigned_member_id || "";
+  const currentDriverId = assignedDriver?.id || activeJob.assigned_member_id || activeJob.assigned_operator_id || "";
   const activePermits = (HYDROVAC_PERMITS_CACHE || []).filter((row) => row.job_id === activeJob.id && normalizeWorkflowStatusValue(row.status) === "open");
   const manifestSnapshot = hydrovacJobManifestSnapshot(activeJob.id);
   const driverCompliance = currentDriverId
@@ -757,11 +1090,16 @@ function renderDispatchWorkspace() {
   const truckCompliance = currentTruckId
     ? (HYDROVAC_EQUIPMENT_COMPLIANCE_CACHE || []).find((row) => row.id === currentTruckId) || null
     : null;
-  if (currentTruckId) {
+  const truckLoadState = currentTruckId ? dispatchTruckLoadState(currentTruckId) : null;
+  const truckLoadsFresh = truckLoadState?.loadedAt && (Date.now() - truckLoadState.loadedAt) < 20000;
+  if (currentTruckId && !truckLoadState?.loading && !truckLoadsFresh) {
     fetchDispatchTruckLoads(currentTruckId).then(() => renderDispatchWorkspace()).catch(() => {});
   }
   const truckPlanner = dispatchTruckPlanner(assignedTruck || currentTruckId, activeJob, targetDate);
   const dispatchBlocked = truckPlanner.warnings.some((item) => item.blocking);
+  const crewAck = dispatchCrewAcknowledgementSummary(activeJob, assignedDriver);
+  const crewRoute = dispatchCompoundRouteSummary(activeJob, hydrovacJobs, currentDriverId, targetDate);
+  const assignmentConflicts = dispatchAssignmentConflictSummary(activeJob, hydrovacJobs, currentTruckId, currentDriverId, targetDate);
 
   dispatchDetail.innerHTML = `
     <div class="workspace-command-center workspace-command-center--hydrovac">
@@ -787,6 +1125,7 @@ function renderDispatchWorkspace() {
               { label: "Open permits", value: String(activePermits.length), note: activePermits.length ? "Permit coverage is attached." : "No open permit is attached." },
               { label: "Open loads", value: String(manifestSnapshot.openLoads), note: manifestSnapshot.openLoads ? "Hauled loads are still active on this job." : "No hauled loads are still open." },
               { label: "Unbilled disposal", value: formatUsd(manifestSnapshot.unbilledChargeCents), note: manifestSnapshot.unbilledChargeCents ? "Billing still needs disposal closeout." : "No disposal charge is waiting on billing." },
+              { label: "Crew load", value: dispatchMinutesLabel(crewRoute.totalEstimatedMinutes), note: crewRoute.note },
             ],
             actionsHtml: renderDispatchJobSignalBand({
               activeLocates,
@@ -836,11 +1175,83 @@ function renderDispatchWorkspace() {
           </select>
         </label>
       </div>
+      <div class="detail-grid" style="margin-top:12px;">
+        <label>Expected hours
+          <input id="dispatchExpectedHours" type="number" min="0" step="0.25" value="${escapeAttr(activeJob.billable_hours ?? "")}" />
+        </label>
+        <label>Minimum block
+          <input id="dispatchMinimumHours" type="number" min="0" step="0.25" value="${escapeAttr(activeJob.minimum_hours ?? "")}" />
+        </label>
+        <label>Travel hours
+          <input id="dispatchTravelHours" type="number" min="0" step="0.25" value="${escapeAttr(activeJob.travel_hours ?? "")}" />
+        </label>
+      </div>
       <div class="row" style="margin-top:12px;">
+        <button id="btnDispatchSaveAssignment" class="btn btn-ghost" type="button">Save assignment</button>
+        <button id="btnDispatchAssignAndOpenCrew" class="btn btn-ghost" type="button">Assign and open crew portal</button>
+        <button id="btnDispatchSaveCrewPlan" class="btn btn-ghost" type="button">Save planning</button>
         <button id="btnDispatchJobNow" class="btn btn-primary" type="button"${dispatchBlocked ? " disabled" : ""}>${String(activeJob.status || "").toLowerCase() === "dispatched" ? "Refresh dispatch" : "Dispatch job"}</button>
+        <button id="btnDispatchOpenCrew" class="btn btn-ghost" type="button">Open in crew portal</button>
         <button id="btnDispatchRefreshLoads" class="btn btn-ghost" type="button">Refresh truck loads</button>
       </div>
       <div id="dispatchMsg" class="msg"></div>
+        </div>
+        <div class="detail-card detail-card--spaced">
+      <div class="kicker">Crew acknowledgment</div>
+      <div><strong>${escapeHtml(crewAck.label)}</strong> <span class="pill ${escapeAttr(crewAck.tone)}">${escapeHtml(titleCaseWords(String(activeJob.status || "scheduled").replace(/_/g, " ")))}</span></div>
+      <div class="detail-copy">${escapeHtml(crewAck.detail)}</div>
+      ${crewAck.lastFieldUpdate ? `<div class="detail-copy muted muted-small">Last field update: ${escapeHtml(formatDateTime(crewAck.lastFieldUpdate))}</div>` : ""}
+      ${String(activeJob.blocker_note || "").trim() ? `<div class="detail-copy muted muted-small">Blocker note: ${escapeHtml(String(activeJob.blocker_note).trim())}</div>` : ""}
+      ${activeJob.check_in_lat ? `<div class="detail-copy muted muted-small">Last check-in: ${escapeHtml(String(activeJob.check_in_lat))}, ${escapeHtml(String(activeJob.check_in_lng || ""))}</div>` : ""}
+        </div>
+        <div class="detail-card detail-card--spaced">
+      <div class="kicker">Assignment pressure</div>
+      <div><strong>${escapeHtml(assignmentConflicts.hardConflict ? "Assignment conflict needs attention" : "Assignment is workable")}</strong></div>
+      <div class="detail-copy">${escapeHtml(assignmentConflicts.warnings.length ? assignmentConflicts.warnings[0].note : "The selected truck and crew are not showing same-day overlap pressure right now.")}</div>
+      <div class="workspace-chip-row u-mt-10">
+        <span class="pill ${escapeAttr(assignmentConflicts.crewRoute.tone)}">${escapeHtml(assignmentConflicts.crewRoute.label)}</span>
+        <span class="pill ${escapeAttr(assignmentConflicts.truckRoute.tone)}">${escapeHtml(assignmentConflicts.truckRoute.label)}</span>
+      </div>
+      ${assignmentConflicts.warnings.length ? `
+        <div class="memory-checklist u-mt-10">
+          ${assignmentConflicts.warnings.map((warning) => `
+            <div class="memory-checklist__item ${warning.tone === "pill-bad" ? "memory-checklist__item--warn" : "memory-checklist__item--ready"}">
+              <div class="memory-checklist__title">${escapeHtml(warning.label)}</div>
+              <div class="detail-copy memory-checklist__note">${escapeHtml(warning.note)}</div>
+            </div>
+          `).join("")}
+        </div>
+      ` : ""}
+        </div>
+        <div class="detail-card detail-card--spaced">
+      <div class="kicker">Crew workload</div>
+      <div><strong>${escapeHtml(crewRoute.label)}</strong> <span class="pill ${escapeAttr(crewRoute.tone)}">${escapeHtml(dispatchMinutesLabel(crewRoute.totalEstimatedMinutes))}</span></div>
+      <div class="detail-copy">${escapeHtml(crewRoute.note)}</div>
+      <div class="workspace-chip-row u-mt-10">
+        <span class="pill">${escapeHtml(`This job ${dispatchMinutesLabel(crewRoute.activeEstimatedMinutes)}`)}</span>
+        <span class="pill">${escapeHtml(`Minimum block ${dispatchMinutesLabel(crewRoute.minimumBlockMinutes)}`)}</span>
+        ${crewRoute.jobs.length ? `<span class="pill ${crewRoute.overrideAvailable ? "pill-warn" : "pill-bad"}">${escapeHtml(`${crewRoute.jobs.length} other same-day assignment${crewRoute.jobs.length === 1 ? "" : "s"}`)}</span>` : ""}
+      </div>
+      ${crewRoute.jobs.length ? `
+        <div class="memory-checklist u-mt-10">
+          ${crewRoute.jobs.map((job) => `
+            <div class="memory-checklist__item ${crewRoute.overrideAvailable ? "memory-checklist__item--ready" : "memory-checklist__item--warn"}">
+              <div class="memory-checklist__title">${escapeHtml(job.title || "Assigned work")}</div>
+              <div class="detail-copy memory-checklist__note">${escapeHtml(`${job.scheduled_time || "Time not set"} · ${dispatchMinutesLabel(dispatchJobEstimatedMinutes(job))} estimated`)}</div>
+            </div>
+          `).join("")}
+        </div>
+      ` : ""}
+      ${crewRoute.overrideAvailable ? `
+        <label class="field u-mt-10">
+          <span>Compound route override</span>
+          <div class="detail-copy">Use this when the same crew and truck can cover these jobs inside the sold 4-hour minimum block.</div>
+          <div class="row u-mt-10">
+            <input id="dispatchCompoundOverride" type="checkbox" />
+            <span>Allow this crew to compound the same-day route</span>
+          </div>
+        </label>
+      ` : ""}
         </div>
       </div>
     </div>
@@ -918,6 +1329,16 @@ function renderDispatchWorkspace() {
     ACTIVE_JOB_ID = activeJob.id;
     switchTab("jobs");
   });
+  $("btnDispatchOpenCrew")?.addEventListener("click", () => {
+    const target = activeJob?.id
+      ? `/crew/?job=${encodeURIComponent(activeJob.id)}&source=operator`
+      : "/crew/?source=operator";
+    if (window?.open) {
+      window.open(target, "_blank", "noopener");
+      return;
+    }
+    window.location.href = target;
+  });
   $("btnDispatchOpenLocates")?.addEventListener("click", () => switchTab("locates"));
   $("btnDispatchOpenCompliance")?.addEventListener("click", () => switchTab("compliance"));
   $("btnDispatchOpenManifests")?.addEventListener("click", () => switchTab("manifests"));
@@ -925,6 +1346,57 @@ function renderDispatchWorkspace() {
     if (!currentTruckId) return;
     await fetchDispatchTruckLoads(currentTruckId, { force: true });
     renderDispatchWorkspace();
+  });
+  $("btnDispatchSaveAssignment")?.addEventListener("click", async () => {
+    try {
+      setInlineMessage($("dispatchMsg"), "Saving assignment...");
+      await saveDispatchAssignment(activeJob, {
+        truckId: $("dispatchTruckSelect")?.value,
+        memberId: $("dispatchDriverSelect")?.value,
+      });
+      await Promise.all([fetchJobs(), fetchEquipment()]);
+      renderDispatchWorkspace();
+      setInlineMessage($("dispatchMsg"), "Assignment saved.", "ok");
+    } catch (error) {
+      setInlineMessage($("dispatchMsg"), error.message || String(error), "error");
+    }
+  });
+  $("btnDispatchAssignAndOpenCrew")?.addEventListener("click", async () => {
+    try {
+      setInlineMessage($("dispatchMsg"), "Saving assignment and opening crew portal...");
+      await saveDispatchAssignment(activeJob, {
+        truckId: $("dispatchTruckSelect")?.value,
+        memberId: $("dispatchDriverSelect")?.value,
+      });
+      await Promise.all([fetchJobs(), fetchEquipment()]);
+      renderDispatchWorkspace();
+      const target = activeJob?.id
+        ? `/crew/?job=${encodeURIComponent(activeJob.id)}&source=operator`
+        : "/crew/?source=operator";
+      if (window?.open) {
+        window.open(target, "_blank", "noopener");
+      } else {
+        window.location.href = target;
+      }
+      setInlineMessage($("dispatchMsg"), "Assignment saved and crew portal opened.", "ok");
+    } catch (error) {
+      setInlineMessage($("dispatchMsg"), error.message || String(error), "error");
+    }
+  });
+  $("btnDispatchSaveCrewPlan")?.addEventListener("click", async () => {
+    try {
+      setInlineMessage($("dispatchMsg"), "Saving crew planning...");
+      await saveDispatchCrewPlanning(activeJob, {
+        billableHours: $("dispatchExpectedHours")?.value,
+        minimumHours: $("dispatchMinimumHours")?.value,
+        travelHours: $("dispatchTravelHours")?.value,
+      });
+      await fetchJobs();
+      renderDispatchWorkspace();
+      setInlineMessage($("dispatchMsg"), "Crew planning saved.", "ok");
+    } catch (error) {
+      setInlineMessage($("dispatchMsg"), error.message || String(error), "error");
+    }
   });
   $("btnDispatchCopyAuditPacket")?.addEventListener("click", async () => {
     const coreUtils = window.PROOFLINK_OPERATOR_UTILS || {};
@@ -938,8 +1410,18 @@ function renderDispatchWorkspace() {
   $("btnDispatchJobNow")?.addEventListener("click", async () => {
     const truckId = $("dispatchTruckSelect")?.value || "";
     const driverId = $("dispatchDriverSelect")?.value || "";
+    const compoundOverride = $("dispatchCompoundOverride")?.checked === true;
     if (!truckId) {
       setInlineMessage($("dispatchMsg"), "Pick a truck before dispatch.", "error");
+      return;
+    }
+    const selectedCrewRoute = dispatchCompoundRouteSummary(activeJob, hydrovacJobs, driverId || currentDriverId, targetDate);
+    if (selectedCrewRoute.hardConflict) {
+      setInlineMessage($("dispatchMsg"), selectedCrewRoute.note, "error");
+      return;
+    }
+    if (selectedCrewRoute.overrideAvailable && !compoundOverride) {
+      setInlineMessage($("dispatchMsg"), "Confirm the compound route override before dispatching this same-day crew block.", "error");
       return;
     }
     const selectedTruck = (EQUIPMENT_CACHE || []).find((unit) => unit.id === truckId) || { id: truckId };
@@ -965,6 +1447,8 @@ function renderDispatchWorkspace() {
           driver_member_id: driverId,
           scheduled_date: targetDate,
           scheduled_time: activeJob.scheduled_time || null,
+          compound_route_override: compoundOverride,
+          force_dispatch: compoundOverride,
         },
       });
       await Promise.all([fetchJobs(), fetchEquipment(), fetchHydrovacComplianceData(), fetchDispatchTruckLoads(truckId, { force: true })]);
@@ -1003,6 +1487,14 @@ const DISPATCH_WORKSPACE_HELPERS = {
   fetchDispatchTruckLoads,
   dispatchTruckPlanner,
   dispatchTruckAuditPacket,
+  dispatchJobEstimatedMinutes,
+  dispatchMinutesLabel,
+  dispatchCompoundRouteSummary,
+  dispatchTruckRouteSummary,
+  dispatchAssignmentConflictSummary,
+  dispatchColumnCrewCapacity,
+  saveDispatchCrewPlanning,
+  saveDispatchAssignment,
   renderDispatchAgentReview,
   renderDispatchWorkspace,
   initDispatchWorkspaceBindings,

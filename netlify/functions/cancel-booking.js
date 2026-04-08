@@ -10,6 +10,10 @@ const { sendEmail, templates }    = require('./utils/email');
 const { getConfiguredSiteUrl }    = require('./utils/runtime-config');
 const { checkRateLimit, rateLimitResponse, getClientIP } = require('./utils/rate-limit');
 
+function businessNameFromTenant(tenant) {
+  return String(tenant?.business_name || tenant?.name || '').trim() || 'Your service provider';
+}
+
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return respond(200, {});
   if (event.httpMethod !== 'POST') return respond(405, { error: 'Method not allowed' });
@@ -69,12 +73,12 @@ exports.handler = async (event) => {
       const end      = booking.ends_at   ? new Date(booking.ends_at)   : null;
       const dateStr  = start ? start.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : '—';
       const timeStr  = start ? start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) + (end ? ' – ' + end.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '') : '—';
-      const { data: tenant } = await supabase.from('tenants').select('name').eq('id', booking.tenant_id).maybeSingle();
+      const { data: tenant } = await supabase.from('tenants').select('business_name, name').eq('id', booking.tenant_id).maybeSingle();
 
       sendEmail(templates.bookingCancelled({
         customer_name : booking.customer_name || 'Customer',
         customer_email: booking.customer_email,
-        business_name : tenant?.name || 'Your service provider',
+        business_name : businessNameFromTenant(tenant),
         title         : booking.title,
         date_str      : dateStr,
         time_str      : timeStr,

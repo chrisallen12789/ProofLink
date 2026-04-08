@@ -1,10 +1,119 @@
 // Team roster and hours workflows extracted from operator.js
 // so crew management is isolated from the main shell.
+async function getTeamWorkspaceAuthHeaders(extraHeaders = {}) {
+  if (typeof authHeaders === "function") {
+    return { ...authHeaders(), ...extraHeaders };
+  }
+  const token = await getOperatorAccessToken();
+  return {
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...extraHeaders,
+  };
+}
+
 async function fetchTeamMembers() {
-  const response = await fetch("/.netlify/functions/manage-operator-members", { headers: authHeaders() });
+  const response = await fetch("/.netlify/functions/manage-operator-members", {
+    headers: await getTeamWorkspaceAuthHeaders(),
+  });
   const data = await response.json().catch(() => ({}));
   TEAM_MEMBERS_CACHE = data.members || [];
   renderTeamPanel();
+}
+
+function teamWorkspaceJobs() {
+  const jobs = typeof JOBS_CACHE !== "undefined" ? JOBS_CACHE : [];
+  return Array.isArray(jobs) ? jobs : [];
+}
+
+function teamMemberAssignmentKeys(member = {}) {
+  return [
+    member?.id,
+    member?.user_id,
+    member?.operator_id,
+  ].map((value) => String(value || "").trim()).filter(Boolean);
+}
+
+function teamJobEstimatedMinutes(job = {}) {
+  const billableHours = Number(job?.billable_hours || 0);
+  const minimumHours = Number(job?.minimum_hours || 0);
+  const travelHours = Number(job?.travel_hours || 0);
+  const workingHours = billableHours > 0 ? billableHours : Math.max(minimumHours, 0);
+  return Math.max(0, Math.round((workingHours + Math.max(travelHours, 0)) * 60));
+}
+
+function teamMinutesLabel(totalMinutes = 0) {
+  const minutes = Math.max(0, Number(totalMinutes || 0));
+  const hours = minutes / 60;
+  return `${Number(hours.toFixed(hours >= 10 ? 0 : 1))}h`;
+}
+
+function teamMemberJobSummary(member = {}) {
+  const keys = new Set(teamMemberAssignmentKeys(member));
+  const jobs = teamWorkspaceJobs().filter((job) => (
+    keys.has(String(job?.assigned_member_id || "").trim())
+    || keys.has(String(job?.assigned_operator_id || "").trim())
+  ));
+  const active = jobs.filter((job) => ["dispatched", "in_progress"].includes(String(job?.status || "").trim().toLowerCase()));
+  const blocked = jobs.filter((job) => String(job?.status || "").trim().toLowerCase() === "blocked");
+  const scheduled = jobs.filter((job) => String(job?.status || "").trim().toLowerCase() === "scheduled");
+  const totalEstimatedMinutes = jobs.reduce((sum, job) => sum + teamJobEstimatedMinutes(job), 0);
+  const minimumBlockMinutes = Math.max(240, ...jobs.map((job) => Math.round(Number(job?.minimum_hours || 0) * 60) || 0), 240);
+  const remainingMinutes = Math.max(0, minimumBlockMinutes - totalEstimatedMinutes);
+  const lastFieldUpdate = jobs
+    .map((job) => job?.actual_end_at || job?.actual_start_at || job?.updated_at || '')
+    .filter(Boolean)
+    .sort()
+    .at(-1) || '';
+  const blockerNotes = blocked
+    .map((job) => String(job?.blocker_note || '').trim())
+    .filter(Boolean);
+  const hardConflict = jobs.length > 1 && totalEstimatedMinutes > minimumBlockMinutes;
+  return {
+    jobs,
+    active,
+    blocked,
+    scheduled,
+    totalEstimatedMinutes,
+    minimumBlockMinutes,
+    remainingMinutes,
+    lastFieldUpdate,
+    blockerNotes,
+    hardConflict,
+    overloaded: hardConflict || jobs.length >= 3 || active.length >= 2,
+  };
+}
+
+function renderTeamRosterSummary() {
+  const members = Array.isArray(TEAM_MEMBERS_CACHE) ? TEAM_MEMBERS_CACHE : [];
+  const jobs = teamWorkspaceJobs();
+  const activeField = jobs.filter((job) => ["dispatched", "in_progress"].includes(String(job?.status || "").trim().toLowerCase())).length;
+  const unassigned = jobs.filter((job) => !String(job?.assigned_member_id || job?.assigned_operator_id || "").trim()).length;
+  const overloaded = members.filter((member) => teamMemberJobSummary(member).overloaded).length;
+  const remainingCapacity = members.reduce((sum, member) => sum + teamMemberJobSummary(member).remainingMinutes, 0);
+  return `
+    <div class="workspace-signal-band" style="margin-bottom:12px;">
+      <div class="workspace-signal-band__item ${activeField ? "workspace-signal-band__item--good" : ""}">
+        <span>In the field</span>
+        <strong>${escapeHtml(String(activeField))}</strong>
+        <small>${escapeHtml(activeField ? "Crew members are actively moving work right now." : "No one is marked as rolling yet.")}</small>
+      </div>
+      <div class="workspace-signal-band__item ${unassigned ? "workspace-signal-band__item--warn" : "workspace-signal-band__item--good"}">
+        <span>Unassigned jobs</span>
+        <strong>${escapeHtml(String(unassigned))}</strong>
+        <small>${escapeHtml(unassigned ? "These jobs still need a crew owner." : "Every visible job already has a crew owner.")}</small>
+      </div>
+      <div class="workspace-signal-band__item ${overloaded ? "workspace-signal-band__item--danger" : "workspace-signal-band__item--good"}">
+        <span>Roster pressure</span>
+        <strong>${escapeHtml(String(overloaded))}</strong>
+        <small>${escapeHtml(overloaded ? "One or more crew members are carrying multiple live assignments." : "No team member currently looks overloaded from the visible jobs.")}</small>
+      </div>
+      <div class="workspace-signal-band__item ${remainingCapacity ? "workspace-signal-band__item--good" : "workspace-signal-band__item--warn"}">
+        <span>Block capacity</span>
+        <strong>${escapeHtml(teamMinutesLabel(remainingCapacity))}</strong>
+        <small>${escapeHtml(remainingCapacity ? "Visible crew block time that still appears open for another compounded stop." : "No visible same-day capacity is left inside the current crew blocks.")}</small>
+      </div>
+    </div>
+  `;
 }
 
 function renderTeamPanel() {
@@ -15,24 +124,65 @@ function renderTeamPanel() {
     renderHydrovacDriverWorkspace();
     return;
   }
-  element.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:.85rem;">
+  element.innerHTML = `${renderTeamRosterSummary()}<table style="width:100%;border-collapse:collapse;font-size:.85rem;">
     <thead><tr>
       <th style="text-align:left;padding:6px 8px;color:rgba(255,255,255,.4);font-weight:500;border-bottom:1px solid rgba(255,255,255,.08);">Name</th>
       <th style="text-align:left;padding:6px 8px;color:rgba(255,255,255,.4);font-weight:500;border-bottom:1px solid rgba(255,255,255,.08);">Role</th>
+      <th style="text-align:left;padding:6px 8px;color:rgba(255,255,255,.4);font-weight:500;border-bottom:1px solid rgba(255,255,255,.08);">Field load</th>
       <th style="text-align:left;padding:6px 8px;color:rgba(255,255,255,.4);font-weight:500;border-bottom:1px solid rgba(255,255,255,.08);">Hourly Rate</th>
       <th style="padding:6px 8px;border-bottom:1px solid rgba(255,255,255,.08);"></th>
     </tr></thead>
     <tbody>
-      ${TEAM_MEMBERS_CACHE.map((member) => `
+      ${TEAM_MEMBERS_CACHE.map((member) => {
+        const summary = teamMemberJobSummary(member);
+        const fieldLoad = summary.active.length
+          ? `${summary.active.length} active`
+          : summary.blocked.length
+            ? `${summary.blocked.length} blocked`
+            : summary.scheduled.length
+              ? `${summary.scheduled.length} queued`
+              : "Open";
+        const tone = summary.overloaded
+          ? "pill-bad"
+          : summary.active.length
+            ? "pill-on"
+            : summary.blocked.length
+              ? "pill-bad"
+              : summary.scheduled.length
+                ? "pill"
+                : "pill-good";
+        const note = summary.jobs.length
+          ? `${summary.jobs.length} assigned job${summary.jobs.length === 1 ? "" : "s"} · ${teamMinutesLabel(summary.remainingMinutes)} left in block`
+          : "No assigned jobs";
+        const conflictChip = summary.hardConflict
+          ? `<span class="pill pill-bad">${escapeHtml("Double-booked")}</span>`
+          : summary.jobs.length > 1 && summary.remainingMinutes > 0
+            ? `<span class="pill pill-warn">${escapeHtml("Can compound")}</span>`
+            : "";
+        const capacityTone = summary.remainingMinutes <= 0
+          ? "pill-bad"
+          : summary.remainingMinutes <= 60
+            ? "pill-warn"
+            : "pill-good";
+        return `
         <tr>
           <td style="padding:8px;color:#e8e9eb;">${escapeHtml(member.display_name || member.name || member.email || member.id)}</td>
           <td style="padding:8px;color:rgba(255,255,255,.55);">${escapeHtml(member.role || "-")}</td>
+          <td style="padding:8px;color:rgba(255,255,255,.55);">
+            <span class="pill ${tone}">${escapeHtml(fieldLoad)}</span>
+            ${conflictChip ? `<div class="muted" style="font-size:.72rem;margin-top:4px;">${conflictChip}</div>` : ""}
+            <div class="muted" style="font-size:.72rem;margin-top:4px;">${escapeHtml(note)}</div>
+            ${summary.jobs.length ? `<div class="muted" style="font-size:.72rem;margin-top:4px;"><span class="pill ${capacityTone}">${escapeHtml(`${teamMinutesLabel(summary.totalEstimatedMinutes)} planned / ${teamMinutesLabel(summary.minimumBlockMinutes)} block`)}</span></div>` : ""}
+            ${summary.lastFieldUpdate ? `<div class="muted" style="font-size:.72rem;margin-top:4px;">${escapeHtml(`Last field update ${summary.lastFieldUpdate}`)}</div>` : ""}
+            ${summary.blockerNotes[0] ? `<div class="muted" style="font-size:.72rem;margin-top:4px;">${escapeHtml(`Blocker: ${summary.blockerNotes[0]}`)}</div>` : ""}
+          </td>
           <td style="padding:8px;color:rgba(255,255,255,.55);">${member.hourly_rate_cents ? `${formatUsd(member.hourly_rate_cents)}/hr` : "-"}</td>
           <td style="padding:8px;text-align:right;display:flex;gap:6px;justify-content:flex-end;">
             <button class="btn btn-ghost" style="font-size:.72rem;" onclick="openEditTeamMemberModal('${escapeAttr(member.id)}','${escapeAttr(member.role || "")}','${member.hourly_rate_cents || 0}')">Edit</button>
             <button class="btn btn-ghost" style="font-size:.72rem;" onclick="removeTeamMember('${escapeAttr(member.id)}')">Remove</button>
           </td>
-        </tr>`).join("")}
+        </tr>`;
+      }).join("")}
     </tbody>
   </table>
   <div style="margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,.07);">
@@ -81,7 +231,7 @@ function openInviteTeamMemberModal() {
     try {
       const response = await fetch("/.netlify/functions/manage-operator-members", {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeaders() },
+        headers: await getTeamWorkspaceAuthHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({
           email,
           name: document.getElementById("tmName")?.value || undefined,
@@ -127,7 +277,7 @@ function openEditTeamMemberModal(id, currentRole, currentRateCents) {
     try {
       const response = await fetch("/.netlify/functions/manage-operator-members", {
         method: "PATCH",
-        headers: { "Content-Type": "application/json", ...authHeaders() },
+        headers: await getTeamWorkspaceAuthHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({ id, role, hourly_rate_cents: Math.round(rate * 100) }),
       });
       if (!response.ok) throw new Error((await response.json()).error || "Failed");
@@ -148,7 +298,7 @@ async function removeTeamMember(id) {
   try {
     const response = await fetch(`/.netlify/functions/manage-operator-members?id=${encodeURIComponent(id)}`, {
       method: "DELETE",
-      headers: authHeaders(),
+      headers: await getTeamWorkspaceAuthHeaders(),
     });
     if (!response.ok) throw new Error((await response.json()).error || "Failed");
     TEAM_MEMBERS_CACHE = TEAM_MEMBERS_CACHE.filter((member) => member.id !== id);

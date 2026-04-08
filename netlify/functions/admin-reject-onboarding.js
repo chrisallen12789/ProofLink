@@ -34,6 +34,9 @@ exports.handler = async (event) => {
 
   const { id, rejection_reason } = body;
   if (!id) return respond(400, { error: 'Request id is required' });
+  if (rejection_reason && String(rejection_reason).trim().length > 2000) {
+    return respond(400, { error: 'rejection_reason must be 2000 characters or fewer' });
+  }
 
   // Load request
   const { data: req, error: fetchErr } = await supabase
@@ -42,7 +45,10 @@ exports.handler = async (event) => {
     .eq('id', id)
     .maybeSingle();
 
-  if (fetchErr || !req) {
+  if (fetchErr) {
+    return respond(500, { error: 'Failed to load onboarding request: ' + fetchErr.message });
+  }
+  if (!req) {
     return respond(404, { error: 'Onboarding request not found' });
   }
 

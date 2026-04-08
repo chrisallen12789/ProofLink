@@ -36,6 +36,7 @@ exports.handler = async (event) => {
     .in('id', ids);
 
   if (error) return respond(500, { error: 'Delete failed: ' + error.message });
+  if (!count) return respond(404, { error: 'No onboarding requests matched the provided ids' });
 
   return respond(200, { ok: true, deleted: count || ids.length });
 };
