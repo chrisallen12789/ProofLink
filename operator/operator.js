@@ -8555,35 +8555,15 @@ async function generateInvoicePDF(order) {
 
 // ── Reviews ───────────────────────────────────────────────────────────────────
 
-$("btnExportReviewsCsv")?.addEventListener("click", () => {
-  const rows = REVIEWS_CACHE;
-  if (!rows.length) { notifyOperator("There are no reviews to export yet."); return; }
-  const headers = ["id", "customer_name", "customer_email", "rating", "comment", "order_id", "created_at"];
-  downloadCsv("reviews", headers, rows.map((r) => headers.map((h) => r[h] ?? "")));
-});
+function exportReviewsCsv() {
+  return window.PROOFLINK_OPERATOR_SALES_SIDECARS?.exportReviewsCsv?.();
+}
 
 // ── Quotes Panel ──────────────────────────────────────────────────────────────
 
 async function fetchQuotes(status) {
-  if (FETCHING.has('quotes')) return;
-  FETCHING.add('quotes');
-  try {
-    const tok = await getAccessToken();
-    const url = status
-      ? `/.netlify/functions/get-quotes?status=${encodeURIComponent(status)}`
-      : "/.netlify/functions/get-quotes";
-    const res = await fetch(url, { headers: { "Authorization": `Bearer ${tok}` }, signal: _tabAbortController?.signal });
-    const d   = await res.json().catch(() => ({}));
-    QUOTES_CACHE = d.quotes || [];
-    TABS_LOADED.delete('quotes');
-    return QUOTES_CACHE;
-  } catch (e) {
-    if (e.name === 'AbortError' || e.message?.includes('abort')) return;
-    console.warn("[quotes] fetch failed:", e.message);
-    return [];
-  } finally {
-    FETCHING.delete('quotes');
-  }
+  await ensureOperatorWorkspaceScript?.("quotes");
+  return window.PROOFLINK_OPERATOR_SALES_SIDECARS?.fetchQuotes?.(status);
 }
 
 function renderQuotesList() {
@@ -8830,16 +8810,9 @@ $("btnDarkMode")?.addEventListener("click", () => {
 
 // ── CSV Export ────────────────────────────────────────────────────────────────
 
-$("btnExportCustomersCsv")?.addEventListener("click", () => {
-  const rows = [['Name','Email','Phone','City','State','Created']];
-  (CUSTOMERS_CACHE || []).forEach(c => {
-    rows.push([c.name||'', c.email||'', c.phone||'', c.city||'', c.state||'', (c.created_at||'').slice(0,10)]);
-  });
-  const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
-  const a = document.createElement('a');
-  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
-  a.download = 'customers.csv'; a.click();
-});
+function exportCustomersCsv() {
+  return window.PROOFLINK_OPERATOR_CUSTOMER_SIDECARS?.bindUi?.();
+}
 
 // ── Bulk Customer Import ──────────────────────────────────────────────────────
 $("btnImportCustomers")?.addEventListener("click", () => {
@@ -9057,15 +9030,26 @@ window.PROOFLINK_OPERATOR_RUNTIME = {
     const { data } = await sb.auth.getSession();
     return data?.session?.access_token || "";
   },
+  getCurrentOperator: () => CURRENT_OPERATOR || null,
+  getFetchingSet: () => FETCHING,
   getSupabase: () => sb,
+  getTabAbortSignal: () => _tabAbortController?.signal,
+  getTabsLoaded: () => TABS_LOADED,
   getTenantColumn: () => TENANT_COLUMN,
   getTenantId: () => TENANT_ID,
   getOperatorId: () => CURRENT_OPERATOR?.operator_id || "",
   getActiveOrderId: () => ACTIVE_ORDER_ID || "",
   getActiveBidId: () => ACTIVE_BID_ID || "",
   getActiveOrder: () => CRM_ORDERS_CACHE.find((row) => row.id === ACTIVE_ORDER_ID) || null,
+  getQuotesCache: () => QUOTES_CACHE || [],
   getOrdersCache: () => CRM_ORDERS_CACHE || [],
   getBidsCache: () => BIDS_CACHE || [],
+  setQuotesCache: (next) => { QUOTES_CACHE = Array.isArray(next) ? next : []; },
+  appendJob: (row) => {
+    if (!row) return;
+    JOBS_CACHE = [row, ...(JOBS_CACHE || [])];
+  },
+  setActiveJobId: (value) => { ACTIVE_JOB_ID = value || ""; },
   refreshPayments: async () => { await fetchPayments(); renderPayments(); },
   refreshOrders: async () => { await fetchCrmOrders(); renderOrders(); },
   refreshLeads: async () => { await fetchLeads(); renderLeads(leadSearch?.value || ""); },
