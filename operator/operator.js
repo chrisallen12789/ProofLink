@@ -3936,6 +3936,7 @@ function showApp(user) {
   if (sessionEmail) sessionEmail.textContent = user?.email || "";
   if (loginMsg) loginMsg.textContent = "";
   deferOperatorUiScript(() => ensureOperatorMobileNav());
+  deferOperatorUiScript(() => ensureOperatorWorkspaceScript?.("orders"));
 }
 
 function passwordHasMinimumLength(value = "") {
