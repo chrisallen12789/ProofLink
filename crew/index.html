@@ -2,10 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"
-    />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#0f1117" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -15,7 +12,7 @@
     <link rel="stylesheet" href="/crew/crew.css?v=20260406-layout-cleanup" />
   </head>
   <body>
-    <div id="appShell">
+    <main id="appShell">
       <!-- ════════════════════════════════════════════════════════════ -->
       <!-- SCREEN: Login                                               -->
       <!-- ════════════════════════════════════════════════════════════ -->
@@ -599,7 +596,7 @@
           </button>
         </div>
       </nav>
-    </div>
+    </main>
     <!-- /appShell -->
 
     <!-- ═══════════════════════════════════════════════════════════════ -->
@@ -613,8 +610,8 @@
     </div>
 
     <!-- Confirm modal -->
-    <div id="confirmModal" class="modal-backdrop">
-      <div class="modal-sheet">
+    <div id="confirmModal" class="modal-backdrop" hidden aria-hidden="true">
+      <div class="modal-sheet" role="dialog" aria-modal="true" aria-labelledby="confirmTitle" aria-describedby="confirmBody">
         <div class="modal-handle"></div>
         <div class="modal-title" id="confirmTitle">Are you sure?</div>
         <div class="modal-body" id="confirmBody">This action cannot be undone.</div>
@@ -1378,11 +1375,19 @@
           ok.textContent = okLabel;
           ok.className = 'btn mb-8 ' + okClass;
           State.confirmCallback = callback;
-          el('confirmModal').classList.add('open');
+          const modal = el('confirmModal');
+          modal.hidden = false;
+          modal.setAttribute('aria-hidden', 'false');
+          if ('inert' in modal) modal.inert = false;
+          modal.classList.add('open');
         },
 
         confirmOk() {
-          el('confirmModal').classList.remove('open');
+          const modal = el('confirmModal');
+          modal.classList.remove('open');
+          modal.hidden = true;
+          modal.setAttribute('aria-hidden', 'true');
+          if ('inert' in modal) modal.inert = true;
           if (State.confirmCallback) {
             State.confirmCallback();
             State.confirmCallback = null;
@@ -1390,7 +1395,11 @@
         },
 
         confirmCancel() {
-          el('confirmModal').classList.remove('open');
+          const modal = el('confirmModal');
+          modal.classList.remove('open');
+          modal.hidden = true;
+          modal.setAttribute('aria-hidden', 'true');
+          if ('inert' in modal) modal.inert = true;
           State.confirmCallback = null;
         },
 

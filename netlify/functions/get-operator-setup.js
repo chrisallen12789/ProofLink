@@ -32,47 +32,64 @@ exports.handler = async (event) => {
   const { tenantId, supabase } = ctx;
   if (!tenantId) return respond(403, { error: 'Operator is not linked to a tenant' });
 
-  const [{ data: tenant, error: tenantErr }, { data: cfgRow, error: cfgErr }] = await Promise.all([
-    supabase
-      .from('tenants')
-      .select('id, business_name, name, slug, owner_email, owner_name, logo_url, business_type, city_state, active, setup_complete, prooflink_plan_key')
-      .eq('id', tenantId)
-      .maybeSingle(),
-    supabase
-      .from('tenant_config')
-      .select('config_value')
-      .eq('tenant_id', tenantId)
-      .eq('config_key', 'site_settings')
-      .maybeSingle(),
+  const tenantQuery = supabase
+    .from('tenants')
+    .select('*')
+    .eq('id', tenantId)
+    .maybeSingle();
+  const configQuery = supabase
+    .from('tenant_config')
+    .select('config_value')
+    .eq('tenant_id', tenantId)
+    .eq('config_key', 'site_settings')
+    .maybeSingle();
+
+  let [{ data: tenant, error: tenantErr }, { data: cfgRow, error: cfgErr }] = await Promise.all([
+    tenantQuery,
+    configQuery,
   ]);
 
-  if (tenantErr || !tenant) return respond(404, { error: 'Tenant not found' });
+  if (tenantErr) return respond(500, { error: 'Failed to load tenant account' });
   if (cfgErr) return respond(500, { error: 'Failed to load tenant config' });
 
+  const fallbackTenant = tenant || {
+    id: tenantId,
+    business_name: '',
+    name: '',
+    slug: '',
+    owner_email: ctx?.user?.email || '',
+    owner_name: ctx?.user?.user_metadata?.name || '',
+    logo_url: '',
+    business_type: '',
+    city_state: '',
+    active: true,
+    setup_complete: false,
+    prooflink_plan_key: 'starter',
+  };
   const rawConfig = parseConfig(cfgRow?.config_value);
   const resolvedBusinessType = normalizeBusinessTypeKey(
-    tenant.business_type ||
+    fallbackTenant.business_type ||
     rawConfig.workspace_business_type ||
     rawConfig.business_type ||
     ''
   );
-  const businessName = tenantBusinessName(tenant);
+  const businessName = tenantBusinessName(fallbackTenant);
   const lockedRecord = {
     legal_business_name: businessName,
-    owner_name: tenant.owner_name || '',
-    login_email: tenant.owner_email || '',
+    owner_name: fallbackTenant.owner_name || '',
+    login_email: fallbackTenant.owner_email || '',
     business_type: resolvedBusinessType,
-    city_state: tenant.city_state || rawConfig.city_state || '',
+    city_state: fallbackTenant.city_state || rawConfig.city_state || '',
     license_number: rawConfig.license_number || '',
-    slug: tenant.slug || '',
-    active: !!tenant.active,
-    setup_complete: !!tenant.setup_complete,
-    prooflink_plan_key: tenant.prooflink_plan_key || 'starter',
+    slug: fallbackTenant.slug || '',
+    active: !!fallbackTenant.active,
+    setup_complete: !!fallbackTenant.setup_complete,
+    prooflink_plan_key: fallbackTenant.prooflink_plan_key || 'starter',
   };
 
   const config = {
     ...rawConfig,
-    logo_url: rawConfig.logo_url || tenant.logo_url || '',
+    logo_url: rawConfig.logo_url || fallbackTenant.logo_url || '',
     show_prices: rawConfig.show_prices !== false,
     allow_custom_requests: rawConfig.allow_custom_requests !== false,
     public_contact_email: rawConfig.public_contact_email || rawConfig.contact_email || '',
@@ -80,7 +97,7 @@ exports.handler = async (event) => {
     review_platform_label: rawConfig.review_platform_label || '',
     review_link_url: rawConfig.review_link_url || '',
     referral_message: rawConfig.referral_message || '',
-    workspace_business_type: normalizeBusinessTypeKey(rawConfig.workspace_business_type || tenant.business_type || ''),
+    workspace_business_type: normalizeBusinessTypeKey(rawConfig.workspace_business_type || fallbackTenant.business_type || ''),
     site_font_preset: rawConfig.site_font_preset || 'modern_sans',
     site_surface_style: rawConfig.site_surface_style || 'clean',
     site_button_style: rawConfig.site_button_style || 'rounded',
@@ -93,7 +110,7 @@ exports.handler = async (event) => {
   };
 
   return respond(200, {
-    tenant,
+    tenant: fallbackTenant,
     locked_record: lockedRecord,
     editable_fields: [
       'tagline', 'hero_heading', 'hero_subheading', 'about', 'accent_color',

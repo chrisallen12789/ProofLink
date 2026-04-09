@@ -11,6 +11,10 @@
 const { requireOperatorContext, getAdminClient, respond } = require('./utils/auth');
 const { extractHydrovacCompletionHandoff } = require('./lib/hydrovac-closeout');
 
+function isMissingColumnError(error) {
+  return String(error?.code || '').trim() === '42703';
+}
+
 function compactText(value, max = 240) {
   const text = String(value || '').trim();
   if (!text) return '';
@@ -51,6 +55,14 @@ function memberRoleTitle(role = '') {
   return 'Crew Member';
 }
 
+function presentCrewRole(role = '') {
+  const normalized = String(role || '').trim().toLowerCase();
+  if (normalized === 'manager' || normalized === 'admin') return 'admin';
+  if (normalized === 'viewer') return 'viewer';
+  if (normalized === 'owner') return 'owner';
+  return 'member';
+}
+
 function buildCrewSitePacket(job, location, recentJobs = [], currentPhotos = []) {
   const customer = job?.customers || {};
   const order = job?.orders || {};
@@ -80,12 +92,23 @@ exports.handler = async (event) => {
   const params = event.queryStringParameters || {};
 
   // Resolve the operator_members record for this user
-  const { data: member, error: memberErr } = await adminSb
+  let memberLookup = await adminSb
     .from('operator_members')
     .select('id, operator_id, user_id, role, role_title, name, operators!operator_id(id, name, email, role)')
     .eq('user_id', user.id)
     .eq('tenant_id', tenantId)
     .maybeSingle();
+
+  if (memberLookup.error && isMissingColumnError(memberLookup.error)) {
+    memberLookup = await adminSb
+      .from('operator_members')
+      .select('operator_id, user_id, role, operators!operator_id(id, name, email, role)')
+      .eq('user_id', user.id)
+      .eq('tenant_id', tenantId)
+      .maybeSingle();
+  }
+
+  const { data: member, error: memberErr } = memberLookup;
 
   if (memberErr) {
     console.error('[get-crew-jobs] member lookup error:', memberErr);
@@ -306,7 +329,7 @@ exports.handler = async (event) => {
       id: member.id || member.operator_id || member.operators?.id || null,
       operator_id: member.operator_id || member.operators?.id || null,
       name: member.name || member.operators?.name || member.operators?.email || user.email || 'Crew Member',
-      role: member.role,
+      role: presentCrewRole(member.role),
       role_title: member.role_title || memberRoleTitle(member.role),
     },
   });

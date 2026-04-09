@@ -2299,7 +2299,22 @@ function setSidebarMoreOpen(isOpen) {
   more.classList.toggle("collapsed", !isOpen);
   more.classList.toggle("expanded", !!isOpen);
   more.classList.toggle("u-hidden", !isOpen);
+  more.hidden = !isOpen;
   more.setAttribute("aria-hidden", String(!isOpen));
+  if ("inert" in more) more.inert = !isOpen;
+  more.querySelectorAll("button, a, input, select, textarea, [tabindex]").forEach((item) => {
+    if (!isOpen) {
+      item.dataset.prevTabindex = item.getAttribute("tabindex") ?? "";
+      item.setAttribute("tabindex", "-1");
+    } else if (Object.prototype.hasOwnProperty.call(item.dataset, "prevTabindex")) {
+      const previous = item.dataset.prevTabindex;
+      if (previous) item.setAttribute("tabindex", previous);
+      else item.removeAttribute("tabindex");
+      delete item.dataset.prevTabindex;
+    } else {
+      item.removeAttribute("tabindex");
+    }
+  });
   if (btn) {
     btn.textContent = isOpen ? "Hide tools" : "Tools";
     btn.setAttribute("aria-expanded", String(isOpen));
@@ -2930,9 +2945,11 @@ function updateWorkspaceTabPresentation(tab, blueprint = currentWorkspaceBluepri
   const locked = isTabLockedInWorkspace(tab, blueprint);
   const isPrimary = PRIMARY_TABS.has(tab);
   btn.hidden = !visible;
+  btn.disabled = !visible;
   btn.classList.toggle("is-secondary", visible && !isPrimary);
   btn.classList.toggle("is-locked", locked);
   btn.setAttribute("aria-hidden", visible ? "false" : "true");
+  btn.tabIndex = visible ? 0 : -1;
   const label = workspaceTabLabel(tab, blueprint);
   const badge = tabLockBadge(tab, blueprint);
   btn.innerHTML = `

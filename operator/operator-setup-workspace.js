@@ -251,16 +251,26 @@ function renderLockedBusinessRecord(record = {}) {
 
 async function fetchOperatorSetup() {
   const token = await window.PROOFLINK_OPERATOR_RUNTIME?.getAccessToken?.();
-  const res = await fetch('/.netlify/functions/get-operator-setup', {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || 'Failed to load setup.');
-  SETUP_STATE = data;
-  fillSetupForm(data.config || {}, data.locked_record || data.tenant || {});
-  applyWorkspaceBlueprint();
-  scheduleWorkspaceSnapshot("setup", 260);
-  return data;
+  const headers = token ? { Authorization: `Bearer ${token}` } : {};
+  const candidates = [
+    '/.netlify/functions/get-operator-setup',
+    '/.netlify/functions/operator-setup',
+  ];
+  let lastError = new Error('Failed to load setup.');
+  for (const url of candidates) {
+    const res = await fetch(url, { headers });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok) {
+      SETUP_STATE = data;
+      fillSetupForm(data.config || {}, data.locked_record || data.tenant || {});
+      applyWorkspaceBlueprint();
+      scheduleWorkspaceSnapshot("setup", 260);
+      return data;
+    }
+    lastError = new Error(data.error || 'Failed to load setup.');
+    if (res.status !== 404) break;
+  }
+  throw lastError;
 }
 
 async function saveOperatorSetup(extra = {}) {

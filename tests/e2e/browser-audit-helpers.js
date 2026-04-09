@@ -4,7 +4,7 @@ const { expect } = require("@playwright/test");
 const AxeBuilder = require("@axe-core/playwright").default;
 const { loginAsOperatorSession } = require("./operator-test-helpers");
 
-function createBrowserAudit(page, { allowConsole = [], allowRequest = [] } = {}) {
+function createBrowserAudit(page, { allowConsole = [], allowPageError = [], allowRequest = [] } = {}) {
   const state = {
     consoleErrors: [],
     pageErrors: [],
@@ -19,7 +19,9 @@ function createBrowserAudit(page, { allowConsole = [], allowRequest = [] } = {})
   });
 
   page.on("pageerror", (error) => {
-    state.pageErrors.push(error?.message || String(error));
+    const text = error?.message || String(error);
+    if (allowPageError.some((pattern) => pattern.test(text))) return;
+    state.pageErrors.push(text);
   });
 
   page.on("response", async (response) => {

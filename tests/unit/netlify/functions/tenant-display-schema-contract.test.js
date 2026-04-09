@@ -24,7 +24,8 @@ describe("tenant display schema contract", () => {
 
     expect(publicTenantInfo).toContain(".select('id, business_name, name, slug");
     expect(publicTenantInfo).toContain("function tenantBusinessName(tenant)");
-    expect(operatorSetup).toContain(".select('id, business_name, name, slug");
+    expect(operatorSetup).toContain(".select('*')");
+    expect(operatorSetup).toContain("function tenantBusinessName(tenant)");
     expect(operatorSetup).toContain("legal_business_name: businessName");
     expect(launchChecklist).toContain("tenant_name  : tenantBusinessName(tenant)");
     expect(buildLaunchChecklist).toContain("function tenantBusinessName(tenant)");

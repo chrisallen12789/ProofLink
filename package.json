@@ -25,6 +25,7 @@
     "seed:demo-customers": "node scripts/seed-demo-customers.js",
     "test:cleanup": "tsx tests/seeds/cleanup-test-foundation.js",
     "sql:build:rebuild": "node scripts/build-supabase-rebuild-sql.js",
+    "test:supabase:drift": "node scripts/check-supabase-drift.js",
     "capture:landing-shots": "node scripts/capture-landing-shots.js",
     "test:all": "npm run test:cleanup && npm run test:seed && npm run test:preflight:service-workflow && npm run test && npm run test:e2e"
   },
