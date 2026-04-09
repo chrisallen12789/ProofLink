@@ -25,6 +25,8 @@ For the first release, compensation is governed by the union agreement as the mi
 - `supabase/migrations/20260409110000_employee_compensation_foundation.sql`
 - `netlify/functions/utils/compensation.js`
 - `netlify/functions/get-team-hours.js`
+- `netlify/functions/manage-labor-contracts.js`
+- `netlify/functions/manage-member-compensation.js`
 - direct unit coverage for compensation resolution and team-hours integration
 
 ## Recommended data model
@@ -152,6 +154,24 @@ Important assumptions carried in this release:
 
 The latest public contract evidence we found showed an older 2019-2025 agreement and a 2025 ratification notice, so the current signed agreement should still be uploaded and normalized before full payroll-grade automation is built.
 
+## Current operator/admin surface
+
+The current live management layer now includes:
+
+- Team member union and driver labeling fields on `manage-operator-members`
+- labor contract CRUD on `manage-labor-contracts`
+- member assignment and override CRUD on `manage-member-compensation`
+- Team hours reporting that shows effective rate, contract floor, and source trace
+
+This means operators can now:
+
+- store worker and driver labels
+- mark union participation
+- store local number and classification label
+- create labor contracts and rate periods through API
+- create member assignments and overrides through API
+- see the contract-floor effect in hours reporting
+
 ## Smallest useful release
 
 The smallest useful live release after this foundation is:
@@ -166,8 +186,8 @@ That gives operators an immediately useful compensation system without pretendin
 
 ## Next implementation batch
 
-1. Add operator functions for labor contracts, classifications, and member compensation CRUD.
-2. Add Team UI for compensation profiles and employee assignment history.
-3. Reuse the resolver in time entry logging and job earnings preview.
-4. Add compensation audit snapshots when time entries or payroll previews are generated.
+1. Add a full Team compensation drawer for assignment and override editing.
+2. Reuse the resolver in time entry logging and job earnings preview.
+3. Add compensation audit snapshots when time entries or payroll previews are generated.
+4. Add seeded contract import helpers for uploaded wage sheets.
 5. Expand the resolver for salary, day-rate, job-rate, commission, and premium components.

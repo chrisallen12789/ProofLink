@@ -212,7 +212,7 @@ function renderTeamPanel() {
             ${teamMemberCompensationNote(member) ? `<div class="muted" style="font-size:.72rem;margin-top:4px;">${escapeHtml(teamMemberCompensationNote(member))}</div>` : ""}
           </td>
           <td style="padding:8px;text-align:right;display:flex;gap:6px;justify-content:flex-end;">
-            <button class="btn btn-ghost" style="font-size:.72rem;" onclick="openEditTeamMemberModal('${escapeAttr(member.id)}','${escapeAttr(member.role || "")}','${member.hourly_rate_cents || 0}')">Edit</button>
+            <button class="btn btn-ghost" style="font-size:.72rem;" onclick="openEditTeamMemberModal('${escapeAttr(member.id)}')">Edit</button>
             <button class="btn btn-ghost" style="font-size:.72rem;" onclick="removeTeamMember('${escapeAttr(member.id)}')">Remove</button>
           </td>
         </tr>`;
@@ -223,6 +223,10 @@ function renderTeamPanel() {
     <a href="/crew/" target="_blank" rel="noopener" style="font-size:.8rem;color:rgba(255,255,255,.45);text-decoration:none;display:inline-flex;align-items:center;gap:5px;transition:color .15s;" onmouseover="this.style.color='rgba(255,255,255,.75)'" onmouseout="this.style.color='rgba(255,255,255,.45)'">Open crew app &#8599;</a>
   </div>`;
   renderHydrovacDriverWorkspace();
+}
+
+function findTeamMemberById(memberId) {
+  return (Array.isArray(TEAM_MEMBERS_CACHE) ? TEAM_MEMBERS_CACHE : []).find((member) => String(member?.id || '') === String(memberId || '')) || null;
 }
 
 function openInviteTeamMemberModal() {
@@ -284,7 +288,10 @@ function openInviteTeamMemberModal() {
   };
 }
 
-function openEditTeamMemberModal(id, currentRole, currentRateCents) {
+function openEditTeamMemberModal(id) {
+  const member = findTeamMemberById(id) || {};
+  const currentRole = member.role || 'member';
+  const currentRateCents = Number(member.hourly_rate_cents || 0);
   const existing = document.getElementById("editTeamModal");
   if (existing) existing.remove();
   const modal = document.createElement("div");
@@ -299,6 +306,18 @@ function openEditTeamMemberModal(id, currentRole, currentRateCents) {
     </select>
     <label style="font-size:.8rem;color:rgba(255,255,255,.55);">Hourly Rate ($/hr)</label>
     <input id="tmEditRate" class="input" type="number" min="0" step="0.01" style="margin-bottom:16px;width:100%;" value="${currentRateCents ? (currentRateCents / 100).toFixed(2) : ""}">
+    <label style="font-size:.8rem;color:rgba(255,255,255,.55);">Worker label</label>
+    <input id="tmEditWorkerLabel" class="input" style="margin-bottom:12px;width:100%;" value="${escapeAttr(member.worker_label || "")}">
+    <label style="font-size:.8rem;color:rgba(255,255,255,.55);">Driver label</label>
+    <input id="tmEditDriverLabel" class="input" style="margin-bottom:12px;width:100%;" value="${escapeAttr(member.driver_label || "")}">
+    <label style="font-size:.8rem;color:rgba(255,255,255,.55);">Union local</label>
+    <input id="tmEditUnionLocal" class="input" style="margin-bottom:12px;width:100%;" value="${escapeAttr(member.union_local_number || "")}">
+    <label style="font-size:.8rem;color:rgba(255,255,255,.55);">Union classification</label>
+    <input id="tmEditUnionClassification" class="input" style="margin-bottom:12px;width:100%;" value="${escapeAttr(member.union_classification_label || "")}">
+    <label style="display:flex;align-items:center;gap:8px;font-size:.8rem;color:rgba(255,255,255,.55);margin-bottom:16px;">
+      <input id="tmEditUnionMember" type="checkbox"${member.is_union_member ? " checked" : ""}>
+      <span>Union member</span>
+    </label>
     <div style="display:flex;gap:8px;justify-content:flex-end;">
       <button class="btn btn-ghost" onclick="document.getElementById('editTeamModal')?.remove()">Cancel</button>
       <button class="btn btn-primary" id="tmEditSave">Save</button>
@@ -308,11 +327,25 @@ function openEditTeamMemberModal(id, currentRole, currentRateCents) {
   modal.querySelector("#tmEditSave").onclick = async () => {
     const role = document.getElementById("tmEditRole")?.value;
     const rate = parseFloat(document.getElementById("tmEditRate")?.value || "0");
+    const workerLabel = String(document.getElementById("tmEditWorkerLabel")?.value || "").trim();
+    const driverLabel = String(document.getElementById("tmEditDriverLabel")?.value || "").trim();
+    const unionLocalNumber = String(document.getElementById("tmEditUnionLocal")?.value || "").trim();
+    const unionClassificationLabel = String(document.getElementById("tmEditUnionClassification")?.value || "").trim();
+    const isUnionMember = !!document.getElementById("tmEditUnionMember")?.checked;
     try {
       const response = await fetch("/.netlify/functions/manage-operator-members", {
         method: "PATCH",
         headers: await getTeamWorkspaceAuthHeaders({ "Content-Type": "application/json" }),
-        body: JSON.stringify({ id, role, hourly_rate_cents: Math.round(rate * 100) }),
+        body: JSON.stringify({
+          id,
+          role,
+          hourly_rate_cents: Math.round(rate * 100),
+          worker_label: workerLabel || null,
+          driver_label: driverLabel || null,
+          union_local_number: unionLocalNumber || null,
+          union_classification_label: unionClassificationLabel || null,
+          is_union_member: isUnionMember,
+        }),
       });
       if (!response.ok) throw new Error((await response.json()).error || "Failed");
       modal.remove();

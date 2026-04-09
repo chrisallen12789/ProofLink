@@ -26,7 +26,7 @@ exports.handler = async (event) => {
   if (event.httpMethod === 'GET') {
     const { data, error } = await adminSb
       .from('operator_members')
-      .select('id, user_id, role, name, hourly_rate_cents, weekly_capacity_hours, created_at')
+      .select('id, user_id, role, name, hourly_rate_cents, weekly_capacity_hours, worker_label, driver_label, compensation_type, is_union_member, union_local_number, union_classification_label, created_at')
       .eq('tenant_id', tenantId)
       .order('created_at', { ascending: true });
 
@@ -76,13 +76,32 @@ exports.handler = async (event) => {
     const { id, ...fields } = body;
     if (!id) return respond(400, { error: 'id is required' });
 
-    const ALLOWED = ['role', 'hourly_rate_cents', 'weekly_capacity_hours', 'name'];
+    const ALLOWED = [
+      'role',
+      'hourly_rate_cents',
+      'weekly_capacity_hours',
+      'name',
+      'worker_label',
+      'driver_label',
+      'compensation_type',
+      'is_union_member',
+      'union_local_number',
+      'union_classification_label',
+    ];
     const patch = Object.fromEntries(
       Object.entries(fields).filter(([k]) => ALLOWED.includes(k))
     );
 
     if (patch.role !== undefined && !ALLOWED_ROLES.includes(patch.role)) {
       return respond(400, { error: `role must be one of: ${ALLOWED_ROLES.join(', ')}` });
+    }
+
+    if (patch.compensation_type !== undefined) {
+      const normalizedType = String(patch.compensation_type || '').trim().toLowerCase();
+      if (!['hourly', 'salary', 'day_rate', 'job_rate', 'commission', 'blended'].includes(normalizedType)) {
+        return respond(400, { error: 'compensation_type must be hourly, salary, day_rate, job_rate, commission, or blended' });
+      }
+      patch.compensation_type = normalizedType;
     }
 
     if (!Object.keys(patch).length) return respond(400, { error: 'No valid fields to update' });
