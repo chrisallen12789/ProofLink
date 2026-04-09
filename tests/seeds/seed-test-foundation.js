@@ -499,7 +499,7 @@ async function syncHydrovacJobLinks(jobRow) {
   if (error) throw error;
 }
 
-async function ensureHydrovacFixture(tenantRow, operatorRow, timeline) {
+async function ensureHydrovacFixture(tenantRow, operatorRow, timeline, crewMemberRow = null) {
   const hydrovacCustomers = {};
   for (const customer of HYDROVAC_CUSTOMERS) {
     hydrovacCustomers[customer.email] = await ensureCustomer(tenantRow, operatorRow, customer);
@@ -819,6 +819,51 @@ async function ensureHydrovacFixture(tenantRow, operatorRow, timeline) {
     },
   });
 
+  if (crewMemberRow?.id) {
+    await ensureSeedRow({
+      table: "jobs",
+      match: { tenant_id: tenantRow.id, work_order_number: "PL-WO-HV-4403" },
+      insertPayload: {
+        tenant_id: tenantRow.id,
+        operator_id: operatorRow.id,
+        order_id: orderTomorrow.id,
+        customer_id: municipalCustomer.id,
+        status: "scheduled",
+        title: "Crew packet daylighting follow-up",
+        service_address: "44 Service Drive, Detroit, MI",
+        scheduled_date: timeline.today,
+        scheduled_time: "13:30",
+        schedule_window: "1:30 PM - 4 PM",
+        summary: "Dedicated crew-user fixture so browser audits can exercise the field app with a real assigned job.",
+        notes: "Assigned to the seeded crew member for role-based smoke coverage.",
+        proof: [],
+        payment_state: "unpaid",
+        amount_paid_cents: 0,
+        amount_due_cents: 125000,
+        service_type: "hydrovac_follow_up",
+        job_type: "utility_daylighting",
+        billing_method: "hourly_plus_disposal",
+        hourly_truck_rate_cents: 32000,
+        hourly_operator_rate_cents: 11500,
+        mobilization_fee_cents: 9500,
+        mobilization_charge_cents: 9500,
+        disposal_cost_cents: 0,
+        assigned_truck_id: truck.id,
+        assigned_member_id: crewMemberRow.id,
+        customer_po_number: "PO-4478-CREW",
+        work_order_number: "PL-WO-HV-4403",
+        requires_confined_space_permit: false,
+        emergency_callout: false,
+        custom_fields: {
+          access_gate: "Crew fixture gate",
+          seed_fixture: "role_audit_crew",
+        },
+        created_at: timeline.createdAt,
+        updated_at: timeline.updatedAt,
+      },
+    });
+  }
+
   await ensureSeedRow({
     table: "utility_locate_tickets",
     match: { tenant_id: tenantRow.id, ticket_number: "PL-811-4401" },
@@ -1057,6 +1102,15 @@ async function ensureHydrovacFixture(tenantRow, operatorRow, timeline) {
 
   await syncHydrovacJobLinks({ id: jobToday.id, tenant_id: tenantRow.id });
   await syncHydrovacJobLinks({ id: jobTomorrow.id, tenant_id: tenantRow.id });
+  if (crewMemberRow?.id) {
+    const crewJob = await findRow("jobs", {
+      tenant_id: tenantRow.id,
+      work_order_number: "PL-WO-HV-4403",
+    }, "id");
+    if (crewJob?.id) {
+      await syncHydrovacJobLinks({ id: crewJob.id, tenant_id: tenantRow.id });
+    }
+  }
 }
 
 async function ensureOnboarding(fixture, approvedByOperatorId) {
@@ -1120,7 +1174,12 @@ async function main() {
   for (const customer of SEEDED_CUSTOMERS) {
     await ensureCustomer(tenantRows[TENANTS.tenantA.slug], operators.tenantAAdmin, customer);
   }
-  await ensureHydrovacFixture(tenantRows[TENANTS.tenantB.slug], operators.tenantBAdmin, hydrovacTimeline);
+  await ensureHydrovacFixture(
+    tenantRows[TENANTS.tenantB.slug],
+    operators.tenantBAdmin,
+    hydrovacTimeline,
+    operators.tenantBCrew,
+  );
 
   await ensureOnboarding(ONBOARDING_FIXTURES.approved, operators.platformAdmin.id);
   await ensureOnboarding(ONBOARDING_FIXTURES.submitted, operators.platformAdmin.id);

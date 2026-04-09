@@ -41,6 +41,16 @@ const USERS = {
     tenantKey: "tenantB",
     name: "PL Test Tenant B Admin",
   },
+  tenantBCrew: {
+    key: "tenantBCrew",
+    email: "pltest.tenant.b.crew@example.com",
+    password: "ChangeMe123!",
+    operatorRole: "admin",
+    membershipRole: "staff",
+    profileRole: "operator",
+    tenantKey: "tenantB",
+    name: "PL Test Tenant B Crew",
+  },
   storageNearLimitAdmin: {
     key: "storageNearLimitAdmin",
     email: "pltest.storage.owner@example.com",

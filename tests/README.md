@@ -15,6 +15,9 @@
 13. Start Netlify dev against the same environment with `npm run dev:test`.
 14. Run `npm run test:e2e:service-workflow`.
 15. Run `npm run test:e2e:operator-cross-device` for Chrome, Firefox, Safari/WebKit, iPhone, and Android operator smoke coverage.
+16. Run `npm run test:e2e:role-audit` to sign in as public, platform admin, operator owner, staff, and crew roles while failing on browser-side errors.
+17. Run `npm run test:e2e:a11y-smoke` for accessibility smoke coverage across public, admin, operator, and crew surfaces.
+18. Run `npm run test:e2e:user-classes` when you want the combined role/accessibility audit lane.
 
 Notes:
 - All deterministic test data uses the `pltest-` prefix.
