@@ -47,6 +47,37 @@ function teamMinutesLabel(totalMinutes = 0) {
   return `${Number(hours.toFixed(hours >= 10 ? 0 : 1))}h`;
 }
 
+function teamMemberDisplayedRateCents(member = {}) {
+  return Number(
+    member?.effective_rate_cents
+      || member?.compensation?.resolved_hourly_rate_cents
+      || member?.hourly_rate_cents
+      || 0
+  );
+}
+
+function teamMemberCompensationNote(member = {}) {
+  const compensation = member?.compensation || {};
+  const floor = Number(compensation.contract_floor_cents || 0);
+  const classification = String(compensation.union_classification_name || "").trim();
+  const driverLabel = String(compensation.driver_label || "").trim();
+  const source = String(compensation.source || "").trim();
+
+  if (source === "contract_floor" && floor) {
+    return `${classification || "Union floor"} minimum is driving this rate.`;
+  }
+  if (source === "member_override" && floor) {
+    return `${classification || "Union floor"} minimum is ${formatUsd(floor)}/hr; member is above scale.`;
+  }
+  if (driverLabel && floor) {
+    return `${driverLabel} label with ${formatUsd(floor)}/hr contract floor.`;
+  }
+  if (classification && floor) {
+    return `${classification} floor tracked at ${formatUsd(floor)}/hr.`;
+  }
+  return "";
+}
+
 function teamMemberJobSummary(member = {}) {
   const keys = new Set(teamMemberAssignmentKeys(member));
   const jobs = teamWorkspaceJobs().filter((job) => (
@@ -176,7 +207,10 @@ function renderTeamPanel() {
             ${summary.lastFieldUpdate ? `<div class="muted" style="font-size:.72rem;margin-top:4px;">${escapeHtml(`Last field update ${summary.lastFieldUpdate}`)}</div>` : ""}
             ${summary.blockerNotes[0] ? `<div class="muted" style="font-size:.72rem;margin-top:4px;">${escapeHtml(`Blocker: ${summary.blockerNotes[0]}`)}</div>` : ""}
           </td>
-          <td style="padding:8px;color:rgba(255,255,255,.55);">${member.hourly_rate_cents ? `${formatUsd(member.hourly_rate_cents)}/hr` : "-"}</td>
+          <td style="padding:8px;color:rgba(255,255,255,.55);">
+            ${teamMemberDisplayedRateCents(member) ? `${formatUsd(teamMemberDisplayedRateCents(member))}/hr` : "-"}
+            ${teamMemberCompensationNote(member) ? `<div class="muted" style="font-size:.72rem;margin-top:4px;">${escapeHtml(teamMemberCompensationNote(member))}</div>` : ""}
+          </td>
           <td style="padding:8px;text-align:right;display:flex;gap:6px;justify-content:flex-end;">
             <button class="btn btn-ghost" style="font-size:.72rem;" onclick="openEditTeamMemberModal('${escapeAttr(member.id)}','${escapeAttr(member.role || "")}','${member.hourly_rate_cents || 0}')">Edit</button>
             <button class="btn btn-ghost" style="font-size:.72rem;" onclick="removeTeamMember('${escapeAttr(member.id)}')">Remove</button>
@@ -345,6 +379,9 @@ function renderHoursReport(data) {
   const toHours = (minutes) => (minutes / 60).toFixed(1);
   const memberHtml = members.map((member) => {
     const hasActivity = member.total_minutes > 0 || member.job_count > 0;
+    const compensation = member.compensation || {};
+    const displayedRateCents = teamMemberDisplayedRateCents(member);
+    const contractFloorCents = Number(compensation.contract_floor_cents || 0);
     const jobRows = (member.jobs || []).map((job) => {
       const duration = job.actual_end_at && job.actual_start_at
         ? Math.round((new Date(job.actual_end_at) - new Date(job.actual_start_at)) / 60000)
@@ -371,6 +408,7 @@ function renderHoursReport(data) {
           <div>
             <strong>${escapeHtml(member.name || "Unknown")}</strong>
             <span class="pill" style="margin-left:8px;">${escapeHtml(member.role || "")}</span>
+            ${compensation.union_classification_name ? `<span class="pill" style="margin-left:8px;">${escapeHtml(compensation.union_classification_name)}</span>` : ""}
           </div>
           <div class="row" style="gap:16px;font-size:.85rem;">
             <span><strong>${toHours(member.total_minutes)}</strong> hrs total</span>
@@ -380,6 +418,7 @@ function renderHoursReport(data) {
           </div>
         </div>
         <div class="card-bd" style="display:none;">
+          ${displayedRateCents ? `<div class="muted" style="font-size:.8rem;margin-bottom:10px;">Effective rate ${escapeHtml(`${formatUsd(displayedRateCents)}/hr`)}${contractFloorCents ? ` - contract floor ${escapeHtml(`${formatUsd(contractFloorCents)}/hr`)}` : ""}${compensation.source ? ` - source ${escapeHtml(compensation.source.replace(/_/g, " "))}` : ""}</div>` : ""}
           ${jobRows ? `<div style="margin-bottom:10px;"><div class="kicker">Jobs</div><div class="list">${jobRows}</div></div>` : ""}
           ${entryRows ? `<div><div class="kicker">Time entries</div><div class="list">${entryRows}</div></div>` : ""}
           ${!jobRows && !entryRows ? '<div class="muted">No detail records in this period.</div>' : ""}
@@ -405,21 +444,26 @@ function exportHoursCsv() {
   }
   const startEl = $("hoursStart");
   const endEl = $("hoursEnd");
-  const rows = [["Member", "Role", "Date", "Description", "Type", "Billable", "Duration (hrs)", "Hourly Rate", "Est. Pay"]];
+  const rows = [["Member", "Role", "Date", "Description", "Type", "Billable", "Duration (hrs)", "Hourly Rate", "Contract Floor", "Rate Source", "Est. Pay"]];
   for (const member of data.members || []) {
+    const compensation = member.compensation || {};
+    const memberRateCents = teamMemberDisplayedRateCents(member);
+    const contractFloorCents = Number(compensation.contract_floor_cents || 0);
+    const rateSource = compensation.source || "member_fallback";
     for (const entry of member.entries || []) {
       const hours = ((entry.duration_minutes || 0) / 60).toFixed(2);
-      const rate = ((entry.hourly_rate_cents || member.hourly_rate_cents || 0) / 100).toFixed(2);
-      const pay = (((entry.duration_minutes || 0) / 60) * (entry.hourly_rate_cents || member.hourly_rate_cents || 0) / 100).toFixed(2);
-      rows.push([member.name || "", member.role || "", entry.started_at ? new Date(entry.started_at).toLocaleDateString() : "", entry.description || "Time entry", "Time Entry", entry.billable ? "Yes" : "No", hours, `$${rate}`, `$${pay}`]);
+      const rateCents = Number(entry.hourly_rate_cents || memberRateCents || 0);
+      const rate = (rateCents / 100).toFixed(2);
+      const pay = (((entry.duration_minutes || 0) / 60) * rateCents / 100).toFixed(2);
+      rows.push([member.name || "", member.role || "", entry.started_at ? new Date(entry.started_at).toLocaleDateString() : "", entry.description || "Time entry", "Time Entry", entry.billable ? "Yes" : "No", hours, `$${rate}`, contractFloorCents ? `$${(contractFloorCents / 100).toFixed(2)}` : "", rateSource, `$${pay}`]);
     }
     for (const job of member.jobs || []) {
       if (!job.actual_start_at || !job.actual_end_at) continue;
       const minutes = Math.round((new Date(job.actual_end_at) - new Date(job.actual_start_at)) / 60000);
       const hours = (minutes / 60).toFixed(2);
-      const rate = (member.hourly_rate_cents / 100).toFixed(2);
-      const pay = ((minutes / 60) * member.hourly_rate_cents / 100).toFixed(2);
-      rows.push([member.name || "", member.role || "", new Date(job.actual_start_at).toLocaleDateString(), job.title || "Job", "Job", "Yes", hours, `$${rate}`, `$${pay}`]);
+      const rate = (memberRateCents / 100).toFixed(2);
+      const pay = ((minutes / 60) * memberRateCents / 100).toFixed(2);
+      rows.push([member.name || "", member.role || "", new Date(job.actual_start_at).toLocaleDateString(), job.title || "Job", "Job", "Yes", hours, `$${rate}`, contractFloorCents ? `$${(contractFloorCents / 100).toFixed(2)}` : "", rateSource, `$${pay}`]);
     }
   }
   const csv = rows.map((row) => row.map((value) => `"${String(value).replace(/"/g, '""')}"`).join(",")).join("\n");

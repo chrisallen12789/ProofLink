@@ -6,6 +6,26 @@
 'use strict';
 
 const { requireOperatorContext, respond } = require('./utils/auth');
+const { resolveMemberCompensation } = require('./utils/compensation');
+
+function isMissingTableError(error) {
+  const message = String(error?.message || '').toLowerCase();
+  return error?.code === 'PGRST205'
+    || message.includes('could not find the table')
+    || message.includes('schema cache');
+}
+
+async function optionalTenantSelect(supabase, table, columns, tenantId) {
+  const { data, error } = await supabase
+    .from(table)
+    .select(columns)
+    .eq('tenant_id', tenantId);
+
+  if (error && !isMissingTableError(error)) {
+    throw error;
+  }
+  return data || [];
+}
 
 /**
  * Parse a YYYY-MM-DD string and return a Date set to midnight UTC.
@@ -120,6 +140,43 @@ exports.handler = async (event) => {
 
   const allJobs = jobsData || [];
 
+  let compensationAssignments = [];
+  let compensationOverrides = [];
+  let laborClassifications = [];
+  let laborRatePeriods = [];
+
+  try {
+    [compensationAssignments, compensationOverrides, laborClassifications, laborRatePeriods] = await Promise.all([
+      optionalTenantSelect(
+        supabase,
+        'member_compensation_assignments',
+        'id, tenant_id, member_id, compensation_type, base_hourly_rate_cents, hourly_rate_cents, union_classification_id, labor_classification_id, worker_label, driver_label, is_union_member, effective_start_date, effective_end_date, created_at',
+        tenantId
+      ),
+      optionalTenantSelect(
+        supabase,
+        'member_compensation_overrides',
+        'id, tenant_id, member_id, compensation_type, hourly_rate_cents, base_hourly_rate_cents, worker_label, driver_label, is_union_member, effective_start_date, effective_end_date, created_at',
+        tenantId
+      ),
+      optionalTenantSelect(
+        supabase,
+        'labor_contract_classifications',
+        'id, tenant_id, contract_id, union_local_name, union_local_number, classification_name, worker_label, driver_label',
+        tenantId
+      ),
+      optionalTenantSelect(
+        supabase,
+        'labor_contract_rate_periods',
+        'id, tenant_id, classification_id, base_hourly_rate_cents, effective_start_date, effective_end_date, created_at',
+        tenantId
+      ),
+    ]);
+  } catch (compensationError) {
+    console.error('[get-team-hours] compensation fetch error', compensationError);
+    return respond(500, { error: 'Failed to fetch compensation records' });
+  }
+
   // --- 4. Aggregate per member ---
   let totalMinutes     = 0;
   let totalBillable    = 0;
@@ -158,7 +215,15 @@ exports.handler = async (event) => {
       }
     }
 
-    const effective_rate_cents  = member.hourly_rate_cents || 0;
+    const compensation = resolveMemberCompensation({
+      member,
+      assignments: compensationAssignments,
+      overrides: compensationOverrides,
+      classifications: laborClassifications,
+      ratePeriods: laborRatePeriods,
+      asOfDate: endIso,
+    });
+    const effective_rate_cents  = compensation.resolved_hourly_rate_cents || member.hourly_rate_cents || 0;
     const estimated_pay_cents   = Math.round((total_minutes / 60) * effective_rate_cents);
 
     totalMinutes  += total_minutes;
@@ -180,6 +245,7 @@ exports.handler = async (event) => {
       job_count           : memberJobs.length,
       effective_rate_cents,
       estimated_pay_cents,
+      compensation,
       entries             : memberEntries,
       jobs                : memberJobs.map((j) => ({
         id              : j.id,

@@ -17,6 +17,7 @@ Use this file to track code-versus-SQL drift until the difference is either reso
 | Recurring workflows | Recurring code now classifies missing schema more clearly, but SQL scripts and RPC definitions still need a dedicated reconciliation pass | open | Backend + Data/SQL | Compare `service_plans`, recurring order generation, and `generate_due_service_plans()` expectations against `sql/` |
 | Service workflow RPC dependencies | Service workflow code uses readiness checks, but the documented rollout needs continued alignment with hosted schema evolution | open | Data/SQL + Ops | Re-verify rollout docs against active SQL files and preflight behavior |
 | Payment and billing fields | Portal and billing paths have been normalized toward canonical amount fields, but SQL assumptions still need an explicit review | open | Payments + Data/SQL | Review order, payment, invoice, and tenant billing fields against code usage |
+| Employee compensation foundation | Compensation resolution now exists in code and tracked SQL, but the hosted schema still needs the new labor contract and member assignment tables applied before the Team workspace can move off legacy hourly-only setup | planned | Backend + Data/SQL | Apply `sql/employee_compensation_foundation.sql`, load current union agreement data, then extend Team/job-cost UIs to the new tables |
 
 ## How to use this register
 

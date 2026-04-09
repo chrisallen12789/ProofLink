@@ -78,6 +78,44 @@ describe("operator team workspace", () => {
     expect(elements.hoursReport.innerHTML).toContain("No hours logged in this period.");
   });
 
+  test("renderHoursReport surfaces union floor context when compensation data is present", () => {
+    const { context, elements } = loadTeamWorkspace();
+
+    context.window.renderHoursReport({
+      members: [{
+        name: "Skylar Stevens",
+        role: "member",
+        total_minutes: 120,
+        billable_minutes: 120,
+        job_count: 0,
+        estimated_pay_cents: 8200,
+        effective_rate_cents: 4100,
+        compensation: {
+          contract_floor_cents: 4100,
+          source: "contract_floor",
+          union_classification_name: "Metal Trades",
+        },
+        entries: [{
+          description: "Time entry",
+          duration_minutes: 120,
+          billable: true,
+          started_at: "2026-04-09T12:00:00.000Z",
+        }],
+        jobs: [],
+      }],
+      totals: {
+        total_minutes: 120,
+        billable_minutes: 120,
+        member_count: 1,
+        estimated_pay_cents: 8200,
+      },
+    });
+
+    expect(elements.hoursReport.innerHTML).toContain("Metal Trades");
+    expect(elements.hoursReport.innerHTML).toContain("contract floor");
+    expect(elements.hoursReport.innerHTML).toContain("source contract floor");
+  });
+
   test("loadTeamWorkspace fetches members once and refreshes qualifications on revisit", async () => {
     const fetchTeamMembers = vi.fn(() => Promise.resolve());
     const fetchHydrovacDriverQualifications = vi.fn(() => Promise.resolve());

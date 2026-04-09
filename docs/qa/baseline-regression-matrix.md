@@ -49,11 +49,26 @@ Suggested checks:
 - Quotes and bids
 - Customer follow-up
 - Payments visibility
+- Team compensation and labor-cost previews
 
 Suggested checks:
 
 - Unit tests for touched workspace logic
 - E2E or smoke coverage for browser-facing regressions when workflow behavior changes materially
+
+### Compensation and payroll-prep flows
+
+- Labor contract setup
+- Member compensation assignments
+- Employee overrides above scale
+- Team hours earnings previews
+- Job labor-cost previews
+
+Suggested checks:
+
+- Direct unit coverage for compensation resolution logic
+- Schema guard coverage for new compensation tables and migrations
+- `npm run test:preflight:release-readiness`
 
 ### Admin operations
 
