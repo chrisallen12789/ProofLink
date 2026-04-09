@@ -793,7 +793,11 @@ function dispatchAssignmentConflictSummary(activeJob, hydrovacJobs = [], selecte
 }
 
 async function saveDispatchCrewPlanning(activeJob = null, options = {}) {
-  if (!activeJob || typeof saveJobRecord !== "function") {
+  const persistence = window?.PROOFLINK_OPERATOR_JOB_PERSISTENCE || {};
+  const persistJobRecord = typeof saveJobRecord === "function"
+    ? saveJobRecord
+    : (typeof persistence.saveJobRecord === "function" ? persistence.saveJobRecord : null);
+  if (!activeJob || typeof persistJobRecord !== "function") {
     throw new Error("Crew-planning tools are not ready yet.");
   }
   const parseHours = (value, fallback = null) => {
@@ -806,17 +810,21 @@ async function saveDispatchCrewPlanning(activeJob = null, options = {}) {
     minimum_hours: parseHours(options.minimumHours, null),
     travel_hours: parseHours(options.travelHours, null),
   };
-  return saveJobRecord(patch);
+  return persistJobRecord(patch);
 }
 
 async function saveDispatchAssignment(activeJob = null, options = {}) {
-  if (!activeJob || typeof saveJobRecord !== "function") {
+  const persistence = window?.PROOFLINK_OPERATOR_JOB_PERSISTENCE || {};
+  const persistJobRecord = typeof saveJobRecord === "function"
+    ? saveJobRecord
+    : (typeof persistence.saveJobRecord === "function" ? persistence.saveJobRecord : null);
+  if (!activeJob || typeof persistJobRecord !== "function") {
     throw new Error("Dispatch assignment tools are not ready yet.");
   }
   const cleanMemberId = String(options.memberId || "").trim();
   const cleanTruckId = String(options.truckId || "").trim();
   const selectedMember = (TEAM_MEMBERS_CACHE || []).find((member) => String(member?.id || "").trim() === cleanMemberId) || null;
-  return saveJobRecord({
+  return persistJobRecord({
     id: activeJob.id,
     assigned_truck_id: cleanTruckId || null,
     assigned_member_id: cleanMemberId || null,

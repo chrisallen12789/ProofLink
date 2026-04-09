@@ -618,4 +618,29 @@ describe("operator dispatch workspace", () => {
       travel_hours: 0.25,
     });
   });
+
+  test("saveDispatchCrewPlanning falls back to the shared job persistence helper when saveJobRecord is not global", async () => {
+    const persistenceSave = vi.fn(async (patch = {}) => ({ ...patch, saved: true }));
+    const { context } = loadDispatchWorkspace({
+      saveJobRecord: undefined,
+      window: {
+        PROOFLINK_OPERATOR_JOB_PERSISTENCE: {
+          saveJobRecord: persistenceSave,
+        },
+      },
+    });
+
+    const result = await context.saveDispatchCrewPlanning(
+      { id: "job_1" },
+      { billableHours: "2.5", minimumHours: "4", travelHours: "0.5" }
+    );
+
+    expect(persistenceSave).toHaveBeenCalledWith({
+      id: "job_1",
+      billable_hours: 2.5,
+      minimum_hours: 4,
+      travel_hours: 0.5,
+    });
+    expect(result).toMatchObject({ saved: true });
+  });
 });

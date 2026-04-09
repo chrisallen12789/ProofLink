@@ -78,6 +78,60 @@ function teamMemberCompensationNote(member = {}) {
   return "";
 }
 
+function teamMemberDriverQualification(member = {}) {
+  const rows = typeof HYDROVAC_DRIVER_COMPLIANCE_CACHE !== "undefined" && Array.isArray(HYDROVAC_DRIVER_COMPLIANCE_CACHE)
+    ? HYDROVAC_DRIVER_COMPLIANCE_CACHE
+    : [];
+  return rows.find((row) => String(row?.member_id || "").trim() === String(member?.id || "").trim()) || null;
+}
+
+function teamMemberDriverReadiness(member = {}) {
+  const qualification = teamMemberDriverQualification(member);
+  const warnings = Array.isArray(qualification?.warnings) ? qualification.warnings : [];
+  const criticalWarnings = warnings.filter((warning) => ["critical", "expired"].includes(String(warning?.severity || "").toLowerCase()));
+  const warningCount = warnings.length;
+  const driverLabel = String(member?.driver_label || member?.worker_label || "").trim();
+  const isDriverTrack = !!driverLabel;
+  if (isDriverTrack && !qualification) {
+    return {
+      label: "Driver setup needed",
+      tone: "pill-warn",
+      note: "CDL, med card, HOS, and safety notes still need a qualification record.",
+      needsAttention: true,
+    };
+  }
+  if (criticalWarnings.length) {
+    return {
+      label: "Driver record blocked",
+      tone: "pill-bad",
+      note: `${criticalWarnings.length} critical driver compliance item${criticalWarnings.length === 1 ? "" : "s"} need attention before rollout.`,
+      needsAttention: true,
+    };
+  }
+  if (warningCount) {
+    return {
+      label: "Driver follow-up",
+      tone: "pill-warn",
+      note: `${warningCount} driver qualification warning${warningCount === 1 ? "" : "s"} still need follow-up.`,
+      needsAttention: true,
+    };
+  }
+  if (qualification && isDriverTrack) {
+    return {
+      label: "Driver-ready",
+      tone: "pill-good",
+      note: "Driver qualification record is in place with no active expiry pressure.",
+      needsAttention: false,
+    };
+  }
+  return {
+    label: "Crew setup",
+    tone: "pill",
+    note: "Crew member is ready for assignment details, training, and job handoff.",
+    needsAttention: false,
+  };
+}
+
 function teamMemberJobSummary(member = {}) {
   const keys = new Set(teamMemberAssignmentKeys(member));
   const jobs = teamWorkspaceJobs().filter((job) => (
@@ -121,6 +175,7 @@ function renderTeamRosterSummary() {
   const unassigned = jobs.filter((job) => !String(job?.assigned_member_id || job?.assigned_operator_id || "").trim()).length;
   const overloaded = members.filter((member) => teamMemberJobSummary(member).overloaded).length;
   const remainingCapacity = members.reduce((sum, member) => sum + teamMemberJobSummary(member).remainingMinutes, 0);
+  const driverSetupNeeded = members.filter((member) => teamMemberDriverReadiness(member).needsAttention).length;
   return `
     <div class="workspace-signal-band" style="margin-bottom:12px;">
       <div class="workspace-signal-band__item ${activeField ? "workspace-signal-band__item--good" : ""}">
@@ -142,6 +197,11 @@ function renderTeamRosterSummary() {
         <span>Block capacity</span>
         <strong>${escapeHtml(teamMinutesLabel(remainingCapacity))}</strong>
         <small>${escapeHtml(remainingCapacity ? "Visible crew block time that still appears open for another compounded stop." : "No visible same-day capacity is left inside the current crew blocks.")}</small>
+      </div>
+      <div class="workspace-signal-band__item ${driverSetupNeeded ? "workspace-signal-band__item--warn" : "workspace-signal-band__item--good"}">
+        <span>Driver setup</span>
+        <strong>${escapeHtml(String(driverSetupNeeded))}</strong>
+        <small>${escapeHtml(driverSetupNeeded ? "Crew members still need driver docs, follow-up, or Monday rollout prep." : "Visible drivers look ready for Monday rollout from the current records.")}</small>
       </div>
     </div>
   `;
@@ -166,6 +226,7 @@ function renderTeamPanel() {
     <tbody>
       ${TEAM_MEMBERS_CACHE.map((member) => {
         const summary = teamMemberJobSummary(member);
+        const driverReadiness = teamMemberDriverReadiness(member);
         const fieldLoad = summary.active.length
           ? `${summary.active.length} active`
           : summary.blocked.length
@@ -201,8 +262,10 @@ function renderTeamPanel() {
           <td style="padding:8px;color:rgba(255,255,255,.55);">${escapeHtml(member.role || "-")}</td>
           <td style="padding:8px;color:rgba(255,255,255,.55);">
             <span class="pill ${tone}">${escapeHtml(fieldLoad)}</span>
+            <div class="muted" style="font-size:.72rem;margin-top:4px;"><span class="pill ${driverReadiness.tone}">${escapeHtml(driverReadiness.label)}</span></div>
             ${conflictChip ? `<div class="muted" style="font-size:.72rem;margin-top:4px;">${conflictChip}</div>` : ""}
             <div class="muted" style="font-size:.72rem;margin-top:4px;">${escapeHtml(note)}</div>
+            <div class="muted" style="font-size:.72rem;margin-top:4px;">${escapeHtml(driverReadiness.note)}</div>
             ${summary.jobs.length ? `<div class="muted" style="font-size:.72rem;margin-top:4px;"><span class="pill ${capacityTone}">${escapeHtml(`${teamMinutesLabel(summary.totalEstimatedMinutes)} planned / ${teamMinutesLabel(summary.minimumBlockMinutes)} block`)}</span></div>` : ""}
             ${summary.lastFieldUpdate ? `<div class="muted" style="font-size:.72rem;margin-top:4px;">${escapeHtml(`Last field update ${summary.lastFieldUpdate}`)}</div>` : ""}
             ${summary.blockerNotes[0] ? `<div class="muted" style="font-size:.72rem;margin-top:4px;">${escapeHtml(`Blocker: ${summary.blockerNotes[0]}`)}</div>` : ""}
@@ -212,6 +275,8 @@ function renderTeamPanel() {
             ${teamMemberCompensationNote(member) ? `<div class="muted" style="font-size:.72rem;margin-top:4px;">${escapeHtml(teamMemberCompensationNote(member))}</div>` : ""}
           </td>
           <td style="padding:8px;text-align:right;display:flex;gap:6px;justify-content:flex-end;">
+            <button class="btn btn-ghost" style="font-size:.72rem;" onclick="openDriverSetupForTeamMember('${escapeAttr(member.id)}')">Driver setup</button>
+            <button class="btn btn-ghost" style="font-size:.72rem;" onclick="openCrewPortalForTeamMember('${escapeAttr(member.id)}')">Crew portal</button>
             <button class="btn btn-ghost" style="font-size:.72rem;" onclick="openEditTeamMemberModal('${escapeAttr(member.id)}')">Edit</button>
             <button class="btn btn-ghost" style="font-size:.72rem;" onclick="removeTeamMember('${escapeAttr(member.id)}')">Remove</button>
           </td>
@@ -286,6 +351,25 @@ function openInviteTeamMemberModal() {
       button.textContent = "Send invite";
     }
   };
+}
+
+function openDriverSetupForTeamMember(id) {
+  ACTIVE_DRIVER_QUAL_MEMBER_ID = id || null;
+  renderHydrovacDriverWorkspace();
+  switchTab("compliance");
+}
+
+function openCrewPortalForTeamMember(id) {
+  const member = findTeamMemberById(id);
+  const targetId = String(member?.id || member?.operator_id || member?.user_id || "").trim();
+  const target = targetId
+    ? `/crew/?member=${encodeURIComponent(targetId)}&source=operator`
+    : "/crew/?source=operator";
+  if (window?.open) {
+    window.open(target, "_blank", "noopener");
+    return;
+  }
+  window.location.href = target;
 }
 
 function openEditTeamMemberModal(id) {
@@ -545,6 +629,8 @@ const TEAM_WORKSPACE_HELPERS = {
   fetchTeamMembers,
   renderTeamPanel,
   openInviteTeamMemberModal,
+  openDriverSetupForTeamMember,
+  openCrewPortalForTeamMember,
   openEditTeamMemberModal,
   removeTeamMember,
   loadHoursReport,
