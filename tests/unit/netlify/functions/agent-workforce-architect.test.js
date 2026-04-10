@@ -209,4 +209,79 @@ describe("agent workforce architect", () => {
     expect(result.report.findings.map((finding) => finding.id)).toContain("workforce_healthy_coverage");
     expect(result.report.blockers).toHaveLength(0);
   });
+
+  test("recommends a compensation readiness auditor when Team labor setup is active without structured AI review", async () => {
+    require.cache[toolsPath] = {
+      id: toolsPath,
+      filename: toolsPath,
+      loaded: true,
+      exports: {
+        getAgentWorkforceContext: vi.fn(async () => ({
+          tenant: {
+            business_name: "Union Works",
+            plan_key: "growth",
+          },
+          business_context: {
+            multi_location_customers: [],
+            stale_customers: [],
+            upcoming_jobs: [],
+          },
+          billing_context: {
+            candidate_jobs: [],
+          },
+          collections_context: {
+            open_balances: [],
+          },
+          dispatch_context: {
+            upcoming_jobs: [],
+          },
+          import_learning: {
+            profile_count: 0,
+            source_systems: [],
+            correction_field_hotspots: [],
+          },
+          compensation_summary: {
+            contract_count: 1,
+            active_assignment_count: 3,
+            active_override_count: 1,
+            members_using_fallback_count: 2,
+            members_on_contract_floor_count: 1,
+            union_members_missing_classification_count: 1,
+          },
+          service_plan_summary: {
+            active_count: 0,
+            at_risk_count: 0,
+            sample_customer_ids: [],
+          },
+          agent_audit: {
+            event_count: 4,
+            usage_by_agent: {},
+          },
+          assumptions: [],
+          data_used: [
+            { label: "Active compensation assignments", count: 3, detail: "member_compensation_assignments" },
+          ],
+          context_summary: {
+            compensation_assignments: 3,
+            compensation_fallback_members: 2,
+            recent_agent_runs: 4,
+          },
+        })),
+      },
+    };
+
+    const { runAgentWorkforceArchitect } = require(modulePath);
+    const result = await runAgentWorkforceArchitect({
+      supabase: {},
+      tenantId: "tenant_comp",
+    });
+
+    expect(result.context_summary.new_agent_candidates).toBe(1);
+    expect(result.report.findings.map((finding) => finding.id)).toContain(
+      "workforce_gap_compensation_readiness_auditor"
+    );
+    expect(result.report.recommended_actions.map((action) => action.id)).toContain(
+      "workforce_action_add_compensation_readiness_auditor"
+    );
+  });
 });

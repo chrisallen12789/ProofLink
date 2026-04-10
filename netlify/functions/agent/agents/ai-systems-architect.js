@@ -53,6 +53,7 @@ async function runAiSystemsArchitect({ supabase, tenantId }) {
   const actions = [];
 
   const businessContext = context?.business_context || {};
+  const compensationSummary = context?.compensation_summary || {};
   const servicePlanSummary = context?.service_plan_summary || {};
   const agentAudit = context?.agent_audit || {};
   const structuredSurfaces = listStructuredAgentSurfaces();
@@ -73,6 +74,9 @@ async function runAiSystemsArchitect({ supabase, tenantId }) {
   const activePlans = numberValue(servicePlanSummary.active_count);
   const quotePressure = pendingQuotes.length + expiredQuotes.length;
   const retentionPressure = staleCustomers.length + atRiskPlans;
+  const compensationPressure = numberValue(compensationSummary.active_assignment_count)
+    + numberValue(compensationSummary.active_override_count)
+    + numberValue(compensationSummary.members_on_contract_floor_count);
   const recentAiRuns = numberValue(agentAudit.event_count);
   const quoteRescueUsage = countModeUsage(agentAudit, ['copilot:quote_rescue']);
   const systemEvidenceId = evidence.add({
@@ -85,12 +89,50 @@ async function runAiSystemsArchitect({ supabase, tenantId }) {
       `${operatorExposedSurfaces.length} operator-exposed lane(s)`,
       `${operatorUnexposedSurfaces.length} shipped lane(s) still hidden`,
       `${freeformOnlyLanes.length} freeform-only copilot lane(s)`,
+      `${compensationPressure} compensation pressure signal(s)`,
       `${modelSurfaces.length} model-driven AI surface(s)`,
     ].join(' | '),
   });
 
   const addFinding = (item) => findings.push(item);
   const addAction = (item) => actions.push(item);
+
+  if (compensationPressure > 0) {
+    const compensationEvidenceId = evidence.add({
+      record_type: 'tenant',
+      record_id: tenantId,
+      field: 'compensation_surface_gap',
+      label: 'Compensation workflow without structured AI coverage',
+      value: [
+        `${numberValue(compensationSummary.contract_count)} contract(s)`,
+        `${numberValue(compensationSummary.active_assignment_count)} active assignment(s)`,
+        `${numberValue(compensationSummary.active_override_count)} active override(s)`,
+        `${numberValue(compensationSummary.members_using_fallback_count)} fallback-only member(s)`,
+      ].join(' | '),
+    });
+    addFinding({
+      id: 'systems_gap_compensation_readiness_auditor',
+      severity: numberValue(compensationSummary.members_using_fallback_count) >= 2 ? 'warning' : 'info',
+      category: 'agent_gap',
+      title: 'Add a structured compensation readiness lane',
+      detail: 'ProofLink now has live compensation and labor-contract workflows in Team, but the AI surface map still has no structured lane that can review fallback-only crew records, missing classification setup, contract-floor pressure, and above-scale overrides before payroll-prep or labor-costing work expands.',
+      evidence_ids: [systemEvidenceId, compensationEvidenceId],
+      record_refs: [
+        workspaceRef('team', 'Team workspace'),
+        workspaceRef('jobs', 'Jobs workspace'),
+      ],
+    });
+    addAction({
+      id: 'systems_action_add_compensation_readiness_lane',
+      title: 'Promote Team compensation review into a structured agent lane',
+      detail: 'Design the next structured lane around contract coverage, assignment readiness, override review, and floor-versus-configured pay so operators can inspect labor setup without reading raw compensation records one by one.',
+      priority: 'high',
+      requires_operator_approval: true,
+      suggested_ui_action: 'open_team',
+      evidence_ids: [compensationEvidenceId],
+      record_refs: [workspaceRef('team', 'Team workspace')],
+    });
+  }
 
   const estimatingSurface = operatorUnexposedSurfaces.find((item) => item.key === 'estimating_assistant') || null;
   if (estimatingSurface && quotePressure >= 2) {
@@ -304,6 +346,7 @@ async function runAiSystemsArchitect({ supabase, tenantId }) {
       hidden_operator_agents: operatorUnexposedSurfaces.length,
       freeform_only_lanes: freeformOnlyLanes.length,
       recent_ai_runs: recentAiRuns,
+      compensation_pressure: compensationPressure,
       multi_location_customers: multiLocationCustomers.length,
       quote_pressure: quotePressure,
       retention_pressure: retentionPressure,

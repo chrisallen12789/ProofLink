@@ -43,6 +43,7 @@ async function runAgentWorkforceArchitect({ supabase, tenantId }) {
   const collectionsContext = context?.collections_context || {};
   const dispatchContext = context?.dispatch_context || {};
   const importLearning = context?.import_learning || {};
+  const compensationSummary = context?.compensation_summary || {};
   const agentAudit = context?.agent_audit || {};
   const servicePlanSummary = context?.service_plan_summary || {};
   const tenant = context?.tenant || {};
@@ -56,6 +57,12 @@ async function runAgentWorkforceArchitect({ supabase, tenantId }) {
   const correctionFieldHotspots = Array.isArray(importLearning.correction_field_hotspots)
     ? importLearning.correction_field_hotspots
     : [];
+  const compensationAssignmentCount = numberValue(compensationSummary.active_assignment_count);
+  const compensationOverrideCount = numberValue(compensationSummary.active_override_count);
+  const compensationFallbackCount = numberValue(compensationSummary.members_using_fallback_count);
+  const contractFloorCount = numberValue(compensationSummary.members_on_contract_floor_count);
+  const unionMissingClassificationCount = numberValue(compensationSummary.union_members_missing_classification_count);
+  const compensationContractCount = numberValue(compensationSummary.contract_count);
   const fieldCloseoutRuns = countAgentRuns(agentAudit, ['field_closeout_coach']);
   const sitePacketRuns = countAgentRuns(agentAudit, ['site_packet_builder']);
   const accountingContinuityRuns = countAgentRuns(agentAudit, ['accounting_continuity_auditor']);
@@ -80,12 +87,56 @@ async function runAgentWorkforceArchitect({ supabase, tenantId }) {
       `${multiLocationCustomers.length} multi-location customer(s)`,
       `${openBalances.length} open balance(s)`,
       `${numberValue(importLearning.profile_count)} import profile(s)`,
+      `${compensationAssignmentCount} compensation assignment(s)`,
       `${numberValue(servicePlanSummary.active_count)} active service plan(s)`,
     ].join(' | '),
   });
 
   const addFinding = (finding) => findings.push(finding);
   const addAction = (action) => actions.push(action);
+
+  if (
+    compensationContractCount > 0
+    || compensationAssignmentCount > 0
+    || compensationOverrideCount > 0
+    || contractFloorCount > 0
+  ) {
+    const compensationEvidenceId = evidence.add({
+      record_type: 'tenant',
+      record_id: tenantId,
+      field: 'compensation_readiness',
+      label: 'Compensation and labor-readiness pressure',
+      value: [
+        `${compensationContractCount} contract(s)`,
+        `${compensationAssignmentCount} active assignment(s)`,
+        `${compensationOverrideCount} active override(s)`,
+        `${compensationFallbackCount} fallback-only member(s)`,
+        `${contractFloorCount} member(s) currently held at the contract floor`,
+      ].join(' | '),
+    });
+    addFinding({
+      id: 'workforce_gap_compensation_readiness_auditor',
+      severity: (compensationFallbackCount >= 2 || unionMissingClassificationCount > 0) ? 'warning' : 'info',
+      category: 'agent_gap',
+      title: 'Add a Compensation Readiness Auditor for Team payroll-prep review',
+      detail: 'Team now has live labor contracts, member compensation assignments, overrides, and contract-floor resolution, but the AI layer still has no specialist lane that can separate clean payroll-prep setup from fallback-only crew records, missing union classifications, or overrides that deserve review before job costing expands further.',
+      evidence_ids: [workforceEvidenceId, compensationEvidenceId],
+      record_refs: [
+        workspaceRef('team', 'Team workspace'),
+        workspaceRef('jobs', 'Jobs workspace'),
+      ],
+    });
+    addAction({
+      id: 'workforce_action_add_compensation_readiness_auditor',
+      title: 'Turn Team compensation setup into a structured readiness review',
+      detail: 'Build the next lane around missing contract setup, fallback-only workers, union-classification gaps, and above-scale overrides so payroll-prep and job-costing reviews stop depending on manual inspection alone.',
+      priority: 'high',
+      requires_operator_approval: true,
+      suggested_ui_action: 'open_team',
+      evidence_ids: [compensationEvidenceId],
+      record_refs: [workspaceRef('team', 'Team workspace')],
+    });
+  }
 
   if (billingCandidates.length >= 3) {
     const jobsEvidenceId = evidence.add({
@@ -377,6 +428,8 @@ async function runAgentWorkforceArchitect({ supabase, tenantId }) {
       billing_candidates: billingCandidates.length,
       multi_location_customers: multiLocationCustomers.length,
       open_balances: openBalances.length,
+      compensation_assignments: compensationAssignmentCount,
+      compensation_fallback_members: compensationFallbackCount,
       import_profiles: numberValue(importLearning.profile_count),
       recent_agent_runs: numberValue(agentAudit.event_count),
     },

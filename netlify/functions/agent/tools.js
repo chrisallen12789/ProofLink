@@ -11,6 +11,7 @@
 
 'use strict';
 const { isMissingSchemaError } = require('../utils/schema-readiness');
+const { isEffectiveOnDate, resolveMemberCompensation } = require('../utils/compensation');
 
 async function resolveOptionalRows(queryPromise, assumptions, message, emptyValue = []) {
   const result = await queryPromise;
@@ -1001,6 +1002,96 @@ async function getRecentAgentAuditSummary(supabase, tenantId, assumptions, days 
   };
 }
 
+async function getCompensationSummary(supabase, tenantId, assumptions) {
+  const asOfDate = new Date().toISOString();
+  const [members, contracts, classifications, ratePeriods, assignments, overrides] = await Promise.all([
+    resolveOptionalRows(
+      supabase
+        .from('operator_members')
+        .select('id, role, hourly_rate_cents, is_active')
+        .eq('tenant_id', tenantId),
+      assumptions,
+      'Team roster was unavailable because the operator_members table could not be queried for compensation review.'
+    ),
+    resolveOptionalRows(
+      supabase
+        .from('labor_contracts')
+        .select('id')
+        .eq('tenant_id', tenantId),
+      assumptions,
+      'Labor contracts were unavailable because the labor_contracts table is not present in this environment.'
+    ),
+    resolveOptionalRows(
+      supabase
+        .from('labor_contract_classifications')
+        .select('id, tenant_id, contract_id, union_local_name, union_local_number, classification_name, worker_label, driver_label')
+        .eq('tenant_id', tenantId),
+      assumptions,
+      'Labor classifications were unavailable because the labor_contract_classifications table is not present in this environment.'
+    ),
+    resolveOptionalRows(
+      supabase
+        .from('labor_contract_rate_periods')
+        .select('id, tenant_id, classification_id, base_hourly_rate_cents, effective_start_date, effective_end_date, created_at')
+        .eq('tenant_id', tenantId),
+      assumptions,
+      'Contract rate periods were unavailable because the labor_contract_rate_periods table is not present in this environment.'
+    ),
+    resolveOptionalRows(
+      supabase
+        .from('member_compensation_assignments')
+        .select('id, tenant_id, member_id, compensation_type, base_hourly_rate_cents, hourly_rate_cents, union_classification_id, labor_classification_id, worker_label, driver_label, is_union_member, effective_start_date, effective_end_date, created_at')
+        .eq('tenant_id', tenantId),
+      assumptions,
+      'Member compensation assignments were unavailable because the member_compensation_assignments table is not present in this environment.'
+    ),
+    resolveOptionalRows(
+      supabase
+        .from('member_compensation_overrides')
+        .select('id, tenant_id, member_id, compensation_type, hourly_rate_cents, base_hourly_rate_cents, worker_label, driver_label, is_union_member, effective_start_date, effective_end_date, created_at')
+        .eq('tenant_id', tenantId),
+      assumptions,
+      'Member compensation overrides were unavailable because the member_compensation_overrides table is not present in this environment.'
+    ),
+  ]);
+
+  const activeMembers = (Array.isArray(members) ? members : []).filter((member) => member?.is_active !== false);
+  const activeAssignments = (Array.isArray(assignments) ? assignments : []).filter((row) => isEffectiveOnDate(row, asOfDate));
+  const activeOverrides = (Array.isArray(overrides) ? overrides : []).filter((row) => isEffectiveOnDate(row, asOfDate));
+  const resolvedMembers = activeMembers.map((member) => resolveMemberCompensation({
+    member,
+    assignments: activeAssignments,
+    overrides: activeOverrides,
+    classifications,
+    ratePeriods,
+    asOfDate,
+  }));
+
+  const usingFallback = resolvedMembers.filter((row) => row?.source === 'member_fallback').length;
+  const onContractFloor = resolvedMembers.filter((row) => row?.source === 'contract_floor').length;
+  const usingOverrides = resolvedMembers.filter((row) => row?.source === 'member_override').length;
+  const usingAssignments = resolvedMembers.filter((row) => row?.source === 'assignment').length;
+  const unionMembers = resolvedMembers.filter((row) => row?.is_union_member).length;
+  const unionMissingClassification = resolvedMembers.filter((row) => row?.is_union_member && !row?.union_classification_id).length;
+  const driverTrackedMembers = resolvedMembers.filter((row) => hasText(row?.driver_label)).length;
+
+  return {
+    active_member_count: activeMembers.length,
+    contract_count: Array.isArray(contracts) ? contracts.length : 0,
+    classification_count: Array.isArray(classifications) ? classifications.length : 0,
+    rate_period_count: Array.isArray(ratePeriods) ? ratePeriods.length : 0,
+    active_assignment_count: activeAssignments.length,
+    active_override_count: activeOverrides.length,
+    union_member_count: unionMembers,
+    union_members_missing_classification_count: unionMissingClassification,
+    members_using_fallback_count: usingFallback,
+    members_on_contract_floor_count: onContractFloor,
+    members_with_override_count: usingOverrides,
+    members_with_assignment_rate_count: usingAssignments,
+    driver_tracked_member_count: driverTrackedMembers,
+  };
+}
+
 async function getAgentWorkforceContext(supabase, tenantId) {
   const assumptions = [];
   const [
@@ -1011,6 +1102,7 @@ async function getAgentWorkforceContext(supabase, tenantId) {
     dispatchContext,
     servicePlanSummary,
     importLearning,
+    compensationSummary,
     agentAudit,
   ] = await Promise.all([
     getTenantSnapshot(supabase, tenantId, assumptions),
@@ -1047,6 +1139,7 @@ async function getAgentWorkforceContext(supabase, tenantId) {
     })),
     getServicePlanSummary(supabase, tenantId, assumptions),
     getImportLearningSummary(supabase, tenantId, assumptions),
+    getCompensationSummary(supabase, tenantId, assumptions),
     getRecentAgentAuditSummary(supabase, tenantId, assumptions),
   ]);
 
@@ -1071,6 +1164,7 @@ async function getAgentWorkforceContext(supabase, tenantId) {
     dispatch_context: dispatchContext,
     service_plan_summary: servicePlanSummary,
     import_learning: importLearning,
+    compensation_summary: compensationSummary,
     agent_audit: agentAudit,
     assumptions,
     data_used: [
@@ -1080,6 +1174,9 @@ async function getAgentWorkforceContext(supabase, tenantId) {
       { label: 'Billing queue candidates', count: Array.isArray(billingContext?.candidate_jobs) ? billingContext.candidate_jobs.length : 0, detail: 'jobs' },
       { label: 'Open balance orders', count: openBalances.length, detail: 'orders' },
       { label: 'Import profiles', count: Number(importLearning?.profile_count || 0), detail: 'tenant_config.import_profiles' },
+      { label: 'Active compensation assignments', count: Number(compensationSummary?.active_assignment_count || 0), detail: 'member_compensation_assignments' },
+      { label: 'Compensation overrides', count: Number(compensationSummary?.active_override_count || 0), detail: 'member_compensation_overrides' },
+      { label: 'Contract rate periods', count: Number(compensationSummary?.rate_period_count || 0), detail: 'labor_contract_rate_periods' },
       { label: 'Recent agent runs', count: Number(agentAudit?.event_count || 0), detail: 'agent_audit_events' },
       { label: 'Active service plans', count: Number(servicePlanSummary?.active_count || 0), detail: 'service_plans' },
     ],
@@ -1093,6 +1190,10 @@ async function getAgentWorkforceContext(supabase, tenantId) {
       unassigned_jobs: unassignedJobCount,
       import_profiles: Number(importLearning?.profile_count || 0),
       correction_hotspots: Array.isArray(importLearning?.correction_field_hotspots) ? importLearning.correction_field_hotspots.length : 0,
+      compensation_assignments: Number(compensationSummary?.active_assignment_count || 0),
+      compensation_overrides: Number(compensationSummary?.active_override_count || 0),
+      compensation_fallback_members: Number(compensationSummary?.members_using_fallback_count || 0),
+      compensation_contract_floor_members: Number(compensationSummary?.members_on_contract_floor_count || 0),
       active_service_plans: Number(servicePlanSummary?.active_count || 0),
       at_risk_service_plans: Number(servicePlanSummary?.at_risk_count || 0),
       recent_agent_runs: Number(agentAudit?.event_count || 0),

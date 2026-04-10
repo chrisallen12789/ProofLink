@@ -86,4 +86,68 @@ describe("AI systems architect", () => {
     );
     expect(result.report.blockers.map((item) => item.id)).toContain("systems_blocker_low_ai_telemetry");
   });
+
+  test("recommends a structured compensation lane when Team compensation workflows are live", async () => {
+    require.cache[toolsPath] = {
+      id: toolsPath,
+      filename: toolsPath,
+      loaded: true,
+      exports: {
+        getAgentWorkforceContext: vi.fn(async () => ({
+          tenant: {
+            business_name: "Union Works",
+            plan_key: "growth",
+          },
+          business_context: {
+            pending_quotes: [],
+            expired_quotes: [],
+            stale_customers: [],
+            multi_location_customers: [],
+          },
+          compensation_summary: {
+            contract_count: 1,
+            active_assignment_count: 4,
+            active_override_count: 1,
+            members_using_fallback_count: 2,
+            members_on_contract_floor_count: 2,
+          },
+          service_plan_summary: {
+            active_count: 0,
+            at_risk_count: 0,
+          },
+          agent_audit: {
+            event_count: 5,
+            usage_by_mode: {},
+          },
+          assumptions: [],
+          data_used: [
+            { label: "Active compensation assignments", count: 4, detail: "member_compensation_assignments" },
+          ],
+          context_summary: {
+            billing_candidates: 0,
+            open_balances: 0,
+            active_service_plans: 0,
+            recent_agent_runs: 5,
+            compensation_assignments: 4,
+            compensation_fallback_members: 2,
+          },
+        })),
+      },
+    };
+
+    const { runAiSystemsArchitect } = require(modulePath);
+    const result = await runAiSystemsArchitect({
+      supabase: {},
+      tenantId: "tenant_comp",
+    });
+
+    expect(result.context_summary.new_lane_candidates).toBe(1);
+    expect(result.context_summary.compensation_pressure).toBe(7);
+    expect(result.report.findings.map((finding) => finding.id)).toContain(
+      "systems_gap_compensation_readiness_auditor"
+    );
+    expect(result.report.recommended_actions.map((action) => action.id)).toContain(
+      "systems_action_add_compensation_readiness_lane"
+    );
+  });
 });
