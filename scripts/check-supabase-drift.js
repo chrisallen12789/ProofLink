@@ -106,11 +106,16 @@ function tryListRemoteMigrations() {
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'pipe'],
     });
-    return { ok: true, ...parseMigrationList(output) };
+    return { ok: true, skipped: false, ...parseMigrationList(output) };
   } catch (error) {
+    const stderr = String(error?.stderr || '').trim();
+    const stdout = String(error?.stdout || '').trim();
+    const combined = [stderr, stdout, error?.message || String(error)].filter(Boolean).join('\n');
+    const missingLink = /Cannot find project ref\. Have you run supabase link\?/i.test(combined);
     return {
       ok: false,
-      error: error?.message || String(error),
+      skipped: missingLink,
+      error: combined || error?.message || String(error),
       local: new Set(),
       remote: new Set(),
     };
@@ -214,6 +219,7 @@ async function main() {
   let remoteTableStatus = new Map();
   let remoteRpcStatus = new Map();
   let remoteProbeError = '';
+  let remoteProbeSkipped = false;
 
   if (url && serviceRoleKey) {
     const client = createClient(url, serviceRoleKey, { auth: { persistSession: false } });
@@ -225,7 +231,8 @@ async function main() {
       }
     }
   } else {
-    remoteProbeError = 'SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY not available for live schema verification';
+    remoteProbeSkipped = true;
+    remoteProbeError = 'live schema verification skipped: SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY not available';
   }
 
   const remoteCoveredTables = [];
@@ -241,7 +248,9 @@ async function main() {
       remoteMissingTables.push(`${name} missing remotely (${status.code || 'unknown'} ${status.message || ''}) referenced by ${sources}`.trim());
       return;
     }
-    remoteMissingTables.push(`${name} could not be verified remotely (${sources})`);
+    if (!remoteProbeSkipped) {
+      remoteMissingTables.push(`${name} could not be verified remotely (${sources})`);
+    }
   });
 
   const remoteCoveredRpcs = [];
@@ -261,7 +270,9 @@ async function main() {
       remoteMissingRpcs.push(`${name} missing remotely (${status.code || 'unknown'} ${status.message || ''}) referenced by ${sources}`.trim());
       return;
     }
-    remoteMissingRpcs.push(`${name} could not be verified remotely (${sources})`);
+    if (!remoteProbeSkipped) {
+      remoteMissingRpcs.push(`${name} could not be verified remotely (${sources})`);
+    }
   });
 
   console.log('Supabase drift check');
@@ -275,6 +286,8 @@ async function main() {
 
   if (migrationState.ok) {
     printSection('Local migrations not yet applied remotely', unappliedLocalMigrations);
+  } else if (migrationState.skipped) {
+    printSection('Remote migration list', [`skipped: ${migrationState.error}`]);
   } else {
     printSection('Remote migration list', [`unavailable: ${migrationState.error}`]);
   }
@@ -287,7 +300,8 @@ async function main() {
     remoteMissingTables.length > 0 ||
     remoteMissingRpcs.length > 0 ||
     unappliedLocalMigrations.length > 0 ||
-    !!remoteProbeError;
+    (!migrationState.skipped && !migrationState.ok) ||
+    (!remoteProbeSkipped && !!remoteProbeError);
 
   if (hasBlockingIssues) {
     process.exitCode = 1;
