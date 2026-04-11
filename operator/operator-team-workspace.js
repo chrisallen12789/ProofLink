@@ -429,6 +429,101 @@ function renderTeamHistorySnapshot(member = {}, history = null) {
   `;
 }
 
+function buildTeamMemberTimeline(member = {}, history = null, profile = {}) {
+  const timeline = [];
+  const qualification = teamMemberDriverQualification(member);
+  const completedItems = Array.isArray(profile?.items) ? profile.items.filter((item) => item.complete) : [];
+  const entries = Array.isArray(history?.entries) ? history.entries : [];
+  const jobs = Array.isArray(history?.jobs) ? history.jobs : [];
+
+  completedItems.forEach((item) => {
+    if (!item.completedAt) return;
+    timeline.push({
+      sortAt: item.completedAt,
+      tone: 'pill-good',
+      label: 'Training signoff',
+      title: item.label,
+      note: item.completionNote || item.completedBy || 'Office signoff recorded.',
+    });
+  });
+
+  entries.slice(0, 8).forEach((entry) => {
+    timeline.push({
+      sortAt: entry?.started_at || entry?.created_at || '',
+      tone: String(entry?.work_type || '').trim().toLowerCase() === 'maintenance' ? 'pill-warn' : 'pill',
+      label: entry?.work_type_label || teamTimePurposeLabel(entry?.work_type),
+      title: entry?.description || 'Time entry',
+      note: `${teamMinutesLabel(entry?.duration_minutes || 0)}${entry?.cost_bucket ? ` | ${teamCostBucketLabel(entry.cost_bucket)}` : ''}`,
+    });
+  });
+
+  jobs.slice(0, 6).forEach((job) => {
+    timeline.push({
+      sortAt: job?.actual_end_at || job?.actual_start_at || '',
+      tone: ['completed', 'done'].includes(String(job?.status || '').trim().toLowerCase()) ? 'pill-good' : 'pill-on',
+      label: 'Assigned job',
+      title: job?.title || 'Untitled job',
+      note: [job?.customer_name, job?.status].filter(Boolean).join(' | ') || 'Assigned work',
+    });
+  });
+
+  if (qualification?.cdl_expiry_date) {
+    timeline.push({
+      sortAt: qualification.cdl_expiry_date,
+      tone: 'pill',
+      label: 'CDL expiry',
+      title: `CDL expires ${teamDateLabel(qualification.cdl_expiry_date)}`,
+      note: [qualification?.cdl_class, qualification?.cdl_state].filter(Boolean).join(' ') || 'Driver qualification',
+    });
+  }
+  if (qualification?.medical_certificate_expiry) {
+    timeline.push({
+      sortAt: qualification.medical_certificate_expiry,
+      tone: 'pill',
+      label: 'Med card expiry',
+      title: `Med card expires ${teamDateLabel(qualification.medical_certificate_expiry)}`,
+      note: qualification?.medical_examiner_name || 'Driver qualification',
+    });
+  }
+  if (qualification?.last_mvr_check_date) {
+    timeline.push({
+      sortAt: qualification.last_mvr_check_date,
+      tone: 'pill',
+      label: 'MVR check',
+      title: `MVR checked ${teamDateLabel(qualification.last_mvr_check_date)}`,
+      note: qualification?.mvr_status || 'Driver qualification',
+    });
+  }
+
+  return timeline
+    .filter((item) => item.sortAt)
+    .sort((a, b) => {
+      const aTime = Date.parse(a.sortAt) || 0;
+      const bTime = Date.parse(b.sortAt) || 0;
+      return bTime - aTime;
+    })
+    .slice(0, 12);
+}
+
+function renderTeamTimeline(member = {}, history = null, profile = {}) {
+  const items = buildTeamMemberTimeline(member, history, profile);
+  if (!items.length) {
+    return '<div class="muted">Timeline entries will appear here once training, jobs, or tracked time start landing.</div>';
+  }
+  return items.map((item) => `
+    <div class="list-item" style="padding:8px 0;">
+      <div class="li-main">
+        <div class="li-title">${escapeHtml(item.title || item.label || 'Timeline event')}</div>
+        <div class="li-sub muted" style="font-size:.75rem;">${escapeHtml(item.note || '')}</div>
+      </div>
+      <div class="li-meta" style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;">
+        <span class="pill ${escapeAttr(item.tone || 'pill')}">${escapeHtml(item.label || 'Update')}</span>
+        <span class="muted" style="font-size:.72rem;">${escapeHtml(teamDateLabel(item.sortAt))}</span>
+      </div>
+    </div>
+  `).join('');
+}
+
 function renderTrainingEvidenceSnapshot(profile = {}, history = null, member = {}) {
   const items = Array.isArray(profile?.items) ? profile.items.filter((item) => item.complete) : [];
   if (!items.length) {
@@ -1210,6 +1305,12 @@ function openTeamMemberProfileModal(id) {
       </div>
     </div>
     <div class="card" style="margin-top:12px;">
+      <div class="card-hd"><strong>Timeline</strong></div>
+      <div class="card-bd" id="teamProfileTimeline">
+        <div class="muted">Building timeline from onboarding, readiness, and recent activity...</div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:12px;">
       <div class="card-hd"><strong>Recent activity</strong></div>
       <div class="card-bd" id="teamProfileHistory">
         <div class="muted">Loading recent time and job history...</div>
@@ -1252,12 +1353,16 @@ function openTeamMemberProfileModal(id) {
       if (historyEl) historyEl.innerHTML = renderTeamHistorySnapshot(member, history);
       const evidenceEl = modal.querySelector("#teamProfileEvidence");
       if (evidenceEl) evidenceEl.innerHTML = renderTrainingEvidenceSnapshot(trainingProfile, history, member);
+      const timelineEl = modal.querySelector("#teamProfileTimeline");
+      if (timelineEl) timelineEl.innerHTML = renderTeamTimeline(member, history, trainingProfile);
     })
     .catch((error) => {
       const historyEl = modal.querySelector("#teamProfileHistory");
       if (historyEl) historyEl.innerHTML = `<div class="msg error">${escapeHtml(error.message || String(error))}</div>`;
       const evidenceEl = modal.querySelector("#teamProfileEvidence");
       if (evidenceEl) evidenceEl.innerHTML = `<div class="msg error">${escapeHtml(error.message || String(error))}</div>`;
+      const timelineEl = modal.querySelector("#teamProfileTimeline");
+      if (timelineEl) timelineEl.innerHTML = `<div class="msg error">${escapeHtml(error.message || String(error))}</div>`;
     });
 }
 

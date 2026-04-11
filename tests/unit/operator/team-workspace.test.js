@@ -365,4 +365,65 @@ describe("operator team workspace", () => {
     expect(blockedIssues[0]).toContain("Worksite labor orientation");
     expect(allowedIssues).toHaveLength(0);
   });
+
+  test("team timeline merges signoffs, time, jobs, and qualification milestones", () => {
+    const { context } = loadTeamWorkspace({
+      HYDROVAC_DRIVER_COMPLIANCE_CACHE: [
+        {
+          member_id: "member_1",
+          cdl_class: "Class A",
+          cdl_state: "MI",
+          cdl_expiry_date: "2026-12-31",
+          medical_certificate_expiry: "2026-10-01",
+          last_mvr_check_date: "2026-04-01",
+          mvr_status: "clear",
+        },
+      ],
+    });
+
+    const member = { id: "member_1", driver_label: "Vactor operator" };
+    const profile = {
+      items: [
+        {
+          key: "ride_along",
+          label: "Ride-along signoff",
+          complete: true,
+          completedAt: "2026-04-10T09:00:00.000Z",
+          completedBy: "Office",
+          completionNote: "Shadowed full morning route.",
+        },
+      ],
+    };
+    const history = {
+      entries: [
+        {
+          work_type: "driver_training",
+          work_type_label: "Driver training",
+          description: "Ride-along route training",
+          duration_minutes: 240,
+          cost_bucket: "pricing_overhead",
+          started_at: "2026-04-10T13:00:00.000Z",
+        },
+      ],
+      jobs: [
+        {
+          title: "Downtown cleanout",
+          customer_name: "Acme Plant",
+          status: "completed",
+          actual_end_at: "2026-04-09T17:00:00.000Z",
+        },
+      ],
+    };
+
+    const html = context.renderTeamTimeline(member, history, profile);
+
+    expect(html).toContain("Training signoff");
+    expect(html).toContain("Ride-along signoff");
+    expect(html).toContain("Ride-along route training");
+    expect(html).toContain("Assigned job");
+    expect(html).toContain("Downtown cleanout");
+    expect(html).toContain("CDL expiry");
+    expect(html).toContain("Med card expiry");
+    expect(html).toContain("MVR check");
+  });
 });
