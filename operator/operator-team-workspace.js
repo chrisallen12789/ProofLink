@@ -207,6 +207,34 @@ function teamTrainingSummary(member = {}) {
   };
 }
 
+function teamTrainingQuickPreset(member = {}) {
+  return {
+    purpose: String(member?.driver_label || "").trim() ? "driver_training" : "trade_training",
+    training_type: "onboarding",
+    description: String(member?.driver_label || "").trim()
+      ? "Driver onboarding, route review, and field rollout training"
+      : "Crew onboarding, worksite flow, and field rollout training",
+    duration_minutes: 60,
+  };
+}
+
+function teamMembersNeedingRollout() {
+  return (Array.isArray(TEAM_MEMBERS_CACHE) ? TEAM_MEMBERS_CACHE : []).filter((member) => {
+    const driver = teamMemberDriverReadiness(member);
+    const training = teamTrainingSummary(member);
+    return driver.needsAttention || training.needsAttention;
+  });
+}
+
+function openPresetTrainingTimeModal(id) {
+  const member = findTeamMemberById(id);
+  if (!member) {
+    showToast("Team member not found.");
+    return;
+  }
+  openTeamTimeModal(member.id, teamTrainingQuickPreset(member));
+}
+
 function teamTimePurposeOptions() {
   return [
     { value: "job_work", label: "Job work", note: "Direct labor tied to a customer job or order." },
@@ -368,6 +396,58 @@ function renderTeamRosterSummary() {
   `;
 }
 
+function renderTeamRolloutBoard() {
+  const members = teamMembersNeedingRollout();
+  if (!members.length) {
+    return `
+      <div class="card" style="margin:0 0 12px;">
+        <div class="card-hd">
+          <div>
+            <strong>Monday rollout</strong>
+            <div class="muted">Drivers and crew currently look ready from the saved setup and training records.</div>
+          </div>
+          <span class="pill pill-good">Ready</span>
+        </div>
+      </div>
+    `;
+  }
+  return `
+    <div class="card" style="margin:0 0 12px;">
+      <div class="card-hd">
+        <div>
+          <strong>Monday rollout</strong>
+          <div class="muted">Use this board to finish driver setup, onboarding, and paid training time without hunting across tabs.</div>
+        </div>
+        <span class="pill pill-warn">${escapeHtml(`${members.length} needing follow-up`)}</span>
+      </div>
+      <div class="card-bd">
+        ${members.map((member) => {
+          const driver = teamMemberDriverReadiness(member);
+          const training = teamTrainingSummary(member);
+          return `
+            <div class="list-item" style="padding:10px 0;">
+              <div class="li-main">
+                <div class="li-title">${escapeHtml(teamMemberLabel(member))}</div>
+                <div class="li-sub muted" style="font-size:.78rem;">
+                  ${escapeHtml(driver.note)}
+                  ${training.note ? ` • ${escapeHtml(training.note)}` : ""}
+                </div>
+              </div>
+              <div class="li-meta" style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">
+                <span class="pill ${driver.tone}">${escapeHtml(driver.label)}</span>
+                <span class="pill ${training.tone}">${escapeHtml(training.label)}</span>
+                <button class="btn btn-ghost btn-sm" onclick="openTeamTrainingModal('${escapeAttr(member.id)}')">Training</button>
+                <button class="btn btn-ghost btn-sm" onclick="openPresetTrainingTimeModal('${escapeAttr(member.id)}')">Log training time</button>
+                <button class="btn btn-ghost btn-sm" onclick="openDriverSetupForTeamMember('${escapeAttr(member.id)}')">Driver setup</button>
+              </div>
+            </div>
+          `;
+        }).join("")}
+      </div>
+    </div>
+  `;
+}
+
 function renderTeamPanel() {
   const element = $("teamMembersList");
   if (!element) return;
@@ -376,7 +456,7 @@ function renderTeamPanel() {
     renderHydrovacDriverWorkspace();
     return;
   }
-  element.innerHTML = `${renderTeamRosterSummary()}<table style="width:100%;border-collapse:collapse;font-size:.85rem;">
+  element.innerHTML = `${renderTeamRosterSummary()}${renderTeamRolloutBoard()}<table style="width:100%;border-collapse:collapse;font-size:.85rem;">
     <thead><tr>
       <th style="text-align:left;padding:6px 8px;color:rgba(255,255,255,.4);font-weight:500;border-bottom:1px solid rgba(255,255,255,.08);">Name</th>
       <th style="text-align:left;padding:6px 8px;color:rgba(255,255,255,.4);font-weight:500;border-bottom:1px solid rgba(255,255,255,.08);">Role</th>
@@ -686,10 +766,15 @@ function openTeamTrainingModal(id) {
     <div id="teamTrainingMsg" class="msg" style="margin-top:10px;"></div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px;">
       <button class="btn btn-ghost" type="button" onclick="document.getElementById('teamTrainingModal')?.remove()">Cancel</button>
+      <button class="btn btn-ghost" type="button" id="btnTeamTrainingLogTime">Log training time</button>
       <button class="btn btn-primary" type="button" id="btnSaveTeamTraining">Save training</button>
     </div>
   </div>`;
   document.body.appendChild(modal);
+  modal.querySelector("#btnTeamTrainingLogTime").onclick = () => {
+    modal.remove();
+    openTeamTimeModal(member.id, teamTrainingQuickPreset(member));
+  };
   modal.querySelector("#btnSaveTeamTraining").onclick = async () => {
     const messageEl = modal.querySelector("#teamTrainingMsg");
     const items = Object.fromEntries(
@@ -723,7 +808,7 @@ function openTeamTrainingModal(id) {
   });
 }
 
-function openTeamTimeModal(defaultMemberId = "") {
+function openTeamTimeModal(defaultMemberId = "", defaults = {}) {
   const members = Array.isArray(TEAM_MEMBERS_CACHE) ? TEAM_MEMBERS_CACHE : [];
   if (!members.length) {
     showToast("Add a team member before logging training or maintenance time.");
@@ -829,6 +914,23 @@ function openTeamTimeModal(defaultMemberId = "") {
   const rateEl = modal.querySelector("#teamTimeRate");
   const memberEl = modal.querySelector("#teamTimeMember");
   const noteEl = modal.querySelector("#teamTimePurposeNote");
+  const trainingTypeEl = modal.querySelector("#teamTrainingType");
+  const assetCategoryEl = modal.querySelector("#teamAssetCategory");
+  const assetLabelEl = modal.querySelector("#teamAssetLabel");
+  const descriptionEl = modal.querySelector("#teamTimeDescription");
+  const durationEl = modal.querySelector("#teamTimeDuration");
+  const startedAtEl = modal.querySelector("#teamTimeStartedAt");
+
+  if (defaults && typeof defaults === "object") {
+    if (defaults.purpose && purposeEl) purposeEl.value = String(defaults.purpose);
+    if (defaults.training_type && trainingTypeEl) trainingTypeEl.value = String(defaults.training_type);
+    if (defaults.maintenance_type && maintenanceTypeEl) maintenanceTypeEl.value = String(defaults.maintenance_type);
+    if (defaults.asset_category && assetCategoryEl) assetCategoryEl.value = String(defaults.asset_category);
+    if (defaults.asset_label && assetLabelEl) assetLabelEl.value = String(defaults.asset_label);
+    if (defaults.description && descriptionEl) descriptionEl.value = String(defaults.description);
+    if (defaults.duration_minutes && durationEl) durationEl.value = String(defaults.duration_minutes);
+    if (defaults.started_at && startedAtEl) startedAtEl.value = String(defaults.started_at);
+  }
 
   function refreshMemberRate() {
     const member = findTeamMemberById(memberEl?.value || "");
@@ -851,6 +953,12 @@ function openTeamTimeModal(defaultMemberId = "") {
   maintenanceTypeEl?.addEventListener("change", syncPurposeFields);
   refreshMemberRate();
   syncPurposeFields();
+  if (defaults && typeof defaults === "object") {
+    if (defaults.cost_bucket && costBucketEl) costBucketEl.value = String(defaults.cost_bucket);
+    if (Object.prototype.hasOwnProperty.call(defaults, "billable") && billableEl) {
+      billableEl.checked = !!defaults.billable;
+    }
+  }
 
   modal.querySelector("#btnSaveTeamTime").onclick = async () => {
     const messageEl = modal.querySelector("#teamTimeMsg");
@@ -1093,6 +1201,14 @@ function loadTeamWorkspace() {
 function initTeamWorkspaceBindings() {
   if (TEAM_WORKSPACE_BINDINGS_BOUND) return;
   TEAM_WORKSPACE_BINDINGS_BOUND = true;
+  $("btnTrainingRollout")?.addEventListener("click", () => {
+    const member = teamMembersNeedingRollout()[0] || TEAM_MEMBERS_CACHE[0];
+    if (!member) {
+      showToast("Add a team member before starting rollout.");
+      return;
+    }
+    openTeamTrainingModal(member.id);
+  });
   $("btnInviteTeamMember")?.addEventListener("click", () => openInviteTeamMemberModal());
   $("btnLogTeamTime")?.addEventListener("click", () => openTeamTimeModal(""));
   $("btnRefreshTeam")?.addEventListener("click", async () => {
@@ -1108,6 +1224,7 @@ const TEAM_WORKSPACE_HELPERS = {
   renderTeamPanel,
   openInviteTeamMemberModal,
   openTeamTrainingModal,
+  openPresetTrainingTimeModal,
   openTeamTimeModal,
   openDriverSetupForTeamMember,
   openCrewPortalForTeamMember,

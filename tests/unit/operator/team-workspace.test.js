@@ -23,6 +23,7 @@ function loadTeamWorkspace(overrides = {}) {
     hoursStart: makeField(),
     hoursEnd: makeField(),
     hoursReport: { innerHTML: "", _data: null },
+    btnTrainingRollout: makeField(),
     btnInviteTeamMember: makeField(),
     btnLogTeamTime: makeField(),
     btnRefreshTeam: makeField(),
@@ -156,6 +157,7 @@ describe("operator team workspace", () => {
     context.window.initTeamWorkspaceBindings();
     context.window.initTeamWorkspaceBindings();
 
+    expect(elements.btnTrainingRollout.addEventListener).toHaveBeenCalledTimes(1);
     expect(elements.btnInviteTeamMember.addEventListener).toHaveBeenCalledTimes(1);
     expect(elements.btnLogTeamTime.addEventListener).toHaveBeenCalledTimes(1);
     expect(elements.btnRefreshTeam.addEventListener).toHaveBeenCalledTimes(1);
@@ -226,7 +228,10 @@ describe("operator team workspace", () => {
     expect(elements.teamMembersList.innerHTML).toContain("Last field update 2026-04-08T09:15:00Z");
     expect(elements.teamMembersList.innerHTML).toContain("Blocker: Customer gate is locked");
     expect(elements.teamMembersList.innerHTML).toContain("Training");
+    expect(elements.teamMembersList.innerHTML).toContain("Monday rollout");
+    expect(elements.teamMembersList.innerHTML).toContain("needing follow-up");
     expect(elements.teamMembersList.innerHTML).toContain("Log time");
+    expect(elements.teamMembersList.innerHTML).toContain("Log training time");
     expect(elements.teamMembersList.innerHTML).toContain("Crew portal");
   });
 });
