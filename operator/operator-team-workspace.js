@@ -92,13 +92,44 @@ function teamMemberDriverQualification(member = {}) {
   return rows.find((row) => String(row?.member_id || "").trim() === String(member?.id || "").trim()) || null;
 }
 
+function teamMemberRolloutTrack(member = {}) {
+  const hasDriverLabel = !!String(member?.driver_label || "").trim();
+  const hasWorkerLabel = !!String(member?.worker_label || "").trim();
+  if (hasDriverLabel && hasWorkerLabel) {
+    return {
+      key: "mixed",
+      label: "Mixed role",
+      note: "This worker can cover both driver and labor responsibilities.",
+    };
+  }
+  if (hasDriverLabel) {
+    return {
+      key: "driver",
+      label: "Driver track",
+      note: "This worker is expected to drive, handle vactor responsibilities, or both.",
+    };
+  }
+  if (hasWorkerLabel) {
+    return {
+      key: "labor",
+      label: "Labor track",
+      note: "This worker is being rolled out for field labor and site support work.",
+    };
+  }
+  return {
+    key: "crew",
+    label: "Crew track",
+    note: "This worker still needs a clearer role label before rollout is fully dialed in.",
+  };
+}
+
 function teamMemberDriverReadiness(member = {}) {
+  const track = teamMemberRolloutTrack(member);
   const qualification = teamMemberDriverQualification(member);
   const warnings = Array.isArray(qualification?.warnings) ? qualification.warnings : [];
   const criticalWarnings = warnings.filter((warning) => ["critical", "expired"].includes(String(warning?.severity || "").toLowerCase()));
   const warningCount = warnings.length;
-  const driverLabel = String(member?.driver_label || member?.worker_label || "").trim();
-  const isDriverTrack = !!driverLabel;
+  const isDriverTrack = track.key === "driver" || track.key === "mixed";
   if (isDriverTrack && !qualification) {
     return {
       label: "Driver setup needed",
@@ -146,24 +177,37 @@ function teamTrainingProfiles() {
 }
 
 function teamTrainingTemplate(member = {}) {
-  const driverTrack = !!String(member?.driver_label || "").trim();
-  return driverTrack
-    ? [
-        { key: "crew_app", label: "Crew app sign-in", note: "They can sign in, open the job, and see office handoff notes." },
-        { key: "yard_route", label: "Yard and route review", note: "Truck location, keys, fueling, dump workflow, and dispatch expectations reviewed." },
-        { key: "driving", label: "Driving orientation", note: "Road rules, backing expectations, spotter use, and incident reporting reviewed." },
-        { key: "worksite", label: "Worksite safety", note: "Traffic control, utility exposure, exclusion zones, PPE, and stop-work expectations reviewed." },
-        { key: "vactor", label: "Vactor operator walkthrough", note: "Controls, startup/shutdown, boom use, spoil handling, and daily checks reviewed." },
-        { key: "ride_along", label: "Ride-along signoff", note: "A supervised field run or shadow day has been completed." },
-      ]
-    : [
-        { key: "crew_app", label: "Crew app sign-in", note: "They can sign in, open the job, and see office handoff notes." },
-        { key: "yard_route", label: "Crew day flow", note: "Reporting time, truck meet-up, dispatch expectations, and closeout flow reviewed." },
-        { key: "ppe", label: "PPE and site safety", note: "Required PPE, hazard awareness, stop-work expectations, and customer-site conduct reviewed." },
-        { key: "worksite", label: "Worksite labor orientation", note: "Spotting, hose handling, spoil setup, excavation awareness, and cleanup workflow reviewed." },
-        { key: "handoff", label: "Photo and closeout handoff", note: "Photos, notes, blocker reporting, and completion expectations reviewed." },
-        { key: "ride_along", label: "Ride-along signoff", note: "A supervised field run or shadow day has been completed." },
-      ];
+  const track = teamMemberRolloutTrack(member);
+  if (track.key === "driver") {
+    return [
+      { key: "crew_app", label: "Crew app sign-in", note: "They can sign in, open the job, and see office handoff notes." },
+      { key: "yard_route", label: "Yard and route review", note: "Truck location, keys, fueling, dump workflow, and dispatch expectations reviewed." },
+      { key: "driving", label: "Driving orientation", note: "Road rules, backing expectations, spotter use, and incident reporting reviewed." },
+      { key: "worksite", label: "Worksite safety", note: "Traffic control, utility exposure, exclusion zones, PPE, and stop-work expectations reviewed." },
+      { key: "vactor", label: "Vactor operator walkthrough", note: "Controls, startup/shutdown, boom use, spoil handling, and daily checks reviewed." },
+      { key: "ride_along", label: "Ride-along signoff", note: "A supervised field run or shadow day has been completed." },
+    ];
+  }
+  if (track.key === "mixed") {
+    return [
+      { key: "crew_app", label: "Crew app sign-in", note: "They can sign in, open the job, and see office handoff notes." },
+      { key: "yard_route", label: "Yard and route review", note: "Truck location, crew meet-up, fueling, dump workflow, and dispatch expectations reviewed." },
+      { key: "driving", label: "Driving orientation", note: "Road rules, backing expectations, spotter use, and incident reporting reviewed." },
+      { key: "ppe", label: "PPE and site safety", note: "Required PPE, hazard awareness, stop-work expectations, and customer-site conduct reviewed." },
+      { key: "worksite", label: "Driver and labor worksite flow", note: "Traffic control, hose handling, spotting, spoil setup, and excavation awareness reviewed." },
+      { key: "vactor", label: "Vactor operator walkthrough", note: "Controls, startup/shutdown, boom use, spoil handling, and daily checks reviewed." },
+      { key: "handoff", label: "Photo and closeout handoff", note: "Photos, notes, blocker reporting, and completion expectations reviewed." },
+      { key: "ride_along", label: "Ride-along signoff", note: "A supervised field run or shadow day has been completed." },
+    ];
+  }
+  return [
+    { key: "crew_app", label: "Crew app sign-in", note: "They can sign in, open the job, and see office handoff notes." },
+    { key: "yard_route", label: "Crew day flow", note: "Reporting time, truck meet-up, dispatch expectations, and closeout flow reviewed." },
+    { key: "ppe", label: "PPE and site safety", note: "Required PPE, hazard awareness, stop-work expectations, and customer-site conduct reviewed." },
+    { key: "worksite", label: "Worksite labor orientation", note: "Spotting, hose handling, spoil setup, excavation awareness, and cleanup workflow reviewed." },
+    { key: "handoff", label: "Photo and closeout handoff", note: "Photos, notes, blocker reporting, and completion expectations reviewed." },
+    { key: "ride_along", label: "Ride-along signoff", note: "A supervised field run or shadow day has been completed." },
+  ];
 }
 
 function teamTrainingProfile(member = {}) {
@@ -244,7 +288,8 @@ function renderTrainingChecklistHistory(profile = {}) {
 }
 
 function teamChecklistEvidenceMatchers(stepKey = "", member = {}) {
-  const driverTrack = !!String(member?.driver_label || "").trim();
+  const track = teamMemberRolloutTrack(member);
+  const driverTrack = track.key === "driver" || track.key === "mixed";
   const sharedTrainingTypes = {
     crew_app: ["onboarding"],
     yard_route: ["onboarding"],
@@ -293,12 +338,15 @@ function renderTrainingEvidenceList(step = {}, history = null, member = {}) {
 }
 
 function teamTrainingQuickPreset(member = {}) {
+  const track = teamMemberRolloutTrack(member);
   return {
-    purpose: String(member?.driver_label || "").trim() ? "driver_training" : "trade_training",
+    purpose: track.key === "driver" || track.key === "mixed" ? "driver_training" : "trade_training",
     training_type: "onboarding",
-    description: String(member?.driver_label || "").trim()
+    description: track.key === "driver"
       ? "Driver onboarding, route review, and field rollout training"
-      : "Crew onboarding, worksite flow, and field rollout training",
+      : track.key === "mixed"
+        ? "Mixed-role onboarding covering driver and labor rollout expectations"
+        : "Crew onboarding, worksite flow, and field rollout training",
     duration_minutes: 60,
   };
 }
@@ -328,11 +376,28 @@ function teamMaintenanceCapitalPreset() {
 }
 
 function teamMembersNeedingRollout() {
-  return (Array.isArray(TEAM_MEMBERS_CACHE) ? TEAM_MEMBERS_CACHE : []).filter((member) => {
-    const driver = teamMemberDriverReadiness(member);
-    const training = teamTrainingSummary(member);
-    return driver.needsAttention || training.needsAttention;
-  });
+  return (Array.isArray(TEAM_MEMBERS_CACHE) ? TEAM_MEMBERS_CACHE : [])
+    .filter((member) => {
+      const driver = teamMemberDriverReadiness(member);
+      const training = teamTrainingSummary(member);
+      return driver.needsAttention || training.needsAttention;
+    })
+    .sort((left, right) => {
+      const leftRestriction = teamMemberRolloutRestriction(left);
+      const rightRestriction = teamMemberRolloutRestriction(right);
+      const rank = (restriction) => {
+        const label = String(restriction?.label || "").trim();
+        if (label === "Restricted from solo dispatch") return 0;
+        if (label === "Labor-only until driver setup clears") return 1;
+        if (label === "Supervised mixed-role rollout") return 2;
+        if (label === "Ride-along required") return 3;
+        if (label === "Training hold" || label === "Mixed-role training in progress" || label === "Needs supervised field day") return 4;
+        return 5;
+      };
+      const rankDiff = rank(leftRestriction) - rank(rightRestriction);
+      if (rankDiff) return rankDiff;
+      return teamMemberLabel(left).localeCompare(teamMemberLabel(right));
+    });
 }
 
 function openPresetTrainingTimeModal(id) {
@@ -376,11 +441,96 @@ async function fetchTeamMemberHistory(member = {}, daysBack = 30) {
 function teamProfileSummaryChips(member = {}) {
   const chips = [];
   const compensation = member?.compensation || {};
+  const track = teamMemberRolloutTrack(member);
+  chips.push(`Track: ${track.label}`);
   if (member?.driver_label) chips.push(`Driver label: ${member.driver_label}`);
   if (member?.worker_label) chips.push(`Worker label: ${member.worker_label}`);
   if (compensation?.union_classification_name) chips.push(`Union class: ${compensation.union_classification_name}`);
   if (member?.union_local_number) chips.push(`Local ${member.union_local_number}`);
   return chips;
+}
+
+function teamMemberRolloutRestriction(member = {}) {
+  const track = teamMemberRolloutTrack(member);
+  const driver = teamMemberDriverReadiness(member);
+  const training = teamTrainingSummary(member);
+  const profile = teamTrainingProfile(member);
+  const completedKeys = new Set(
+    (Array.isArray(profile?.items) ? profile.items : [])
+      .filter((item) => item.complete)
+      .map((item) => String(item.key || "").trim())
+  );
+
+  if (track.key === "driver") {
+    if (driver.needsAttention) {
+      return {
+        label: "Restricted from solo dispatch",
+        tone: "pill-bad",
+        note: "Keep this worker off solo driving until driver setup is fully cleared.",
+      };
+    }
+    if (!completedKeys.has("ride_along")) {
+      return {
+        label: "Ride-along required",
+        tone: "pill-warn",
+        note: "A supervised field run still needs to be signed off before solo dispatch.",
+      };
+    }
+    if (training.needsAttention) {
+      return {
+        label: "Training hold",
+        tone: "pill-warn",
+        note: "Finish the remaining driver rollout steps before solo dispatch.",
+      };
+    }
+    return {
+      label: "Solo-ready",
+      tone: "pill-good",
+      note: "Driver setup and rollout records support solo dispatch.",
+    };
+  }
+
+  if (track.key === "mixed") {
+    if (driver.needsAttention) {
+      return {
+        label: "Labor-only until driver setup clears",
+        tone: "pill-warn",
+        note: "This worker can still support labor, but should not take driver responsibility yet.",
+      };
+    }
+    if (!completedKeys.has("ride_along")) {
+      return {
+        label: "Supervised mixed-role rollout",
+        tone: "pill-warn",
+        note: "Keep this worker on a supervised route until the ride-along is signed off.",
+      };
+    }
+    if (training.needsAttention) {
+      return {
+        label: "Mixed-role training in progress",
+        tone: "pill-warn",
+        note: "The worker can support the crew, but mixed-role rollout still needs follow-through.",
+      };
+    }
+    return {
+      label: "Ready for driver or labor dispatch",
+      tone: "pill-good",
+      note: "The worker is cleared to swing between driver and labor assignments from the saved records.",
+    };
+  }
+
+  if (training.needsAttention) {
+    return {
+      label: "Needs supervised field day",
+      tone: "pill-warn",
+      note: "Keep this worker with a lead until the field onboarding steps are fully signed off.",
+    };
+  }
+  return {
+    label: "Ready for field support",
+    tone: "pill-good",
+    note: "Labor rollout records look complete for supported field work.",
+  };
 }
 
 function renderTeamHistorySnapshot(member = {}, history = null) {
@@ -566,7 +716,8 @@ function teamQualificationEvidenceForStep(step = {}, member = {}) {
   const qualification = teamMemberDriverQualification(member);
   if (!qualification) return [];
   const stepKey = String(step?.key || "").trim();
-  const driverTrack = !!String(member?.driver_label || "").trim();
+  const track = teamMemberRolloutTrack(member);
+  const driverTrack = track.key === "driver" || track.key === "mixed";
   const evidence = [];
   const cdlLabel = [qualification?.cdl_class, qualification?.cdl_state].filter(Boolean).join(" ");
   const pushEvidence = (condition, label) => {
@@ -663,7 +814,8 @@ function renderTrainingEvidenceSnapshot(profile = {}, history = null, member = {
 
 function renderDriverQualificationSnapshot(member = {}) {
   const qualification = teamMemberDriverQualification(member);
-  const driverTrack = !!String(member?.driver_label || "").trim();
+  const track = teamMemberRolloutTrack(member);
+  const driverTrack = track.key === "driver" || track.key === "mixed";
   if (!qualification) {
     return driverTrack
       ? '<div class="muted">No driver qualification record is on file yet.</div>'
@@ -694,10 +846,12 @@ function renderDriverQualificationSnapshot(member = {}) {
 
 function teamStepRequiresEvidence(step = {}, member = {}) {
   const key = String(step?.key || "").trim();
-  const driverTrack = !!String(member?.driver_label || "").trim();
-  const requiredKeys = driverTrack
+  const track = teamMemberRolloutTrack(member);
+  const requiredKeys = track.key === "driver"
     ? ["driving", "worksite", "vactor", "ride_along"]
-    : ["ppe", "worksite", "ride_along"];
+    : track.key === "mixed"
+      ? ["driving", "ppe", "worksite", "vactor", "ride_along"]
+      : ["ppe", "worksite", "ride_along"];
   return requiredKeys.includes(key);
 }
 
@@ -776,8 +930,10 @@ function teamTrainingSaveValidation(profile = {}, items = {}, history = null, me
 }
 
 function teamMemberNextAction(member = {}) {
+  const track = teamMemberRolloutTrack(member);
   const driver = teamMemberDriverReadiness(member);
   const training = teamTrainingSummary(member);
+  const restriction = teamMemberRolloutRestriction(member);
   if (driver.label === "Driver setup needed" || driver.label === "Driver record blocked" || driver.label === "Driver follow-up") {
     return {
       label: "Finish driver setup",
@@ -799,9 +955,16 @@ function teamMemberNextAction(member = {}) {
       action: "training",
     };
   }
+  if (restriction.label === "Ride-along required" || restriction.label === "Supervised mixed-role rollout") {
+    return {
+      label: "Book the supervised field run",
+      note: restriction.note,
+      action: "training",
+    };
+  }
   return {
-    label: "Ready for dispatch",
-    note: "Setup and onboarding look ready from the current records.",
+    label: track.key === "driver" ? "Ready for solo dispatch" : "Ready for dispatch",
+    note: restriction.note,
     action: "crew",
   };
 }
@@ -1028,6 +1191,15 @@ function renderTeamRolloutBoard() {
       </div>
     `;
   }
+  const blockedCount = members.filter((member) => {
+    const label = teamMemberRolloutRestriction(member).label;
+    return ["Restricted from solo dispatch", "Labor-only until driver setup clears"].includes(label);
+  }).length;
+  const supervisedCount = members.filter((member) => {
+    const label = teamMemberRolloutRestriction(member).label;
+    return ["Ride-along required", "Supervised mixed-role rollout", "Needs supervised field day"].includes(label);
+  }).length;
+  const followThroughCount = Math.max(0, members.length - blockedCount - supervisedCount);
   return `
     <div class="card" style="margin:0 0 12px;">
       <div class="card-hd">
@@ -1038,9 +1210,16 @@ function renderTeamRolloutBoard() {
         <span class="pill pill-warn">${escapeHtml(`${members.length} needing follow-up`)}</span>
       </div>
       <div class="card-bd">
+        <div class="row row-tight" style="margin-bottom:10px;flex-wrap:wrap;">
+          <span class="pill pill-bad">${escapeHtml(`${blockedCount} blocked`)}</span>
+          <span class="pill pill-warn">${escapeHtml(`${supervisedCount} supervised`)}</span>
+          <span class="pill">${escapeHtml(`${followThroughCount} follow-through`)}</span>
+        </div>
         ${members.map((member) => {
+          const track = teamMemberRolloutTrack(member);
           const driver = teamMemberDriverReadiness(member);
           const training = teamTrainingSummary(member);
+          const restriction = teamMemberRolloutRestriction(member);
           const nextAction = teamMemberNextAction(member);
           return `
             <div class="list-item" style="padding:10px 0;">
@@ -1052,8 +1231,10 @@ function renderTeamRolloutBoard() {
                 </div>
               </div>
               <div class="li-meta" style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">
+                <span class="pill">${escapeHtml(track.label)}</span>
                 <span class="pill ${driver.tone}">${escapeHtml(driver.label)}</span>
                 <span class="pill ${training.tone}">${escapeHtml(training.label)}</span>
+                <span class="pill ${restriction.tone}">${escapeHtml(restriction.label)}</span>
                 <button class="btn btn-ghost btn-sm" onclick="openTeamMemberProfileModal('${escapeAttr(member.id)}')">Profile</button>
                 <button class="btn btn-ghost btn-sm" onclick="openTeamTrainingModal('${escapeAttr(member.id)}')">Training</button>
                 <button class="btn btn-ghost btn-sm" onclick="openPresetTrainingTimeModal('${escapeAttr(member.id)}')">Log training time</button>
@@ -1085,9 +1266,11 @@ function renderTeamPanel() {
     </tr></thead>
     <tbody>
       ${TEAM_MEMBERS_CACHE.map((member) => {
+        const track = teamMemberRolloutTrack(member);
         const summary = teamMemberJobSummary(member);
         const driverReadiness = teamMemberDriverReadiness(member);
         const training = teamTrainingSummary(member);
+        const restriction = teamMemberRolloutRestriction(member);
         const nextAction = teamMemberNextAction(member);
         const fieldLoad = summary.active.length
           ? `${summary.active.length} active`
@@ -1124,13 +1307,16 @@ function renderTeamPanel() {
           <td style="padding:8px;color:rgba(255,255,255,.55);">${escapeHtml(member.role || "-")}</td>
           <td style="padding:8px;color:rgba(255,255,255,.55);">
             <span class="pill ${tone}">${escapeHtml(fieldLoad)}</span>
+            <div class="muted" style="font-size:.72rem;margin-top:4px;"><span class="pill">${escapeHtml(track.label)}</span></div>
             <div class="muted" style="font-size:.72rem;margin-top:4px;"><span class="pill ${driverReadiness.tone}">${escapeHtml(driverReadiness.label)}</span></div>
             <div class="muted" style="font-size:.72rem;margin-top:4px;"><span class="pill ${training.tone}">${escapeHtml(training.label)}</span></div>
+            <div class="muted" style="font-size:.72rem;margin-top:4px;"><span class="pill ${restriction.tone}">${escapeHtml(restriction.label)}</span></div>
             ${conflictChip ? `<div class="muted" style="font-size:.72rem;margin-top:4px;">${conflictChip}</div>` : ""}
             <div class="muted" style="font-size:.72rem;margin-top:4px;">${escapeHtml(note)}</div>
             <div class="muted" style="font-size:.72rem;margin-top:4px;"><strong>${escapeHtml(`Next: ${nextAction.label}`)}</strong></div>
             <div class="muted" style="font-size:.72rem;margin-top:4px;">${escapeHtml(driverReadiness.note)}</div>
             <div class="muted" style="font-size:.72rem;margin-top:4px;">${escapeHtml(training.note)}</div>
+            <div class="muted" style="font-size:.72rem;margin-top:4px;">${escapeHtml(restriction.note)}</div>
             ${summary.jobs.length ? `<div class="muted" style="font-size:.72rem;margin-top:4px;"><span class="pill ${capacityTone}">${escapeHtml(`${teamMinutesLabel(summary.totalEstimatedMinutes)} planned / ${teamMinutesLabel(summary.minimumBlockMinutes)} block`)}</span></div>` : ""}
             ${summary.lastFieldUpdate ? `<div class="muted" style="font-size:.72rem;margin-top:4px;">${escapeHtml(`Last field update ${summary.lastFieldUpdate}`)}</div>` : ""}
             ${summary.blockerNotes[0] ? `<div class="muted" style="font-size:.72rem;margin-top:4px;">${escapeHtml(`Blocker: ${summary.blockerNotes[0]}`)}</div>` : ""}
@@ -1248,8 +1434,10 @@ function openTeamMemberProfileModal(id) {
   }
   const existing = document.getElementById("teamMemberProfileModal");
   if (existing) existing.remove();
+  const track = teamMemberRolloutTrack(member);
   const driver = teamMemberDriverReadiness(member);
   const training = teamTrainingSummary(member);
+  const restriction = teamMemberRolloutRestriction(member);
   const trainingProfile = teamTrainingProfile(member);
   const modal = document.createElement("div");
   modal.id = "teamMemberProfileModal";
@@ -1268,10 +1456,14 @@ function openTeamMemberProfileModal(id) {
         <div class="card-hd"><strong>Role and compensation</strong></div>
         <div class="card-bd">
           <div class="detail-copy"><strong>Rate:</strong> ${escapeHtml(teamMemberDisplayedRateCents(member) ? `${formatUsd(teamMemberDisplayedRateCents(member))}/hr` : "Not set")}</div>
+          <div class="detail-copy"><strong>Rollout track:</strong> ${escapeHtml(track.label)}</div>
           <div class="detail-copy"><strong>Next move:</strong> ${escapeHtml(teamMemberNextAction(member).label)}</div>
+          <div class="detail-copy"><strong>Restriction:</strong> ${escapeHtml(restriction.label)}</div>
           <div class="detail-copy"><strong>Pay context:</strong> ${escapeHtml(teamMemberCompensationNote(member) || "No union-floor note is attached yet.")}</div>
+          <div class="detail-copy"><strong>Track context:</strong> ${escapeHtml(track.note)}</div>
           <div class="detail-copy"><strong>Driver readiness:</strong> ${escapeHtml(driver.note)}</div>
           <div class="detail-copy"><strong>Training readiness:</strong> ${escapeHtml(training.note)}</div>
+          <div class="detail-copy"><strong>Dispatch note:</strong> ${escapeHtml(restriction.note)}</div>
         </div>
       </div>
       <div class="card">
@@ -1490,18 +1682,25 @@ function openTeamTrainingModal(id) {
   const existing = document.getElementById("teamTrainingModal");
   if (existing) existing.remove();
   const profile = teamTrainingProfile(member);
+  const track = teamMemberRolloutTrack(member);
+  const restriction = teamMemberRolloutRestriction(member);
   const modal = document.createElement("div");
   modal.id = "teamTrainingModal";
   modal.className = "modal-overlay";
   const nextAction = teamMemberNextAction(member);
   modal.innerHTML = `<div class="modal-box" style="max-width:520px;">
     <h3 style="margin:0 0 8px;font-size:1rem;">${escapeHtml(teamMemberLabel(member))} onboarding</h3>
-    <div class="muted" style="margin-bottom:12px;">${escapeHtml(String(member.driver_label || "").trim() ? "Driver / vactor operator rollout checklist" : "Labor / field onboarding checklist")}</div>
+    <div class="muted" style="margin-bottom:12px;">${escapeHtml(track.key === "driver" ? "Driver / vactor operator rollout checklist" : track.key === "mixed" ? "Mixed-role rollout checklist" : "Labor / field onboarding checklist")}</div>
     <div class="card" style="margin-bottom:12px;">
       <div class="card-bd" style="padding:12px;">
+        <div class="row row-tight" style="margin-bottom:8px;flex-wrap:wrap;">
+          <span class="pill">${escapeHtml(track.label)}</span>
+          <span class="pill ${restriction.tone}">${escapeHtml(restriction.label)}</span>
+        </div>
         <div class="kicker">Recommended next move</div>
         <strong>${escapeHtml(nextAction.label)}</strong>
         <div class="muted" style="margin-top:6px;">${escapeHtml(nextAction.note)}</div>
+        <div class="muted" style="margin-top:6px;">${escapeHtml(restriction.note)}</div>
       </div>
     </div>
     <div class="memory-checklist" id="teamTrainingChecklist">

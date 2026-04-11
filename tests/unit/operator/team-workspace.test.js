@@ -196,7 +196,7 @@ describe("operator team workspace", () => {
   test("renderTeamPanel surfaces roster pressure, unassigned jobs, and active crew load", () => {
     const { context, elements } = loadTeamWorkspace({
       TEAM_MEMBERS_CACHE: [
-        { id: "member_1", display_name: "Skylar Stevens", role: "member", driver_label: "Vactor operator" },
+        { id: "member_1", display_name: "Skylar Stevens", role: "member", driver_label: "Vactor operator", worker_label: "Labor" },
         { id: "member_2", display_name: "Jordan Diaz", role: "member", driver_label: "Relief driver" },
       ],
       HYDROVAC_DRIVER_COMPLIANCE_CACHE: [
@@ -227,11 +227,16 @@ describe("operator team workspace", () => {
     expect(elements.teamMembersList.innerHTML).toContain("Driver-ready");
     expect(elements.teamMembersList.innerHTML).toContain("Driver setup needed");
     expect(elements.teamMembersList.innerHTML).toContain("Training not started");
+    expect(elements.teamMembersList.innerHTML).toContain("Mixed role");
+    expect(elements.teamMembersList.innerHTML).toContain("Supervised mixed-role rollout");
     expect(elements.teamMembersList.innerHTML).toContain("Last field update 2026-04-08T09:15:00Z");
     expect(elements.teamMembersList.innerHTML).toContain("Blocker: Customer gate is locked");
     expect(elements.teamMembersList.innerHTML).toContain("Training");
     expect(elements.teamMembersList.innerHTML).toContain("Monday rollout");
     expect(elements.teamMembersList.innerHTML).toContain("needing follow-up");
+    expect(elements.teamMembersList.innerHTML).toContain("1 blocked");
+    expect(elements.teamMembersList.innerHTML).toContain("1 supervised");
+    expect(elements.teamMembersList.innerHTML).toContain("0 follow-through");
     expect(elements.teamMembersList.innerHTML).toContain("Next:");
     expect(elements.teamMembersList.innerHTML).toContain("Profile");
     expect(elements.teamMembersList.innerHTML).toContain("Log time");
@@ -425,5 +430,62 @@ describe("operator team workspace", () => {
     expect(html).toContain("CDL expiry");
     expect(html).toContain("Med card expiry");
     expect(html).toContain("MVR check");
+  });
+
+  test("rollout restriction reflects driver, labor, and mixed-role readiness clearly", () => {
+    const { context } = loadTeamWorkspace({
+      HYDROVAC_DRIVER_COMPLIANCE_CACHE: [
+        { member_id: "driver_ready", warnings: [], cdl_class: "Class A" },
+        { member_id: "mixed_ready", warnings: [], cdl_class: "Class A" },
+      ],
+      SETUP_STATE: {
+        config: {
+          team_training_profiles: {
+            driver_ready: {
+              items: {
+                crew_app: true,
+                yard_route: true,
+                driving: true,
+                worksite: true,
+                vactor: true,
+                ride_along: true,
+              },
+            },
+            labor_ready: {
+              items: {
+                crew_app: true,
+                yard_route: true,
+                ppe: true,
+                worksite: true,
+                handoff: true,
+                ride_along: true,
+              },
+            },
+            mixed_ready: {
+              items: {
+                crew_app: true,
+                yard_route: true,
+                driving: true,
+                ppe: true,
+                worksite: true,
+                vactor: true,
+                handoff: true,
+                ride_along: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const driverBlocked = context.teamMemberRolloutRestriction({ id: "driver_blocked", driver_label: "Vactor operator" });
+    const driverReady = context.teamMemberRolloutRestriction({ id: "driver_ready", driver_label: "Vactor operator" });
+    const laborReady = context.teamMemberRolloutRestriction({ id: "labor_ready", worker_label: "Labor" });
+    const mixedReady = context.teamMemberRolloutRestriction({ id: "mixed_ready", driver_label: "Relief driver", worker_label: "Labor" });
+
+    expect(driverBlocked.label).toBe("Restricted from solo dispatch");
+    expect(driverReady.label).toBe("Solo-ready");
+    expect(laborReady.label).toBe("Ready for field support");
+    expect(mixedReady.label).toBe("Ready for driver or labor dispatch");
   });
 });
