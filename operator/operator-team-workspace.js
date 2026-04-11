@@ -85,6 +85,41 @@ function teamMemberCompensationNote(member = {}) {
   return "";
 }
 
+function teamMemberCompensationTimelineEntry(member = {}) {
+  const rateCents = teamMemberDisplayedRateCents(member);
+  if (!rateCents) return null;
+
+  const compensation = member?.compensation || {};
+  const effectiveAt = String(
+    compensation.effective_at
+      || compensation.updated_at
+      || member?.effective_rate_updated_at
+      || member?.updated_at
+      || ""
+  ).trim();
+  if (!effectiveAt) return null;
+
+  const floorCents = Number(compensation.contract_floor_cents || 0);
+  const classification = String(compensation.union_classification_name || "").trim();
+  const source = String(compensation.source || "").trim();
+  const noteParts = [
+    `Rate ${formatUsd(rateCents)}/hr`,
+    teamMemberCompensationNote(member),
+  ].filter(Boolean);
+
+  if (!noteParts.length) return null;
+
+  return {
+    sortAt: effectiveAt,
+    tone: source === "contract_floor" ? "pill-warn" : "pill-good",
+    label: "Compensation",
+    title: classification ? `${classification} pay context` : "Compensation updated",
+    note: noteParts.join(" | ") + (floorCents && !teamMemberCompensationNote(member)
+      ? ` | Contract floor ${formatUsd(floorCents)}/hr`
+      : ""),
+  };
+}
+
 function teamMemberDriverQualification(member = {}) {
   const rows = typeof HYDROVAC_DRIVER_COMPLIANCE_CACHE !== "undefined" && Array.isArray(HYDROVAC_DRIVER_COMPLIANCE_CACHE)
     ? HYDROVAC_DRIVER_COMPLIANCE_CACHE
@@ -1144,8 +1179,14 @@ function buildTeamMemberTimeline(member = {}, history = null, profile = {}) {
   const qualification = teamMemberDriverQualification(member);
   const refresh = teamQualificationRefreshPressure(member);
   const completedItems = Array.isArray(profile?.items) ? profile.items.filter((item) => item.complete) : [];
+  const recordEvidence = teamRecordEvidenceProfile(member);
   const entries = Array.isArray(history?.entries) ? history.entries : [];
   const jobs = Array.isArray(history?.jobs) ? history.jobs : [];
+
+  const compensationEntry = teamMemberCompensationTimelineEntry(member);
+  if (compensationEntry) {
+    timeline.push(compensationEntry);
+  }
 
   completedItems.forEach((item) => {
     if (!item.completedAt) return;
@@ -1166,6 +1207,18 @@ function buildTeamMemberTimeline(member = {}, history = null, profile = {}) {
       });
     }
   });
+
+  recordEvidence.items
+    .filter((item) => item.present && item.recordedAt)
+    .forEach((item) => {
+      timeline.push({
+        sortAt: item.recordedAt,
+        tone: "pill",
+        label: "Office record",
+        title: item.label,
+        note: [item.recordedBy, item.noteValue || item.note].filter(Boolean).join(" | ") || "Retained in the employee file.",
+      });
+    });
 
   entries.slice(0, 8).forEach((entry) => {
     timeline.push({

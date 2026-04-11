@@ -403,6 +403,22 @@ describe("operator team workspace", () => {
 
   test("team timeline merges signoffs, time, jobs, and qualification milestones", () => {
     const { context } = loadTeamWorkspace({
+      SETUP_STATE: {
+        config: {
+          team_training_profiles: {
+            member_1: {
+              record_evidence: {
+                cdl_copy: {
+                  present: true,
+                  recorded_at: "2026-04-08T10:00:00.000Z",
+                  recorded_by: "Office",
+                  note: "Filed in driver packet.",
+                },
+              },
+            },
+          },
+        },
+      },
       HYDROVAC_DRIVER_COMPLIANCE_CACHE: [
         {
           member_id: "member_1",
@@ -416,7 +432,18 @@ describe("operator team workspace", () => {
       ],
     });
 
-    const member = { id: "member_1", driver_label: "Vactor operator" };
+    const member = {
+      id: "member_1",
+      driver_label: "Vactor operator",
+      updated_at: "2026-04-10T12:00:00.000Z",
+      compensation: {
+        resolved_hourly_rate_cents: 4500,
+        contract_floor_cents: 4100,
+        union_classification_name: "Metal Trades",
+        source: "member_override",
+        updated_at: "2026-04-10T12:00:00.000Z",
+      },
+    };
     const profile = {
       items: [
         {
@@ -457,6 +484,10 @@ describe("operator team workspace", () => {
     expect(html).toContain("Ride-along route training");
     expect(html).toContain("Assigned job");
     expect(html).toContain("Downtown cleanout");
+    expect(html).toContain("Compensation");
+    expect(html).toContain("Metal Trades pay context");
+    expect(html).toContain("Office record");
+    expect(html).toContain("CDL copy");
     expect(html).toContain("CDL expiry");
     expect(html).toContain("Med card expiry");
     expect(html).toContain("MVR check");
