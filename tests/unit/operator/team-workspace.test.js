@@ -428,6 +428,12 @@ describe("operator team workspace", () => {
           medical_certificate_expiry: "2026-10-01",
           last_mvr_check_date: "2026-04-01",
           mvr_status: "clear",
+          hos_last_synced_at: "2026-04-10T06:00:00.000Z",
+          hos_available_driving_minutes: 420,
+          first_aid_certified: true,
+          first_aid_cert_expiry_date: "2026-08-15",
+          h2s_alive_certified: true,
+          h2s_cert_expiry_date: "2026-11-30",
         },
       ],
     });
@@ -488,6 +494,9 @@ describe("operator team workspace", () => {
     expect(html).toContain("Metal Trades pay context");
     expect(html).toContain("Office record");
     expect(html).toContain("CDL copy");
+    expect(html).toContain("Qualification update");
+    expect(html).toContain("First aid current");
+    expect(html).toContain("Driver hours sync");
     expect(html).toContain("CDL expiry");
     expect(html).toContain("Med card expiry");
     expect(html).toContain("MVR check");

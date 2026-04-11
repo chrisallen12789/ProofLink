@@ -120,6 +120,56 @@ function teamMemberCompensationTimelineEntry(member = {}) {
   };
 }
 
+function teamQualificationTimelineEntries(member = {}) {
+  const qualification = teamMemberDriverQualification(member);
+  if (!qualification) return [];
+
+  const entries = [];
+  const pushEntry = (sortAt, title, note, tone = 'pill') => {
+    if (!sortAt || !title) return;
+    entries.push({
+      sortAt,
+      tone,
+      label: 'Qualification update',
+      title,
+      note: note || 'Employee qualification record updated.',
+    });
+  };
+
+  if (qualification?.hos_last_synced_at) {
+    pushEntry(
+      qualification.hos_last_synced_at,
+      'Driver hours sync',
+      qualification?.hos_available_driving_minutes != null
+        ? `HOS available ${teamMinutesLabel(qualification.hos_available_driving_minutes || 0)}`
+        : 'Driver hours-of-service record refreshed.'
+    );
+  }
+  if (qualification?.first_aid_certified && qualification?.first_aid_cert_expiry_date) {
+    pushEntry(
+      qualification.first_aid_cert_expiry_date,
+      'First aid current',
+      `Current through ${teamDateLabel(qualification.first_aid_cert_expiry_date)}`
+    );
+  }
+  if (qualification?.confined_space_certified && qualification?.confined_space_cert_expiry_date) {
+    pushEntry(
+      qualification.confined_space_cert_expiry_date,
+      'Confined space current',
+      `Current through ${teamDateLabel(qualification.confined_space_cert_expiry_date)}`
+    );
+  }
+  if (qualification?.h2s_alive_certified && qualification?.h2s_cert_expiry_date) {
+    pushEntry(
+      qualification.h2s_cert_expiry_date,
+      'H2S current',
+      `Current through ${teamDateLabel(qualification.h2s_cert_expiry_date)}`
+    );
+  }
+
+  return entries;
+}
+
 function teamMemberDriverQualification(member = {}) {
   const rows = typeof HYDROVAC_DRIVER_COMPLIANCE_CACHE !== "undefined" && Array.isArray(HYDROVAC_DRIVER_COMPLIANCE_CACHE)
     ? HYDROVAC_DRIVER_COMPLIANCE_CACHE
@@ -1187,6 +1237,7 @@ function buildTeamMemberTimeline(member = {}, history = null, profile = {}) {
   if (compensationEntry) {
     timeline.push(compensationEntry);
   }
+  timeline.push(...teamQualificationTimelineEntries(member));
 
   completedItems.forEach((item) => {
     if (!item.completedAt) return;
