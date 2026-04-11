@@ -207,6 +207,86 @@ function teamTrainingSummary(member = {}) {
   };
 }
 
+function teamTimePurposeOptions() {
+  return [
+    { value: "job_work", label: "Job work", note: "Direct labor tied to a customer job or order." },
+    { value: "driver_training", label: "Driver training", note: "CDL, road, safety, or ride-along time that pricing needs to absorb." },
+    { value: "trade_training", label: "Trade training", note: "Plumbing, hydrovac, worksite, or onboarding skill-building time." },
+    { value: "maintenance", label: "Maintenance", note: "Vehicle, vactor, trailer, tool, or facility upkeep." },
+    { value: "yard_shop", label: "Yard / shop", note: "Setup, cleanup, staging, fueling, and prep time." },
+    { value: "safety_meeting", label: "Safety / meeting", note: "Toolbox talks, safety meetings, and compliance reviews." },
+    { value: "admin_support", label: "Admin support", note: "Paperwork, support work, and internal follow-through." },
+    { value: "other_paid_time", label: "Other paid time", note: "Use only when the work does not fit the categories above." },
+  ];
+}
+
+function teamTimePurposeLabel(value) {
+  return teamTimePurposeOptions().find((option) => option.value === value)?.label || "Time entry";
+}
+
+function teamTrainingTypeOptions() {
+  return [
+    { value: "cdl", label: "CDL / license" },
+    { value: "driver_safety", label: "Driver safety" },
+    { value: "worksite_safety", label: "Worksite safety" },
+    { value: "vactor_operator", label: "Vactor operator" },
+    { value: "plumbing_trade", label: "Plumber / trade skill" },
+    { value: "hydrovac_field", label: "Hydrovac field work" },
+    { value: "ride_along", label: "Ride-along" },
+    { value: "onboarding", label: "Onboarding" },
+    { value: "other", label: "Other training" },
+  ];
+}
+
+function teamMaintenanceTypeOptions() {
+  return [
+    { value: "routine_service", label: "Routine service" },
+    { value: "repair", label: "Repair" },
+    { value: "tire_brake", label: "Tires / brakes" },
+    { value: "fluid_filter", label: "Fluids / filters" },
+    { value: "inspection", label: "Inspection" },
+    { value: "cleanup", label: "Cleanup / detailing" },
+    { value: "capital_improvement", label: "Capital improvement" },
+    { value: "other", label: "Other maintenance" },
+  ];
+}
+
+function teamAssetCategoryOptions() {
+  return [
+    { value: "vehicle", label: "Vehicle" },
+    { value: "vactor", label: "Vactor / vac truck" },
+    { value: "trailer", label: "Trailer" },
+    { value: "tool", label: "Tool / equipment" },
+    { value: "facility", label: "Facility / yard" },
+    { value: "other", label: "Other asset" },
+  ];
+}
+
+function teamCostBucketOptions() {
+  return [
+    { value: "pricing_overhead", label: "Covered by job pricing" },
+    { value: "direct_job", label: "Direct job labor" },
+    { value: "maintenance_overhead", label: "Maintenance overhead" },
+    { value: "asset_basis_candidate", label: "Asset basis candidate" },
+    { value: "general_overhead", label: "General overhead" },
+  ];
+}
+
+function teamCostBucketLabel(value) {
+  return teamCostBucketOptions().find((option) => option.value === value)?.label || "General overhead";
+}
+
+function teamDefaultCostBucket(workType = "", maintenanceType = "") {
+  if (workType === "job_work") return "direct_job";
+  if (workType === "maintenance") return maintenanceType === "capital_improvement" ? "asset_basis_candidate" : "maintenance_overhead";
+  if (workType === "driver_training" || workType === "trade_training" || workType === "yard_shop") return "pricing_overhead";
+  return "general_overhead";
+}
+
+function teamMemberLabel(member = {}) {
+  return member.display_name || member.name || member.email || member.id || "Team member";
+}
+
 function teamMemberJobSummary(member = {}) {
   const keys = new Set(teamMemberAssignmentKeys(member));
   const jobs = teamWorkspaceJobs().filter((job) => (
@@ -359,6 +439,7 @@ function renderTeamPanel() {
             ${teamMemberCompensationNote(member) ? `<div class="muted" style="font-size:.72rem;margin-top:4px;">${escapeHtml(teamMemberCompensationNote(member))}</div>` : ""}
           </td>
           <td style="padding:8px;text-align:right;display:flex;gap:6px;justify-content:flex-end;">
+            <button class="btn btn-ghost" style="font-size:.72rem;" onclick="openTeamTimeModal('${escapeAttr(member.id)}')">Log time</button>
             <button class="btn btn-ghost" style="font-size:.72rem;" onclick="openTeamTrainingModal('${escapeAttr(member.id)}')">Training</button>
             <button class="btn btn-ghost" style="font-size:.72rem;" onclick="openDriverSetupForTeamMember('${escapeAttr(member.id)}')">Driver setup</button>
             <button class="btn btn-ghost" style="font-size:.72rem;" onclick="openCrewPortalForTeamMember('${escapeAttr(member.id)}')">Crew portal</button>
@@ -642,6 +723,200 @@ function openTeamTrainingModal(id) {
   });
 }
 
+function openTeamTimeModal(defaultMemberId = "") {
+  const members = Array.isArray(TEAM_MEMBERS_CACHE) ? TEAM_MEMBERS_CACHE : [];
+  if (!members.length) {
+    showToast("Add a team member before logging training or maintenance time.");
+    return;
+  }
+  const existing = document.getElementById("teamTimeModal");
+  if (existing) existing.remove();
+  const now = new Date();
+  const pad = (value) => String(value).padStart(2, "0");
+  const defaultStarted = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  const modal = document.createElement("div");
+  modal.id = "teamTimeModal";
+  modal.className = "modal-overlay";
+  modal.innerHTML = `<div class="modal-box" style="max-width:560px;">
+    <h3 style="margin:0 0 8px;font-size:1rem;">Log training or maintenance time</h3>
+    <div class="muted" style="margin-bottom:12px;">Track the labor you expect pricing to carry without making the crew think like accountants.</div>
+    <div class="modal-stack">
+      <label>
+        <span class="section-heading-note">Team member</span>
+        <select id="teamTimeMember" class="input" style="width:100%;">
+          ${members.map((member) => `<option value="${escapeAttr(member.id)}"${String(defaultMemberId || "") === String(member.id) ? " selected" : ""}>${escapeHtml(teamMemberLabel(member))}</option>`).join("")}
+        </select>
+      </label>
+      <label>
+        <span class="section-heading-note">Time purpose</span>
+        <select id="teamTimePurpose" class="input" style="width:100%;">
+          ${teamTimePurposeOptions().map((option) => `<option value="${escapeAttr(option.value)}">${escapeHtml(option.label)}</option>`).join("")}
+        </select>
+      </label>
+      <div id="teamTimePurposeNote" class="muted" style="font-size:.8rem;"></div>
+      <label id="teamTrainingTypeWrap" style="display:none;">
+        <span class="section-heading-note">Training type</span>
+        <select id="teamTrainingType" class="input" style="width:100%;">
+          ${teamTrainingTypeOptions().map((option) => `<option value="${escapeAttr(option.value)}">${escapeHtml(option.label)}</option>`).join("")}
+        </select>
+      </label>
+      <div id="teamMaintenanceFields" style="display:none;">
+        <label>
+          <span class="section-heading-note">Maintenance type</span>
+          <select id="teamMaintenanceType" class="input" style="width:100%;">
+            ${teamMaintenanceTypeOptions().map((option) => `<option value="${escapeAttr(option.value)}">${escapeHtml(option.label)}</option>`).join("")}
+          </select>
+        </label>
+        <div class="modal-grid-2" style="margin-top:10px;">
+          <label class="modal-grid-2__fill">
+            <span class="section-heading-note">Asset category</span>
+            <select id="teamAssetCategory" class="input" style="width:100%;">
+              ${teamAssetCategoryOptions().map((option) => `<option value="${escapeAttr(option.value)}">${escapeHtml(option.label)}</option>`).join("")}
+            </select>
+          </label>
+          <label class="modal-grid-2__fill">
+            <span class="section-heading-note">Asset label</span>
+            <input id="teamAssetLabel" class="input" placeholder="Truck 12, Vactor 4, trailer, tool..." style="width:100%;" />
+          </label>
+        </div>
+      </div>
+      <label>
+        <span class="section-heading-note">Description</span>
+        <input id="teamTimeDescription" class="input" placeholder="What was covered or worked on?" style="width:100%;" />
+      </label>
+      <div class="modal-grid-2">
+        <label class="modal-grid-2__fill">
+          <span class="section-heading-note">Started at</span>
+          <input id="teamTimeStartedAt" type="datetime-local" class="input" value="${defaultStarted}" style="width:100%;" />
+        </label>
+        <label class="modal-grid-2__fill">
+          <span class="section-heading-note">Duration (minutes)</span>
+          <input id="teamTimeDuration" type="number" min="1" step="1" class="input" placeholder="60" style="width:100%;" />
+        </label>
+      </div>
+      <div class="modal-grid-2">
+        <label class="modal-grid-2__fill">
+          <span class="section-heading-note">Hourly rate ($)</span>
+          <input id="teamTimeRate" type="number" min="0" step="0.01" class="input" placeholder="42.50" style="width:100%;" />
+        </label>
+        <label class="modal-grid-2__fill">
+          <span class="section-heading-note">Cost treatment</span>
+          <select id="teamTimeCostBucket" class="input" style="width:100%;">
+            ${teamCostBucketOptions().map((option) => `<option value="${escapeAttr(option.value)}">${escapeHtml(option.label)}</option>`).join("")}
+          </select>
+        </label>
+      </div>
+      <label class="modal-check">
+        <input id="teamTimeBillable" class="modal-check__input" type="checkbox" />
+        <span class="modal-check__label">Bill directly to a job or order</span>
+      </label>
+      <div class="muted" style="font-size:.8rem;">Leave this off for training, maintenance, and support time that your pricing needs to absorb across jobs.</div>
+    </div>
+    <div id="teamTimeMsg" class="msg" style="margin-top:10px;"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px;">
+      <button class="btn btn-ghost" type="button" onclick="document.getElementById('teamTimeModal')?.remove()">Cancel</button>
+      <button class="btn btn-primary" type="button" id="btnSaveTeamTime">Save time</button>
+    </div>
+  </div>`;
+  document.body.appendChild(modal);
+
+  const purposeEl = modal.querySelector("#teamTimePurpose");
+  const trainingWrap = modal.querySelector("#teamTrainingTypeWrap");
+  const maintenanceWrap = modal.querySelector("#teamMaintenanceFields");
+  const maintenanceTypeEl = modal.querySelector("#teamMaintenanceType");
+  const costBucketEl = modal.querySelector("#teamTimeCostBucket");
+  const billableEl = modal.querySelector("#teamTimeBillable");
+  const rateEl = modal.querySelector("#teamTimeRate");
+  const memberEl = modal.querySelector("#teamTimeMember");
+  const noteEl = modal.querySelector("#teamTimePurposeNote");
+
+  function refreshMemberRate() {
+    const member = findTeamMemberById(memberEl?.value || "");
+    if (!member || !rateEl || String(rateEl.value || "").trim()) return;
+    const rateCents = teamMemberDisplayedRateCents(member);
+    if (rateCents > 0) rateEl.value = (rateCents / 100).toFixed(2);
+  }
+
+  function syncPurposeFields() {
+    const purpose = purposeEl?.value || "job_work";
+    if (noteEl) noteEl.textContent = teamTimePurposeOptions().find((option) => option.value === purpose)?.note || "";
+    if (trainingWrap) trainingWrap.style.display = purpose === "driver_training" || purpose === "trade_training" ? "block" : "none";
+    if (maintenanceWrap) maintenanceWrap.style.display = purpose === "maintenance" ? "block" : "none";
+    if (costBucketEl) costBucketEl.value = teamDefaultCostBucket(purpose, maintenanceTypeEl?.value || "routine_service");
+    if (billableEl) billableEl.checked = purpose === "job_work";
+  }
+
+  memberEl?.addEventListener("change", refreshMemberRate);
+  purposeEl?.addEventListener("change", syncPurposeFields);
+  maintenanceTypeEl?.addEventListener("change", syncPurposeFields);
+  refreshMemberRate();
+  syncPurposeFields();
+
+  modal.querySelector("#btnSaveTeamTime").onclick = async () => {
+    const messageEl = modal.querySelector("#teamTimeMsg");
+    const member = findTeamMemberById(memberEl?.value || "");
+    const description = String(modal.querySelector("#teamTimeDescription")?.value || "").trim();
+    const startedAt = modal.querySelector("#teamTimeStartedAt")?.value || "";
+    const duration = parseInt(modal.querySelector("#teamTimeDuration")?.value || "0", 10);
+    const purpose = purposeEl?.value || "job_work";
+    const hourlyRate = Math.max(0, parseFloat(rateEl?.value || "0"));
+    if (!member) {
+      setInlineMessage(messageEl, "Pick a team member.", "error");
+      return;
+    }
+    if (!description) {
+      setInlineMessage(messageEl, "Add a short description so this still makes sense later.", "error");
+      return;
+    }
+    if (!startedAt || !duration) {
+      setInlineMessage(messageEl, "Add a start time and duration.", "error");
+      return;
+    }
+    setInlineMessage(messageEl, "Saving team time...");
+    try {
+      const token = await getOperatorAccessToken();
+      const payload = {
+        member_id: member.id,
+        description,
+        started_at: new Date(startedAt).toISOString(),
+        duration_minutes: duration,
+        hourly_rate_cents: Math.round(hourlyRate * 100),
+        billable: !!billableEl?.checked,
+        work_type: purpose,
+        cost_bucket: costBucketEl?.value || teamDefaultCostBucket(purpose, maintenanceTypeEl?.value || ""),
+      };
+      if (purpose === "driver_training" || purpose === "trade_training") {
+        payload.training_type = modal.querySelector("#teamTrainingType")?.value || "other";
+      }
+      if (purpose === "maintenance") {
+        payload.maintenance_type = maintenanceTypeEl?.value || "routine_service";
+        payload.asset_category = modal.querySelector("#teamAssetCategory")?.value || "vehicle";
+        payload.asset_label = String(modal.querySelector("#teamAssetLabel")?.value || "").trim();
+      }
+      const response = await fetch("/.netlify/functions/log-time-entry", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Failed to save time entry.");
+      modal.remove();
+      showToast("Team time saved.");
+      if ($("hoursStart")?.value && $("hoursEnd")?.value) {
+        await loadHoursReport();
+      }
+    } catch (error) {
+      setInlineMessage(messageEl, error.message || String(error), "error");
+    }
+  };
+  modal.addEventListener("click", (event) => {
+    if (event.target === modal) modal.remove();
+  });
+}
+
 async function loadHoursReport() {
   const startEl = $("hoursStart");
   const endEl = $("hoursEnd");
@@ -697,10 +972,25 @@ function renderHoursReport(data) {
       <div class="list-item" style="padding:6px 0;">
         <div class="li-main">
           <div class="li-title" style="font-size:.85rem;">${escapeHtml(entry.description || "Time entry")}</div>
-          <div class="li-sub muted" style="font-size:.75rem;">${escapeHtml(entry.started_at ? new Date(entry.started_at).toLocaleDateString() : "-")} &middot; ${escapeHtml(entry.billable ? "Billable" : "Non-billable")}</div>
+          <div class="li-sub muted" style="font-size:.75rem;">
+            ${escapeHtml(entry.started_at ? new Date(entry.started_at).toLocaleDateString() : "-")}
+            &middot; ${escapeHtml(entry.work_type_label || teamTimePurposeLabel(entry.work_type))}
+            &middot; ${escapeHtml(entry.billable ? "Billable" : "Non-billable")}
+            ${entry.training_type ? ` &middot; ${escapeHtml(teamTrainingTypeOptions().find((item) => item.value === entry.training_type)?.label || entry.training_type)}` : ""}
+            ${entry.maintenance_type ? ` &middot; ${escapeHtml(teamMaintenanceTypeOptions().find((item) => item.value === entry.maintenance_type)?.label || entry.maintenance_type)}` : ""}
+            ${entry.asset_label ? ` &middot; ${escapeHtml(entry.asset_label)}` : ""}
+          </div>
         </div>
-        <div class="li-meta"><span class="pill">${toHours(entry.duration_minutes || 0)}h</span></div>
+        <div class="li-meta">
+          <span class="pill">${toHours(entry.duration_minutes || 0)}h</span>
+          ${entry.cost_bucket ? `<div class="muted" style="font-size:.72rem;margin-top:4px;">${escapeHtml(teamCostBucketLabel(entry.cost_bucket))}</div>` : ""}
+        </div>
       </div>`).join("");
+    const activitySummary = [];
+    if (member.training_minutes > 0) activitySummary.push(`${toHours(member.training_minutes)}h training`);
+    if (member.maintenance_minutes > 0) activitySummary.push(`${toHours(member.maintenance_minutes)}h maintenance`);
+    if (member.pricing_overhead_cost_cents > 0) activitySummary.push(`${formatUsd(member.pricing_overhead_cost_cents)} pricing overhead`);
+    if (member.asset_basis_candidate_cost_cents > 0) activitySummary.push(`${formatUsd(member.asset_basis_candidate_cost_cents)} basis candidate`);
     return `
       <div class="card" style="margin-bottom:12px;${!hasActivity ? "opacity:.55;" : ""}">
         <div class="card-hd" style="cursor:pointer;" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'">
@@ -718,6 +1008,7 @@ function renderHoursReport(data) {
         </div>
         <div class="card-bd" style="display:none;">
           ${displayedRateCents ? `<div class="muted" style="font-size:.8rem;margin-bottom:10px;">Effective rate ${escapeHtml(`${formatUsd(displayedRateCents)}/hr`)}${contractFloorCents ? ` - contract floor ${escapeHtml(`${formatUsd(contractFloorCents)}/hr`)}` : ""}${compensation.source ? ` - source ${escapeHtml(compensation.source.replace(/_/g, " "))}` : ""}</div>` : ""}
+          ${activitySummary.length ? `<div class="muted" style="font-size:.8rem;margin-bottom:10px;">${escapeHtml(activitySummary.join(" | "))}</div>` : ""}
           ${jobRows ? `<div style="margin-bottom:10px;"><div class="kicker">Jobs</div><div class="list">${jobRows}</div></div>` : ""}
           ${entryRows ? `<div><div class="kicker">Time entries</div><div class="list">${entryRows}</div></div>` : ""}
           ${!jobRows && !entryRows ? '<div class="muted">No detail records in this period.</div>' : ""}
@@ -728,8 +1019,12 @@ function renderHoursReport(data) {
     <div style="border-top:1px solid rgba(255,255,255,.08);padding-top:14px;margin-top:4px;display:flex;gap:24px;font-size:.9rem;">
       <span><strong>${toHours(totals.total_minutes || 0)}</strong> total hours</span>
       <span class="muted">${toHours(totals.billable_minutes || 0)} billable</span>
+      <span class="muted">${toHours(totals.training_minutes || 0)} training</span>
+      <span class="muted">${toHours(totals.maintenance_minutes || 0)} maintenance</span>
       <span class="muted">${totals.member_count || 0} team members</span>
       ${totals.estimated_pay_cents > 0 ? `<span class="pill pill-on">Est. payroll: ${formatUsd(totals.estimated_pay_cents)}</span>` : ""}
+      ${totals.pricing_overhead_cost_cents > 0 ? `<span class="pill">Pricing overhead: ${formatUsd(totals.pricing_overhead_cost_cents)}</span>` : ""}
+      ${totals.asset_basis_candidate_cost_cents > 0 ? `<span class="pill">Basis candidate: ${formatUsd(totals.asset_basis_candidate_cost_cents)}</span>` : ""}
     </div>`;
   reportEl._data = data;
 }
@@ -743,7 +1038,7 @@ function exportHoursCsv() {
   }
   const startEl = $("hoursStart");
   const endEl = $("hoursEnd");
-  const rows = [["Member", "Role", "Date", "Description", "Type", "Billable", "Duration (hrs)", "Hourly Rate", "Contract Floor", "Rate Source", "Est. Pay"]];
+  const rows = [["Member", "Role", "Date", "Description", "Type", "Training Type", "Maintenance Type", "Asset Category", "Asset Label", "Cost Bucket", "Billable", "Duration (hrs)", "Hourly Rate", "Contract Floor", "Rate Source", "Est. Pay"]];
   for (const member of data.members || []) {
     const compensation = member.compensation || {};
     const memberRateCents = teamMemberDisplayedRateCents(member);
@@ -753,8 +1048,8 @@ function exportHoursCsv() {
       const hours = ((entry.duration_minutes || 0) / 60).toFixed(2);
       const rateCents = Number(entry.hourly_rate_cents || memberRateCents || 0);
       const rate = (rateCents / 100).toFixed(2);
-      const pay = (((entry.duration_minutes || 0) / 60) * rateCents / 100).toFixed(2);
-      rows.push([member.name || "", member.role || "", entry.started_at ? new Date(entry.started_at).toLocaleDateString() : "", entry.description || "Time entry", "Time Entry", entry.billable ? "Yes" : "No", hours, `$${rate}`, contractFloorCents ? `$${(contractFloorCents / 100).toFixed(2)}` : "", rateSource, `$${pay}`]);
+      const pay = (Number(entry.cost_cents || Math.round(((entry.duration_minutes || 0) / 60) * rateCents)) / 100).toFixed(2);
+      rows.push([member.name || "", member.role || "", entry.started_at ? new Date(entry.started_at).toLocaleDateString() : "", entry.description || "Time entry", teamTimePurposeLabel(entry.work_type), entry.training_type || "", entry.maintenance_type || "", entry.asset_category || "", entry.asset_label || "", teamCostBucketLabel(entry.cost_bucket), entry.billable ? "Yes" : "No", hours, `$${rate}`, contractFloorCents ? `$${(contractFloorCents / 100).toFixed(2)}` : "", rateSource, `$${pay}`]);
     }
     for (const job of member.jobs || []) {
       if (!job.actual_start_at || !job.actual_end_at) continue;
@@ -762,7 +1057,7 @@ function exportHoursCsv() {
       const hours = (minutes / 60).toFixed(2);
       const rate = (memberRateCents / 100).toFixed(2);
       const pay = ((minutes / 60) * memberRateCents / 100).toFixed(2);
-      rows.push([member.name || "", member.role || "", new Date(job.actual_start_at).toLocaleDateString(), job.title || "Job", "Job", "Yes", hours, `$${rate}`, contractFloorCents ? `$${(contractFloorCents / 100).toFixed(2)}` : "", rateSource, `$${pay}`]);
+      rows.push([member.name || "", member.role || "", new Date(job.actual_start_at).toLocaleDateString(), job.title || "Job", "Job work", "", "", "", "", "Direct job labor", "Yes", hours, `$${rate}`, contractFloorCents ? `$${(contractFloorCents / 100).toFixed(2)}` : "", rateSource, `$${pay}`]);
     }
   }
   const csv = rows.map((row) => row.map((value) => `"${String(value).replace(/"/g, '""')}"`).join(",")).join("\n");
@@ -799,6 +1094,7 @@ function initTeamWorkspaceBindings() {
   if (TEAM_WORKSPACE_BINDINGS_BOUND) return;
   TEAM_WORKSPACE_BINDINGS_BOUND = true;
   $("btnInviteTeamMember")?.addEventListener("click", () => openInviteTeamMemberModal());
+  $("btnLogTeamTime")?.addEventListener("click", () => openTeamTimeModal(""));
   $("btnRefreshTeam")?.addEventListener("click", async () => {
     await fetchTeamMembers().catch(console.warn);
     await fetchHydrovacDriverQualifications().catch(console.warn);
@@ -812,6 +1108,7 @@ const TEAM_WORKSPACE_HELPERS = {
   renderTeamPanel,
   openInviteTeamMemberModal,
   openTeamTrainingModal,
+  openTeamTimeModal,
   openDriverSetupForTeamMember,
   openCrewPortalForTeamMember,
   openEditTeamMemberModal,

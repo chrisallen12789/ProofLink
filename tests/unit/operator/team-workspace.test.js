@@ -24,6 +24,7 @@ function loadTeamWorkspace(overrides = {}) {
     hoursEnd: makeField(),
     hoursReport: { innerHTML: "", _data: null },
     btnInviteTeamMember: makeField(),
+    btnLogTeamTime: makeField(),
     btnRefreshTeam: makeField(),
     btnLoadHours: makeField(),
     btnExportHoursCsv: makeField(),
@@ -88,6 +89,10 @@ describe("operator team workspace", () => {
         role: "member",
         total_minutes: 120,
         billable_minutes: 120,
+        training_minutes: 120,
+        maintenance_minutes: 0,
+        pricing_overhead_cost_cents: 8200,
+        asset_basis_candidate_cost_cents: 0,
         job_count: 0,
         estimated_pay_cents: 8200,
         effective_rate_cents: 4100,
@@ -100,6 +105,10 @@ describe("operator team workspace", () => {
           description: "Time entry",
           duration_minutes: 120,
           billable: true,
+          work_type: "driver_training",
+          work_type_label: "Driver training",
+          training_type: "driver_safety",
+          cost_bucket: "pricing_overhead",
           started_at: "2026-04-09T12:00:00.000Z",
         }],
         jobs: [],
@@ -107,14 +116,20 @@ describe("operator team workspace", () => {
       totals: {
         total_minutes: 120,
         billable_minutes: 120,
+        training_minutes: 120,
+        maintenance_minutes: 0,
         member_count: 1,
         estimated_pay_cents: 8200,
+        pricing_overhead_cost_cents: 8200,
+        asset_basis_candidate_cost_cents: 0,
       },
     });
 
     expect(elements.hoursReport.innerHTML).toContain("Metal Trades");
     expect(elements.hoursReport.innerHTML).toContain("contract floor");
     expect(elements.hoursReport.innerHTML).toContain("source contract floor");
+    expect(elements.hoursReport.innerHTML).toContain("Driver training");
+    expect(elements.hoursReport.innerHTML).toContain("Pricing overhead");
   });
 
   test("loadTeamWorkspace fetches members once and refreshes qualifications on revisit", async () => {
@@ -142,6 +157,7 @@ describe("operator team workspace", () => {
     context.window.initTeamWorkspaceBindings();
 
     expect(elements.btnInviteTeamMember.addEventListener).toHaveBeenCalledTimes(1);
+    expect(elements.btnLogTeamTime.addEventListener).toHaveBeenCalledTimes(1);
     expect(elements.btnRefreshTeam.addEventListener).toHaveBeenCalledTimes(1);
     expect(elements.btnLoadHours.addEventListener).toHaveBeenCalledTimes(1);
     expect(elements.btnExportHoursCsv.addEventListener).toHaveBeenCalledTimes(1);
@@ -210,6 +226,7 @@ describe("operator team workspace", () => {
     expect(elements.teamMembersList.innerHTML).toContain("Last field update 2026-04-08T09:15:00Z");
     expect(elements.teamMembersList.innerHTML).toContain("Blocker: Customer gate is locked");
     expect(elements.teamMembersList.innerHTML).toContain("Training");
+    expect(elements.teamMembersList.innerHTML).toContain("Log time");
     expect(elements.teamMembersList.innerHTML).toContain("Crew portal");
   });
 });

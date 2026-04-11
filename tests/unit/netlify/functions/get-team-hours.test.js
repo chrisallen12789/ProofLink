@@ -191,4 +191,79 @@ describe('netlify/functions/get-team-hours', () => {
     expect(body.members[0].estimated_pay_cents).toBe(3200);
     expect(body.members[0].compensation.source).toBe('member_fallback');
   });
+
+  test('returns training and maintenance breakdowns for pricing and CPA follow-through', async () => {
+    installMocks({
+      tables: {
+        operator_members: {
+          data: [{
+            id: 'member_1',
+            user_id: 'user_1',
+            name: 'Driver One',
+            role: 'member',
+            hourly_rate_cents: 3200,
+            email: 'driver@example.com',
+          }],
+          error: null,
+        },
+        time_entries: {
+          data: [
+            {
+              id: 'entry_1',
+              member_id: 'member_1',
+              operator_id: 'user_1',
+              duration_minutes: 120,
+              billable: false,
+              cost_cents: 6400,
+              work_type: 'driver_training',
+              training_type: 'driver_safety',
+              cost_bucket: 'pricing_overhead',
+              started_at: '2026-04-01T14:00:00.000Z',
+            },
+            {
+              id: 'entry_2',
+              member_id: 'member_1',
+              operator_id: 'user_1',
+              duration_minutes: 90,
+              billable: false,
+              cost_cents: 4800,
+              work_type: 'maintenance',
+              maintenance_type: 'capital_improvement',
+              asset_category: 'vehicle',
+              asset_label: 'Truck 12',
+              cost_bucket: 'asset_basis_candidate',
+              started_at: '2026-04-02T14:00:00.000Z',
+            },
+          ],
+          error: null,
+        },
+        jobs: { data: [], error: null },
+        member_compensation_assignments: { data: [], error: null },
+        member_compensation_overrides: { data: [], error: null },
+        labor_contract_classifications: { data: [], error: null },
+        labor_contract_rate_periods: { data: [], error: null },
+      },
+    });
+
+    const handler = require(handlerPath).handler;
+    const response = await handler({
+      httpMethod: 'GET',
+      queryStringParameters: {
+        start: '2026-04-01',
+        end: '2026-04-30',
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    const body = JSON.parse(response.body);
+    expect(body.members[0].training_minutes).toBe(120);
+    expect(body.members[0].maintenance_minutes).toBe(90);
+    expect(body.members[0].pricing_overhead_cost_cents).toBe(6400);
+    expect(body.members[0].asset_basis_candidate_cost_cents).toBe(4800);
+    expect(body.members[0].entries[0].work_type_label).toBe('Driver training');
+    expect(body.totals.training_minutes).toBe(120);
+    expect(body.totals.maintenance_minutes).toBe(90);
+    expect(body.totals.pricing_overhead_cost_cents).toBe(6400);
+    expect(body.totals.asset_basis_candidate_cost_cents).toBe(4800);
+  });
 });

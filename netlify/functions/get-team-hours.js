@@ -55,6 +55,20 @@ function toDateString(d) {
   return `${y}-${m}-${day}`;
 }
 
+function workTypeLabel(value) {
+  const labels = {
+    job_work: 'Job work',
+    driver_training: 'Driver training',
+    trade_training: 'Trade training',
+    maintenance: 'Maintenance',
+    yard_shop: 'Yard / shop',
+    safety_meeting: 'Safety / meeting',
+    admin_support: 'Admin support',
+    other_paid_time: 'Other paid time',
+  };
+  return labels[String(value || '').trim().toLowerCase()] || 'Time entry';
+}
+
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return respond(200, {});
   if (event.httpMethod !== 'GET') return respond(405, { error: 'Method not allowed' });
@@ -111,7 +125,7 @@ exports.handler = async (event) => {
   // --- 2. Fetch time_entries in range ---
   const { data: entriesData, error: entriesError } = await supabase
     .from('time_entries')
-    .select('id, operator_id, order_id, customer_id, booking_id, description, duration_minutes, billable, hourly_rate_cents, started_at, ended_at, created_at')
+    .select('id, operator_id, member_id, order_id, customer_id, booking_id, description, duration_minutes, billable, hourly_rate_cents, amount_cents, cost_cents, work_type, training_type, maintenance_type, asset_category, asset_label, cost_bucket, started_at, ended_at, created_at')
     .eq('tenant_id', tenantId)
     .gte('started_at', startIso)
     .lte('started_at', endIso)
@@ -181,23 +195,46 @@ exports.handler = async (event) => {
   let totalMinutes     = 0;
   let totalBillable    = 0;
   let totalPayCents    = 0;
+  let trainingMinutes  = 0;
+  let maintenanceMinutes = 0;
+  let pricingOverheadCostCents = 0;
+  let assetBasisCandidateCostCents = 0;
 
   const aggregated = members.map((member) => {
     // Time entries belonging to this member
-    const memberEntries = allEntries.filter((e) => e.operator_id === member.user_id);
+    const memberEntries = allEntries.filter((e) => (
+      e.member_id === member.id
+      || e.operator_id === member.user_id
+      || e.operator_id === member.id
+    ));
 
     let total_minutes       = 0;
     let billable_minutes    = 0;
     let non_billable_minutes = 0;
+    let training_minutes    = 0;
+    let maintenance_minutes = 0;
+    let pricing_overhead_cost_cents = 0;
+    let asset_basis_candidate_cost_cents = 0;
+    const workTypeMinutes = {};
+    const costBucketTotals = {};
 
     for (const entry of memberEntries) {
       const mins = typeof entry.duration_minutes === 'number' ? entry.duration_minutes : 0;
+      const workType = String(entry.work_type || 'job_work').trim().toLowerCase() || 'job_work';
+      const costBucket = String(entry.cost_bucket || '').trim().toLowerCase() || 'direct_job';
+      const entryCostCents = Number(entry.cost_cents || 0);
       total_minutes += mins;
       if (entry.billable) {
         billable_minutes += mins;
       } else {
         non_billable_minutes += mins;
       }
+      if (workType === 'driver_training' || workType === 'trade_training') training_minutes += mins;
+      if (workType === 'maintenance') maintenance_minutes += mins;
+      if (costBucket === 'pricing_overhead') pricing_overhead_cost_cents += entryCostCents;
+      if (costBucket === 'asset_basis_candidate') asset_basis_candidate_cost_cents += entryCostCents;
+      workTypeMinutes[workType] = (workTypeMinutes[workType] || 0) + mins;
+      costBucketTotals[costBucket] = (costBucketTotals[costBucket] || 0) + entryCostCents;
     }
 
     // Jobs assigned to this member (match by either member.id or member.user_id)
@@ -229,6 +266,10 @@ exports.handler = async (event) => {
     totalMinutes  += total_minutes;
     totalBillable += billable_minutes;
     totalPayCents += estimated_pay_cents;
+    trainingMinutes += training_minutes;
+    maintenanceMinutes += maintenance_minutes;
+    pricingOverheadCostCents += pricing_overhead_cost_cents;
+    assetBasisCandidateCostCents += asset_basis_candidate_cost_cents;
 
     return {
       id                  : member.id,
@@ -240,13 +281,22 @@ exports.handler = async (event) => {
       total_minutes,
       billable_minutes,
       non_billable_minutes,
+      training_minutes,
+      maintenance_minutes,
+      work_type_minutes: workTypeMinutes,
+      cost_bucket_totals: costBucketTotals,
+      pricing_overhead_cost_cents,
+      asset_basis_candidate_cost_cents,
       entry_count         : memberEntries.length,
       job_minutes,
       job_count           : memberJobs.length,
       effective_rate_cents,
       estimated_pay_cents,
       compensation,
-      entries             : memberEntries,
+      entries             : memberEntries.map((entry) => ({
+        ...entry,
+        work_type_label: workTypeLabel(entry.work_type),
+      })),
       jobs                : memberJobs.map((j) => ({
         id              : j.id,
         title           : j.title,
@@ -268,6 +318,10 @@ exports.handler = async (event) => {
       total_minutes       : totalMinutes,
       billable_minutes    : totalBillable,
       estimated_pay_cents : totalPayCents,
+      training_minutes    : trainingMinutes,
+      maintenance_minutes : maintenanceMinutes,
+      pricing_overhead_cost_cents: pricingOverheadCostCents,
+      asset_basis_candidate_cost_cents: assetBasisCandidateCostCents,
       member_count        : members.length,
     },
   });
