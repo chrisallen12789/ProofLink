@@ -240,6 +240,86 @@ describe("operator team workspace", () => {
     expect(breakdown.costBuckets.some((item) => item.label === "Asset basis candidate")).toBe(true);
   });
 
+  test("employee profile export rows carry readiness, records, recent time, and timeline context together", () => {
+    const { context } = loadTeamWorkspace({
+      HYDROVAC_DRIVER_COMPLIANCE_CACHE: [{
+        member_id: "member_1",
+        cdl_class: "Class A",
+        cdl_state: "MI",
+        cdl_expiry_date: "2026-12-31",
+        medical_certificate_expiry: "2026-10-01",
+        last_mvr_check_date: "2026-04-01",
+      }],
+      SETUP_STATE: {
+        config: {
+          team_training_profiles: {
+            member_1: {
+              items: {
+                crew_app: true,
+                yard_route: true,
+                driving: true,
+              },
+              item_meta: {
+                driving: {
+                  completed_at: "2026-04-10T15:00:00.000Z",
+                  completed_by: "Office",
+                  completion_note: "Observed road test and route review.",
+                },
+              },
+              record_evidence: {
+                cdl_copy: {
+                  present: true,
+                  recorded_at: "2026-04-10T16:00:00.000Z",
+                  recorded_by: "Office",
+                  note: "Scanned to file.",
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const member = {
+      id: "member_1",
+      name: "Skylar Stevens",
+      role: "member",
+      driver_label: "Vactor operator",
+      effective_rate_cents: 4100,
+      compensation: {
+        contract_floor_cents: 4100,
+        source: "contract_floor",
+        union_classification_name: "Metal Trades",
+      },
+    };
+    const history = {
+      entries: [{
+        started_at: "2026-04-10T14:00:00.000Z",
+        description: "Driver road orientation",
+        work_type: "driver_training",
+        work_type_label: "Driver training",
+        training_type: "driver_safety",
+        cost_bucket: "pricing_overhead",
+        duration_minutes: 120,
+      }],
+      jobs: [],
+    };
+    const profile = context.teamTrainingProfile(member);
+    const rows = context.buildTeamMemberProfileRows(member, history, profile);
+    const flat = rows.flat().join(" | ");
+
+    expect(flat).toContain("EMPLOYEE PROFILE");
+    expect(flat).toContain("READINESS GATES");
+    expect(flat).toContain("OFFICE RECORDS");
+    expect(flat).toContain("QUALIFICATIONS");
+    expect(flat).toContain("CHECKLIST HISTORY");
+    expect(flat).toContain("RECENT TIME");
+    expect(flat).toContain("TIMELINE");
+    expect(flat).toContain("Driver road orientation");
+    expect(flat).toContain("Observed road test and route review.");
+    expect(flat).toContain("Metal Trades minimum is driving this rate.");
+  });
+
   test("loadTeamWorkspace fetches members once and refreshes qualifications on revisit", async () => {
     const fetchTeamMembers = vi.fn(() => Promise.resolve());
     const fetchHydrovacDriverQualifications = vi.fn(() => Promise.resolve());

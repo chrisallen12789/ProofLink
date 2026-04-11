@@ -1363,6 +1363,115 @@ function renderTeamTimeline(member = {}, history = null, profile = {}) {
   `).join('');
 }
 
+function buildTeamMemberProfileRows(member = {}, history = null, profile = null) {
+  const resolvedProfile = profile || teamTrainingProfile(member);
+  const readiness = teamReadinessGates(member, history, resolvedProfile);
+  const records = teamRecordEvidenceProfile(member);
+  const timeline = buildTeamMemberTimeline(member, history, resolvedProfile);
+  const qualification = teamMemberDriverQualification(member) || {};
+  const rows = [
+    ["EMPLOYEE PROFILE"],
+    ["Member", teamMemberLabel(member)],
+    ["Role", member?.role || ""],
+    ["Track", teamMemberRolloutTrack(member).label],
+    ["Displayed Rate", teamMemberDisplayedRateCents(member) ? `${formatUsd(teamMemberDisplayedRateCents(member))}/hr` : ""],
+    ["Pay Context", teamMemberCompensationNote(member)],
+    ["Driver Readiness", teamMemberDriverReadiness(member).label],
+    ["Training Readiness", teamTrainingSummary(member).label],
+    ["Restriction", teamMemberRolloutRestriction(member).label],
+    ["Next Action", teamMemberNextAction(member).label],
+    [],
+    ["READINESS GATES"],
+    ["Headline", readiness.headline],
+    ["Blocked", readiness.blockedCount],
+    ["Follow-up", readiness.warningCount],
+    ["Clear", readiness.readyCount],
+  ];
+
+  readiness.items.forEach((item) => {
+    rows.push([item.label, item.severity, item.action || "", item.note || ""]);
+  });
+
+  rows.push(
+    [],
+    ["OFFICE RECORDS"],
+    ["Status", teamRecordEvidenceSummary(member).label],
+    ["Qualification Refresh", teamQualificationRefreshPressure(member).label],
+  );
+
+  records.items.forEach((item) => {
+    rows.push([
+      item.label,
+      item.present ? "On file" : "Missing",
+      item.recordedAt ? teamDateLabel(item.recordedAt) : "",
+      item.recordedBy || "",
+      item.note || "",
+    ]);
+  });
+
+  if (qualification?.cdl_class || qualification?.medical_certificate_expiry || qualification?.last_mvr_check_date) {
+    rows.push(
+      [],
+      ["QUALIFICATIONS"],
+      ["CDL", [qualification?.cdl_class, qualification?.cdl_state].filter(Boolean).join(" ")],
+      ["CDL Expiry", qualification?.cdl_expiry_date ? teamDateLabel(qualification.cdl_expiry_date) : ""],
+      ["Med Card Expiry", qualification?.medical_certificate_expiry ? teamDateLabel(qualification.medical_certificate_expiry) : ""],
+      ["MVR Check", qualification?.last_mvr_check_date ? teamDateLabel(qualification.last_mvr_check_date) : ""],
+      ["First Aid Expiry", qualification?.first_aid_cert_expiry_date ? teamDateLabel(qualification.first_aid_cert_expiry_date) : ""],
+      ["Confined Space Expiry", qualification?.confined_space_cert_expiry_date ? teamDateLabel(qualification.confined_space_cert_expiry_date) : ""],
+      ["H2S Expiry", qualification?.h2s_cert_expiry_date ? teamDateLabel(qualification.h2s_cert_expiry_date) : ""],
+    );
+  }
+
+  rows.push([], ["CHECKLIST HISTORY"]);
+  resolvedProfile.items.filter((item) => item.complete).forEach((item) => {
+    rows.push([
+      item.label,
+      item.completedAt ? teamDateLabel(item.completedAt) : "Completed",
+      item.completedBy || "",
+      item.completionNote || "",
+      item.refreshLabel || "",
+    ]);
+  });
+
+  rows.push([], ["RECENT TIME"]);
+  (Array.isArray(history?.entries) ? history.entries : []).slice(0, 12).forEach((entry) => {
+    rows.push([
+      entry.started_at ? teamDateLabel(entry.started_at) : "",
+      entry.description || "Time entry",
+      entry.work_type_label || teamTimePurposeLabel(entry.work_type),
+      entry.training_type ? teamTrainingTypeLabel(entry.training_type) : "",
+      entry.maintenance_type ? teamMaintenanceTypeLabel(entry.maintenance_type) : "",
+      entry.asset_label || entry.asset_category ? [entry.asset_label, teamAssetCategoryLabel(entry.asset_category)].filter(Boolean).join(" | ") : "",
+      teamCostBucketLabel(entry.cost_bucket),
+      teamMinutesLabel(entry.duration_minutes || 0),
+    ]);
+  });
+
+  rows.push([], ["TIMELINE"]);
+  timeline.forEach((item) => {
+    rows.push([
+      item.sortAt ? teamDateLabel(item.sortAt) : "",
+      item.label || "",
+      item.title || "",
+      item.note || "",
+    ]);
+  });
+
+  return rows;
+}
+
+function exportTeamMemberProfileCsv(member = {}, history = null, profile = null) {
+  const filenameBase = String(teamMemberLabel(member) || "team-member")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "") || "team-member";
+  downloadTeamCsv(
+    `${filenameBase}-profile-${new Date().toISOString().slice(0, 10)}.csv`,
+    buildTeamMemberProfileRows(member, history, profile)
+  );
+}
+
 function renderTrainingEvidenceSnapshot(profile = {}, history = null, member = {}) {
   const items = Array.isArray(profile?.items) ? profile.items.filter((item) => item.complete) : [];
   if (!items.length) {
@@ -2233,6 +2342,7 @@ function openTeamMemberProfileModal(id) {
         <div class="card">
           <div class="card-hd"><strong>Quick actions</strong></div>
           <div class="card-bd" style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn btn-ghost btn-sm" type="button" id="btnProfileExport">Export profile</button>
             <button class="btn btn-ghost btn-sm" type="button" id="btnProfileTraining">Training</button>
             <button class="btn btn-ghost btn-sm" type="button" id="btnProfileRecords">Records</button>
             <button class="btn btn-ghost btn-sm" type="button" id="btnProfileTrainingTime">Log training time</button>
@@ -2290,14 +2400,44 @@ function openTeamMemberProfileModal(id) {
     </div>
   </div>`;
   document.body.appendChild(modal);
-    modal.querySelector("#btnProfileTraining").onclick = () => {
-      modal.remove();
-      openTeamTrainingModal(member.id);
-    };
-    modal.querySelector("#btnProfileRecords").onclick = () => {
-      modal.remove();
-      openTeamRecordEvidenceModal(member.id);
-    };
+  const historyState = {
+    loaded: false,
+    value: null,
+    request: null,
+  };
+  const ensureHistoryLoaded = async () => {
+    if (historyState.loaded) return historyState.value;
+    if (!historyState.request) {
+      historyState.request = fetchTeamMemberHistory(member)
+        .then((history) => {
+          historyState.loaded = true;
+          historyState.value = history;
+          return history;
+        })
+        .catch((error) => {
+          historyState.loaded = true;
+          historyState.value = null;
+          throw error;
+        });
+    }
+    return historyState.request;
+  };
+  modal.querySelector("#btnProfileExport").onclick = async () => {
+    try {
+      const history = await ensureHistoryLoaded();
+      exportTeamMemberProfileCsv(member, history, trainingProfile);
+    } catch (error) {
+      showToast(error.message || "Profile export could not be prepared.");
+    }
+  };
+  modal.querySelector("#btnProfileTraining").onclick = () => {
+    modal.remove();
+    openTeamTrainingModal(member.id);
+  };
+  modal.querySelector("#btnProfileRecords").onclick = () => {
+    modal.remove();
+    openTeamRecordEvidenceModal(member.id);
+  };
   modal.querySelector("#btnProfileTrainingTime").onclick = () => {
     modal.remove();
     openPresetTrainingTimeModal(member.id);
@@ -2320,7 +2460,7 @@ function openTeamMemberProfileModal(id) {
   modal.addEventListener("click", (event) => {
     if (event.target === modal) modal.remove();
   });
-  fetchTeamMemberHistory(member)
+  ensureHistoryLoaded()
       .then((history) => {
         const historyEl = modal.querySelector("#teamProfileHistory");
         if (historyEl) historyEl.innerHTML = renderTeamHistorySnapshot(member, history);
@@ -3553,6 +3693,9 @@ const TEAM_WORKSPACE_HELPERS = {
   exportTeamReadinessCsv,
   exportTeamInvestmentCsv,
   exportTeamAuditCsv,
+  exportTeamMemberProfileCsv,
+  buildTeamMemberProfileRows,
+  buildHoursInvestmentBreakdown,
   loadTeamWorkspace,
   initTeamWorkspaceBindings,
 };
