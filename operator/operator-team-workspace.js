@@ -218,6 +218,30 @@ function teamTrainingQuickPreset(member = {}) {
   };
 }
 
+function teamMaintenanceQuickPreset() {
+  return {
+    purpose: "maintenance",
+    maintenance_type: "routine_service",
+    asset_category: "vehicle",
+    description: "Routine truck or equipment maintenance",
+    duration_minutes: 60,
+    cost_bucket: "maintenance_overhead",
+    billable: false,
+  };
+}
+
+function teamMaintenanceCapitalPreset() {
+  return {
+    purpose: "maintenance",
+    maintenance_type: "capital_improvement",
+    asset_category: "vehicle",
+    description: "Capital maintenance or upgrade work",
+    duration_minutes: 120,
+    cost_bucket: "asset_basis_candidate",
+    billable: false,
+  };
+}
+
 function teamMembersNeedingRollout() {
   return (Array.isArray(TEAM_MEMBERS_CACHE) ? TEAM_MEMBERS_CACHE : []).filter((member) => {
     const driver = teamMemberDriverReadiness(member);
@@ -233,6 +257,92 @@ function openPresetTrainingTimeModal(id) {
     return;
   }
   openTeamTimeModal(member.id, teamTrainingQuickPreset(member));
+}
+
+function openMaintenanceTimeModal() {
+  const defaultMember = (Array.isArray(TEAM_MEMBERS_CACHE) ? TEAM_MEMBERS_CACHE : [])[0] || null;
+  if (!defaultMember) {
+    showToast("Add a team member before logging maintenance time.");
+    return;
+  }
+  openTeamTimeModal(defaultMember.id, teamMaintenanceQuickPreset());
+}
+
+function teamMemberNextAction(member = {}) {
+  const driver = teamMemberDriverReadiness(member);
+  const training = teamTrainingSummary(member);
+  if (driver.label === "Driver setup needed" || driver.label === "Driver record blocked" || driver.label === "Driver follow-up") {
+    return {
+      label: "Finish driver setup",
+      note: driver.note,
+      action: "driver",
+    };
+  }
+  if (training.label === "Training not started") {
+    return {
+      label: "Start onboarding walkthrough",
+      note: training.note,
+      action: "training",
+    };
+  }
+  if (training.label === "Training in progress") {
+    return {
+      label: "Finish remaining checklist steps",
+      note: training.note,
+      action: "training",
+    };
+  }
+  return {
+    label: "Ready for dispatch",
+    note: "Setup and onboarding look ready from the current records.",
+    action: "crew",
+  };
+}
+
+function teamTimePresetOptions(member = {}) {
+  return [
+    {
+      key: "onboarding",
+      label: "Onboarding hour",
+      note: "Quick start for first-day training time.",
+      defaults: teamTrainingQuickPreset(member),
+    },
+    {
+      key: "ride_along",
+      label: "Ride-along",
+      note: "Use for shadowing or supervised field runs.",
+      defaults: {
+        ...teamTrainingQuickPreset(member),
+        training_type: "ride_along",
+        description: "Ride-along training and field shadow time",
+        duration_minutes: 240,
+      },
+    },
+    {
+      key: "safety",
+      label: "Safety meeting",
+      note: "Toolbox talks, yard safety, or worksite briefings.",
+      defaults: {
+        purpose: "safety_meeting",
+        description: "Safety meeting or worksite briefing",
+        duration_minutes: 30,
+        cost_bucket: "pricing_overhead",
+        billable: false,
+      },
+    },
+    {
+      key: "maintenance",
+      label: "Routine maintenance",
+      note: "Truck service, inspection, cleanup, or prep.",
+      defaults: teamMaintenanceQuickPreset(),
+    },
+    {
+      key: "capital",
+      label: "Capital work",
+      note: "Use when the maintenance may affect asset basis.",
+      defaults: teamMaintenanceCapitalPreset(),
+    },
+  ];
 }
 
 function teamTimePurposeOptions() {
@@ -424,13 +534,14 @@ function renderTeamRolloutBoard() {
         ${members.map((member) => {
           const driver = teamMemberDriverReadiness(member);
           const training = teamTrainingSummary(member);
+          const nextAction = teamMemberNextAction(member);
           return `
             <div class="list-item" style="padding:10px 0;">
               <div class="li-main">
                 <div class="li-title">${escapeHtml(teamMemberLabel(member))}</div>
                 <div class="li-sub muted" style="font-size:.78rem;">
-                  ${escapeHtml(driver.note)}
-                  ${training.note ? ` • ${escapeHtml(training.note)}` : ""}
+                  <strong>${escapeHtml(nextAction.label)}</strong>
+                  ${nextAction.note ? ` • ${escapeHtml(nextAction.note)}` : ""}
                 </div>
               </div>
               <div class="li-meta" style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">
@@ -469,6 +580,7 @@ function renderTeamPanel() {
         const summary = teamMemberJobSummary(member);
         const driverReadiness = teamMemberDriverReadiness(member);
         const training = teamTrainingSummary(member);
+        const nextAction = teamMemberNextAction(member);
         const fieldLoad = summary.active.length
           ? `${summary.active.length} active`
           : summary.blocked.length
@@ -508,6 +620,7 @@ function renderTeamPanel() {
             <div class="muted" style="font-size:.72rem;margin-top:4px;"><span class="pill ${training.tone}">${escapeHtml(training.label)}</span></div>
             ${conflictChip ? `<div class="muted" style="font-size:.72rem;margin-top:4px;">${conflictChip}</div>` : ""}
             <div class="muted" style="font-size:.72rem;margin-top:4px;">${escapeHtml(note)}</div>
+            <div class="muted" style="font-size:.72rem;margin-top:4px;"><strong>${escapeHtml(`Next: ${nextAction.label}`)}</strong></div>
             <div class="muted" style="font-size:.72rem;margin-top:4px;">${escapeHtml(driverReadiness.note)}</div>
             <div class="muted" style="font-size:.72rem;margin-top:4px;">${escapeHtml(training.note)}</div>
             ${summary.jobs.length ? `<div class="muted" style="font-size:.72rem;margin-top:4px;"><span class="pill ${capacityTone}">${escapeHtml(`${teamMinutesLabel(summary.totalEstimatedMinutes)} planned / ${teamMinutesLabel(summary.minimumBlockMinutes)} block`)}</span></div>` : ""}
@@ -745,9 +858,17 @@ function openTeamTrainingModal(id) {
   const modal = document.createElement("div");
   modal.id = "teamTrainingModal";
   modal.className = "modal-overlay";
+  const nextAction = teamMemberNextAction(member);
   modal.innerHTML = `<div class="modal-box" style="max-width:520px;">
     <h3 style="margin:0 0 8px;font-size:1rem;">${escapeHtml(teamMemberLabel(member))} onboarding</h3>
     <div class="muted" style="margin-bottom:12px;">${escapeHtml(String(member.driver_label || "").trim() ? "Driver / vactor operator rollout checklist" : "Labor / field onboarding checklist")}</div>
+    <div class="card" style="margin-bottom:12px;">
+      <div class="card-bd" style="padding:12px;">
+        <div class="kicker">Recommended next move</div>
+        <strong>${escapeHtml(nextAction.label)}</strong>
+        <div class="muted" style="margin-top:6px;">${escapeHtml(nextAction.note)}</div>
+      </div>
+    </div>
     <div class="memory-checklist">
       ${profile.items.map((item) => `
         <label class="memory-checklist__item ${item.complete ? "memory-checklist__item--ready" : "memory-checklist__item--warn"}" style="display:block;">
@@ -822,9 +943,19 @@ function openTeamTimeModal(defaultMemberId = "", defaults = {}) {
   const modal = document.createElement("div");
   modal.id = "teamTimeModal";
   modal.className = "modal-overlay";
+  const defaultPresetButtons = teamTimePresetOptions(findTeamMemberById(defaultMemberId || "") || {});
   modal.innerHTML = `<div class="modal-box" style="max-width:560px;">
     <h3 style="margin:0 0 8px;font-size:1rem;">Log training or maintenance time</h3>
     <div class="muted" style="margin-bottom:12px;">Track the labor you expect pricing to carry without making the crew think like accountants.</div>
+    <div class="card" style="margin-bottom:12px;">
+      <div class="card-bd" style="padding:12px;">
+        <div class="kicker">Quick starts</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;">
+          ${defaultPresetButtons.map((preset) => `<button type="button" class="btn btn-ghost btn-sm" data-team-time-preset="${escapeAttr(preset.key)}">${escapeHtml(preset.label)}</button>`).join("")}
+        </div>
+        <div class="muted" style="font-size:.76rem;margin-top:8px;">${escapeHtml(defaultPresetButtons.map((preset) => `${preset.label}: ${preset.note}`).join(" | "))}</div>
+      </div>
+    </div>
     <div class="modal-stack">
       <label>
         <span class="section-heading-note">Team member</span>
@@ -921,15 +1052,21 @@ function openTeamTimeModal(defaultMemberId = "", defaults = {}) {
   const durationEl = modal.querySelector("#teamTimeDuration");
   const startedAtEl = modal.querySelector("#teamTimeStartedAt");
 
-  if (defaults && typeof defaults === "object") {
-    if (defaults.purpose && purposeEl) purposeEl.value = String(defaults.purpose);
-    if (defaults.training_type && trainingTypeEl) trainingTypeEl.value = String(defaults.training_type);
-    if (defaults.maintenance_type && maintenanceTypeEl) maintenanceTypeEl.value = String(defaults.maintenance_type);
-    if (defaults.asset_category && assetCategoryEl) assetCategoryEl.value = String(defaults.asset_category);
-    if (defaults.asset_label && assetLabelEl) assetLabelEl.value = String(defaults.asset_label);
-    if (defaults.description && descriptionEl) descriptionEl.value = String(defaults.description);
-    if (defaults.duration_minutes && durationEl) durationEl.value = String(defaults.duration_minutes);
-    if (defaults.started_at && startedAtEl) startedAtEl.value = String(defaults.started_at);
+  function applyTimeDefaults(nextDefaults = {}) {
+    if (!nextDefaults || typeof nextDefaults !== "object") return;
+    if (nextDefaults.purpose && purposeEl) purposeEl.value = String(nextDefaults.purpose);
+    if (nextDefaults.training_type && trainingTypeEl) trainingTypeEl.value = String(nextDefaults.training_type);
+    if (nextDefaults.maintenance_type && maintenanceTypeEl) maintenanceTypeEl.value = String(nextDefaults.maintenance_type);
+    if (nextDefaults.asset_category && assetCategoryEl) assetCategoryEl.value = String(nextDefaults.asset_category);
+    if (nextDefaults.asset_label !== undefined && assetLabelEl) assetLabelEl.value = String(nextDefaults.asset_label || "");
+    if (nextDefaults.description && descriptionEl) descriptionEl.value = String(nextDefaults.description);
+    if (nextDefaults.duration_minutes && durationEl) durationEl.value = String(nextDefaults.duration_minutes);
+    if (nextDefaults.started_at && startedAtEl) startedAtEl.value = String(nextDefaults.started_at);
+    syncPurposeFields();
+    if (nextDefaults.cost_bucket && costBucketEl) costBucketEl.value = String(nextDefaults.cost_bucket);
+    if (Object.prototype.hasOwnProperty.call(nextDefaults, "billable") && billableEl) {
+      billableEl.checked = !!nextDefaults.billable;
+    }
   }
 
   function refreshMemberRate() {
@@ -949,16 +1086,27 @@ function openTeamTimeModal(defaultMemberId = "", defaults = {}) {
   }
 
   memberEl?.addEventListener("change", refreshMemberRate);
+  memberEl?.addEventListener("change", () => {
+    const member = findTeamMemberById(memberEl?.value || "") || {};
+    const presets = teamTimePresetOptions(member);
+    modal.querySelectorAll("[data-team-time-preset]").forEach((button) => {
+      const preset = presets.find((item) => item.key === button.getAttribute("data-team-time-preset"));
+      button.textContent = preset?.label || "Preset";
+    });
+  });
   purposeEl?.addEventListener("change", syncPurposeFields);
   maintenanceTypeEl?.addEventListener("change", syncPurposeFields);
   refreshMemberRate();
   syncPurposeFields();
-  if (defaults && typeof defaults === "object") {
-    if (defaults.cost_bucket && costBucketEl) costBucketEl.value = String(defaults.cost_bucket);
-    if (Object.prototype.hasOwnProperty.call(defaults, "billable") && billableEl) {
-      billableEl.checked = !!defaults.billable;
-    }
-  }
+  applyTimeDefaults(defaults);
+  modal.querySelectorAll("[data-team-time-preset]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const member = findTeamMemberById(memberEl?.value || "") || {};
+      const preset = teamTimePresetOptions(member).find((item) => item.key === button.getAttribute("data-team-time-preset"));
+      applyTimeDefaults(preset?.defaults || {});
+      refreshMemberRate();
+    });
+  });
 
   modal.querySelector("#btnSaveTeamTime").onclick = async () => {
     const messageEl = modal.querySelector("#teamTimeMsg");
@@ -1211,6 +1359,7 @@ function initTeamWorkspaceBindings() {
   });
   $("btnInviteTeamMember")?.addEventListener("click", () => openInviteTeamMemberModal());
   $("btnLogTeamTime")?.addEventListener("click", () => openTeamTimeModal(""));
+  $("btnLogMaintenanceTime")?.addEventListener("click", () => openMaintenanceTimeModal());
   $("btnRefreshTeam")?.addEventListener("click", async () => {
     await fetchTeamMembers().catch(console.warn);
     await fetchHydrovacDriverQualifications().catch(console.warn);
@@ -1225,6 +1374,7 @@ const TEAM_WORKSPACE_HELPERS = {
   openInviteTeamMemberModal,
   openTeamTrainingModal,
   openPresetTrainingTimeModal,
+  openMaintenanceTimeModal,
   openTeamTimeModal,
   openDriverSetupForTeamMember,
   openCrewPortalForTeamMember,

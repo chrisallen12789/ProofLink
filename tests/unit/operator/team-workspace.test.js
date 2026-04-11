@@ -26,6 +26,7 @@ function loadTeamWorkspace(overrides = {}) {
     btnTrainingRollout: makeField(),
     btnInviteTeamMember: makeField(),
     btnLogTeamTime: makeField(),
+    btnLogMaintenanceTime: makeField(),
     btnRefreshTeam: makeField(),
     btnLoadHours: makeField(),
     btnExportHoursCsv: makeField(),
@@ -160,6 +161,7 @@ describe("operator team workspace", () => {
     expect(elements.btnTrainingRollout.addEventListener).toHaveBeenCalledTimes(1);
     expect(elements.btnInviteTeamMember.addEventListener).toHaveBeenCalledTimes(1);
     expect(elements.btnLogTeamTime.addEventListener).toHaveBeenCalledTimes(1);
+    expect(elements.btnLogMaintenanceTime.addEventListener).toHaveBeenCalledTimes(1);
     expect(elements.btnRefreshTeam.addEventListener).toHaveBeenCalledTimes(1);
     expect(elements.btnLoadHours.addEventListener).toHaveBeenCalledTimes(1);
     expect(elements.btnExportHoursCsv.addEventListener).toHaveBeenCalledTimes(1);
@@ -230,6 +232,7 @@ describe("operator team workspace", () => {
     expect(elements.teamMembersList.innerHTML).toContain("Training");
     expect(elements.teamMembersList.innerHTML).toContain("Monday rollout");
     expect(elements.teamMembersList.innerHTML).toContain("needing follow-up");
+    expect(elements.teamMembersList.innerHTML).toContain("Next:");
     expect(elements.teamMembersList.innerHTML).toContain("Log time");
     expect(elements.teamMembersList.innerHTML).toContain("Log training time");
     expect(elements.teamMembersList.innerHTML).toContain("Crew portal");
