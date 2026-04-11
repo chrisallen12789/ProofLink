@@ -47,6 +47,13 @@ function teamMinutesLabel(totalMinutes = 0) {
   return `${Number(hours.toFixed(hours >= 10 ? 0 : 1))}h`;
 }
 
+function teamDateLabel(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value || "").trim();
+  return date.toLocaleDateString();
+}
+
 function teamMemberDisplayedRateCents(member = {}) {
   return Number(
     member?.effective_rate_cents
@@ -438,6 +445,153 @@ function renderTrainingEvidenceSnapshot(profile = {}, history = null, member = {
       </div>
     </div>
   `).join("");
+}
+
+function renderTrainingChecklistHistory(profile = {}) {
+  const items = Array.isArray(profile?.items) ? profile.items.filter((item) => item.complete) : [];
+  if (!items.length) {
+    return '<div class="muted">No checklist steps have been signed off yet.</div>';
+  }
+  return items.map((item) => `
+    <div class="list-item" style="padding:6px 0;">
+      <div class="li-main">
+        <div class="li-title">${escapeHtml(item.label)}</div>
+        <div class="li-sub muted" style="font-size:.75rem;">
+          ${escapeHtml(item.completedAt ? `Completed ${item.completedAt}` : "Completed")}
+          ${item.completedBy ? ` | ${escapeHtml(item.completedBy)}` : ""}
+        </div>
+      </div>
+    </div>
+  `).join("");
+}
+
+function teamQualificationEvidenceForStep(step = {}, member = {}) {
+  const qualification = teamMemberDriverQualification(member);
+  if (!qualification) return [];
+  const stepKey = String(step?.key || "").trim();
+  const driverTrack = !!String(member?.driver_label || "").trim();
+  const evidence = [];
+  const cdlLabel = [qualification?.cdl_class, qualification?.cdl_state].filter(Boolean).join(" ");
+  const pushEvidence = (condition, label) => {
+    if (!condition || !label) return;
+    evidence.push(label);
+  };
+
+  if (stepKey === "driving") {
+    pushEvidence(cdlLabel, `CDL on file: ${cdlLabel}`);
+    pushEvidence(qualification?.cdl_expiry_date, `CDL expires ${teamDateLabel(qualification.cdl_expiry_date)}`);
+    pushEvidence(qualification?.defensive_driving_completed, "Defensive driving marked complete");
+  }
+  if (stepKey === "yard_route" && driverTrack) {
+    pushEvidence(
+      qualification?.hos_available_driving_minutes != null,
+      `HOS available: ${teamMinutesLabel(qualification.hos_available_driving_minutes || 0)}`
+    );
+    pushEvidence(qualification?.last_mvr_check_date, `MVR checked ${teamDateLabel(qualification.last_mvr_check_date)}`);
+  }
+  if (["worksite", "ppe"].includes(stepKey)) {
+    pushEvidence(
+      qualification?.first_aid_certified,
+      qualification?.first_aid_cert_expiry_date
+        ? `First aid current through ${teamDateLabel(qualification.first_aid_cert_expiry_date)}`
+        : "First aid marked complete"
+    );
+    pushEvidence(
+      qualification?.confined_space_certified,
+      qualification?.confined_space_cert_expiry_date
+        ? `Confined space current through ${teamDateLabel(qualification.confined_space_cert_expiry_date)}`
+        : "Confined space marked complete"
+    );
+    pushEvidence(
+      qualification?.h2s_alive_certified,
+      qualification?.h2s_cert_expiry_date
+        ? `H2S current through ${teamDateLabel(qualification.h2s_cert_expiry_date)}`
+        : "H2S marked complete"
+    );
+  }
+  if (stepKey === "vactor") {
+    pushEvidence(qualification?.hos_last_synced_at, `HOS last updated ${teamDateLabel(qualification.hos_last_synced_at)}`);
+    pushEvidence(qualification?.confined_space_certified, "Confined space record is on file");
+    pushEvidence(qualification?.h2s_alive_certified, "H2S record is on file");
+  }
+
+  return evidence.slice(0, 3);
+}
+
+function renderTrainingEvidenceList(step = {}, history = null, member = {}) {
+  const evidence = teamChecklistEvidenceForStep(step, history, member);
+  const qualificationEvidence = teamQualificationEvidenceForStep(step, member);
+  if (!evidence.length && !qualificationEvidence.length) {
+    return '<div class="muted" style="font-size:.72rem;margin-top:4px;">No linked training or readiness evidence found yet.</div>';
+  }
+  return `
+    ${evidence.length ? `
+      <div class="muted" style="font-size:.72rem;margin-top:4px;">Time evidence</div>
+      ${evidence.map((entry) => `
+        <div class="muted" style="font-size:.72rem;margin-top:4px;">
+          ${escapeHtml(entry.started_at ? teamDateLabel(entry.started_at) : "Recent")}
+          | ${escapeHtml(entry.description || teamTimePurposeLabel(entry.work_type))}
+          | ${escapeHtml(teamMinutesLabel(entry.duration_minutes || 0))}
+        </div>
+      `).join("")}
+    ` : ""}
+    ${qualificationEvidence.length ? `
+      <div class="muted" style="font-size:.72rem;margin-top:${evidence.length ? "6px" : "4px"};">Readiness evidence</div>
+      ${qualificationEvidence.map((item) => `
+        <div class="muted" style="font-size:.72rem;margin-top:4px;">${escapeHtml(item)}</div>
+      `).join("")}
+    ` : ""}
+  `;
+}
+
+function renderTrainingEvidenceSnapshot(profile = {}, history = null, member = {}) {
+  const items = Array.isArray(profile?.items) ? profile.items.filter((item) => item.complete) : [];
+  if (!items.length) {
+    return '<div class="muted">Complete a checklist step to start linking training evidence here.</div>';
+  }
+  return items.map((item) => `
+    <div class="list-item" style="padding:8px 0;">
+      <div class="li-main">
+        <div class="li-title">${escapeHtml(item.label)}</div>
+        <div class="li-sub muted" style="font-size:.75rem;">
+          ${escapeHtml(item.completedAt ? `Signed off ${item.completedAt}` : "Signed off")}
+          ${item.completedBy ? ` | ${escapeHtml(item.completedBy)}` : ""}
+        </div>
+        ${renderTrainingEvidenceList(item, history, member)}
+      </div>
+    </div>
+  `).join("");
+}
+
+function renderDriverQualificationSnapshot(member = {}) {
+  const qualification = teamMemberDriverQualification(member);
+  const driverTrack = !!String(member?.driver_label || "").trim();
+  if (!qualification) {
+    return driverTrack
+      ? '<div class="muted">No driver qualification record is on file yet.</div>'
+      : '<div class="muted">No driver record is required for this team member right now.</div>';
+  }
+  const rows = [
+    qualification?.cdl_class || qualification?.cdl_state
+      ? `CDL: ${[qualification.cdl_class, qualification.cdl_state].filter(Boolean).join(" ")}${qualification?.cdl_expiry_date ? ` | expires ${teamDateLabel(qualification.cdl_expiry_date)}` : ""}`
+      : "",
+    qualification?.medical_certificate_expiry
+      ? `Med card: expires ${teamDateLabel(qualification.medical_certificate_expiry)}`
+      : "",
+    qualification?.last_mvr_check_date || qualification?.mvr_status
+      ? `MVR: ${qualification.mvr_status || "on file"}${qualification?.last_mvr_check_date ? ` | checked ${teamDateLabel(qualification.last_mvr_check_date)}` : ""}`
+      : "",
+    qualification?.hos_available_driving_minutes != null
+      ? `HOS available: ${teamMinutesLabel(qualification.hos_available_driving_minutes || 0)}`
+      : "",
+    qualification?.first_aid_certified ? "First aid: on file" : "",
+    qualification?.confined_space_certified ? "Confined space: on file" : "",
+    qualification?.h2s_alive_certified ? "H2S: on file" : "",
+  ].filter(Boolean);
+  if (!rows.length) {
+    return '<div class="muted">Qualification record exists, but it still needs more detail.</div>';
+  }
+  return rows.map((row) => `<div class="detail-copy">${escapeHtml(row)}</div>`).join("");
 }
 
 function teamMemberNextAction(member = {}) {
@@ -949,6 +1103,12 @@ function openTeamMemberProfileModal(id) {
           <button class="btn btn-ghost btn-sm" type="button" id="btnProfileCrew">Crew portal</button>
           <button class="btn btn-ghost btn-sm" type="button" id="btnProfileEdit">Edit member</button>
         </div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:12px;">
+      <div class="card-hd"><strong>Driver qualification snapshot</strong></div>
+      <div class="card-bd">
+        ${renderDriverQualificationSnapshot(member)}
       </div>
     </div>
     <div class="card" style="margin-top:12px;">

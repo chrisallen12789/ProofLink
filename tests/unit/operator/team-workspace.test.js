@@ -240,4 +240,61 @@ describe("operator team workspace", () => {
     expect(elements.teamMembersList.innerHTML).toContain("Profile");
     expect(elements.teamMembersList.innerHTML).toContain("Crew portal");
   });
+
+  test("team profile evidence links completed steps to training time and driver records", () => {
+    const { context } = loadTeamWorkspace({
+      HYDROVAC_DRIVER_COMPLIANCE_CACHE: [
+        {
+          member_id: "member_1",
+          cdl_class: "Class A",
+          cdl_state: "MI",
+          cdl_expiry_date: "2026-12-31",
+          medical_certificate_expiry: "2026-10-01",
+          defensive_driving_completed: true,
+          confined_space_certified: true,
+          h2s_alive_certified: true,
+          hos_available_driving_minutes: 360,
+          last_mvr_check_date: "2026-04-01",
+        },
+      ],
+    });
+
+    const member = { id: "member_1", driver_label: "Vactor operator" };
+    const profile = {
+      items: [
+        { key: "driving", label: "Driving orientation", complete: true, completedAt: "2026-04-10", completedBy: "Office" },
+        { key: "vactor", label: "Vactor operator walkthrough", complete: true, completedAt: "2026-04-10", completedBy: "Office" },
+      ],
+    };
+    const history = {
+      entries: [
+        {
+          work_type: "driver_training",
+          training_type: "driver_safety",
+          description: "Driver road orientation",
+          duration_minutes: 120,
+          started_at: "2026-04-10T14:00:00.000Z",
+        },
+        {
+          work_type: "driver_training",
+          training_type: "vactor_operator",
+          description: "Vactor controls walkthrough",
+          duration_minutes: 90,
+          started_at: "2026-04-10T16:00:00.000Z",
+        },
+      ],
+    };
+
+    const evidenceHtml = context.renderTrainingEvidenceSnapshot(profile, history, member);
+    const qualificationHtml = context.renderDriverQualificationSnapshot(member);
+
+    expect(evidenceHtml).toContain("Time evidence");
+    expect(evidenceHtml).toContain("Readiness evidence");
+    expect(evidenceHtml).toContain("Driver road orientation");
+    expect(evidenceHtml).toContain("CDL on file: Class A MI");
+    expect(evidenceHtml).toContain("Confined space record is on file");
+    expect(qualificationHtml).toContain("CDL: Class A MI");
+    expect(qualificationHtml).toContain("Med card: expires");
+    expect(qualificationHtml).toContain("HOS available");
+  });
 });
