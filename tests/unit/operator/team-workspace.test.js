@@ -332,6 +332,35 @@ describe("operator team workspace", () => {
     );
   });
 
+  test("record evidence profile tracks required office records by role", () => {
+    const { context } = loadTeamWorkspace({
+      SETUP_STATE: {
+        config: {
+          team_training_profiles: {
+            member_1: {
+              record_evidence: {
+                cdl_copy: {
+                  present: true,
+                  recorded_at: "2026-04-10T15:00:00.000Z",
+                  recorded_by: "Office",
+                  note: "Stored in driver packet.",
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const profile = context.teamRecordEvidenceProfile({ id: "member_1", driver_label: "Vactor operator" });
+    const summary = context.teamRecordEvidenceSummary({ id: "member_1", driver_label: "Vactor operator" });
+
+    expect(profile.items.find((item) => item.key === "cdl_copy")?.present).toBe(true);
+    expect(profile.items.find((item) => item.key === "med_card_copy")?.present).toBe(false);
+    expect(summary.label).toBe("Records missing");
+    expect(summary.note).toContain("office records");
+  });
+
   test("training save validation requires evidence for key rollout steps", () => {
     const { context } = loadTeamWorkspace({
       HYDROVAC_DRIVER_COMPLIANCE_CACHE: [],
@@ -644,6 +673,9 @@ describe("operator team workspace", () => {
               item_meta: {
                 ride_along: { completed_at: "2026-02-15T12:00:00.000Z", completed_by: "Office" },
               },
+              record_evidence: {
+                cdl_copy: { present: true, recorded_at: "2026-04-10T12:00:00.000Z", recorded_by: "Office" },
+              },
             },
           },
         },
@@ -658,8 +690,10 @@ describe("operator team workspace", () => {
     expect(readiness.items.some((item) => item.label === "Training refresh overdue")).toBe(true);
     expect(readiness.items.some((item) => item.label === "Refresh due soon")).toBe(true);
     expect(readiness.items.some((item) => item.label === "Driver record")).toBe(true);
+    expect(readiness.items.some((item) => item.label === "Records missing")).toBe(true);
     expect(html).toContain("Blocked rollout items need attention first.");
     expect(html).toContain("Refresh stale training");
     expect(html).toContain("Schedule qualification refresh");
+    expect(html).toContain("Mark office records");
   });
 });

@@ -550,6 +550,92 @@ function teamTrainingSummary(member = {}) {
   };
 }
 
+function teamRecordEvidenceTemplate(member = {}) {
+  const track = teamMemberRolloutTrack(member);
+  const shared = [
+    { key: "onboarding_ack", label: "Onboarding acknowledgment", note: "Signed office onboarding acknowledgment is on file." },
+    { key: "safety_ack", label: "Safety acknowledgment", note: "Signed safety or toolbox acknowledgment is on file." },
+  ];
+  if (track.key === "driver") {
+    return [
+      { key: "cdl_copy", label: "CDL copy", note: "Driver license copy has been reviewed and retained." },
+      { key: "med_card_copy", label: "Med card copy", note: "Medical card copy has been reviewed and retained." },
+      ...shared,
+    ];
+  }
+  if (track.key === "mixed") {
+    return [
+      { key: "cdl_copy", label: "CDL copy", note: "Driver license copy has been reviewed and retained." },
+      { key: "med_card_copy", label: "Med card copy", note: "Medical card copy has been reviewed and retained." },
+      ...shared,
+      { key: "role_ack", label: "Mixed-role expectations", note: "Driver and labor expectations were acknowledged." },
+    ];
+  }
+  return [
+    ...shared,
+    { key: "role_ack", label: "Field expectations acknowledgment", note: "Crew expectations and field conduct acknowledgment is on file." },
+  ];
+}
+
+function teamRecordEvidenceProfile(member = {}) {
+  const profiles = teamTrainingProfiles();
+  const existing = profiles[String(member?.id || "").trim()] || {};
+  const recordEvidence = existing?.record_evidence && typeof existing.record_evidence === "object"
+    ? existing.record_evidence
+    : {};
+  const items = teamRecordEvidenceTemplate(member).map((item) => {
+    const meta = recordEvidence?.[item.key] && typeof recordEvidence[item.key] === "object" ? recordEvidence[item.key] : {};
+    return {
+      ...item,
+      present: meta.present === true,
+      recordedAt: String(meta.recorded_at || "").trim(),
+      recordedBy: String(meta.recorded_by || "").trim(),
+      noteValue: String(meta.note || "").trim(),
+    };
+  });
+  const presentCount = items.filter((item) => item.present).length;
+  return {
+    items,
+    presentCount,
+    totalCount: items.length,
+    missingItems: items.filter((item) => !item.present),
+    status: presentCount === items.length && items.length
+      ? "ready"
+      : presentCount > 0
+        ? "partial"
+        : "missing",
+  };
+}
+
+function teamRecordEvidenceSummary(member = {}) {
+  const profile = teamRecordEvidenceProfile(member);
+  if (profile.status === "ready") {
+    return {
+      label: "Records on file",
+      tone: "pill-good",
+      note: "Core office records are marked as retained for this worker.",
+      needsAttention: false,
+      blocked: false,
+    };
+  }
+  if (profile.status === "partial") {
+    return {
+      label: "Records missing",
+      tone: "pill-warn",
+      note: `${profile.presentCount}/${profile.totalCount} office records are marked on file.`,
+      needsAttention: true,
+      blocked: false,
+    };
+  }
+  return {
+    label: "Records not started",
+    tone: "pill-warn",
+    note: "Core office records still need to be marked on file.",
+    needsAttention: true,
+    blocked: false,
+  };
+}
+
 function getTeamCurrentOperatorLabel() {
   const runtime = window?.PROOFLINK_OPERATOR_RUNTIME;
   const current = runtime?.getCurrentOperator?.() || {};
@@ -744,6 +830,7 @@ function teamReadinessGates(member = {}, history = null, profile = null) {
   const track = teamMemberRolloutTrack(member);
   const driver = teamMemberDriverReadiness(member);
   const training = teamTrainingSummary(member);
+  const records = teamRecordEvidenceSummary(member);
   const qualificationRefresh = teamQualificationRefreshPressure(member);
   const restriction = teamMemberRolloutRestriction(member);
   const items = [];
@@ -780,6 +867,12 @@ function teamReadinessGates(member = {}, history = null, profile = null) {
     pushGate("warn", training.label, training.note, training.label === "Training in progress" ? "Finish checklist steps" : "Schedule training refresh");
   } else {
     pushGate("good", training.label, training.note, "Current");
+  }
+
+  if (records.needsAttention) {
+    pushGate("warn", records.label, records.note, "Mark office records");
+  } else {
+    pushGate("good", records.label, records.note, "Current");
   }
 
   const incompleteSteps = (Array.isArray(resolvedProfile?.items) ? resolvedProfile.items : [])
@@ -839,6 +932,26 @@ function renderTeamReadinessGates(member = {}, history = null, profile = null) {
       </div>
     `).join("")}
   `;
+}
+
+function renderTeamRecordEvidence(member = {}) {
+  const profile = teamRecordEvidenceProfile(member);
+  if (!profile.items.length) {
+    return '<div class="muted">No office record requirements are configured for this worker yet.</div>';
+  }
+  return profile.items.map((item) => `
+    <div class="list-item" style="padding:8px 0;">
+      <div class="li-main">
+        <div class="li-title">${escapeHtml(item.label)}</div>
+        <div class="li-sub muted" style="font-size:.75rem;">${escapeHtml(item.note)}</div>
+        ${item.noteValue ? `<div class="muted" style="font-size:.72rem;margin-top:4px;">${escapeHtml(item.noteValue)}</div>` : ""}
+      </div>
+      <div class="li-meta" style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;">
+        <span class="pill ${item.present ? "pill-good" : "pill-warn"}">${escapeHtml(item.present ? "On file" : "Missing")}</span>
+        ${item.recordedAt ? `<span class="muted" style="font-size:.72rem;">${escapeHtml(teamDateLabel(item.recordedAt))}</span>` : ""}
+      </div>
+    </div>
+  `).join("");
 }
 
 function teamMemberRolloutRestriction(member = {}) {
@@ -1949,10 +2062,10 @@ function openTeamMemberProfileModal(id) {
       <span class="pill ${training.tone}">${escapeHtml(training.label)}</span>
       ${teamProfileSummaryChips(member).map((chip) => `<span class="pill">${escapeHtml(chip)}</span>`).join("")}
     </div>
-    <div class="modal-grid-2">
-      <div class="card">
-        <div class="card-hd"><strong>Role and compensation</strong></div>
-        <div class="card-bd">
+      <div class="modal-grid-2">
+        <div class="card">
+          <div class="card-hd"><strong>Role and compensation</strong></div>
+          <div class="card-bd">
           <div class="detail-copy"><strong>Rate:</strong> ${escapeHtml(teamMemberDisplayedRateCents(member) ? `${formatUsd(teamMemberDisplayedRateCents(member))}/hr` : "Not set")}</div>
           <div class="detail-copy"><strong>Rollout track:</strong> ${escapeHtml(track.label)}</div>
           <div class="detail-copy"><strong>Next move:</strong> ${escapeHtml(teamMemberNextAction(member).label)}</div>
@@ -1964,15 +2077,16 @@ function openTeamMemberProfileModal(id) {
           <div class="detail-copy"><strong>Dispatch note:</strong> ${escapeHtml(restriction.note)}</div>
         </div>
       </div>
-      <div class="card">
-        <div class="card-hd"><strong>Quick actions</strong></div>
-        <div class="card-bd" style="display:flex;gap:8px;flex-wrap:wrap;">
-          <button class="btn btn-ghost btn-sm" type="button" id="btnProfileTraining">Training</button>
-          <button class="btn btn-ghost btn-sm" type="button" id="btnProfileTrainingTime">Log training time</button>
-          <button class="btn btn-ghost btn-sm" type="button" id="btnProfileMaintenance">Log maintenance</button>
-          <button class="btn btn-ghost btn-sm" type="button" id="btnProfileDriver">Driver setup</button>
-          <button class="btn btn-ghost btn-sm" type="button" id="btnProfileCrew">Crew portal</button>
-          <button class="btn btn-ghost btn-sm" type="button" id="btnProfileEdit">Edit member</button>
+        <div class="card">
+          <div class="card-hd"><strong>Quick actions</strong></div>
+          <div class="card-bd" style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn btn-ghost btn-sm" type="button" id="btnProfileTraining">Training</button>
+            <button class="btn btn-ghost btn-sm" type="button" id="btnProfileRecords">Records</button>
+            <button class="btn btn-ghost btn-sm" type="button" id="btnProfileTrainingTime">Log training time</button>
+            <button class="btn btn-ghost btn-sm" type="button" id="btnProfileMaintenance">Log maintenance</button>
+            <button class="btn btn-ghost btn-sm" type="button" id="btnProfileDriver">Driver setup</button>
+            <button class="btn btn-ghost btn-sm" type="button" id="btnProfileCrew">Crew portal</button>
+            <button class="btn btn-ghost btn-sm" type="button" id="btnProfileEdit">Edit member</button>
         </div>
       </div>
     </div>
@@ -1982,10 +2096,16 @@ function openTeamMemberProfileModal(id) {
           ${renderDriverQualificationSnapshot(member)}
         </div>
       </div>
+        <div class="card" style="margin-top:12px;">
+          <div class="card-hd"><strong>Readiness gates</strong></div>
+          <div class="card-bd" id="teamProfileReadiness">
+            ${renderTeamReadinessGates(member, null, trainingProfile)}
+          </div>
+        </div>
       <div class="card" style="margin-top:12px;">
-        <div class="card-hd"><strong>Readiness gates</strong></div>
-        <div class="card-bd" id="teamProfileReadiness">
-          ${renderTeamReadinessGates(member, null, trainingProfile)}
+        <div class="card-hd"><strong>Office records</strong></div>
+        <div class="card-bd" id="teamProfileRecords">
+          ${renderTeamRecordEvidence(member)}
         </div>
       </div>
       <div class="card" style="margin-top:12px;">
@@ -2017,10 +2137,14 @@ function openTeamMemberProfileModal(id) {
     </div>
   </div>`;
   document.body.appendChild(modal);
-  modal.querySelector("#btnProfileTraining").onclick = () => {
-    modal.remove();
-    openTeamTrainingModal(member.id);
-  };
+    modal.querySelector("#btnProfileTraining").onclick = () => {
+      modal.remove();
+      openTeamTrainingModal(member.id);
+    };
+    modal.querySelector("#btnProfileRecords").onclick = () => {
+      modal.remove();
+      openTeamRecordEvidenceModal(member.id);
+    };
   modal.querySelector("#btnProfileTrainingTime").onclick = () => {
     modal.remove();
     openPresetTrainingTimeModal(member.id);
@@ -2179,6 +2303,109 @@ async function saveTeamTrainingProfile(member = {}, nextProfile = {}) {
   return data.config?.team_training_profiles || {};
 }
 
+function buildTeamTrainingProfilePayload(member = {}, updates = {}) {
+  const profiles = teamTrainingProfiles();
+  const existing = profiles[String(member?.id || "").trim()] || {};
+  return {
+    ...existing,
+    ...updates,
+  };
+}
+
+function buildTeamRecordEvidencePayload(member = {}, fields = {}) {
+  const existing = teamTrainingProfiles()[String(member?.id || "").trim()] || {};
+  return {
+    ...existing,
+    record_evidence: {
+      ...(existing?.record_evidence && typeof existing.record_evidence === "object" ? existing.record_evidence : {}),
+      ...fields,
+    },
+  };
+}
+
+function openTeamRecordEvidenceModal(id) {
+  const member = findTeamMemberById(id);
+  if (!member) {
+    showToast("Team member not found.");
+    return;
+  }
+  const existing = document.getElementById("teamRecordEvidenceModal");
+  if (existing) existing.remove();
+  const profile = teamRecordEvidenceProfile(member);
+  const modal = document.createElement("div");
+  modal.id = "teamRecordEvidenceModal";
+  modal.className = "modal-overlay";
+  modal.innerHTML = `<div class="modal-box" style="max-width:560px;">
+    <h3 style="margin:0 0 8px;font-size:1rem;">${escapeHtml(teamMemberLabel(member))} office records</h3>
+    <div class="muted" style="margin-bottom:12px;">Mark which core records are on file so rollout and audit views stay honest without turning the office into a document-management team.</div>
+    <div class="memory-checklist">
+      ${profile.items.map((item) => `
+        <label class="memory-checklist__item ${item.present ? "memory-checklist__item--ready" : "memory-checklist__item--warn"}" style="display:block;">
+          <div class="memory-checklist__title">
+            <input type="checkbox" data-record-key="${escapeAttr(item.key)}"${item.present ? " checked" : ""} style="margin-right:8px;" />
+            ${escapeHtml(item.label)}
+          </div>
+          <div class="detail-copy memory-checklist__note">${escapeHtml(item.note)}</div>
+          <label style="display:block;margin-top:8px;">
+            <span class="muted" style="display:block;font-size:.72rem;margin-bottom:4px;">Office note</span>
+            <input
+              class="input"
+              type="text"
+              data-record-note="${escapeAttr(item.key)}"
+              maxlength="160"
+              placeholder="Where the record lives or any quick context"
+              value="${escapeAttr(item.noteValue || "")}"
+              style="width:100%;"
+            />
+          </label>
+          ${item.present ? `<div class="muted" style="font-size:.72rem;margin-top:4px;">${escapeHtml(item.recordedAt ? `Marked on file ${teamDateLabel(item.recordedAt)}` : "Marked on file")}${item.recordedBy ? ` | ${escapeHtml(item.recordedBy)}` : ""}</div>` : ""}
+        </label>
+      `).join("")}
+    </div>
+    <div id="teamRecordEvidenceMsg" class="msg" style="margin-top:10px;"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px;">
+      <button class="btn btn-ghost" type="button" onclick="document.getElementById('teamRecordEvidenceModal')?.remove()">Cancel</button>
+      <button class="btn btn-primary" type="button" id="btnSaveTeamRecordEvidence">Save records</button>
+    </div>
+  </div>`;
+  document.body.appendChild(modal);
+  modal.querySelector("#btnSaveTeamRecordEvidence").onclick = async () => {
+    const messageEl = modal.querySelector("#teamRecordEvidenceMsg");
+    const operatorLabel = getTeamCurrentOperatorLabel();
+    const recordEvidence = {};
+    profile.items.forEach((item) => {
+      const present = !!modal.querySelector(`[data-record-key="${item.key}"]`)?.checked;
+      const note = String(modal.querySelector(`[data-record-note="${item.key}"]`)?.value || "").trim();
+      if (!present) return;
+      recordEvidence[item.key] = item.recordedAt
+        ? {
+            present: true,
+            recorded_at: item.recordedAt,
+            recorded_by: item.recordedBy || operatorLabel,
+            note,
+          }
+        : {
+            present: true,
+            recorded_at: new Date().toISOString(),
+            recorded_by: operatorLabel,
+            note,
+          };
+    });
+    setInlineMessage(messageEl, "Saving office record status...");
+    try {
+      await saveTeamTrainingProfile(member, buildTeamRecordEvidencePayload(member, recordEvidence));
+      renderTeamPanel();
+      modal.remove();
+      showToast("Office records saved.");
+    } catch (error) {
+      setInlineMessage(messageEl, error.message || String(error), "error");
+    }
+  };
+  modal.addEventListener("click", (event) => {
+    if (event.target === modal) modal.remove();
+  });
+}
+
 function openTeamTrainingModal(id) {
   const member = findTeamMemberById(id);
   if (!member) {
@@ -2296,17 +2523,17 @@ function openTeamTrainingModal(id) {
         setInlineMessage(messageEl, validationIssues.join(" "), "error");
         return;
       }
-      await saveTeamTrainingProfile(member, {
-        items,
-        item_meta: itemMeta,
-        notes: String(modal.querySelector("#teamTrainingNotes")?.value || "").trim(),
-        completed_at: allComplete ? new Date().toISOString() : "",
-        role_snapshot: {
+        await saveTeamTrainingProfile(member, buildTeamTrainingProfilePayload(member, {
+          items,
+          item_meta: itemMeta,
+          notes: String(modal.querySelector("#teamTrainingNotes")?.value || "").trim(),
+          completed_at: allComplete ? new Date().toISOString() : "",
+          role_snapshot: {
           role: member.role || "",
-          worker_label: member.worker_label || "",
-          driver_label: member.driver_label || "",
-        },
-      });
+            worker_label: member.worker_label || "",
+            driver_label: member.driver_label || "",
+          },
+        }));
       renderTeamPanel();
       modal.remove();
       showToast("Training checklist saved.");
