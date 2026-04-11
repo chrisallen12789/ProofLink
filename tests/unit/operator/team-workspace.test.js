@@ -157,6 +157,7 @@ describe("operator team workspace", () => {
     expect(elements.hoursReport.innerHTML).toContain("Training investment");
     expect(elements.hoursReport.innerHTML).toContain("Readiness follow-up");
     expect(elements.hoursReport.innerHTML).toContain("Estimated payroll");
+    expect(elements.hoursReport.innerHTML).toContain("Export investment");
   });
 
   test("loadTeamWorkspace fetches members once and refreshes qualifications on revisit", async () => {
@@ -241,6 +242,8 @@ describe("operator team workspace", () => {
     expect(elements.teamMembersList.innerHTML).toContain("In the field");
     expect(elements.teamMembersList.innerHTML).toContain("Unassigned jobs");
     expect(elements.teamMembersList.innerHTML).toContain("Roster pressure");
+    expect(elements.teamMembersList.innerHTML).toContain("Readiness summary");
+    expect(elements.teamMembersList.innerHTML).toContain("Export readiness");
     expect(elements.teamMembersList.innerHTML).toContain("Block capacity");
     expect(elements.teamMembersList.innerHTML).toContain("Readiness summary");
     expect(elements.teamMembersList.innerHTML).toContain("Driver setup");

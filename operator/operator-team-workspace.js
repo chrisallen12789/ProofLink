@@ -1923,6 +1923,7 @@ function renderTeamReadinessSummaryCard() {
           <strong>Readiness summary</strong>
           <div class="muted">A quick office rollup of who is clear, who still needs supervised follow-through, and where records are missing.</div>
         </div>
+        <button class="btn btn-ghost btn-sm" type="button" onclick="exportTeamReadinessCsv()">Export readiness</button>
       </div>
       <div class="card-bd">
         <div class="row row-tight" style="flex-wrap:wrap;">
@@ -3029,7 +3030,114 @@ function renderHoursInvestmentSummary(data = {}) {
         <small>${escapeHtml("Use this as a simple labor-cost preview before payroll reporting grows deeper.")}</small>
       </div>
     </div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin:-4px 0 12px;">
+      <button class="btn btn-ghost btn-sm" type="button" onclick="exportTeamInvestmentCsv()">Export investment</button>
+    </div>
   `;
+}
+
+function downloadTeamCsv(filename, rows = []) {
+  if (!Array.isArray(rows) || !rows.length) {
+    showToast("There is nothing to export yet.");
+    return;
+  }
+  const csv = rows
+    .map((row) => row.map((value) => `"${String(value ?? "").replace(/"/g, '""')}"`).join(","))
+    .join("\n");
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+function exportTeamReadinessCsv() {
+  const rows = [[
+    "Member",
+    "Role",
+    "Track",
+    "Driver readiness",
+    "Training readiness",
+    "Restriction",
+    "Next action",
+    "Records status",
+    "Qualification refresh",
+  ]];
+
+  (Array.isArray(TEAM_MEMBERS_CACHE) ? TEAM_MEMBERS_CACHE : []).forEach((member) => {
+    const track = teamMemberRolloutTrack(member);
+    const driver = teamMemberDriverReadiness(member);
+    const training = teamTrainingSummary(member);
+    const restriction = teamMemberRolloutRestriction(member);
+    const nextAction = teamMemberNextAction(member);
+    const records = teamRecordEvidenceSummary(member);
+    const refresh = teamQualificationRefreshPressure(member);
+    rows.push([
+      teamMemberLabel(member),
+      member?.role || "",
+      track.label,
+      driver.label,
+      training.label,
+      restriction.label,
+      nextAction.label,
+      records.label,
+      refresh.label,
+    ]);
+  });
+
+  downloadTeamCsv(`team-readiness-${new Date().toISOString().slice(0, 10)}.csv`, rows);
+}
+
+function exportTeamInvestmentCsv() {
+  const reportEl = $("hoursReport");
+  const data = reportEl?._data;
+  if (!data) {
+    showToast("Load Hours & Pay first.");
+    return;
+  }
+
+  const rows = [[
+    "Member",
+    "Role",
+    "Training Hours",
+    "Maintenance Hours",
+    "Pricing Overhead",
+    "Basis Candidate",
+    "Estimated Payroll",
+    "Readiness",
+    "Records",
+  ]];
+
+  (Array.isArray(data.members) ? data.members : []).forEach((member) => {
+    rows.push([
+      member.name || "",
+      member.role || "",
+      Number((Number(member.training_minutes || 0) / 60).toFixed(1)),
+      Number((Number(member.maintenance_minutes || 0) / 60).toFixed(1)),
+      formatUsd(Number(member.pricing_overhead_cost_cents || 0)),
+      formatUsd(Number(member.asset_basis_candidate_cost_cents || 0)),
+      formatUsd(Number(member.estimated_pay_cents || 0)),
+      teamMemberRolloutRestriction(member).label,
+      teamRecordEvidenceSummary(member).label,
+    ]);
+  });
+
+  const totals = data.totals || {};
+  rows.push([
+    "TOTAL",
+    "",
+    Number((Number(totals.training_minutes || 0) / 60).toFixed(1)),
+    Number((Number(totals.maintenance_minutes || 0) / 60).toFixed(1)),
+    formatUsd(Number(totals.pricing_overhead_cost_cents || 0)),
+    formatUsd(Number(totals.asset_basis_candidate_cost_cents || 0)),
+    formatUsd(Number(totals.estimated_pay_cents || 0)),
+    "",
+    "",
+  ]);
+
+  downloadTeamCsv(`team-investment-${new Date().toISOString().slice(0, 10)}.csv`, rows);
 }
 
 function renderHoursReport(data) {
@@ -3218,6 +3326,8 @@ const TEAM_WORKSPACE_HELPERS = {
   loadHoursReport,
   renderHoursReport,
   exportHoursCsv,
+  exportTeamReadinessCsv,
+  exportTeamInvestmentCsv,
   loadTeamWorkspace,
   initTeamWorkspaceBindings,
 };
