@@ -235,6 +235,55 @@ function renderTrainingChecklistHistory(profile = {}) {
   `).join("");
 }
 
+function teamChecklistEvidenceMatchers(stepKey = "", member = {}) {
+  const driverTrack = !!String(member?.driver_label || "").trim();
+  const sharedTrainingTypes = {
+    crew_app: ["onboarding"],
+    yard_route: ["onboarding"],
+    worksite: ["worksite_safety", "hydrovac_field", "onboarding"],
+    ride_along: ["ride_along"],
+  };
+  const driverTrainingTypes = {
+    driving: ["cdl", "driver_safety", "onboarding"],
+    vactor: ["vactor_operator", "hydrovac_field", "onboarding"],
+  };
+  const laborTrainingTypes = {
+    ppe: ["worksite_safety", "onboarding"],
+    handoff: ["onboarding", "hydrovac_field"],
+  };
+  return {
+    workTypes: ["driver_training", "trade_training", "safety_meeting"],
+    trainingTypes: [
+      ...(sharedTrainingTypes[stepKey] || []),
+      ...(driverTrack ? (driverTrainingTypes[stepKey] || []) : (laborTrainingTypes[stepKey] || [])),
+    ],
+  };
+}
+
+function teamChecklistEvidenceForStep(step = {}, history = null, member = {}) {
+  const entries = Array.isArray(history?.entries) ? history.entries : [];
+  const matchers = teamChecklistEvidenceMatchers(step.key, member);
+  return entries.filter((entry) => {
+    const workType = String(entry?.work_type || "").trim();
+    const trainingType = String(entry?.training_type || "").trim();
+    return matchers.workTypes.includes(workType) && (!matchers.trainingTypes.length || matchers.trainingTypes.includes(trainingType));
+  }).slice(0, 3);
+}
+
+function renderTrainingEvidenceList(step = {}, history = null, member = {}) {
+  const evidence = teamChecklistEvidenceForStep(step, history, member);
+  if (!evidence.length) {
+    return '<div class="muted" style="font-size:.72rem;margin-top:4px;">No linked training time found yet.</div>';
+  }
+  return evidence.map((entry) => `
+    <div class="muted" style="font-size:.72rem;margin-top:4px;">
+      ${escapeHtml(entry.started_at ? new Date(entry.started_at).toLocaleDateString() : "Recent")}
+      • ${escapeHtml(entry.description || teamTimePurposeLabel(entry.work_type))}
+      • ${escapeHtml(teamMinutesLabel(entry.duration_minutes || 0))}
+    </div>
+  `).join("");
+}
+
 function teamTrainingQuickPreset(member = {}) {
   return {
     purpose: String(member?.driver_label || "").trim() ? "driver_training" : "trade_training",
@@ -370,6 +419,25 @@ function renderTeamHistorySnapshot(member = {}, history = null) {
       </div>
     </div>
   `;
+}
+
+function renderTrainingEvidenceSnapshot(profile = {}, history = null, member = {}) {
+  const items = Array.isArray(profile?.items) ? profile.items.filter((item) => item.complete) : [];
+  if (!items.length) {
+    return '<div class="muted">Complete a checklist step to start linking training evidence here.</div>';
+  }
+  return items.map((item) => `
+    <div class="list-item" style="padding:8px 0;">
+      <div class="li-main">
+        <div class="li-title">${escapeHtml(item.label)}</div>
+        <div class="li-sub muted" style="font-size:.75rem;">
+          ${escapeHtml(item.completedAt ? `Signed off ${item.completedAt}` : "Signed off")}
+          ${item.completedBy ? ` • ${escapeHtml(item.completedBy)}` : ""}
+        </div>
+        ${renderTrainingEvidenceList(item, history, member)}
+      </div>
+    </div>
+  `).join("");
 }
 
 function teamMemberNextAction(member = {}) {
@@ -890,6 +958,12 @@ function openTeamMemberProfileModal(id) {
       </div>
     </div>
     <div class="card" style="margin-top:12px;">
+      <div class="card-hd"><strong>Training evidence</strong></div>
+      <div class="card-bd" id="teamProfileEvidence">
+        <div class="muted">Matching recent training time to completed checklist steps...</div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:12px;">
       <div class="card-hd"><strong>Recent activity</strong></div>
       <div class="card-bd" id="teamProfileHistory">
         <div class="muted">Loading recent time and job history...</div>
@@ -930,10 +1004,14 @@ function openTeamMemberProfileModal(id) {
     .then((history) => {
       const historyEl = modal.querySelector("#teamProfileHistory");
       if (historyEl) historyEl.innerHTML = renderTeamHistorySnapshot(member, history);
+      const evidenceEl = modal.querySelector("#teamProfileEvidence");
+      if (evidenceEl) evidenceEl.innerHTML = renderTrainingEvidenceSnapshot(trainingProfile, history, member);
     })
     .catch((error) => {
       const historyEl = modal.querySelector("#teamProfileHistory");
       if (historyEl) historyEl.innerHTML = `<div class="msg error">${escapeHtml(error.message || String(error))}</div>`;
+      const evidenceEl = modal.querySelector("#teamProfileEvidence");
+      if (evidenceEl) evidenceEl.innerHTML = `<div class="msg error">${escapeHtml(error.message || String(error))}</div>`;
     });
 }
 
