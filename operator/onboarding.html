@@ -80,7 +80,7 @@
       <div>
         <div class="eyebrow" id="onboardingEyebrow">Business setup</div>
         <h1 id="pageTitle">Finish your ProofLink setup</h1>
-        <p class="sub" id="pageSub">Move the business from account created to live website, payments, and first customer work.</p>
+        <p class="sub" id="pageSub">Move the business from account created to live website, manual payment collection, and first customer work.</p>
       </div>
       <a class="btn secondary" href="/operator/">Open your business hub</a>
     </div>
@@ -117,9 +117,9 @@
           <div class="step-item" id="nav-step-4">
             <div class="step-line">
               <div class="step-num">4</div>
-              <h3>Turn on money flows</h3>
+              <h3>Set payment handling</h3>
             </div>
-            <p>Activate the platform and connect business payouts.</p>
+            <p>Confirm manual collection and make the next steps obvious to the operator.</p>
           </div>
 
           <div class="step-item" id="nav-step-5">
@@ -193,15 +193,15 @@
         </section>
 
         <section class="panel" id="step-4">
-          <h2>Turn on billing and payouts</h2>
-          <p>Activate the ProofLink subscription and connect the business payout account so customer payments can move cleanly.</p>
+          <h2>Set payment handling</h2>
+          <p>ProofLink is currently using manual payment collection. Confirm the billing posture and teach the operator how to collect and record payment cleanly.</p>
           <div class="checks">
             <div class="check">
               <strong>Current billing status</strong>
               <span id="billingStatusText">Unknown</span>
             </div>
             <div class="check">
-              <strong>Payments status</strong>
+              <strong>Collection status</strong>
               <span id="connectStatusText">Unknown</span>
             </div>
             <div class="check">
@@ -210,11 +210,11 @@
             </div>
           </div>
           <div class="actions">
-            <button class="btn" id="startBillingBtn">Start platform billing</button>
-            <button class="btn secondary" id="connectStripeBtn">Connect Stripe</button>
+            <button class="btn" id="startBillingBtn">Review billing mode</button>
+            <button class="btn secondary" id="connectStripeBtn">Review collection methods</button>
             <button class="btn secondary" id="refreshStateBtn4">Refresh status</button>
           </div>
-          <div class="note">Billing is the software subscription. Connect Stripe is the business payout account. Keeping those separate makes the setup much easier to teach.</div>
+          <div class="note">Use invoices, cash, check, Zelle, or Cash App for now. Keep the payment state inside ProofLink accurate so the office and field stay aligned.</div>
           <div class="msg" id="msg-step-4"></div>
         </section>
 

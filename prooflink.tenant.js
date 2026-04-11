@@ -85,17 +85,18 @@ window.PROOFLINK_TENANT = window.PROOFLINK_TENANT || {
       planKey: "starter",
       planLabel: "Starter",
       billingInterval: "month",
-      checkoutPath: "/.netlify/functions/stripe-platform-checkout",
+      checkoutPath: "",
     },
     commerce: {
-      connectPath: "/.netlify/functions/stripe-connect-link",
+      connectPath: "",
       applicationFeeBps: 750,
-      allowedModes: ["invoice", "checkout"],
+      allowedModes: ["invoice", "cash", "check", "zelle", "cashapp"],
       defaultMode: "invoice",
     },
     ledger: {
       livemode: false,
       currency: "usd",
+      onlineProvider: "manual",
     },
   },
 

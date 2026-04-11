@@ -4,6 +4,7 @@ const {
   clean,
   findTenantById,
   json,
+  manualPaymentsOnlyMessage,
   readJson,
   requireOperatorContext,
 } = require('./_prooflink_payments');
@@ -47,7 +48,7 @@ exports.handler = async (event) => {
         planLabel: state.prooflinkPlanKey === 'growth' ? 'Growth' : 'Starter',
         onlinePaymentsReason: state.onlinePaymentsEligible
           ? 'Online payments are eligible.'
-          : 'Online payments require active ProofLink billing and a fully connected Stripe Connect account.',
+          : manualPaymentsOnlyMessage(),
       },
       raw: {
         billing_status: clean(tenant.billing_status),
@@ -58,6 +59,7 @@ exports.handler = async (event) => {
         stripe_connect_account_id: clean(tenant.stripe_connect_account_id),
         payments_enabled: tenant.payments_enabled === true,
         online_payments_enabled: tenant.online_payments_enabled === true,
+        manual_mode: true,
       }
     });
   } catch (e) {

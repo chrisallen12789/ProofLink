@@ -3,6 +3,8 @@
 
   const BILLING_LABELS = {
     active: "Active",
+    manual_active: "Manual",
+    manual: "Manual",
     past_due: "Past Due",
     canceled: "Canceled",
     trialing: "Trial",
@@ -10,6 +12,7 @@
     onboarding: "Not yet active",
   };
   const CONNECT_LABELS = {
+    manual: "Manual",
     connect_connected: "Connected",
     connect_not_started: "Not connected",
     connect_pending: "Pending",
@@ -139,7 +142,7 @@
   }
 
   function moneyFlowsReady() {
-    return state.paymentState?.billingStatus === "active" && state.paymentState?.connectStatus === "connect_connected";
+    return state.paymentState?.manualMode === true;
   }
 
   function renderStaticBusinessContext() {
@@ -176,22 +179,22 @@
     const ps = state.paymentState || {};
     const ws = state.websiteState || {};
     const plan = titleCase(ps.prooflinkPlanKey || getPlanKey());
-    const billing = billingLabel(ps.billingStatus || "onboarding");
-    const connect = connectLabel(ps.connectStatus || "connect_not_started");
-    const eligible = ps.onlinePaymentsEligible ? "Eligible" : "Blocked";
+    const billing = billingLabel(ps.billingStatus || "manual");
+    const connect = connectLabel(ps.connectStatus || "manual");
+    const eligible = ps.onlinePaymentsEligible ? "Eligible" : "Manual only";
     const website = titleCase(ws.publishStatus || "draft");
 
     $("summaryPills").innerHTML = `
       <div class="pill">Plan: ${plan}</div>
       <div class="pill ${websitePublished() ? "good" : "warn"}">Website: ${website}</div>
-      <div class="pill ${ps.billingStatus === "active" ? "good" : "warn"}">Billing: ${billing}</div>
-      <div class="pill ${ps.connectStatus === "connect_connected" ? "good" : "warn"}">Payouts: ${connect}</div>
+      <div class="pill good">Billing: ${billing}</div>
+      <div class="pill good">Collections: ${connect}</div>
     `;
 
     $("livePills").innerHTML = `
       <div class="pill ${websiteBasicsReady() ? "good" : "warn"}">${websiteBasicsReady() ? "Website basics set" : "Website still needs shaping"}</div>
       <div class="pill ${websitePublished() ? "good" : "warn"}">${websitePublished() ? "Website published" : "Website still draft"}</div>
-      <div class="pill ${moneyFlowsReady() ? "good" : "warn"}">${moneyFlowsReady() ? "Money flows ready" : "Money flows still blocked"}</div>
+      <div class="pill ${moneyFlowsReady() ? "good" : "warn"}">${moneyFlowsReady() ? "Manual collection ready" : "Money flows still blocked"}</div>
       <div class="pill ${state.firstOfferDone ? "good" : "warn"}">${state.firstOfferDone ? "First service added" : "First service still needed"}</div>
     `;
 
@@ -199,7 +202,7 @@
     $("publishStatusText").textContent = website;
     $("billingStatusText").textContent = billing;
     $("connectStatusText").textContent = connect;
-    $("eligibilityText").textContent = ps.onlinePaymentsEligible ? "Eligible" : (ps.onlinePaymentsReason || "Blocked");
+    $("eligibilityText").textContent = ps.onlinePaymentsEligible ? "Eligible" : (ps.onlinePaymentsReason || "Manual only");
   }
 
   function computeStep() {
@@ -285,44 +288,11 @@
   }
 
   async function startBilling() {
-    if (getPlanKey() === "enterprise") {
-      throw new Error("Enterprise billing is finalized through a guided rollout after setup.");
-    }
-
-    const params = new URLSearchParams();
-    if (tenantSlug()) params.set("tenant", tenantSlug());
-    if (getPlanKey()) params.set("plan", getPlanKey());
-    const query = params.toString();
-    const returnBase = `${window.location.origin}/operator/onboarding.html${query ? `?${query}` : ""}`;
-    const joiner = query ? "&" : "?";
-
-    setMsg(4, "Creating Stripe subscription checkout...", "");
-    const data = await apiPost("/.netlify/functions/stripe-platform-checkout", {
-      tenantId: tenantSlug() || state.tenantId,
-      planKey: getPlanKey(),
-      successUrl: `${returnBase}${joiner}billing=success#payments`,
-      cancelUrl: `${returnBase}${joiner}billing=cancel#payments`,
-    });
-    setMsg(4, "Redirecting to Stripe...", "");
-    if (data.url) window.location.href = data.url;
+    setMsg(4, "Manual billing mode is active. Plan changes are handled directly by ProofLink support.", "good");
   }
 
   async function startConnect() {
-    const params = new URLSearchParams();
-    if (tenantSlug()) params.set("tenant", tenantSlug());
-    if (getPlanKey()) params.set("plan", getPlanKey());
-    const query = params.toString();
-    const returnBase = `${window.location.origin}/operator/onboarding.html${query ? `?${query}` : ""}`;
-    const joiner = query ? "&" : "?";
-
-    setMsg(4, "Creating Stripe Connect onboarding link...", "");
-    const data = await apiPost("/.netlify/functions/stripe-connect-link", {
-      tenantId: tenantSlug() || state.tenantId,
-      refreshUrl: `${returnBase}${joiner}connect=refresh#payments`,
-      returnUrl: `${returnBase}${joiner}connect=return#payments`,
-    });
-    setMsg(4, "Redirecting to Stripe Connect...", "");
-    if (data.url) window.location.href = data.url;
+    setMsg(4, "Manual collection mode is active. Use invoices, checks, cash, Zelle, or Cash App until a replacement provider is selected.", "good");
   }
 
   function consumeRedirectFlags() {
@@ -331,15 +301,15 @@
     const connect = String(params.get("connect") || "").toLowerCase();
 
     if (billing === "success") {
-      setMsg(4, "Billing checkout returned successfully. Refresh once if webhook truth has not landed yet.", "good");
+      setMsg(4, "Manual billing mode is active. There is no hosted billing checkout to complete.", "good");
     } else if (billing === "cancel") {
-      setMsg(4, "Billing checkout was canceled before completion.", "bad");
+      setMsg(4, "Manual billing mode is active. No hosted billing checkout was started.", "bad");
     }
 
     if (connect === "return") {
-      setMsg(4, "Stripe Connect returned successfully. Refresh once if account truth has not landed yet.", "good");
+      setMsg(4, "Manual collection mode is active. No payment-provider onboarding is running.", "good");
     } else if (connect === "refresh") {
-      setMsg(4, "Stripe asked for a refreshed onboarding link. Start Connect Stripe again.", "bad");
+      setMsg(4, "Manual collection mode is active. No payment-provider onboarding link is available.", "bad");
     }
 
     params.delete("billing");

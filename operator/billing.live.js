@@ -46,16 +46,15 @@ function render(root, tenant, bannerHtml) {
   root.innerHTML = `
     ${bannerHtml}
     <section class="pl-billing-live">
-      <h1>Billing</h1>
+      <h1>Billing and payments</h1>
       <div id="billingMessage" class="pl-billing-banner is-neutral" style="display:none;"></div>
       <p><strong>Plan:</strong> ${plan}</p>
-      <p><strong>Billing status:</strong> ${tenant?.billing_status || "inactive"}</p>
-      <p><strong>Connect status:</strong> ${tenant?.connect_status || "not_started"}</p>
+      <p><strong>Billing mode:</strong> Manual</p>
+      <p><strong>Online checkout:</strong> Disabled</p>
+      <p><strong>Collection options:</strong> Invoice, cash, check, Zelle, Cash App</p>
 
       <div class="pl-billing-live__actions">
-        <button type="button" data-upgrade-plan="growth">Upgrade to Growth</button>
-        <button type="button" data-upgrade-plan="enterprise">Upgrade to Enterprise</button>
-        <button type="button" data-open-portal="true">Manage billing</button>
+        <button type="button" data-open-manual-guide="true">Open payment guide</button>
       </div>
     </section>
   `;
@@ -68,34 +67,11 @@ function render(root, tenant, bannerHtml) {
       messageEl.className = `pl-billing-banner is-${tone}`;
       messageEl.style.display = "block";
     };
-    const upgradeButton = event.target.closest("[data-upgrade-plan]");
-    const portalButton = event.target.closest("[data-open-portal='true']");
+    const manualGuideButton = event.target.closest("[data-open-manual-guide='true']");
 
     try {
-      if (upgradeButton) {
-        const targetPlan = upgradeButton.getAttribute("data-upgrade-plan");
-        const payload = await postJson("/.netlify/functions/create-billing-upgrade-session", {
-          tenantId: tenant.id,
-          targetPlan,
-          featureKey: "manual_upgrade",
-          customerEmail: tenant.owner_email || ""
-        });
-
-        if (payload.url) window.location.href = payload.url;
-        return;
-      }
-
-      if (portalButton) {
-        if (!tenant.stripe_customer_id) {
-          setBillingMessage("Billing is not connected for this account yet. Reach out to support if you need help getting it set up.");
-          return;
-        }
-
-        const payload = await postJson("/.netlify/functions/create-billing-portal-session", {
-          customerId: tenant.stripe_customer_id
-        });
-
-        if (payload.url) window.location.href = payload.url;
+      if (manualGuideButton) {
+        setBillingMessage("Manual-payments mode is active. Use invoices and offline collection methods until a replacement provider is chosen.");
       }
     } catch (error) {
       setBillingMessage(error.message || "Something went wrong while opening billing.");

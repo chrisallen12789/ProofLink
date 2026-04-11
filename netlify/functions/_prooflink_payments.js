@@ -30,6 +30,10 @@ function clean(value) {
   return String(value || '').trim();
 }
 
+function manualPaymentsOnlyMessage() {
+  return 'ProofLink is currently running in manual-payments mode. Online checkout and automated billing are unavailable.';
+}
+
 function getEnv(name, fallback = '') {
   return clean(process.env[name] || fallback);
 }
@@ -163,37 +167,11 @@ async function requireOperatorContext(event, requestedTenantId) {
   throw Object.assign(new Error(message), { statusCode: 403 });
 }
 
-async function stripeRequest(path, method = 'POST', params = {}) {
-  const secret = getEnv('STRIPE_SECRET_KEY');
-
-  if (!secret) {
-    throw Object.assign(new Error('Missing STRIPE_SECRET_KEY.'), { statusCode: 500 });
-  }
-
-  const body = new URLSearchParams();
-
-  Object.entries(params).forEach(([key, value]) => {
-    if (value == null) return;
-    body.append(key, String(value));
+async function stripeRequest() {
+  throw Object.assign(new Error(manualPaymentsOnlyMessage()), {
+    statusCode: 503,
+    code: 'manual_payments_only',
   });
-
-  const res = await fetch(`https://api.stripe.com/v1${path}`, {
-    method,
-    headers: {
-      Authorization: `Bearer ${secret}`,
-      'Content-Type': 'application/x-www-form-urlencoded'
-    },
-    body: method === 'GET' ? undefined : body.toString()
-  });
-
-  const data = await res.json().catch(() => ({}));
-
-  if (!res.ok) {
-    const message = data?.error?.message || `Stripe request failed (${res.status}).`;
-    throw Object.assign(new Error(message), { statusCode: res.status, stripe: data });
-  }
-
-  return data;
 }
 
 async function findTenantById(tenantId) {
@@ -400,25 +378,13 @@ function isBillingExempt(tenant = {}) {
 
 function buildTenantPaymentState(tenant = {}) {
   const exempt = isBillingExempt(tenant);
-
-  // Exempt tenants are treated as fully active on billing regardless of Stripe state
-  const billingStatus = exempt ? 'active' : normalizeBillingStatus(tenant.billing_status);
-  const connectStatus = normalizeConnectStatus(tenant.connect_status);
-
-  const stripeConnectAccountId = clean(
-    tenant.stripe_connect_account_id || tenant.stripe_account_id
-  );
-
-  const paymentsEnabled =
-    tenant.payments_enabled === true || tenant.online_payments_enabled === true;
-
-  const onlinePaymentsEligible =
-    billingStatus === 'active' &&
-    connectStatus === 'connect_connected' &&
-    paymentsEnabled;
-
-  const connectAccountReady =
-    connectStatus === 'connect_connected' && !!stripeConnectAccountId;
+  const manualMode = true;
+  const billingStatus = exempt ? 'manual_active' : 'manual';
+  const connectStatus = 'manual';
+  const stripeConnectAccountId = '';
+  const paymentsEnabled = true;
+  const onlinePaymentsEligible = false;
+  const connectAccountReady = false;
 
   return {
     tenantId: clean(tenant.tenant_id || tenant.id || tenant.slug),
@@ -435,6 +401,9 @@ function buildTenantPaymentState(tenant = {}) {
     onlinePaymentsEligible,
     connectAccountReady,
     livemode: tenant.livemode === true,
+    manualMode,
+    manualPaymentMethods: ['invoice', 'cash', 'check', 'zelle', 'cashapp'],
+    onlinePaymentsReason: manualPaymentsOnlyMessage(),
   };
 }
 
@@ -454,6 +423,7 @@ module.exports = {
   readJson,
   requireOperatorContext,
   ensureTenantApplicationFeeBps,
+  manualPaymentsOnlyMessage,
   stripeRequest,
   supabaseAdmin,
   upsertPaymentRecord,

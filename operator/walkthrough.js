@@ -98,7 +98,7 @@
       {
         selector: '[data-tour="stripe-connect"]',
         title: 'Payments and payouts',
-        body: 'This section tells the operator whether payouts and online checkout are truly ready. Keep this explicit so nobody assumes payments are live when they are not.',
+        body: 'This section tells the operator whether manual collection or online collection is truly ready. Keep this explicit so nobody assumes payments are live when they are not.',
         tab: 'payments',
         placement: 'left'
       },

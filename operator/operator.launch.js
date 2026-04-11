@@ -32,15 +32,16 @@
     return {
       prooflinkPlanKey: platform.planKey || 'starter',
       planLabel: platform.planLabel || 'Starter',
-      billingStatus: 'loading',
-      connectStatus: 'loading',
+      billingStatus: 'manual',
+      connectStatus: 'manual',
       stripeCustomerId: '',
       stripeSubscriptionId: '',
       stripeAccountId: '',
-      paymentsEnabled: false,
+      paymentsEnabled: true,
       onlinePaymentsEligible: false,
       livemode: ledger.livemode === true,
-      onlinePaymentsReason: 'Live tenant payment status has not been fetched yet.',
+      onlinePaymentsReason: 'ProofLink is currently using manual payment collection only.',
+      manualMode: true,
       isLiveHydrated: false,
     };
   }
@@ -93,17 +94,13 @@
     const btnOrder = $('btnCreateOrderCheckout');
 
     if (btnBilling) {
-      btnBilling.disabled = state.billingStatus === 'active';
-      btnBilling.textContent = state.billingStatus === 'active'
-        ? 'Platform billing active'
-        : 'Start platform billing';
+      btnBilling.disabled = true;
+      btnBilling.textContent = 'Manual billing only';
     }
 
     if (btnConnect) {
-      btnConnect.disabled = state.connectStatus === 'connect_connected';
-      btnConnect.textContent = state.connectStatus === 'connect_connected'
-        ? 'Stripe connected'
-        : 'Connect Stripe';
+      btnConnect.disabled = true;
+      btnConnect.textContent = 'Provider offline';
     }
 
     if (btnOrder) {
@@ -141,9 +138,9 @@
         <div class="stat-copy" style="margin-top:10px;">
           ${statusLoaded
             ? (billingStatus === 'active'
-              ? 'Platform billing is active. Stripe webhooks are now the source of truth.'
-              : 'Billing is not active yet. Stripe checkout completion alone is not enough until webhook truth lands.')
-            : 'Loading live billing status from the backend. Static tenant config is not treated as payment truth.'}
+              ? 'Manual billing is active for this tenant.'
+              : 'Manual billing mode is active. Automated subscription checkout is retired.')
+            : 'Loading live manual-payment state from the backend.'}
         </div>
       `;
     }
@@ -151,13 +148,11 @@
     if (connectCard) {
       connectCard.innerHTML = `
         <div class="stat-big">${esc(titleCase(connectStatus))}</div>
-        <div class="badge-row">${badge(livemode ? 'Live mode' : 'Test mode', livemode ? 'good' : 'warn')}${badge(state.stripeAccountId ? 'Account linked' : 'No account ID', state.stripeAccountId ? 'good' : 'warn')}</div>
+        <div class="badge-row">${badge('Manual provider', 'warn')}${badge(livemode ? 'Live mode' : 'Test mode', livemode ? 'good' : 'warn')}</div>
         <div class="stat-copy" style="margin-top:10px;">
           ${statusLoaded
-            ? (connectStatus === 'connect_connected'
-              ? 'Stripe Connect is complete. Tenant payouts can route to the tenant account.'
-              : 'Stripe Connect is not complete. Keep pay-online disabled until account updates confirm readiness.')
-            : 'Loading live Stripe Connect status from the backend. Do not trust static config values here.'}
+            ? 'ProofLink is not onboarding an online payment processor right now. Collect payment offline and record payment state in the app.'
+            : 'Loading live payment collection guidance from the backend.'}
         </div>
       `;
     }
@@ -165,8 +160,8 @@
     if (onlineCard) {
       onlineCard.innerHTML = `
         <div class="stat-big">${onlineReady ? 'Eligible' : 'Blocked'}</div>
-        <div class="badge-row">${badge(onlineReady ? 'Pay online allowed' : 'Offline/manual only', onlineReady ? 'good' : 'warn')}${badge(`Default: ${titleCase(commerce.defaultMode || 'pay_on_pickup')}`, 'soon')}</div>
-        <div class="stat-copy" style="margin-top:10px;">${esc(state.onlinePaymentsReason || 'Online payments require active platform billing and a connected tenant Stripe account.')}</div>
+        <div class="badge-row">${badge(onlineReady ? 'Pay online allowed' : 'Offline/manual only', onlineReady ? 'good' : 'warn')}${badge(`Default: ${titleCase(commerce.defaultMode || 'invoice')}`, 'soon')}</div>
+        <div class="stat-copy" style="margin-top:10px;">${esc(state.onlinePaymentsReason || 'Manual collection methods are active for this tenant.')}</div>
       `;
     }
 
@@ -177,16 +172,16 @@
             <div class="badge-row" style="margin-bottom:12px;">${badge('ProofLink billing', 'soon')}${badge(titleCase(billingStatus), statusTone(billingStatus))}</div>
             <div class="status-kv">
               <div>Plan</div><div>${esc(state.planLabel || 'Starter')}</div>
-              <div>Subscription status</div><div>${esc(titleCase(billingStatus))}</div>
-              <div>Subscription ID</div><div class="mono">${esc(state.stripeSubscriptionId || 'Not recorded')}</div>
-              <div>Customer ID</div><div class="mono">${esc(state.stripeCustomerId || 'Not recorded')}</div>
+              <div>Billing status</div><div>${esc(titleCase(billingStatus))}</div>
+              <div>Collection mode</div><div>Manual</div>
+              <div>Upgrade path</div><div>Handled directly by ProofLink support</div>
             </div>
           </div>
           <div class="status-panel">
             <div class="badge-row" style="margin-bottom:12px;">${badge('Tenant commerce', 'soon')}${badge(titleCase(connectStatus), statusTone(connectStatus))}</div>
             <div class="status-kv">
-              <div>Connect account</div><div class="mono">${esc(state.stripeAccountId || 'Not recorded')}</div>
-              <div>Connect ready</div><div>${yesNo(connectStatus === 'connect_connected')}</div>
+              <div>Provider</div><div>Manual / off-platform</div>
+              <div>Collect online here</div><div>No</div>
               <div>Payments enabled</div><div>${yesNo(state.paymentsEnabled)}</div>
               <div>Allowed modes</div><div>${allowedModes.length ? allowedModes.map(titleCase).join(', ') : 'No modes set'}</div>
             </div>
@@ -194,10 +189,10 @@
           <div class="status-panel">
             <div class="badge-row" style="margin-bottom:12px;">${badge('Access rule', onlineReady ? 'good' : 'warn')}${badge(onlineReady ? 'Eligible' : 'Blocked', onlineReady ? 'good' : 'warn')}</div>
             <div class="status-kv">
-              <div>Billing active</div><div>${yesNo(billingStatus === 'active')}</div>
-              <div>Connect complete</div><div>${yesNo(connectStatus === 'connect_connected')}</div>
+              <div>Billing active</div><div>${yesNo(billingStatus === 'manual_active' || billingStatus === 'manual')}</div>
+              <div>Online processor ready</div><div>No</div>
               <div>Online payments</div><div>${yesNo(onlineReady)}</div>
-              <div>Rule</div><div>Pay online is allowed only when billing_status = active and connect_status = connect_connected.</div>
+              <div>Rule</div><div>Use invoices and offline collection methods until a replacement processor is selected.</div>
             </div>
           </div>
         </div>
@@ -207,11 +202,10 @@
     if (educationWrap) {
       educationWrap.innerHTML = `
         <div class="note-list">
-          <div class="note-item"><strong>ProofLink subscription</strong> This is what the tenant pays the platform. It is separate from tenant revenue.</div>
-          <div class="note-item"><strong>Stripe Connect</strong> This links the tenant's own payout account. Tenant customers pay the tenant, not ProofLink.</div>
-          <div class="note-item"><strong>Hosted checkout</strong> Disabled until billing is active and Connect is fully complete.</div>
-          <div class="note-item"><strong>Webhook truth</strong> Redirect success screens are informational only. Final billing and payout state must come from Stripe webhooks.</div>
-          <div class="note-item"><strong>Current implementation</strong> Billing truth, Connect onboarding links, and operator visibility are live. Full automated tenant creation is still pending.</div>
+          <div class="note-item"><strong>Manual collection</strong> Use invoices, checks, cash, Zelle, or Cash App and record the payment result back in ProofLink.</div>
+          <div class="note-item"><strong>Tenant revenue</strong> ProofLink is not routing funds for the tenant right now.</div>
+          <div class="note-item"><strong>Online checkout</strong> Disabled until a replacement payment provider is chosen and integrated.</div>
+          <div class="note-item"><strong>Current implementation</strong> Billing visibility and payment-state tracking stay live while collection happens outside ProofLink.</div>
         </div>
       `;
     }
@@ -276,52 +270,28 @@
   };
 
   async function startPlatformCheckout() {
-    setPaymentMsg('Creating Stripe Billing checkout…', false);
-    const data = await apiPost('/.netlify/functions/stripe-platform-checkout', {
-      tenantId: tenant.id || tenant.slug,
-      planKey: paymentCfg.platformBilling?.planKey || 'starter',
-    });
-    setPaymentMsg('Redirecting to Stripe Billing…', false);
-    if (data.url) window.location.href = data.url;
+    setPaymentMsg('Manual billing mode is active. Contact ProofLink support for plan changes.', false);
   }
 
   async function startConnectOnboarding() {
-    setPaymentMsg('Creating Stripe Connect onboarding link…', false);
-    const data = await apiPost('/.netlify/functions/stripe-connect-link', {
-      tenantId: tenant.id || tenant.slug,
-    });
-    setPaymentMsg('Redirecting to Stripe Connect…', false);
-    if (data.url) window.location.href = data.url;
+    setPaymentMsg('Manual collection mode is active. No payment provider onboarding link is available.', false);
   }
 
   async function createCheckoutForActiveOrder() {
-    const runtime = window.PROOFLINK_OPERATOR_RUNTIME || {};
-    const state = mergedPaymentState();
-    if (!state.onlinePaymentsEligible) throw new Error(state.onlinePaymentsReason || 'Online payments are not eligible yet.');
-    const orderId = typeof runtime.getActiveOrderId === 'function' ? runtime.getActiveOrderId() : '';
-    if (!orderId) throw new Error('Select an order first. The checkout action uses the active order in the Orders tab.');
-    setPaymentMsg('Creating hosted checkout for the active order…', false);
-    const data = await apiPost('/.netlify/functions/stripe-order-checkout', {
-      tenantId: tenant.id || tenant.slug,
-      orderId,
-      applicationFeeBps: Number(paymentCfg.commerce?.applicationFeeBps || 0),
-    });
-    setPaymentMsg('Hosted checkout created. Open the Stripe session in a new tab or send the link to the customer.', false);
-    if (data.url) window.open(data.url, '_blank', 'noopener');
-    if (typeof runtime.refreshPayments === 'function') runtime.refreshPayments().catch(console.error);
+    setPaymentMsg('Online checkout is disabled. Send an invoice or collect payment offline for the active order.', false);
   }
 
   const HELP_TOPICS = {
     payments: {
       title: 'Payments help',
       body: `
-        <p>This section controls two different systems that must stay separate.</p>
-        <p><strong>ProofLink billing</strong> is what the tenant pays the platform. <strong>Tenant commerce</strong> is how the tenant gets paid by their own customers.</p>
-        <p>Do not treat a success redirect as final payment truth. Subscription activation, payment success, refunds, and account updates should come from Stripe webhooks.</p>
+        <p>This section now focuses on payment-state tracking instead of automated processing.</p>
+        <p><strong>ProofLink billing</strong> and <strong>tenant commerce</strong> are both handled manually while payment alternatives are being evaluated.</p>
+        <p>Use invoices and offline collection methods, then keep the order and invoice records updated in ProofLink.</p>
         <ul>
-          <li>Common mistake: enabling pay-online before Stripe Connect is actually connected.</li>
-          <li>Common mistake: mixing platform subscription status with customer checkout status.</li>
-          <li>Rule: billing_status must be active and connect_status must be connect_connected before hosted checkout is allowed.</li>
+          <li>Common mistake: assuming a customer can still pay online from the portal.</li>
+          <li>Common mistake: forgetting to mark payments received after collecting them offline.</li>
+          <li>Rule: online checkout stays disabled until a replacement provider is selected and integrated.</li>
         </ul>
       `
     },
@@ -394,19 +364,19 @@
     let message = '';
     let bad = false;
 
-    if (billing === 'success') message = 'ProofLink subscription checkout returned successfully. Final billing state should come from Stripe webhooks.';
+    if (billing === 'success') message = 'Manual billing mode is active. There is no hosted subscription checkout to finalize.';
     else if (billing === 'cancel') {
-      message = 'ProofLink subscription checkout was canceled before completion.';
+      message = 'Manual billing mode is active. No hosted subscription checkout was started.';
       bad = true;
     } else if (connect === 'return') {
-      message = 'Stripe Connect returned to Payments. Account status will finalize after Stripe updates and webhook events land.';
+      message = 'Manual collection mode is active. No payment-provider onboarding is running.';
     } else if (connect === 'refresh') {
-      message = 'Stripe Connect asked for a refreshed onboarding link. Start Connect Stripe again to continue.';
+      message = 'Manual collection mode is active. No payment-provider onboarding link is available.';
       bad = true;
     } else if (order === 'success') {
-      message = 'Customer checkout returned successfully. Final payment status should come from Stripe webhooks.';
+      message = 'Manual collection mode is active. Customer checkout is disabled.';
     } else if (order === 'cancel') {
-      message = 'Customer checkout was canceled before completion.';
+      message = 'Manual collection mode is active. Customer checkout is disabled.';
       bad = true;
     }
 

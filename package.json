@@ -18,20 +18,22 @@
     "test:e2e:role-audit": "npm run test:seed && playwright test tests/e2e/user-role-audit.spec.js --config=playwright.config.js",
     "test:e2e:a11y-smoke": "npm run test:seed && playwright test tests/e2e/accessibility-role-smoke.spec.js --config=playwright.config.js",
     "test:e2e:user-classes": "npm run test:seed && playwright test tests/e2e/user-role-audit.spec.js tests/e2e/accessibility-role-smoke.spec.js --config=playwright.config.js",
+    "test:e2e:prod-safe": "node scripts/run-production-safe-audit.js",
     "test:e2e:operator-cross-device": "npm run test:seed && playwright test tests/e2e/operator-cross-device-smoke.spec.js tests/e2e/operator-authenticated-cross-device.spec.js --config=playwright.config.js",
     "test:e2e:service-workflow": "npm run test:preflight:service-workflow && playwright test tests/e2e/service-workflow.spec.js --config=playwright.config.js",
     "test:e2e:headed": "playwright test --config=playwright.config.js --headed",
     "test:seed": "tsx tests/seeds/seed-test-foundation.js",
+    "test:seed:staging": "node scripts/seed-staging-foundation.js",
     "seed:demo-customers": "node scripts/seed-demo-customers.js",
     "test:cleanup": "tsx tests/seeds/cleanup-test-foundation.js",
     "sql:build:rebuild": "node scripts/build-supabase-rebuild-sql.js",
     "test:supabase:drift": "node scripts/check-supabase-drift.js",
+    "test:monitoring-loop": "node scripts/run-monitoring-loop.js",
     "capture:landing-shots": "node scripts/capture-landing-shots.js",
     "test:all": "npm run test:cleanup && npm run test:seed && npm run test:preflight:service-workflow && npm run test && npm run test:e2e"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",
-    "stripe": "^20.4.1",
     "twilio": "^5.3.0",
     "web-push": "^3.6.7"
   },
@@ -50,5 +52,9 @@
   },
   "engines": {
     "node": ">=18"
+  },
+  "overrides": {
+    "axios": "1.15.0",
+    "vite": "8.0.8"
   }
 }

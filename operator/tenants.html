@@ -173,7 +173,7 @@
             <th>Business</th>
             <th>Slug / URL</th>
             <th>Type</th>
-            <th>Stripe</th>
+            <th>Collection Mode</th>
             <th>Products</th>
             <th>Orders</th>
             <th>Joined</th>
@@ -205,7 +205,7 @@
           <div class="info-item"><span class="info-label">Business type</span><span class="info-value" id="mi-type">--</span></div>
           <div class="info-item"><span class="info-label">Location</span><span class="info-value" id="mi-location">--</span></div>
           <div class="info-item"><span class="info-label">Website</span><span class="info-value"><a class="storefront-link" id="mi-storefront" href="#" target="_blank">--</a></span></div>
-          <div class="info-item"><span class="info-label">Stripe status</span><span class="info-value" id="mi-stripe">--</span></div>
+          <div class="info-item"><span class="info-label">Collection mode</span><span class="info-value" id="mi-stripe">--</span></div>
           <div class="info-item"><span class="info-label">Joined</span><span class="info-value" id="mi-joined">--</span></div>
         </div>
       </div>
@@ -337,7 +337,7 @@
     if(!tenants.length){ tbody.innerHTML='<tr><td colspan="8" class="loading-cell">No tenants found.</td></tr>'; return; }
     tbody.innerHTML=tenants.map(t=>{
       const stripeClass=t.stripe_status==='active'?'badge-stripe-active':t.stripe_status==='pending'?'badge-stripe-pending':'badge-stripe-none';
-      const stripeLabel=t.stripe_status==='active'?'Connected':t.stripe_status==='pending'?'Pending':'Not connected';
+      const stripeLabel=t.stripe_status==='active'?'Manual ready':t.stripe_status==='pending'?'Needs review':'Manual only';
       const joined=t.created_at?new Date(t.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):'--';
       return `<tr data-id="${t.id}">
         <td><div class="tenant-name-cell">${esc(t.name)}</div><div class="tenant-email-cell">${esc(t.owner_email||'')}</div></td>

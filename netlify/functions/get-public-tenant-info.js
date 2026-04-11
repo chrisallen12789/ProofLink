@@ -255,17 +255,18 @@ function toResponse(tenant, cfg) {
           planKey: clean(tenant.prooflink_plan_key || 'starter') || 'starter',
           planLabel: clean(tenant.prooflink_plan_key || 'starter') || 'starter',
           billingInterval: 'month',
-          checkoutPath: '/.netlify/functions/stripe-platform-checkout',
+          checkoutPath: '',
         },
         commerce: {
-          connectPath: '/.netlify/functions/stripe-connect-link',
+          connectPath: '',
           applicationFeeBps: resolveApplicationFeeBps(tenant.application_fee_bps),
-          allowedModes: ['invoice', 'checkout'],
+          allowedModes: ['invoice', 'cash', 'check', 'zelle', 'cashapp'],
           defaultMode: 'invoice',
         },
         ledger: {
           livemode: false,
           currency: 'usd',
+          onlineProvider: 'manual',
         },
       },
       website: {

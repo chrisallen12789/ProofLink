@@ -256,7 +256,7 @@
       <div>
         <div class="eyebrow">Guided rollout</div>
         <h1 id="pageTitle">Get the business live</h1>
-        <p class="sub" id="pageSub">This wizard takes the workspace from approved to billable, payout-ready, and ready to sell.</p>
+        <p class="sub" id="pageSub">This wizard takes the workspace from approved to live, manually collectible, and ready to sell.</p>
       </div>
       <a class="btn secondary" href="/operator/">Open operator dashboard</a>
     </div>
@@ -277,17 +277,17 @@
           <div class="step-item" id="nav-step-2">
             <div class="step-line">
               <div class="step-num">2</div>
-              <h3>Activate ProofLink billing</h3>
+              <h3>Confirm billing mode</h3>
             </div>
-            <p>Turn on the ProofLink subscription for this workspace.</p>
+            <p>Make the billing posture explicit before the business starts taking work.</p>
           </div>
 
           <div class="step-item" id="nav-step-3">
             <div class="step-line">
               <div class="step-num">3</div>
-              <h3>Connect Stripe payouts</h3>
+              <h3>Confirm collection methods</h3>
             </div>
-            <p>Route customer money to the business.</p>
+            <p>Show the operator how customer money is collected right now.</p>
           </div>
 
           <div class="step-item" id="nav-step-4">
@@ -313,10 +313,10 @@
 
         <section class="panel active" id="step-1">
           <h2>Workspace created</h2>
-          <p>The tenant bundle is in place. Now activate billing so the account becomes live on the platform.</p>
+          <p>The tenant bundle is in place. Now confirm the billing posture so the account becomes operational on the platform.</p>
           <div class="kv" id="businessKv"></div>
           <div class="actions">
-            <button class="btn" id="goToBillingBtn">Start platform billing</button>
+            <button class="btn" id="goToBillingBtn">Review billing mode</button>
             <button class="btn secondary" id="refreshStateBtn1">Refresh status</button>
           </div>
           <div class="note">The shell already exists. This step is simply confirmation and routing.</div>
@@ -324,8 +324,8 @@
         </section>
 
         <section class="panel" id="step-2">
-          <h2>Activate ProofLink billing</h2>
-          <p>This turns on the ProofLink subscription for the workspace. It is separate from customer payments.</p>
+          <h2>Confirm billing mode</h2>
+          <p>ProofLink is currently in manual-billing mode. Keep the operator clear on how billing is being handled until a replacement provider is selected.</p>
           <div class="checks">
             <div class="check">
               <strong>Current billing status</strong>
@@ -337,19 +337,19 @@
             </div>
           </div>
           <div class="actions">
-            <button class="btn" id="startBillingBtn">Start platform billing</button>
+            <button class="btn" id="startBillingBtn">Review billing mode</button>
             <button class="btn secondary" id="refreshStateBtn2">Refresh status</button>
           </div>
-          <div class="note">After Stripe returns here, use refresh once if the webhook has not landed yet.</div>
+          <div class="note">There is no hosted subscription checkout right now. Treat this as a manual operations checkpoint.</div>
           <div class="msg" id="msg-step-2"></div>
         </section>
 
         <section class="panel" id="step-3">
-          <h2>Connect Stripe payouts</h2>
-          <p>This connects the tenant's Stripe account so customer payments go to the business, not to ProofLink.</p>
+          <h2>Confirm collection methods</h2>
+          <p>Customer payments are collected manually right now. Make sure the operator knows which methods are accepted and how to record payment results.</p>
           <div class="checks">
             <div class="check">
-              <strong>Connect status</strong>
+              <strong>Collection status</strong>
               <span id="connectStatusText">Unknown</span>
             </div>
             <div class="check">
@@ -358,10 +358,10 @@
             </div>
           </div>
           <div class="actions">
-            <button class="btn" id="connectStripeBtn">Connect Stripe</button>
+            <button class="btn" id="connectStripeBtn">Review collection methods</button>
             <button class="btn secondary" id="refreshStateBtn3">Refresh status</button>
           </div>
-          <div class="note">Online payments stay blocked until billing is active and Connect is complete.</div>
+          <div class="note">Use invoices, checks, cash, Zelle, or Cash App until a replacement payment provider is selected.</div>
           <div class="msg" id="msg-step-3"></div>
         </section>
 

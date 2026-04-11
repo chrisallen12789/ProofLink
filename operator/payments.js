@@ -45,30 +45,41 @@
 
   function renderCheckout(state, raw) {
     var planKey = (state && state.prooflinkPlanKey) || (raw && raw.prooflink_plan_key) || 'starter';
-    var allowed = window.ProofLinkPlan && window.ProofLinkPlan.canUse ? window.ProofLinkPlan.canUse('onlineCheckout', { prooflink_plan_key: planKey }) : false;
+    var allowed = window.ProofLinkPlan && window.ProofLinkPlan.canUse
+      ? window.ProofLinkPlan.canUse('onlineCheckout', { prooflink_plan_key: planKey })
+      : false;
+    var manualMode = !!(state && state.manualMode);
     var eligible = !!(state && state.onlinePaymentsEligible);
 
     if (!allowed) {
       return window.ProofLinkFeatureLock.render({
-        title: 'Online checkout locked',
-        description: 'Online checkout is part of the Growth plan and above.',
+        title: 'Payment workspace locked',
+        description: 'Expanded payment tooling is part of the Growth plan and above.',
         requiredTier: 'growth'
       }) + window.ProofLinkUpgradePanel.render(planKey);
     }
 
     return ''
       + '<section class="card">'
-      + '<h2>Customer checkout</h2>'
-      + '<p>' + (eligible
-          ? 'Online checkout is eligible. The tenant has active billing, a connected Stripe account, and payment flow enabled.'
-          : 'Checkout is available on this tier, but it is not live yet. Finish billing and Stripe readiness first.') + '</p>'
-      + '<div class="status-inline ' + (eligible ? 'ready' : 'pending') + '">' + (eligible ? 'Ready for online checkout' : 'Pending payment readiness') + '</div>'
+      + '<h2>Customer payment mode</h2>'
+      + '<p>'
+      + (manualMode
+        ? 'ProofLink is currently set to manual collection. Share invoice, Zelle, Cash App, cash, or check instructions with the customer.'
+        : eligible
+          ? 'Online collection is eligible and the tenant payment flow is ready.'
+          : 'Payment collection is available on this tier, but it is not fully configured yet.')
+      + '</p>'
+      + '<div class="status-inline ' + ((manualMode || eligible) ? 'ready' : 'pending') + '">'
+      + (manualMode ? 'Manual collection active' : (eligible ? 'Ready for online collection' : 'Pending payment readiness'))
+      + '</div>'
       + '</section>';
   }
 
   function renderPlanSummary(state) {
     var planKey = (state && state.prooflinkPlanKey) || 'starter';
-    var planRules = window.ProofLinkPlan && window.ProofLinkPlan.getPlanRules ? window.ProofLinkPlan.getPlanRules({ prooflink_plan_key: planKey }) : {};
+    var planRules = window.ProofLinkPlan && window.ProofLinkPlan.getPlanRules
+      ? window.ProofLinkPlan.getPlanRules({ prooflink_plan_key: planKey })
+      : {};
     var limits = [
       ['Products', planRules.products === Infinity ? 'Unlimited' : planRules.products],
       ['Customers', planRules.customers === Infinity ? 'Unlimited' : planRules.customers],
@@ -84,7 +95,7 @@
 
   async function loadPaymentState() {
     var token = readOperatorToken();
-    setMsg('Loading payment truth…');
+    setMsg('Loading payment truth...');
 
     try {
       var res = await fetch('/.netlify/functions/tenant-payment-status', {
@@ -105,19 +116,22 @@
           connect_status: state.connectStatus,
           payouts_enabled: raw.payouts_enabled,
           details_submitted: raw.details_submitted,
-          onlinePaymentsEligible: state.onlinePaymentsEligible
+          onlinePaymentsEligible: state.onlinePaymentsEligible,
+          manualMode: state.manualMode
         });
       }
       if (checkoutMount) checkoutMount.innerHTML = renderCheckout(state, raw);
 
       var summary = [];
       summary.push('Billing: ' + esc(state.billingStatus || 'unknown'));
-      summary.push('Connect: ' + esc(state.connectStatus || 'unknown'));
+      summary.push('Collection mode: ' + esc(state.connectStatus || 'unknown'));
       summary.push('Payments enabled: ' + (state.paymentsEnabled ? 'yes' : 'no'));
       summary.push('Online eligible: ' + (state.onlinePaymentsEligible ? 'yes' : 'no'));
-      setMsg(summary.join(' • '), state.onlinePaymentsEligible ? 'ready' : 'pending');
+      setMsg(summary.join(' • '), (state.manualMode || state.onlinePaymentsEligible) ? 'ready' : 'pending');
     } catch (err) {
-      if (paymentReadinessMount) paymentReadinessMount.innerHTML = '<section class="card"><h2>Payment readiness</h2><p>Unable to load tenant payment state.</p></section>';
+      if (paymentReadinessMount) {
+        paymentReadinessMount.innerHTML = '<section class="card"><h2>Payment readiness</h2><p>Unable to load tenant payment state.</p></section>';
+      }
       if (checkoutMount) checkoutMount.innerHTML = '';
       if (planSummaryEl) planSummaryEl.innerHTML = '';
       if (upgradeMount) upgradeMount.innerHTML = window.ProofLinkUpgradePanel.render('starter');
@@ -130,7 +144,7 @@
   if (btnRefresh) btnRefresh.addEventListener('click', loadPaymentState);
   planButtons.forEach(function (btn) {
     btn.addEventListener('click', function () {
-      setMsg('Plan selection captured: ' + btn.getAttribute('data-plan') + '. Wire this button into your billing flow next.', 'pending');
+      setMsg('Plan selection captured: ' + btn.getAttribute('data-plan') + '. Review manual billing before changing collection strategy.', 'pending');
       hideModal();
     });
   });

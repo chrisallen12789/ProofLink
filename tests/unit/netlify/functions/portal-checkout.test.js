@@ -1,17 +1,19 @@
-"use strict";
+'use strict';
 
-const path = require("path");
+const path = require('path');
 
-const handlerPath = path.resolve(process.cwd(), "netlify/functions/portal-checkout.js");
-const authUtilsPath = path.resolve(process.cwd(), "netlify/functions/utils/auth.js");
-const rateLimitPath = path.resolve(process.cwd(), "netlify/functions/utils/rate-limit.js");
-const paymentsPath = path.resolve(process.cwd(), "netlify/functions/_prooflink_payments.js");
+const handlerPath = path.resolve(process.cwd(), 'netlify/functions/portal-checkout.js');
+const authUtilsPath = path.resolve(process.cwd(), 'netlify/functions/utils/auth.js');
+const rateLimitPath = path.resolve(process.cwd(), 'netlify/functions/utils/rate-limit.js');
+const paymentsPath = path.resolve(process.cwd(), 'netlify/functions/_prooflink_payments.js');
 
 function loadHandlerWithMocks({ authMockExports, rateLimitMockExports, paymentsMockExports }) {
-  const originalAuthModule = require.cache[authUtilsPath];
-  const originalRateLimitModule = require.cache[rateLimitPath];
-  const originalPaymentsModule = require.cache[paymentsPath];
-  const originalHandlerModule = require.cache[handlerPath];
+  const originals = new Map([
+    [authUtilsPath, require.cache[authUtilsPath]],
+    [rateLimitPath, require.cache[rateLimitPath]],
+    [paymentsPath, require.cache[paymentsPath]],
+    [handlerPath, require.cache[handlerPath]],
+  ]);
 
   require.cache[authUtilsPath] = {
     id: authUtilsPath,
@@ -33,19 +35,14 @@ function loadHandlerWithMocks({ authMockExports, rateLimitMockExports, paymentsM
   };
   delete require.cache[handlerPath];
 
-  const handler = require(handlerPath).handler;
-
   return {
-    handler,
+    handler: require(handlerPath).handler,
     restore() {
       delete require.cache[handlerPath];
-      if (originalHandlerModule) require.cache[handlerPath] = originalHandlerModule;
-      if (originalAuthModule) require.cache[authUtilsPath] = originalAuthModule;
-      else delete require.cache[authUtilsPath];
-      if (originalRateLimitModule) require.cache[rateLimitPath] = originalRateLimitModule;
-      else delete require.cache[rateLimitPath];
-      if (originalPaymentsModule) require.cache[paymentsPath] = originalPaymentsModule;
-      else delete require.cache[paymentsPath];
+      for (const [modulePath, original] of originals.entries()) {
+        if (original) require.cache[modulePath] = original;
+        else delete require.cache[modulePath];
+      }
     },
   };
 }
@@ -59,35 +56,35 @@ function createQueryChain(result) {
   return chain;
 }
 
-describe("netlify/functions/portal-checkout", () => {
+describe('netlify/functions/portal-checkout', () => {
   beforeEach(() => {
     vi.resetModules();
   });
 
-  test("builds checkout return URLs with tenant and email context intact", async () => {
+  test('returns manual payment help with the explicit amount due', async () => {
     const supabase = {
       from: vi.fn((table) => {
-        if (table === "orders") {
+        if (table === 'orders') {
           return createQueryChain({
             data: [{
-              id: "order_123",
-              tenant_id: "tenant_123",
-              email: "customer@example.com",
+              id: 'order_123',
+              tenant_id: 'tenant_123',
+              email: 'customer@example.com',
               total_cents: 45000,
               amount_paid_cents: 5000,
-              amount_due_cents: 40000,
-              status: "confirmed",
-              cart_summary: "Hydrovac daylighting",
+              amount_due_cents: 12500,
+              status: 'confirmed',
+              cart_summary: 'Hydrovac daylighting',
             }],
             error: null,
           });
         }
-        if (table === "tenants") {
+        if (table === 'tenants') {
           return createQueryChain({
             data: [{
-              id: "tenant_123",
-              stripe_connect_account_id: "acct_123",
-              stripe_account_id: null,
+              id: 'tenant_123',
+              business_name: 'ProofLink Hydro',
+              owner_email: 'office@example.com',
             }],
             error: null,
           });
@@ -96,10 +93,79 @@ describe("netlify/functions/portal-checkout", () => {
       }),
     };
 
-    const stripeRequest = vi.fn(async (_path, _method, payload) => ({
-      url: "https://checkout.stripe.test/session_123",
-      payload,
-    }));
+    const { handler, restore } = loadHandlerWithMocks({
+      authMockExports: {
+        getAdminClient: () => supabase,
+        respond: (statusCode, body) => ({ statusCode, body: JSON.stringify(body) }),
+      },
+      rateLimitMockExports: {
+        checkRateLimit: () => ({ allowed: true }),
+        rateLimitResponse: () => ({ statusCode: 429, body: JSON.stringify({ error: 'rate limited' }) }),
+        getClientIP: () => '127.0.0.1',
+      },
+      paymentsMockExports: {
+        manualPaymentsOnlyMessage: () => 'Manual payments only',
+      },
+    });
+
+    try {
+      const res = await handler({
+        httpMethod: 'GET',
+        queryStringParameters: {
+          order_id: 'order_123',
+          email: 'customer@example.com',
+        },
+      });
+
+      expect(res.statusCode).toBe(503);
+      expect(JSON.parse(res.body)).toEqual({
+        ok: false,
+        error: 'Manual payments only',
+        contact_needed: true,
+        code: 'manual_payments_only',
+        payment_help: {
+          business_name: 'ProofLink Hydro',
+          contact_email: 'office@example.com',
+          order_id: 'order_123',
+          amount_due_cents: 12500,
+        },
+      });
+    } finally {
+      restore();
+    }
+  });
+
+  test('falls back to a default manual mode message when the helper export is missing', async () => {
+    const supabase = {
+      from: vi.fn((table) => {
+        if (table === 'orders') {
+          return createQueryChain({
+            data: [{
+              id: 'order_123',
+              tenant_id: 'tenant_123',
+              email: 'customer@example.com',
+              total_cents: 10000,
+              amount_paid_cents: 0,
+              amount_due_cents: 10000,
+              status: 'confirmed',
+              cart_summary: 'Drain cleaning',
+            }],
+            error: null,
+          });
+        }
+        if (table === 'tenants') {
+          return createQueryChain({
+            data: [{
+              id: 'tenant_123',
+              business_name: 'ProofLink Hydro',
+              owner_email: 'office@example.com',
+            }],
+            error: null,
+          });
+        }
+        throw new Error(`Unexpected table ${table}`);
+      }),
+    };
 
     const { handler, restore } = loadHandlerWithMocks({
       authMockExports: {
@@ -108,40 +174,28 @@ describe("netlify/functions/portal-checkout", () => {
       },
       rateLimitMockExports: {
         checkRateLimit: () => ({ allowed: true }),
-        rateLimitResponse: () => ({ statusCode: 429, body: JSON.stringify({ error: "rate limited" }) }),
-        getClientIP: () => "127.0.0.1",
+        rateLimitResponse: () => ({ statusCode: 429, body: JSON.stringify({ error: 'rate limited' }) }),
+        getClientIP: () => '127.0.0.1',
       },
-      paymentsMockExports: {
-        stripeRequest,
-        getBaseUrl: () => "https://prooflink.co",
-        ensureTenantApplicationFeeBps: vi.fn(async (tenant) => ({
-          ...tenant,
-          application_fee_bps: 750,
-        })),
-      },
+      paymentsMockExports: {},
     });
 
     try {
       const res = await handler({
-        httpMethod: "GET",
+        httpMethod: 'GET',
         queryStringParameters: {
-          order_id: "order_123",
-          email: "customer@example.com",
+          order_id: 'order_123',
+          email: 'customer@example.com',
         },
       });
 
-      expect(res.statusCode).toBe(200);
-      expect(JSON.parse(res.body)).toEqual({
-        ok: true,
-        checkout_url: "https://checkout.stripe.test/session_123",
-      });
-      expect(stripeRequest).toHaveBeenCalledWith(
-        "/checkout/sessions",
-        "POST",
+      expect(res.statusCode).toBe(503);
+      expect(JSON.parse(res.body)).toEqual(
         expect.objectContaining({
-          success_url: "https://prooflink.co/portal.html?tenant=tenant_123&email=customer%40example.com&order_id=order_123&checkout=success&session_id=%7BCHECKOUT_SESSION_ID%7D",
-          cancel_url: "https://prooflink.co/portal.html?tenant=tenant_123&email=customer%40example.com&order_id=order_123&checkout=cancel",
-          "payment_intent_data[application_fee_amount]": 3000,
+          ok: false,
+          code: 'manual_payments_only',
+          contact_needed: true,
+          error: expect.stringContaining('manual-payments mode'),
         })
       );
     } finally {
@@ -149,30 +203,19 @@ describe("netlify/functions/portal-checkout", () => {
     }
   });
 
-  test("returns a contact-needed response when online payments are unavailable", async () => {
+  test('blocks terminal orders before payment help is shown', async () => {
     const supabase = {
       from: vi.fn((table) => {
-        if (table === "orders") {
+        if (table === 'orders') {
           return createQueryChain({
             data: [{
-              id: "order_123",
-              tenant_id: "tenant_123",
-              email: "customer@example.com",
+              id: 'order_789',
+              tenant_id: 'tenant_123',
+              email: 'customer@example.com',
               total_cents: 10000,
-              amount_paid_cents: 0,
-              amount_due_cents: 10000,
-              status: "confirmed",
-              cart_summary: "Drain cleaning",
-            }],
-            error: null,
-          });
-        }
-        if (table === "tenants") {
-          return createQueryChain({
-            data: [{
-              id: "tenant_123",
-              stripe_connect_account_id: "",
-              stripe_account_id: "",
+              amount_paid_cents: 10000,
+              amount_due_cents: 0,
+              status: 'paid',
             }],
             error: null,
           });
@@ -181,8 +224,6 @@ describe("netlify/functions/portal-checkout", () => {
       }),
     };
 
-    const stripeRequest = vi.fn();
-
     const { handler, restore } = loadHandlerWithMocks({
       authMockExports: {
         getAdminClient: () => supabase,
@@ -190,22 +231,20 @@ describe("netlify/functions/portal-checkout", () => {
       },
       rateLimitMockExports: {
         checkRateLimit: () => ({ allowed: true }),
-        rateLimitResponse: () => ({ statusCode: 429, body: JSON.stringify({ error: "rate limited" }) }),
-        getClientIP: () => "127.0.0.1",
+        rateLimitResponse: () => ({ statusCode: 429, body: JSON.stringify({ error: 'rate limited' }) }),
+        getClientIP: () => '127.0.0.1',
       },
       paymentsMockExports: {
-        stripeRequest,
-        getBaseUrl: () => "https://prooflink.co",
-        ensureTenantApplicationFeeBps: vi.fn(async (tenant) => tenant),
+        manualPaymentsOnlyMessage: () => 'Manual payments only',
       },
     });
 
     try {
       const res = await handler({
-        httpMethod: "GET",
+        httpMethod: 'GET',
         queryStringParameters: {
-          order_id: "order_123",
-          email: "customer@example.com",
+          order_id: 'order_789',
+          email: 'customer@example.com',
         },
       });
 
@@ -213,89 +252,8 @@ describe("netlify/functions/portal-checkout", () => {
       expect(JSON.parse(res.body)).toEqual(
         expect.objectContaining({
           ok: false,
-          contact_needed: true,
-          error: "Provider has not set up online payments",
-        })
-      );
-      expect(stripeRequest).not.toHaveBeenCalled();
-    } finally {
-      restore();
-    }
-  });
-
-  test("prefers amount_due_cents over recalculating from stale paid totals", async () => {
-    const supabase = {
-      from: vi.fn((table) => {
-        if (table === "orders") {
-          return createQueryChain({
-            data: [{
-              id: "order_456",
-              tenant_id: "tenant_123",
-              email: "customer@example.com",
-              total_cents: 45000,
-              amount_paid_cents: 0,
-              amount_due_cents: 12500,
-              payment_state: "partially_paid",
-              status: "confirmed",
-              cart_summary: "Follow-up trench daylighting",
-            }],
-            error: null,
-          });
-        }
-        if (table === "tenants") {
-          return createQueryChain({
-            data: [{
-              id: "tenant_123",
-              stripe_connect_account_id: "acct_123",
-              stripe_account_id: null,
-            }],
-            error: null,
-          });
-        }
-        throw new Error(`Unexpected table ${table}`);
-      }),
-    };
-
-    const stripeRequest = vi.fn(async (_path, _method, payload) => ({
-      url: "https://checkout.stripe.test/session_456",
-      payload,
-    }));
-
-    const { handler, restore } = loadHandlerWithMocks({
-      authMockExports: {
-        getAdminClient: () => supabase,
-        respond: (statusCode, body) => ({ statusCode, body: JSON.stringify(body) }),
-      },
-      rateLimitMockExports: {
-        checkRateLimit: () => ({ allowed: true }),
-        rateLimitResponse: () => ({ statusCode: 429, body: JSON.stringify({ error: "rate limited" }) }),
-        getClientIP: () => "127.0.0.1",
-      },
-      paymentsMockExports: {
-        stripeRequest,
-        getBaseUrl: () => "https://prooflink.co",
-        ensureTenantApplicationFeeBps: vi.fn(async (tenant) => ({
-          ...tenant,
-          application_fee_bps: 0,
-        })),
-      },
-    });
-
-    try {
-      const res = await handler({
-        httpMethod: "GET",
-        queryStringParameters: {
-          order_id: "order_456",
-          email: "customer@example.com",
-        },
-      });
-
-      expect(res.statusCode).toBe(200);
-      expect(stripeRequest).toHaveBeenCalledWith(
-        "/checkout/sessions",
-        "POST",
-        expect.objectContaining({
-          "line_items[0][price_data][unit_amount]": 12500,
+          error: 'This order has already been paid in full.',
+          status: 'paid',
         })
       );
     } finally {

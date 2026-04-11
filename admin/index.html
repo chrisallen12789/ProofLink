@@ -367,7 +367,7 @@
                     <th>Slug</th>
                     <th>Status</th>
                     <th>Onboarded</th>
-                    <th>Stripe</th>
+                    <th>Collection Mode</th>
                     <th>Orders</th>
                     <th>GMV</th>
                     <th>Location</th>
@@ -604,26 +604,26 @@
           <div class="page-header">
             <div>
               <div class="page-title">Platform Billing</div>
-              <div class="page-sub">Stripe platform subscription and revenue overview.</div>
+              <div class="page-sub">Manual-payment operations and collection readiness overview.</div>
             </div>
           </div>
           <div class="panel">
             <div class="panel-body">
               <p style="color: var(--muted); font-size: 0.85rem; line-height: 1.65">
-                Billing management is handled through your Stripe dashboard. Connect your Stripe
-                account in platform settings to see live subscription data here.
+                ProofLink is currently running in manual-payments mode. Use this panel to
+                confirm collection guidance and tenant readiness while replacement providers are evaluated.
               </p>
               <div style="margin-top: 1.25rem; display: flex; gap: 0.75rem; flex-wrap: wrap">
                 <a
                   class="btn btn-primary"
-                  href="https://dashboard.stripe.com"
+                  href="#"
                   target="_blank"
                   rel="noopener"
                   >Open Stripe dashboard ↗</a
                 >
                 <a
                   class="btn"
-                  href="https://dashboard.stripe.com/connect/accounts/overview"
+                  href="#"
                   target="_blank"
                   rel="noopener"
                   >Stripe Connect ↗</a
@@ -631,33 +631,33 @@
               </div>
               <div class="health-grid" style="margin-top: 1.5rem">
                 <div class="health-card">
-                  <div class="health-label">Stripe API key</div>
+                  <div class="health-label">Payment provider mode</div>
                   <div class="health-status" id="hc-stripe-key">
                     <div class="health-dot unknown"></div>
                     Checking…
                   </div>
                   <div class="health-note" id="hc-stripe-key-note">
-                    Verifying your Stripe secret key.
+                    Confirming manual-payments mode is active.
                   </div>
                 </div>
                 <div class="health-card">
-                  <div class="health-label">Connected accounts</div>
+                  <div class="health-label">Manual-ready tenants</div>
                   <div class="health-status" id="hc-stripe-connect">
                     <div class="health-dot unknown"></div>
                     Checking…
                   </div>
                   <div class="health-note" id="hc-stripe-connect-note">
-                    Counting active Stripe Connect accounts.
+                    Counting tenants with payment collection enabled.
                   </div>
                 </div>
                 <div class="health-card">
-                  <div class="health-label">Webhook endpoint</div>
+                  <div class="health-label">Retired webhook status</div>
                   <div class="health-status" id="hc-stripe-webhook">
                     <div class="health-dot unknown"></div>
                     Checking…
                   </div>
                   <div class="health-note" id="hc-stripe-webhook-note">
-                    Verifying webhook secret is configured.
+                    Confirming legacy Stripe monitoring is retired.
                   </div>
                 </div>
               </div>
@@ -845,8 +845,8 @@
                     <td><span class="badge badge-submitted">Required</span></td>
                   </tr>
                   <tr>
-                    <td class="td-mono">STRIPE_SECRET_KEY</td>
-                    <td>Stripe secret key for billing</td>
+                    <td class="td-mono">MANUAL_PAYMENT_GUIDE_URL</td>
+                    <td>Optional link to your manual payment instructions</td>
                     <td><span class="badge badge-approved">Recommended</span></td>
                   </tr>
                   <tr>

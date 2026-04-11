@@ -1,14 +1,17 @@
 // FILE: netlify/functions/portal-checkout.js
 // PUBLIC endpoint — no operator auth required.
-// Lets a customer pay an outstanding order balance via Stripe Checkout.
-//
-// GET ?order_id=<uuid>&email=<customer_email>
+// Manual-payments mode. Returns a clear response so the portal can route the
+// customer to invoice/manual instructions instead of online checkout.
 
 const { getAdminClient, respond } = require('./utils/auth');
-const { stripeRequest, getBaseUrl, ensureTenantApplicationFeeBps } = require('./_prooflink_payments');
+const { manualPaymentsOnlyMessage } = require('./_prooflink_payments');
 const { checkRateLimit, rateLimitResponse, getClientIP } = require('./utils/rate-limit');
 
 const TERMINAL_STATUSES = new Set(['cancelled', 'canceled', 'void', 'paid']);
+const getManualPaymentsOnlyMessage = () =>
+  typeof manualPaymentsOnlyMessage === 'function'
+    ? manualPaymentsOnlyMessage()
+    : 'ProofLink is currently running in manual-payments mode. Online checkout and automated billing are unavailable.';
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return respond(200, { ok: true });
@@ -88,10 +91,10 @@ exports.handler = async (event) => {
       return respond(400, { ok: false, error: 'Outstanding balance is below the minimum charge amount ($0.50)' });
     }
 
-    // --- Fetch tenant Stripe account ---
+    // --- Fetch tenant contact context ---
     const { data: tenantRows, error: tenantErr } = await supabase
       .from('tenants')
-      .select('id, stripe_connect_account_id, stripe_account_id, application_fee_bps')
+      .select('id, business_name, owner_email')
       .eq('id', order.tenant_id)
       .limit(1);
 
@@ -105,64 +108,19 @@ exports.handler = async (event) => {
       console.error('[portal-checkout] tenant not found for order tenant_id:', order.tenant_id);
       return respond(404, { ok: false, error: 'Provider not found' });
     }
-    const tenantWithFeePolicy = await ensureTenantApplicationFeeBps(tenant || {});
-    const stripeAccountId = (
-      tenantWithFeePolicy?.stripe_connect_account_id ||
-      tenantWithFeePolicy?.stripe_account_id         ||
-      ''
-    ).trim();
 
-    if (!stripeAccountId) {
-      return respond(400, {
-        ok            : false,
-        error         : 'Provider has not set up online payments',
-        contact_needed: true,
-      });
-    }
-
-    // --- Build success / cancel URLs ---
-    const baseUrl = getBaseUrl(event);
-    const portalParams = new URLSearchParams({
-      tenant: order.tenant_id,
-      email,
-      order_id: orderId,
+    return respond(503, {
+      ok: false,
+      error: getManualPaymentsOnlyMessage(),
+      contact_needed: true,
+      code: 'manual_payments_only',
+      payment_help: {
+        business_name: tenant.business_name || '',
+        contact_email: tenant.owner_email || '',
+        order_id: orderId,
+        amount_due_cents: balanceCents,
+      },
     });
-    const successParams = new URLSearchParams(portalParams);
-    successParams.set('checkout', 'success');
-    successParams.set('session_id', '{CHECKOUT_SESSION_ID}');
-    const cancelParams = new URLSearchParams(portalParams);
-    cancelParams.set('checkout', 'cancel');
-    const successUrl = `${baseUrl}/portal.html?${successParams.toString()}`;
-    const cancelUrl = `${baseUrl}/portal.html?${cancelParams.toString()}`;
-
-    const applicationFeeBps = Number(tenantWithFeePolicy?.application_fee_bps || 0);
-    const applicationFee = applicationFeeBps > 0
-      ? Math.round(balanceCents * (applicationFeeBps / 10000))
-      : 0;
-
-    // --- Create Stripe Checkout session ---
-    const productName = (order.cart_summary || 'Outstanding Balance').trim();
-
-    const session = await stripeRequest('/checkout/sessions', 'POST', {
-      mode                                              : 'payment',
-      success_url                                       : successUrl,
-      cancel_url                                        : cancelUrl,
-      customer_email                                    : email,
-      'line_items[0][price_data][currency]'             : 'usd',
-      'line_items[0][price_data][unit_amount]'          : balanceCents,
-      'line_items[0][price_data][product_data][name]'   : productName,
-      'line_items[0][quantity]'                         : 1,
-      'payment_intent_data[application_fee_amount]'     : applicationFee,
-      'payment_intent_data[transfer_data][destination]' : stripeAccountId,
-      'payment_intent_data[metadata][order_id]'         : orderId,
-      'payment_intent_data[metadata][tenant_id]'        : order.tenant_id,
-      'payment_intent_data[metadata][source]'           : 'portal_checkout',
-      'metadata[order_id]'                              : orderId,
-      'metadata[tenant_id]'                             : order.tenant_id,
-      'metadata[source]'                                : 'portal_checkout',
-    });
-
-    return respond(200, { ok: true, checkout_url: session.url });
 
   } catch (e) {
     console.error('[portal-checkout] unexpected error:', e);

@@ -249,7 +249,7 @@ function loadOverview() {
           + '<div class="kpi-card"><div class="kpi-label">Platform GMV</div><div class="kpi-value">' + money(Math.round(platformGmv * 100)) + '</div></div>'
           + '<div class="kpi-card"><div class="kpi-label">Total orders</div><div class="kpi-value">' + orderCount + '</div></div>'
           + '<div class="kpi-card"><div class="kpi-label">Avg tenant revenue</div><div class="kpi-value">' + money(Math.round(avgRevenue * 100)) + '</div></div>'
-          + '<div class="kpi-card"><div class="kpi-label">Stripe connected</div><div class="kpi-value">' + ((d.tenants && d.tenants.stripe_connected) || 0) + '</div></div>';
+          + '<div class="kpi-card"><div class="kpi-label">Manual-ready tenants</div><div class="kpi-value">' + ((d.tenants && d.tenants.stripe_connected) || 0) + '</div></div>';
       }
 
       // ── Pipeline bar
@@ -689,7 +689,7 @@ function loadTenants() {
           + '<td class="td-mono">' + esc(t.slug || '—') + '</td>'
           + '<td>' + statusBadge(tenantStatus) + '</td>'
           + '<td style="white-space:nowrap;font-size:.78rem">' + fmt(t.created_at) + '</td>'
-          + '<td>' + statusBadge(t.stripe_status || 'not_connected') + '</td>'
+          + '<td>' + statusBadge(t.stripe_status || 'manual') + '</td>'
           + '<td>' + (t.order_count != null ? t.order_count : '—') + '</td>'
           + '<td>' + gmvDisplay + '</td>'
           + '<td>' + esc(t.city_state || '—') + '</td>'
@@ -1048,7 +1048,7 @@ function exportTenantsCsv() {
   var rows = Object.values(tenantCache);
   if (!rows.length) { toast('No tenant data loaded — open the Tenants section first.', true); return; }
 
-  var headers = ['Name', 'Slug', 'Owner Email', 'Owner Name', 'Status', 'Stripe', 'Orders', 'GMV', 'Location', 'Onboarded'];
+  var headers = ['Name', 'Slug', 'Owner Email', 'Owner Name', 'Status', 'Collection Mode', 'Orders', 'GMV', 'Location', 'Onboarded'];
   var csvRows = [headers.join(',')];
 
   rows.forEach(function (t) {

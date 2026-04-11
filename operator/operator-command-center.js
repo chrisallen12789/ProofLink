@@ -625,7 +625,8 @@ function renderDashboard() {
     ? window.ProofLinkStripeReadiness.render({
         billing_status: DASHBOARD_PAYMENT_STATE.billingStatus,
         connect_status: DASHBOARD_PAYMENT_STATE.connectStatus,
-        online_payments_enabled: DASHBOARD_PAYMENT_STATE.onlinePaymentsEligible
+        online_payments_enabled: DASHBOARD_PAYMENT_STATE.onlinePaymentsEligible,
+        manualMode: DASHBOARD_PAYMENT_STATE.manualMode
       })
     : '';
 

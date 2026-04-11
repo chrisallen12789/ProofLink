@@ -112,9 +112,13 @@ function tryListRemoteMigrations() {
     const stdout = String(error?.stdout || '').trim();
     const combined = [stderr, stdout, error?.message || String(error)].filter(Boolean).join('\n');
     const missingLink = /Cannot find project ref\. Have you run supabase link\?/i.test(combined);
+    const missingDbPassword =
+      /SUPABASE_DB_PASSWORD/i.test(combined) ||
+      /password authentication failed/i.test(combined) ||
+      /Circuit breaker open: Too many authentication errors/i.test(combined);
     return {
       ok: false,
-      skipped: missingLink,
+      skipped: missingLink || missingDbPassword,
       error: combined || error?.message || String(error),
       local: new Set(),
       remote: new Set(),

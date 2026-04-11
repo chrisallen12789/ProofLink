@@ -1,12 +1,14 @@
 (function (global) {
   function deriveState(tenant) {
     tenant = tenant || {};
-    var billingActive = tenant.billing_status === 'active' || tenant.billingStatus === 'active';
-    var connectReady = tenant.connect_status === 'connect_connected' || tenant.connectStatus === 'connect_connected';
-    var payoutsReady = tenant.payouts_enabled === true || tenant.payoutsReady === true;
-    var detailsSubmitted = tenant.details_submitted === true || tenant.detailsSubmitted === true;
-    var onlineCheckoutReady = tenant.online_payments_enabled === true || tenant.onlinePaymentsEligible === true || (billingActive && connectReady);
+    var manualMode = tenant.manualMode === true || tenant.billing_status === 'manual' || tenant.billingStatus === 'manual' || tenant.billing_status === 'manual_active' || tenant.billingStatus === 'manual_active';
+    var billingActive = manualMode || tenant.billing_status === 'active' || tenant.billingStatus === 'active';
+    var connectReady = manualMode || tenant.connect_status === 'connect_connected' || tenant.connectStatus === 'connect_connected';
+    var payoutsReady = manualMode || tenant.payouts_enabled === true || tenant.payoutsReady === true;
+    var detailsSubmitted = manualMode || tenant.details_submitted === true || tenant.detailsSubmitted === true;
+    var onlineCheckoutReady = tenant.online_payments_enabled === true || tenant.onlinePaymentsEligible === true || (!manualMode && billingActive && connectReady);
     return {
+      manualMode: manualMode,
       billingActive: billingActive,
       connectReady: connectReady,
       payoutsReady: payoutsReady,
@@ -18,10 +20,10 @@
   function render(tenant) {
     var state = deriveState(tenant);
     var rows = [
-      ['Platform billing', state.billingActive],
-      ['Stripe Connect', state.connectReady],
-      ['Details submitted', state.detailsSubmitted],
-      ['Payouts enabled', state.payoutsReady],
+      ['Manual billing active', state.billingActive],
+      ['Manual collections configured', state.connectReady],
+      ['Collection guidance visible', state.detailsSubmitted],
+      ['Operator payment tracking enabled', state.payoutsReady],
       ['Online checkout', state.onlineCheckoutReady]
     ];
     return ''

@@ -2712,8 +2712,7 @@ btnConvertBidToOrder?.addEventListener("click", async () => {
   const existing = currentBidOrder(draft);
   if (existing) {
     ACTIVE_ORDER_ID = existing.id;
-    switchTab("orders");
-    renderOrders();
+    await Promise.resolve(switchTab("orders"));
     return;
   }
   setInlineMessage(bidMsg, isServiceWorkspace(currentWorkspaceBlueprint()) ? "Moving quote into booked work..." : "Creating tracked order...");
@@ -2727,8 +2726,7 @@ btnConvertBidToOrder?.addEventListener("click", async () => {
         : (isServiceWorkspace(currentWorkspaceBlueprint()) ? "Quote moved into booked work. Opening it next." : "Tracked order created. Opening Orders next."),
       "ok",
     );
-    switchTab("orders");
-    renderOrders();
+    await Promise.resolve(switchTab("orders"));
   } catch (err) {
     setInlineMessage(bidMsg, err.message || String(err), "error");
   }

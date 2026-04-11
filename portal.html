@@ -669,7 +669,7 @@
                     : '');
               }
 
-              // Show a "Pay Now" button only when there is an outstanding balance (and the order isn't void/cancelled)
+              // Show a payment-help button only when there is an outstanding balance (and the order isn't void/cancelled)
               var payNowHtml = '';
               var canPay = dueCents > 0 && !['cancelled', 'void', 'completed'].includes(o.status);
               if (canPay) {
@@ -678,7 +678,7 @@
                   escHtml(o.id) +
                   '" data-balance-cents="' +
                   escHtml(String(dueCents)) +
-                  '" type="button">Pay now</button>';
+                  '" type="button">Payment help</button>';
               }
 
               var orderClasses = ['order-row', 'stacked-row'];
@@ -701,7 +701,7 @@
                 fmtDate(o.created_at) +
                 '</div>' +
                 (isCheckoutOrder
-                  ? '<div class="order-return-note">This is the order you just came back to. You can keep paying here any time if there is still a balance due.</div>'
+                  ? '<div class="order-return-note">This is the order you just came back to. Use the payment help action to see how to finish the balance.</div>'
                   : '') +
                 (isFocusOrder
                   ? '<div class="order-return-note">This is the best payment to finish next based on what is still due.</div>'
@@ -1100,7 +1100,7 @@
         const orderId = btn && btn.dataset ? btn.dataset.orderId : '';
         if (!orderId) return;
         btn.disabled = true;
-        btn.textContent = 'Opening secure checkout...';
+        btn.textContent = 'Loading payment help...';
         try {
           // Get the customer email from the portal session
           const email = window._portalEmail || '';
@@ -1126,7 +1126,7 @@
             if (data.contact_needed) {
               window.showPortalNotice &&
                 window.showPortalNotice(
-                  'Online payment is not set up for this business yet. Please contact the business directly to arrange payment.',
+                  'Online payment is not set up in ProofLink right now. Please contact the business directly to arrange payment.',
                   'error'
                 );
             } else {
@@ -1137,10 +1137,10 @@
                 );
             }
             btn.disabled = false;
-            btn.textContent = 'Pay now';
+            btn.textContent = 'Payment help';
             return;
           }
-          // Redirect to Stripe Checkout
+          // Redirect to an external payment page if a replacement provider is configured later
           window.location.href = data.checkout_url;
         } catch (err) {
           window.showPortalNotice &&
@@ -1149,7 +1149,7 @@
               'error'
             );
           btn.disabled = false;
-          btn.textContent = 'Pay now';
+          btn.textContent = 'Payment help';
         }
       }
     </script>

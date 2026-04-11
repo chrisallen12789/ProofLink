@@ -9,11 +9,6 @@ const netlifyTomlPath = path.join(repoRoot, "netlify.toml");
 const functionsDir = path.join(repoRoot, "netlify", "functions");
 
 const REQUIRED_RUNTIME_KEYS = [
-  "STRIPE_SECRET_KEY",
-  "STRIPE_WEBHOOK_SECRET",
-  "STRIPE_CONNECT_WEBHOOK_SECRET",
-  "STRIPE_PRICE_STARTER_MONTHLY",
-  "STRIPE_PRICE_GROWTH_MONTHLY",
   "SUPABASE_URL",
   "SUPABASE_SERVICE_ROLE_KEY",
   "SUPABASE_ANON_KEY",
