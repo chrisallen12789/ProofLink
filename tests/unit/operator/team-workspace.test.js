@@ -244,6 +244,7 @@ describe("operator team workspace", () => {
     expect(elements.teamMembersList.innerHTML).toContain("Roster pressure");
     expect(elements.teamMembersList.innerHTML).toContain("Readiness summary");
     expect(elements.teamMembersList.innerHTML).toContain("Export readiness");
+    expect(elements.teamMembersList.innerHTML).toContain("Export audit");
     expect(elements.teamMembersList.innerHTML).toContain("Block capacity");
     expect(elements.teamMembersList.innerHTML).toContain("Readiness summary");
     expect(elements.teamMembersList.innerHTML).toContain("Driver setup");

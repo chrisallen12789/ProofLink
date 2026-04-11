@@ -1923,7 +1923,10 @@ function renderTeamReadinessSummaryCard() {
           <strong>Readiness summary</strong>
           <div class="muted">A quick office rollup of who is clear, who still needs supervised follow-through, and where records are missing.</div>
         </div>
-        <button class="btn btn-ghost btn-sm" type="button" onclick="exportTeamReadinessCsv()">Export readiness</button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-ghost btn-sm" type="button" onclick="exportTeamReadinessCsv()">Export readiness</button>
+          <button class="btn btn-ghost btn-sm" type="button" onclick="exportTeamAuditCsv()">Export audit</button>
+        </div>
       </div>
       <div class="card-bd">
         <div class="row row-tight" style="flex-wrap:wrap;">
@@ -3140,6 +3143,55 @@ function exportTeamInvestmentCsv() {
   downloadTeamCsv(`team-investment-${new Date().toISOString().slice(0, 10)}.csv`, rows);
 }
 
+function exportTeamAuditCsv() {
+  const rows = [[
+    "Member",
+    "Role",
+    "Track",
+    "Displayed Rate",
+    "Pay Context",
+    "Driver Readiness",
+    "Training Readiness",
+    "Restriction",
+    "Next Action",
+    "Records Status",
+    "Qualification Refresh",
+    "CDL Expiry",
+    "Med Card Expiry",
+    "MVR Check",
+    "First Aid Expiry",
+    "Confined Space Expiry",
+    "H2S Expiry",
+  ]];
+
+  (Array.isArray(TEAM_MEMBERS_CACHE) ? TEAM_MEMBERS_CACHE : []).forEach((member) => {
+    const track = teamMemberRolloutTrack(member);
+    const displayedRateCents = teamMemberDisplayedRateCents(member);
+    const qualification = teamMemberDriverQualification(member) || {};
+    rows.push([
+      teamMemberLabel(member),
+      member?.role || "",
+      track.label,
+      displayedRateCents ? `${formatUsd(displayedRateCents)}/hr` : "",
+      teamMemberCompensationNote(member),
+      teamMemberDriverReadiness(member).label,
+      teamTrainingSummary(member).label,
+      teamMemberRolloutRestriction(member).label,
+      teamMemberNextAction(member).label,
+      teamRecordEvidenceSummary(member).label,
+      teamQualificationRefreshPressure(member).label,
+      qualification?.cdl_expiry_date ? teamDateLabel(qualification.cdl_expiry_date) : "",
+      qualification?.medical_certificate_expiry ? teamDateLabel(qualification.medical_certificate_expiry) : "",
+      qualification?.last_mvr_check_date ? teamDateLabel(qualification.last_mvr_check_date) : "",
+      qualification?.first_aid_cert_expiry_date ? teamDateLabel(qualification.first_aid_cert_expiry_date) : "",
+      qualification?.confined_space_cert_expiry_date ? teamDateLabel(qualification.confined_space_cert_expiry_date) : "",
+      qualification?.h2s_cert_expiry_date ? teamDateLabel(qualification.h2s_cert_expiry_date) : "",
+    ]);
+  });
+
+  downloadTeamCsv(`team-audit-${new Date().toISOString().slice(0, 10)}.csv`, rows);
+}
+
 function renderHoursReport(data) {
   const reportEl = $("hoursReport");
   if (!reportEl) return;
@@ -3328,6 +3380,7 @@ const TEAM_WORKSPACE_HELPERS = {
   exportHoursCsv,
   exportTeamReadinessCsv,
   exportTeamInvestmentCsv,
+  exportTeamAuditCsv,
   loadTeamWorkspace,
   initTeamWorkspaceBindings,
 };
