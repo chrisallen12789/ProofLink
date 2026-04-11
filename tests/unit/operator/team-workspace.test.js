@@ -192,7 +192,7 @@ describe("operator team workspace", () => {
     expect(elements.hoursReport.innerHTML).toContain("Training categories");
     expect(elements.hoursReport.innerHTML).toContain("Driver safety");
     expect(elements.hoursReport.innerHTML).toContain("Maintenance assets");
-    expect(elements.hoursReport.innerHTML).toContain("Vehicle");
+    expect(elements.hoursReport.innerHTML).toContain("Truck 7");
     expect(elements.hoursReport.innerHTML).toContain("Cost buckets");
     expect(elements.hoursReport.innerHTML).toContain("Asset basis candidate");
   });
@@ -210,6 +210,7 @@ describe("operator team workspace", () => {
           duration_minutes: 120,
           work_type: "driver_training",
           training_type: "driver_safety",
+          hourly_rate_cents: 5000,
           cost_bucket: "pricing_overhead",
         }, {
           duration_minutes: 60,
@@ -227,6 +228,16 @@ describe("operator team workspace", () => {
           work_type: "maintenance",
           maintenance_type: "capital_improvement",
           asset_category: "vehicle",
+          asset_label: "Truck 7",
+          hourly_rate_cents: 2500,
+          cost_bucket: "asset_basis_candidate",
+        }, {
+          duration_minutes: 30,
+          work_type: "maintenance",
+          maintenance_type: "inspection",
+          asset_category: "vehicle",
+          asset_label: "Truck 7",
+          hourly_rate_cents: 2500,
           cost_bucket: "asset_basis_candidate",
         }],
       }],
@@ -234,8 +245,10 @@ describe("operator team workspace", () => {
 
     expect(breakdown.trainingTypes[0].label).toBe("Driver safety");
     expect(breakdown.trainingTypes[0].minutes).toBe(120);
-    expect(breakdown.maintenanceAssets[0].label).toBe("Vehicle");
-    expect(breakdown.maintenanceAssets[0].note).toBe("Capital improvement");
+    expect(breakdown.trainingTypes[0].payrollCents).toBe(10000);
+    expect(breakdown.maintenanceAssets[0].label).toBe("Truck 7");
+    expect(breakdown.maintenanceAssets[0].note).toBe("Capital improvement | Inspection");
+    expect(breakdown.maintenanceAssets[0].payrollCents).toBe(5000);
     expect(breakdown.costBuckets.some((item) => item.label === "Covered by job pricing")).toBe(true);
     expect(breakdown.costBuckets.some((item) => item.label === "Asset basis candidate")).toBe(true);
   });

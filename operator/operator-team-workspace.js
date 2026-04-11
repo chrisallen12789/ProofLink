@@ -3166,16 +3166,26 @@ function buildHoursInvestmentBreakdown(data = {}) {
     current.minutes += Number(next.minutes || 0);
     current.payrollCents += Number(next.payrollCents || 0);
     current.count += Number(next.count || 0);
-    if (!current.note && next.note) current.note = next.note;
+    if (next.note) {
+      const notes = new Set(
+        String(current.note || "")
+          .split(" | ")
+          .map((value) => String(value || "").trim())
+          .filter(Boolean)
+      );
+      notes.add(String(next.note).trim());
+      current.note = Array.from(notes).join(" | ");
+    }
     map.set(key, current);
   };
 
   members.forEach((member) => {
-    const rateCents = teamMemberDisplayedRateCents(member);
+    const memberRateCents = teamMemberDisplayedRateCents(member);
     const entries = Array.isArray(member?.entries) ? member.entries : [];
     entries.forEach((entry) => {
       const minutes = Number(entry?.duration_minutes || 0);
       if (!minutes) return;
+      const rateCents = Number(entry?.hourly_rate_cents || memberRateCents || 0);
       const payrollCents = Math.round((minutes / 60) * rateCents);
       const workType = String(entry?.work_type || "").trim();
       const costBucketLabel = teamCostBucketLabel(entry?.cost_bucket);
@@ -3198,7 +3208,8 @@ function buildHoursInvestmentBreakdown(data = {}) {
       }
 
       if (workType === "maintenance") {
-        const assetLabel = teamAssetCategoryLabel(entry?.asset_category);
+        const assetLabel = String(entry?.asset_label || "").trim()
+          || teamAssetCategoryLabel(entry?.asset_category);
         const maintenanceLabel = teamMaintenanceTypeLabel(entry?.maintenance_type);
         upsert(maintenanceAssets, assetLabel, {
           label: assetLabel,
