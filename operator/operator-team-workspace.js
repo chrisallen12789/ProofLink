@@ -1891,6 +1891,51 @@ function renderTeamRosterSummary() {
   `;
 }
 
+function teamReadinessRollup() {
+  const members = Array.isArray(TEAM_MEMBERS_CACHE) ? TEAM_MEMBERS_CACHE : [];
+  const blocked = members.filter((member) => {
+    const label = teamMemberRolloutRestriction(member).label;
+    return ["Restricted from solo dispatch", "Labor-only until driver setup clears", "Qualification refresh overdue", "Training refresh overdue"].includes(label);
+  }).length;
+  const supervised = members.filter((member) => {
+    const label = teamMemberRolloutRestriction(member).label;
+    return ["Ride-along required", "Supervised mixed-role rollout", "Needs supervised field day", "Refresh due soon", "Training refresh due soon"].includes(label);
+  }).length;
+  const recordsMissing = members.filter((member) => teamRecordEvidenceSummary(member).needsAttention).length;
+  return {
+    blocked,
+    supervised,
+    recordsMissing,
+    ready: Math.max(0, members.length - blocked - supervised),
+    total: members.length,
+  };
+}
+
+function renderTeamReadinessSummaryCard() {
+  const summary = teamReadinessRollup();
+  if (!summary.total) {
+    return "";
+  }
+  return `
+    <div class="card" style="margin:0 0 12px;">
+      <div class="card-hd">
+        <div>
+          <strong>Readiness summary</strong>
+          <div class="muted">A quick office rollup of who is clear, who still needs supervised follow-through, and where records are missing.</div>
+        </div>
+      </div>
+      <div class="card-bd">
+        <div class="row row-tight" style="flex-wrap:wrap;">
+          <span class="pill pill-good">${escapeHtml(`${summary.ready} ready`)}</span>
+          <span class="pill pill-warn">${escapeHtml(`${summary.supervised} supervised`)}</span>
+          <span class="pill pill-bad">${escapeHtml(`${summary.blocked} blocked`)}</span>
+          <span class="pill">${escapeHtml(`${summary.recordsMissing} records follow-up`)}</span>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 function renderTeamRolloutBoard() {
   const members = teamMembersNeedingRollout();
   if (!members.length) {
@@ -1971,7 +2016,7 @@ function renderTeamPanel() {
     renderHydrovacDriverWorkspace();
     return;
   }
-  element.innerHTML = `${renderTeamRosterSummary()}${renderTeamRolloutBoard()}<table style="width:100%;border-collapse:collapse;font-size:.85rem;">
+  element.innerHTML = `${renderTeamRosterSummary()}${renderTeamReadinessSummaryCard()}${renderTeamRolloutBoard()}<table style="width:100%;border-collapse:collapse;font-size:.85rem;">
     <thead><tr>
       <th style="text-align:left;padding:6px 8px;color:rgba(255,255,255,.4);font-weight:500;border-bottom:1px solid rgba(255,255,255,.08);">Name</th>
       <th style="text-align:left;padding:6px 8px;color:rgba(255,255,255,.4);font-weight:500;border-bottom:1px solid rgba(255,255,255,.08);">Role</th>
@@ -2919,6 +2964,74 @@ async function loadHoursReport() {
   }
 }
 
+function buildHoursInvestmentSummary(data = {}) {
+  const totals = data?.totals || {};
+  const members = Array.isArray(data?.members) ? data.members : [];
+  const readiness = {
+    blocked: 0,
+    supervised: 0,
+    recordsMissing: 0,
+  };
+
+  members.forEach((member) => {
+    const restriction = teamMemberRolloutRestriction(member).label;
+    if (["Restricted from solo dispatch", "Labor-only until driver setup clears", "Qualification refresh overdue", "Training refresh overdue"].includes(restriction)) {
+      readiness.blocked += 1;
+    } else if (["Ride-along required", "Supervised mixed-role rollout", "Needs supervised field day", "Refresh due soon", "Training refresh due soon"].includes(restriction)) {
+      readiness.supervised += 1;
+    }
+    if (teamRecordEvidenceSummary(member).needsAttention) {
+      readiness.recordsMissing += 1;
+    }
+  });
+
+  const estimatedPayrollCents = Number(totals.estimated_pay_cents || 0);
+  const trainingHours = Number((Number(totals.training_minutes || 0) / 60).toFixed(1));
+  const maintenanceHours = Number((Number(totals.maintenance_minutes || 0) / 60).toFixed(1));
+
+  return {
+    estimatedPayrollCents,
+    trainingHours,
+    maintenanceHours,
+    pricingOverheadCents: Number(totals.pricing_overhead_cost_cents || 0),
+    assetBasisCandidateCents: Number(totals.asset_basis_candidate_cost_cents || 0),
+    readiness,
+  };
+}
+
+function renderHoursInvestmentSummary(data = {}) {
+  const summary = buildHoursInvestmentSummary(data);
+  return `
+    <div class="workspace-signal-band" style="margin:0 0 12px;">
+      <div class="workspace-signal-band__item ${summary.trainingHours ? "workspace-signal-band__item--good" : ""}">
+        <span>Training investment</span>
+        <strong>${escapeHtml(`${summary.trainingHours}h`)}</strong>
+        <small>${escapeHtml(summary.pricingOverheadCents ? `${formatUsd(summary.pricingOverheadCents)} currently tracked into pricing overhead.` : "No training overhead has been tracked in this report yet.")}</small>
+      </div>
+      <div class="workspace-signal-band__item ${summary.maintenanceHours ? "workspace-signal-band__item--warn" : ""}">
+        <span>Maintenance investment</span>
+        <strong>${escapeHtml(`${summary.maintenanceHours}h`)}</strong>
+        <small>${escapeHtml(summary.assetBasisCandidateCents ? `${formatUsd(summary.assetBasisCandidateCents)} is tagged as basis-candidate work.` : "No capital-style maintenance is tagged in this report yet.")}</small>
+      </div>
+      <div class="workspace-signal-band__item ${summary.readiness.blocked ? "workspace-signal-band__item--danger" : summary.readiness.supervised ? "workspace-signal-band__item--warn" : "workspace-signal-band__item--good"}">
+        <span>Readiness follow-up</span>
+        <strong>${escapeHtml(String(summary.readiness.blocked + summary.readiness.supervised))}</strong>
+        <small>${escapeHtml(summary.readiness.blocked ? `${summary.readiness.blocked} blocked and ${summary.readiness.supervised} supervised workers are still showing rollout pressure.` : summary.readiness.supervised ? `${summary.readiness.supervised} workers still need supervised follow-through.` : "No workers in this report are showing rollout pressure right now.")}</small>
+      </div>
+      <div class="workspace-signal-band__item ${summary.readiness.recordsMissing ? "workspace-signal-band__item--warn" : "workspace-signal-band__item--good"}">
+        <span>Records follow-up</span>
+        <strong>${escapeHtml(String(summary.readiness.recordsMissing))}</strong>
+        <small>${escapeHtml(summary.readiness.recordsMissing ? "Office records are still missing for one or more workers in this report." : "Office record coverage looks complete for the visible workers.")}</small>
+      </div>
+      <div class="workspace-signal-band__item ${summary.estimatedPayrollCents ? "workspace-signal-band__item--good" : ""}">
+        <span>Estimated payroll</span>
+        <strong>${escapeHtml(summary.estimatedPayrollCents ? formatUsd(summary.estimatedPayrollCents) : "$0")}</strong>
+        <small>${escapeHtml("Use this as a simple labor-cost preview before payroll reporting grows deeper.")}</small>
+      </div>
+    </div>
+  `;
+}
+
 function renderHoursReport(data) {
   const reportEl = $("hoursReport");
   if (!reportEl) return;
@@ -2992,7 +3105,7 @@ function renderHoursReport(data) {
         </div>
       </div>`;
   }).join("");
-  reportEl.innerHTML = memberHtml + `
+  reportEl.innerHTML = renderHoursInvestmentSummary(data) + memberHtml + `
     <div style="border-top:1px solid rgba(255,255,255,.08);padding-top:14px;margin-top:4px;display:flex;gap:24px;font-size:.9rem;">
       <span><strong>${toHours(totals.total_minutes || 0)}</strong> total hours</span>
       <span class="muted">${toHours(totals.billable_minutes || 0)} billable</span>

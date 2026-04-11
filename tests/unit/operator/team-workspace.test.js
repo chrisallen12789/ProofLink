@@ -83,10 +83,32 @@ describe("operator team workspace", () => {
   });
 
   test("renderHoursReport surfaces union floor context when compensation data is present", () => {
-    const { context, elements } = loadTeamWorkspace();
+    const { context, elements } = loadTeamWorkspace({
+      TEAM_MEMBERS_CACHE: [{
+        id: "member_hours",
+        name: "Skylar Stevens",
+        role: "member",
+        driver_label: "Vactor operator",
+      }],
+      SETUP_STATE: {
+        config: {
+          team_training_profiles: {
+            member_hours: {
+              record_evidence: {
+                cdl_copy: { present: true, recorded_at: "2026-04-09T12:00:00.000Z" },
+                med_card_copy: { present: true, recorded_at: "2026-04-09T12:00:00.000Z" },
+                onboarding_ack: { present: true, recorded_at: "2026-04-09T12:00:00.000Z" },
+                safety_ack: { present: true, recorded_at: "2026-04-09T12:00:00.000Z" },
+              },
+            },
+          },
+        },
+      },
+    });
 
     context.window.renderHoursReport({
       members: [{
+        id: "member_hours",
         name: "Skylar Stevens",
         role: "member",
         total_minutes: 120,
@@ -132,6 +154,9 @@ describe("operator team workspace", () => {
     expect(elements.hoursReport.innerHTML).toContain("source contract floor");
     expect(elements.hoursReport.innerHTML).toContain("Driver training");
     expect(elements.hoursReport.innerHTML).toContain("Pricing overhead");
+    expect(elements.hoursReport.innerHTML).toContain("Training investment");
+    expect(elements.hoursReport.innerHTML).toContain("Readiness follow-up");
+    expect(elements.hoursReport.innerHTML).toContain("Estimated payroll");
   });
 
   test("loadTeamWorkspace fetches members once and refreshes qualifications on revisit", async () => {
@@ -217,6 +242,7 @@ describe("operator team workspace", () => {
     expect(elements.teamMembersList.innerHTML).toContain("Unassigned jobs");
     expect(elements.teamMembersList.innerHTML).toContain("Roster pressure");
     expect(elements.teamMembersList.innerHTML).toContain("Block capacity");
+    expect(elements.teamMembersList.innerHTML).toContain("Readiness summary");
     expect(elements.teamMembersList.innerHTML).toContain("Driver setup");
     expect(elements.teamMembersList.innerHTML).toContain("Training");
     expect(elements.teamMembersList.innerHTML).toContain("Refresh");
