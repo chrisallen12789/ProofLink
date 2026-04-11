@@ -594,6 +594,77 @@ function renderDriverQualificationSnapshot(member = {}) {
   return rows.map((row) => `<div class="detail-copy">${escapeHtml(row)}</div>`).join("");
 }
 
+function teamStepRequiresEvidence(step = {}, member = {}) {
+  const key = String(step?.key || "").trim();
+  const driverTrack = !!String(member?.driver_label || "").trim();
+  const requiredKeys = driverTrack
+    ? ["driving", "worksite", "vactor", "ride_along"]
+    : ["ppe", "worksite", "ride_along"];
+  return requiredKeys.includes(key);
+}
+
+function teamStepEvidenceStatus(step = {}, history = null, member = {}) {
+  const timeEvidence = teamChecklistEvidenceForStep(step, history, member);
+  const readinessEvidence = teamQualificationEvidenceForStep(step, member);
+  const requiresEvidence = teamStepRequiresEvidence(step, member);
+  const hasEvidence = !!(timeEvidence.length || readinessEvidence.length);
+  const tone = requiresEvidence
+    ? (hasEvidence ? "pill-good" : "pill-warn")
+    : (hasEvidence ? "pill" : "pill");
+  const label = requiresEvidence
+    ? (hasEvidence ? "Evidence ready" : "Needs evidence")
+    : (hasEvidence ? "Evidence linked" : "Office signoff");
+  const note = requiresEvidence
+    ? (hasEvidence
+      ? "Training time or readiness records back up this signoff."
+      : "Log training time or complete the matching readiness record before signing this step off.")
+    : (hasEvidence
+      ? "Supporting evidence is already linked."
+      : "This step can be signed off from the office walkthrough.");
+  return {
+    timeEvidence,
+    readinessEvidence,
+    requiresEvidence,
+    hasEvidence,
+    tone,
+    label,
+    note,
+  };
+}
+
+function renderTeamTrainingChecklistItems(profile = {}, member = {}, history = null) {
+  const items = Array.isArray(profile?.items) ? profile.items : [];
+  return items.map((item) => {
+    const status = teamStepEvidenceStatus(item, history, member);
+    const evidenceSummary = history === null
+      ? '<div class="muted" style="font-size:.72rem;margin-top:4px;">Checking recent evidence...</div>'
+      : `<div class="muted" style="font-size:.72rem;margin-top:4px;">${escapeHtml(status.note)}</div>`;
+    return `
+      <label class="memory-checklist__item ${item.complete ? "memory-checklist__item--ready" : "memory-checklist__item--warn"}" style="display:block;">
+        <div class="memory-checklist__title">
+          <input type="checkbox" data-training-key="${escapeAttr(item.key)}"${item.complete ? " checked" : ""} style="margin-right:8px;" />
+          ${escapeHtml(item.label)}
+        </div>
+        <div class="detail-copy memory-checklist__note">${escapeHtml(item.note)}</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;">
+          <span class="pill ${status.tone}" style="font-size:.68rem;">${escapeHtml(status.label)}</span>
+        </div>
+        ${evidenceSummary}
+        ${item.complete ? `<div class="muted" style="font-size:.72rem;margin-top:4px;">${escapeHtml(item.completedAt ? `Signed off ${item.completedAt}` : "Signed off")}${item.completedBy ? ` | ${escapeHtml(item.completedBy)}` : ""}</div>` : ""}
+      </label>
+    `;
+  }).join("");
+}
+
+function teamTrainingSaveValidation(profile = {}, items = {}, history = null, member = {}) {
+  const previousItems = Array.isArray(profile?.items) ? profile.items : [];
+  return previousItems
+    .filter((item) => !item.complete && items[item.key])
+    .map((item) => ({ item, status: teamStepEvidenceStatus(item, history, member) }))
+    .filter(({ status }) => status.requiresEvidence && !status.hasEvidence)
+    .map(({ item }) => `${item.label} still needs linked training or readiness evidence.`);
+}
+
 function teamMemberNextAction(member = {}) {
   const driver = teamMemberDriverReadiness(member);
   const training = teamTrainingSummary(member);
@@ -1313,17 +1384,8 @@ function openTeamTrainingModal(id) {
         <div class="muted" style="margin-top:6px;">${escapeHtml(nextAction.note)}</div>
       </div>
     </div>
-    <div class="memory-checklist">
-      ${profile.items.map((item) => `
-        <label class="memory-checklist__item ${item.complete ? "memory-checklist__item--ready" : "memory-checklist__item--warn"}" style="display:block;">
-          <div class="memory-checklist__title">
-            <input type="checkbox" data-training-key="${escapeAttr(item.key)}"${item.complete ? " checked" : ""} style="margin-right:8px;" />
-            ${escapeHtml(item.label)}
-          </div>
-          <div class="detail-copy memory-checklist__note">${escapeHtml(item.note)}</div>
-          ${item.complete ? `<div class="muted" style="font-size:.72rem;margin-top:4px;">${escapeHtml(item.completedAt ? `Signed off ${item.completedAt}` : "Signed off")}${item.completedBy ? ` • ${escapeHtml(item.completedBy)}` : ""}</div>` : ""}
-        </label>
-      `).join("")}
+    <div class="memory-checklist" id="teamTrainingChecklist">
+      ${renderTeamTrainingChecklistItems(profile, member, null)}
     </div>
     <label style="display:block;margin-top:12px;">
       <span style="display:block;font-size:.8rem;color:rgba(255,255,255,.55);margin-bottom:6px;">Training notes</span>
@@ -1337,6 +1399,37 @@ function openTeamTrainingModal(id) {
     </div>
   </div>`;
   document.body.appendChild(modal);
+  const historyState = {
+    loaded: false,
+    value: null,
+    request: null,
+  };
+  const renderChecklist = () => {
+    const checklistEl = modal.querySelector("#teamTrainingChecklist");
+    if (checklistEl) checklistEl.innerHTML = renderTeamTrainingChecklistItems(profile, member, historyState.loaded ? historyState.value : null);
+  };
+  const ensureHistoryLoaded = async () => {
+    if (historyState.loaded) return historyState.value;
+    if (!historyState.request) {
+      historyState.request = fetchTeamMemberHistory(member)
+        .then((history) => {
+          historyState.loaded = true;
+          historyState.value = history;
+          renderChecklist();
+          return history;
+        })
+        .catch((error) => {
+          historyState.loaded = true;
+          historyState.value = null;
+          const messageEl = modal.querySelector("#teamTrainingMsg");
+          if (messageEl) setInlineMessage(messageEl, `Recent evidence could not be loaded. Qualification records can still support signoff. ${error.message || String(error)}`, "warn");
+          renderChecklist();
+          return null;
+        });
+    }
+    return historyState.request;
+  };
+  ensureHistoryLoaded().catch(() => null);
   modal.querySelector("#btnTeamTrainingLogTime").onclick = () => {
     modal.remove();
     openTeamTimeModal(member.id, teamTrainingQuickPreset(member));
@@ -1367,6 +1460,12 @@ function openTeamTrainingModal(id) {
     const allComplete = Object.values(items).every(Boolean);
     setInlineMessage(messageEl, "Saving training checklist...");
     try {
+      const history = await ensureHistoryLoaded();
+      const validationIssues = teamTrainingSaveValidation(profile, items, history, member);
+      if (validationIssues.length) {
+        setInlineMessage(messageEl, validationIssues.join(" "), "error");
+        return;
+      }
       await saveTeamTrainingProfile(member, {
         items,
         item_meta: itemMeta,

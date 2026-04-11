@@ -297,4 +297,44 @@ describe("operator team workspace", () => {
     expect(qualificationHtml).toContain("Med card: expires");
     expect(qualificationHtml).toContain("HOS available");
   });
+
+  test("training save validation requires evidence for key rollout steps", () => {
+    const { context } = loadTeamWorkspace({
+      HYDROVAC_DRIVER_COMPLIANCE_CACHE: [],
+    });
+
+    const member = { id: "member_2", worker_label: "Labor" };
+    const profile = {
+      items: [
+        { key: "crew_app", label: "Crew app sign-in", complete: false },
+        { key: "worksite", label: "Worksite labor orientation", complete: false },
+      ],
+    };
+
+    const blockedIssues = context.teamTrainingSaveValidation(
+      profile,
+      { crew_app: true, worksite: true },
+      { entries: [] },
+      member
+    );
+    const allowedIssues = context.teamTrainingSaveValidation(
+      profile,
+      { crew_app: true, worksite: true },
+      {
+        entries: [
+          {
+            work_type: "trade_training",
+            training_type: "worksite_safety",
+            description: "Site safety walkthrough",
+            duration_minutes: 60,
+          },
+        ],
+      },
+      member
+    );
+
+    expect(blockedIssues).toHaveLength(1);
+    expect(blockedIssues[0]).toContain("Worksite labor orientation");
+    expect(allowedIssues).toHaveLength(0);
+  });
 });
