@@ -619,4 +619,47 @@ describe("operator team workspace", () => {
     expect(html).toContain("Ride-along signoff");
     expect(html).toContain("should be refreshed");
   });
+
+  test("readiness gates summarize blocked, follow-up, and clear rollout items", () => {
+    const { context } = loadTeamWorkspace({
+      HYDROVAC_DRIVER_COMPLIANCE_CACHE: [
+        {
+          member_id: "member_1",
+          cdl_class: "Class A",
+          medical_certificate_expiry: "2026-04-20",
+        },
+      ],
+      SETUP_STATE: {
+        config: {
+          team_training_profiles: {
+            member_1: {
+              items: {
+                crew_app: true,
+                yard_route: true,
+                driving: true,
+                worksite: true,
+                vactor: true,
+                ride_along: true,
+              },
+              item_meta: {
+                ride_along: { completed_at: "2026-02-15T12:00:00.000Z", completed_by: "Office" },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const readiness = context.teamReadinessGates({ id: "member_1", driver_label: "Vactor operator" });
+    const html = context.renderTeamReadinessGates({ id: "member_1", driver_label: "Vactor operator" });
+
+    expect(readiness.blockedCount).toBe(2);
+    expect(readiness.warningCount).toBeGreaterThan(0);
+    expect(readiness.items.some((item) => item.label === "Training refresh overdue")).toBe(true);
+    expect(readiness.items.some((item) => item.label === "Refresh due soon")).toBe(true);
+    expect(readiness.items.some((item) => item.label === "Driver record")).toBe(true);
+    expect(html).toContain("Blocked rollout items need attention first.");
+    expect(html).toContain("Refresh stale training");
+    expect(html).toContain("Schedule qualification refresh");
+  });
 });

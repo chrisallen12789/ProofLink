@@ -739,6 +739,108 @@ function teamProfileSummaryChips(member = {}) {
   return chips;
 }
 
+function teamReadinessGates(member = {}, history = null, profile = null) {
+  const resolvedProfile = profile || teamTrainingProfile(member);
+  const track = teamMemberRolloutTrack(member);
+  const driver = teamMemberDriverReadiness(member);
+  const training = teamTrainingSummary(member);
+  const qualificationRefresh = teamQualificationRefreshPressure(member);
+  const restriction = teamMemberRolloutRestriction(member);
+  const items = [];
+
+  const pushGate = (severity, label, note, action) => {
+    items.push({
+      severity,
+      label,
+      note,
+      action: action || "",
+      tone: severity === "blocked" ? "pill-bad" : severity === "warn" ? "pill-warn" : "pill-good",
+    });
+  };
+
+  if (driver.label === "Driver setup needed" || driver.label === "Driver record blocked") {
+    pushGate("blocked", "Driver setup", driver.note, "Finish driver setup");
+  } else if (driver.label === "Driver follow-up") {
+    pushGate("warn", "Driver follow-up", driver.note, "Review qualification notes");
+  } else if (track.key === "driver" || track.key === "mixed") {
+    pushGate("good", "Driver record", driver.note, "Ready");
+  }
+
+  if (qualificationRefresh.blocked) {
+    pushGate("blocked", qualificationRefresh.label, qualificationRefresh.note, "Refresh qualification");
+  } else if (qualificationRefresh.needsAttention) {
+    pushGate("warn", qualificationRefresh.label, qualificationRefresh.note, "Schedule qualification refresh");
+  }
+
+  if (training.blocked) {
+    pushGate("blocked", training.label, training.note, "Refresh stale training");
+  } else if (training.label === "Training not started") {
+    pushGate("blocked", training.label, training.note, "Start onboarding walkthrough");
+  } else if (training.needsAttention) {
+    pushGate("warn", training.label, training.note, training.label === "Training in progress" ? "Finish checklist steps" : "Schedule training refresh");
+  } else {
+    pushGate("good", training.label, training.note, "Current");
+  }
+
+  const incompleteSteps = (Array.isArray(resolvedProfile?.items) ? resolvedProfile.items : [])
+    .filter((item) => !item.complete)
+    .slice(0, 3)
+    .map((item) => item.label);
+  if (incompleteSteps.length) {
+    pushGate(
+      "warn",
+      "Checklist still open",
+      `${incompleteSteps.join(", ")}${resolvedProfile.items.length - incompleteSteps.length > 0 ? ", and more still need signoff." : " still need signoff."}`,
+      "Finish walkthrough"
+    );
+  }
+
+  const nextAction = teamMemberNextAction(member);
+  pushGate(
+    restriction.tone === "pill-bad" ? "blocked" : restriction.tone === "pill-warn" ? "warn" : "good",
+    "Dispatch status",
+    restriction.note,
+    nextAction.label
+  );
+
+  const blockedCount = items.filter((item) => item.severity === "blocked").length;
+  const warningCount = items.filter((item) => item.severity === "warn").length;
+  return {
+    items,
+    blockedCount,
+    warningCount,
+    readyCount: items.filter((item) => item.severity === "good").length,
+    headline: blockedCount
+      ? "Blocked rollout items need attention first."
+      : warningCount
+        ? "This worker is usable, but follow-through is still due."
+        : "Records look clear for the current rollout path.",
+  };
+}
+
+function renderTeamReadinessGates(member = {}, history = null, profile = null) {
+  const readiness = teamReadinessGates(member, history, profile);
+  return `
+    <div class="row row-tight" style="margin-bottom:10px;flex-wrap:wrap;">
+      <span class="pill ${readiness.blockedCount ? "pill-bad" : "pill-good"}">${escapeHtml(`${readiness.blockedCount} blocked`)}</span>
+      <span class="pill ${readiness.warningCount ? "pill-warn" : "pill-good"}">${escapeHtml(`${readiness.warningCount} follow-up`)}</span>
+      <span class="pill pill-good">${escapeHtml(`${readiness.readyCount} clear`)}</span>
+    </div>
+    <div class="muted" style="margin-bottom:10px;">${escapeHtml(readiness.headline)}</div>
+    ${readiness.items.map((item) => `
+      <div class="list-item" style="padding:8px 0;">
+        <div class="li-main">
+          <div class="li-title">${escapeHtml(item.label)}</div>
+          <div class="li-sub muted" style="font-size:.75rem;">${escapeHtml(item.note || "")}</div>
+        </div>
+        <div class="li-meta" style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;">
+          <span class="pill ${item.tone}">${escapeHtml(item.action || (item.severity === "good" ? "Ready" : "Review"))}</span>
+        </div>
+      </div>
+    `).join("")}
+  `;
+}
+
 function teamMemberRolloutRestriction(member = {}) {
   const track = teamMemberRolloutTrack(member);
   const driver = teamMemberDriverReadiness(member);
@@ -1874,17 +1976,23 @@ function openTeamMemberProfileModal(id) {
         </div>
       </div>
     </div>
-    <div class="card" style="margin-top:12px;">
-      <div class="card-hd"><strong>Driver qualification snapshot</strong></div>
-      <div class="card-bd">
-        ${renderDriverQualificationSnapshot(member)}
+      <div class="card" style="margin-top:12px;">
+        <div class="card-hd"><strong>Driver qualification snapshot</strong></div>
+        <div class="card-bd">
+          ${renderDriverQualificationSnapshot(member)}
+        </div>
       </div>
-    </div>
-    <div class="card" style="margin-top:12px;">
-      <div class="card-hd"><strong>Checklist history</strong></div>
-      <div class="card-bd">
-        ${renderTrainingChecklistHistory(trainingProfile)}
+      <div class="card" style="margin-top:12px;">
+        <div class="card-hd"><strong>Readiness gates</strong></div>
+        <div class="card-bd" id="teamProfileReadiness">
+          ${renderTeamReadinessGates(member, null, trainingProfile)}
+        </div>
       </div>
+      <div class="card" style="margin-top:12px;">
+        <div class="card-hd"><strong>Checklist history</strong></div>
+        <div class="card-bd">
+          ${renderTrainingChecklistHistory(trainingProfile)}
+        </div>
     </div>
     <div class="card" style="margin-top:12px;">
       <div class="card-hd"><strong>Training evidence</strong></div>
@@ -1936,14 +2044,16 @@ function openTeamMemberProfileModal(id) {
     if (event.target === modal) modal.remove();
   });
   fetchTeamMemberHistory(member)
-    .then((history) => {
-      const historyEl = modal.querySelector("#teamProfileHistory");
-      if (historyEl) historyEl.innerHTML = renderTeamHistorySnapshot(member, history);
-      const evidenceEl = modal.querySelector("#teamProfileEvidence");
-      if (evidenceEl) evidenceEl.innerHTML = renderTrainingEvidenceSnapshot(trainingProfile, history, member);
-      const timelineEl = modal.querySelector("#teamProfileTimeline");
-      if (timelineEl) timelineEl.innerHTML = renderTeamTimeline(member, history, trainingProfile);
-    })
+      .then((history) => {
+        const historyEl = modal.querySelector("#teamProfileHistory");
+        if (historyEl) historyEl.innerHTML = renderTeamHistorySnapshot(member, history);
+        const readinessEl = modal.querySelector("#teamProfileReadiness");
+        if (readinessEl) readinessEl.innerHTML = renderTeamReadinessGates(member, history, trainingProfile);
+        const evidenceEl = modal.querySelector("#teamProfileEvidence");
+        if (evidenceEl) evidenceEl.innerHTML = renderTrainingEvidenceSnapshot(trainingProfile, history, member);
+        const timelineEl = modal.querySelector("#teamProfileTimeline");
+        if (timelineEl) timelineEl.innerHTML = renderTeamTimeline(member, history, trainingProfile);
+      })
     .catch((error) => {
       const historyEl = modal.querySelector("#teamProfileHistory");
       if (historyEl) historyEl.innerHTML = `<div class="msg error">${escapeHtml(error.message || String(error))}</div>`;
