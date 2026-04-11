@@ -123,6 +123,115 @@ function teamMemberRolloutTrack(member = {}) {
   };
 }
 
+function teamDaysUntil(value) {
+  const timestamp = Date.parse(value || "");
+  if (!Number.isFinite(timestamp)) return null;
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  return Math.round((timestamp - startOfToday) / 86400000);
+}
+
+function teamQualificationRefreshPressure(member = {}) {
+  const track = teamMemberRolloutTrack(member);
+  const qualification = teamMemberDriverQualification(member);
+  const driverTrack = track.key === "driver" || track.key === "mixed";
+  if (!driverTrack || !qualification) {
+    return {
+      label: "No refresh pressure",
+      tone: "pill-good",
+      note: driverTrack ? "Driver qualification refresh tracking will appear once the qualification record is in place." : "This track does not need driver qualification refresh tracking right now.",
+      needsAttention: false,
+      blocked: false,
+      items: [],
+    };
+  }
+
+  const checks = [
+    { key: "cdl", label: "CDL", date: qualification?.cdl_expiry_date, staleDays: null },
+    { key: "med_card", label: "Med card", date: qualification?.medical_certificate_expiry, staleDays: null },
+    { key: "first_aid", label: "First aid", date: qualification?.first_aid_cert_expiry_date, staleDays: null },
+    { key: "confined_space", label: "Confined space", date: qualification?.confined_space_cert_expiry_date, staleDays: null },
+    { key: "h2s", label: "H2S", date: qualification?.h2s_cert_expiry_date, staleDays: null },
+    { key: "mvr", label: "MVR review", date: qualification?.last_mvr_check_date, staleDays: 180 },
+  ];
+
+  const items = checks.flatMap((check) => {
+    const daysUntil = teamDaysUntil(check.date);
+    if (daysUntil == null) return [];
+    if (check.staleDays != null) {
+      if (daysUntil <= -365) {
+        return [{
+          key: check.key,
+          label: check.label,
+          severity: "expired",
+          note: `${check.label} is more than a year old.`,
+          daysUntil,
+        }];
+      }
+      if (daysUntil <= -check.staleDays) {
+        return [{
+          key: check.key,
+          label: check.label,
+          severity: "soon",
+          note: `${check.label} should be refreshed soon.`,
+          daysUntil,
+        }];
+      }
+      return [];
+    }
+    if (daysUntil < 0) {
+      return [{
+        key: check.key,
+        label: check.label,
+        severity: "expired",
+        note: `${check.label} expired ${teamDateLabel(check.date)}.`,
+        daysUntil,
+      }];
+    }
+    if (daysUntil <= 30) {
+      return [{
+        key: check.key,
+        label: check.label,
+        severity: "soon",
+        note: `${check.label} is due by ${teamDateLabel(check.date)}.`,
+        daysUntil,
+      }];
+    }
+    return [];
+  });
+
+  const expiredItems = items.filter((item) => item.severity === "expired");
+  const soonItems = items.filter((item) => item.severity === "soon");
+  if (expiredItems.length) {
+    return {
+      label: "Qualification refresh overdue",
+      tone: "pill-bad",
+      note: expiredItems[0]?.note || "One or more driver qualifications have expired.",
+      needsAttention: true,
+      blocked: true,
+      items,
+    };
+  }
+  if (soonItems.length) {
+    return {
+      label: "Refresh due soon",
+      tone: "pill-warn",
+      note: soonItems[0]?.note || "A driver qualification is coming due soon.",
+      needsAttention: true,
+      blocked: false,
+      items,
+    };
+  }
+  return {
+    label: "No refresh pressure",
+    tone: "pill-good",
+    note: "Current qualification dates are not showing near-term refresh pressure.",
+    needsAttention: false,
+    blocked: false,
+    items: [],
+  };
+}
+
 function teamMemberDriverReadiness(member = {}) {
   const track = teamMemberRolloutTrack(member);
   const qualification = teamMemberDriverQualification(member);
@@ -454,6 +563,7 @@ function teamMemberRolloutRestriction(member = {}) {
   const track = teamMemberRolloutTrack(member);
   const driver = teamMemberDriverReadiness(member);
   const training = teamTrainingSummary(member);
+  const refresh = teamQualificationRefreshPressure(member);
   const profile = teamTrainingProfile(member);
   const completedKeys = new Set(
     (Array.isArray(profile?.items) ? profile.items : [])
@@ -469,6 +579,13 @@ function teamMemberRolloutRestriction(member = {}) {
         note: "Keep this worker off solo driving until driver setup is fully cleared.",
       };
     }
+    if (refresh.blocked) {
+      return {
+        label: "Qualification refresh overdue",
+        tone: "pill-bad",
+        note: refresh.note,
+      };
+    }
     if (!completedKeys.has("ride_along")) {
       return {
         label: "Ride-along required",
@@ -481,6 +598,13 @@ function teamMemberRolloutRestriction(member = {}) {
         label: "Training hold",
         tone: "pill-warn",
         note: "Finish the remaining driver rollout steps before solo dispatch.",
+      };
+    }
+    if (refresh.needsAttention) {
+      return {
+        label: "Refresh due soon",
+        tone: "pill-warn",
+        note: refresh.note,
       };
     }
     return {
@@ -498,6 +622,13 @@ function teamMemberRolloutRestriction(member = {}) {
         note: "This worker can still support labor, but should not take driver responsibility yet.",
       };
     }
+    if (refresh.blocked) {
+      return {
+        label: "Qualification refresh overdue",
+        tone: "pill-bad",
+        note: refresh.note,
+      };
+    }
     if (!completedKeys.has("ride_along")) {
       return {
         label: "Supervised mixed-role rollout",
@@ -510,6 +641,13 @@ function teamMemberRolloutRestriction(member = {}) {
         label: "Mixed-role training in progress",
         tone: "pill-warn",
         note: "The worker can support the crew, but mixed-role rollout still needs follow-through.",
+      };
+    }
+    if (refresh.needsAttention) {
+      return {
+        label: "Refresh due soon",
+        tone: "pill-warn",
+        note: refresh.note,
       };
     }
     return {
@@ -582,6 +720,7 @@ function renderTeamHistorySnapshot(member = {}, history = null) {
 function buildTeamMemberTimeline(member = {}, history = null, profile = {}) {
   const timeline = [];
   const qualification = teamMemberDriverQualification(member);
+  const refresh = teamQualificationRefreshPressure(member);
   const completedItems = Array.isArray(profile?.items) ? profile.items.filter((item) => item.complete) : [];
   const entries = Array.isArray(history?.entries) ? history.entries : [];
   const jobs = Array.isArray(history?.jobs) ? history.jobs : [];
@@ -644,6 +783,21 @@ function buildTeamMemberTimeline(member = {}, history = null, profile = {}) {
       note: qualification?.mvr_status || 'Driver qualification',
     });
   }
+  refresh.items.slice(0, 4).forEach((item) => {
+    timeline.push({
+      sortAt: item?.key === 'mvr' ? qualification?.last_mvr_check_date : (
+        item?.key === 'cdl' ? qualification?.cdl_expiry_date
+          : item?.key === 'med_card' ? qualification?.medical_certificate_expiry
+            : item?.key === 'first_aid' ? qualification?.first_aid_cert_expiry_date
+              : item?.key === 'confined_space' ? qualification?.confined_space_cert_expiry_date
+                : qualification?.h2s_cert_expiry_date
+      ),
+      tone: item.severity === 'expired' ? 'pill-bad' : 'pill-warn',
+      label: item.severity === 'expired' ? 'Refresh overdue' : 'Refresh due soon',
+      title: item.label,
+      note: item.note,
+    });
+  });
 
   return timeline
     .filter((item) => item.sortAt)
@@ -815,6 +969,7 @@ function renderTrainingEvidenceSnapshot(profile = {}, history = null, member = {
 function renderDriverQualificationSnapshot(member = {}) {
   const qualification = teamMemberDriverQualification(member);
   const track = teamMemberRolloutTrack(member);
+  const refresh = teamQualificationRefreshPressure(member);
   const driverTrack = track.key === "driver" || track.key === "mixed";
   if (!qualification) {
     return driverTrack
@@ -841,7 +996,15 @@ function renderDriverQualificationSnapshot(member = {}) {
   if (!rows.length) {
     return '<div class="muted">Qualification record exists, but it still needs more detail.</div>';
   }
-  return rows.map((row) => `<div class="detail-copy">${escapeHtml(row)}</div>`).join("");
+  const refreshBlock = refresh.needsAttention
+    ? `
+      <div class="detail-copy" style="margin-top:8px;">
+        <span class="pill ${escapeAttr(refresh.tone)}">${escapeHtml(refresh.label)}</span>
+      </div>
+      <div class="detail-copy">${escapeHtml(refresh.note)}</div>
+    `
+    : "";
+  return rows.map((row) => `<div class="detail-copy">${escapeHtml(row)}</div>`).join("") + refreshBlock;
 }
 
 function teamStepRequiresEvidence(step = {}, member = {}) {
@@ -1140,6 +1303,7 @@ function renderTeamRosterSummary() {
   const remainingCapacity = members.reduce((sum, member) => sum + teamMemberJobSummary(member).remainingMinutes, 0);
   const driverSetupNeeded = members.filter((member) => teamMemberDriverReadiness(member).needsAttention).length;
   const trainingAttentionNeeded = members.filter((member) => teamTrainingSummary(member).needsAttention).length;
+  const refreshAttentionNeeded = members.filter((member) => teamQualificationRefreshPressure(member).needsAttention).length;
   return `
     <div class="workspace-signal-band" style="margin-bottom:12px;">
       <div class="workspace-signal-band__item ${activeField ? "workspace-signal-band__item--good" : ""}">
@@ -1172,6 +1336,11 @@ function renderTeamRosterSummary() {
         <strong>${escapeHtml(String(trainingAttentionNeeded))}</strong>
         <small>${escapeHtml(trainingAttentionNeeded ? "One or more workers still need onboarding, ride-along, or worksite walkthrough steps checked off." : "Visible workers all show a complete onboarding checklist.")}</small>
       </div>
+      <div class="workspace-signal-band__item ${refreshAttentionNeeded ? "workspace-signal-band__item--warn" : "workspace-signal-band__item--good"}">
+        <span>Refresh</span>
+        <strong>${escapeHtml(String(refreshAttentionNeeded))}</strong>
+        <small>${escapeHtml(refreshAttentionNeeded ? "Qualification dates or stale reviews need follow-up before they turn into dispatch problems." : "Visible qualification records are not showing near-term refresh pressure.")}</small>
+      </div>
     </div>
   `;
 }
@@ -1193,11 +1362,11 @@ function renderTeamRolloutBoard() {
   }
   const blockedCount = members.filter((member) => {
     const label = teamMemberRolloutRestriction(member).label;
-    return ["Restricted from solo dispatch", "Labor-only until driver setup clears"].includes(label);
+    return ["Restricted from solo dispatch", "Labor-only until driver setup clears", "Qualification refresh overdue"].includes(label);
   }).length;
   const supervisedCount = members.filter((member) => {
     const label = teamMemberRolloutRestriction(member).label;
-    return ["Ride-along required", "Supervised mixed-role rollout", "Needs supervised field day"].includes(label);
+    return ["Ride-along required", "Supervised mixed-role rollout", "Needs supervised field day", "Refresh due soon"].includes(label);
   }).length;
   const followThroughCount = Math.max(0, members.length - blockedCount - supervisedCount);
   return `

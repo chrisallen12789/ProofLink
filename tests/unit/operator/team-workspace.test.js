@@ -200,7 +200,7 @@ describe("operator team workspace", () => {
         { id: "member_2", display_name: "Jordan Diaz", role: "member", driver_label: "Relief driver" },
       ],
       HYDROVAC_DRIVER_COMPLIANCE_CACHE: [
-        { member_id: "member_1", warnings: [] },
+        { member_id: "member_1", warnings: [], medical_certificate_expiry: "2026-04-20" },
       ],
       JOBS_CACHE: [
         { id: "job_1", assigned_operator_id: "member_1", status: "in_progress", billable_hours: 1.5, minimum_hours: 4, travel_hours: 0.25, updated_at: "2026-04-08T09:15:00Z" },
@@ -219,6 +219,7 @@ describe("operator team workspace", () => {
     expect(elements.teamMembersList.innerHTML).toContain("Block capacity");
     expect(elements.teamMembersList.innerHTML).toContain("Driver setup");
     expect(elements.teamMembersList.innerHTML).toContain("Training");
+    expect(elements.teamMembersList.innerHTML).toContain("Refresh");
     expect(elements.teamMembersList.innerHTML).toContain("2 active");
     expect(elements.teamMembersList.innerHTML).toContain("1 assigned job");
     expect(elements.teamMembersList.innerHTML).toContain("planned / 4h block");
@@ -228,7 +229,7 @@ describe("operator team workspace", () => {
     expect(elements.teamMembersList.innerHTML).toContain("Driver setup needed");
     expect(elements.teamMembersList.innerHTML).toContain("Training not started");
     expect(elements.teamMembersList.innerHTML).toContain("Mixed role");
-    expect(elements.teamMembersList.innerHTML).toContain("Supervised mixed-role rollout");
+    expect(elements.teamMembersList.innerHTML).toContain("Refresh");
     expect(elements.teamMembersList.innerHTML).toContain("Last field update 2026-04-08T09:15:00Z");
     expect(elements.teamMembersList.innerHTML).toContain("Blocker: Customer gate is locked");
     expect(elements.teamMembersList.innerHTML).toContain("Training");
@@ -487,5 +488,28 @@ describe("operator team workspace", () => {
     expect(driverReady.label).toBe("Solo-ready");
     expect(laborReady.label).toBe("Ready for field support");
     expect(mixedReady.label).toBe("Ready for driver or labor dispatch");
+  });
+
+  test("qualification refresh pressure flags due-soon and overdue driver records", () => {
+    const { context } = loadTeamWorkspace({
+      HYDROVAC_DRIVER_COMPLIANCE_CACHE: [
+        {
+          member_id: "member_due",
+          medical_certificate_expiry: "2026-04-20",
+        },
+        {
+          member_id: "member_overdue",
+          cdl_expiry_date: "2026-04-01",
+        },
+      ],
+    });
+
+    const dueSoon = context.teamQualificationRefreshPressure({ id: "member_due", driver_label: "Vactor operator" });
+    const overdue = context.teamQualificationRefreshPressure({ id: "member_overdue", driver_label: "Vactor operator" });
+
+    expect(dueSoon.label).toBe("Refresh due soon");
+    expect(dueSoon.note).toContain("Med card");
+    expect(overdue.label).toBe("Qualification refresh overdue");
+    expect(overdue.note).toContain("CDL");
   });
 });
