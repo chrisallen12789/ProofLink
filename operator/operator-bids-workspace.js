@@ -855,14 +855,16 @@ function clearBidPhotoForm() {
 function collectBidFormDraft() {
   const active = currentBid();
   const profileKey = normalizeBidProfile(bidProfile?.value || active?.profile || preferredBidProfile());
+  const activeMetadata = active?.metadata && typeof active.metadata === "object" ? active.metadata : {};
 
   const draft = {
     ...(active || emptyBidDraft(profileKey)),
     id: bidId?.value || active?.id || createLocalId("bid"),
     record_id: active?.record_id || "",
-    lead_id: active?.lead_id || "",
+    lead_id: active?.lead_id || activeMetadata.lead_id || "",
     title: bidTitle?.value?.trim() || "",
-    customer_id: bidCustomerId?.value || "",
+    customer_id: bidCustomerId?.value || active?.customer_id || activeMetadata.customer_id || "",
+    customer_location_id: active?.customer_location_id || activeMetadata.customer_location_id || "",
     profile: profileKey,
     status: String(bidStatus?.value || "draft"),
     template_type: bidTemplateType?.value || active?.template_type || "",
@@ -1679,7 +1681,11 @@ function renderBidList(filter = "") {
     const customer = findBidCustomer(row.customer_id);
     const totals = calculateBidTotals(row);
     return `
-      <button type="button" class="list-item ${row.id === ACTIVE_BID_ID ? "is-active" : ""}" data-bid-id="${escapeAttr(row.id)}">
+      <button
+        type="button"
+        class="list-item ${row.id === ACTIVE_BID_ID ? "is-active" : ""}"
+        data-bid-id="${escapeAttr(row.id)}"
+        data-bid-record-id="${escapeAttr(bidRecordId(row) || "")}">
         <div class="li-main">
           <div class="li-title">${escapeHtml(row.title || defaultBidTitleFromDraft(row))}</div>
           <div class="li-sub muted">${escapeHtml(customer?.name || "Unlinked customer")} &middot; ${escapeHtml(bidProfileConfig(row.profile).label)}</div>

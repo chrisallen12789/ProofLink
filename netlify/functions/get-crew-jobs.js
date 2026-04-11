@@ -21,6 +21,22 @@ function compactText(value, max = 240) {
   return text.slice(0, max);
 }
 
+function isoDateOnly(value) {
+  const raw = String(value || '').trim();
+  const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return '';
+  return `${match[1]}-${match[2]}-${match[3]}`;
+}
+
+function addDays(dateString, dayDelta = 0) {
+  const normalized = isoDateOnly(dateString);
+  if (!normalized) return '';
+  const [year, month, day] = normalized.split('-').map((value) => Number.parseInt(value, 10));
+  const next = new Date(Date.UTC(year, month - 1, day));
+  next.setUTCDate(next.getUTCDate() + dayDelta);
+  return next.toISOString().slice(0, 10);
+}
+
 function firstFilledText(...values) {
   for (const value of values) {
     const text = compactText(value);
@@ -147,8 +163,8 @@ exports.handler = async (event) => {
 
   // Date / upcoming filter
   if (params.upcoming === 'true') {
-    const today = new Date().toISOString().slice(0, 10);
-    const plus7 = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const today = isoDateOnly(params.from_date) || new Date().toISOString().slice(0, 10);
+    const plus7 = addDays(today, 7) || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
     query = query.gte('scheduled_date', today).lte('scheduled_date', plus7);
   } else if (params.date) {
     query = query.eq('scheduled_date', params.date);

@@ -118,6 +118,7 @@ exports.handler = async (event) => {
       'service_area', 'review_platform_label', 'review_link_url', 'referral_message',
       'instagram', 'facebook', 'hours_notes', 'fulfillment_notes',
       'workspace_business_type',
+      'team_training_profiles',
       'show_prices', 'allow_custom_requests', 'onboarding_complete',
       'site_font_preset', 'site_surface_style', 'site_button_style', 'site_card_style',
       'site_hero_layout', 'site_primary_cta_label', 'site_booking_cta_label',

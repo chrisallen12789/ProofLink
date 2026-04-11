@@ -74,7 +74,7 @@
     if (_scriptLoadCache.has(url)) return _scriptLoadCache.get(url);
 
     const existing = document.querySelector(`script[src="${url}"]`);
-    if (existing && options.globalName ? global[options.globalName] : true) {
+    if (existing && (options.globalName ? global[options.globalName] : true)) {
       const ready = Promise.resolve(existing);
       _scriptLoadCache.set(url, ready);
       return ready;
@@ -110,7 +110,7 @@
     import: ['./import-workspace.js'],
     messages: ['./operator-assistant-workspace.js'],
     ai: ['./operator-assistant-workspace.js'],
-    orders: ['./operator-ops-sidecars.js', './operator-sales-sidecars.js'],
+    orders: ['./operator-orders-workspace.js', './operator-ops-sidecars.js', './operator-sales-sidecars.js'],
     availability: ['./operator-ops-sidecars.js'],
     vendors: ['./operator-ops-sidecars.js'],
     quotes: ['./operator-sales-sidecars.js'],
@@ -119,7 +119,7 @@
     manifests: ['./operator-hydrovac-ops-workspace.js'],
     locates: ['./operator-hydrovac-ops-workspace.js'],
     compliance: ['./operator-hydrovac-ops-workspace.js'],
-    bookings: ['./operator-dispatch-workspace.js'],
+    bookings: ['./operator-bookings-workspace.js', './operator-dispatch-workspace.js'],
   };
 
   async function ensureOperatorWorkspaceScript(tab) {

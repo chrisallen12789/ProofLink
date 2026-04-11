@@ -10,6 +10,7 @@ const ALLOWED_KEYS = new Set([
   'instagram', 'facebook', 'hours_notes', 'fulfillment_notes',
   'accent_color', 'show_prices', 'allow_custom_requests', 'about', 'onboarding_complete',
   'workspace_business_type', 'booking_page_enabled',
+  'team_training_profiles',
   'site_font_preset', 'site_surface_style', 'site_button_style', 'site_card_style',
   'site_hero_layout', 'site_primary_cta_label', 'site_booking_cta_label',
   'site_publish_status', 'site_published_at',
@@ -41,6 +42,12 @@ const TENANT_CONFIG_ADMIN_ROLES = new Set(['owner', 'admin', 'manager', 'platfor
 
 function normalizeValue(key, value) {
   if (value === null || value === undefined) return '';
+  if (key === 'team_training_profiles') {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      throw Object.assign(new Error('team_training_profiles must be an object keyed by member id'), { statusCode: 400 });
+    }
+    return value;
+  }
   if (key === 'show_prices' || key === 'allow_custom_requests' || key === 'onboarding_complete' || key === 'booking_page_enabled') {
     return !!value;
   }

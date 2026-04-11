@@ -259,6 +259,70 @@ describe("operator lead plan workspace", () => {
     expect(context.window.sortedServicePlans()[0].id).toBe("plan_2");
   });
 
+  test("createBidFromLeadRecord collapses the local draft onto the persisted bid record", async () => {
+    const persistBidDrafts = vi.fn();
+    const loadPersistedBids = vi.fn(async () => {});
+    const context = loadLeadPlanWorkspace({
+      BIDS_CACHE: [
+        {
+          id: "draft_local_bid",
+          title: "Pressure washing",
+          updated_at: "2026-03-26T10:00:00.000Z",
+        },
+        {
+          id: "bid_remote_1",
+          record_id: "bid_remote_1",
+          title: "Pressure washing",
+          updated_at: "2026-03-26T10:00:01.000Z",
+        },
+      ],
+      currentBid: vi.fn(() => ({
+        id: "draft_local_bid",
+        title: "Pressure washing",
+        updated_at: "2026-03-26T10:00:00.000Z",
+      })),
+      sb: {
+        rpc: vi.fn(async () => ({ data: { bid_id: "bid_remote_1", existing: false }, error: null })),
+        from: vi.fn(() => ({
+          select: vi.fn().mockReturnThis(),
+          order: vi.fn().mockReturnThis(),
+          limit: vi.fn(async () => ({ data: [], error: null })),
+          update: vi.fn().mockReturnThis(),
+          insert: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          single: vi.fn(async () => ({ data: { id: "row_1" }, error: null })),
+        })),
+      },
+      loadPersistedBids,
+      findBidRecordById: vi.fn((value) => {
+        if (value !== "bid_remote_1") return null;
+        return {
+          id: "bid_remote_1",
+          record_id: "bid_remote_1",
+          customer_id: "customer_1",
+          updated_at: "2026-03-26T10:00:02.000Z",
+          metadata: {},
+        };
+      }),
+      persistBidDrafts,
+      bidRecordId: vi.fn((draft) => draft?.record_id || ""),
+      cloneJson: (value, fallback = null) => (value == null ? fallback : JSON.parse(JSON.stringify(value))),
+    });
+
+    const result = await context.window.createBidFromLeadRecord(
+      { id: "lead_1", customer_id: "customer_1" },
+      { profile: "default", localDraftId: "draft_local_bid" }
+    );
+
+    expect(result.bid.id).toBe("draft_local_bid");
+    expect(result.bid.record_id).toBe("row_1");
+    expect(context.BIDS_CACHE).toHaveLength(1);
+    expect(context.BIDS_CACHE[0].id).toBe("draft_local_bid");
+    expect(context.BIDS_CACHE[0].record_id).toBe("row_1");
+    expect(context.ACTIVE_BID_ID).toBe("draft_local_bid");
+    expect(persistBidDrafts).toHaveBeenCalled();
+  });
+
   test("initLeadPlanWorkspaceBindings only wires controls once", () => {
     const context = loadLeadPlanWorkspace();
 

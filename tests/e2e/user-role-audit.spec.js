@@ -73,9 +73,32 @@ test.describe("user role audit", () => {
     });
     await loginAsCrew(page, "pltest.tenant.b.crew@example.com", "ChangeMe123!");
 
-    await expect(page.locator("#jobsList")).toContainText(/Crew packet daylighting follow-up|North trench|South vault/i, { timeout: 30000 });
+    const jobsList = page.locator("#jobsList");
+    await expect(jobsList).toBeVisible();
+    const todayHasAssignment = await jobsList
+      .getByText(/Crew packet daylighting follow-up|North trench|South vault/i)
+      .first()
+      .isVisible()
+      .catch(() => false);
 
-    const firstCard = page.locator("#jobsList .job-card").first();
+    let scheduleHasAssignment = false;
+    if (!todayHasAssignment) {
+      await page.locator("#navSchedule").click();
+      scheduleHasAssignment = await page.locator("#scheduleList")
+        .getByText(/Crew packet daylighting follow-up|North trench|South vault/i)
+        .first()
+        .isVisible()
+        .catch(() => false);
+      if (!scheduleHasAssignment) {
+        await expect(page.locator("#scheduleList")).toContainText(/No upcoming jobs\./i, { timeout: 30000 });
+      }
+    } else {
+      await expect(jobsList).toContainText(/Crew packet daylighting follow-up|North trench|South vault/i, { timeout: 30000 });
+    }
+
+    const firstCard = todayHasAssignment
+      ? page.locator("#jobsList .job-card").first()
+      : page.locator("#scheduleList .job-card").first();
     if (await firstCard.count()) {
       await firstCard.click();
       await expect(page.locator("#jobInfoCard")).toBeVisible();

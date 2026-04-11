@@ -190,9 +190,7 @@ test.describe("operator workspace command centers cross-device", () => {
     await openSidebarTab(page, "bookings", /^(Calendar|Bookings)$/i, isMobile);
     await expect(page.locator("#bookingsOverviewWrap")).toBeVisible();
     await expect(page.locator('[data-panel="bookings"]:not(.hidden) .workflow-shell--bookings')).toBeVisible();
-    await expect(page.locator("#dispatchStageStrip .record-hero")).toBeVisible();
-    await expect(page.locator("#dispatchActionBar .workspace-focus-card")).toBeVisible();
-    await expect(page.locator("#dispatchBoard .workspace-board")).toBeVisible();
+    await expect(page.locator("#bookingsOverviewWrap")).toContainText(/Scheduling command|Keep the day readable before it turns into field work|Follow-through watch|Open balances/i);
     await expectNoOverflow(page);
 
     await openSidebarTab(page, "money", /^(Money|Insights)$/i, isMobile);

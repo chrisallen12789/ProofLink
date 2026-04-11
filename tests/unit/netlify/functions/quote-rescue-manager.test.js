@@ -27,8 +27,8 @@ describe("quote rescue manager", () => {
               status: "pending",
               amount_cents: 24000,
               valid_until: "2026-04-30",
-              created_at: "2026-03-20T00:00:00.000Z",
-              updated_at: "2026-03-20T00:00:00.000Z",
+              created_at: "2026-04-05T00:00:00.000Z",
+              updated_at: "2026-04-05T00:00:00.000Z",
               description: "Wash the north wall and awning",
             },
             {

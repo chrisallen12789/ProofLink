@@ -34,7 +34,22 @@ let _quickLogElapsedSecs   = 0;
 // ── Utilities ──────────────────────────────────────────────────────────────────
 
 function todayString() {
-  return new Date().toISOString().slice(0, 10);
+  return localDateString(new Date());
+}
+
+function localDateString(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function shiftDateString(dateString, dayDelta = 0) {
+  const [year, month, day] = String(dateString || '').split('-').map((value) => Number.parseInt(value, 10));
+  if (!year || !month || !day) return todayString();
+  const next = new Date(year, month - 1, day);
+  next.setDate(next.getDate() + dayDelta);
+  return localDateString(next);
 }
 
 function formatTime(isoString) {
@@ -824,8 +839,8 @@ function upcomingWindowDateStrings() {
   const today = new Date();
   const plus7 = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
   return {
-    today: today.toISOString().slice(0, 10),
-    plus7: plus7.toISOString().slice(0, 10),
+    today: localDateString(today),
+    plus7: localDateString(plus7),
   };
 }
 
@@ -1313,6 +1328,26 @@ async function loadMember() {
   await saveJobsToIDB(JOBS);
 }
 
+async function fetchCrewJobs(params = '') {
+  const token = await getToken();
+  if (!token) throw new Error('No auth token');
+  const query = String(params || '').trim();
+  const suffix = query ? `?${query}` : '';
+  const res = await fetch(`/.netlify/functions/get-crew-jobs${suffix}`, {
+    headers: {
+      'Authorization' : 'Bearer ' + token,
+      'Content-Type'  : 'application/json',
+    },
+  });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `HTTP ${res.status}`);
+  }
+
+  return res.json();
+}
+
 // ── Home / Job List ────────────────────────────────────────────────────────────
 
 function renderCurrentDateLabel(targetDate = CURRENT_DATE) {
@@ -1357,27 +1392,31 @@ async function loadJobs(date = null) {
   }
 
   try {
-    const res = await fetch(`/.netlify/functions/get-crew-jobs?date=${targetDate}`, {
-      headers: {
-        'Authorization' : 'Bearer ' + token,
-        'Content-Type'  : 'application/json',
-      },
-    });
-
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      throw new Error(body.error || `HTTP ${res.status}`);
-    }
-
-    const { jobs, member } = await res.json();
+    const { jobs, member } = await fetchCrewJobs(`date=${encodeURIComponent(targetDate)}`);
     if (member) MEMBER = member;
-    JOBS = jobs || [];
+    let nextJobs = jobs || [];
+    let usedUpcomingFallback = false;
+    if (targetDate === todayString() && !nextJobs.length) {
+      const upcomingPayload = await fetchCrewJobs(`upcoming=true&from_date=${encodeURIComponent(targetDate)}`);
+      if (upcomingPayload?.member) MEMBER = upcomingPayload.member;
+      const upcomingJobs = Array.isArray(upcomingPayload?.jobs) ? upcomingPayload.jobs : [];
+      if (upcomingJobs.length) {
+        nextJobs = upcomingJobs;
+        usedUpcomingFallback = true;
+      }
+    }
+    JOBS = nextJobs;
     await saveJobsToIDB(mergeJobsForCache(await loadJobsFromIDB(), JOBS));
-    renderJobCards(JOBS);
+    renderJobCards(JOBS, {
+      emptyMessage: usedUpcomingFallback ? 'No jobs scheduled for today. Showing your next assigned work.' : '',
+    });
     await maybeOpenRequestedCrewJob(JOBS);
 
     // Update date label
     renderCurrentDateLabel(targetDate);
+    if (usedUpcomingFallback) {
+      showToast('No jobs scheduled for today. Showing your next assigned work.', 'info');
+    }
   } catch (err) {
     console.error('[loadJobs]', err);
     const cached = await loadJobsFromIDB();
@@ -1397,15 +1436,7 @@ async function loadUpcomingJobs() {
   if (!token) { showToast('Please sign in again.', 'error'); return; }
 
   try {
-    const res = await fetch('/.netlify/functions/get-crew-jobs?upcoming=true', {
-      headers: {
-        'Authorization' : 'Bearer ' + token,
-        'Content-Type'  : 'application/json',
-      },
-    });
-
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const { jobs } = await res.json();
+    const { jobs } = await fetchCrewJobs(`upcoming=true&from_date=${encodeURIComponent(todayString())}`);
     const upcomingJobs = jobs || [];
     renderScheduleList(upcomingJobs);
     await saveJobsToIDB(mergeJobsForCache(await loadJobsFromIDB(), upcomingJobs));
@@ -1434,20 +1465,25 @@ function skeletonCards(n) {
   `).join('');
 }
 
-function renderJobCards(jobs) {
+function renderJobCards(jobs, options = {}) {
   const list = document.getElementById('jobsList');
   if (!list) return;
+  const emptyMessage = String(options?.emptyMessage || '').trim();
 
   if (!jobs || jobs.length === 0) {
     list.innerHTML = `
       <div class="empty-state">
         <div class="empty-icon">*</div>
-        <p>No jobs scheduled for today</p>
+        <p>${escHtml(emptyMessage || 'No jobs scheduled for today')}</p>
       </div>`;
     return;
   }
 
-  list.innerHTML = jobs.map((job) => {
+  const leadMessage = emptyMessage
+    ? `<div class="inline-banner inline-banner--info"><span>${escHtml(emptyMessage)}</span></div>`
+    : '';
+
+  list.innerHTML = `${leadMessage}${jobs.map((job) => {
     const customer  = job.customers?.name || 'Customer';
     const title     = job.orders?.title   || job.title || 'Job';
     const time      = job.scheduled_time  ? formatTime(job.scheduled_date + 'T' + job.scheduled_time) : 'TBD';
@@ -1467,7 +1503,7 @@ function renderJobCards(jobs) {
         <div class="job-address">${escHtml(addr)}</div>
         ${hydrovacSignals}
       </div>`;
-  }).join('');
+  }).join('')}`;
 
   // Bind tap events
   list.querySelectorAll('.job-card').forEach((card) => {
@@ -3097,15 +3133,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Date navigation on home
   document.getElementById('btnDatePrev')?.addEventListener('click', () => {
-    const d = new Date(CURRENT_DATE + 'T00:00:00');
-    d.setDate(d.getDate() - 1);
-    CURRENT_DATE = d.toISOString().slice(0, 10);
+    CURRENT_DATE = shiftDateString(CURRENT_DATE, -1);
     loadJobs(CURRENT_DATE);
   });
   document.getElementById('btnDateNext')?.addEventListener('click', () => {
-    const d = new Date(CURRENT_DATE + 'T00:00:00');
-    d.setDate(d.getDate() + 1);
-    CURRENT_DATE = d.toISOString().slice(0, 10);
+    CURRENT_DATE = shiftDateString(CURRENT_DATE, 1);
     loadJobs(CURRENT_DATE);
   });
 

@@ -152,6 +152,32 @@ function createSupabaseMock() {
   };
 }
 
+function createFallbackSupabaseMock() {
+  let tenantSelectCount = 0;
+  const tenantPrimary = createQueryChain({
+    data: null,
+    error: { message: 'column tenants.business_name does not exist' },
+  }, 'maybeSingle');
+  const tenantFallback = createQueryChain({
+    data: { id: 'tenant_1', name: 'Legacy tenant name' },
+    error: null,
+  }, 'maybeSingle');
+
+  return {
+    from: vi.fn((table) => {
+      if (table === 'tenants') {
+        return {
+          select: vi.fn(() => {
+            tenantSelectCount += 1;
+            return tenantSelectCount === 1 ? tenantPrimary : tenantFallback;
+          }),
+        };
+      }
+      return createQueryChain({ data: [], error: null });
+    }),
+  };
+}
+
 describe("netlify/functions/get-customer-portal", () => {
   beforeEach(() => {
     vi.resetModules();
@@ -223,6 +249,37 @@ describe("netlify/functions/get-customer-portal", () => {
     expect(source).toContain(".select('id, cart_summary, status");
     expect(source).toContain("get-customer-portal:${tenant_id}:${normalizedEmail}:${ip}");
     expect(source).toContain("maxRequests: 8");
+  });
+
+  test("falls back when the live tenants schema does not expose business_name", async () => {
+    const supabase = createFallbackSupabaseMock();
+    const { handler, restore } = loadHandlerWithMocks({
+      authMockExports: {
+        getAdminClient: () => supabase,
+        respond: (statusCode, body) => ({ statusCode, body: JSON.stringify(body) }),
+      },
+      rateLimitMockExports: {
+        checkRateLimit: () => ({ allowed: true }),
+        rateLimitResponse: () => ({ statusCode: 429, body: JSON.stringify({ error: "rate limited" }) }),
+        getClientIP: () => "127.0.0.1",
+      },
+    });
+
+    try {
+      const res = await handler({
+        httpMethod: "POST",
+        body: JSON.stringify({ email: "customer@example.com", tenant_id: "tenant_1" }),
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.business_name).toBe("Legacy tenant name");
+      expect(body.orders).toEqual([]);
+      expect(body.bookings).toEqual([]);
+      expect(body.quotes).toEqual([]);
+    } finally {
+      restore();
+    }
   });
 
   test("rate limits repeated lookup attempts for the same tenant and email", async () => {

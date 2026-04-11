@@ -47,6 +47,25 @@ function normalizeTenantBusinessName(tenant) {
   return tenant?.business_name || tenant?.name || '';
 }
 
+async function fetchPortalTenant(supabase, tenantId) {
+  const preferred = await supabase
+    .from('tenants')
+    .select('id, business_name, name')
+    .eq('id', tenantId)
+    .maybeSingle();
+
+  if (!preferred.error) return preferred;
+
+  const missingBusinessName = String(preferred.error?.message || '').toLowerCase().includes('business_name');
+  if (!missingBusinessName) return preferred;
+
+  return supabase
+    .from('tenants')
+    .select('id, name')
+    .eq('id', tenantId)
+    .maybeSingle();
+}
+
 function normalizePortalOrder(order) {
   const totalCents = Number(order?.total_cents || 0) || 0;
   return {
@@ -85,11 +104,7 @@ exports.handler = async (event) => {
   const supabase = getAdminClient();
 
   // Verify tenant exists
-  const { data: tenant, error: tenantErr } = await supabase
-    .from('tenants')
-    .select('id, business_name, name')
-    .eq('id', tenant_id)
-    .maybeSingle();
+  const { data: tenant, error: tenantErr } = await fetchPortalTenant(supabase, tenant_id);
 
   if (tenantErr || !tenant) return respond(404, { error: 'Business not found' });
 

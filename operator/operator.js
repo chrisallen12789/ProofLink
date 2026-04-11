@@ -3821,9 +3821,10 @@ async function switchTab(tab, opts = {}) {
   if (nextTab === "money") renderMoney().catch(console.error);
   if (nextTab === "dashboard") renderDashboard();
   if (nextTab === "leads") renderLeads(leadSearch?.value || "");
-  if (nextTab === "orders" && !TABS_LOADED.has("orders")) {
-    TABS_LOADED.add("orders");
-    renderOrders(); renderPackagesSummary();
+  if (nextTab === "orders") {
+    if (!TABS_LOADED.has("orders")) TABS_LOADED.add("orders");
+    renderOrders();
+    renderPackagesSummary();
   }
   if (nextTab === "bids") renderBids(bidSearch?.value || "");
   if (nextTab === "proposal-settings") {
@@ -3846,6 +3847,10 @@ async function switchTab(tab, opts = {}) {
   if (nextTab === "bookings") {
     renderBookings().catch(console.error);
     if (isHydrovacWorkspace()) {
+      await Promise.allSettled([
+        ensureOperatorWorkspaceScript?.("facilities"),
+        ensureOperatorWorkspaceScript?.("bookings"),
+      ]);
       fetchEquipment().catch(console.warn);
       fetchHydrovacLocateTickets().catch(console.warn);
       fetchHydrovacComplianceData().catch(console.warn);
@@ -4486,6 +4491,7 @@ window.initHydrovacOpsWorkspaceBindings?.();
 window.initDispatchWorkspaceBindings?.();
 window.initBidWorkspaceBindings?.();
 window.initLeadPlanWorkspaceBindings?.();
+window.initBookingsWorkspaceBindings?.();
 
 const AVAILABILITY_TIMEZONES = [
   { value: "America/New_York", label: "Eastern Time" },
@@ -6021,14 +6027,17 @@ function bidMetadataValue(row) {
 }
 function draftFromBidRow(row) {
   const metadata = bidMetadataValue(row);
+  const customerId = row.customer_id || metadata.customer_id || "";
+  const customerLocationId = row.customer_location_id || metadata.customer_location_id || "";
+  const leadId = row.lead_id || metadata.lead_id || "";
   const localId = metadata.local_draft_id || row.id;
   return {
     id: localId,
     record_id: row.id,
     title: row.title || "",
-    customer_id: row.customer_id || "",
-    customer_location_id: row.customer_location_id || "",
-    lead_id: row.lead_id || "",
+    customer_id: customerId,
+    customer_location_id: customerLocationId,
+    lead_id: leadId,
     profile: normalizeBidProfile(row.profile || preferredBidProfile()),
     status: String(row.status || "draft"),
     walkthrough_at: row.walkthrough_at || null,
@@ -6084,11 +6093,15 @@ function draftFromBidRow(row) {
 }
 function bidRowFromDraft(draft) {
   const totals = calculateBidTotals(draft);
+  const metadata = draft?.metadata && typeof draft.metadata === "object" ? draft.metadata : {};
+  const leadId = draft?.lead_id || metadata.lead_id || null;
+  const customerId = draft?.customer_id || metadata.customer_id || null;
+  const customerLocationId = draft?.customer_location_id || metadata.customer_location_id || null;
   return withTenantScope({
     operator_id: opId(),
-    lead_id: draft?.lead_id || null,
-    customer_id: draft?.customer_id || null,
-    customer_location_id: draft?.customer_location_id || null,
+    lead_id: leadId,
+    customer_id: customerId,
+    customer_location_id: customerLocationId,
     status: String(draft?.status || "draft"),
     profile: normalizeBidProfile(draft?.profile || preferredBidProfile()),
     title: draft?.title || defaultBidTitleFromDraft(draft),
@@ -6119,7 +6132,10 @@ function bidRowFromDraft(draft) {
     approved_at: draft?.approved_at || null,
     converted_at: draft?.converted_at || null,
     metadata: {
-      ...(draft?.metadata && typeof draft.metadata === "object" ? draft.metadata : {}),
+      ...metadata,
+      lead_id: leadId,
+      customer_id: customerId,
+      customer_location_id: customerLocationId,
       local_draft_id: draft?.id || null,
       proposal_document_id: draft?.proposal_document_id || null,
       proposal_public_token: draft?.proposal_public_token || null,
@@ -6271,12 +6287,15 @@ function bidDraftFromLeadRecord(lead, profileKey = preferredBidProfile(), seedDr
     ? cloneJson(seedDraft, {})
     : emptyBidDraft(profile);
   const nowIso = new Date().toISOString();
+  const leadId = lead?.id || baseDraft.lead_id || baseDraft?.metadata?.lead_id || "";
+  const customerId = lead?.customer_id || baseDraft.customer_id || baseDraft?.metadata?.customer_id || "";
+  const customerLocationId = lead?.customer_location_id || baseDraft.customer_location_id || baseDraft?.metadata?.customer_location_id || "";
   return {
     ...baseDraft,
     title: String(lead?.title || lead?.requested_service_type || baseDraft.title || "Service proposal").trim(),
-    customer_id: lead?.customer_id || baseDraft.customer_id || "",
-    customer_location_id: lead?.customer_location_id || baseDraft.customer_location_id || "",
-    lead_id: lead?.id || baseDraft.lead_id || "",
+    customer_id: customerId,
+    customer_location_id: customerLocationId,
+    lead_id: leadId,
     profile,
     status: String(baseDraft.status || "draft"),
     walkthrough_at: baseDraft.walkthrough_at || nowIso,
@@ -6284,6 +6303,13 @@ function bidDraftFromLeadRecord(lead, profileKey = preferredBidProfile(), seedDr
     site_contact: lead?.contact_name || baseDraft.site_contact || "",
     project_summary: lead?.summary || baseDraft.project_summary || "",
     internal_notes: lead?.notes || baseDraft.internal_notes || "",
+    metadata: {
+      ...(baseDraft?.metadata && typeof baseDraft.metadata === "object" ? baseDraft.metadata : {}),
+      created_from: "lead",
+      lead_id: leadId || null,
+      customer_id: customerId || null,
+      customer_location_id: customerLocationId || null,
+    },
     updated_at: nowIso,
   };
 }
@@ -8320,6 +8346,10 @@ async function boot() {
     showApp(user);
     await fetchOperatorSetup().catch(console.warn);
     if (isHydrovacWorkspace()) {
+      await Promise.allSettled([
+        ensureOperatorWorkspaceScript?.("facilities"),
+        ensureOperatorWorkspaceScript?.("bookings"),
+      ]);
       Promise.allSettled([
         fetchHydrovacFacilities(),
         fetchHydrovacManifests(),

@@ -198,6 +198,7 @@ describe("operator team workspace", () => {
     expect(elements.teamMembersList.innerHTML).toContain("Roster pressure");
     expect(elements.teamMembersList.innerHTML).toContain("Block capacity");
     expect(elements.teamMembersList.innerHTML).toContain("Driver setup");
+    expect(elements.teamMembersList.innerHTML).toContain("Training");
     expect(elements.teamMembersList.innerHTML).toContain("2 active");
     expect(elements.teamMembersList.innerHTML).toContain("1 assigned job");
     expect(elements.teamMembersList.innerHTML).toContain("planned / 4h block");
@@ -205,8 +206,10 @@ describe("operator team workspace", () => {
     expect(elements.teamMembersList.innerHTML).toContain("Double-booked");
     expect(elements.teamMembersList.innerHTML).toContain("Driver-ready");
     expect(elements.teamMembersList.innerHTML).toContain("Driver setup needed");
+    expect(elements.teamMembersList.innerHTML).toContain("Training not started");
     expect(elements.teamMembersList.innerHTML).toContain("Last field update 2026-04-08T09:15:00Z");
     expect(elements.teamMembersList.innerHTML).toContain("Blocker: Customer gate is locked");
+    expect(elements.teamMembersList.innerHTML).toContain("Training");
     expect(elements.teamMembersList.innerHTML).toContain("Crew portal");
   });
 });

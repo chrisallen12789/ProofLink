@@ -690,22 +690,74 @@
       const fresh = PAYMENTS_CACHE.find((row) => row.id === data.id) || data;
       loadPaymentIntoForm(fresh);
 
-      // Sync payment_state to the database so it's accurate outside the UI cache
+      // Sync payment totals/state to the database so record views stay aligned
       const syncOrderId = data.order_id || payload.order_id;
       if (syncOrderId) {
         const freshOrder = CRM_ORDERS_CACHE.find((o) => o.id === syncOrderId);
         if (freshOrder) {
-          const newState = orderPaymentState(freshOrder);
+          const computedPaid = PAYMENTS_CACHE
+            .filter((payment) => payment.order_id === syncOrderId)
+            .reduce((sum, payment) => sum + Math.max(0, paymentRevenueContributionCents(payment)), 0);
+          const computedDue = Math.max(orderTotalCents(freshOrder) - computedPaid, 0);
+          let newState = "unpaid";
+          if (computedDue <= 0 && computedPaid > 0) newState = "paid";
+          else if (computedPaid > 0 && computedDue > 0) newState = "partially_paid";
+          else {
+            const dueDate = freshOrder?.payment_due_date ? new Date(freshOrder.payment_due_date) : null;
+            if (computedDue > 0 && dueDate && !Number.isNaN(dueDate.getTime()) && dueDate < new Date()) {
+              newState = "overdue";
+            }
+          }
           try {
             const { error: paymentStateError } = await sb.from("orders")
-              .update({ payment_state: newState, updated_at: new Date().toISOString() })
+              .update({
+                payment_state: newState,
+                amount_paid_cents: computedPaid,
+                amount_due_cents: computedDue,
+                updated_at: new Date().toISOString(),
+              })
               .eq("id", syncOrderId)
               .eq(TENANT_COLUMN, TENANT_ID);
             if (paymentStateError) {
-              console.warn("[payments] order payment_state sync failed:", paymentStateError.message);
+              console.warn("[payments] order payment sync failed:", paymentStateError.message);
+            } else {
+              CRM_ORDERS_CACHE = (CRM_ORDERS_CACHE || []).map((order) => (
+                order?.id === syncOrderId
+                  ? {
+                      ...order,
+                      payment_state: newState,
+                      amount_paid_cents: computedPaid,
+                      amount_due_cents: computedDue,
+                      updated_at: new Date().toISOString(),
+                    }
+                  : order
+              ));
+              JOBS_CACHE = (JOBS_CACHE || []).map((job) => (
+                job?.order_id === syncOrderId
+                  ? {
+                      ...job,
+                      payment_state: newState,
+                      amount_paid_cents: computedPaid,
+                      amount_due_cents: computedDue,
+                      updated_at: new Date().toISOString(),
+                    }
+                  : job
+              ));
+              await Promise.allSettled([
+                sb.from("jobs")
+                  .update({
+                    payment_state: newState,
+                    amount_paid_cents: computedPaid,
+                    amount_due_cents: computedDue,
+                    updated_at: new Date().toISOString(),
+                  })
+                  .eq("order_id", syncOrderId)
+                  .eq(TENANT_COLUMN, TENANT_ID),
+              ]);
+              await Promise.all([fetchCrmOrders(), fetchJobs()]);
             }
           } catch (e) {
-            console.warn("[payments] order payment_state sync failed:", e.message);
+            console.warn("[payments] order payment sync failed:", e.message);
           }
         }
       }

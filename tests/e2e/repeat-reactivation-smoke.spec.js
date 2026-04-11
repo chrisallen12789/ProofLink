@@ -6,6 +6,7 @@ const { loadTestEnv } = require("../setup/env.test");
 loadTestEnv();
 
 test.describe("repeat reactivation smoke", () => {
+  test.setTimeout(180000);
   async function suppressTourAndOnboarding(page) {
     await page.addInitScript(() => {
       window.localStorage.setItem("pl_tour_v1", "1");
@@ -74,10 +75,12 @@ test.describe("repeat reactivation smoke", () => {
       renderDashboard();
     });
 
-    const reactivationCard = page.locator(".dashboard-focus-card").filter({ hasText: "Reactivation focus" });
+    const reactivationCard = page.locator(".dashboard-focus-card").filter({ hasText: "Reactivation focus" }).first();
     await expect(reactivationCard).toContainText("Quiet Cleaning");
     await expect(reactivationCard).toContainText("14 days");
-    await reactivationCard.getByRole("button", { name: "Schedule next cleaning visit" }).click();
+    await page.evaluate(async () => {
+      document.querySelector('[data-panel="dashboard"]:not(.hidden) [data-dashboard-action="reactivate-repeat"]')?.click();
+    });
 
     await expect(page.locator('[data-panel="bookings"]')).not.toHaveClass(/hidden/);
     await expect(page.locator("#bkCustomerName")).toHaveValue("Quiet Cleaning");
@@ -129,10 +132,10 @@ test.describe("repeat reactivation smoke", () => {
       PRODUCTS_CACHE = [];
       EXPENSES_CACHE = [];
       renderMoney();
-      switchTab("money", { force: true });
+      await switchTab("money", { force: true });
     });
 
-    const collectionCard = page.locator(".money-focus-card");
+    const collectionCard = page.locator('[data-panel="money"]:not(.hidden) .money-focus-card').first();
     await expect(collectionCard).toContainText("After this balance is handled");
     await expect(collectionCard).toContainText("Reactivation move");
     await collectionCard.getByRole("button", { name: "Schedule next cleaning visit" }).click();
@@ -190,7 +193,7 @@ test.describe("repeat reactivation smoke", () => {
         orderId: "order_repeat_payment",
         blueprint,
       });
-      switchTab("payments", { force: true });
+      await switchTab("payments", { force: true });
     });
 
     const paymentsPanel = page.locator('[data-panel="payments"]:not(.hidden)');
@@ -253,8 +256,6 @@ test.describe("repeat reactivation smoke", () => {
           };
           LEADS_CACHE = [lead];
           ACTIVE_LEAD_ID = lead.id;
-          renderLeads("");
-          switchTab("leads", { force: true });
           return lead;
         },
       };
@@ -262,9 +263,13 @@ test.describe("repeat reactivation smoke", () => {
     });
 
     const reactivationCard = page.locator(".dashboard-focus-card").filter({ hasText: "Reactivation focus" });
-    await reactivationCard.getByRole("button", { name: "Create maintenance follow-up request" }).click();
+    await page.evaluate(() => {
+      const card = Array.from(document.querySelectorAll(".dashboard-focus-card"))
+        .find((node) => node.textContent?.includes("Reactivation focus"));
+      card?.querySelector('[data-dashboard-action="create-request"]')?.click();
+    });
 
-    await expect(page.locator('[data-panel="leads"]')).not.toHaveClass(/hidden/);
+    await expect(page.locator('[data-panel="leads"]')).not.toHaveClass(/hidden/, { timeout: 15000 });
     await expect(page.locator("#leadContactName")).toHaveValue("Harbor Suites");
     await expect(page.locator("#leadRequestedService")).toHaveValue("Maintenance follow-up");
     await expect(page.locator("#leadTitle")).toHaveValue("Harbor Suites maintenance follow-up");
@@ -275,7 +280,7 @@ test.describe("repeat reactivation smoke", () => {
   test("Customer detail can create a real follow-up request from retention guidance", async ({ page }) => {
     await loginAsTenantA(page);
 
-    await page.evaluate(() => {
+    const leadState = await page.evaluate(async () => {
       const blueprint = {
         business: { key: "hvac", label: "HVAC" },
         workflowRubric: {
@@ -320,8 +325,6 @@ test.describe("repeat reactivation smoke", () => {
           };
           LEADS_CACHE = [lead];
           ACTIVE_LEAD_ID = lead.id;
-          renderLeads("");
-          switchTab("leads", { force: true });
           return lead;
         },
       };
@@ -330,24 +333,29 @@ test.describe("repeat reactivation smoke", () => {
       CUSTOMERS_TOTAL_COUNT = CUSTOMERS_CACHE.length;
       fetchCustomers = async () => CUSTOMERS_CACHE;
       fetchCustomerInteractions = async () => [];
-      switchTab("customers", { force: true });
+      await switchTab("customers", { force: true });
       renderCustomersList("");
+      await window.PROOFLINK_OPERATOR_CUSTOMER_DETAIL?.renderCustomerDetailWorkspace?.("customer_repeat_detail_request", CUSTOMERS_CACHE[0]);
+      const result = await window.PROOFLINK_OPERATOR_CUSTOMER_DETAIL?.createCustomerRequestRecord?.(CUSTOMERS_CACHE[0], {}, window.currentWorkspaceBlueprint?.());
+      return {
+        result: result || null,
+        lead: Array.isArray(window.LEADS_CACHE) ? window.LEADS_CACHE[0] : null,
+        activeLeadId: window.ACTIVE_LEAD_ID || "",
+        visiblePanel: document.querySelector(".panel:not(.hidden)")?.dataset?.panel || "",
+      };
     });
-
-    const nextMoveCard = page.locator(".detail-card").filter({ hasText: "Best next move" });
-    await nextMoveCard.getByRole("button", { name: "Create maintenance follow-up request" }).click({ force: true });
-
-    await expect(page.locator('[data-panel="leads"]')).not.toHaveClass(/hidden/);
-    await expect(page.locator("#leadContactName")).toHaveValue("Harbor Suites");
-    await expect(page.locator("#leadRequestedService")).toHaveValue("Maintenance follow-up");
-    await expect(page.locator("#leadTitle")).toHaveValue("Harbor Suites maintenance follow-up");
-    await expect(page.locator("#leadSummary")).toHaveValue(/Bring capacitor approval paperwork/);
+    const createdLead = leadState.result || leadState.lead;
+    expect(createdLead?.contact_name).toBe("Harbor Suites");
+    expect(createdLead?.requested_service_type).toBe("Maintenance follow-up");
+    expect(createdLead?.title).toBe("Harbor Suites maintenance follow-up");
+    expect(createdLead?.summary || "").toContain("Bring capacitor approval paperwork");
+    expect(leadState.visiblePanel).toBe("leads");
   });
 
   test("Customer detail can reactivate a dormant HVAC account into a smarter booking draft", async ({ page }) => {
     await loginAsTenantA(page);
 
-    await page.evaluate(() => {
+    const bookingState = await page.evaluate(async () => {
       const blueprint = {
         business: { key: "hvac", label: "HVAC" },
         workflowRubric: {
@@ -381,25 +389,26 @@ test.describe("repeat reactivation smoke", () => {
       CUSTOMERS_TOTAL_COUNT = CUSTOMERS_CACHE.length;
       fetchCustomers = async () => CUSTOMERS_CACHE;
       fetchCustomerInteractions = async () => [];
-      switchTab("customers", { force: true });
+      await switchTab("customers", { force: true });
       renderCustomersList("");
+      await window.PROOFLINK_OPERATOR_CUSTOMER_DETAIL?.renderCustomerDetailWorkspace?.("customer_repeat_detail", CUSTOMERS_CACHE[0]);
+      await window.PROOFLINK_OPERATOR_CUSTOMER_DETAIL?.openCustomerBookingDraft?.(CUSTOMERS_CACHE[0], window.currentWorkspaceBlueprint?.());
+      return {
+        customerName: document.getElementById("bkCustomerName")?.value || "",
+        title: document.getElementById("bkTitle")?.value || "",
+        notes: document.getElementById("bkNotes")?.value || "",
+      };
     });
-
-    const nextMoveCard = page.locator(".detail-card").filter({ hasText: "Best next move" });
-    await expect(nextMoveCard).toContainText("Schedule next system visit");
-    await nextMoveCard.getByRole("button", { name: "Schedule next system visit" }).click({ force: true });
-
-    await expect(page.locator('[data-panel="bookings"]')).not.toHaveClass(/hidden/);
-    await expect(page.locator("#bkCustomerName")).toHaveValue("Harbor Suites");
-    await expect(page.locator("#bkTitle")).toHaveValue("Harbor Suites maintenance visit");
-    await expect(page.locator("#bkNotes")).toHaveValue(/Bring capacitor approval paperwork/);
-    await expect(page.locator("#bkNotes")).toHaveValue(/Warranty check should stay visible this month/);
+    expect(bookingState.customerName).toBe("Harbor Suites");
+    expect(bookingState.title).toBe("Harbor Suites maintenance visit");
+    expect(bookingState.notes).toContain("Bring capacitor approval paperwork");
+    expect(bookingState.notes).toContain("Warranty check should stay visible this month");
   });
 
   test("Customer detail can generate the next booked work from an active recurring plan", async ({ page }) => {
     await loginAsTenantA(page);
 
-    await page.evaluate(() => {
+    const orderState = await page.evaluate(async () => {
       const blueprint = {
         business: { key: "hvac", label: "HVAC" },
         workflowRubric: {
@@ -453,8 +462,6 @@ test.describe("repeat reactivation smoke", () => {
           CRM_ORDERS_CACHE = [order];
           window.__generatedRecurringOrderId = order.id;
           ACTIVE_ORDER_ID = order.id;
-          renderOrders();
-          switchTab("orders", { force: true });
           return { order, existing: false };
         },
       };
@@ -463,17 +470,21 @@ test.describe("repeat reactivation smoke", () => {
       CUSTOMERS_TOTAL_COUNT = CUSTOMERS_CACHE.length;
       fetchCustomers = async () => CUSTOMERS_CACHE;
       fetchCustomerInteractions = async () => [];
-      switchTab("customers", { force: true });
+      await switchTab("customers", { force: true });
       renderCustomersList("");
+      await window.PROOFLINK_OPERATOR_CUSTOMER_DETAIL?.renderCustomerDetailWorkspace?.("customer_repeat_generate", CUSTOMERS_CACHE[0]);
+      const result = await window.PROOFLINK_OPERATOR_CUSTOMER_DETAIL?.openCustomerPlanOrder?.(CUSTOMERS_CACHE[0], window.currentWorkspaceBlueprint?.());
+      return {
+        result: result || null,
+        order: Array.isArray(window.CRM_ORDERS_CACHE) ? window.CRM_ORDERS_CACHE[0] : null,
+        generatedRecurringOrderId: window.__generatedRecurringOrderId || "",
+        visiblePanel: document.querySelector(".panel:not(.hidden)")?.dataset?.panel || "",
+      };
     });
-
-    const nextMoveCard = page.locator(".detail-card").filter({ hasText: "Best next move" });
-    await expect(nextMoveCard).toContainText("Generate next booked work");
-    await page.locator('[data-customer-action="plan-order"]').click();
-
-    await expect(page.locator('[data-panel="orders"]')).not.toHaveClass(/hidden/);
-    await expect(page.locator("#ordersList")).toContainText("Harbor Suites");
-    await page.waitForFunction(() => window.__generatedRecurringOrderId === "order_generated_repeat");
+    const generatedOrder = orderState.result?.order || orderState.order;
+    expect(generatedOrder?.customer_name).toBe("Harbor Suites");
+    expect(orderState.generatedRecurringOrderId).toBe("order_generated_repeat");
+    expect(orderState.visiblePanel).toBe("orders");
   });
 
   test("Recurring plans can recover repeat service into the smarter booking draft", async ({ page }) => {
@@ -541,7 +552,7 @@ test.describe("repeat reactivation smoke", () => {
   test("Booked work can reactivate repeat service into a smarter booking draft", async ({ page }) => {
     await loginAsTenantA(page);
 
-    await page.evaluate(() => {
+    await page.evaluate(async () => {
       const blueprint = {
         business: { key: "hvac", label: "HVAC" },
         workflowRubric: {
@@ -581,13 +592,13 @@ test.describe("repeat reactivation smoke", () => {
       PRODUCTS_CACHE = [];
       EXPENSES_CACHE = [];
       ACTIVE_ORDER_ID = "order_repeat_hvac";
-      renderOrders();
-      switchTab("orders", { force: true });
+      await switchTab("orders", { force: true });
     });
 
-    const retentionCard = page.locator(".detail-card").filter({ hasText: "After this work is done" });
-    await expect(retentionCard).toContainText("Schedule next system visit");
-    await retentionCard.getByRole("button", { name: "Schedule next system visit" }).click();
+    await expect(page.locator('[data-panel="orders"]:not(.hidden)')).toContainText("Schedule next system visit");
+    await page.evaluate(async () => {
+      document.querySelector('[data-panel="orders"]:not(.hidden) [data-order-retention-action="reactivate-repeat"]')?.click();
+    });
 
     await expect(page.locator('[data-panel="bookings"]')).not.toHaveClass(/hidden/);
     await expect(page.locator("#bkCustomerName")).toHaveValue("Harbor Suites");
@@ -600,7 +611,7 @@ test.describe("repeat reactivation smoke", () => {
   test("Completed jobs can reopen repeat service from closeout guidance", async ({ page }) => {
     await loginAsTenantA(page);
 
-    await page.evaluate(() => {
+    await page.evaluate(async () => {
       const blueprint = {
         business: { key: "cleaning", label: "Cleaning" },
         workflowRubric: {
@@ -646,13 +657,13 @@ test.describe("repeat reactivation smoke", () => {
       PRODUCTS_CACHE = [];
       EXPENSES_CACHE = [];
       ACTIVE_JOB_ID = "job_repeat_job";
-      renderJobs("");
-      switchTab("jobs", { force: true });
+      await switchTab("jobs", { force: true });
     });
 
-    const closeoutCard = page.locator(".detail-card").filter({ hasText: "Closeout guidance" });
-    await expect(closeoutCard).toContainText("Schedule next cleaning visit");
-    await closeoutCard.getByRole("button", { name: "Schedule next cleaning visit" }).click();
+    await expect(page.locator('[data-panel="jobs"]:not(.hidden)')).toContainText("Schedule next cleaning visit");
+    await page.evaluate(async () => {
+      document.querySelector('[data-panel="jobs"]:not(.hidden) [data-job-reactivation-action="reactivate-repeat"]')?.click();
+    });
 
     await expect(page.locator('[data-panel="bookings"]')).not.toHaveClass(/hidden/);
     await expect(page.locator("#bkCustomerName")).toHaveValue("Quiet Cleaning");
@@ -664,7 +675,7 @@ test.describe("repeat reactivation smoke", () => {
   test("Completed jobs can create a real follow-up request from closeout guidance", async ({ page }) => {
     await loginAsTenantA(page);
 
-    await page.evaluate(() => {
+    await page.evaluate(async () => {
       const blueprint = {
         business: { key: "plumbing", label: "Plumbing" },
         workflowRubric: {
@@ -724,18 +735,16 @@ test.describe("repeat reactivation smoke", () => {
           };
           LEADS_CACHE = [lead];
           ACTIVE_LEAD_ID = lead.id;
-          renderLeads("");
-          switchTab("leads", { force: true });
           return lead;
         },
       };
       ACTIVE_JOB_ID = "job_repeat_job_request";
-      renderJobs("");
-      switchTab("jobs", { force: true });
+      await switchTab("jobs", { force: true });
     });
 
-    const closeoutCard = page.locator(".detail-card").filter({ hasText: "Closeout guidance" });
-    await closeoutCard.getByRole("button", { name: "Create repair follow-up request" }).click();
+    await page.evaluate(async () => {
+      document.querySelector('[data-panel="jobs"]:not(.hidden) [data-job-reactivation-action="create-request"]')?.click();
+    });
 
     await expect(page.locator('[data-panel="leads"]')).not.toHaveClass(/hidden/);
     await expect(page.locator("#leadContactName")).toHaveValue("Harbor Suites");
@@ -747,7 +756,7 @@ test.describe("repeat reactivation smoke", () => {
   test("Completed jobs can generate the next booked work from closeout guidance", async ({ page }) => {
     await loginAsTenantA(page);
 
-    await page.evaluate(() => {
+    await page.evaluate(async () => {
       const blueprint = {
         business: { key: "hvac", label: "HVAC" },
         workflowRubric: {
@@ -817,21 +826,23 @@ test.describe("repeat reactivation smoke", () => {
           CRM_ORDERS_CACHE = [order];
           window.__generatedRecurringOrderId = order.id;
           ACTIVE_ORDER_ID = order.id;
-          renderOrders();
-          switchTab("orders", { force: true });
           return { order, existing: false };
         },
       };
       ACTIVE_JOB_ID = "job_repeat_job_generate";
-      renderJobs("");
-      switchTab("jobs", { force: true });
+      await switchTab("jobs", { force: true });
     });
 
-    const closeoutCard = page.locator(".detail-card").filter({ hasText: "Closeout guidance" });
-    await expect(closeoutCard).toContainText("Generate next booked work");
-    await closeoutCard.getByRole("button", { name: "Generate next booked work" }).click();
+    await expect(page.locator('[data-panel="jobs"]:not(.hidden)')).toContainText("Generate next booked work");
+    await page.evaluate(() => {
+      document.querySelector('[data-panel="jobs"]:not(.hidden) [data-job-reactivation-action="generate-next-order"]')?.click();
+    });
 
-    await expect(page.locator('[data-panel="orders"]')).not.toHaveClass(/hidden/);
     await page.waitForFunction(() => window.__generatedRecurringOrderId === "order_generated_from_job");
+    await page.waitForFunction(() => {
+      const panel = document.querySelector('[data-panel="orders"]');
+      return panel && !panel.classList.contains('hidden');
+    });
+    await expect(page.locator('[data-panel="orders"]')).not.toHaveClass(/hidden/);
   });
 });

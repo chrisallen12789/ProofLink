@@ -3289,22 +3289,31 @@
   function openCustomerRequestDraft(customer, options = {}, blueprint = (typeof currentWorkspaceBlueprint === "function" ? currentWorkspaceBlueprint() : { business: { key: "service_business" } })) {
     if (!customer) return;
     const draft = customerFollowUpRequestDraft(customer, options, blueprint) || {};
-    switchTab("leads");
-    ACTIVE_LEAD_ID = null;
-    clearLeadForm();
-    renderLeadCustomerOptions(customer.id);
-    if (leadCustomerId) leadCustomerId.value = customer.id;
-    if (leadContactName) leadContactName.value = customer.name || "";
-    if (leadContactEmail) leadContactEmail.value = customer.email || "";
-    if (leadContactPhone) leadContactPhone.value = customer.phone || "";
-    if (leadPreferredContact) leadPreferredContact.value = customer.preferred_contact || "phone";
-    if (leadRequestedService) leadRequestedService.value = draft.requestedServiceType || "";
-    if (leadTitle) leadTitle.value = draft.title || `${customer.name || "Customer"} request`;
-    if (leadServiceAddress) leadServiceAddress.value = draft.serviceAddress || "";
-    if (leadSummary) leadSummary.value = draft.summary || "";
-    if (leadNotes) leadNotes.value = draft.notes || "";
-    if (leadSummary) leadSummary.focus();
-    setInlineMessage(leadMsg, draft.message || "New request draft opened from the customer record.", "ok");
+    const hydrateLeadDraft = () => {
+      ACTIVE_LEAD_ID = null;
+      if (typeof clearLeadForm === "function") clearLeadForm();
+      if (typeof renderLeadCustomerOptions === "function") renderLeadCustomerOptions(customer.id);
+      if (typeof leadCustomerId !== "undefined" && leadCustomerId) leadCustomerId.value = customer.id;
+      if (typeof leadContactName !== "undefined" && leadContactName) leadContactName.value = customer.name || "";
+      if (typeof leadContactEmail !== "undefined" && leadContactEmail) leadContactEmail.value = customer.email || "";
+      if (typeof leadContactPhone !== "undefined" && leadContactPhone) leadContactPhone.value = customer.phone || "";
+      if (typeof leadPreferredContact !== "undefined" && leadPreferredContact) leadPreferredContact.value = customer.preferred_contact || "phone";
+      if (typeof leadRequestedService !== "undefined" && leadRequestedService) leadRequestedService.value = draft.requestedServiceType || "";
+      if (typeof leadTitle !== "undefined" && leadTitle) leadTitle.value = draft.title || `${customer.name || "Customer"} request`;
+      if (typeof leadServiceAddress !== "undefined" && leadServiceAddress) leadServiceAddress.value = draft.serviceAddress || "";
+      if (typeof leadSummary !== "undefined" && leadSummary) leadSummary.value = draft.summary || "";
+      if (typeof leadNotes !== "undefined" && leadNotes) leadNotes.value = draft.notes || "";
+      if (typeof leadSummary !== "undefined" && leadSummary?.focus) leadSummary.focus();
+      if (typeof setInlineMessage === "function") {
+        setInlineMessage(leadMsg, draft.message || "New request draft opened from the customer record.", "ok");
+      }
+    };
+    Promise.resolve(typeof switchTab === "function" ? switchTab("leads", { force: true }) : null)
+      .catch(() => null)
+      .then(hydrateLeadDraft)
+      .catch(console.error);
+    hydrateLeadDraft();
+    return draft;
   }
 
   function createCustomerRequestRecord(customer, options = {}, blueprint = (typeof currentWorkspaceBlueprint === "function" ? currentWorkspaceBlueprint() : { business: { key: "service_business" } })) {
@@ -3312,11 +3321,43 @@
     const leadPlanApi = global.PROOFLINK_OPERATOR_LEAD_PLAN_WORKSPACE || {};
     if (typeof leadPlanApi.saveLeadRecord !== "function") {
       openCustomerRequestDraft(customer, options, blueprint);
-      return true;
+      return Promise.resolve({ draft: true });
     }
     const draft = customerFollowUpRequestDraft(customer, options, blueprint) || {};
     showToast(options.pendingMessage || "Creating follow-up request...");
-    Promise.resolve(leadPlanApi.saveLeadRecord({
+    const finalizeLeadSuccess = (lead) => {
+      if (lead?.id) ACTIVE_LEAD_ID = lead.id;
+      return Promise.resolve(typeof switchTab === "function" ? switchTab("leads", { force: true }) : null)
+        .catch(() => null)
+        .then(() => {
+          if (lead?.id) {
+            ACTIVE_LEAD_ID = lead.id;
+            if (typeof renderLeads === "function") renderLeads(leadSearch?.value || "");
+            if (typeof renderLeadDetail === "function") {
+              return Promise.resolve(renderLeadDetail(lead.id));
+            }
+          }
+          openCustomerRequestDraft(customer, options, blueprint);
+          return null;
+        })
+        .then(() => {
+          if (lead?.id) {
+            ACTIVE_LEAD_ID = lead.id;
+            if (typeof renderLeads === "function") renderLeads(leadSearch?.value || "");
+            if (typeof renderLeadDetail === "function") {
+              Promise.resolve(renderLeadDetail(lead.id)).catch(console.error);
+            }
+            if (typeof setInlineMessage === "function") {
+              setInlineMessage(leadMsg, options.successMessage || "Follow-up request created from the customer record.", "ok");
+            }
+          }
+          showToast(options.successMessage || "Follow-up request created from the customer record.");
+          return lead;
+        });
+    };
+
+    try {
+      const saveResult = leadPlanApi.saveLeadRecord({
       customer_id: customer.id || "",
       contact_name: customer.name || "",
       contact_email: customer.email || "",
@@ -3333,16 +3374,21 @@
         source_record_type: options.sourceRecordType || "customer",
         source_record_id: options.sourceRecordId || customer.id || "",
       },
-    }))
-      .then((lead) => {
-        if (lead?.id) ACTIVE_LEAD_ID = lead.id;
-        switchTab("leads");
-        showToast(options.successMessage || "Follow-up request created from the customer record.");
-      })
-      .catch((error) => {
-        showToast(error?.message || "Could not create the follow-up request yet.");
       });
-    return true;
+      if (saveResult && typeof saveResult.then === "function") {
+        return Promise.resolve(saveResult)
+          .then(finalizeLeadSuccess)
+          .catch((error) => {
+            showToast(error?.message || "Could not create the follow-up request yet.");
+            throw error;
+          });
+      }
+      Promise.resolve(finalizeLeadSuccess(saveResult)).catch(console.error);
+      return true;
+    } catch (error) {
+        showToast(error?.message || "Could not create the follow-up request yet.");
+        throw error;
+    }
   }
 
   function openCustomerBidDraft(customer) {
@@ -3375,11 +3421,56 @@
     if (!customer) return;
     const bookingApi = window.PROOFLINK_OPERATOR_BOOKINGS_WORKSPACE || {};
     if (typeof bookingApi.openBookingDraftForCustomer === "function") {
-      bookingApi.openBookingDraftForCustomer(customer, {}, blueprint);
-      return;
+      return Promise.resolve(bookingApi.openBookingDraftForCustomer(customer, {}, blueprint))
+        .then(() => ({ openedBookingDraft: true }));
     }
-    switchTab("bookings");
-    showToast("Bookings opened. Schedule the next visit while this account is still warm.");
+    return Promise.resolve(typeof switchTab === "function" ? switchTab("bookings", { force: true }) : null)
+      .catch(() => null)
+      .then(() => {
+    const bookingDate = typeof bookingDraftDate === "function" ? String(bookingDraftDate(customer, {}, blueprint)).trim() : "";
+    const recurrenceRule = typeof bookingDraftRecurrenceRule === "function" ? String(bookingDraftRecurrenceRule(customer, {})).trim() : "";
+    const recurrenceEnd = typeof bookingDraftRecurrenceEnd === "function" ? String(bookingDraftRecurrenceEnd(customer, {}, bookingDate)).trim() : "";
+    const customerName = String(customer?.name || customer?.customer_name || "").trim();
+    const customerEmail = String(customer?.email || customer?.customer_email || "").trim();
+    if (typeof $ === "function") {
+      const form = $("newBookingForm");
+      form?.classList?.remove?.("hidden");
+      const customerNameField = $("bkCustomerName");
+      if (customerNameField) customerNameField.value = customerName;
+      const customerEmailField = $("bkCustomerEmail");
+      if (customerEmailField) customerEmailField.value = customerEmail;
+      const titleField = $("bkTitle");
+      if (titleField) titleField.value = typeof bookingDraftTitle === "function" ? bookingDraftTitle(customer, {}, blueprint) : `${customerName || "Customer"} visit`;
+      const dateField = $("bkDate");
+      if (dateField) dateField.value = bookingDate;
+      const startField = $("bkStart");
+      if (startField && !String(startField.value || "").trim()) startField.value = "09:00";
+      const notesField = $("bkNotes");
+      if (notesField) notesField.value = typeof bookingDraftNotes === "function" ? bookingDraftNotes(customer, {}, blueprint) : "";
+      const recurrenceRuleField = $("bkRecurrenceRule");
+      if (recurrenceRuleField) recurrenceRuleField.value = recurrenceRule;
+      const recurrenceOptions = $("bkRecurrenceOptions");
+      if (recurrenceOptions?.classList?.toggle) recurrenceOptions.classList.toggle("u-hidden", !recurrenceRule);
+      const recurrenceEndField = $("bkRecurrenceEnd");
+      if (recurrenceEndField) recurrenceEndField.value = recurrenceEnd;
+      const recurrenceCountField = $("bkRecurrenceCount");
+      if (recurrenceCountField && typeof computeBookingRecurrenceCount === "function") {
+        const result = computeBookingRecurrenceCount(recurrenceRule, bookingDate, recurrenceEnd);
+        recurrenceCountField.textContent = result.message;
+      }
+      const message = $("newBookingMsg");
+      const timingMessage = typeof bookingDraftTimingMessage === "function"
+        ? bookingDraftTimingMessage(customer, {}, blueprint, bookingDate)
+        : "Booking draft opened from the customer record.";
+      if (typeof setInlineMessage === "function") setInlineMessage(message, timingMessage, "ok");
+      else if (message) {
+        message.textContent = timingMessage;
+        message.className = "msg success";
+      }
+    }
+        showToast("Bookings opened. Schedule the next visit while this account is still warm.");
+        return { openedBookingDraft: true };
+      });
   }
 
   function openCustomerPlanOrder(customer, blueprint = (typeof currentWorkspaceBlueprint === "function" ? currentWorkspaceBlueprint() : { business: { key: "service_business" } })) {
@@ -3390,25 +3481,51 @@
     const leadPlanApi = global.PROOFLINK_OPERATOR_LEAD_PLAN_WORKSPACE || {};
     if (typeof leadPlanApi.runServicePlanRecord === "function" && planState.canGenerate) {
       showToast("Generating the next booked work from the recurring plan...");
-      Promise.resolve(leadPlanApi.runServicePlanRecord(plan))
-        .then((result) => {
+      const finalizePlanSuccess = (result) => {
           if (result?.order?.id) {
             ACTIVE_ORDER_ID = result.order.id;
-            switchTab("orders");
+            if (typeof TABS_LOADED !== "undefined" && TABS_LOADED?.add) TABS_LOADED.add("orders");
+            if (Array.isArray(global.CRM_ORDERS_CACHE) && result.order) {
+              const deduped = [result.order, ...global.CRM_ORDERS_CACHE.filter((row) => row.id !== result.order.id)];
+              global.CRM_ORDERS_CACHE = deduped;
+            }
+            if (typeof renderOrders === "function") renderOrders();
           }
-          showToast(result?.existing ? "The next booked work already existed, so it was reopened." : "Next booked work generated from the recurring plan.");
-        })
-        .catch((error) => {
+          return Promise.resolve(typeof switchTab === "function" ? switchTab("orders", { force: true }) : null)
+            .catch(() => null)
+            .then(() => {
+              if (result?.order?.id) ACTIVE_ORDER_ID = result.order.id;
+              if (typeof renderOrders === "function") renderOrders();
+              showToast(result?.existing ? "The next booked work already existed, so it was reopened." : "Next booked work generated from the recurring plan.");
+              return result;
+            });
+        };
+      try {
+        const runResult = leadPlanApi.runServicePlanRecord(plan);
+        if (runResult && typeof runResult.then === "function") {
+          return Promise.resolve(runResult)
+            .then(finalizePlanSuccess)
+            .catch((error) => {
+              showToast(error?.message || "Could not generate the next booked work yet.");
+              throw error;
+            });
+        }
+        Promise.resolve(finalizePlanSuccess(runResult)).catch(console.error);
+        return true;
+      } catch (error) {
           showToast(error?.message || "Could not generate the next booked work yet.");
-        });
-      return true;
+          throw error;
+      }
     }
     ACTIVE_PLAN_ID = plan.id || "";
-    switchTab("plans");
-    showToast(planState.canGenerate
-      ? "Recurring plan opened. Generate the next booked work from here."
-      : "Recurring plan opened. Set the next run timing before generating the next booked work.");
-    return true;
+    return Promise.resolve(typeof switchTab === "function" ? switchTab("plans", { force: true }) : null)
+      .catch(() => null)
+      .then(() => {
+        showToast(planState.canGenerate
+          ? "Recurring plan opened. Generate the next booked work from here."
+          : "Recurring plan opened. Set the next run timing before generating the next booked work.");
+        return { openedPlan: true, planId: ACTIVE_PLAN_ID };
+      });
   }
 
   function openCustomerRetentionAction(action, customer, blueprint = (typeof currentWorkspaceBlueprint === "function" ? currentWorkspaceBlueprint() : { business: { key: "service_business" } }), options = {}) {

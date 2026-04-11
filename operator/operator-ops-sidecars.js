@@ -296,7 +296,7 @@
       banner = global.document.createElement("div");
       banner.id = "idleBanner";
       banner.style.cssText = "position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1e2029;border:1px solid rgba(200,75,47,.5);border-radius:8px;padding:14px 20px;color:#e8e9eb;font-size:.85rem;z-index:9999;display:flex;align-items:center;gap:12px;box-shadow:0 4px 24px rgba(0,0,0,.4);";
-      banner.innerHTML = '<span>You\\'ll be signed out in 5 minutes due to inactivity.</span><button type="button" id="idleBannerStay" style="background:#c84b2f;color:#fff;border:none;border-radius:4px;padding:6px 14px;font-size:.8rem;cursor:pointer;font-weight:600;">Stay signed in</button>';
+      banner.innerHTML = `<span>You'll be signed out in 5 minutes due to inactivity.</span><button type="button" id="idleBannerStay" style="background:#c84b2f;color:#fff;border:none;border-radius:4px;padding:6px 14px;font-size:.8rem;cursor:pointer;font-weight:600;">Stay signed in</button>`;
       global.document.body.appendChild(banner);
       global.document.getElementById("idleBannerStay")?.addEventListener("click", () => {
         global.document.getElementById("idleBanner")?.remove();

@@ -202,6 +202,12 @@
         "honest-to-crust";
       let rows = [];
 
+      if (!tenantSlug || tenantSlug === "default" || tenantSlug === "honest-to-crust") {
+        saveCatalogCache(rows);
+        window.HTC_CATALOG = rows;
+        return rows;
+      }
+
       try {
         const fnRes = await fetchJsonWithTimeout(`/.netlify/functions/get-public-catalog?slug=${encodeURIComponent(tenantSlug)}&include_unavailable=${includeUnavailable ? "true" : "false"}`, {
           method: "GET",

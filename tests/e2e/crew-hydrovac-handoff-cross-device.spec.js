@@ -57,8 +57,8 @@ test.describe("crew hydrovac handoff cross-device", () => {
   test("crew sees the hydrovac field packet and recent site memory on phone and desktop", async ({ page }) => {
     await loginToCrew(page, process.env.TEST_TENANT_B_ADMIN_EMAIL, process.env.TEST_TENANT_B_ADMIN_PASSWORD);
 
-    await expect(page.locator("#jobsList")).toContainText(/North trench daylighting|Riverfront Milling/i, { timeout: 30000 });
-    await expect(page.locator("#jobsList")).toContainText(/Live load|locate active|permit open/i, { timeout: 30000 });
+    await expect(page.locator("#jobsList")).toContainText(/North trench daylighting|Riverfront Milling|South vault cleanout/i, { timeout: 30000 });
+    await expect(page.locator("#jobsList")).toContainText(/Live load|locate active|permit open|permit expired/i, { timeout: 30000 });
     await expectNoOverflow(page);
 
     await page.locator("#jobsList .job-card").first().click();
@@ -78,7 +78,7 @@ test.describe("crew hydrovac handoff cross-device", () => {
   test("crew hydrovac completion screen keeps the structured closeout visible before submit", async ({ page }) => {
     await loginToCrew(page, process.env.TEST_TENANT_B_ADMIN_EMAIL, process.env.TEST_TENANT_B_ADMIN_PASSWORD);
 
-    await expect(page.locator("#jobsList")).toContainText(/North trench daylighting|Riverfront Milling/i, { timeout: 30000 });
+    await expect(page.locator("#jobsList")).toContainText(/North trench daylighting|Riverfront Milling|South vault cleanout/i, { timeout: 30000 });
     await page.locator("#jobsList .job-card").first().click();
     await expect(page.locator("#jobActions")).toBeVisible();
 

@@ -620,6 +620,75 @@ describe("operator bids workspace", () => {
     expect(context.BIDS_CACHE[0].customer_location_id).toBe("location_1");
   });
 
+  test("flushBidDraftSync runs a fresh sync after waiting for an older in-flight sync", async () => {
+    const localDraft = {
+      id: "bid_local_pending",
+      record_id: "bid_remote_pending",
+      customer_id: "customer_1",
+      status: "sent",
+      title: "Freshly edited proposal",
+      updated_at: "2026-04-03T10:05:00.000Z",
+      metadata: {},
+    };
+    const builder = {
+      insert: vi.fn(() => builder),
+      update: vi.fn(() => builder),
+      eq: vi.fn(() => builder),
+      select: vi.fn(() => builder),
+      single: vi.fn(async () => ({
+        data: {
+          id: "bid_remote_pending",
+          customer_id: "customer_1",
+          status: "sent",
+          title: "Freshly edited proposal",
+          updated_at: "2026-04-03T10:05:00.000Z",
+          metadata: {
+            local_draft_id: "bid_local_pending",
+          },
+        },
+        error: null,
+      })),
+    };
+    let releaseInFlight;
+    const context = loadBidsWorkspace({
+      BIDS_CACHE: [localDraft],
+      currentBid: vi.fn(() => context.BIDS_CACHE[0] || null),
+      bidRecordId: vi.fn((row) => row.record_id || ""),
+      bidRowFromDraft: vi.fn((draft) => ({
+        customer_id: draft.customer_id,
+        status: draft.status,
+        title: draft.title,
+        updated_at: draft.updated_at,
+        metadata: draft.metadata || {},
+      })),
+      draftFromBidRow: vi.fn((row) => ({
+        id: row.metadata?.local_draft_id || row.id,
+        record_id: row.id,
+        customer_id: row.customer_id || "",
+        status: row.status || "draft",
+        title: row.title || "",
+        updated_at: row.updated_at || "",
+        metadata: row.metadata || {},
+      })),
+      sb: {
+        from: vi.fn(() => builder),
+      },
+    });
+
+    context.BID_SYNC_PROMISE = new Promise((resolve) => {
+      releaseInFlight = resolve;
+    });
+
+    const syncPromise = context.window.flushBidDraftSync({ throwOnError: true });
+    releaseInFlight();
+    context.BID_SYNC_PROMISE = null;
+    const syncedDraft = await syncPromise;
+
+    expect(builder.update).toHaveBeenCalled();
+    expect(syncedDraft.title).toBe("Freshly edited proposal");
+    expect(context.BIDS_CACHE[0].record_id).toBe("bid_remote_pending");
+  });
+
   test("loadPersistedBids keeps unsupported local bid columns when remote rows omit them", async () => {
     const localDraft = {
       id: "bid_local_2",

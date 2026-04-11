@@ -619,11 +619,11 @@ describe("operator customer detail", () => {
       },
     });
 
-    expect(api.openCustomerPlanOrder({
+    await expect(Promise.resolve(api.openCustomerPlanOrder({
       id: "customer_1",
       name: "Quiet Cleaning",
       recurring_notes: "Every other Tuesday",
-    })).toBe(true);
+    }))).resolves.toBeTruthy();
 
     await Promise.resolve();
     await Promise.resolve();
@@ -696,7 +696,7 @@ describe("operator customer detail", () => {
       },
     });
 
-    expect(api.createCustomerRequestRecord({
+    await expect(Promise.resolve(api.createCustomerRequestRecord({
       id: "customer_1",
       name: "Harbor Suites",
       email: "ops@example.com",
@@ -707,7 +707,7 @@ describe("operator customer detail", () => {
       successMessage: "Created from closeout.",
       sourceRecordType: "job",
       sourceRecordId: "job_1",
-    }, { business: { key: "hvac" } })).toBe(true);
+    }, { business: { key: "hvac" } }))).resolves.toBeTruthy();
 
     await Promise.resolve();
     await Promise.resolve();

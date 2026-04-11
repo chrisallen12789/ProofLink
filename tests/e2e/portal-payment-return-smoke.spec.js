@@ -132,12 +132,13 @@ test.describe("portal payment return smoke", () => {
   });
 
   test("shows appointment summary guidance when a future booking is on the calendar", async ({ page }) => {
+    const nextVisit = new Date(Date.now() + (2 * 24 * 60 * 60 * 1000)).toISOString();
     await stubPortalRoutes(page, {
       bookings: [
         {
           id: "booking_upcoming_1",
           title: "Quarterly rooftop maintenance",
-          starts_at: "2026-04-08T14:00:00.000Z",
+          starts_at: nextVisit,
           status: "confirmed",
           notes: "Meet building engineer on site",
         },

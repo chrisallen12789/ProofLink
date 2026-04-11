@@ -298,6 +298,28 @@ describe("crew job actions", () => {
     expect(ensureElement("jobsList").innerHTML).toContain("1 permit open");
   });
 
+  test("renderJobCards can explain when the home list is showing upcoming fallback work", () => {
+    const { context, ensureElement } = loadCrew();
+    ensureElement("jobsList");
+
+    context.renderJobCards([
+      {
+        id: "job_future_1",
+        status: "scheduled",
+        scheduled_date: "2026-04-10",
+        scheduled_time: "09:00:00",
+        service_address: "44 Service Drive, Detroit, MI",
+        customers: { name: "Riverfront Milling" },
+        title: "South vault cleanout",
+      },
+    ], {
+      emptyMessage: "No jobs scheduled for today. Showing your next assigned work.",
+    });
+
+    expect(ensureElement("jobsList").innerHTML).toContain("Showing your next assigned work");
+    expect(ensureElement("jobsList").innerHTML).toContain("South vault cleanout");
+  });
+
   test("renderCrewSitePacketCard keeps the office handoff visible in the field", () => {
     const { context } = loadCrew();
 

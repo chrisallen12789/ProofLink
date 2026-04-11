@@ -137,6 +137,28 @@ function buildInsertRecord(payload) {
   };
 }
 
+function isMissingInsertColumn(error, columnName) {
+  const code = clean(error?.code).toUpperCase();
+  const message = clean(error?.message).toLowerCase();
+  return code === 'PGRST204' && message.includes(`'${String(columnName || '').toLowerCase()}' column`);
+}
+
+async function insertOnboardingRequest(supabase, insertRecord) {
+  const attempt = async (record) => supabase
+    .from('tenant_onboarding_requests')
+    .insert([record])
+    .select('id, business_name, status')
+    .maybeSingle();
+
+  let result = await attempt(insertRecord);
+  if (result.error && isMissingInsertColumn(result.error, 'intake_mode')) {
+    const fallbackRecord = { ...insertRecord };
+    delete fallbackRecord.intake_mode;
+    result = await attempt(fallbackRecord);
+  }
+  return result;
+}
+
 async function submitOnboardingRequest(input) {
   const payload = normalizeOnboardingPayload(input);
   validateOnboardingPayload(payload);
@@ -177,11 +199,7 @@ async function submitOnboardingRequest(input) {
     throw err;
   }
 
-  const { data, error } = await supabase
-    .from('tenant_onboarding_requests')
-    .insert([insertRecord])
-    .select('id, business_name, status')
-    .maybeSingle();
+  const { data, error } = await insertOnboardingRequest(supabase, insertRecord);
 
   if (error) {
     throw Object.assign(new Error('Failed to submit onboarding request'), {

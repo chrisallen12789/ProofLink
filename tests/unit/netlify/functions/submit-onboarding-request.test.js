@@ -236,6 +236,42 @@ describe("netlify/functions/submit-onboarding-request", () => {
     );
   });
 
+  test("retries without intake_mode when the live schema is missing that column", async () => {
+    insertMaybeSingleMock
+      .mockResolvedValueOnce({
+        data: null,
+        error: {
+          code: "PGRST204",
+          message: "Could not find the 'intake_mode' column of 'tenant_onboarding_requests' in the schema cache",
+        },
+      })
+      .mockResolvedValueOnce({
+        data: { id: "req_retry", business_name: "Retry Biz", status: "submitted" },
+        error: null,
+      });
+
+    const handler = await loadHandler();
+    const res = await handler({
+      httpMethod: "POST",
+      headers: {},
+      body: JSON.stringify({
+        business_name: "Retry Biz",
+        owner_name: "Retry Owner",
+        owner_email: "retry@example.com",
+        business_type: "bakery",
+        selected_plan: "starter",
+      }),
+    });
+
+    expect(res.statusCode).toBe(201);
+    expect(insertMaybeSingleMock).toHaveBeenCalledTimes(2);
+    const firstRecord = insertMock.mock.calls[0][0][0];
+    const secondRecord = insertMock.mock.calls[1][0][0];
+    expect(firstRecord.intake_mode).toBe("self_serve");
+    expect(secondRecord.intake_mode).toBeUndefined();
+    expect(JSON.parse(res.body).request_id).toBe("req_retry");
+  });
+
   test("returns 400 for invalid selected_plan", async () => {
     const handler = await loadHandler();
     const res = await handler({

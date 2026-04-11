@@ -1874,6 +1874,9 @@ async function renderJobDetail(jobIdValue) {
           await saveJobRecord(patch);
           syncFieldJobState(patch);
         }
+        if (ACTIVE_JOB_ID === job.id && typeof renderJobDetail === "function") {
+          renderJobDetail(job.id);
+        }
         const successLabel = action === "start"
           ? "Work started."
           : action === "resume"

@@ -418,11 +418,31 @@ function renderLeads(filter = "") {
   `).join("");
   leadsList.querySelectorAll("[data-lead-id]").forEach((btn) => {
     btn.addEventListener("click", () => {
-      ACTIVE_LEAD_ID = btn.getAttribute("data-lead-id");
-      renderLeads(filter);
+      selectLeadRecord(btn.getAttribute("data-lead-id"), filter);
     });
   });
   renderLeadDetail(ACTIVE_LEAD_ID).catch(console.error);
+}
+
+async function selectLeadRecord(leadIdValue, filter = "") {
+  const nextId = String(leadIdValue || "").trim();
+  if (!nextId) return null;
+  const hasLead = () => (LEADS_CACHE || []).some((row) => row?.id === nextId);
+  if (!hasLead()) {
+    try {
+      await fetchLeads();
+    } catch (_) {
+      // Keep the current cache if a refresh is unavailable; the caller can still inspect the result.
+    }
+  }
+  if (!hasLead()) return null;
+  ACTIVE_LEAD_ID = nextId;
+  renderLeads(filter);
+  if (ACTIVE_LEAD_ID !== nextId) {
+    ACTIVE_LEAD_ID = nextId;
+    renderLeadDetail(nextId).catch(console.error);
+  }
+  return currentLead();
 }
 
 function renderPlanCustomerOptions(selectedCustomerId = "") {
@@ -1326,11 +1346,49 @@ async function createBidFromLeadRecord(lead, options = {}) {
   const baseLocalDraft = localDraftId
     ? ((BIDS_CACHE || []).find((row) => row.id === localDraftId) || null)
     : null;
+  const seedDraft = bidDraftFromLeadRecord(lead, profile, baseLocalDraft);
+  const collapseBidDraftCache = (mergedBid, localDraft = null) => {
+    if (!mergedBid) return;
+    const mergedRecordId = String(mergedBid.record_id || "").trim();
+    const mergedLocalId = String(mergedBid.id || "").trim();
+    const localId = String(localDraft?.id || "").trim();
+    BIDS_CACHE = [...(BIDS_CACHE || [])]
+      .filter((row) => {
+        if (!row) return false;
+        const rowId = String(row.id || "").trim();
+        const rowRecordId = String(bidRecordId(row) || "").trim();
+        if (mergedRecordId && rowRecordId === mergedRecordId) return false;
+        if (mergedRecordId && rowId === mergedRecordId) return false;
+        if (mergedLocalId && rowId === mergedLocalId) return false;
+        if (localId && rowId === localId) return false;
+        return true;
+      });
+    BIDS_CACHE = [mergedBid, ...BIDS_CACHE]
+      .sort((a, b) => new Date(b.updated_at || 0).getTime() - new Date(a.updated_at || 0).getTime());
+    ACTIVE_BID_ID = mergedBid.id;
+    persistBidDrafts();
+  };
   const latestLocalDraftForMerge = () => {
     if (!localDraftId) return null;
     if (currentBid()?.id === localDraftId) {
       try {
-        return collectBidFormDraft();
+        const liveDraft = collectBidFormDraft();
+        return {
+          ...cloneJson(baseLocalDraft || {}, {}),
+          ...cloneJson(liveDraft || {}, {}),
+          id: localDraftId,
+          title: liveDraft?.title || baseLocalDraft?.title || "",
+          customer_id: liveDraft?.customer_id || baseLocalDraft?.customer_id || "",
+          customer_location_id: liveDraft?.customer_location_id || baseLocalDraft?.customer_location_id || "",
+          lead_id: liveDraft?.lead_id || baseLocalDraft?.lead_id || lead?.id || "",
+          service_address: liveDraft?.service_address || baseLocalDraft?.service_address || "",
+          site_contact: liveDraft?.site_contact || baseLocalDraft?.site_contact || "",
+          project_summary: liveDraft?.project_summary || baseLocalDraft?.project_summary || "",
+          internal_notes: liveDraft?.internal_notes || baseLocalDraft?.internal_notes || "",
+          line_items: Array.isArray(liveDraft?.line_items) ? liveDraft.line_items : cloneJson(baseLocalDraft?.line_items || [], []),
+          proposal_options: Array.isArray(liveDraft?.proposal_options) ? liveDraft.proposal_options : cloneJson(baseLocalDraft?.proposal_options || [], []),
+          photos: Array.isArray(liveDraft?.photos) ? liveDraft.photos : cloneJson(baseLocalDraft?.photos || [], []),
+        };
       } catch (_) {}
     }
     return (BIDS_CACHE || []).find((row) => row.id === localDraftId) || baseLocalDraft;
@@ -1341,26 +1399,106 @@ async function createBidFromLeadRecord(lead, options = {}) {
   });
 
   if (!error) {
-    await Promise.all([fetchLeads(), loadPersistedBids()]);
-    let bid = findBidRecordById(data?.bid_id) || BIDS_CACHE[0] || null;
-    const localDraft = latestLocalDraftForMerge();
+    await fetchLeads();
+    let bid = null;
+    if (data?.bid_id) {
+      const lookup = await sb.from("bids").select("*").eq("id", data.bid_id).single();
+      if (!lookup.error && lookup.data) {
+        bid = draftFromBidRow(lookup.data);
+      }
+    }
+    if (!bid) {
+      const fallbackLookup = await sb.from("bids")
+        .select("*")
+        .eq("lead_id", lead.id)
+        .eq(OPERATOR_COLUMN, opId())
+        .eq(TENANT_COLUMN, TENANT_ID)
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (!fallbackLookup.error && fallbackLookup.data) {
+        bid = draftFromBidRow(fallbackLookup.data);
+      }
+    }
+    if (!bid) {
+      await loadPersistedBids();
+      bid = findBidRecordById(data?.bid_id) || null;
+    }
+    const localDraft = latestLocalDraftForMerge() || seedDraft;
     if (bid && localDraft) {
       const mergedBid = {
         ...cloneJson(bid, {}),
         ...cloneJson(localDraft, {}),
         id: localDraft.id,
         record_id: bid.record_id || data?.bid_id || localDraft.record_id || "",
+        lead_id: bid.lead_id || localDraft.lead_id || lead.id || "",
+        customer_id: bid.customer_id || localDraft.customer_id || lead.customer_id || "",
+        customer_location_id: bid.customer_location_id || localDraft.customer_location_id || lead.customer_location_id || "",
         metadata: {
           ...(bid.metadata || {}),
           ...(localDraft.metadata || {}),
+          lead_id: bid.lead_id || localDraft.lead_id || lead.id || null,
+          customer_id: bid.customer_id || localDraft.customer_id || lead.customer_id || null,
+          customer_location_id: bid.customer_location_id || localDraft.customer_location_id || lead.customer_location_id || null,
           local_draft_id: localDraft.id,
         },
         updated_at: localDraft.updated_at || bid.updated_at || new Date().toISOString(),
       };
-      BIDS_CACHE = [...(BIDS_CACHE || []).filter((row) => row.id !== mergedBid.id), mergedBid]
-        .sort((a, b) => new Date(b.updated_at || 0).getTime() - new Date(a.updated_at || 0).getTime());
-      persistBidDrafts();
+      collapseBidDraftCache(mergedBid, localDraft);
       bid = mergedBid;
+    }
+    if (bid?.record_id || data?.bid_id) {
+      try {
+        const hydratedDraft = {
+          ...cloneJson(seedDraft, {}),
+          ...cloneJson(bid || {}, {}),
+          id: localDraft?.id || seedDraft.id || bid?.id || data?.bid_id,
+          record_id: bid?.record_id || data?.bid_id || "",
+          lead_id: bid?.lead_id || localDraft?.lead_id || seedDraft.lead_id || lead.id || "",
+          customer_id: bid?.customer_id || localDraft?.customer_id || seedDraft.customer_id || lead.customer_id || "",
+          customer_location_id: bid?.customer_location_id || localDraft?.customer_location_id || seedDraft.customer_location_id || lead.customer_location_id || "",
+          metadata: {
+            ...(bid?.metadata || {}),
+            ...(seedDraft?.metadata || {}),
+            lead_id: bid?.lead_id || localDraft?.lead_id || seedDraft.lead_id || lead.id || null,
+            customer_id: bid?.customer_id || localDraft?.customer_id || seedDraft.customer_id || lead.customer_id || null,
+            customer_location_id: bid?.customer_location_id || localDraft?.customer_location_id || seedDraft.customer_location_id || lead.customer_location_id || null,
+            local_draft_id: localDraft?.id || seedDraft.id || bid?.id || "",
+          },
+          updated_at: new Date().toISOString(),
+        };
+        const payload = bidRowFromDraft(hydratedDraft);
+        const syncedResult = await sb.from("bids")
+          .update(payload)
+          .eq("id", hydratedDraft.record_id)
+          .eq(OPERATOR_COLUMN, opId())
+          .eq(TENANT_COLUMN, TENANT_ID)
+          .select("*")
+          .single();
+        if (!syncedResult.error && syncedResult.data) {
+          const syncedBid = {
+            ...cloneJson(draftFromBidRow(syncedResult.data), {}),
+            ...cloneJson(hydratedDraft, {}),
+            id: hydratedDraft.id,
+            record_id: syncedResult.data.id,
+            lead_id: hydratedDraft.lead_id || lead.id || "",
+            customer_id: hydratedDraft.customer_id || lead.customer_id || "",
+            customer_location_id: hydratedDraft.customer_location_id || lead.customer_location_id || "",
+            metadata: {
+              ...(draftFromBidRow(syncedResult.data)?.metadata || {}),
+              ...(hydratedDraft.metadata || {}),
+              lead_id: hydratedDraft.lead_id || lead.id || null,
+              customer_id: hydratedDraft.customer_id || lead.customer_id || null,
+              customer_location_id: hydratedDraft.customer_location_id || lead.customer_location_id || null,
+              local_draft_id: hydratedDraft.id,
+            },
+          };
+          collapseBidDraftCache(syncedBid, localDraft || seedDraft);
+          bid = syncedBid;
+        }
+      } catch (_) {
+        // Keep the merged in-memory draft if the hydration update cannot run yet.
+      }
     }
     if (bid) ACTIVE_BID_ID = bid.id;
     return { bid, existing: !!data?.existing };
@@ -1404,9 +1542,7 @@ async function createBidFromLeadRecord(lead, options = {}) {
       },
       updated_at: localDraft.updated_at || bid.updated_at || nowIso,
     };
-    BIDS_CACHE = [...(BIDS_CACHE || []).filter((row) => row.id !== mergedBid.id), mergedBid]
-      .sort((a, b) => new Date(b.updated_at || 0).getTime() - new Date(a.updated_at || 0).getTime());
-    persistBidDrafts();
+    collapseBidDraftCache(mergedBid, localDraft);
     bid = mergedBid;
   }
   if (bid) ACTIVE_BID_ID = bid.id;
@@ -1440,26 +1576,14 @@ function initLeadPlanWorkspaceBindings() {
       setInlineMessage(leadMsg, "Creating bid...");
       let lead = currentLead();
       if (!lead || !lead.id) lead = await saveLeadRecord();
-      setBidWorkspaceBootstrapping(true, "Opening proposal workspace...");
-      let localDraft = null;
-      if (!lead.converted_bid_id) {
-        localDraft = bidDraftFromLeadRecord(lead, preferredBidProfile());
-        BIDS_CACHE = [...(BIDS_CACHE || []).filter((row) => row.id !== localDraft.id), localDraft]
-          .sort((a, b) => new Date(b.updated_at || 0).getTime() - new Date(a.updated_at || 0).getTime());
-        persistBidDrafts();
-        ACTIVE_BID_ID = localDraft.id;
-        renderBids(bidSearch?.value || "");
-      }
-      switchTab("bids", { force: true });
-      setInlineMessage(bidMsg, "Opening proposal workspace...");
-      const result = await createBidFromLeadRecord(lead, {
-        profile: preferredBidProfile(),
-        localDraftId: localDraft?.id || "",
-      });
+      const result = await createBidFromLeadRecord(lead, { profile: preferredBidProfile() });
       const target = result?.bid || BIDS_CACHE[0] || null;
       if (target) ACTIVE_BID_ID = target.id;
+      setBidWorkspaceBootstrapping(true, "Opening proposal workspace...");
+      await Promise.resolve(switchTab("bids", { force: true }));
+      setInlineMessage(bidMsg, "Opening proposal workspace...");
       setBidWorkspaceBootstrapping(false);
-      renderBids(bidSearch?.value || "", localDraft ? { preserveForm: true } : {});
+      renderBids(bidSearch?.value || "");
       renderLeads(leadSearch?.value || "");
       markWorkspaceClean("leads");
       setInlineMessage(leadMsg, result?.existing ? "Linked bid opened." : "Lead converted into a bid.", "ok");
@@ -1558,6 +1682,7 @@ const LEAD_PLAN_WORKSPACE_HELPERS = {
   clearLeadForm,
   populateLeadForm,
   renderLeadDetail,
+  selectLeadRecord,
   sortedLeads,
   renderLeads,
   renderPlanCustomerOptions,

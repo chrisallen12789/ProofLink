@@ -23,6 +23,8 @@ describe("operator boot source", () => {
   test("loads operator setup before the shell is considered boot-ready", () => {
     expect(source).toContain("await fetchOperatorSetup().catch(console.warn);");
     expect(source).toContain("if (isHydrovacWorkspace()) {");
+    expect(source).toContain('ensureOperatorWorkspaceScript?.("facilities")');
+    expect(source).toContain('ensureOperatorWorkspaceScript?.("bookings")');
     expect(source).toContain("fetchHydrovacFacilities()");
     expect(source).toContain("fetchHydrovacManifests()");
     expect(source).toContain("fetchHydrovacLocateTickets()");

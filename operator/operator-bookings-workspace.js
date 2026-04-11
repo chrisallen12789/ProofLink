@@ -1733,7 +1733,7 @@ function bookingDraftNotes(customer = {}, options = {}, blueprint = bookingWorks
 }
 
 function openBookingDraftForCustomer(customer = {}, options = {}, blueprint = bookingWorkspaceBlueprint()) {
-  if (typeof switchTab === "function") switchTab("bookings");
+  Promise.resolve(typeof switchTab === "function" ? switchTab("bookings") : null).catch(() => null);
   const form = $("newBookingForm");
   form?.classList?.remove?.("hidden");
 
@@ -1775,6 +1775,10 @@ function openBookingDraftForCustomer(customer = {}, options = {}, blueprint = bo
     message.className = "msg success";
   }
   dateField?.focus?.();
+  return {
+    openedBookingDraft: true,
+    bookingDate,
+  };
 }
 
 function openWalkInBookingModal() {

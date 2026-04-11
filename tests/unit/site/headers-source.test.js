@@ -15,4 +15,10 @@ describe("security headers", () => {
     expect(source).toContain("X-Content-Type-Options: nosniff");
     expect(source).not.toContain("'unsafe-eval'");
   });
+
+  test("allows inline scripts only on the legacy internal operator tooling pages that still need them", () => {
+    expect(source).toContain("/operator/analytics.html");
+    expect(source).toContain("/operator/provisioning.html");
+    expect(source).toContain("/operator/tenants.html");
+  });
 });

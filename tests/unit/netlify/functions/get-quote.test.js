@@ -217,7 +217,7 @@ describe("netlify/functions/get-quote", () => {
         title: "Seasonal maintenance",
         status: "pending",
         customer_id: "cust_pltest_3",
-        valid_until: "2026-04-10",
+        valid_until: "2026-05-10",
       },
       tenant: {
         email: "office@example.com",
@@ -256,7 +256,7 @@ describe("netlify/functions/get-quote", () => {
         status: "pending",
         customer_id: null,
         lead_id: "lead_pltest_4",
-        valid_until: "2026-04-10",
+        valid_until: "2026-05-10",
       },
       tenant: {
         email: "office@example.com",

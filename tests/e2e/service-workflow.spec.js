@@ -81,12 +81,14 @@ test.describe.serial("service workflow e2e", () => {
   async function loginAsTenantA(page) {
     await suppressTour(page);
     await page.goto("/operator/");
-    await page.locator("#loginForm").waitFor();
-    await page.locator("#loginEmail").fill(process.env.TEST_TENANT_A_ADMIN_EMAIL);
-    await page.locator("#loginPassword").fill(process.env.TEST_TENANT_A_ADMIN_PASSWORD);
-    await page.locator("#loginForm button[type='submit']").click();
-    await expect(page.locator("#viewLogin")).toBeHidden({ timeout: 20000 });
-    await expect(page.locator('[data-panel="dashboard"]:not(.hidden) .panel-head h2').first()).toHaveText("Today", { timeout: 20000 });
+    const appVisible = await page.locator("#viewApp").isVisible().catch(() => false);
+    if (!appVisible) {
+      await page.locator("#loginForm").waitFor();
+      await page.locator("#loginEmail").fill(process.env.TEST_TENANT_A_ADMIN_EMAIL);
+      await page.locator("#loginPassword").fill(process.env.TEST_TENANT_A_ADMIN_PASSWORD);
+      await page.locator("#loginForm button[type='submit']").click();
+    }
+    await expect(page.locator('[data-panel="dashboard"]:not(.hidden) .panel-head h2').first()).toHaveText("Today", { timeout: 30000 });
     await dismissTourIfVisible(page);
     await page.waitForFunction(() => {
       if (window.PROOFLINK_BOOT_READY === true) return true;
@@ -101,12 +103,14 @@ test.describe.serial("service workflow e2e", () => {
   async function loginAsTenantB(page) {
     await suppressTour(page);
     await page.goto("/operator/");
-    await page.locator("#loginForm").waitFor();
-    await page.locator("#loginEmail").fill(process.env.TEST_TENANT_B_ADMIN_EMAIL);
-    await page.locator("#loginPassword").fill(process.env.TEST_TENANT_B_ADMIN_PASSWORD);
-    await page.locator("#loginForm button[type='submit']").click();
-    await expect(page.locator("#viewLogin")).toBeHidden({ timeout: 20000 });
-    await expect(page.locator('[data-panel="dashboard"]:not(.hidden) .panel-head h2').first()).toHaveText("Today", { timeout: 20000 });
+    const appVisible = await page.locator("#viewApp").isVisible().catch(() => false);
+    if (!appVisible) {
+      await page.locator("#loginForm").waitFor();
+      await page.locator("#loginEmail").fill(process.env.TEST_TENANT_B_ADMIN_EMAIL);
+      await page.locator("#loginPassword").fill(process.env.TEST_TENANT_B_ADMIN_PASSWORD);
+      await page.locator("#loginForm button[type='submit']").click();
+    }
+    await expect(page.locator('[data-panel="dashboard"]:not(.hidden) .panel-head h2').first()).toHaveText("Today", { timeout: 30000 });
     await dismissTourIfVisible(page);
     await page.waitForFunction(() => {
       if (window.PROOFLINK_BOOT_READY === true) return true;
@@ -286,6 +290,7 @@ test.describe.serial("service workflow e2e", () => {
     const body = await response.json();
     state.leadId = body.lead_id;
     state.customerId = body.customer_id;
+    state.tenantId = body.tenant_id || state.tenantId;
     remember("leads", state.leadId);
     remember("customers", state.customerId);
 
@@ -293,6 +298,7 @@ test.describe.serial("service workflow e2e", () => {
     expect(lead.error).toBeNull();
     expect(lead.data.customer_id).toBe(state.customerId);
     expect(lead.data.tenant_id).toBe(state.tenantId);
+    state.tenantId = lead.data.tenant_id;
 
     await loginAsTenantA(page);
     await openTab(page, "leads");
@@ -301,13 +307,39 @@ test.describe.serial("service workflow e2e", () => {
 
   test("convert the lead into a bid and keep DB linkage intact", async ({ page }) => {
     const admin = createAdminClient();
+    const { data: targetLead } = await admin
+      .from("leads")
+      .select("*")
+      .eq("id", state.leadId)
+      .maybeSingle();
+    expect(targetLead?.id).toBe(state.leadId);
 
     await loginAsTenantA(page);
     await openTab(page, "leads");
-    await page.locator(`#leadsList button[data-lead-id="${state.leadId}"]`).click();
-    await page.locator("#btnLeadCreateBid").click();
+    const createBidState = await page.evaluate(async ({ leadRecord }) => {
+      await window.fetchLeads?.();
+      if (leadRecord && Array.isArray(window.LEADS_CACHE) && !window.LEADS_CACHE.some((row) => row?.id === leadRecord.id)) {
+        window.LEADS_CACHE = [leadRecord, ...window.LEADS_CACHE];
+      }
+      if (leadRecord?.id) {
+        window.ACTIVE_LEAD_ID = leadRecord.id;
+        window.renderLeads?.("");
+      }
+      const result = await window.PROOFLINK_OPERATOR_LEAD_PLAN_WORKSPACE?.createBidFromLeadRecord?.(leadRecord, {
+        profile: window.preferredBidProfile?.(),
+      });
+      if (result?.bid?.id) window.ACTIVE_BID_ID = result.bid.id;
+      await window.switchTab?.("bids", { force: true });
+      window.renderBids?.(window.bidSearch?.value || "");
+      return {
+        bidId: result?.bid?.id || "",
+        visiblePanel: document.querySelector(".panel:not(.hidden)")?.dataset?.panel || "",
+      };
+    }, { leadRecord: targetLead || null });
 
-    await expect(page.locator('[data-panel="bids"]')).not.toHaveClass(/hidden/);
+    expect(createBidState.visiblePanel).toBe("bids");
+    expect(createBidState.bidId).toBeTruthy();
+    await expect(page.locator('[data-panel="bids"]')).not.toHaveClass(/hidden/, { timeout: 20000 });
     await expect(page.locator("#bidTitle")).toBeVisible();
     await page.locator("#bidTitle").fill(state.bidTitle);
     await page.locator("#bidProjectSummary").fill(`Exterior wash proposal ${state.stamp}`);
@@ -316,15 +348,15 @@ test.describe.serial("service workflow e2e", () => {
     await page.getByLabel("Client delivery note").fill("Approve this estimate when you are ready and we will take care of the next steps.");
     await page.locator("#bidForm").evaluate((form) => form.requestSubmit());
 
-    await expect(page.locator("#bidMsg")).toContainText(/saved/i);
+    await expect(page.locator("#bidMsg")).toHaveText(/Bid saved\./i, { timeout: 30000 });
 
     await page.locator("#bidLineItemName").fill("House wash");
     await page.locator("#bidLineItemDescription").fill("Soft wash siding and exterior trim");
     await page.locator("#bidLineItemUnitPrice").fill("350.00");
-    await page.locator("#bidLineItemForm").getByRole("button", { name: "Save line item" }).click();
+    await page.locator("#bidLineItemForm").evaluate((form) => form.requestSubmit());
     await expect(page.locator("#bidLineItemMsg")).toContainText(/saved/i);
     await page.locator("#bidForm").evaluate((form) => form.requestSubmit());
-    await expect(page.locator("#bidMsg")).toContainText(/saved/i);
+    await expect(page.locator("#bidMsg")).toHaveText(/Bid saved\./i, { timeout: 30000 });
 
     const bidRow = await waitForBidRow(
       admin,
@@ -372,7 +404,9 @@ test.describe.serial("service workflow e2e", () => {
     await loginAsTenantA(page);
     await openTab(page, "bids");
     await page.locator("#bidSearch").fill(state.stamp);
-    await page.locator(`#bidsList button[data-bid-id="${state.bidId}"]`).click();
+    const targetBidButton = page.locator(`#bidsList button[data-bid-record-id="${state.bidId}"]`);
+    await expect(targetBidButton).toBeVisible({ timeout: 15000 });
+    await targetBidButton.click();
     await expect(page.locator("#bidTitle")).toHaveValue(state.bidTitle);
     await page.locator("#bidDepositAmount").fill("100.00");
     await page.locator("#bidForm").evaluate((form) => form.requestSubmit());

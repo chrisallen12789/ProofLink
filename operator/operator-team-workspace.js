@@ -132,6 +132,81 @@ function teamMemberDriverReadiness(member = {}) {
   };
 }
 
+function teamTrainingProfiles() {
+  const setupState = typeof SETUP_STATE !== "undefined" ? SETUP_STATE : {};
+  const profiles = setupState?.config?.team_training_profiles;
+  return profiles && typeof profiles === "object" && !Array.isArray(profiles) ? profiles : {};
+}
+
+function teamTrainingTemplate(member = {}) {
+  const driverTrack = !!String(member?.driver_label || "").trim();
+  return driverTrack
+    ? [
+        { key: "crew_app", label: "Crew app sign-in", note: "They can sign in, open the job, and see office handoff notes." },
+        { key: "yard_route", label: "Yard and route review", note: "Truck location, keys, fueling, dump workflow, and dispatch expectations reviewed." },
+        { key: "driving", label: "Driving orientation", note: "Road rules, backing expectations, spotter use, and incident reporting reviewed." },
+        { key: "worksite", label: "Worksite safety", note: "Traffic control, utility exposure, exclusion zones, PPE, and stop-work expectations reviewed." },
+        { key: "vactor", label: "Vactor operator walkthrough", note: "Controls, startup/shutdown, boom use, spoil handling, and daily checks reviewed." },
+        { key: "ride_along", label: "Ride-along signoff", note: "A supervised field run or shadow day has been completed." },
+      ]
+    : [
+        { key: "crew_app", label: "Crew app sign-in", note: "They can sign in, open the job, and see office handoff notes." },
+        { key: "yard_route", label: "Crew day flow", note: "Reporting time, truck meet-up, dispatch expectations, and closeout flow reviewed." },
+        { key: "ppe", label: "PPE and site safety", note: "Required PPE, hazard awareness, stop-work expectations, and customer-site conduct reviewed." },
+        { key: "worksite", label: "Worksite labor orientation", note: "Spotting, hose handling, spoil setup, excavation awareness, and cleanup workflow reviewed." },
+        { key: "handoff", label: "Photo and closeout handoff", note: "Photos, notes, blocker reporting, and completion expectations reviewed." },
+        { key: "ride_along", label: "Ride-along signoff", note: "A supervised field run or shadow day has been completed." },
+      ];
+}
+
+function teamTrainingProfile(member = {}) {
+  const profiles = teamTrainingProfiles();
+  const existing = profiles[String(member?.id || "").trim()] || {};
+  const items = teamTrainingTemplate(member).map((item) => ({
+    ...item,
+    complete: existing?.items?.[item.key] === true,
+  }));
+  const completedCount = items.filter((item) => item.complete).length;
+  return {
+    items,
+    completedCount,
+    totalCount: items.length,
+    notes: String(existing?.notes || "").trim(),
+    completedAt: String(existing?.completed_at || "").trim(),
+    status: completedCount === items.length && items.length
+      ? "ready"
+      : completedCount > 0
+        ? "in_progress"
+        : "not_started",
+  };
+}
+
+function teamTrainingSummary(member = {}) {
+  const profile = teamTrainingProfile(member);
+  if (profile.status === "ready") {
+    return {
+      label: "Training ready",
+      tone: "pill-good",
+      note: profile.completedAt ? `Training checklist finished ${profile.completedAt}.` : "Training checklist is complete for Monday rollout.",
+      needsAttention: false,
+    };
+  }
+  if (profile.status === "in_progress") {
+    return {
+      label: "Training in progress",
+      tone: "pill-warn",
+      note: `${profile.completedCount}/${profile.totalCount} onboarding steps are checked off.`,
+      needsAttention: true,
+    };
+  }
+  return {
+    label: "Training not started",
+    tone: "pill-warn",
+    note: "Training checklist still needs to be walked through before rollout.",
+    needsAttention: true,
+  };
+}
+
 function teamMemberJobSummary(member = {}) {
   const keys = new Set(teamMemberAssignmentKeys(member));
   const jobs = teamWorkspaceJobs().filter((job) => (
@@ -176,6 +251,7 @@ function renderTeamRosterSummary() {
   const overloaded = members.filter((member) => teamMemberJobSummary(member).overloaded).length;
   const remainingCapacity = members.reduce((sum, member) => sum + teamMemberJobSummary(member).remainingMinutes, 0);
   const driverSetupNeeded = members.filter((member) => teamMemberDriverReadiness(member).needsAttention).length;
+  const trainingAttentionNeeded = members.filter((member) => teamTrainingSummary(member).needsAttention).length;
   return `
     <div class="workspace-signal-band" style="margin-bottom:12px;">
       <div class="workspace-signal-band__item ${activeField ? "workspace-signal-band__item--good" : ""}">
@@ -203,6 +279,11 @@ function renderTeamRosterSummary() {
         <strong>${escapeHtml(String(driverSetupNeeded))}</strong>
         <small>${escapeHtml(driverSetupNeeded ? "Crew members still need driver docs, follow-up, or Monday rollout prep." : "Visible drivers look ready for Monday rollout from the current records.")}</small>
       </div>
+      <div class="workspace-signal-band__item ${trainingAttentionNeeded ? "workspace-signal-band__item--warn" : "workspace-signal-band__item--good"}">
+        <span>Training</span>
+        <strong>${escapeHtml(String(trainingAttentionNeeded))}</strong>
+        <small>${escapeHtml(trainingAttentionNeeded ? "One or more workers still need onboarding, ride-along, or worksite walkthrough steps checked off." : "Visible workers all show a complete onboarding checklist.")}</small>
+      </div>
     </div>
   `;
 }
@@ -227,6 +308,7 @@ function renderTeamPanel() {
       ${TEAM_MEMBERS_CACHE.map((member) => {
         const summary = teamMemberJobSummary(member);
         const driverReadiness = teamMemberDriverReadiness(member);
+        const training = teamTrainingSummary(member);
         const fieldLoad = summary.active.length
           ? `${summary.active.length} active`
           : summary.blocked.length
@@ -263,9 +345,11 @@ function renderTeamPanel() {
           <td style="padding:8px;color:rgba(255,255,255,.55);">
             <span class="pill ${tone}">${escapeHtml(fieldLoad)}</span>
             <div class="muted" style="font-size:.72rem;margin-top:4px;"><span class="pill ${driverReadiness.tone}">${escapeHtml(driverReadiness.label)}</span></div>
+            <div class="muted" style="font-size:.72rem;margin-top:4px;"><span class="pill ${training.tone}">${escapeHtml(training.label)}</span></div>
             ${conflictChip ? `<div class="muted" style="font-size:.72rem;margin-top:4px;">${conflictChip}</div>` : ""}
             <div class="muted" style="font-size:.72rem;margin-top:4px;">${escapeHtml(note)}</div>
             <div class="muted" style="font-size:.72rem;margin-top:4px;">${escapeHtml(driverReadiness.note)}</div>
+            <div class="muted" style="font-size:.72rem;margin-top:4px;">${escapeHtml(training.note)}</div>
             ${summary.jobs.length ? `<div class="muted" style="font-size:.72rem;margin-top:4px;"><span class="pill ${capacityTone}">${escapeHtml(`${teamMinutesLabel(summary.totalEstimatedMinutes)} planned / ${teamMinutesLabel(summary.minimumBlockMinutes)} block`)}</span></div>` : ""}
             ${summary.lastFieldUpdate ? `<div class="muted" style="font-size:.72rem;margin-top:4px;">${escapeHtml(`Last field update ${summary.lastFieldUpdate}`)}</div>` : ""}
             ${summary.blockerNotes[0] ? `<div class="muted" style="font-size:.72rem;margin-top:4px;">${escapeHtml(`Blocker: ${summary.blockerNotes[0]}`)}</div>` : ""}
@@ -275,6 +359,7 @@ function renderTeamPanel() {
             ${teamMemberCompensationNote(member) ? `<div class="muted" style="font-size:.72rem;margin-top:4px;">${escapeHtml(teamMemberCompensationNote(member))}</div>` : ""}
           </td>
           <td style="padding:8px;text-align:right;display:flex;gap:6px;justify-content:flex-end;">
+            <button class="btn btn-ghost" style="font-size:.72rem;" onclick="openTeamTrainingModal('${escapeAttr(member.id)}')">Training</button>
             <button class="btn btn-ghost" style="font-size:.72rem;" onclick="openDriverSetupForTeamMember('${escapeAttr(member.id)}')">Driver setup</button>
             <button class="btn btn-ghost" style="font-size:.72rem;" onclick="openCrewPortalForTeamMember('${escapeAttr(member.id)}')">Crew portal</button>
             <button class="btn btn-ghost" style="font-size:.72rem;" onclick="openEditTeamMemberModal('${escapeAttr(member.id)}')">Edit</button>
@@ -460,6 +545,103 @@ async function removeTeamMember(id) {
   }
 }
 
+async function saveTeamTrainingProfile(member = {}, nextProfile = {}) {
+  const response = await fetch('/.netlify/functions/update-tenant-config', {
+    method: 'POST',
+    headers: await getTeamWorkspaceAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({
+      tenant_id: TENANT_ID,
+      config: {
+        team_training_profiles: {
+          ...teamTrainingProfiles(),
+          [String(member?.id || "").trim()]: nextProfile,
+        },
+      },
+    }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || 'Failed to save training checklist.');
+  const setupState = typeof SETUP_STATE !== "undefined" ? SETUP_STATE : {};
+  SETUP_STATE = {
+    ...setupState,
+    config: {
+      ...(setupState?.config || {}),
+      ...(data.config || {}),
+    },
+  };
+  return data.config?.team_training_profiles || {};
+}
+
+function openTeamTrainingModal(id) {
+  const member = findTeamMemberById(id);
+  if (!member) {
+    showToast("Team member not found.");
+    return;
+  }
+  const existing = document.getElementById("teamTrainingModal");
+  if (existing) existing.remove();
+  const profile = teamTrainingProfile(member);
+  const modal = document.createElement("div");
+  modal.id = "teamTrainingModal";
+  modal.className = "modal-overlay";
+  modal.innerHTML = `<div class="modal-box" style="max-width:520px;">
+    <h3 style="margin:0 0 8px;font-size:1rem;">${escapeHtml(teamMemberLabel(member))} onboarding</h3>
+    <div class="muted" style="margin-bottom:12px;">${escapeHtml(String(member.driver_label || "").trim() ? "Driver / vactor operator rollout checklist" : "Labor / field onboarding checklist")}</div>
+    <div class="memory-checklist">
+      ${profile.items.map((item) => `
+        <label class="memory-checklist__item ${item.complete ? "memory-checklist__item--ready" : "memory-checklist__item--warn"}" style="display:block;">
+          <div class="memory-checklist__title">
+            <input type="checkbox" data-training-key="${escapeAttr(item.key)}"${item.complete ? " checked" : ""} style="margin-right:8px;" />
+            ${escapeHtml(item.label)}
+          </div>
+          <div class="detail-copy memory-checklist__note">${escapeHtml(item.note)}</div>
+        </label>
+      `).join("")}
+    </div>
+    <label style="display:block;margin-top:12px;">
+      <span style="display:block;font-size:.8rem;color:rgba(255,255,255,.55);margin-bottom:6px;">Training notes</span>
+      <textarea id="teamTrainingNotes" class="input" rows="4" style="width:100%;">${escapeHtml(profile.notes || "")}</textarea>
+    </label>
+    <div id="teamTrainingMsg" class="msg" style="margin-top:10px;"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px;">
+      <button class="btn btn-ghost" type="button" onclick="document.getElementById('teamTrainingModal')?.remove()">Cancel</button>
+      <button class="btn btn-primary" type="button" id="btnSaveTeamTraining">Save training</button>
+    </div>
+  </div>`;
+  document.body.appendChild(modal);
+  modal.querySelector("#btnSaveTeamTraining").onclick = async () => {
+    const messageEl = modal.querySelector("#teamTrainingMsg");
+    const items = Object.fromEntries(
+      profile.items.map((item) => [
+        item.key,
+        !!modal.querySelector(`[data-training-key="${item.key}"]`)?.checked,
+      ])
+    );
+    const allComplete = Object.values(items).every(Boolean);
+    setInlineMessage(messageEl, "Saving training checklist...");
+    try {
+      await saveTeamTrainingProfile(member, {
+        items,
+        notes: String(modal.querySelector("#teamTrainingNotes")?.value || "").trim(),
+        completed_at: allComplete ? new Date().toISOString() : "",
+        role_snapshot: {
+          role: member.role || "",
+          worker_label: member.worker_label || "",
+          driver_label: member.driver_label || "",
+        },
+      });
+      renderTeamPanel();
+      modal.remove();
+      showToast("Training checklist saved.");
+    } catch (error) {
+      setInlineMessage(messageEl, error.message || String(error), "error");
+    }
+  };
+  modal.addEventListener("click", (event) => {
+    if (event.target === modal) modal.remove();
+  });
+}
+
 async function loadHoursReport() {
   const startEl = $("hoursStart");
   const endEl = $("hoursEnd");
@@ -629,6 +811,7 @@ const TEAM_WORKSPACE_HELPERS = {
   fetchTeamMembers,
   renderTeamPanel,
   openInviteTeamMemberModal,
+  openTeamTrainingModal,
   openDriverSetupForTeamMember,
   openCrewPortalForTeamMember,
   openEditTeamMemberModal,
