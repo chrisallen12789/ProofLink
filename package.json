@@ -18,6 +18,7 @@
     "test:e2e:role-audit": "npm run test:seed && playwright test tests/e2e/user-role-audit.spec.js --config=playwright.config.js",
     "test:e2e:a11y-smoke": "npm run test:seed && playwright test tests/e2e/accessibility-role-smoke.spec.js --config=playwright.config.js",
     "test:e2e:user-classes": "npm run test:seed && playwright test tests/e2e/user-role-audit.spec.js tests/e2e/accessibility-role-smoke.spec.js --config=playwright.config.js",
+    "test:e2e:monday-launch": "npm run test:seed && playwright test tests/e2e/monday-launch-smoke.spec.js --config=playwright.config.js",
     "test:e2e:prod-safe": "node scripts/run-production-safe-audit.js",
     "test:e2e:operator-cross-device": "npm run test:seed && playwright test tests/e2e/operator-cross-device-smoke.spec.js tests/e2e/operator-authenticated-cross-device.spec.js --config=playwright.config.js",
     "test:e2e:service-workflow": "npm run test:preflight:service-workflow && playwright test tests/e2e/service-workflow.spec.js --config=playwright.config.js",

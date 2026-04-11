@@ -20,6 +20,13 @@ async function fetchTeamMembers() {
   renderTeamPanel();
 }
 
+async function refreshTeamDriverQualifications() {
+  if (typeof fetchHydrovacDriverQualifications === 'function') {
+    return fetchHydrovacDriverQualifications();
+  }
+  return null;
+}
+
 function teamWorkspaceJobs() {
   const jobs = typeof JOBS_CACHE !== "undefined" ? JOBS_CACHE : [];
   return Array.isArray(jobs) ? jobs : [];
@@ -2020,6 +2027,141 @@ function teamReadinessRollup() {
   };
 }
 
+function teamMondayLaunchChecklist() {
+  const members = Array.isArray(TEAM_MEMBERS_CACHE) ? TEAM_MEMBERS_CACHE : [];
+  const blockedMembers = [];
+  const supervisedMembers = [];
+  const crewPortalMembers = [];
+  const driverSetupMembers = [];
+  const trainingMembers = [];
+  const recordsMembers = [];
+
+  members.forEach((member) => {
+    const label = teamMemberLabel(member);
+    const profile = teamTrainingProfile(member);
+    const restrictionLabel = String(teamMemberRolloutRestriction(member).label || '').trim();
+    const driver = teamMemberDriverReadiness(member);
+    const training = teamTrainingSummary(member);
+    const records = teamRecordEvidenceSummary(member);
+
+    if ([
+      'Restricted from solo dispatch',
+      'Labor-only until driver setup clears',
+      'Qualification refresh overdue',
+      'Training refresh overdue',
+    ].includes(restrictionLabel)) {
+      blockedMembers.push(label);
+    } else if ([
+      'Ride-along required',
+      'Supervised mixed-role rollout',
+      'Needs supervised field day',
+      'Refresh due soon',
+      'Training refresh due soon',
+    ].includes(restrictionLabel)) {
+      supervisedMembers.push(label);
+    }
+    const crewPortalComplete = Array.isArray(profile.items)
+      ? profile.items.some((item) => item?.key === 'crew_app' && item?.complete)
+      : false;
+    if (!crewPortalComplete) {
+      crewPortalMembers.push(label);
+    }
+    if (driver.needsAttention) {
+      driverSetupMembers.push(label);
+    }
+    if (training.needsAttention) {
+      trainingMembers.push(label);
+    }
+    if (records.needsAttention) {
+      recordsMembers.push(label);
+    }
+  });
+
+  const itemStatus = (pendingMembers, {
+    readyLabel,
+    pendingLabel,
+    blocked = false,
+    noteReady,
+    notePending,
+  }) => ({
+    blocked: blocked && pendingMembers.length > 0,
+    tone: pendingMembers.length ? (blocked ? 'pill-bad' : 'pill-warn') : 'pill-good',
+    label: pendingMembers.length ? pendingLabel : readyLabel,
+    count: pendingMembers.length,
+    members: pendingMembers,
+    note: pendingMembers.length
+      ? `${notePending} ${pendingMembers.slice(0, 3).join(', ')}${pendingMembers.length > 3 ? ` +${pendingMembers.length - 3} more` : ''}.`
+      : noteReady,
+  });
+
+  return {
+    total: members.length,
+    items: [
+      {
+        key: 'dispatch',
+        title: 'Dispatch clearance',
+        ...itemStatus(blockedMembers, {
+          readyLabel: 'Dispatch clear',
+          pendingLabel: 'Blocked before Monday',
+          blocked: true,
+          noteReady: 'Visible crew records are not showing any hard rollout blocks right now.',
+          notePending: 'These workers still have a hard dispatch block:',
+        }),
+      },
+      {
+        key: 'supervision',
+        title: 'Supervised rollout',
+        ...itemStatus(supervisedMembers, {
+          readyLabel: 'No supervised rollout flags',
+          pendingLabel: 'Supervised / follow-up',
+          noteReady: 'No one is currently marked as supervised-only from the visible team records.',
+          notePending: 'These workers still need ride-along, supervised field time, or near-term follow-up:',
+        }),
+      },
+      {
+        key: 'crew_app',
+        title: 'Crew portal walkthrough',
+        ...itemStatus(crewPortalMembers, {
+          readyLabel: 'Crew portal checked',
+          pendingLabel: 'Crew portal walkthrough needed',
+          noteReady: 'The visible crew checklist shows the crew portal step as complete.',
+          notePending: 'These workers still need the crew portal walkthrough step signed off:',
+        }),
+      },
+      {
+        key: 'driver_setup',
+        title: 'Driver setup',
+        ...itemStatus(driverSetupMembers, {
+          readyLabel: 'Driver setup clear',
+          pendingLabel: 'Driver setup follow-up',
+          noteReady: 'Driver and mixed-role records look covered from the current qualification setup.',
+          notePending: 'These workers still need driver setup follow-up:',
+        }),
+      },
+      {
+        key: 'training',
+        title: 'Training signoff',
+        ...itemStatus(trainingMembers, {
+          readyLabel: 'Training signoff clear',
+          pendingLabel: 'Training signoff needed',
+          noteReady: 'Visible onboarding and rollout training steps are signed off for the current team view.',
+          notePending: 'These workers still need onboarding or rollout training steps:',
+        }),
+      },
+      {
+        key: 'records',
+        title: 'Office records',
+        ...itemStatus(recordsMembers, {
+          readyLabel: 'Records on file',
+          pendingLabel: 'Records follow-up needed',
+          noteReady: 'Required office records are on file for the current visible team records.',
+          notePending: 'These workers still need office records or acknowledgments on file:',
+        }),
+      },
+    ],
+  };
+}
+
 function renderTeamReadinessSummaryCard() {
   const summary = teamReadinessRollup();
   if (!summary.total) {
@@ -2044,6 +2186,47 @@ function renderTeamReadinessSummaryCard() {
           <span class="pill pill-warn">${escapeHtml(`${summary.supervised} supervised`)}</span>
           <span class="pill pill-bad">${escapeHtml(`${summary.blocked} blocked`)}</span>
           <span class="pill">${escapeHtml(`${summary.recordsMissing} records follow-up`)}</span>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderMondayLaunchChecklistCard() {
+  const summary = teamMondayLaunchChecklist();
+  if (!summary.total) {
+    return '';
+  }
+  const blocked = summary.items.filter((item) => item.blocked && item.count).length;
+  const followUp = summary.items.filter((item) => !item.blocked && item.count).length;
+  return `
+    <div class="card" style="margin:0 0 12px;">
+      <div class="card-hd">
+        <div>
+          <strong>Monday launch checklist</strong>
+          <div class="muted">One office view for the exact follow-through that matters before the crew rolls Monday morning.</div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-ghost btn-sm" type="button" onclick="exportMondayLaunchCsv()">Export launch</button>
+        </div>
+      </div>
+      <div class="card-bd">
+        <div class="row row-tight" style="margin-bottom:10px;flex-wrap:wrap;">
+          <span class="pill pill-bad">${escapeHtml(`${blocked} blocked lanes`)}</span>
+          <span class="pill pill-warn">${escapeHtml(`${followUp} follow-up lanes`)}</span>
+          <span class="pill pill-good">${escapeHtml(`${Math.max(0, summary.items.length - blocked - followUp)} clear lanes`)}</span>
+        </div>
+        <div class="modal-grid-2">
+          ${summary.items.map((item) => `
+            <div class="detail-card">
+              <div class="detail-card__kicker">${escapeHtml(item.title)}</div>
+              <div class="detail-card__title">${escapeHtml(item.label)}</div>
+              <div class="detail-card__meta">
+                <span class="pill ${item.tone}">${escapeHtml(item.count ? `${item.count} worker${item.count === 1 ? '' : 's'}` : 'Clear')}</span>
+              </div>
+              <div class="detail-card__note">${escapeHtml(item.note)}</div>
+            </div>
+          `).join('')}
         </div>
       </div>
     </div>
@@ -2130,7 +2313,7 @@ function renderTeamPanel() {
     renderHydrovacDriverWorkspace();
     return;
   }
-  element.innerHTML = `${renderTeamRosterSummary()}${renderTeamReadinessSummaryCard()}${renderTeamRolloutBoard()}<table style="width:100%;border-collapse:collapse;font-size:.85rem;">
+  element.innerHTML = `${renderTeamRosterSummary()}${renderTeamReadinessSummaryCard()}${renderMondayLaunchChecklistCard()}${renderTeamRolloutBoard()}<table style="width:100%;border-collapse:collapse;font-size:.85rem;">
     <thead><tr>
       <th style="text-align:left;padding:6px 8px;color:rgba(255,255,255,.4);font-weight:500;border-bottom:1px solid rgba(255,255,255,.08);">Name</th>
       <th style="text-align:left;padding:6px 8px;color:rgba(255,255,255,.4);font-weight:500;border-bottom:1px solid rgba(255,255,255,.08);">Role</th>
@@ -3420,6 +3603,29 @@ function exportMondayReadinessCsv() {
   downloadTeamCsv(`team-monday-readiness-${new Date().toISOString().slice(0, 10)}.csv`, rows);
 }
 
+function exportMondayLaunchCsv() {
+  const summary = teamMondayLaunchChecklist();
+  const rows = [[
+    'Launch lane',
+    'Status',
+    'Blocked',
+    'Workers needing follow-up',
+    'Note',
+  ]];
+
+  summary.items.forEach((item) => {
+    rows.push([
+      item.title,
+      item.label,
+      item.blocked ? 'Yes' : 'No',
+      item.members.join(' | '),
+      item.note,
+    ]);
+  });
+
+  downloadTeamCsv(`team-monday-launch-${new Date().toISOString().slice(0, 10)}.csv`, rows);
+}
+
 function exportTeamInvestmentCsv() {
   const reportEl = $("hoursReport");
   const data = reportEl?._data;
@@ -3694,7 +3900,7 @@ function loadTeamWorkspace() {
   if (!TEAM_WORKSPACE_LOADED) {
     TEAM_WORKSPACE_LOADED = true;
     fetchTeamMembers().catch(console.warn);
-    fetchHydrovacDriverQualifications().catch(console.warn);
+    refreshTeamDriverQualifications().catch(console.warn);
     const hoursStart = $("hoursStart");
     const hoursEnd = $("hoursEnd");
     if (hoursStart && !hoursStart.value) {
@@ -3704,7 +3910,7 @@ function loadTeamWorkspace() {
     }
     return;
   }
-  fetchHydrovacDriverQualifications().catch(console.warn);
+  refreshTeamDriverQualifications().catch(console.warn);
 }
 
 function initTeamWorkspaceBindings() {
@@ -3723,7 +3929,7 @@ function initTeamWorkspaceBindings() {
   $("btnLogMaintenanceTime")?.addEventListener("click", () => openMaintenanceTimeModal());
   $("btnRefreshTeam")?.addEventListener("click", async () => {
     await fetchTeamMembers().catch(console.warn);
-    await fetchHydrovacDriverQualifications().catch(console.warn);
+    await refreshTeamDriverQualifications().catch(console.warn);
   });
   $("btnLoadHours")?.addEventListener("click", loadHoursReport);
   $("btnExportHoursCsv")?.addEventListener("click", exportHoursCsv);
@@ -3746,12 +3952,15 @@ const TEAM_WORKSPACE_HELPERS = {
   renderHoursReport,
   exportHoursCsv,
   exportMondayReadinessCsv,
+  exportMondayLaunchCsv,
   exportTeamReadinessCsv,
   exportTeamInvestmentCsv,
   exportTeamAuditCsv,
   exportTeamMemberProfileCsv,
   buildTeamMemberProfileRows,
   buildHoursInvestmentBreakdown,
+  refreshTeamDriverQualifications,
+  teamMondayLaunchChecklist,
   loadTeamWorkspace,
   initTeamWorkspaceBindings,
 };

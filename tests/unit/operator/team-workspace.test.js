@@ -417,6 +417,8 @@ describe("operator team workspace", () => {
     expect(elements.teamMembersList.innerHTML).toContain("Roster pressure");
     expect(elements.teamMembersList.innerHTML).toContain("Readiness summary");
     expect(elements.teamMembersList.innerHTML).toContain("Export Monday");
+    expect(elements.teamMembersList.innerHTML).toContain("Monday launch checklist");
+    expect(elements.teamMembersList.innerHTML).toContain("Export launch");
     expect(elements.teamMembersList.innerHTML).toContain("Export readiness");
     expect(elements.teamMembersList.innerHTML).toContain("Export audit");
     expect(elements.teamMembersList.innerHTML).toContain("Block capacity");
@@ -449,6 +451,39 @@ describe("operator team workspace", () => {
     expect(elements.teamMembersList.innerHTML).toContain("Training");
     expect(elements.teamMembersList.innerHTML).toContain("Profile");
     expect(elements.teamMembersList.innerHTML).toContain("Crew portal");
+  });
+
+  test("monday launch checklist groups blocked, follow-up, and clear office lanes", () => {
+    const { context } = loadTeamWorkspace({
+      TEAM_MEMBERS_CACHE: [
+        { id: "member_1", name: "Skylar Stevens", role: "member", driver_label: "Vactor operator" },
+        { id: "member_2", name: "Jordan Diaz", role: "member", worker_label: "Labor" },
+      ],
+      SETUP_STATE: {
+        config: {
+          team_training_profiles: {
+            member_1: {
+              items: {
+                crew_app: false,
+                driving: false,
+              },
+            },
+            member_2: {
+              items: {
+                crew_app: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const summary = context.teamMondayLaunchChecklist();
+
+    expect(summary.items.find((item) => item.key === "crew_app")?.label).toBe("Crew portal walkthrough needed");
+    expect(summary.items.find((item) => item.key === "driver_setup")?.count).toBeGreaterThan(0);
+    expect(summary.items.find((item) => item.key === "training")?.count).toBeGreaterThan(0);
+    expect(summary.items.find((item) => item.key === "records")?.count).toBeGreaterThan(0);
   });
 
   test("team profile evidence links completed steps to training time and driver records", () => {
