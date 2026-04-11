@@ -1477,8 +1477,17 @@ function depositPolicyLabel(value) {
 }
 function orderPaymentState(row) {
   const explicit = normalizeWorkflowPaymentState(row?.payment_state);
-  if (explicit !== "unpaid" || Number(row?.amount_paid_cents || 0) > 0 || Number(row?.amount_due_cents || 0) > 0) {
+  const explicitPaid = Math.max(0, Number(row?.amount_paid_cents || 0));
+  const explicitDue = Math.max(0, Number(row?.amount_due_cents || 0));
+  if (explicit !== "unpaid") {
     return explicit;
+  }
+  if (explicitPaid > 0 && explicitDue <= 0) return "paid";
+  if (explicitPaid > 0 && explicitDue > 0) return "partially_paid";
+  if (explicitDue > 0) {
+    const dueDate = row?.payment_due_date ? new Date(row.payment_due_date) : null;
+    if (dueDate && !Number.isNaN(dueDate.getTime()) && dueDate < new Date()) return "overdue";
+    return "unpaid";
   }
   const paid = orderAmountPaidCents(row);
   const due = Math.max(orderTotalCents(row) - paid, 0);
