@@ -236,6 +236,7 @@ describe("operator team workspace", () => {
     expect(elements.teamMembersList.innerHTML).toContain("Profile");
     expect(elements.teamMembersList.innerHTML).toContain("Log time");
     expect(elements.teamMembersList.innerHTML).toContain("Log training time");
+    expect(elements.teamMembersList.innerHTML).toContain("Training");
     expect(elements.teamMembersList.innerHTML).toContain("Crew portal");
   });
 });

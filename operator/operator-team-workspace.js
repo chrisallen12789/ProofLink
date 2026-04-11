@@ -162,13 +162,17 @@ function teamTrainingTemplate(member = {}) {
 function teamTrainingProfile(member = {}) {
   const profiles = teamTrainingProfiles();
   const existing = profiles[String(member?.id || "").trim()] || {};
+  const itemMeta = existing?.item_meta && typeof existing.item_meta === "object" ? existing.item_meta : {};
   const items = teamTrainingTemplate(member).map((item) => ({
     ...item,
     complete: existing?.items?.[item.key] === true,
+    completedAt: String(itemMeta?.[item.key]?.completed_at || "").trim(),
+    completedBy: String(itemMeta?.[item.key]?.completed_by || "").trim(),
   }));
   const completedCount = items.filter((item) => item.complete).length;
   return {
     items,
+    itemMeta,
     completedCount,
     totalCount: items.length,
     notes: String(existing?.notes || "").trim(),
@@ -205,6 +209,30 @@ function teamTrainingSummary(member = {}) {
     note: "Training checklist still needs to be walked through before rollout.",
     needsAttention: true,
   };
+}
+
+function getTeamCurrentOperatorLabel() {
+  const runtime = window?.PROOFLINK_OPERATOR_RUNTIME;
+  const current = runtime?.getCurrentOperator?.() || {};
+  return String(current?.operator_name || current?.role || "Office").trim() || "Office";
+}
+
+function renderTrainingChecklistHistory(profile = {}) {
+  const items = Array.isArray(profile?.items) ? profile.items.filter((item) => item.complete) : [];
+  if (!items.length) {
+    return '<div class="muted">No checklist steps have been signed off yet.</div>';
+  }
+  return items.map((item) => `
+    <div class="list-item" style="padding:6px 0;">
+      <div class="li-main">
+        <div class="li-title">${escapeHtml(item.label)}</div>
+        <div class="li-sub muted" style="font-size:.75rem;">
+          ${escapeHtml(item.completedAt ? `Completed ${item.completedAt}` : "Completed")}
+          ${item.completedBy ? ` • ${escapeHtml(item.completedBy)}` : ""}
+        </div>
+      </div>
+    </div>
+  `).join("");
 }
 
 function teamTrainingQuickPreset(member = {}) {
@@ -819,6 +847,7 @@ function openTeamMemberProfileModal(id) {
   if (existing) existing.remove();
   const driver = teamMemberDriverReadiness(member);
   const training = teamTrainingSummary(member);
+  const trainingProfile = teamTrainingProfile(member);
   const modal = document.createElement("div");
   modal.id = "teamMemberProfileModal";
   modal.className = "modal-overlay";
@@ -852,6 +881,12 @@ function openTeamMemberProfileModal(id) {
           <button class="btn btn-ghost btn-sm" type="button" id="btnProfileCrew">Crew portal</button>
           <button class="btn btn-ghost btn-sm" type="button" id="btnProfileEdit">Edit member</button>
         </div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:12px;">
+      <div class="card-hd"><strong>Checklist history</strong></div>
+      <div class="card-bd">
+        ${renderTrainingChecklistHistory(trainingProfile)}
       </div>
     </div>
     <div class="card" style="margin-top:12px;">
@@ -1048,6 +1083,7 @@ function openTeamTrainingModal(id) {
             ${escapeHtml(item.label)}
           </div>
           <div class="detail-copy memory-checklist__note">${escapeHtml(item.note)}</div>
+          ${item.complete ? `<div class="muted" style="font-size:.72rem;margin-top:4px;">${escapeHtml(item.completedAt ? `Signed off ${item.completedAt}` : "Signed off")}${item.completedBy ? ` • ${escapeHtml(item.completedBy)}` : ""}</div>` : ""}
         </label>
       `).join("")}
     </div>
@@ -1069,17 +1105,33 @@ function openTeamTrainingModal(id) {
   };
   modal.querySelector("#btnSaveTeamTraining").onclick = async () => {
     const messageEl = modal.querySelector("#teamTrainingMsg");
+    const previousItems = profile.items || [];
+    const previousMeta = profile.itemMeta || {};
     const items = Object.fromEntries(
       profile.items.map((item) => [
         item.key,
         !!modal.querySelector(`[data-training-key="${item.key}"]`)?.checked,
       ])
     );
+    const operatorLabel = getTeamCurrentOperatorLabel();
+    const itemMeta = {};
+    previousItems.forEach((item) => {
+      const nextComplete = !!items[item.key];
+      if (!nextComplete) return;
+      const existingMeta = previousMeta?.[item.key];
+      itemMeta[item.key] = existingMeta && existingMeta.completed_at
+        ? existingMeta
+        : {
+            completed_at: new Date().toISOString(),
+            completed_by: operatorLabel,
+          };
+    });
     const allComplete = Object.values(items).every(Boolean);
     setInlineMessage(messageEl, "Saving training checklist...");
     try {
       await saveTeamTrainingProfile(member, {
         items,
+        item_meta: itemMeta,
         notes: String(modal.querySelector("#teamTrainingNotes")?.value || "").trim(),
         completed_at: allComplete ? new Date().toISOString() : "",
         role_snapshot: {
