@@ -210,6 +210,42 @@ function dispatchAgentTimestamp(value) {
   return String(value || "");
 }
 
+function dispatchCrewReadinessStatus(member = {}) {
+  if (!member?.id) {
+    return {
+      blocked: true,
+      tone: "pill-warn",
+      label: "Crew not selected",
+      note: "Pick a crew owner before you save or dispatch this job.",
+      nextAction: "Pick crew owner",
+    };
+  }
+  if (typeof teamMemberRolloutRestriction !== "function") {
+    return {
+      blocked: false,
+      tone: "pill",
+      label: "Crew selected",
+      note: "Team rollout checks are not loaded in this workspace, so dispatch is using the saved assignment only.",
+      nextAction: "Review team profile",
+    };
+  }
+  const restriction = teamMemberRolloutRestriction(member);
+  const nextAction = typeof teamMemberNextAction === "function" ? teamMemberNextAction(member) : null;
+  const blockedLabels = new Set([
+    "Restricted from solo dispatch",
+    "Labor-only until driver setup clears",
+    "Qualification refresh overdue",
+    "Training refresh overdue",
+  ]);
+  return {
+    blocked: restriction?.tone === "pill-bad" || blockedLabels.has(String(restriction?.label || "").trim()),
+    tone: restriction?.tone || "pill",
+    label: restriction?.label || "Crew selected",
+    note: restriction?.note || "Crew readiness looks workable from the current record.",
+    nextAction: nextAction?.label || "Review team profile",
+  };
+}
+
 function dispatchAgentPrimaryRef(item = {}) {
   return (Array.isArray(item.record_refs) ? item.record_refs : []).find((ref) => ref && ref.record_type === "job" && ref.record_id) || null;
 }
@@ -1104,7 +1140,8 @@ function renderDispatchWorkspace() {
     fetchDispatchTruckLoads(currentTruckId).then(() => renderDispatchWorkspace()).catch(() => {});
   }
   const truckPlanner = dispatchTruckPlanner(assignedTruck || currentTruckId, activeJob, targetDate);
-  const dispatchBlocked = truckPlanner.warnings.some((item) => item.blocking);
+  const crewReadiness = dispatchCrewReadinessStatus(assignedDriver || {});
+  const dispatchBlocked = truckPlanner.warnings.some((item) => item.blocking) || crewReadiness.blocked;
   const crewAck = dispatchCrewAcknowledgementSummary(activeJob, assignedDriver);
   const crewRoute = dispatchCompoundRouteSummary(activeJob, hydrovacJobs, currentDriverId, targetDate);
   const assignmentConflicts = dispatchAssignmentConflictSummary(activeJob, hydrovacJobs, currentTruckId, currentDriverId, targetDate);
@@ -1120,6 +1157,7 @@ function renderDispatchWorkspace() {
               { label: titleCaseWords(String(activeJob.status || "scheduled").replace(/_/g, " ")) },
               assignedTruck ? { label: assignedTruck.unit_number || assignedTruck.name || "Truck assigned" } : { label: "Truck open", tone: "pill-warn" },
               assignedDriver ? { label: teamMemberLabel(assignedDriver), tone: "pill-on" } : { label: "Driver open", tone: "pill-warn" },
+              assignedDriver ? { label: crewReadiness.label, tone: crewReadiness.tone } : null,
               dispatchBlocked ? { label: "Dispatch blocked", tone: "pill-bad" } : { label: "Ready to dispatch", tone: "pill-on" },
             ],
             meta: [
@@ -1203,6 +1241,12 @@ function renderDispatchWorkspace() {
         <button id="btnDispatchRefreshLoads" class="btn btn-ghost" type="button">Refresh truck loads</button>
       </div>
       <div id="dispatchMsg" class="msg"></div>
+        </div>
+        <div class="detail-card detail-card--spaced">
+      <div class="kicker">Crew rollout</div>
+      <div><strong>${escapeHtml(crewReadiness.label)}</strong> <span class="pill ${escapeAttr(crewReadiness.tone)}">${escapeHtml(assignedDriver ? "Crew readiness" : "Selection needed")}</span></div>
+      <div class="detail-copy">${escapeHtml(crewReadiness.note)}</div>
+      <div class="detail-copy muted muted-small">Next move: ${escapeHtml(crewReadiness.nextAction)}</div>
         </div>
         <div class="detail-card detail-card--spaced">
       <div class="kicker">Crew acknowledgment</div>
@@ -1357,6 +1401,13 @@ function renderDispatchWorkspace() {
   });
   $("btnDispatchSaveAssignment")?.addEventListener("click", async () => {
     try {
+      const nextMemberId = $("dispatchDriverSelect")?.value || "";
+      const nextMember = (TEAM_MEMBERS_CACHE || []).find((member) => String(member?.id || "") === String(nextMemberId || "")) || null;
+      const readiness = dispatchCrewReadinessStatus(nextMember || {});
+      if (readiness.blocked) {
+        setInlineMessage($("dispatchMsg"), `${readiness.note} Next move: ${readiness.nextAction}.`, "error");
+        return;
+      }
       setInlineMessage($("dispatchMsg"), "Saving assignment...");
       await saveDispatchAssignment(activeJob, {
         truckId: $("dispatchTruckSelect")?.value,
@@ -1371,6 +1422,13 @@ function renderDispatchWorkspace() {
   });
   $("btnDispatchAssignAndOpenCrew")?.addEventListener("click", async () => {
     try {
+      const nextMemberId = $("dispatchDriverSelect")?.value || "";
+      const nextMember = (TEAM_MEMBERS_CACHE || []).find((member) => String(member?.id || "") === String(nextMemberId || "")) || null;
+      const readiness = dispatchCrewReadinessStatus(nextMember || {});
+      if (readiness.blocked) {
+        setInlineMessage($("dispatchMsg"), `${readiness.note} Next move: ${readiness.nextAction}.`, "error");
+        return;
+      }
       setInlineMessage($("dispatchMsg"), "Saving assignment and opening crew portal...");
       await saveDispatchAssignment(activeJob, {
         truckId: $("dispatchTruckSelect")?.value,
@@ -1418,9 +1476,15 @@ function renderDispatchWorkspace() {
   $("btnDispatchJobNow")?.addEventListener("click", async () => {
     const truckId = $("dispatchTruckSelect")?.value || "";
     const driverId = $("dispatchDriverSelect")?.value || "";
+    const selectedMember = (TEAM_MEMBERS_CACHE || []).find((member) => String(member?.id || "") === String(driverId || currentDriverId || "")) || null;
+    const readiness = dispatchCrewReadinessStatus(selectedMember || {});
     const compoundOverride = $("dispatchCompoundOverride")?.checked === true;
     if (!truckId) {
       setInlineMessage($("dispatchMsg"), "Pick a truck before dispatch.", "error");
+      return;
+    }
+    if (readiness.blocked) {
+      setInlineMessage($("dispatchMsg"), `${readiness.note} Next move: ${readiness.nextAction}.`, "error");
       return;
     }
     const selectedCrewRoute = dispatchCompoundRouteSummary(activeJob, hydrovacJobs, driverId || currentDriverId, targetDate);
@@ -1501,6 +1565,7 @@ const DISPATCH_WORKSPACE_HELPERS = {
   dispatchTruckRouteSummary,
   dispatchAssignmentConflictSummary,
   dispatchColumnCrewCapacity,
+  dispatchCrewReadinessStatus,
   saveDispatchCrewPlanning,
   saveDispatchAssignment,
   renderDispatchAgentReview,

@@ -232,6 +232,14 @@ describe("operator dispatch workspace", () => {
       isHydrovacJob: vi.fn(() => true),
       hydrovacJobSortDate: vi.fn((job) => job.scheduled_date || ""),
       teamMemberLabel: vi.fn((member) => member.display_name || member.name || "Crew member"),
+      teamMemberRolloutRestriction: vi.fn(() => ({
+        label: "Ready for driver or labor dispatch",
+        tone: "pill-on",
+        note: "Crew record is ready for dispatch.",
+      })),
+      teamMemberNextAction: vi.fn(() => ({
+        label: "Ready for dispatch",
+      })),
       TEAM_MEMBERS_CACHE: [
         { id: "member_1", display_name: "Skylar Stevens", user_id: "user_1" },
       ],
@@ -253,6 +261,27 @@ describe("operator dispatch workspace", () => {
 
     expect(dispatchDetail.innerHTML).toContain("Skylar Stevens");
     expect(dispatchDetail.innerHTML).toContain("Open in crew portal");
+    expect(dispatchDetail.innerHTML).toContain("Crew rollout");
+    expect(dispatchDetail.innerHTML).toContain("Ready for driver or labor dispatch");
+  });
+
+  test("dispatchCrewReadinessStatus blocks dispatch when rollout restrictions are still bad", () => {
+    const { context } = loadDispatchWorkspace({
+      teamMemberRolloutRestriction: vi.fn(() => ({
+        label: "Restricted from solo dispatch",
+        tone: "pill-bad",
+        note: "Keep this worker off solo driving until driver setup is fully cleared.",
+      })),
+      teamMemberNextAction: vi.fn(() => ({
+        label: "Finish driver setup",
+      })),
+    });
+
+    const readiness = context.dispatchCrewReadinessStatus({ id: "member_1", display_name: "Skylar Stevens" });
+
+    expect(readiness.blocked).toBe(true);
+    expect(readiness.label).toBe("Restricted from solo dispatch");
+    expect(readiness.nextAction).toBe("Finish driver setup");
   });
 
   test("renderDispatchWorkspace shows crew acknowledgment when dispatch is still waiting on field updates", () => {

@@ -2033,6 +2033,7 @@ function renderTeamReadinessSummaryCard() {
           <div class="muted">A quick office rollup of who is clear, who still needs supervised follow-through, and where records are missing.</div>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-ghost btn-sm" type="button" onclick="exportMondayReadinessCsv()">Export Monday</button>
           <button class="btn btn-ghost btn-sm" type="button" onclick="exportTeamReadinessCsv()">Export readiness</button>
           <button class="btn btn-ghost btn-sm" type="button" onclick="exportTeamAuditCsv()">Export audit</button>
         </div>
@@ -3376,6 +3377,49 @@ function exportTeamReadinessCsv() {
   downloadTeamCsv(`team-readiness-${new Date().toISOString().slice(0, 10)}.csv`, rows);
 }
 
+function exportMondayReadinessCsv() {
+  const members = (Array.isArray(TEAM_MEMBERS_CACHE) ? TEAM_MEMBERS_CACHE : [])
+    .slice()
+    .sort((left, right) => {
+      const leftReady = teamReadinessGates(left);
+      const rightReady = teamReadinessGates(right);
+      const leftRank = leftReady.blockedCount ? 0 : leftReady.warningCount ? 1 : 2;
+      const rightRank = rightReady.blockedCount ? 0 : rightReady.warningCount ? 1 : 2;
+      return leftRank - rightRank || teamMemberLabel(left).localeCompare(teamMemberLabel(right));
+    });
+
+  const rows = [[
+    "Member",
+    "Role",
+    "Track",
+    "Monday Status",
+    "Restriction",
+    "Next Action",
+    "Driver Readiness",
+    "Training Readiness",
+    "Records Status",
+    "Qualification Refresh",
+  ]];
+
+  members.forEach((member) => {
+    const readiness = teamReadinessGates(member);
+    rows.push([
+      teamMemberLabel(member),
+      member?.role || "",
+      teamMemberRolloutTrack(member).label,
+      readiness.blockedCount ? "Blocked before Monday" : readiness.warningCount ? "Supervised / follow-up" : "Ready for Monday",
+      teamMemberRolloutRestriction(member).label,
+      teamMemberNextAction(member).label,
+      teamMemberDriverReadiness(member).label,
+      teamTrainingSummary(member).label,
+      teamRecordEvidenceSummary(member).label,
+      teamQualificationRefreshPressure(member).label,
+    ]);
+  });
+
+  downloadTeamCsv(`team-monday-readiness-${new Date().toISOString().slice(0, 10)}.csv`, rows);
+}
+
 function exportTeamInvestmentCsv() {
   const reportEl = $("hoursReport");
   const data = reportEl?._data;
@@ -3701,6 +3745,7 @@ const TEAM_WORKSPACE_HELPERS = {
   loadHoursReport,
   renderHoursReport,
   exportHoursCsv,
+  exportMondayReadinessCsv,
   exportTeamReadinessCsv,
   exportTeamInvestmentCsv,
   exportTeamAuditCsv,
