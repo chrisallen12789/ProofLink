@@ -268,6 +268,82 @@ function openMaintenanceTimeModal() {
   openTeamTimeModal(defaultMember.id, teamMaintenanceQuickPreset());
 }
 
+function teamProfileDateRange(daysBack = 30) {
+  const end = new Date();
+  const start = new Date(end);
+  start.setDate(start.getDate() - Math.max(1, Number(daysBack || 30)));
+  const iso = (value) => value.toISOString().slice(0, 10);
+  return { start: iso(start), end: iso(end) };
+}
+
+async function fetchTeamMemberHistory(member = {}, daysBack = 30) {
+  const token = await getOperatorAccessToken();
+  const { start, end } = teamProfileDateRange(daysBack);
+  const response = await fetch(`/.netlify/functions/get-team-hours?start=${start}&end=${end}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || "Failed to load team history.");
+  const members = Array.isArray(data?.members) ? data.members : [];
+  return members.find((row) => String(row?.member_id || row?.id || "").trim() === String(member?.id || "").trim()) || null;
+}
+
+function teamProfileSummaryChips(member = {}) {
+  const chips = [];
+  const compensation = member?.compensation || {};
+  if (member?.driver_label) chips.push(`Driver label: ${member.driver_label}`);
+  if (member?.worker_label) chips.push(`Worker label: ${member.worker_label}`);
+  if (compensation?.union_classification_name) chips.push(`Union class: ${compensation.union_classification_name}`);
+  if (member?.union_local_number) chips.push(`Local ${member.union_local_number}`);
+  return chips;
+}
+
+function renderTeamHistorySnapshot(member = {}, history = null) {
+  if (!history) {
+    return '<div class="muted">No recent time or job history loaded yet.</div>';
+  }
+  const entries = Array.isArray(history.entries) ? history.entries.slice(0, 6) : [];
+  const jobs = Array.isArray(history.jobs) ? history.jobs.slice(0, 4) : [];
+  return `
+    <div class="modal-grid-2">
+      <div class="card">
+        <div class="card-hd"><strong>Recent time</strong></div>
+        <div class="card-bd">
+          <div class="muted" style="font-size:.8rem;margin-bottom:8px;">
+            ${escapeHtml(`${Number((Number(history.total_minutes || 0) / 60).toFixed(1))}h in the last 30 days`)}
+            ${history.training_minutes ? ` • ${escapeHtml(`${Number((Number(history.training_minutes || 0) / 60).toFixed(1))}h training`)}` : ""}
+            ${history.maintenance_minutes ? ` • ${escapeHtml(`${Number((Number(history.maintenance_minutes || 0) / 60).toFixed(1))}h maintenance`)}` : ""}
+          </div>
+          ${entries.length ? entries.map((entry) => `
+            <div class="list-item" style="padding:6px 0;">
+              <div class="li-main">
+                <div class="li-title">${escapeHtml(entry.description || "Time entry")}</div>
+                <div class="li-sub muted" style="font-size:.75rem;">${escapeHtml(entry.work_type_label || teamTimePurposeLabel(entry.work_type))}</div>
+              </div>
+              <div class="li-meta"><span class="pill">${escapeHtml(teamMinutesLabel(entry.duration_minutes || 0))}</span></div>
+            </div>
+          `).join("") : '<div class="muted">No recent time entries.</div>'}
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-hd"><strong>Recent jobs</strong></div>
+        <div class="card-bd">
+          <div class="muted" style="font-size:.8rem;margin-bottom:8px;">${escapeHtml(`${history.job_count || 0} jobs in the selected history window`)}</div>
+          ${jobs.length ? jobs.map((job) => `
+            <div class="list-item" style="padding:6px 0;">
+              <div class="li-main">
+                <div class="li-title">${escapeHtml(job.title || "Untitled job")}</div>
+                <div class="li-sub muted" style="font-size:.75rem;">${escapeHtml(job.customer_name || "")}</div>
+              </div>
+              <div class="li-meta"><span class="pill">${escapeHtml(job.status || "scheduled")}</span></div>
+            </div>
+          `).join("") : '<div class="muted">No recent assigned jobs.</div>'}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 function teamMemberNextAction(member = {}) {
   const driver = teamMemberDriverReadiness(member);
   const training = teamTrainingSummary(member);
@@ -547,6 +623,7 @@ function renderTeamRolloutBoard() {
               <div class="li-meta" style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">
                 <span class="pill ${driver.tone}">${escapeHtml(driver.label)}</span>
                 <span class="pill ${training.tone}">${escapeHtml(training.label)}</span>
+                <button class="btn btn-ghost btn-sm" onclick="openTeamMemberProfileModal('${escapeAttr(member.id)}')">Profile</button>
                 <button class="btn btn-ghost btn-sm" onclick="openTeamTrainingModal('${escapeAttr(member.id)}')">Training</button>
                 <button class="btn btn-ghost btn-sm" onclick="openPresetTrainingTimeModal('${escapeAttr(member.id)}')">Log training time</button>
                 <button class="btn btn-ghost btn-sm" onclick="openDriverSetupForTeamMember('${escapeAttr(member.id)}')">Driver setup</button>
@@ -632,6 +709,7 @@ function renderTeamPanel() {
             ${teamMemberCompensationNote(member) ? `<div class="muted" style="font-size:.72rem;margin-top:4px;">${escapeHtml(teamMemberCompensationNote(member))}</div>` : ""}
           </td>
           <td style="padding:8px;text-align:right;display:flex;gap:6px;justify-content:flex-end;">
+            <button class="btn btn-ghost" style="font-size:.72rem;" onclick="openTeamMemberProfileModal('${escapeAttr(member.id)}')">Profile</button>
             <button class="btn btn-ghost" style="font-size:.72rem;" onclick="openTeamTimeModal('${escapeAttr(member.id)}')">Log time</button>
             <button class="btn btn-ghost" style="font-size:.72rem;" onclick="openTeamTrainingModal('${escapeAttr(member.id)}')">Training</button>
             <button class="btn btn-ghost" style="font-size:.72rem;" onclick="openDriverSetupForTeamMember('${escapeAttr(member.id)}')">Driver setup</button>
@@ -729,6 +807,99 @@ function openCrewPortalForTeamMember(id) {
     return;
   }
   window.location.href = target;
+}
+
+function openTeamMemberProfileModal(id) {
+  const member = findTeamMemberById(id);
+  if (!member) {
+    showToast("Team member not found.");
+    return;
+  }
+  const existing = document.getElementById("teamMemberProfileModal");
+  if (existing) existing.remove();
+  const driver = teamMemberDriverReadiness(member);
+  const training = teamTrainingSummary(member);
+  const modal = document.createElement("div");
+  modal.id = "teamMemberProfileModal";
+  modal.className = "modal-overlay";
+  modal.innerHTML = `<div class="modal-box" style="max-width:760px;">
+    <h3 style="margin:0 0 6px;font-size:1rem;">${escapeHtml(teamMemberLabel(member))}</h3>
+    <div class="muted" style="margin-bottom:12px;">One place to review role, pay, readiness, onboarding, and recent tracked time.</div>
+    <div class="row row-tight" style="margin-bottom:12px;flex-wrap:wrap;">
+      <span class="pill">${escapeHtml(member.role || "member")}</span>
+      <span class="pill ${driver.tone}">${escapeHtml(driver.label)}</span>
+      <span class="pill ${training.tone}">${escapeHtml(training.label)}</span>
+      ${teamProfileSummaryChips(member).map((chip) => `<span class="pill">${escapeHtml(chip)}</span>`).join("")}
+    </div>
+    <div class="modal-grid-2">
+      <div class="card">
+        <div class="card-hd"><strong>Role and compensation</strong></div>
+        <div class="card-bd">
+          <div class="detail-copy"><strong>Rate:</strong> ${escapeHtml(teamMemberDisplayedRateCents(member) ? `${formatUsd(teamMemberDisplayedRateCents(member))}/hr` : "Not set")}</div>
+          <div class="detail-copy"><strong>Next move:</strong> ${escapeHtml(teamMemberNextAction(member).label)}</div>
+          <div class="detail-copy"><strong>Pay context:</strong> ${escapeHtml(teamMemberCompensationNote(member) || "No union-floor note is attached yet.")}</div>
+          <div class="detail-copy"><strong>Driver readiness:</strong> ${escapeHtml(driver.note)}</div>
+          <div class="detail-copy"><strong>Training readiness:</strong> ${escapeHtml(training.note)}</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-hd"><strong>Quick actions</strong></div>
+        <div class="card-bd" style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-ghost btn-sm" type="button" id="btnProfileTraining">Training</button>
+          <button class="btn btn-ghost btn-sm" type="button" id="btnProfileTrainingTime">Log training time</button>
+          <button class="btn btn-ghost btn-sm" type="button" id="btnProfileMaintenance">Log maintenance</button>
+          <button class="btn btn-ghost btn-sm" type="button" id="btnProfileDriver">Driver setup</button>
+          <button class="btn btn-ghost btn-sm" type="button" id="btnProfileCrew">Crew portal</button>
+          <button class="btn btn-ghost btn-sm" type="button" id="btnProfileEdit">Edit member</button>
+        </div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:12px;">
+      <div class="card-hd"><strong>Recent activity</strong></div>
+      <div class="card-bd" id="teamProfileHistory">
+        <div class="muted">Loading recent time and job history...</div>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px;">
+      <button class="btn btn-ghost" type="button" onclick="document.getElementById('teamMemberProfileModal')?.remove()">Close</button>
+    </div>
+  </div>`;
+  document.body.appendChild(modal);
+  modal.querySelector("#btnProfileTraining").onclick = () => {
+    modal.remove();
+    openTeamTrainingModal(member.id);
+  };
+  modal.querySelector("#btnProfileTrainingTime").onclick = () => {
+    modal.remove();
+    openPresetTrainingTimeModal(member.id);
+  };
+  modal.querySelector("#btnProfileMaintenance").onclick = () => {
+    modal.remove();
+    openTeamTimeModal(member.id, teamMaintenanceQuickPreset());
+  };
+  modal.querySelector("#btnProfileDriver").onclick = () => {
+    modal.remove();
+    openDriverSetupForTeamMember(member.id);
+  };
+  modal.querySelector("#btnProfileCrew").onclick = () => {
+    openCrewPortalForTeamMember(member.id);
+  };
+  modal.querySelector("#btnProfileEdit").onclick = () => {
+    modal.remove();
+    openEditTeamMemberModal(member.id);
+  };
+  modal.addEventListener("click", (event) => {
+    if (event.target === modal) modal.remove();
+  });
+  fetchTeamMemberHistory(member)
+    .then((history) => {
+      const historyEl = modal.querySelector("#teamProfileHistory");
+      if (historyEl) historyEl.innerHTML = renderTeamHistorySnapshot(member, history);
+    })
+    .catch((error) => {
+      const historyEl = modal.querySelector("#teamProfileHistory");
+      if (historyEl) historyEl.innerHTML = `<div class="msg error">${escapeHtml(error.message || String(error))}</div>`;
+    });
 }
 
 function openEditTeamMemberModal(id) {
@@ -1372,6 +1543,7 @@ const TEAM_WORKSPACE_HELPERS = {
   fetchTeamMembers,
   renderTeamPanel,
   openInviteTeamMemberModal,
+  openTeamMemberProfileModal,
   openTeamTrainingModal,
   openPresetTrainingTimeModal,
   openMaintenanceTimeModal,
