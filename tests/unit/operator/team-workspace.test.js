@@ -89,6 +89,11 @@ describe("operator team workspace", () => {
         name: "Skylar Stevens",
         role: "member",
         driver_label: "Vactor operator",
+      }, {
+        id: "member_maint",
+        name: "Jordan Diaz",
+        role: "member",
+        worker_label: "Labor",
       }],
       SETUP_STATE: {
         config: {
@@ -136,16 +141,42 @@ describe("operator team workspace", () => {
           started_at: "2026-04-09T12:00:00.000Z",
         }],
         jobs: [],
+      }, {
+        id: "member_maint",
+        name: "Jordan Diaz",
+        role: "member",
+        total_minutes: 180,
+        billable_minutes: 0,
+        training_minutes: 0,
+        maintenance_minutes: 180,
+        pricing_overhead_cost_cents: 0,
+        asset_basis_candidate_cost_cents: 5400,
+        job_count: 0,
+        estimated_pay_cents: 5400,
+        effective_rate_cents: 1800,
+        entries: [{
+          description: "Hydrovac truck rebuild prep",
+          duration_minutes: 180,
+          billable: false,
+          work_type: "maintenance",
+          work_type_label: "Maintenance",
+          maintenance_type: "capital_improvement",
+          asset_category: "vehicle",
+          asset_label: "Truck 7",
+          cost_bucket: "asset_basis_candidate",
+          started_at: "2026-04-09T14:00:00.000Z",
+        }],
+        jobs: [],
       }],
       totals: {
-        total_minutes: 120,
+        total_minutes: 300,
         billable_minutes: 120,
         training_minutes: 120,
-        maintenance_minutes: 0,
-        member_count: 1,
-        estimated_pay_cents: 8200,
+        maintenance_minutes: 180,
+        member_count: 2,
+        estimated_pay_cents: 13600,
         pricing_overhead_cost_cents: 8200,
-        asset_basis_candidate_cost_cents: 0,
+        asset_basis_candidate_cost_cents: 5400,
       },
     });
 
@@ -158,6 +189,55 @@ describe("operator team workspace", () => {
     expect(elements.hoursReport.innerHTML).toContain("Readiness follow-up");
     expect(elements.hoursReport.innerHTML).toContain("Estimated payroll");
     expect(elements.hoursReport.innerHTML).toContain("Export investment");
+    expect(elements.hoursReport.innerHTML).toContain("Training categories");
+    expect(elements.hoursReport.innerHTML).toContain("Driver safety");
+    expect(elements.hoursReport.innerHTML).toContain("Maintenance assets");
+    expect(elements.hoursReport.innerHTML).toContain("Vehicle");
+    expect(elements.hoursReport.innerHTML).toContain("Cost buckets");
+    expect(elements.hoursReport.innerHTML).toContain("Asset basis candidate");
+  });
+
+  test("investment breakdown groups training, maintenance, and cost buckets into audit-friendly rollups", () => {
+    const { context } = loadTeamWorkspace();
+
+    const breakdown = context.buildHoursInvestmentBreakdown({
+      members: [{
+        id: "member_1",
+        name: "Skylar Stevens",
+        role: "member",
+        effective_rate_cents: 4000,
+        entries: [{
+          duration_minutes: 120,
+          work_type: "driver_training",
+          training_type: "driver_safety",
+          cost_bucket: "pricing_overhead",
+        }, {
+          duration_minutes: 60,
+          work_type: "trade_training",
+          training_type: "onboarding",
+          cost_bucket: "pricing_overhead",
+        }],
+      }, {
+        id: "member_2",
+        name: "Jordan Diaz",
+        role: "member",
+        effective_rate_cents: 2000,
+        entries: [{
+          duration_minutes: 90,
+          work_type: "maintenance",
+          maintenance_type: "capital_improvement",
+          asset_category: "vehicle",
+          cost_bucket: "asset_basis_candidate",
+        }],
+      }],
+    });
+
+    expect(breakdown.trainingTypes[0].label).toBe("Driver safety");
+    expect(breakdown.trainingTypes[0].minutes).toBe(120);
+    expect(breakdown.maintenanceAssets[0].label).toBe("Vehicle");
+    expect(breakdown.maintenanceAssets[0].note).toBe("Capital improvement");
+    expect(breakdown.costBuckets.some((item) => item.label === "Covered by job pricing")).toBe(true);
+    expect(breakdown.costBuckets.some((item) => item.label === "Asset basis candidate")).toBe(true);
   });
 
   test("loadTeamWorkspace fetches members once and refreshes qualifications on revisit", async () => {

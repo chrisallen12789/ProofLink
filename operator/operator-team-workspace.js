@@ -3003,6 +3003,137 @@ function buildHoursInvestmentSummary(data = {}) {
   };
 }
 
+function teamTrainingTypeLabel(value) {
+  return teamTrainingTypeOptions().find((option) => option.value === value)?.label || "General training";
+}
+
+function teamMaintenanceTypeLabel(value) {
+  return teamMaintenanceTypeOptions().find((option) => option.value === value)?.label || "General maintenance";
+}
+
+function teamAssetCategoryLabel(value) {
+  return teamAssetCategoryOptions().find((option) => option.value === value)?.label || "Other asset";
+}
+
+function buildHoursInvestmentBreakdown(data = {}) {
+  const members = Array.isArray(data?.members) ? data.members : [];
+  const trainingTypes = new Map();
+  const maintenanceAssets = new Map();
+  const costBuckets = new Map();
+
+  const upsert = (map, key, next) => {
+    const current = map.get(key) || { label: key, minutes: 0, payrollCents: 0, count: 0, note: "" };
+    current.minutes += Number(next.minutes || 0);
+    current.payrollCents += Number(next.payrollCents || 0);
+    current.count += Number(next.count || 0);
+    if (!current.note && next.note) current.note = next.note;
+    map.set(key, current);
+  };
+
+  members.forEach((member) => {
+    const rateCents = teamMemberDisplayedRateCents(member);
+    const entries = Array.isArray(member?.entries) ? member.entries : [];
+    entries.forEach((entry) => {
+      const minutes = Number(entry?.duration_minutes || 0);
+      if (!minutes) return;
+      const payrollCents = Math.round((minutes / 60) * rateCents);
+      const workType = String(entry?.work_type || "").trim();
+      const costBucketLabel = teamCostBucketLabel(entry?.cost_bucket);
+
+      upsert(costBuckets, costBucketLabel, {
+        label: costBucketLabel,
+        minutes,
+        payrollCents,
+        count: 1,
+      });
+
+      if (workType === "driver_training" || workType === "trade_training") {
+        const label = teamTrainingTypeLabel(entry?.training_type);
+        upsert(trainingTypes, label, {
+          label,
+          minutes,
+          payrollCents,
+          count: 1,
+        });
+      }
+
+      if (workType === "maintenance") {
+        const assetLabel = teamAssetCategoryLabel(entry?.asset_category);
+        const maintenanceLabel = teamMaintenanceTypeLabel(entry?.maintenance_type);
+        upsert(maintenanceAssets, assetLabel, {
+          label: assetLabel,
+          minutes,
+          payrollCents,
+          count: 1,
+          note: maintenanceLabel,
+        });
+      }
+    });
+  });
+
+  const sortRows = (map) => Array.from(map.values()).sort((left, right) => (
+    right.minutes - left.minutes || left.label.localeCompare(right.label)
+  ));
+
+  return {
+    trainingTypes: sortRows(trainingTypes),
+    maintenanceAssets: sortRows(maintenanceAssets),
+    costBuckets: sortRows(costBuckets),
+  };
+}
+
+function renderHoursInvestmentBreakdown(data = {}) {
+  const breakdown = buildHoursInvestmentBreakdown(data);
+  const sections = [
+    {
+      title: "Training categories",
+      items: breakdown.trainingTypes,
+      empty: "No training category detail is tracked in this report yet.",
+      note: (item) => `${teamMinutesLabel(item.minutes)}${item.payrollCents ? ` • ${formatUsd(item.payrollCents)} est. payroll` : ""}`,
+    },
+    {
+      title: "Maintenance assets",
+      items: breakdown.maintenanceAssets,
+      empty: "No maintenance asset detail is tracked in this report yet.",
+      note: (item) => `${teamMinutesLabel(item.minutes)}${item.note ? ` • ${item.note}` : ""}`,
+    },
+    {
+      title: "Cost buckets",
+      items: breakdown.costBuckets,
+      empty: "No cost bucket detail is tracked in this report yet.",
+      note: (item) => `${teamMinutesLabel(item.minutes)}${item.payrollCents ? ` • ${formatUsd(item.payrollCents)} est. payroll` : ""}`,
+    },
+  ];
+
+  return `
+    <div class="row row-tight" style="gap:12px;align-items:stretch;margin:0 0 12px;">
+      ${sections.map((section) => `
+        <div class="card" style="flex:1 1 220px;min-width:220px;">
+          <div class="card-hd">
+            <div>
+              <strong>${escapeHtml(section.title)}</strong>
+              <div class="muted">Quick rollups so training and maintenance costs stay easy to read.</div>
+            </div>
+          </div>
+          <div class="card-bd">
+            ${section.items.length ? section.items.slice(0, 5).map((item) => `
+              <div class="list-item" style="padding:6px 0;">
+                <div class="li-main">
+                  <div class="li-title" style="font-size:.85rem;">${escapeHtml(item.label)}</div>
+                  <div class="li-sub muted" style="font-size:.75rem;">${escapeHtml(section.note(item))}</div>
+                </div>
+                <div class="li-meta">
+                  <span class="pill">${escapeHtml(String(item.count))}</span>
+                </div>
+              </div>
+            `).join("") : `<div class="muted" style="font-size:.82rem;">${escapeHtml(section.empty)}</div>`}
+          </div>
+        </div>
+      `).join("")}
+    </div>
+  `;
+}
+
 function renderHoursInvestmentSummary(data = {}) {
   const summary = buildHoursInvestmentSummary(data);
   return `
@@ -3036,6 +3167,7 @@ function renderHoursInvestmentSummary(data = {}) {
     <div style="display:flex;justify-content:flex-end;gap:8px;margin:-4px 0 12px;">
       <button class="btn btn-ghost btn-sm" type="button" onclick="exportTeamInvestmentCsv()">Export investment</button>
     </div>
+    ${renderHoursInvestmentBreakdown(data)}
   `;
 }
 
@@ -3128,6 +3260,7 @@ function exportTeamInvestmentCsv() {
   });
 
   const totals = data.totals || {};
+  const breakdown = buildHoursInvestmentBreakdown(data);
   rows.push([
     "TOTAL",
     "",
@@ -3139,6 +3272,45 @@ function exportTeamInvestmentCsv() {
     "",
     "",
   ]);
+
+  if (breakdown.trainingTypes.length) {
+    rows.push([]);
+    rows.push(["TRAINING CATEGORIES", "Hours", "Estimated Payroll", "Entries"]);
+    breakdown.trainingTypes.forEach((item) => {
+      rows.push([
+        item.label,
+        Number((Number(item.minutes || 0) / 60).toFixed(1)),
+        formatUsd(Number(item.payrollCents || 0)),
+        item.count,
+      ]);
+    });
+  }
+
+  if (breakdown.maintenanceAssets.length) {
+    rows.push([]);
+    rows.push(["MAINTENANCE ASSETS", "Hours", "Primary Type", "Entries"]);
+    breakdown.maintenanceAssets.forEach((item) => {
+      rows.push([
+        item.label,
+        Number((Number(item.minutes || 0) / 60).toFixed(1)),
+        item.note || "",
+        item.count,
+      ]);
+    });
+  }
+
+  if (breakdown.costBuckets.length) {
+    rows.push([]);
+    rows.push(["COST BUCKETS", "Hours", "Estimated Payroll", "Entries"]);
+    breakdown.costBuckets.forEach((item) => {
+      rows.push([
+        item.label,
+        Number((Number(item.minutes || 0) / 60).toFixed(1)),
+        formatUsd(Number(item.payrollCents || 0)),
+        item.count,
+      ]);
+    });
+  }
 
   downloadTeamCsv(`team-investment-${new Date().toISOString().slice(0, 10)}.csv`, rows);
 }
