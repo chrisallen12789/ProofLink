@@ -262,8 +262,8 @@ describe("operator team workspace", () => {
     const member = { id: "member_1", driver_label: "Vactor operator" };
     const profile = {
       items: [
-        { key: "driving", label: "Driving orientation", complete: true, completedAt: "2026-04-10", completedBy: "Office" },
-        { key: "vactor", label: "Vactor operator walkthrough", complete: true, completedAt: "2026-04-10", completedBy: "Office" },
+        { key: "driving", label: "Driving orientation", complete: true, completedAt: "2026-04-10", completedBy: "Office", completionNote: "Observed road test and backing drill." },
+        { key: "vactor", label: "Vactor operator walkthrough", complete: true, completedAt: "2026-04-10", completedBy: "Office", completionNote: "Covered startup, boom, and spoil handling." },
       ],
     };
     const history = {
@@ -293,9 +293,37 @@ describe("operator team workspace", () => {
     expect(evidenceHtml).toContain("Driver road orientation");
     expect(evidenceHtml).toContain("CDL on file: Class A MI");
     expect(evidenceHtml).toContain("Confined space record is on file");
+    expect(evidenceHtml).toContain("Observed road test and backing drill.");
     expect(qualificationHtml).toContain("CDL: Class A MI");
     expect(qualificationHtml).toContain("Med card: expires");
     expect(qualificationHtml).toContain("HOS available");
+  });
+
+  test("training profile carries step-level completion notes from item meta", () => {
+    const { context } = loadTeamWorkspace({
+      SETUP_STATE: {
+        config: {
+          team_training_profiles: {
+            member_1: {
+              items: { driving: true },
+              item_meta: {
+                driving: {
+                  completed_at: "2026-04-10T15:00:00.000Z",
+                  completed_by: "Office",
+                  completion_note: "Observed road test and reviewed incident process.",
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const profile = context.teamTrainingProfile({ id: "member_1", driver_label: "Vactor operator" });
+
+    expect(profile.items.find((item) => item.key === "driving")?.completionNote).toBe(
+      "Observed road test and reviewed incident process."
+    );
   });
 
   test("training save validation requires evidence for key rollout steps", () => {

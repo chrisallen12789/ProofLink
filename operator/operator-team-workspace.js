@@ -175,6 +175,7 @@ function teamTrainingProfile(member = {}) {
     complete: existing?.items?.[item.key] === true,
     completedAt: String(itemMeta?.[item.key]?.completed_at || "").trim(),
     completedBy: String(itemMeta?.[item.key]?.completed_by || "").trim(),
+    completionNote: String(itemMeta?.[item.key]?.completion_note || "").trim(),
   }));
   const completedCount = items.filter((item) => item.complete).length;
   return {
@@ -460,6 +461,7 @@ function renderTrainingChecklistHistory(profile = {}) {
           ${escapeHtml(item.completedAt ? `Completed ${item.completedAt}` : "Completed")}
           ${item.completedBy ? ` | ${escapeHtml(item.completedBy)}` : ""}
         </div>
+        ${item.completionNote ? `<div class="muted" style="font-size:.72rem;margin-top:4px;">${escapeHtml(item.completionNote)}</div>` : ""}
       </div>
     </div>
   `).join("");
@@ -557,6 +559,7 @@ function renderTrainingEvidenceSnapshot(profile = {}, history = null, member = {
           ${escapeHtml(item.completedAt ? `Signed off ${item.completedAt}` : "Signed off")}
           ${item.completedBy ? ` | ${escapeHtml(item.completedBy)}` : ""}
         </div>
+        ${item.completionNote ? `<div class="muted" style="font-size:.72rem;margin-top:4px;">${escapeHtml(item.completionNote)}</div>` : ""}
         ${renderTrainingEvidenceList(item, history, member)}
       </div>
     </div>
@@ -650,6 +653,18 @@ function renderTeamTrainingChecklistItems(profile = {}, member = {}, history = n
           <span class="pill ${status.tone}" style="font-size:.68rem;">${escapeHtml(status.label)}</span>
         </div>
         ${evidenceSummary}
+        <label style="display:block;margin-top:8px;">
+          <span class="muted" style="display:block;font-size:.72rem;margin-bottom:4px;">Office note</span>
+          <input
+            class="input"
+            type="text"
+            data-training-note="${escapeAttr(item.key)}"
+            maxlength="160"
+            placeholder="Short signoff note, observer, or context"
+            value="${escapeAttr(item.completionNote || "")}"
+            style="width:100%;"
+          />
+        </label>
         ${item.complete ? `<div class="muted" style="font-size:.72rem;margin-top:4px;">${escapeHtml(item.completedAt ? `Signed off ${item.completedAt}` : "Signed off")}${item.completedBy ? ` | ${escapeHtml(item.completedBy)}` : ""}</div>` : ""}
       </label>
     `;
@@ -1448,13 +1463,18 @@ function openTeamTrainingModal(id) {
     const itemMeta = {};
     previousItems.forEach((item) => {
       const nextComplete = !!items[item.key];
+      const completionNote = String(modal.querySelector(`[data-training-note="${item.key}"]`)?.value || "").trim();
       if (!nextComplete) return;
       const existingMeta = previousMeta?.[item.key];
       itemMeta[item.key] = existingMeta && existingMeta.completed_at
-        ? existingMeta
+        ? {
+            ...existingMeta,
+            completion_note: completionNote || existingMeta.completion_note || "",
+          }
         : {
             completed_at: new Date().toISOString(),
             completed_by: operatorLabel,
+            completion_note: completionNote,
           };
     });
     const allComplete = Object.values(items).every(Boolean);
