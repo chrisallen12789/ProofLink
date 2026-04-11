@@ -319,18 +319,149 @@ function teamTrainingTemplate(member = {}) {
   ];
 }
 
+function teamTrainingRefreshPolicy(step = {}, member = {}) {
+  const track = teamMemberRolloutTrack(member);
+  const key = String(step?.key || "").trim();
+  const driverPolicies = {
+    yard_route: { refreshDays: 180, label: "Yard and route review" },
+    driving: { refreshDays: 180, label: "Driving orientation" },
+    worksite: { refreshDays: 90, label: "Worksite safety" },
+    vactor: { refreshDays: 180, label: "Vactor operator walkthrough" },
+    ride_along: { refreshDays: 30, label: "Ride-along signoff" },
+  };
+  const mixedPolicies = {
+    yard_route: { refreshDays: 180, label: "Yard and route review" },
+    driving: { refreshDays: 180, label: "Driving orientation" },
+    ppe: { refreshDays: 90, label: "PPE and site safety" },
+    worksite: { refreshDays: 90, label: "Driver and labor worksite flow" },
+    vactor: { refreshDays: 180, label: "Vactor operator walkthrough" },
+    handoff: { refreshDays: 180, label: "Photo and closeout handoff" },
+    ride_along: { refreshDays: 30, label: "Ride-along signoff" },
+  };
+  const laborPolicies = {
+    ppe: { refreshDays: 90, label: "PPE and site safety" },
+    worksite: { refreshDays: 90, label: "Worksite labor orientation" },
+    handoff: { refreshDays: 180, label: "Photo and closeout handoff" },
+    ride_along: { refreshDays: 30, label: "Ride-along signoff" },
+  };
+  const policies = track.key === "driver"
+    ? driverPolicies
+    : track.key === "mixed"
+      ? mixedPolicies
+      : laborPolicies;
+  const policy = policies[key];
+  if (!policy) return null;
+  return {
+    ...policy,
+    dueSoonDays: Math.min(14, policy.refreshDays),
+  };
+}
+
+function teamTrainingStepRefreshStatus(step = {}, member = {}) {
+  const policy = teamTrainingRefreshPolicy(step, member);
+  const completedAt = String(step?.completedAt || "").trim();
+  if (!policy || !completedAt) {
+    return {
+      policy,
+      needsAttention: false,
+      blocked: false,
+      severity: "",
+      label: "",
+      note: "",
+      dueAt: "",
+      daysUntil: null,
+    };
+  }
+  const completedTime = Date.parse(completedAt);
+  if (!Number.isFinite(completedTime)) {
+    return {
+      policy,
+      needsAttention: false,
+      blocked: false,
+      severity: "",
+      label: "",
+      note: "",
+      dueAt: "",
+      daysUntil: null,
+    };
+  }
+  const dueDate = new Date(completedTime);
+  dueDate.setUTCDate(dueDate.getUTCDate() + Number(policy.refreshDays || 0));
+  const dueAt = dueDate.toISOString();
+  const daysUntil = teamDaysUntil(dueAt);
+  if (daysUntil == null) {
+    return {
+      policy,
+      needsAttention: false,
+      blocked: false,
+      severity: "",
+      label: "",
+      note: "",
+      dueAt,
+      daysUntil,
+    };
+  }
+  if (daysUntil < 0) {
+    return {
+      policy,
+      needsAttention: true,
+      blocked: true,
+      severity: "expired",
+      label: "Refresh overdue",
+      note: `${policy.label} should have been refreshed by ${teamDateLabel(dueAt)}.`,
+      dueAt,
+      daysUntil,
+    };
+  }
+  if (daysUntil <= Number(policy.dueSoonDays || 14)) {
+    return {
+      policy,
+      needsAttention: true,
+      blocked: false,
+      severity: "soon",
+      label: "Refresh due soon",
+      note: `${policy.label} should be refreshed by ${teamDateLabel(dueAt)}.`,
+      dueAt,
+      daysUntil,
+    };
+  }
+  return {
+    policy,
+    needsAttention: false,
+    blocked: false,
+    severity: "",
+    label: "",
+    note: "",
+    dueAt,
+    daysUntil,
+  };
+}
+
 function teamTrainingProfile(member = {}) {
   const profiles = teamTrainingProfiles();
   const existing = profiles[String(member?.id || "").trim()] || {};
   const itemMeta = existing?.item_meta && typeof existing.item_meta === "object" ? existing.item_meta : {};
-  const items = teamTrainingTemplate(member).map((item) => ({
-    ...item,
-    complete: existing?.items?.[item.key] === true,
-    completedAt: String(itemMeta?.[item.key]?.completed_at || "").trim(),
-    completedBy: String(itemMeta?.[item.key]?.completed_by || "").trim(),
-    completionNote: String(itemMeta?.[item.key]?.completion_note || "").trim(),
-  }));
+  const items = teamTrainingTemplate(member).map((item) => {
+    const nextItem = {
+      ...item,
+      complete: existing?.items?.[item.key] === true,
+      completedAt: String(itemMeta?.[item.key]?.completed_at || "").trim(),
+      completedBy: String(itemMeta?.[item.key]?.completed_by || "").trim(),
+      completionNote: String(itemMeta?.[item.key]?.completion_note || "").trim(),
+    };
+    const refresh = teamTrainingStepRefreshStatus(nextItem, member);
+    return {
+      ...nextItem,
+      refreshDays: refresh.policy?.refreshDays || null,
+      refreshDueAt: refresh.dueAt || "",
+      refreshStatus: refresh.severity || "",
+      refreshLabel: refresh.label || "",
+      refreshNote: refresh.note || "",
+    };
+  });
   const completedCount = items.filter((item) => item.complete).length;
+  const expiredRefreshes = items.filter((item) => item.refreshStatus === "expired");
+  const soonRefreshes = items.filter((item) => item.refreshStatus === "soon");
   return {
     items,
     itemMeta,
@@ -338,6 +469,32 @@ function teamTrainingProfile(member = {}) {
     totalCount: items.length,
     notes: String(existing?.notes || "").trim(),
     completedAt: String(existing?.completed_at || "").trim(),
+    refreshAttention: expiredRefreshes.length
+      ? {
+          label: "Training refresh overdue",
+          tone: "pill-bad",
+          note: expiredRefreshes[0]?.refreshNote || "One or more rollout steps need to be refreshed.",
+          needsAttention: true,
+          blocked: true,
+          items: expiredRefreshes,
+        }
+      : soonRefreshes.length
+        ? {
+            label: "Training refresh due soon",
+            tone: "pill-warn",
+            note: soonRefreshes[0]?.refreshNote || "A rollout step is due for refresh soon.",
+            needsAttention: true,
+            blocked: false,
+            items: soonRefreshes,
+          }
+        : {
+            label: "Training current",
+            tone: "pill-good",
+            note: "Recent onboarding and rollout signoffs are still current.",
+            needsAttention: false,
+            blocked: false,
+            items: [],
+          },
     status: completedCount === items.length && items.length
       ? "ready"
       : completedCount > 0
@@ -348,12 +505,31 @@ function teamTrainingProfile(member = {}) {
 
 function teamTrainingSummary(member = {}) {
   const profile = teamTrainingProfile(member);
+  if (profile.refreshAttention?.blocked) {
+    return {
+      label: "Training refresh overdue",
+      tone: "pill-bad",
+      note: profile.refreshAttention.note,
+      needsAttention: true,
+      blocked: true,
+    };
+  }
+  if (profile.refreshAttention?.needsAttention && profile.status === "ready") {
+    return {
+      label: "Training refresh due soon",
+      tone: "pill-warn",
+      note: profile.refreshAttention.note,
+      needsAttention: true,
+      blocked: false,
+    };
+  }
   if (profile.status === "ready") {
     return {
       label: "Training ready",
       tone: "pill-good",
       note: profile.completedAt ? `Training checklist finished ${profile.completedAt}.` : "Training checklist is complete for Monday rollout.",
       needsAttention: false,
+      blocked: false,
     };
   }
   if (profile.status === "in_progress") {
@@ -362,6 +538,7 @@ function teamTrainingSummary(member = {}) {
       tone: "pill-warn",
       note: `${profile.completedCount}/${profile.totalCount} onboarding steps are checked off.`,
       needsAttention: true,
+      blocked: false,
     };
   }
   return {
@@ -369,6 +546,7 @@ function teamTrainingSummary(member = {}) {
     tone: "pill-warn",
     note: "Training checklist still needs to be walked through before rollout.",
     needsAttention: true,
+    blocked: false,
   };
 }
 
@@ -497,10 +675,12 @@ function teamMembersNeedingRollout() {
       const rank = (restriction) => {
         const label = String(restriction?.label || "").trim();
         if (label === "Restricted from solo dispatch") return 0;
+        if (label === "Training refresh overdue" || label === "Qualification refresh overdue") return 1;
         if (label === "Labor-only until driver setup clears") return 1;
         if (label === "Supervised mixed-role rollout") return 2;
         if (label === "Ride-along required") return 3;
-        if (label === "Training hold" || label === "Mixed-role training in progress" || label === "Needs supervised field day") return 4;
+        if (label === "Training refresh due soon" || label === "Refresh due soon") return 4;
+        if (label === "Training hold" || label === "Mixed-role training in progress" || label === "Needs supervised field day") return 5;
         return 5;
       };
       const rankDiff = rank(leftRestriction) - rank(rightRestriction);
@@ -593,11 +773,20 @@ function teamMemberRolloutRestriction(member = {}) {
         note: "A supervised field run still needs to be signed off before solo dispatch.",
       };
     }
+    if (training.blocked) {
+      return {
+        label: "Training refresh overdue",
+        tone: "pill-bad",
+        note: training.note,
+      };
+    }
     if (training.needsAttention) {
       return {
-        label: "Training hold",
+        label: training.label === "Training refresh due soon" ? "Training refresh due soon" : "Training hold",
         tone: "pill-warn",
-        note: "Finish the remaining driver rollout steps before solo dispatch.",
+        note: training.label === "Training refresh due soon"
+          ? training.note
+          : "Finish the remaining driver rollout steps before solo dispatch.",
       };
     }
     if (refresh.needsAttention) {
@@ -636,11 +825,20 @@ function teamMemberRolloutRestriction(member = {}) {
         note: "Keep this worker on a supervised route until the ride-along is signed off.",
       };
     }
+    if (training.blocked) {
+      return {
+        label: "Training refresh overdue",
+        tone: "pill-bad",
+        note: training.note,
+      };
+    }
     if (training.needsAttention) {
       return {
-        label: "Mixed-role training in progress",
+        label: training.label === "Training refresh due soon" ? "Training refresh due soon" : "Mixed-role training in progress",
         tone: "pill-warn",
-        note: "The worker can support the crew, but mixed-role rollout still needs follow-through.",
+        note: training.label === "Training refresh due soon"
+          ? training.note
+          : "The worker can support the crew, but mixed-role rollout still needs follow-through.",
       };
     }
     if (refresh.needsAttention) {
@@ -657,11 +855,20 @@ function teamMemberRolloutRestriction(member = {}) {
     };
   }
 
+  if (training.blocked) {
+    return {
+      label: "Training refresh overdue",
+      tone: "pill-bad",
+      note: training.note,
+    };
+  }
   if (training.needsAttention) {
     return {
-      label: "Needs supervised field day",
+      label: training.label === "Training refresh due soon" ? "Training refresh due soon" : "Needs supervised field day",
       tone: "pill-warn",
-      note: "Keep this worker with a lead until the field onboarding steps are fully signed off.",
+      note: training.label === "Training refresh due soon"
+        ? training.note
+        : "Keep this worker with a lead until the field onboarding steps are fully signed off.",
     };
   }
   return {
@@ -734,6 +941,15 @@ function buildTeamMemberTimeline(member = {}, history = null, profile = {}) {
       title: item.label,
       note: item.completionNote || item.completedBy || 'Office signoff recorded.',
     });
+    if (item.refreshDueAt && item.refreshLabel) {
+      timeline.push({
+        sortAt: item.refreshDueAt,
+        tone: item.refreshStatus === 'expired' ? 'pill-bad' : 'pill-warn',
+        label: item.refreshLabel,
+        title: item.label,
+        note: item.refreshNote,
+      });
+    }
   });
 
   entries.slice(0, 8).forEach((entry) => {
@@ -860,6 +1076,8 @@ function renderTrainingChecklistHistory(profile = {}) {
           ${escapeHtml(item.completedAt ? `Completed ${item.completedAt}` : "Completed")}
           ${item.completedBy ? ` | ${escapeHtml(item.completedBy)}` : ""}
         </div>
+        ${item.refreshLabel ? `<div style="margin-top:4px;"><span class="pill ${item.refreshStatus === "expired" ? "pill-bad" : "pill-warn"}" style="font-size:.68rem;">${escapeHtml(item.refreshLabel)}</span></div>` : ""}
+        ${item.refreshNote ? `<div class="muted" style="font-size:.72rem;margin-top:4px;">${escapeHtml(item.refreshNote)}</div>` : ""}
         ${item.completionNote ? `<div class="muted" style="font-size:.72rem;margin-top:4px;">${escapeHtml(item.completionNote)}</div>` : ""}
       </div>
     </div>
@@ -959,6 +1177,8 @@ function renderTrainingEvidenceSnapshot(profile = {}, history = null, member = {
           ${escapeHtml(item.completedAt ? `Signed off ${item.completedAt}` : "Signed off")}
           ${item.completedBy ? ` | ${escapeHtml(item.completedBy)}` : ""}
         </div>
+        ${item.refreshLabel ? `<div style="margin-top:4px;"><span class="pill ${item.refreshStatus === "expired" ? "pill-bad" : "pill-warn"}" style="font-size:.68rem;">${escapeHtml(item.refreshLabel)}</span></div>` : ""}
+        ${item.refreshNote ? `<div class="muted" style="font-size:.72rem;margin-top:4px;">${escapeHtml(item.refreshNote)}</div>` : ""}
         ${item.completionNote ? `<div class="muted" style="font-size:.72rem;margin-top:4px;">${escapeHtml(item.completionNote)}</div>` : ""}
         ${renderTrainingEvidenceList(item, history, member)}
       </div>
@@ -1114,6 +1334,13 @@ function teamMemberNextAction(member = {}) {
   if (training.label === "Training in progress") {
     return {
       label: "Finish remaining checklist steps",
+      note: training.note,
+      action: "training",
+    };
+  }
+  if (training.label === "Training refresh overdue" || training.label === "Training refresh due soon") {
+    return {
+      label: training.label === "Training refresh overdue" ? "Refresh stale training steps" : "Schedule the training refresh",
       note: training.note,
       action: "training",
     };
@@ -1362,11 +1589,11 @@ function renderTeamRolloutBoard() {
   }
   const blockedCount = members.filter((member) => {
     const label = teamMemberRolloutRestriction(member).label;
-    return ["Restricted from solo dispatch", "Labor-only until driver setup clears", "Qualification refresh overdue"].includes(label);
+    return ["Restricted from solo dispatch", "Labor-only until driver setup clears", "Qualification refresh overdue", "Training refresh overdue"].includes(label);
   }).length;
   const supervisedCount = members.filter((member) => {
     const label = teamMemberRolloutRestriction(member).label;
-    return ["Ride-along required", "Supervised mixed-role rollout", "Needs supervised field day", "Refresh due soon"].includes(label);
+    return ["Ride-along required", "Supervised mixed-role rollout", "Needs supervised field day", "Refresh due soon", "Training refresh due soon"].includes(label);
   }).length;
   const followThroughCount = Math.max(0, members.length - blockedCount - supervisedCount);
   return `

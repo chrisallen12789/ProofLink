@@ -512,4 +512,111 @@ describe("operator team workspace", () => {
     expect(overdue.label).toBe("Qualification refresh overdue");
     expect(overdue.note).toContain("CDL");
   });
+
+  test("training summary flags due-soon and overdue refresh for completed rollout steps", () => {
+    const { context } = loadTeamWorkspace({
+      SETUP_STATE: {
+        config: {
+          team_training_profiles: {
+            member_due: {
+              items: {
+                crew_app: true,
+                yard_route: true,
+                ppe: true,
+                worksite: true,
+                handoff: true,
+                ride_along: true,
+              },
+              item_meta: {
+                ppe: { completed_at: "2026-01-20T12:00:00.000Z", completed_by: "Office" },
+                ride_along: { completed_at: "2026-03-15T12:00:00.000Z", completed_by: "Office" },
+              },
+            },
+            member_overdue: {
+              items: {
+                crew_app: true,
+                yard_route: true,
+                ppe: true,
+                worksite: true,
+                handoff: true,
+                ride_along: true,
+              },
+              item_meta: {
+                ride_along: { completed_at: "2026-02-01T12:00:00.000Z", completed_by: "Office" },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const dueSoon = context.teamTrainingSummary({ id: "member_due", worker_label: "Labor" });
+    const overdue = context.teamTrainingSummary({ id: "member_overdue", worker_label: "Labor" });
+
+    expect(dueSoon.label).toBe("Training refresh due soon");
+    expect(dueSoon.note).toContain("PPE and site safety");
+    expect(overdue.label).toBe("Training refresh overdue");
+    expect(overdue.note).toContain("Ride-along signoff");
+  });
+
+  test("rollout restriction reflects stale training refresh pressure", () => {
+    const { context } = loadTeamWorkspace({
+      HYDROVAC_DRIVER_COMPLIANCE_CACHE: [
+        { member_id: "driver_ready", warnings: [], cdl_class: "Class A" },
+      ],
+      SETUP_STATE: {
+        config: {
+          team_training_profiles: {
+            driver_ready: {
+              items: {
+                crew_app: true,
+                yard_route: true,
+                driving: true,
+                worksite: true,
+                vactor: true,
+                ride_along: true,
+              },
+              item_meta: {
+                ride_along: { completed_at: "2026-02-01T12:00:00.000Z", completed_by: "Office" },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const restriction = context.teamMemberRolloutRestriction({ id: "driver_ready", driver_label: "Vactor operator" });
+    const nextAction = context.teamMemberNextAction({ id: "driver_ready", driver_label: "Vactor operator" });
+
+    expect(restriction.label).toBe("Training refresh overdue");
+    expect(restriction.note).toContain("Ride-along signoff");
+    expect(nextAction.label).toBe("Refresh stale training steps");
+  });
+
+  test("team timeline surfaces training refresh events", () => {
+    const { context } = loadTeamWorkspace();
+
+    const member = { id: "member_1", worker_label: "Labor" };
+    const profile = {
+      items: [
+        {
+          key: "ride_along",
+          label: "Ride-along signoff",
+          complete: true,
+          completedAt: "2026-03-15T12:00:00.000Z",
+          completedBy: "Office",
+          refreshDueAt: "2026-04-14T12:00:00.000Z",
+          refreshLabel: "Refresh due soon",
+          refreshStatus: "soon",
+          refreshNote: "Ride-along signoff should be refreshed by 4/14/2026.",
+        },
+      ],
+    };
+
+    const html = context.renderTeamTimeline(member, { entries: [], jobs: [] }, profile);
+
+    expect(html).toContain("Refresh due soon");
+    expect(html).toContain("Ride-along signoff");
+    expect(html).toContain("should be refreshed");
+  });
 });
