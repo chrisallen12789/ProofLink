@@ -646,6 +646,17 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 16px;
+}
+.modal-box {
+  background: #1e2029;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5);
+  padding: 24px 28px;
+  width: min(92vw, 760px);
+  max-height: min(88vh, 860px);
+  overflow-y: auto;
 }
 .modal-card {
   background: #1e2029;
