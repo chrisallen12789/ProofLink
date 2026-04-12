@@ -3855,14 +3855,20 @@ async function switchTab(tab, opts = {}) {
   if (nextTab === "guidance") renderGuidance();
   if (nextTab === "bookings") {
     renderBookings().catch(console.error);
+    fetchJobs?.()
+      .then(() => {
+        renderBookings().catch(console.error);
+        window.renderDispatchWorkspace?.();
+      })
+      .catch(console.warn);
     if (isHydrovacWorkspace()) {
       await Promise.allSettled([
         ensureOperatorWorkspaceScript?.("facilities"),
         ensureOperatorWorkspaceScript?.("bookings"),
       ]);
-      fetchEquipment().catch(console.warn);
-      fetchHydrovacLocateTickets().catch(console.warn);
-      fetchHydrovacComplianceData().catch(console.warn);
+      window.PROOFLINK_OPERATOR_EQUIPMENT_WORKSPACE?.fetchEquipment?.().catch(console.warn);
+      window.PROOFLINK_OPERATOR_HYDROVAC_OPS_WORKSPACE?.fetchHydrovacLocateTickets?.().catch(console.warn);
+      window.PROOFLINK_OPERATOR_HYDROVAC_OPS_WORKSPACE?.fetchHydrovacComplianceData?.().catch(console.warn);
     }
   }
     if (nextTab === "quotes" && !TABS_LOADED.has("quotes")) {

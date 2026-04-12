@@ -43,12 +43,31 @@ exports.handler = async (event) => {
     if (clean(params.action) === 'compliance_summary') {
       const { data, error } = await adminSb
         .from('driver_qualifications')
-        .select('*, operator_members!member_id(id, display_name, role_title)')
+        .select('*')
         .eq('tenant_id', tenantId)
         .order('created_at', { ascending: false });
 
       if (error) return respond(500, { error: error.message });
-      const rows = (data || []).map((row) => ({ ...row, warnings: buildWarnings(row) }));
+      const memberIds = [...new Set((data || []).map((row) => clean(row?.member_id)).filter(Boolean))];
+      let memberLookup = new Map();
+      if (memberIds.length) {
+        const { data: members, error: memberError } = await adminSb
+          .from('operators')
+          .select('id, name, role')
+          .eq('tenant_id', tenantId)
+          .in('id', memberIds);
+        if (memberError) return respond(500, { error: memberError.message });
+        memberLookup = new Map((members || []).map((member) => [clean(member?.id), {
+          ...member,
+          display_name: clean(member?.name) || null,
+          role_title: clean(member?.role) || null,
+        }]));
+      }
+      const rows = (data || []).map((row) => ({
+        ...row,
+        operator_members: memberLookup.get(clean(row?.member_id)) || null,
+        warnings: buildWarnings(row),
+      }));
       return respond(200, { drivers: rows });
     }
 
