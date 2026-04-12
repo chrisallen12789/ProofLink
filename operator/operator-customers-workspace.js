@@ -1,9 +1,15 @@
 // Customer workspace extracted from operator.js so CRM list state, customer
 // saves, and interaction logging live with the customer detail workspace.
 async function fetchCustomers() {
-  if (FETCHING.has("customers")) return;
+  const options = arguments[0] || {};
+  const refresh = options && options.refresh === true;
+  if (FETCHING.has("customers")) {
+    const inFlight = FETCH_PROMISES.get("customers");
+    if (!refresh) return inFlight;
+    await inFlight?.catch(() => null);
+  }
   FETCHING.add("customers");
-  try {
+  const run = (async () => {
     const { count, error: countError } = await scopeQuery(sb
       .from("customers")
       .select("*", { count: "exact", head: true }))
@@ -36,8 +42,13 @@ async function fetchCustomers() {
     }
     TABS_LOADED.delete("customers");
     return CUSTOMERS_CACHE;
+  })();
+  FETCH_PROMISES.set("customers", run);
+  try {
+    return await run;
   } finally {
     FETCHING.delete("customers");
+    if (FETCH_PROMISES.get("customers") === run) FETCH_PROMISES.delete("customers");
   }
 }
 

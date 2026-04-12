@@ -106,6 +106,18 @@ function loadPaymentsWorkspace(overrides = {}) {
 }
 
 describe("operator payments workspace", () => {
+  test("payment save requests refresh-aware cache reloads for orders, payments, customers, and jobs", () => {
+    const paymentsSource = fs.readFileSync(
+      path.resolve(process.cwd(), "operator/operator-payments-workspace.js"),
+      "utf8"
+    );
+
+    expect(paymentsSource).toContain("fetchPayments({ refresh: true })");
+    expect(paymentsSource).toContain("fetchCustomers({ refresh: true })");
+    expect(paymentsSource).toContain("fetchCrmOrders({ refresh: true })");
+    expect(paymentsSource).toContain("fetchJobs({ refresh: true })");
+  });
+
   test("buildPaymentContextMessage reuses trade memory for the selected customer", () => {
     const context = loadPaymentsWorkspace({
       CUSTOMERS_CACHE: [{ id: "customer_1", name: "Logan's Lawn Care" }],

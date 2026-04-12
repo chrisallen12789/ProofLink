@@ -71,6 +71,7 @@ let CURRENT_OPERATOR = null;
 let BOOTING = false;
 const TABS_LOADED = new Set();
 const FETCHING = new Set();
+const FETCH_PROMISES = new Map();
 let _tabAbortController = null;
 let BOOKING_PAGE_ENABLED = true;
 window.PROOFLINK_BOOT_READY = false;
@@ -5704,9 +5705,15 @@ $("btnSaveBooking")?.addEventListener("click", async () => {
 // ── End Bookings ─────────────────────────────────────────────────────────────
 
 async function fetchCrmOrders() {
-  if (FETCHING.has('orders')) return;
+  const options = arguments[0] || {};
+  const refresh = options && options.refresh === true;
+  if (FETCHING.has('orders')) {
+    const inFlight = FETCH_PROMISES.get('orders');
+    if (!refresh) return inFlight;
+    await inFlight?.catch(() => null);
+  }
   FETCHING.add('orders');
-  try {
+  const run = (async () => {
     const { count, error: countError } = await scopeQuery(sb
       .from("orders")
       .select('*', { count: 'exact', head: true }))
@@ -5738,8 +5745,13 @@ async function fetchCrmOrders() {
     }
     TABS_LOADED.delete('orders');
     return CRM_ORDERS_CACHE;
+  })();
+  FETCH_PROMISES.set('orders', run);
+  try {
+    return await run;
   } finally {
     FETCHING.delete('orders');
+    if (FETCH_PROMISES.get('orders') === run) FETCH_PROMISES.delete('orders');
   }
 }
 async function fetchPersistedBids() {
@@ -5765,9 +5777,15 @@ async function fetchPersistedBids() {
   }
 }
 async function fetchPayments() {
-  if (FETCHING.has('payments')) return;
+  const options = arguments[0] || {};
+  const refresh = options && options.refresh === true;
+  if (FETCHING.has('payments')) {
+    const inFlight = FETCH_PROMISES.get('payments');
+    if (!refresh) return inFlight;
+    await inFlight?.catch(() => null);
+  }
   FETCHING.add('payments');
-  try {
+  const run = (async () => {
     const { data, error } = await scopeQuery(sb
       .from("payments")
       .select("*"))
@@ -5782,14 +5800,25 @@ async function fetchPayments() {
     }
     PAYMENTS_CACHE = data || [];
     return PAYMENTS_CACHE;
+  })();
+  FETCH_PROMISES.set('payments', run);
+  try {
+    return await run;
   } finally {
     FETCHING.delete('payments');
+    if (FETCH_PROMISES.get('payments') === run) FETCH_PROMISES.delete('payments');
   }
 }
 async function fetchJobs() {
-  if (FETCHING.has('jobs')) return;
+  const options = arguments[0] || {};
+  const refresh = options && options.refresh === true;
+  if (FETCHING.has('jobs')) {
+    const inFlight = FETCH_PROMISES.get('jobs');
+    if (!refresh) return inFlight;
+    await inFlight?.catch(() => null);
+  }
   FETCHING.add('jobs');
-  try {
+  const run = (async () => {
     const { data, error } = await scopeQuery(sb
       .from("jobs")
       .select("*"))
@@ -5810,8 +5839,13 @@ async function fetchJobs() {
     JOBS_CACHE = data || [];
     TABS_LOADED.delete('jobs');
     return JOBS_CACHE;
+  })();
+  FETCH_PROMISES.set('jobs', run);
+  try {
+    return await run;
   } finally {
     FETCHING.delete('jobs');
+    if (FETCH_PROMISES.get('jobs') === run) FETCH_PROMISES.delete('jobs');
   }
 }
 window.PROOFLINK_OPERATOR_CUSTOMERS_WORKSPACE?.initCustomersWorkspaceBindings?.();

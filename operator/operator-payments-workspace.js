@@ -686,7 +686,12 @@
       if (error) throw error;
 
       ACTIVE_PAYMENT_ID = data.id;
-      await Promise.all([fetchPayments(), fetchCustomers(), fetchCrmOrders(), fetchJobs()]);
+      await Promise.all([
+        fetchPayments({ refresh: true }),
+        fetchCustomers({ refresh: true }),
+        fetchCrmOrders({ refresh: true }),
+        fetchJobs({ refresh: true }),
+      ]);
       const fresh = PAYMENTS_CACHE.find((row) => row.id === data.id) || data;
       loadPaymentIntoForm(fresh);
 
@@ -754,7 +759,10 @@
                   .eq("order_id", syncOrderId)
                   .eq(TENANT_COLUMN, TENANT_ID),
               ]);
-              await Promise.all([fetchCrmOrders(), fetchJobs()]);
+              await Promise.all([
+                fetchCrmOrders({ refresh: true }),
+                fetchJobs({ refresh: true }),
+              ]);
             }
           } catch (e) {
             console.warn("[payments] order payment sync failed:", e.message);
